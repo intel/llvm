@@ -1981,7 +1981,7 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::string &KernelName,
+    KernelNameStrRefT KernelName,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
@@ -2391,7 +2391,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    const std::string &KernelName) {
+    KernelNameStrRefT KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2660,7 +2660,7 @@ void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, std::vector<ur_event_handle_t> &RawEvents,
+    KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
@@ -3059,14 +3059,15 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
           "Can't get memory object due to no allocation available " +
               codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
     };
-    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+    std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
+                  std::move(ReqToMemConv));
 
     ur_exp_command_buffer_handle_t InteropCommandBuffer =
         ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer;
-    interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl,
+    interop_handle IH{std::move(ReqToMem), MQueue, DeviceImpl, ContextImpl,
                       InteropCommandBuffer};
     CommandBufferNativeCommandData CustomOpData{
-        IH, HostTask->MHostTask->MInteropTask};
+        std::move(IH), HostTask->MHostTask->MInteropTask};
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // CMPLRLLVM-66082
@@ -3238,7 +3239,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
-    const std::string &KernelName = ExecKernel->MKernelName;
+    KernelNameStrRefT KernelName = ExecKernel->MKernelName;
 
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
@@ -3253,7 +3254,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       std::tie(BinImage, std::ignore) =
-          retrieveKernelBinary(MQueue, KernelName.c_str());
+          retrieveKernelBinary(MQueue, KernelName.data());
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
@@ -3397,7 +3398,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             "Can't get memory object due to no allocation available " +
                 codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
-      std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+      std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
+                    std::move(ReqToMemConv));
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
 
@@ -3462,12 +3464,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             "Can't get memory object due to no allocation available " +
                 codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
-      std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+      std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
+                    std::move(ReqToMemConv));
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
 
     EnqueueNativeCommandData CustomOpData{
-        interop_handle{ReqToMem, HostTask->MQueue,
+        interop_handle{std::move(ReqToMem), HostTask->MQueue,
                        HostTask->MQueue->getDeviceImplPtr(),
                        HostTask->MQueue->getContextImplPtr()},
         HostTask->MHostTask->MInteropTask};
