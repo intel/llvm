@@ -9,6 +9,7 @@ int main() {
   (void)atomic_64;
 
   // expected-warning@+1{{'discard_events' is deprecated: use sycl_ext_oneapi_enqueue_functions instead}}
-  sycl::property_list props{sycl::ext::oneapi::property::queue::discard_events{}};
+  sycl::property_list props{
+      sycl::ext::oneapi::property::queue::discard_events{}};
   return 0;
 }
