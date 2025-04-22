@@ -40,11 +40,11 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
       UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
       DI->Type = GetDeviceType(Context, hDevice);
       if (DI->Type == DeviceType::UNKNOWN) {
-        UR_LOG_L(getContext()->logger, ERROR, "Unsupport device");
+        UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
         return UR_RESULT_ERROR_INVALID_DEVICE;
       }
       if (DI->Type != DeviceType) {
-        UR_LOG_L(getContext()->logger, ERROR,
+        UR_LOG_L(getContext()->logger, ERR,
                  "Different device type in the same context");
         return UR_RESULT_ERROR_INVALID_DEVICE;
       }
@@ -1960,7 +1960,7 @@ template <class A, class B> struct NotSupportedApi;
 template <class MsgType, class R, class... A>
 struct NotSupportedApi<MsgType, R (*)(A...)> {
   R static ReportError(A...) {
-    UR_LOG_L(getContext()->logger, ERROR, MsgType::value);
+    UR_LOG_L(getContext()->logger, ERR, MsgType::value);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 };
@@ -2151,8 +2151,8 @@ ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR,
-             "Initialize ASAN DDI table failed: {}", result);
+    UR_LOG_L(getContext()->logger, ERR, "Initialize ASAN DDI table failed: {}",
+             result);
   }
 
   return result;

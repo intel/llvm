@@ -35,7 +35,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
     ZeImageFormatTypeSize = 32;
     break;
   default:
-    UR_LOG(ERROR,
+    UR_LOG(ERR,
            "ze2urImageFormat: unsupported image format layout: layout = {}",
            ZeImageFormat.layout);
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -54,8 +54,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_A;
       break;
     default:
-      UR_LOG(ERROR,
-             "ze2urImageFormat: unexpected image format channel x: x = {}",
+      UR_LOG(ERR, "ze2urImageFormat: unexpected image format channel x: x = {}",
              ZeImageFormat.x);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -64,8 +63,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
   case ZE_IMAGE_FORMAT_LAYOUT_16_16:
   case ZE_IMAGE_FORMAT_LAYOUT_32_32:
     if (ZeImageFormat.x != ZE_IMAGE_FORMAT_SWIZZLE_R) {
-      UR_LOG(ERROR,
-             "ze2urImageFormat: unexpected image format channel x: x = {}",
+      UR_LOG(ERR, "ze2urImageFormat: unexpected image format channel x: x = {}",
              ZeImageFormat.x);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -80,7 +78,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RX;
       break;
     default:
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "ze2urImageFormat: unexpected image format channel y: y = {}\n",
              ZeImageFormat.y);
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -99,13 +97,13 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
         ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGX;
         break;
       default:
-        UR_LOG(ERROR,
+        UR_LOG(ERR,
                "ze2urImageFormat: unexpected image format channel z: z = {}\n",
                ZeImageFormat.z);
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else {
-      UR_LOG(ERROR, "ze2urImageFormat: unexpected image format channel");
+      UR_LOG(ERR, "ze2urImageFormat: unexpected image format channel");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -123,7 +121,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
         ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
         break;
       default:
-        UR_LOG(ERROR,
+        UR_LOG(ERR,
                "ze2urImageFormat: unexpected image format channel w: w = {}",
                ZeImageFormat.w);
         return UR_RESULT_ERROR_INVALID_VALUE;
@@ -139,12 +137,12 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
                ZeImageFormat.w == ZE_IMAGE_FORMAT_SWIZZLE_A) {
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_BGRA;
     } else {
-      UR_LOG(ERROR, "ze2urImageFormat: unexpected image format channel");
+      UR_LOG(ERR, "ze2urImageFormat: unexpected image format channel");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   default:
-    UR_LOG(ERROR,
+    UR_LOG(ERR,
            "ze2urImageFormat: unsupported image format layout: layout = {}",
            ZeImageFormat.layout);
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -164,7 +162,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
       break;
     default:
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "ze2urImageFormat: unexpected image format type size: size = {}",
              ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -182,7 +180,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
       break;
     default:
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "ze2urImageFormat: unexpected image format type size: size = {}",
              ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -197,7 +195,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;
       break;
     default:
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "ze2urImageFormat: unexpected image format type size: size = {}",
              ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -212,7 +210,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SNORM_INT16;
       break;
     default:
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "ze2urImageFormat: unexpected image format type size: size = {}",
              ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -227,14 +225,14 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_FLOAT;
       break;
     default:
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "ze2urImageFormat: unexpected image format type size: size = {}",
              ZeImageFormatTypeSize);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   default:
-    UR_LOG(ERROR, "ze2urImageFormat: unsupported image format type: type = {}",
+    UR_LOG(ERR, "ze2urImageFormat: unsupported image format type: type = {}",
            ZeImageFormat.type);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -281,13 +279,13 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
       break;
     default:
-      UR_LOG(ERROR, "ur2zeImageDesc: unexpected data type Size\n");
+      UR_LOG(ERR, "ur2zeImageDesc: unexpected data type Size\n");
       return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
     break;
   }
   default:
-    UR_LOG(ERROR, "format layout = {}", ImageFormat->channelOrder);
+    UR_LOG(ERR, "format layout = {}", ImageFormat->channelOrder);
     return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     break;
   }
@@ -316,7 +314,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
     break;
   default:
-    UR_LOG(ERROR, "ur2zeImageDesc: unsupported image type");
+    UR_LOG(ERR, "ur2zeImageDesc: unsupported image type");
     return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
   }
 
@@ -513,7 +511,7 @@ getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
     break;
   }
   default:
-    UR_LOG(ERROR, "ur2zeImageDesc: unsupported image data type: data type = {}",
+    UR_LOG(ERR, "ur2zeImageDesc: unsupported image data type: data type = {}",
            ImageFormat->channelType);
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FORCE_UINT32;
     ZeImageFormatTypeSize = 0;

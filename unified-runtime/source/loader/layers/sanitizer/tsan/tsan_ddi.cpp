@@ -31,7 +31,7 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
     DI->Type = GetDeviceType(Context, DI->Handle);
     if (DI->Type == DeviceType::UNKNOWN) {
-      UR_LOG_L(getContext()->logger, ERROR, "Unsupport device");
+      UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
     if (!DI->Shadow)
@@ -100,7 +100,7 @@ ur_result_t urContextRetain(
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    UR_LOG_L(getContext()->logger, ERROR, "Invalid context");
+    UR_LOG_L(getContext()->logger, ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
   ContextInfo->RefCount++;
@@ -119,7 +119,7 @@ ur_result_t urContextRelease(
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    UR_LOG_L(getContext()->logger, ERROR, "Invalid context");
+    UR_LOG_L(getContext()->logger, ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
@@ -1454,8 +1454,8 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR,
-             "Initialize TSAN DDI table failed: {}", result);
+    UR_LOG_L(getContext()->logger, ERR, "Initialize TSAN DDI table failed: {}",
+             result);
   }
 
   return result;

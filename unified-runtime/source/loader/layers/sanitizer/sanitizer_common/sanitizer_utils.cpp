@@ -31,7 +31,7 @@ ManagedQueue::~ManagedQueue() {
   [[maybe_unused]] ur_result_t Result;
   Result = getContext()->urDdiTable.Queue.pfnFinish(Handle);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR, "Failed to finish ManagedQueue: {}",
+    UR_LOG_L(getContext()->logger, ERR, "Failed to finish ManagedQueue: {}",
              Result);
   }
   assert(Result == UR_RESULT_SUCCESS && "Failed to finish ManagedQueue");
@@ -259,7 +259,7 @@ ur_result_t EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr,
 
 void PrintUrBuildLog(ur_program_handle_t hProgram,
                      ur_device_handle_t *phDevices, size_t numDevices) {
-  UR_LOG_L(getContext()->logger, ERROR, "Printing build log for program {}",
+  UR_LOG_L(getContext()->logger, ERR, "Printing build log for program {}",
            (void *)hProgram);
   for (size_t i = 0; i < numDevices; i++) {
     std::vector<char> LogBuf;
@@ -269,7 +269,7 @@ void PrintUrBuildLog(ur_program_handle_t hProgram,
     auto UrRes = getContext()->urDdiTable.Program.pfnGetBuildInfo(
         hProgram, hDevice, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr, &LogSize);
     if (UrRes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERROR,
+      UR_LOG_L(getContext()->logger, ERR,
                "For device {}: failed to get build log size.", (void *)hDevice);
       continue;
     }
@@ -279,12 +279,12 @@ void PrintUrBuildLog(ur_program_handle_t hProgram,
         hProgram, hDevice, UR_PROGRAM_BUILD_INFO_LOG, LogSize, LogBuf.data(),
         nullptr);
     if (UrRes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERROR,
+      UR_LOG_L(getContext()->logger, ERR,
                "For device {}: failed to get build log.", (void *)hDevice);
       continue;
     }
 
-    UR_LOG_L(getContext()->logger, ERROR, "For device {}:\n{}", (void *)hDevice,
+    UR_LOG_L(getContext()->logger, ERR, "For device {}:\n{}", (void *)hDevice,
              LogBuf.data());
   }
 }

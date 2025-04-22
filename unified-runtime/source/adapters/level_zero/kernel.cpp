@@ -316,7 +316,7 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
         }
 
         if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-          UR_LOG(ERROR,
+          UR_LOG(ERR,
                  "urEnqueueCooperativeKernelLaunchExp: can't find a WG size "
                  "suitable for global work size > UINT32_MAX");
           return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
@@ -355,21 +355,21 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
     break;
 
   default:
-    UR_LOG(ERROR, "urEnqueueCooperativeKernelLaunchExp: unsupported work_dim");
+    UR_LOG(ERR, "urEnqueueCooperativeKernelLaunchExp: unsupported work_dim");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Error handling for non-uniform group size case
   if (GlobalWorkSize3D[0] !=
       size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    UR_LOG(ERROR,
+    UR_LOG(ERR,
            "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
            "range is not a multiple of the group size in the 1st dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[1] !=
       size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    UR_LOG(ERROR,
+    UR_LOG(ERR,
            "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
            "range is not a multiple of the group size in the 2nd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
@@ -788,8 +788,7 @@ ur_result_t urKernelGetInfo(
       return UR_RESULT_ERROR_UNKNOWN;
     }
   default:
-    UR_LOG(ERROR,
-           "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
+    UR_LOG(ERR, "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
            ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -877,8 +876,7 @@ ur_result_t urKernelGetGroupInfo(
     // No corresponding enumeration in Level Zero
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default: {
-    UR_LOG(ERROR,
-           "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
+    UR_LOG(ERR, "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
            ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -1019,7 +1017,7 @@ ur_result_t urKernelSetExecInfo(
         return UR_RESULT_ERROR_INVALID_VALUE;
       ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig););
     } else {
-      UR_LOG(ERROR, "urKernelSetExecInfo: unsupported ParamName");
+      UR_LOG(ERR, "urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -1166,7 +1164,7 @@ ur_result_t urKernelSetSpecializationConstants(
     const ur_specialization_constant_info_t
         /// [in] array of specialization constant value descriptions
         * /*SpecConstants*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

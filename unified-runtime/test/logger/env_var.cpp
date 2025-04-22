@@ -20,5 +20,5 @@ TEST_F(LoggerFromEnvVar, WarningMessage) {
 }
 
 TEST_F(LoggerFromEnvVar, ErrorMessage) {
-  UR_LOG(ERROR, "Test message: {}", "success");
+  UR_LOG(ERR, "Test message: {}", "success");
 }

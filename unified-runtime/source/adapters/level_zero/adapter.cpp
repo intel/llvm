@@ -163,7 +163,7 @@ ur_result_t initPlatforms(PlatformVec &platforms,
     ZE2UR_CALL(zeDriverGet, (&ZeDriverGetCount, ZeDriverGetHandles.data()));
   }
   if (ZeDriverGetCount == 0 && GlobalAdapter->ZeInitDriversCount == 0) {
-    UR_LOG(ERROR, "\nNo Valid L0 Drivers found.\n");
+    UR_LOG(ERR, "\nNo Valid L0 Drivers found.\n");
     return UR_RESULT_SUCCESS;
   }
 
@@ -389,7 +389,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       if (GlobalAdapter->ZeInitResult != ZE_RESULT_SUCCESS) {
         const char *ErrorString = "Unknown";
         zeParseError(GlobalAdapter->ZeInitResult, ErrorString);
-        UR_LOG(ERROR, "\nzeInit failed with {}\n", ErrorString);
+        UR_LOG(ERR, "\nzeInit failed with {}\n", ErrorString);
       }
 
       bool useInitDrivers = false;
@@ -441,7 +441,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
           } else {
             const char *ErrorString = "Unknown";
             zeParseError(GlobalAdapter->ZeInitDriversResult, ErrorString);
-            UR_LOG(ERROR, "\nzeInitDrivers failed with {}\n", ErrorString);
+            UR_LOG(ERR, "\nzeInitDrivers failed with {}\n", ErrorString);
           }
         }
       }
@@ -459,12 +459,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
     // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
     if (*GlobalAdapter->ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-      UR_LOG(ERROR, "Level Zero Uninitialized\n");
+      UR_LOG(ERR, "Level Zero Uninitialized\n");
       result = std::move(platforms);
       return;
     }
     if (*GlobalAdapter->ZeResult != ZE_RESULT_SUCCESS) {
-      UR_LOG(ERROR, "Level Zero initialization failure\n");
+      UR_LOG(ERR, "Level Zero initialization failure\n");
       result = ze2urResult(*GlobalAdapter->ZeResult);
 
       return;

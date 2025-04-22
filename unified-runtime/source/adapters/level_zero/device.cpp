@@ -52,8 +52,8 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    UR_LOG(ERROR, "UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
-                  "default set.");
+    UR_LOG(ERR, "UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+                "default set.");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
   }
@@ -194,8 +194,8 @@ static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
 getZesDeviceData(ur_device_handle_t Device) {
   bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
   if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
-    UR_LOG(ERROR, "SysMan support is unavailable on this system. Please "
-                  "check your level zero driver installation.");
+    UR_LOG(ERR, "SysMan support is unavailable on this system. Please "
+                "check your level zero driver installation.");
     return {nullptr, {}, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION};
   }
 
@@ -250,7 +250,7 @@ ur_result_t urDeviceGetInfo(
     case ZE_DEVICE_TYPE_FPGA:
       return ReturnValue(UR_DEVICE_TYPE_FPGA);
     default:
-      UR_LOG(ERROR, "This device type is not supported");
+      UR_LOG(ERR, "This device type is not supported");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -1107,8 +1107,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
-    UR_LOG(ERROR, "Unsupported ParamName in urGetDeviceInfo");
-    UR_LOG(ERROR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // L0 does not support mipmaps.
@@ -1119,8 +1119,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP:
-    UR_LOG(ERROR, "Unsupported ParamName in urGetDeviceInfo");
-    UR_LOG(ERROR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
     // L0 does not support creation of images from individual mipmap levels.
@@ -1338,8 +1338,8 @@ ur_result_t urDeviceGetInfo(
     }
   }
   default:
-    UR_LOG(ERROR, "Unsupported ParamName in urGetDeviceInfo");
-    UR_LOG(ERROR, "ParamNameParamName={}(0x{})", ParamName,
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
            logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }

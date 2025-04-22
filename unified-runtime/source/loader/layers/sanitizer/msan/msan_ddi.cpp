@@ -33,7 +33,7 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     UR_CALL(getMsanInterceptor()->insertDevice(hDevice, DI));
     DI->Type = GetDeviceType(Context, hDevice);
     if (DI->Type == DeviceType::UNKNOWN) {
-      UR_LOG_L(getContext()->logger, ERROR, "Unsupport device");
+      UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
     UR_LOG_L(getContext()->logger, INFO,
@@ -1948,8 +1948,8 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR,
-             "Initialize MSAN DDI table failed: {}", result);
+    UR_LOG_L(getContext()->logger, ERR, "Initialize MSAN DDI table failed: {}",
+             result);
   }
 
   return result;

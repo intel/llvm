@@ -167,7 +167,7 @@ ur_result_t urContextSetExtendedDeleter(
     ur_context_extended_deleter_t /*Deleter*/,
     /// [in][out][optional] pointer to data to be passed to callback.
     void * /*UserData*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

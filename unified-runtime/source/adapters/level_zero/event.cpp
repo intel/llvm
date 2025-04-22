@@ -510,7 +510,7 @@ ur_result_t urEventGetInfo(
     return ReturnValue(Event->RefCount.load());
   }
   default:
-    UR_LOG(ERROR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
+    UR_LOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
            PropName, logger::toHex(PropName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -596,11 +596,11 @@ ur_result_t urEventGetProfilingInfo(
       return ReturnValue(ContextEndTime);
     }
     case UR_PROFILING_INFO_COMMAND_COMPLETE:
-      UR_LOG(ERROR, "urEventGetProfilingInfo: "
-                    "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
+      UR_LOG(ERR, "urEventGetProfilingInfo: "
+                  "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
-      UR_LOG(ERROR, "urEventGetProfilingInfo: not supported ParamName");
+      UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -663,11 +663,11 @@ ur_result_t urEventGetProfilingInfo(
         return ReturnValue(ContextEndTime);
       }
       case UR_PROFILING_INFO_COMMAND_COMPLETE:
-        UR_LOG(ERROR, "urEventGetProfilingInfo: "
-                      "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
+        UR_LOG(ERR, "urEventGetProfilingInfo: "
+                    "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
         return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       default:
-        UR_LOG(ERROR, "urEventGetProfilingInfo: not supported ParamName");
+        UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else {
@@ -710,11 +710,11 @@ ur_result_t urEventGetProfilingInfo(
     //
     return ReturnValue(uint64_t{0});
   case UR_PROFILING_INFO_COMMAND_COMPLETE:
-    UR_LOG(ERROR, "urEventGetProfilingInfo: UR_PROFILING_INFO_COMMAND_COMPLETE "
-                  "not supported");
+    UR_LOG(ERR, "urEventGetProfilingInfo: UR_PROFILING_INFO_COMMAND_COMPLETE "
+                "not supported");
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
-    UR_LOG(ERROR, "urEventGetProfilingInfo: not supported ParamName");
+    UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -1009,7 +1009,7 @@ ur_result_t urEventSetCallback(
     ur_event_callback_t /*Notify*/,
     /// [in][out][optional] pointer to data to be passed to callback.
     void * /*UserData*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

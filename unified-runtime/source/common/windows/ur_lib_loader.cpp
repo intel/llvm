@@ -17,7 +17,7 @@ void LibLoader::freeAdapterLibrary(HMODULE handle) {
   if (handle) {
     BOOL res = FreeLibrary(handle);
     if (!res) {
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "Failed to unload the library with the handle at address 0x{}",
              handle);
     } else {
