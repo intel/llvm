@@ -58,7 +58,6 @@ int test_persistent_cache() {
   sycl::context ctx{d};
   sycl::queue q{ctx, d};
 
-
   bool ok =
       q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
