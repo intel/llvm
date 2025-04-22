@@ -5685,10 +5685,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-is-device");
       CmdArgs.push_back("-fdeclare-spirv-builtins");
 
-      // Disable this option for SYCL by default.
-      // TODO:  This needs to be re-enabled once we have a real fix.
-      CmdArgs.push_back("-fno-offload-use-alloca-addrspace-for-srets");
-
       // Set O2 optimization level by default
       if (!Args.getLastArg(options::OPT_O_Group))
         CmdArgs.push_back("-O2");
@@ -6056,10 +6052,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // are provided.
   TC.addClangWarningOptions(CmdArgs);
 
-  // FIXME: Subclass ToolChain for SPIR/SPIR-V and move this to
-  // addClangWarningOptions.
-  if (Triple.isSPIROrSPIRV())
+  if (Triple.isSPIROrSPIRV()) {
+    // FIXME: Subclass ToolChain for SPIR/SPIR-V and move this to
+    // addClangWarningOptions.
     CmdArgs.push_back("-Wspir-compat");
+    // Disable this option for SPIR targets.
+    // TODO:  This needs to be re-enabled once we have a real fix.
+    CmdArgs.push_back("-fno-offload-use-alloca-addrspace-for-srets");
+  }
 
   // Select the appropriate action.
   RewriteKind rewriteKind = RK_None;
