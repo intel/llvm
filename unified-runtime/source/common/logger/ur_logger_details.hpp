@@ -7,9 +7,6 @@
 #ifndef UR_LOGGER_DETAILS_HPP
 #define UR_LOGGER_DETAILS_HPP 1
 
-#include <algorithm>
-#include <string>
-
 #include "ur_level.hpp"
 #include "ur_sinks.hpp"
 
@@ -121,35 +118,12 @@ private:
 #define UR_STRIMPL_(x) #x
 #define UR_STR_(x) UR_STRIMPL_(x)
 
-// #define UR_STRIMPL_LOWERCASE_(x)                                               \
-//   ([] {                                                                        \
-//     std::string _str = #x;                                                     \
-//     std::transform(_str.begin(), _str.end(), _str.begin(),                     \
-//                    [](unsigned char _c) { return std::tolower(_c); });         \
-//     return _str;                                                               \
-//   }())
-// #define UR_STR_LCASE_(x) UR_STRIMPL_LOWERCASE_(x)
-
-// #define URLOG_(logger_instance, level, ...)                                    \
-//   {                                                                            \
-//     ur_logger_level_t _lvl = logger::str_to_level(UR_STR_LCASE_(level));       \
-//     (logger_instance).log(_lvl, SHORT_FILE, UR_STR_(__LINE__), __VA_ARGS__);   \
-//   }
-
 #define URLOG_(logger_instance, level, ...)                                    \
   {                                                                            \
     (logger_instance)                                                          \
         .log(UR_LOGGER_LEVEL_##level, SHORT_FILE, UR_STR_(__LINE__),           \
              __VA_ARGS__);                                                     \
   }
-
-// #define URLOG_LEGACY_(logger_instance, level, legacy_message, ...)             \
-//   {                                                                            \
-//     ur_logger_level_t _lvl = logger::str_to_level(UR_STR_LCASE_(level));       \
-//     (logger_instance)                                                          \
-//         .log(legacy_message, _lvl, SHORT_FILE, UR_STR_(__LINE__),              \
-//              __VA_ARGS__);                                                     \
-//   }
 
 #define URLOG_LEGACY_(logger_instance, level, legacy_message, ...)             \
   {                                                                            \
