@@ -33,7 +33,7 @@ TsanRuntimeData *TsanRuntimeDataWrapper::getDevicePtr() {
         Context, Device, nullptr, nullptr, sizeof(TsanRuntimeData),
         (void **)&DevicePtr);
     if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG(ERROR, "Failed to alloc device usm for asan runtime data: {}",
+      UR_LOG(ERR, "Failed to alloc device usm for asan runtime data: {}",
              Result);
     }
   }

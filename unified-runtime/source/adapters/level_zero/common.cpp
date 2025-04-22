@@ -151,7 +151,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (TraceError) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    UR_LOG(ERROR, "Error ({}) in {}", ErrorString, ZeName);
+    UR_LOG(ERR, "Error ({}) in {}", ErrorString, ZeName);
   }
   return ZeResult;
 }

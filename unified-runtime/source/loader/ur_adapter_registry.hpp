@@ -102,7 +102,7 @@ public:
     try {
       forceLoadedAdaptersOpt = getenv_to_vec("UR_ADAPTERS_FORCE_LOAD");
     } catch (const std::invalid_argument &e) {
-      UR_LOG(ERROR, e.what());
+      UR_LOG(ERR, e.what());
     }
 
     if (forceLoadedAdaptersOpt.has_value()) {
@@ -120,7 +120,7 @@ public:
         try {
           exists = fs::exists(path);
         } catch (std::exception &e) {
-          UR_LOG(ERROR, e.what());
+          UR_LOG(ERR, e.what());
         }
 
         if (exists) {
@@ -205,7 +205,7 @@ private:
     try {
       pathStringsOpt = getenv_to_vec("UR_ADAPTERS_SEARCH_PATH");
     } catch (const std::invalid_argument &e) {
-      UR_LOG(ERROR, e.what());
+      UR_LOG(ERR, e.what());
       return std::nullopt;
     }
 
@@ -235,8 +235,8 @@ private:
     } catch (...) {
       // If the selector is malformed, then we ignore selector and return
       // success.
-      UR_LOG(ERROR, "ERROR: missing backend, format of filter = "
-                    "'[!]backend:filterStrings'");
+      UR_LOG(ERR, "ERROR: missing backend, format of filter = "
+                  "'[!]backend:filterStrings'");
       return UR_RESULT_SUCCESS;
     }
     UR_LOG(DEBUG, "getenv_to_map parsed env var and {} a map",
@@ -258,8 +258,8 @@ private:
       if (backend.empty()) {
         // FIXME: never true because getenv_to_map rejects this case
         // malformed term: missing backend -- output ERROR, then continue
-        UR_LOG(ERROR, "ERROR: missing backend, format of filter = "
-                      "'[!]backend:filterStrings'");
+        UR_LOG(ERR, "ERROR: missing backend, format of filter = "
+                    "'[!]backend:filterStrings'");
         continue;
       }
       UR_LOG(DEBUG, "ONEAPI_DEVICE_SELECTOR Pre-Filter with backend '{}' ",

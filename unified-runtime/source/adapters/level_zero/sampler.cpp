@@ -83,8 +83,8 @@ ur_result_t urSamplerCreate(
       ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_MIRROR;
       break;
     default:
-      UR_LOG(ERROR, "urSamplerCreate: unsupported "
-                    "UR_SAMPLER_PROPERTIES_ADDRESSING_MODEE value");
+      UR_LOG(ERR, "urSamplerCreate: unsupported "
+                  "UR_SAMPLER_PROPERTIES_ADDRESSING_MODEE value");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
@@ -93,8 +93,7 @@ ur_result_t urSamplerCreate(
     else if (Props->filterMode == UR_SAMPLER_FILTER_MODE_LINEAR)
       ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_LINEAR;
     else {
-      UR_LOG(ERROR,
-             "urSamplerCreate: unsupported UR_SAMPLER_FILTER_MODE value");
+      UR_LOG(ERR, "urSamplerCreate: unsupported UR_SAMPLER_FILTER_MODE value");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }

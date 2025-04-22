@@ -460,7 +460,7 @@ static ur_result_t enqueueMemImageCommandHelper(
                 ur_cast<ze_image_handle_t>(ZeHandleSrc), &ZeDstRegion,
                 &ZeSrcRegion, ZeEvent, 0, nullptr));
   } else {
-    UR_LOG(ERROR, "enqueueMemImageUpdate: unsupported image command type");
+    UR_LOG(ERR, "enqueueMemImageUpdate: unsupported image command type");
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
@@ -1037,7 +1037,7 @@ ur_result_t urEnqueueMemBufferMap(
     // False as the second value in pair means that mapping was not inserted
     // because mapping already exists.
     if (!Res.second) {
-      UR_LOG(ERROR, "urEnqueueMemBufferMap: duplicate mapping detected");
+      UR_LOG(ERR, "urEnqueueMemBufferMap: duplicate mapping detected");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
@@ -1098,7 +1098,7 @@ ur_result_t urEnqueueMemBufferMap(
   // False as the second value in pair means that mapping was not inserted
   // because mapping already exists.
   if (!Res.second) {
-    UR_LOG(ERROR, "urEnqueueMemBufferMap: duplicate mapping detected");
+    UR_LOG(ERR, "urEnqueueMemBufferMap: duplicate mapping detected");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -1152,7 +1152,7 @@ ur_result_t urEnqueueMemUnmap(
     std::scoped_lock<ur_shared_mutex> Guard(Buffer->Mutex);
     auto It = Buffer->Mappings.find(MappedPtr);
     if (It == Buffer->Mappings.end()) {
-      UR_LOG(ERROR, "urEnqueueMemUnmap: unknown memory mapping");
+      UR_LOG(ERR, "urEnqueueMemUnmap: unknown memory mapping");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     MapInfo = It->second;

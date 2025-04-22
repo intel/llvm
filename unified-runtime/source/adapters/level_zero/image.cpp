@@ -56,7 +56,7 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32;
       break;
     default:
-      UR_LOG(ERROR, "ur2zeImageDescBindless: unexpected data type size");
+      UR_LOG(ERR, "ur2zeImageDescBindless: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -75,7 +75,7 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32;
       break;
     default:
-      UR_LOG(ERROR, "ur2zeImageDescBindless: unexpected data type size");
+      UR_LOG(ERR, "ur2zeImageDescBindless: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -95,7 +95,7 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
       break;
     default:
-      UR_LOG(ERROR, "ur2zeImageDescBindless: unexpected data type size");
+      UR_LOG(ERR, "ur2zeImageDescBindless: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -113,13 +113,13 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32;
       break;
     default:
-      UR_LOG(ERROR, "ur2zeImageDescBindless: unexpected data type size");
+      UR_LOG(ERR, "ur2zeImageDescBindless: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   }
   default:
-    UR_LOG(ERROR, "format channel order = {}", ImageFormat->channelOrder);
+    UR_LOG(ERR, "format channel order = {}", ImageFormat->channelOrder);
     die("ur2zeImageDescBindless: unsupported image channel order\n");
     break;
   }
@@ -148,7 +148,7 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
     ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
     break;
   default:
-    UR_LOG(ERROR, "ur2zeImageDescBindless: unsupported image type");
+    UR_LOG(ERR, "ur2zeImageDescBindless: unsupported image type");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -237,7 +237,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
         DriverHandle, "zeImageGetDeviceOffsetExp",
         (void **)&zeImageGetDeviceOffsetExpFunctionPtr);
     if (Result != ZE_RESULT_SUCCESS)
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "zeDriverGetExtensionFunctionAddress zeImageGetDeviceOffsetExpv "
              "failed, err = {}",
              Result);
@@ -281,7 +281,7 @@ ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
         DriverHandle, "zeMemGetPitchFor2dImage",
         (void **)&zeMemGetPitchFor2dImageFunctionPtr);
     if (Result != ZE_RESULT_SUCCESS)
-      UR_LOG(ERROR,
+      UR_LOG(ERR,
              "zeDriverGetExtensionFunctionAddress zeMemGetPitchFor2dImage "
              "failed, err = {}",
              Result);
@@ -552,7 +552,7 @@ ur_result_t urBindlessImagesImageCopyExp(
                 &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
                 WaitList.ZeEventList));
   } else {
-    UR_LOG(ERROR, "urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
+    UR_LOG(ERR, "urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

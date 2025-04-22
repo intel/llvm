@@ -441,8 +441,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     if (backend.empty()) {
       // FIXME: never true because getenv_to_map rejects this case
       // malformed term: missing backend -- output ERROR, then continue
-      UR_LOG(ERROR, "ERROR: missing backend, format of filter = "
-                    "'[!]backend:filterStrings'");
+      UR_LOG(ERR, "ERROR: missing backend, format of filter = "
+                  "'[!]backend:filterStrings'");
       continue;
     }
     enum FilterType {
@@ -467,7 +467,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 [&](auto &p) { return p.second == backend; });
       if (found == cend) {
         // It's not a legal backend
-        UR_LOG(ERROR, "unrecognised backend '{}'", backend);
+        UR_LOG(ERR, "unrecognised backend '{}'", backend);
         return UR_RESULT_ERROR_INVALID_VALUE;
       } else if (found->first != platformBackend) {
         // If it's a rule for a different backend, ignore it
@@ -476,8 +476,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     }
     if (termPair.second.size() == 0) {
       // malformed term: missing filterStrings -- output ERROR
-      UR_LOG(ERROR, "missing filterStrings, format of filter = "
-                    "'[!]backend:filterStrings'");
+      UR_LOG(ERR, "missing filterStrings, format of filter = "
+                  "'[!]backend:filterStrings'");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
@@ -494,8 +494,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                        return std::count(s.cbegin(), s.cend(), '.') > 2;
                      }) != termPair.second.cend()) {
       // malformed term: too many dots in filterString
-      UR_LOG(ERROR, "too many dots in filterString, format of "
-                    "filterString = 'root[.sub[.subsub]]'");
+      UR_LOG(ERR, "too many dots in filterString, format of "
+                  "filterString = 'root[.sub[.subsub]]'");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
@@ -516,7 +516,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                        return false; // no BAD things, so must be okay
                      }) != termPair.second.cend()) {
       // malformed term: star dot no-star in filterString
-      UR_LOG(ERROR, "invalid wildcard in filterString, '*.' => '*.*'");
+      UR_LOG(ERR, "invalid wildcard in filterString, '*.' => '*.*'");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 

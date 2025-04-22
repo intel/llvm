@@ -925,7 +925,7 @@ ur_result_t urEnqueueKernelLaunchCustomExp(
     uint32_t /*numEventsInWaitList*/,
     const ur_event_handle_t * /*phEventWaitList*/,
     ur_event_handle_t * /*phEvent*/) {
-  UR_LOG(ERROR, "[UR][L0] {} function not implemented!",
+  UR_LOG(ERR, "[UR][L0] {} function not implemented!",
          "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1006,9 +1006,9 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           Val = std::stoi(BatchConfig.substr(Pos));
         } catch (...) {
           if (IsCopy)
-            UR_LOG(ERROR, "UR_L0_COPY_BATCH_SIZE: failed to parse value")
+            UR_LOG(ERR, "UR_L0_COPY_BATCH_SIZE: failed to parse value")
           else
-            UR_LOG(ERROR, "UR_L0_BATCH_SIZE: failed to parse value")
+            UR_LOG(ERR, "UR_L0_BATCH_SIZE: failed to parse value")
           break;
         }
         switch (Ord) {
@@ -1031,11 +1031,11 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           die("Unexpected batch config");
         }
         if (IsCopy)
-          UR_LOG(ERROR, "UR_L0_COPY_BATCH_SIZE: dynamic batch param #{}: {}",
+          UR_LOG(ERR, "UR_L0_COPY_BATCH_SIZE: dynamic batch param #{}: {}",
                  (int)Ord, (int)Val)
         else
-          UR_LOG(ERROR, "UR_L0_BATCH_SIZE: dynamic batch param #{}: {}",
-                 (int)Ord, (int)Val)
+          UR_LOG(ERR, "UR_L0_BATCH_SIZE: dynamic batch param #{}: {}", (int)Ord,
+                 (int)Val)
       };
 
     } else {

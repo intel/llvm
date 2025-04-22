@@ -91,7 +91,7 @@ private:
       }
 
       if (it->second.refCount < 0) {
-        UR_LOG(ERROR, "Attempting to release nonexistent handle {}", ptr);
+        UR_LOG(ERR, "Attempting to release nonexistent handle {}", ptr);
       } else if (it->second.refCount == 0 && isAdapterHandle) {
         adapterCount--;
       }

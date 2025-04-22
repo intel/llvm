@@ -264,7 +264,7 @@ ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
       ZE2UR_CALL(zeKernelSetCacheConfig,
                  (kernel->hKernel.get(), zeCacheConfig););
     } else {
-      UR_LOG(ERROR, "urKernelSetExecInfo: unsupported ParamName");
+      UR_LOG(ERR, "urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -555,8 +555,7 @@ ur_result_t urKernelGetGroupInfo(
     // No corresponding enumeration in Level Zero
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default: {
-    UR_LOG(ERROR,
-           "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
+    UR_LOG(ERR, "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
            paramName, logger::toHex(paramName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -640,8 +639,7 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(static_cast<const char *>(attributes.data()));
   }
   default:
-    UR_LOG(ERROR,
-           "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
+    UR_LOG(ERR, "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
            paramName, logger::toHex(paramName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
