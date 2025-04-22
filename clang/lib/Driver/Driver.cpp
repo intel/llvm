@@ -5454,10 +5454,15 @@ class OffloadingActionBuilder final {
         return;
 
       OffloadAction::DeviceDependences Dep;
-      withBoundArchForToolChain(ToolChains.front(), [&](const char *BoundArch) {
-        Dep.add(*SYCLLinkBinary, *ToolChains.front(), BoundArch,
-                Action::OFK_SYCL);
-      });
+      const char *BoundArch;
+      for (auto &A : GpuArchList) {
+        if (ToolChains.front()->getTriple() == A.first) {
+          BoundArch = A.second;
+          Dep.add(*SYCLLinkBinary, *ToolChains.front(), BoundArch,
+                  Action::OFK_SYCL);
+        }
+      }
+
       AL.push_back(C.MakeAction<OffloadAction>(Dep, SYCLLinkBinary->getType()));
       SYCLLinkBinary = nullptr;
     }
@@ -5901,9 +5906,7 @@ class OffloadingActionBuilder final {
           }
           if (SkipWrapper) {
             // Wrapper step not requested.
-            withBoundArchForToolChain(TC, [&](const char *BoundArch) {
-              addDeps(WrapperInputs.front(), TC, BoundArch);
-            });
+            addDeps(WrapperInputs.front(), TC, BoundArch);
             continue;
           }
 
@@ -5917,9 +5920,7 @@ class OffloadingActionBuilder final {
                  BoundArch != nullptr);
             addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
           } else {
-            withBoundArchForToolChain(TC, [&](const char *BoundArch) {
-              addDeps(DeviceWrappingAction, TC, BoundArch);
-            });
+            addDeps(DeviceWrappingAction, TC, BoundArch);
           }
         }
       }
@@ -6440,14 +6441,20 @@ class OffloadingActionBuilder final {
               SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
             } else {
               const char *OffloadArch = nullptr;
-              for (auto &A : GpuArchList) {
-                if (TT == A.first) {
-                  OffloadArch = A.second;
-                  break;
+              for (auto &TargetTripleArchPair : GpuArchList) {
+                if (TT == TargetTripleArchPair.first) {
+                  OffloadArch = TargetTripleArchPair.second;
+                  // Add an arch to the SYCLTargetInfoList
+                  // only if it is not already present in the list.
+                  auto Arch = llvm::find_if(
+                      SYCLTargetInfoList, [&](auto &DeviceTargetInfo) {
+                        return OffloadArch == DeviceTargetInfo.BoundArch;
+                      });
+
+                  if (Arch == SYCLTargetInfoList.end())
+                    SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
                 }
               }
-              assert(OffloadArch && "Failed to find matching arch.");
-              SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
             }
           }
         }
