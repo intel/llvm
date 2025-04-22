@@ -5159,19 +5159,6 @@ class OffloadingActionBuilder final {
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
           SYCLInstallation(C.getDriver()) {}
 
-    void withBoundArchForToolChain(const ToolChain *TC,
-                                   llvm::function_ref<void(const char *)> Op) {
-      for (auto &A : GpuArchList) {
-        if (TC->getTriple() == A.first) {
-          Op(A.second ? Args.MakeArgString(A.second) : nullptr);
-          return;
-        }
-      }
-
-      // no bound arch for this toolchain
-      Op(nullptr);
-    }
-
     void pushForeignAction(Action *A) override {
       // Accept a foreign action from the CudaActionBuilder for compiling CUDA
       // sources
