@@ -20,13 +20,9 @@ Tests in this category may not fully exercise the extension functionality, but a
 
 #### Perform tests on free function kernels requirements which should check that:
  - the compiler will emit diagnostic when free function kernel is declared with reference types as parameters.
-  
  - the compiler will emit diagnostic when free function kernel is declared with variadic arguments.
-
  - the compiler will emit diagnostic when free function kernel provides default parameter values.
-
  - the compiler will emit diagnostic when free function kernel return type is not `void`.
-
  - the compiler will emit diagnostic when a non-static member function is used as a kernel. Only static member function at class scope are allowed as free function kernel.
 
 #### Perform tests on free function kernel declaration with properties `nd_range_kernel` and `single_task_kernel` which should check the following:
@@ -36,36 +32,23 @@ Tests in this category may not fully exercise the extension functionality, but a
  - that if a redeclaration of a function is decorated with the same property but with different arguments, the program should result in a compilation error.
 
 #### Perform tests on new traits for free function kernels which should check the following:
- - that `is_nd_range_kernel_v` trait should be a subclass of `true_type` if function declaration is decorated with `nd_range_kernel` property and false if it is not.
-
- - that `is_single_task_kernel_v` trait should be a subclass of `true_type` if declaration is decorated with `single_task_kernel` and false if it is not.
-
+- that `is_nd_range_kernel_v` trait should be a subclass of `true_type` if function declaration is decorated with `nd_range_kernel` property or a subclass of `false_type` if it is not.
+- that `is_single_task_kernel_v` trait should be a subclass of `true_type` if declaration is decorated with `single_task_kernel` or a subclass of `false_type` if it is not.
 - that `is_kernel_v` trait should be a subclass of `true_type` for function whose declaration is decorated with either the `nd_range_kernel` property or the `single_task_kernel` property when it is not then it should be a subclass of `false_type`.
 
 #### Perform tests on new `kernel_bundle` member functions for free function kernels by declaring `nd_range_kernel` and `single_task_kernel` and verifying that:
 
 - the `get_kernel_id` member function returns a valid kernel identifier associated with free function kernel.
-    
 - the `get_kernel_bundle(const context& ctxt)` member function returns a kernel bundle that contains the corresponding free function kernel.
- 
 - the `get_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` member function returns a kernel bundle that contains the corresponding free function kernel.
-    
 - the `has_kernel_bundle(const context& ctxt)` returns true when a free function kernel can be represented in a device image in the corresponding state and the associated free function kernel is compatible with at least one of the devices in `ctxt`.
-    
 - the `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when declared free function kernel can be represented in a device image in the corresponding state and that free function kernel is compatible with at least one of the devices in `devs`.
-    
 - the `is_compatible(const device& dev)` returns true when the associated free function kernel is compatible with `dev`.
-    
 - the `ext_oneapi_has_kernel()` returns true only if the kernel bundle contains the associated free function kernel.
-    
 - the `ext_oneapi_has_kernel(const device &dev)` returns true when kernel bundle contains the associated free function kernel and if that kernel is compatible with `dev`.
-    
 - the `ext_oneapi_get_kernel` returns the kernel object representing that kernel if the free function kernel resides in this kernel bundle. 
-    
 - the `ext_oneapi_get_kernel` throws exception with the error code `errc::invalid` if the associated free function kernel does not reside in this kernel bundle.
-    
 - the `get_kernel_ids()` returns all of the kernels defined in the source, whether they were defined as free function kernels, lambda expressions or named kernel objects.
-    
 - the `info::kernel::num_args` returns the number of parameters in the function definition of the associated free function kernel.
 
  Write test that perform all the checks mentioned above on `nd_range_kernel` and `single_task_kernel` free functions, which are declared in one translation unit and defined in another.
@@ -104,7 +87,7 @@ Tests in this category perform some meaningful actions with the extension to
 see that the extension works in a scenarios which mimic real-life usage of the
 extension.
 
-With the exception of the `single_task_kernel` free function kernels, all subsequent tests are executed with `Dimensions` $$\in {1, 2, 3}$$. 
+With the exception of the `single_task_kernel` free function kernels, all subsequent tests are executed with `Dimensions` $$\in \{1, 2, 3\}$$.
 
 In all subsequent tests, free function kernels should be declared within a namespace, as static member functions of a class, or in the global namespace.
 
