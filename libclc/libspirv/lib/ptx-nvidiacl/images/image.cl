@@ -3441,6 +3441,16 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_Dh, v4f16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
                                           3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
+// FIXME: The remangler can't correctly re-mangle the builtin above, so we
+// provide it explicitly here. When the image builtins are no longer incorrectly
+// being declared as templated this problem will go away.
+_CLC_DEF half4
+_Z30__spirv_ImageSampleExplicitLodImDv4_DF16_Dv3_fET0_T_T1_iS4_S4_(
+    ulong imageHandle, float3 coord, int type, float3 dX, float3 dY) {
+  return __nvvm_tex_3d_grad_v4f16_f32(imageHandle, COORD_PARAMS_3D, dX.x, dX.y,
+                                      dX.z, dY.x, dY.y, dY.z);
+}
+
 #undef COORD_PARAMS_1D
 #undef COORD_PARAMS_2D
 #undef COORD_PARAMS_3D
