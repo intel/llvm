@@ -14,9 +14,11 @@
 ; CHECK-SPIRV: Name [[#Func1:]] "_Z20convert_uint_satfunc"
 ; CHECK-SPIRV: Name [[#Func2:]] "_Z21convert_float_rtzfunc"
 ; CHECK-SPIRV-DAG: TypeVoid [[#VoidTy:]]
+; CHECK-SPIRV-DAG: TypeInt [[#CharTy:]] 8
 ; CHECK-SPIRV-DAG: TypeFloat [[#FloatTy:]] 32
 
 ; CHECK-SPIRV: Function [[#VoidTy]] [[#Func]]
+; CHECK-SPIRV: SConvert [[#CharTy]] [[#ConvertId:]] [[#]]
 ; CHECK-SPIRV: ConvertSToF [[#FloatTy]] [[#ConvertId:]] [[#]]
 ; CHECK-SPIRV: FunctionCall [[#VoidTy]] [[#]] [[#Func]] [[#ConvertId]]
 ; CHECK-SPIRV: FunctionCall [[#VoidTy]] [[#]] [[#Func1]] [[#]]
@@ -55,12 +57,16 @@ entry:
 ; CHECK-LLVM: call spir_func void @_Z18convert_float_func(float %[[Call]])
 ; CHECK-LLVM: call spir_func void @_Z20convert_uint_satfunc(i32 %[[#]])
 ; CHECK-LLVM: call spir_func void @_Z21convert_float_rtzfunc(float %[[Call]])
+  call spir_func signext i8 @_Z16convert_char_rtei(i32 noundef %0) #1
   %call = call spir_func float @_Z13convert_floati(i32 noundef %0) #1
   call spir_func void @_Z18convert_float_func(float noundef %call) #0
   call spir_func void @_Z20convert_uint_satfunc(i32 noundef %0) #0
   call spir_func void @_Z21convert_float_rtzfunc(float noundef %call) #0
   ret void
 }
+
+; Function Attrs: convergent nounwind willreturn memory(none)
+declare spir_func signext i8 @_Z16convert_char_rtei(i32 noundef) #1
 
 ; Function Attrs: convergent nounwind willreturn memory(none)
 declare spir_func float @_Z13convert_floati(i32 noundef) #1

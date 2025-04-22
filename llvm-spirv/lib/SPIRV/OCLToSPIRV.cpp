@@ -800,9 +800,6 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
       OC = OpFConvert;
   }
 
-  if (!Rounding.empty() && (isa<IntegerType>(SrcTy) && IsTargetInt))
-    return;
-
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   mutateCallInst(
       CI, getSPIRVFuncName(OC, "_R" + DestTy + VecSize + Sat + Rounding));
