@@ -284,6 +284,7 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
   return result;
 }
 
+namespace {
 struct BlockingWithEvent {
   template <class T>
   ur_result_t operator()(T &&op, ur_event_handle_t event) const {
@@ -306,6 +307,7 @@ struct NonBlocking {
     return UR_RESULT_SUCCESS;
   }
 };
+} // namespace
 
 template <class T>
 static inline ur_result_t
