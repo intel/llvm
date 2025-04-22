@@ -40,11 +40,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 998debed7a8551bdf6774be810559bb6cef6542b
-    # Author: Krzysztof Filipek <krzysztof.filipek@intel.com>
-    # Date:   Thu Mar 13 09:53:27 2025 +0100
-    # Merge pull request #1183 from ldorau/Fix_segfault_in_cu_memory_provider_get_last_native_error
-    set(UMF_TAG v0.11.0-dev4)
+    # commit a5c3d266641c479511dc6a984ea5b71257e8fee9
+    # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Thu Apr 17 14:13:05 2025 +0200
+    # 0.11.0 release
+    set(UMF_TAG v0.11.0)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
