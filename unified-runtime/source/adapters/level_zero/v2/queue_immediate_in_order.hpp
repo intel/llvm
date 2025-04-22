@@ -27,7 +27,7 @@ namespace v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
 
-struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_t_ {
+struct ur_queue_immediate_in_order_t : ur_object, public ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
