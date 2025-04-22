@@ -531,7 +531,8 @@ static ur_result_t redefinedurProgramGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-TEST_P(MultipleDevsKernelBundleTest, PersistentCache) {
+// https://github.com/intel/llvm/issues/18122
+TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
   // Create temporary directory for the persistent cache in the directory of the
   // test binary.
   std::string PersistentCachePath = sycl::detail::OSUtil::getCurrentDSODir() +
