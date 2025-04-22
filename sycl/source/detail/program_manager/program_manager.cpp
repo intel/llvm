@@ -1902,10 +1902,13 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
   if (EntriesB == EntriesE && shouldSkipEmptyImage(RawImg))
     return;
 
-  std::unique_ptr<RTDeviceBinaryImage> Img;
-  bool IsBfloat16DeviceLib = false;
   uint32_t Bfloat16DeviceLibVersion = 0;
-  if (isDeviceImageCompressed(RawImg))
+  const bool IsBfloat16DeviceLib =
+      isBfloat16DeviceLibImage(RawImg, &Bfloat16DeviceLibVersion);
+  const bool IsDeviceImageCompressed = isDeviceImageCompressed(RawImg);
+
+  std::unique_ptr<RTDeviceBinaryImage> Img;
+  if (IsDeviceImageCompressed) {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
     Img = std::make_unique<CompressedRTDeviceBinaryImage>(RawImg);
 #else
@@ -1914,11 +1917,8 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
                           "SYCL RT was built without ZSTD support."
                           "Aborting. ");
 #endif
-  else {
-    IsBfloat16DeviceLib =
-        isBfloat16DeviceLibImage(RawImg, &Bfloat16DeviceLibVersion);
-    if (!IsBfloat16DeviceLib)
-      Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
+  } else if (!IsBfloat16DeviceLib) {
+    Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
   }
 
   // If an output image is requested, set it to the newly allocated image.
@@ -1956,21 +1956,29 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
              "Invalid Bfloat16 Device Library Index.");
       if (m_Bfloat16DeviceLibImages[Bfloat16DeviceLibVersion].get())
         return;
-      size_t ImgSize =
-          static_cast<size_t>(RawImg->BinaryEnd - RawImg->BinaryStart);
-      std::unique_ptr<char[]> Data(new char[ImgSize]);
-      std::memcpy(Data.get(), RawImg->BinaryStart, ImgSize);
-      auto DynBfloat16DeviceLibImg =
-          std::make_unique<DynRTDeviceBinaryImage>(std::move(Data), ImgSize);
-      auto ESPropSet = getExportedSymbolPS(RawImg);
-      sycl_device_binary_property ESProp;
-      for (ESProp = ESPropSet->PropertiesBegin;
-           ESProp != ESPropSet->PropertiesEnd; ++ESProp) {
-        m_ExportedSymbolImages.insert(
-            {ESProp->Name, DynBfloat16DeviceLibImg.get()});
+
+      std::unique_ptr<RTDeviceBinaryImage> DevImg;
+      if (IsDeviceImageCompressed) {
+        // Decompress the image.
+        CheckAndDecompressImage(Img.get());
+        DevImg = std::move(Img);
+      } else {
+        size_t ImgSize =
+            static_cast<size_t>(RawImg->BinaryEnd - RawImg->BinaryStart);
+        std::unique_ptr<char[]> Data(new char[ImgSize]);
+        std::memcpy(Data.get(), RawImg->BinaryStart, ImgSize);
+        DevImg =
+            std::make_unique<DynRTDeviceBinaryImage>(std::move(Data), ImgSize);
       }
-      m_Bfloat16DeviceLibImages[Bfloat16DeviceLibVersion] =
-          std::move(DynBfloat16DeviceLibImg);
+
+      // Register export symbols for bfloat16 device library image.
+      auto ESPropSet = getExportedSymbolPS(RawImg);
+      for (auto ESProp = ESPropSet->PropertiesBegin;
+           ESProp != ESPropSet->PropertiesEnd; ++ESProp) {
+        m_ExportedSymbolImages.insert({ESProp->Name, DevImg.get()});
+      }
+      m_Bfloat16DeviceLibImages[Bfloat16DeviceLibVersion] = std::move(DevImg);
+
       return;
     }
   }

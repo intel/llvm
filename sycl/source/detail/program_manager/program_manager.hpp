@@ -532,7 +532,7 @@ protected:
   // version and 2nd is for native version. These bfloat16 device library
   // images are provided by compiler long time ago, we expect no further
   // update, so keeping 1 copy should be OK.
-  std::array<DynRTDeviceBinaryImageUPtr, 2> m_Bfloat16DeviceLibImages;
+  std::array<RTDeviceBinaryImageUPtr, 2> m_Bfloat16DeviceLibImages;
 
   friend class ::ProgramManagerTest;
 };
