@@ -99,10 +99,10 @@ templated with `target::device`, inside free function kernel when passed as kern
 A series of checks should be performed that USM memory with three types of memory allocations `host`, `device` and `shared` is supported inside free function kernel when passed as kernel parameter.
 
 #### Test `id` as kernel parameter:
-A series of checks should be performed that we can pass `id<Dimensions>` where `Dimensions` is in {1, 2, 3} as kernel parameter to free function kernel and use it within kernel. 
+A series of checks should be performed that we can pass `id<Dimensions>` where `Dimensions` is in $$\in \{1, 2, 3\}$$ as kernel parameter to free function kernel and use it within kernel. 
 
 #### Test `range` as kernel parameter:
-A series of checks should be performed that we can pass `range` where `Dimensions` is in {1, 2, 3} as kernel parameter to free function kernel and use it within kernel.
+A series of checks should be performed that we can pass `range` where `Dimensions` is in $$\in \{1, 2, 3\}$$ as kernel parameter to free function kernel and use it within kernel.
 
 #### Test `marray<T, NumElements>` when `T` is device copyable as kernel parameter:
 A series of checks should be performed that we can pass `marray<T, NumElements>` as kernel parameter to free function kernel and use it within kernel.
