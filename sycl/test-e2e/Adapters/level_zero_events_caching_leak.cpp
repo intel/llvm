@@ -7,6 +7,9 @@
 // Check that events and pools are not leaked when event caching is
 // enabled/disabled.
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17916
+
 #include <array>
 #include <sycl/detail/core.hpp>
 

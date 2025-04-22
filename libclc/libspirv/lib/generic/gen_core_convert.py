@@ -84,7 +84,6 @@ print(
    THE SOFTWARE.
 */
 
-#include <core/clc_core.h>
 #include <clc/clc_as_type.h>
 #include <clc/integer/clc_abs.h>
 #include <clc/shared/clc_clamp.h>

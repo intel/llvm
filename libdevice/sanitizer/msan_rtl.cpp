@@ -14,7 +14,7 @@
 
 DeviceGlobal<void *> __MsanLaunchInfo;
 #define GetMsanLaunchInfo                                                      \
-  ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+  ((__SYCL_GLOBAL__ MsanRuntimeData *)__MsanLaunchInfo.get())
 
 namespace {
 
@@ -148,10 +148,6 @@ void __msan_report_error(const uint32_t size,
                          const uint32_t line,
                          const char __SYCL_CONSTANT__ *func, uptr origin = 0) {
   __msan_internal_report_save(size, file, line, func, origin);
-
-  if (!GetMsanLaunchInfo->IsRecover) {
-    __devicelib_exit();
-  }
 }
 
 inline uptr __msan_get_shadow_cpu(uptr addr) {
@@ -164,14 +160,11 @@ inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
   }
 
   if (as != ADDRESS_SPACE_GLOBAL || !(addr & DG2_DEVICE_USM_MASK))
-    return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-        ->CleanShadow;
+    return (uptr)GetMsanLaunchInfo->CleanShadow;
 
   // Device USM only
-  auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                          ->GlobalShadowOffset;
-  auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                        ->GlobalShadowOffsetEnd;
+  auto shadow_begin = GetMsanLaunchInfo->GlobalShadowOffset;
+  auto shadow_end = GetMsanLaunchInfo->GlobalShadowOffsetEnd;
   if (addr < shadow_begin) {
     return addr + (shadow_begin - DG2_DEVICE_USM_BEGIN);
   } else {
@@ -250,7 +243,6 @@ DEVICE_EXTERN_C_NOINLINE void
 __msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
                         const char __SYCL_CONSTANT__ *func) {
   __msan_internal_report_save(1, file, line, func, 0);
-  __devicelib_exit();
 }
 
 // For mapping detail, ref to
