@@ -431,14 +431,13 @@ BOOL isLinkedStatically() {
   if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, LpModuleAddr,
                           &hModule)) {
     return true; // not retrievable, therefore statically linked
-  } else {
-    char dllPath[MAX_PATH];
-    if (GetModuleFileNameA(hModule, dllPath, MAX_PATH)) {
-      char exePath[MAX_PATH];
-      if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
-        if (std::string(dllPath) == std::string(exePath)) {
-          return true; // paths identical, therefore statically linked
-        }
+  }
+  char dllPath[MAX_PATH];
+  if (GetModuleFileNameA(hModule, dllPath, MAX_PATH)) {
+    char exePath[MAX_PATH];
+    if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
+      if (std::string(dllPath) == std::string(exePath)) {
+        return true; // paths identical, therefore statically linked
       }
     }
   }

@@ -57,10 +57,10 @@ destruction of nested `std::unique_ptr`s.
 
 ### Shutdown Tasks and Challenges
 
-As the user's app ends, SYCL's primary goal is to release any UR adapters that 
-have been gotten, and teardown the plugins/adapters themselves.  Additionally, 
-we need to stop deferring any new buffer releases and clean up any memory 
-whose release was deferred. 
+As the user's app ends, the SYCL runtime is responsible for releasing any UR
+adapters that have been gotten, and teardown the plugins/adapters themselves.
+Additionally, we need to stop deferring any new buffer releases and clean up
+any memory whose release was deferred. 
 
 To this end, the shutdown occurs in two phases: early and late. The purpose
 for early shutdown is primarily to stop any further deferring of memory release.
@@ -81,18 +81,18 @@ adapters are let go, as is the GlobalHandler itself.
 
 #### Threads
 The deferred memory marshalling is built on a thread pool, but there is a
-challenge here in that on Windows, once the end of the users main() is reached
+challenge here in that on Windows, once the end of the users `main()` is reached
 and their app is shutting down, the Windows OS will abandon all remaining 
-in-flight threads. These threads can be .join() but they simply return instantly,
+in-flight threads. These threads can be `.join()` but they simply return instantly,
 the threads are not completed. Further any thread specific variables
-(or thread_local static vars) will NOT have their destructors called.  Note
+(or `thread_local static` vars) will NOT have their destructors called.  Note
 that the standard while-loop-over-condition-var pattern will cause a hang - 
 we cannot "wait" on abandoned threads. 
 On Windows, short of adding some user called API to signal this, there is 
 no way to detect or avoid this. None of the "end-of-library" lifecycle events
-occurs before the threads are abandoned.  ( not std::atexit(), not globals or 
-static, or static thread_local var destruction, not DllMain(DLL_PROCESS_DETACH) )
-This means that on Windows, once we arrive at shutdown_early we cannot wait on
+occurs before the threads are abandoned.  ( not `std::atexit()`, not globals or 
+`static`, or `static thread_local` var destruction, not `DllMain(DLL_PROCESS_DETACH)` )
+This means that on Windows, once we arrive at `shutdown_early()` we cannot wait on
 host events or the thread pool. 
 
 For the deferred memory itself, there is no issue here. The Windows OS will
@@ -102,18 +102,18 @@ shared pointers will not work in any thread that is abandoned on Windows.
 
 One last note about threads. It is entirely the OS's discretion when to
 start or schedule a thread. If the main process is very busy then it is 
-possible that threads the SYCL library creates (host_tasks/thread_pool)
-won't even be started until AFTER the host application main() function is done. 
-This is not a normal occurrence, but it can happen if there is no call to queue.wait()
+possible that threads the SYCL library creates (`host_tasks`/`thread_pool`)
+won't even be started until AFTER the host application `main()` function is done. 
+This is not a normal occurrence, but it can happen if there is no call to `queue.wait()`
 
 
 ### Linux
 
-On Linux, the "early_shutdown()" is begun by the destruction of a static
-StaticVarShutdownHandler object, which is initialized by 
-platform::get_platforms().
+On Linux, the `early_shutdown()` is begun by the destruction of a static
+`StaticVarShutdownHandler` object, which is initialized by 
+`platform::get_platforms()`.
 
-late_shutdown() timing uses `__attribute__((destructor))` property with low
+`late_shutdown()` timing uses `__attribute__((destructor))` property with low
 priority value 110. This approach does not guarantee, that `GlobalHandler`
 destructor is the last thing to run, as user code may contain a similar function
 with the same priority value. At the same time, users may specify priorities
@@ -128,14 +128,14 @@ times, the memory leak may impact code performance.
 
 ### Windows
 
-Differing from Linux, on Windows the "early_shutdown()" is begun by 
-DllMain(PROCESS_DETACH), unless statically linked. 
+Differing from Linux, on Windows the `early_shutdown()` is begun by 
+`DllMain(PROCESS_DETACH)`, unless statically linked. 
 
-The "late_shutdown()" is begun by the destruction of a 
-static StaticVarShutdownHandler object, which is initialized by 
-platform::get_platforms().  ( On linux, this is when we do "early_shutdown()". 
+The `late_shutdown()` is begun by the destruction of a 
+static `StaticVarShutdownHandler` object, which is initialized by 
+`platform::get_platforms()`.  ( On linux, this is when we do `early_shutdown()`. 
 Go figure.)  This is as late as we can manage, but it is later than any user 
-application global, static, or thread_local variable destruction.
+application global, `static`, or `thread_local` variable destruction.
 
 ### Recommendations for DPC++ runtime developers
 
