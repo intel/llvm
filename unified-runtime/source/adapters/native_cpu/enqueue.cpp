@@ -276,7 +276,7 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
   if (phEvent) {
     ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
     event->tick_start();
-    ur_result_t result = inv(std::forward<T>(f), event);
+    ur_result_t result = inv(std::forward<T>(f), event, hQueue);
     *phEvent = event;
     return result;
   }
@@ -287,7 +287,8 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
 namespace {
 struct BlockingWithEvent {
   template <class T>
-  ur_result_t operator()(T &&op, ur_event_handle_t event) const {
+  ur_result_t operator()(T &&op, ur_event_handle_t event,
+                         ur_queue_handle_t) const {
     ur_result_t result = op();
     event->tick_end();
     return result;
@@ -295,10 +296,9 @@ struct BlockingWithEvent {
 };
 
 struct NonBlocking {
-  ur_queue_handle_t hQueue;
-  NonBlocking(ur_queue_handle_t hQueue) : hQueue(hQueue) {}
   template <class T>
-  ur_result_t operator()(T &&op, ur_event_handle_t event) const {
+  ur_result_t operator()(T &&op, ur_event_handle_t event,
+                         ur_queue_handle_t hQueue) const {
     auto &tp = hQueue->getDevice()->tp;
     std::vector<std::future<void>> futures;
     futures.emplace_back(tp.schedule_task([op](size_t) { op(); }));
@@ -307,6 +307,19 @@ struct NonBlocking {
     return UR_RESULT_SUCCESS;
   }
 };
+
+struct Invoker {
+  const bool blocking;
+  Invoker(bool blocking) : blocking(blocking) {}
+  template <class T>
+  ur_result_t operator()(T &&f, ur_event_handle_t event,
+                         ur_queue_handle_t hQueue) const {
+    if (blocking)
+      return BlockingWithEvent()(std::forward<T>(f), event, hQueue);
+    return NonBlocking()(std::forward<T>(f), event, hQueue);
+  };
+};
+
 } // namespace
 
 template <class T>
@@ -624,11 +637,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  auto Inv = [blocking, hQueue, size](auto &&f, ur_event_handle_t event) {
-    if (blocking || size < 100)
-      return BlockingWithEvent()(f, event);
-    return NonBlocking(hQueue)(f, event);
-  };
   return withTimingEvent(
       UR_COMMAND_USM_MEMCPY, hQueue, numEventsInWaitList, phEventWaitList,
       phEvent,
@@ -636,7 +644,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         memcpy(pDst, pSrc, size);
         return UR_RESULT_SUCCESS;
       },
-      Inv);
+      Invoker(blocking || size < 100));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
