@@ -1,2 +1,12 @@
+:dpcpp: pass:[DPC++]
+
 This extension has been deprecated, but the specification is still available
 link:../deprecated/sycl_ext_oneapi_discard_queue_events.asciidoc[here].
+This extension no longer provides any benefit.  Although the interfaces defined
+in this specification are still supported in {dpcpp}, we expect that they will
+be removed in an upcoming {dpcpp} release.  The optimizations enabled by these
+interfaces have already been disabled in the compiler.  The functionality of
+this extension has been replaced by the sycl_ext_oneapi_enqueue_functions
+extension: see link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[here].
+*Shipping software products should stop using APIs defined in this
+specification and use this alternative instead.*

@@ -8,6 +8,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
+:dpcpp: pass:[DPC++]
 
 :blank: pass:[ +]
 
@@ -37,12 +38,12 @@ Copyright (c) 2021 Intel Corporation. All rights reserved.
 
 == Status
 
-This extension has been deprecated.  Although the interfaces defined in this
-specification are still supported in {dpcpp}, we expect that they will be
-removed in an upcoming {dpcpp} release.  The optimizations enabled by these
-interfaces have already been disabled in the compiler.  The functionality of
-this extension has been replaced by the sycl_ext_oneapi_enqueue_functions
-extension: see link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[here].
+This extension has been deprecated.  This extension no longer provides any
+benefit.  Although the interfaces defined in this specification are still
+supported in {dpcpp}, we expect that they will be removed in an upcoming {dpcpp}
+release.  The optimizations enabled by these interfaces have already been
+disabled in the compiler.  The functionality of this extension has been
+replaced by the sycl_ext_oneapi_enqueue_functions extension: see link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[here].
 *Shipping software products should stop using APIs defined in this
 specification and use this alternative instead.*
 
