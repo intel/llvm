@@ -3687,11 +3687,13 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
+  template <int Dims>
+  static sycl::range<3> padRange(sycl::range<Dims> Range,
+                                 size_t DefaultValue = 0) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
-      sycl::range<3> Res{0, 0, 0};
+      sycl::range<3> Res{DefaultValue, DefaultValue, DefaultValue};
       for (int I = 0; I < Dims; ++I)
         Res[I] = Range[I];
       return Res;
@@ -3712,7 +3714,8 @@ private:
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> N,
                             bool SetNumWorkGroups = false) {
-    return setNDRangeDescriptorPadded(padRange(N), SetNumWorkGroups, Dims);
+    return setNDRangeDescriptorPadded(padRange(N, SetNumWorkGroups ? 0 : 1),
+                                      SetNumWorkGroups, Dims);
   }
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
@@ -3722,9 +3725,10 @@ private:
   }
   template <int Dims>
   void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
+    sycl::range<Dims> LocalRange = ExecutionRange.get_local_range();
     return setNDRangeDescriptorPadded(
-        padRange(ExecutionRange.get_global_range()),
-        padRange(ExecutionRange.get_local_range()),
+        padRange(ExecutionRange.get_global_range(), 1),
+        padRange(LocalRange, LocalRange[0] ? 1 : 0),
         padId(ExecutionRange.get_offset()), Dims);
   }
 
