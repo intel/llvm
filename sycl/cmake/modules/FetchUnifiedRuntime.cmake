@@ -321,6 +321,113 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+  # On Windows, also build/install debug libraries with the d suffix that are
+  # compiled with /MDd so users can link against these in debug builds.
+  include(ExternalProject)
+  set(URD_BINARY_DIR ${CMAKE_BINARY_DIR}/unified-runtimed)
+  set(URD_INSTALL_DIR ${URD_BINARY_DIR}/install)
+
+  # This creates a subbuild which can be used in dependencies with the
+  # unified-runtimed target. It invokes the install-unified-runtime-libraries
+  # target to install the UR runtime libraries.
+  ExternalProject_Add(unified-runtimed
+    SOURCE_DIR ${UNIFIED_RUNTIME_SOURCE_DIR}
+    BINARY_DIR ${URD_BINARY_DIR}
+    INSTALL_DIR ${URD_INSTALL_DIR}
+    INSTALL_COMMAND ${CMAKE_COMMAND}
+      --build <BINARY_DIR> --config Debug
+      --target install-unified-runtime-libraries
+    CMAKE_CACHE_ARGS
+      -DCMAKE_BUILD_TYPE:STRING=Debug
+      -DCMAKE_INSTALL_PREFIX:STRING=<INSTALL_DIR>
+      # Enable d suffix on libraries
+      -DUR_USE_DEBUG_POSTFIX:BOOL=ON
+      # Don't build unnecessary targets in subbuild.
+      -DUR_BUILD_EXAMPLES:BOOL=OFF
+      -DUR_BUILD_TESTS:BOOL=OFF
+      -DUR_BUILD_TOOLS:BOOL=OFF
+      # Sanitizer layer is not supported on Windows.
+      -DUR_ENABLE_SYMBOLIZER:BOOL=OFF
+      # Inherit settings from parent build.
+      -DUR_ENABLE_TRACING:BOOL=${UR_ENABLE_TRACING}
+      -DUR_ENABLE_COMGR:BOOL=${UR_ENABLE_COMGR}
+      -DUR_BUILD_ADAPTER_L0:BOOL=${UR_BUILD_ADAPTER_L0}
+      -DUR_BUILD_ADAPTER_L0_V2:BOOL=${UR_BUILD_ADAPTER_L0_V2}
+      -DUR_BUILD_ADAPTER_OPENCL:BOOL=${UR_BUILD_ADAPTER_OPENCL}
+      -DUR_BUILD_ADAPTER_CUDA:BOOL=${UR_BUILD_ADAPTER_CUDA}
+      -DUR_BUILD_ADAPTER_HIP:BOOL=${UR_BUILD_ADAPTER_HIP}
+      -DUR_BUILD_ADAPTER_NATIVE_CPU:BOOL=${UR_BUILD_ADAPTER_NATIVE_CPU}
+      -DUMF_BUILD_EXAMPLES:BOOL=${UMF_BUILD_EXAMPLES}
+      -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
+      -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
+      -DUMF_DISABLE_HWLOC:BOOL=${UMF_DISABLE_HWLOC}
+      # Enable d suffix in UMF
+      -DUMF_USE_DEBUG_POSTFIX:BOOL=ON
+  )
+
+  # Copy the debug UR runtime libraries to <build>/bin & <build>/lib for use in
+  # the parent build, e.g. integration testing.
+  set(URD_COPY_FILES)
+  macro(urd_copy_library_to_build library shared)
+    if(${shared})
+      list(APPEND URD_COPY_FILES
+        ${LLVM_BINARY_DIR}/bin/${library}.dll
+      )
+      add_custom_command(
+        OUTPUT
+          ${LLVM_BINARY_DIR}/bin/${library}.dll
+        COMMAND ${CMAKE_COMMAND} -E copy
+          ${URD_INSTALL_DIR}/bin/${library}.dll
+          ${LLVM_BINARY_DIR}/bin/${library}.dll
+      )
+    endif()
+
+    list(APPEND URD_COPY_FILES
+      ${LLVM_BINARY_DIR}/lib/${library}.lib
+    )
+    add_custom_command(
+      OUTPUT
+        ${LLVM_BINARY_DIR}/lib/${library}.lib
+      COMMAND ${CMAKE_COMMAND} -E copy
+        ${URD_INSTALL_DIR}/lib/${library}.lib
+        ${LLVM_BINARY_DIR}/lib/${library}.lib
+    )
+  endmacro()
+
+  urd_copy_library_to_build(ur_loaderd "NOT;${UR_STATIC_LOADER}")
+  foreach(adatper ${SYCL_ENABLE_BACKENDS})
+    if(adapter MATCHES "level_zero")
+      set(shared "NOT;${UR_STATIC_ADAPTER_L0}")
+    else()
+      set(shared TRUE)
+    endif()
+    urd_copy_library_to_build(ur_adapter_${adatper}d "${shared}")
+  endforeach()
+  # Also copy umfd.dll/umfd.lib
+  urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
+
+  add_custom_target(unified-runtimed-build ALL DEPENDS ${URD_COPY_FILES})
+  add_dependencies(unified-runtimed-build unified-runtimed)
+
+  # Add the debug UR runtime libraries to the parent install.
+  install(
+    FILES ${URD_INSTALL_DIR}/bin/ur_loaderd.dll
+    DESTINATION "bin" COMPONENT unified-runtime-loader)
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+    install(
+      FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
+      DESTINATION "bin" COMPONENT ur_adapter_${adapter})
+    add_dependencies(install-sycl-ur-adapter-${adapter} unified-runtimed)
+  endforeach()
+  if(UMF_BUILD_SHARED_LIBRARY)
+    # Also install umfd.dll
+    install(
+      FILES ${URD_INSTALL_DIR}/bin/umfd.dll
+      DESTINATION "bin" COMPONENT unified-memory-framework)
+  endif()
+endif()
+
 install(TARGETS umf
   LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
   ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
