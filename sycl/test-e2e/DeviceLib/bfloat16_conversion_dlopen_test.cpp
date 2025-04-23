@@ -6,13 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+// The case uses dlopen/close to load/unload a sycl shared library which
+// depends bfloat16 device library and the main function also includes sycl
+// kernels which depend on bfloat16 device library. SYCL program manager will
+// own the bfloat16 device library image which is shared by all kernels using
+// bfloat16 features, so the program should also work well when the shared
+// library is dlclosed and the device images are removed.
+
 // REQUIRES: linux
 
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
 
-// DEFINE: %{compile} = %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%T
+// RUN: %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%T -o %t1.out
 
-// RUN: %{compile} -o %t1.out
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd
@@ -35,7 +41,7 @@ using BFP = sycl::ext::oneapi::bfloat16;
 #ifdef BUILD_LIB
 class FOO_KERN;
 void foo() {
-  sycl::queue deviceQueue;
+  queue deviceQueue;
   BFP bf16_v;
   float fp32_v = 16.5f;
   {
@@ -54,7 +60,7 @@ void foo() {
 #else
 
 class MAINRUN;
-void main_run(sycl::queue &deviceQueue) {
+void main_run(queue &deviceQueue) {
   BFP bf16_v;
   float fp32_v = 16.5f;
   {
@@ -79,7 +85,7 @@ void main_run(sycl::queue &deviceQueue) {
 int main() {
   BFP bf16_array[3];
   float fp32_array[3] = {7.0f, 8.5f, 0.5f};
-  sycl::queue deviceQueue;
+  queue deviceQueue;
   std::vector<sycl::kernel_id> all_kernel_ids;
   bool dynlib_kernel_available = false;
   bool dynlib_kernel_unavailable = true;
