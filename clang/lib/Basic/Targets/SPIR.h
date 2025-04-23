@@ -394,6 +394,49 @@ public:
   }
 };
 
+// ARM64 SPIR64 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIR64TargetInfo
+    : public WindowsTargetInfo<SPIR64TargetInfo> {
+public:
+  WindowsARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
+                                const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {
+    LongWidth = LongAlign = 32;
+    DoubleAlign = LongLongAlign = 64;
+    IntMaxType = SignedLongLong;
+    Int64Type = SignedLongLong;
+    SizeType = UnsignedLongLong;
+    PtrDiffType = SignedLongLong;
+    IntPtrType = SignedLongLong;
+    WCharType = UnsignedShort;
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                                            : CCCR_Warning;
+  }
+};
+
+// ARM64 SPIR64 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftARM64_SPIR64TargetInfo
+    : public WindowsARM64_SPIR64TargetInfo {
+public:
+  MicrosoftARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
+                                  const TargetOptions &Opts)
+      : WindowsARM64_SPIR64TargetInfo(Triple, Opts) {}
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsARM64_SPIR64TargetInfo::getTargetDefines(Opts, Builder);
+    // Device code doesn't need to have ARM64EC defines
+    Builder.defineMacro("_M_ARM64", "1");
+  }
+};
+
 class LLVM_LIBRARY_VISIBILITY BaseSPIRVTargetInfo : public BaseSPIRTargetInfo {
 public:
   BaseSPIRVTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
@@ -588,6 +631,49 @@ public:
     WindowsX86_64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
     Builder.defineMacro("_M_X64", "100");
     Builder.defineMacro("_M_AMD64", "100");
+  }
+};
+
+// ARM64 SPIRV64 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIRV64TargetInfo
+    : public WindowsTargetInfo<SPIRV64TargetInfo> {
+public:
+  WindowsARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
+                                 const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIRV64TargetInfo>(Triple, Opts) {
+    LongWidth = LongAlign = 32;
+    DoubleAlign = LongLongAlign = 64;
+    IntMaxType = SignedLongLong;
+    Int64Type = SignedLongLong;
+    SizeType = UnsignedLongLong;
+    PtrDiffType = SignedLongLong;
+    IntPtrType = SignedLongLong;
+    WCharType = UnsignedShort;
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                                            : CCCR_Warning;
+  }
+};
+
+// ARM64 SPIRV64 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftARM64_SPIRV64TargetInfo
+    : public WindowsARM64_SPIRV64TargetInfo {
+public:
+  MicrosoftARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
+                                   const TargetOptions &Opts)
+      : WindowsARM64_SPIRV64TargetInfo(Triple, Opts) {}
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsARM64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
+    // Device code doesn't need to have ARM64EC defines
+    Builder.defineMacro("_M_ARM64", "1");
   }
 };
 
