@@ -1,4 +1,4 @@
-RUN: UR_ADAPTERS_FORCE_LOAD="" UR_LOG_TEST="level:info;output:stdout;flush:debug" platforms-test
+RUN: UR_ADAPTERS_FORCE_LOAD="invalid.so" UR_LOG_TEST="level:info;output:stdout;flush:debug" platforms-test
 
 REQUIRES: linux
 

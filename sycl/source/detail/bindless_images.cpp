@@ -234,16 +234,10 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
       Adapter->call<sycl::errc::memory_allocation,
                     sycl::detail::UrApiKind::urBindlessImagesMipmapFreeExp>(
           C, Device, memHandle.raw_handle);
-    } else if (imageType == image_type::standard ||
-               imageType == image_type::array ||
-               imageType == image_type::cubemap ||
-               imageType == image_type::gather) {
+    } else {
       Adapter->call<sycl::errc::memory_allocation,
                     sycl::detail::UrApiKind::urBindlessImagesImageFreeExp>(
           C, Device, memHandle.raw_handle);
-    } else {
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Invalid image type to free");
     }
   }
 }
