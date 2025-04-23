@@ -268,7 +268,7 @@ ur_result_t urProgramBuild(
   auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
     auto Devices = GetDevices(hContext);
-    PrintUrBuildLog(hProgram, Devices.data(), Devices.size());
+    PrintUrBuildLogIfError(UrRes, hProgram, Devices.data(), Devices.size());
     return UrRes;
   }
 
@@ -294,7 +294,7 @@ ur_result_t urProgramBuildExp(
 
   auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLog(hProgram, phDevices, numDevices);
+    PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
     return UrRes;
   }
 
@@ -323,7 +323,7 @@ ur_result_t urProgramLink(
   auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
     auto Devices = GetDevices(hContext);
-    PrintUrBuildLog(*phProgram, Devices.data(), Devices.size());
+    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
     return UrRes;
   }
 
@@ -357,7 +357,7 @@ ur_result_t urProgramLinkExp(
   auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                                  phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLog(*phProgram, phDevices, numDevices);
+    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
     return UrRes;
   }
 
