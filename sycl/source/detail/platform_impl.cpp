@@ -304,7 +304,8 @@ platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
     return Result;
 
   // Otherwise make the impl
-  Result = std::make_shared<device_impl>(UrDevice, *this);
+  Result = std::make_shared<device_impl>(UrDevice, *this,
+                                         device_impl::private_tag{});
   MDeviceCache.emplace_back(Result);
 
   return Result;
