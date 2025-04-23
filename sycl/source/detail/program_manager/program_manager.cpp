@@ -2153,7 +2153,8 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 }
 
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
-  if (DeviceBinary->NumDeviceBinaries == 0) return;
+  if (DeviceBinary->NumDeviceBinaries == 0)
+    return;
   // Acquire lock to read and modify maps for kernel bundles
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
