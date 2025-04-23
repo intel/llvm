@@ -1256,9 +1256,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 ///
 /// @details
 ///     - When the reference count of the adapter reaches zero, the adapter may
-///       perform adapter-specififc resource teardown. Resources must be left in
-///       a state where it safe for the adapter to be subsequently reinitialized
-///       with ::urAdapterGet
+///       perform adapter-specififc resource teardown. Any objects associated
+///       with the adapter should be considered invalid after this point.
+///     - Calling ::urAdapterGet after any adapter handle's reference count has
+///       reached zero will result in undefined behaviour.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -7943,7 +7944,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
 ///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height *
@@ -8029,7 +8030,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
 ///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height *

@@ -19,7 +19,7 @@
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
-struct ur_mem_buffer_t : _ur_object {
+struct ur_mem_buffer_t : ur_object {
 
   enum class device_access_mode_t { read_write, read_only, write_only };
 
@@ -197,7 +197,7 @@ private:
   size_t offset;
 };
 
-struct ur_mem_image_t : _ur_object {
+struct ur_mem_image_t : ur_object {
   ur_mem_image_t(ur_context_handle_t hContext, ur_mem_flags_t flags,
                  const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, void *pHost);
@@ -262,10 +262,10 @@ struct ur_mem_handle_t_ {
         mem);
   }
 
-  _ur_object *getObject() {
+  ur_object *getObject() {
     return std::visit(
-        [](auto &&arg) -> _ur_object * {
-          return static_cast<_ur_object *>(&arg);
+        [](auto &&arg) -> ur_object * {
+          return static_cast<ur_object *>(&arg);
         },
         mem);
   }

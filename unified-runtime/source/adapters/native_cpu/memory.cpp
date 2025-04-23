@@ -46,11 +46,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   ur_mem_handle_t_ *retMem;
 
   if (useHostPtr) {
-    retMem = new _ur_buffer(hContext, pProperties->pHost);
+    retMem = new ur_buffer(hContext, pProperties->pHost);
   } else if (copyHostPtr) {
-    retMem = new _ur_buffer(hContext, pProperties->pHost, size);
+    retMem = new ur_buffer(hContext, pProperties->pHost, size);
   } else {
-    retMem = new _ur_buffer(hContext, size);
+    retMem = new ur_buffer(hContext, size);
   }
 
   *phBuffer = retMem;
@@ -75,7 +75,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     const ur_buffer_region_t *pRegion, ur_mem_handle_t *phMem) {
 
   UR_ASSERT(hBuffer && !hBuffer->isImage() &&
-                !(static_cast<_ur_buffer *>(hBuffer))->isSubBuffer(),
+                !(static_cast<ur_buffer *>(hBuffer))->isSubBuffer(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   std::shared_lock<ur_shared_mutex> Guard(hBuffer->Mutex);
@@ -86,8 +86,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   }
 
   try {
-    auto partitionedBuffer = new _ur_buffer(static_cast<_ur_buffer *>(hBuffer),
-                                            pRegion->origin, pRegion->size);
+    auto partitionedBuffer = new ur_buffer(static_cast<ur_buffer *>(hBuffer),
+                                           pRegion->origin, pRegion->size);
     *phMem = reinterpret_cast<ur_mem_handle_t>(partitionedBuffer);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
