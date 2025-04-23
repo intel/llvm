@@ -756,6 +756,8 @@ public:
       CloneTypeReplacements["char"] = "unsigned char";
     }
 
+    ParameterTypeReplacements["half"] = "_Float16";
+
     createRemangledTypeReplacements();
   }
 

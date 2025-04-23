@@ -1997,16 +1997,16 @@ void instrumentationAddExtraKernelMetadata(
   std::mutex *KernelMutex = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  if (auto SyclKernelImpl = KernelBundleImplPtr
-                                ? KernelBundleImplPtr->tryGetKernel(
-                                      KernelName, KernelBundleImplPtr)
-                                : std::shared_ptr<kernel_impl>{nullptr}) {
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
-  } else if (nullptr != SyclKernel) {
+  if (nullptr != SyclKernel) {
     Program = SyclKernel->getProgramRef();
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
+  } else if (auto SyclKernelImpl =
+                 KernelBundleImplPtr ? KernelBundleImplPtr->tryGetKernel(
+                                           KernelName, KernelBundleImplPtr)
+                                     : std::shared_ptr<kernel_impl>{nullptr}) {
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
   } else if (Queue) {
     // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
@@ -2521,17 +2521,17 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   const KernelArgMask *EliminatedArgMask = nullptr;
   auto &KernelBundleImplPtr = CommandGroup.MKernelBundle;
 
-  if (auto SyclKernelImpl =
-          KernelBundleImplPtr
-              ? KernelBundleImplPtr->tryGetKernel(CommandGroup.MKernelName,
-                                                  KernelBundleImplPtr)
-              : std::shared_ptr<kernel_impl>{nullptr}) {
+  if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
+    UrKernel = Kernel->getHandleRef();
+    EliminatedArgMask = Kernel->getKernelArgMask();
+  } else if (auto SyclKernelImpl =
+                 KernelBundleImplPtr
+                     ? KernelBundleImplPtr->tryGetKernel(
+                           CommandGroup.MKernelName, KernelBundleImplPtr)
+                     : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-  } else if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
-    UrKernel = Kernel->getHandleRef();
-    EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
@@ -2678,18 +2678,7 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  if ((SyclKernelImpl = KernelBundleImplPtr
-                            ? KernelBundleImplPtr->tryGetKernel(
-                                  KernelName, KernelBundleImplPtr)
-                            : std::shared_ptr<kernel_impl>{nullptr})) {
-    Kernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
-
-    Program = DeviceImageImpl->get_ur_program_ref();
-
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    KernelMutex = SyclKernelImpl->getCacheMutex();
-  } else if (nullptr != MSyclKernel) {
+  if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
@@ -2703,6 +2692,17 @@ void enqueueImpKernel(
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
+  } else if ((SyclKernelImpl = KernelBundleImplPtr
+                                   ? KernelBundleImplPtr->tryGetKernel(
+                                         KernelName, KernelBundleImplPtr)
+                                   : std::shared_ptr<kernel_impl>{nullptr})) {
+    Kernel = SyclKernelImpl->getHandleRef();
+    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+
+    Program = DeviceImageImpl->get_ur_program_ref();
+
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
@@ -3511,6 +3511,18 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // User can specify explicit dependencies via depends_on call that we should
+    // honor here. It is very important for cross queue dependencies. We wait
+    // them explicitly since barrier w/o wait list waits for all commands
+    // submitted before and we can't add new dependencies to its wait list.
+    // Output event for wait operation is not requested since barrier is
+    // submitted immediately after and should synchronize it internally.
+    if (RawEvents.size()) {
+      auto Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+          MQueue->getHandleRef(), RawEvents.size(), &RawEvents[0], nullptr);
+      if (Result != UR_RESULT_SUCCESS)
+        return Result;
+    }
     if (auto Result =
             Adapter->call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, 0, nullptr, Event);
@@ -3545,6 +3557,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // User can specify explicit dependencies via depends_on call that we should
+    // honor here. It is very important for cross queue dependencies. Adding
+    // them to the barrier wait list since barrier w/ wait list waits only for
+    // the events provided in wait list and we can just extend the list.
+    UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
+
     if (auto Result =
             Adapter->call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
