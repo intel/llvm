@@ -1623,13 +1623,14 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
   AllocaInst *nextID =
       entryIR.CreateAlloca(index_type, nullptr, "next_barrier_id");
 
-  SmallVector<BasicBlock *, 8> bbs;
-  const unsigned num_blocks = barrierMain.getNumSubkernels();
-  assert(!emitTail || barrierTail->getNumSubkernels() == num_blocks);
+  std::map<unsigned, BasicBlock *> bbs;
+  // The vectorized kernel has been further optimized and may have removed
+  // unreachable barriers that are still present in the scalar kernel. But if
+  // they are unreachable, we know they must also be unreachable in the scalar
+  // kernel even if we have not yet detected that.
 
-  for (unsigned i = kBarrier_EndID; i <= num_blocks; i++) {
-    BasicBlock *bb = BasicBlock::Create(context, "sw.bb", new_wrapper);
-    bbs.push_back(bb);
+  for (auto &[i, subkernel] : barrierMain.getSubkernels()) {
+    bbs[i] = BasicBlock::Create(context, "sw.bb", new_wrapper);
   }
 
   ScheduleGenerator schedule(M, barrierMain, barrierTail, BI);
@@ -1655,7 +1656,9 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
   // Branch directly into the first basic block.
   entryIR.CreateBr(bbs[kBarrier_FirstID]);
 
-  for (unsigned i = kBarrier_EndID; i <= num_blocks; i++) {
+  for (auto &[i_, subkernel_] : barrierMain.getSubkernels()) {
+    auto i = i_;
+
     // Keep it linear
     BasicBlock *const block = bbs[i];
     block->moveAfter(&new_wrapper->back());
@@ -1734,7 +1737,7 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
 
       if (num_succ == 1) {
         // If there is only one successor, we can branch directly to it
-        exitIR.CreateBr(bbs[successors.front()]);
+        exitIR.CreateBr(bbs.find(successors.front())->second);
       } else if (num_succ == 2) {
         // If there are exactly two successors, we can use a conditional branch
         auto *const bb_id = ConstantInt::get(index_type, successors[0]);
@@ -1744,8 +1747,8 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
         auto *const cmp_id =
             CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, ld_next_id,
                             bb_id, "", br_block);
-        BranchInst::Create(bbs[successors[0]], bbs[successors[1]], cmp_id,
-                           br_block);
+        BranchInst::Create(bbs.find(successors[0])->second,
+                           bbs.find(successors[1])->second, cmp_id, br_block);
 
         exitIR.CreateBr(br_block);
       } else if (num_succ == 0) {
@@ -1771,9 +1774,9 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
         LoadInst *const ld_next_id =
             new LoadInst(index_type, nextID, "", switch_body);
         SwitchInst *const sw = SwitchInst::Create(
-            ld_next_id, bbs[successors[0]], num_succ, switch_body);
+            ld_next_id, bbs.find(successors[0])->second, num_succ, switch_body);
         for (const auto i : successors) {
-          sw->addCase(ConstantInt::get(index_type, i), bbs[i]);
+          sw->addCase(ConstantInt::get(index_type, i), bbs.find(i)->second);
         }
         exitIR.CreateBr(switch_body);
       }

@@ -31,6 +31,8 @@
 #include <llvm/Transforms/Utils/ValueMapper.h>
 #include <multi_llvm/llvm_version.h>
 
+#include <map>
+
 #include "pass_functions.h"
 
 namespace llvm {
@@ -82,10 +84,11 @@ struct BarrierRegion {
   BarrierSchedule schedule = BarrierSchedule::Unordered;
 };
 
-using BarrierGraph = llvm::SmallVector<BarrierRegion, 8>;
-
 class Barrier {
  public:
+  /// @brief Type for ids of new kernel functions
+  using kernel_id_map_t = std::map<unsigned, llvm::Function *>;
+
   Barrier(llvm::Module &m, llvm::Function &f, bool IsDebug)
       : live_var_mem_ty_(nullptr),
         size_t_bytes(compiler::utils::getSizeTypeBytes(m)),
@@ -106,6 +109,9 @@ class Barrier {
   /// @brief returns the maximum alignment of the barrier struct
   unsigned getLiveVarMaxAlignment() const { return max_live_var_alignment; }
 
+  /// @brief gets the split subkernels
+  const kernel_id_map_t &getSubkernels() const { return kernel_id_map_; }
+
   /// @brief gets the split subkernel for the given barrier id
   llvm::Function *getSubkernel(unsigned id) const {
     return kernel_id_map_.find(id)->second;
@@ -116,7 +122,7 @@ class Barrier {
 
   llvm::CallInst *getBarrierCall(unsigned id) const {
     return llvm::dyn_cast_or_null<llvm::CallInst>(
-        barrier_graph[id - kBarrier_FirstID].barrier_inst);
+        barrier_region_id_map_.find(id)->second.barrier_inst);
   }
 
   /// @brief gets the size of the fixed sized part of the barrier struct
@@ -135,12 +141,12 @@ class Barrier {
 
   /// @brief gets the barrier IDs of the successors of the given barrier region
   const llvm::SmallVectorImpl<unsigned> &getSuccessorIds(unsigned id) const {
-    return barrier_graph[id - kBarrier_FirstID].successor_ids;
+    return barrier_region_id_map_.find(id)->second.successor_ids;
   }
 
   /// @brief gets the barrier IDs of the successors of the given barrier region
   BarrierSchedule getSchedule(unsigned id) const {
-    return barrier_graph[id - kBarrier_FirstID].schedule;
+    return barrier_region_id_map_.find(id)->second.schedule;
   }
 
   /// @brief replaces a subkernel with a given function
@@ -223,8 +229,8 @@ class Barrier {
   using live_variable_scalables_map_t = live_variable_index_map_t;
   /// @brief Type for ids of barriers
   using barrier_id_map_t = llvm::DenseMap<llvm::BasicBlock *, unsigned>;
-  /// @brief Type for ids of new kernel functions
-  using kernel_id_map_t = llvm::DenseMap<unsigned, llvm::Function *>;
+  /// @brief Type for ids of barrier regions
+  using barrier_region_id_map_t = std::map<unsigned, BarrierRegion>;
   /// @brief Type for map from ids to fence instructions
   using fence_id_map_t = llvm::DenseMap<unsigned, llvm::FenceInst *>;
   /// @brief Type between block and instruction for barrier.
@@ -245,6 +251,8 @@ class Barrier {
   live_variable_scalables_map_t live_variable_scalables_map_;
   /// @brief Keep ids of barriers.
   barrier_id_map_t barrier_id_map_;
+  /// @brief Look up a barrier region by its id.
+  barrier_region_id_map_t barrier_region_id_map_;
   /// @brief Keep ids of barriers.
   kernel_id_map_t kernel_id_map_;
   /// @brief Keep struct types for live variables' memory layout.
@@ -268,8 +276,6 @@ class Barrier {
   debug_variable_records_t debug_variable_records_;
 
   size_t size_t_bytes;
-
-  BarrierGraph barrier_graph;
 
   llvm::Module &module_;
   llvm::Function &func_;
