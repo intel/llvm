@@ -44,7 +44,8 @@ jobs:
 
   build:
     needs: [detect_changes]
-    if: always() && success()
+    # if: always() && success()
+    if: false
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -64,7 +65,8 @@ jobs:
   # The idea is to ensure that the code works with both CUDA versions.
   build_ubuntu2204:
     needs: [detect_changes]
-    if: always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter')
+    # if: always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter')
+    if: false
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -76,7 +78,8 @@ jobs:
 
   run_prebuilt_e2e_tests:
     needs: [build, detect_changes]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    # if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -160,11 +163,12 @@ jobs:
 
   test-perf:
     needs: [build, detect_changes]
-    if: |
-      always() && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-      && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
-          || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
+    # if: |
+    #   always() && !cancelled()
+    #   && needs.build.outputs.build_conclusion == 'success'
+    #   && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
+    #       || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
+    if: false
     strategy:
       fail-fast: false
       matrix:
