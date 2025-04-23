@@ -564,4 +564,26 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
       __spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_stack"));
 }
 
+void __msan_unpoison_strided_copy(uptr dest, uptr src, uptr counts, uptr stride) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
+                                "__msan_unpoison_strided_copy"));
+
+  for (uptr i = 0; i < counts; ++i) {
+    auto shadow_address = __msan_get_shadow(dest, ADDRESS_SPACE_PRIVATE);
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
+                                  (void *)shadow_address,
+                                  (void *)(shadow_address + stride), 0x0));
+
+    for (size_t j = 0; j < stride; j++)
+      ((__SYCL_GLOBAL__ u8 *)shadow_address)[j] = 0;
+    dest += stride;
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
+                                "__msan_unpoison_strided_copy"));
+}
+
 #endif // __SPIR__ || __SPIRV__

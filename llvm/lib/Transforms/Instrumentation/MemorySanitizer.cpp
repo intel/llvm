@@ -810,6 +810,8 @@ private:
   void initializeKernelCallerMap(Function *F);
 
 private:
+  friend struct MemorySanitizerVisitor;
+
   Module &M;
   LLVMContext &C;
   const DataLayout &DL;
@@ -836,6 +838,7 @@ private:
   FunctionCallee MsanUnpoisonShadowDynamicLocalFunc;
   FunctionCallee MsanBarrierFunc;
   FunctionCallee MsanUnpoisonStackFunc;
+  FunctionCallee MsanShadowStridedCopyFunc;
 };
 
 } // end anonymous namespace
@@ -926,6 +929,10 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   // )
   MsanUnpoisonStackFunc = M.getOrInsertFunction(
       "__msan_unpoison_stack", IRB.getVoidTy(), PtrTy, IntptrTy);
+
+  MsanShadowStridedCopyFunc =
+      M.getOrInsertFunction("__msan_unpoison_strided_copy", IRB.getVoidTy(), IntptrTy,
+                            IntptrTy, IRB.getInt64Ty(), IRB.getInt64Ty());
 }
 
 // Handle global variables:
@@ -1804,7 +1811,7 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
         }
       } else {
         auto FuncName = Func->getName();
-        if (FuncName.contains("__spirv_"))
+        if (FuncName.contains("__spirv_") && !FuncName.contains("__spirv_GroupAsyncCopy"))
           I.setNoSanitizeMetadata();
       }
     }
@@ -5994,6 +6001,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   void visitCallBase(CallBase &CB) {
     assert(!CB.getMetadata(LLVMContext::MD_nosanitize));
+    outs() << "!!! call base\n";
+
     if (CB.isInlineAsm()) {
       // For inline asm (either a call to asm function, or callbr instruction),
       // do the usual thing: check argument shadow and mark all outputs as
@@ -6029,6 +6038,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     if (auto *Call = dyn_cast<CallInst>(&CB)) {
       assert(!isa<IntrinsicInst>(Call) && "intrinsics are handled elsewhere");
+      outs() << "!!! call inst\n";
 
       // We are going to insert code that relies on the fact that the callee
       // will become a non-readonly function after it is instrumented by us. To
@@ -6149,6 +6159,25 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     FunctionType *FT = CB.getFunctionType();
     if (FT->isVarArg()) {
       VAHelper->visitCallBase(CB, IRB);
+    }
+
+    if (SpirOrSpirv) {
+      auto *Func = CB.getCalledFunction();
+      if (Func) {
+        auto FuncName = Func->getName();
+        outs() << "!!!! " << FuncName << "\n";
+        if (FuncName.contains("__spirv_GroupAsyncCopy")) {
+          auto *Dest = CB.getArgOperand(1);
+          auto *Src = CB.getArgOperand(2);
+          auto *NumElements = CB.getArgOperand(3);
+          auto *Stride = CB.getArgOperand(4);
+
+          IRB.CreateCall(MS.Spirv.MsanShadowStridedCopyFunc,
+                         {IRB.CreatePointerCast(Dest, MS.Spirv.IntptrTy),
+                          IRB.CreatePointerCast(Src, MS.Spirv.IntptrTy), NumElements,
+                          Stride});
+        }
+      }
     }
 
     // Now, get the shadow for the RetVal.
