@@ -217,7 +217,8 @@ private:
 
   AdapterPtr MAdapter;
 
-  std::vector<std::weak_ptr<device_impl>> MDeviceCache;
+  std::vector<std::shared_ptr<device_impl>> MDevices;
+  friend class GlobalHandler;
   std::mutex MDeviceMapMutex;
 };
 
