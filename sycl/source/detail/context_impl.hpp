@@ -307,8 +307,17 @@ private:
     std::vector<ur_event_handle_t> MDeviceGlobalInitEvents;
   };
 
-  std::map<std::pair<ur_program_handle_t, ur_device_handle_t>,
-           DeviceGlobalInitializer>
+  using HandleDevicePair = std::pair<ur_program_handle_t, ur_device_handle_t>;
+
+  struct HandleDevicePairHash {
+    std::size_t operator()(const HandleDevicePair &Key) const {
+      return std::hash<ur_program_handle_t>{}(Key.first) ^
+             std::hash<ur_device_handle_t>{}(Key.second);
+    }
+  };
+
+  std::unordered_map<HandleDevicePair, DeviceGlobalInitializer,
+                     HandleDevicePairHash>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
   // The number of device globals that have not been initialized yet.
