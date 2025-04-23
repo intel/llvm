@@ -302,7 +302,7 @@ _Throws:_
 * An `exception` with the `errc::invalid` error code if the source language
   `lang` does not support one of the properties in `PropertyListT` or if
   `props` contains a `build_options` property that contains an option that is
-  not supported by `lang`.
+  not supported when building `lang`.
 
 * An `exception` with the `errc::build` error code if the compilation or
   linking operations fail.
@@ -375,8 +375,10 @@ _Throws:_
   `devs` does not support compilation of kernels in the source language of
   `sourceBundle`.
 
-* An `exception` with the `errc::invalid` error code if `props` contains an
-  `build_options` property that specifies an invalid option.
+* An `exception` with the `errc::invalid` error code if the source language
+  `lang` does not support one of the properties in `PropertyListT` or if
+  `props` contains a `build_options` property that contains an option that is
+  not supported when compiling `lang`.
 
 * An `exception` with the `errc::build` error code if the compilation operation
   fails.  In this case, the exception `what` string provides a full build log,
