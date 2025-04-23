@@ -5441,12 +5441,10 @@ class OffloadingActionBuilder final {
         return;
 
       OffloadAction::DeviceDependences Dep;
-      const char *BoundArch;
-      for (auto &A : GpuArchList) {
-        if (ToolChains.front()->getTriple() == A.first) {
-          BoundArch = A.second;
-          Dep.add(*SYCLLinkBinary, *ToolChains.front(), BoundArch,
-                  Action::OFK_SYCL);
+      for (auto &TripleAndArchPair : GpuArchList) {
+        if (ToolChains.front()->getTriple() == TripleAndArchPair.first) {
+          Dep.add(*SYCLLinkBinary, *ToolChains.front(),
+                  TripleAndArchPair.second, Action::OFK_SYCL);
         }
       }
 
