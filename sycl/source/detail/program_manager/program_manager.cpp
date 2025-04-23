@@ -756,7 +756,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
     }
   }
 
-  {
+  if (!WorkList.empty()) {
     // Guard read access to m_VFSet2BinImage:
     // TODO: a better solution should be sought in the future, i.e. a different
     // mutex than m_KernelIDsMutex, check lock check pattern, etc.
