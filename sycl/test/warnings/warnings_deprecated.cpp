@@ -8,7 +8,7 @@ int main() {
   sycl::info::device::atomic64 atomic_64;
   (void)atomic_64;
 
-  // expected-warning@+1{{'discard_events' is deprecated: use sycl_ext_oneapi_enqueue_functions instead}}
+  // expected-warning@+2{{'discard_events' is deprecated: use sycl_ext_oneapi_enqueue_functions instead}}
   sycl::property_list props{
       sycl::ext::oneapi::property::queue::discard_events{}};
   return 0;

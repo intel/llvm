@@ -769,10 +769,13 @@ void queue_impl::doUnenqueuedCommandCleanup(
 
 void queue_impl::verifyProps(const property_list &Props) const {
   auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP_DEPRECATED_ALIAS(NS_QUALIFIER, PROP_NAME,        \
+                                               ENUM_VAL, WARNING)              \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   case NS_QUALIFIER::PROP_NAME::getKind():                                     \
     return true;
-#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
     switch (PropertyKind) {
 #include <sycl/properties/queue_properties.def>
     default:
@@ -780,7 +783,6 @@ void queue_impl::verifyProps(const property_list &Props) const {
     }
   };
   auto CheckPropertiesWithData = [](int PropertyKind) {
-#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   case NS_QUALIFIER::PROP_NAME::getKind():                                     \
     return true;

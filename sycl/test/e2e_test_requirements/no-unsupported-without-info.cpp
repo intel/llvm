@@ -119,7 +119,6 @@
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
 // CHECK-NEXT: DeviceLib/std_complex_math_fp64_test.cpp
 // CHECK-NEXT: DeviceLib/std_complex_math_test.cpp
-// CHECK-NEXT: DiscardEvents/discard_events_check_images.cpp
 // CHECK-NEXT: DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
