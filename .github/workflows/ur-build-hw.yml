@@ -115,15 +115,17 @@ jobs:
 
     - name: Get information about platform
       if: ${{ always() }}
-      run: ./unified-runtime/.github/scripts/get_system_info.sh
+      run: ./unified-runtime/.github/scripts/get_system_info.sh   
 
-    # TODO: move installation of python3-venv to docker
-    # Latest distros do not allow global pip installation
+    - name: Set up Python 3.10
+      if: ${{ inputs.docker_image == 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
     - name: Install UR python dependencies in venv
       working-directory: ./unified-runtime
       run: |
-        sudo apt update
-        sudo apt install -y python3-venv
         python3 -m venv .venv
         . .venv/bin/activate
         echo "${PWD}/.venv/bin" >> $GITHUB_PATH
