@@ -479,6 +479,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
+  LaunchInfo.Data.Host.IsRecover = getContext()->Options.Recover ? 1 : 0;
 
   // Clean shadow
   // Its content is always zero, and is used for unsupport memory types
