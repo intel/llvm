@@ -1997,16 +1997,16 @@ void instrumentationAddExtraKernelMetadata(
   std::mutex *KernelMutex = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  if (auto SyclKernelImpl = KernelBundleImplPtr
-                                ? KernelBundleImplPtr->tryGetKernel(
-                                      KernelName, KernelBundleImplPtr)
-                                : std::shared_ptr<kernel_impl>{nullptr}) {
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
-  } else if (nullptr != SyclKernel) {
+  if (nullptr != SyclKernel) {
     Program = SyclKernel->getProgramRef();
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
+  } else if (auto SyclKernelImpl =
+                 KernelBundleImplPtr ? KernelBundleImplPtr->tryGetKernel(
+                                           KernelName, KernelBundleImplPtr)
+                                     : std::shared_ptr<kernel_impl>{nullptr}) {
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
   } else if (Queue) {
     // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
@@ -2521,17 +2521,17 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   const KernelArgMask *EliminatedArgMask = nullptr;
   auto &KernelBundleImplPtr = CommandGroup.MKernelBundle;
 
-  if (auto SyclKernelImpl =
-          KernelBundleImplPtr
-              ? KernelBundleImplPtr->tryGetKernel(CommandGroup.MKernelName,
-                                                  KernelBundleImplPtr)
-              : std::shared_ptr<kernel_impl>{nullptr}) {
+  if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
+    UrKernel = Kernel->getHandleRef();
+    EliminatedArgMask = Kernel->getKernelArgMask();
+  } else if (auto SyclKernelImpl =
+                 KernelBundleImplPtr
+                     ? KernelBundleImplPtr->tryGetKernel(
+                           CommandGroup.MKernelName, KernelBundleImplPtr)
+                     : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-  } else if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
-    UrKernel = Kernel->getHandleRef();
-    EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
@@ -2678,18 +2678,7 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  if ((SyclKernelImpl = KernelBundleImplPtr
-                            ? KernelBundleImplPtr->tryGetKernel(
-                                  KernelName, KernelBundleImplPtr)
-                            : std::shared_ptr<kernel_impl>{nullptr})) {
-    Kernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
-
-    Program = DeviceImageImpl->get_ur_program_ref();
-
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    KernelMutex = SyclKernelImpl->getCacheMutex();
-  } else if (nullptr != MSyclKernel) {
+  if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
@@ -2703,6 +2692,17 @@ void enqueueImpKernel(
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
+  } else if ((SyclKernelImpl = KernelBundleImplPtr
+                                   ? KernelBundleImplPtr->tryGetKernel(
+                                         KernelName, KernelBundleImplPtr)
+                                   : std::shared_ptr<kernel_impl>{nullptr})) {
+    Kernel = SyclKernelImpl->getHandleRef();
+    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+
+    Program = DeviceImageImpl->get_ur_program_ref();
+
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
