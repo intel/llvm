@@ -41,8 +41,11 @@ class GromacsBench(Suite):
         return [
             GromacsBenchmark(self, "0006", "pme", "graphs"),
             GromacsBenchmark(self, "0006", "pme", "eager"),
-            GromacsBenchmark(self, "0192", "rf", "graphs"),
-            GromacsBenchmark(self, "0192", "rf", "eager"),
+            GromacsBenchmark(self, "0006", "rf", "graphs"),
+            GromacsBenchmark(self, "0006", "rf", "eager"),
+            # some people may need it
+            # GromacsBenchmark(self, "0192", "pme", "eager"),
+            # GromacsBenchmark(self, "0192", "rf", "eager"),
         ]
 
     def setup(self):
@@ -52,6 +55,8 @@ class GromacsBench(Suite):
             self.git_url(),
             self.git_tag(),
         )
+
+        # TODO: Detect the GPU architecture and set the appropriate flags
 
         # Build GROMACS
         run(
@@ -64,10 +69,11 @@ class GromacsBench(Suite):
                 f"-DCMAKE_C_COMPILER=clang",
                 f"-DGMX_GPU=SYCL",
                 f"-DGMX_SYCL_ENABLE_GRAPHS=ON",
+                f"-DGMX_SYCL_ENABLE_EXPERIMENTAL_SUBMIT_API=ON"
                 f"-DGMX_FFT_LIBRARY=MKL",
-                f"-DGMX_BUILD_OWN_FFTW=ON",
                 f"-DGMX_GPU_FFT_LIBRARY=MKL",
                 f"-DGMX_GPU_NB_CLUSTER_SIZE=8",
+                f"-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1",
                 f"-DGMX_OPENMP=OFF",
             ],
             add_sycl=True,
@@ -92,11 +98,12 @@ class GromacsBenchmark(Benchmark):
     def __init__(self, suite, model, type, option):
         self.suite = suite
         self.model = model  # The model name (e.g., "0001.5")
-        self.type = type
+        self.type = type  # The type of benchmark ("pme" or "rf")
+        self.option = option  # "graphs" or "eager"
+
         self.gromacs_src = suite.gromacs_src
         self.grappa_dir = suite.grappa_dir
         self.gmx_path = suite.gromacs_build_path / "bin" / "gmx"
-        self.option = option
 
         if self.type == "pme":
             self.extra_args = [
@@ -176,6 +183,7 @@ class GromacsBenchmark(Benchmark):
             "100",
             "-pin",
             "on",
+            "-resethway",
         ] + self.extra_args
 
         mdrun_output = self.run_bench(
