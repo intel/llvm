@@ -1295,8 +1295,7 @@ Function *CLBuiltinInfo::getVectorEquivalent(const Builtin &B, unsigned Width,
         if (!FixedVectorType::isValidElementType(PtrRetPointeeTy)) {
           return nullptr;
         }
-        Type *NewEleTy = FixedVectorType::get(PtrRetPointeeTy, Width);
-        Type *NewType = PointerType::get(NewEleTy, OldPtrTy->getAddressSpace());
+        Type *NewType = OldPtrTy;
         TypeQualifiers NewQuals;
         TypeQualifiers EleQuals = OldQuals;
         NewQuals.push_back(EleQuals.pop_front());  // Pointer qualifier
@@ -1413,9 +1412,7 @@ Function *CLBuiltinInfo::getScalarEquivalent(const Builtin &B, Module *M) {
         [[maybe_unused]] auto *OldPointeeTy = BuiltinPointeeTypes[i];
         assert(OldPointeeTy && OldPointeeTy == PtrRetPointeeTy &&
                "Demangling inconsistency");
-        auto *OldVecTy = cast<FixedVectorType>(PtrRetPointeeTy);
-        Type *NewTy = PointerType::get(OldVecTy->getElementType(),
-                                       OldPtrTy->getAddressSpace());
+        Type *NewTy = OldPtrTy;
         TypeQualifiers NewQuals = OldQuals;
         const TypeQualifier PtrQual = NewQuals.pop_front();
         const TypeQualifier VecQual = NewQuals.pop_front();
@@ -2190,8 +2187,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineVLoad(Function *F, unsigned Width,
       Data = B.CreateInsertElement(Data, Lane, Index, "vload_insert");
     }
   } else {
-    Value *VecBase = B.CreateBitCast(GEPBase, PtrTy, "vload_ptr");
-    auto *Load = B.CreateLoad(DataTy, VecBase, false, "vload");
+    auto *Load = B.CreateLoad(DataTy, GEPBase, false, "vload");
 
     const unsigned Align = DataTy->getScalarSizeInBits() / 8;
     Load->setAlignment(MaybeAlign(Align).valueOrOne());
@@ -2250,8 +2246,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineVStore(Function *F, unsigned Width,
       Store = B.CreateStore(Lane, GEP, false);
     }
   } else {
-    Value *VecBase = B.CreateBitCast(GEPBase, PtrTy, "vstore_ptr");
-    Store = B.CreateStore(Data, VecBase, false);
+    Store = B.CreateStore(Data, GEPBase, false);
 
     const unsigned Align = VecDataTy->getScalarSizeInBits() / 8;
     Store->setAlignment(MaybeAlign(Align).valueOrOne());
@@ -2279,12 +2274,10 @@ Value *CLBuiltinInfo::emitBuiltinInlineVLoadHalf(Function *F, IRBuilder<> &B,
     return nullptr;
   }
   Type *U16Ty = B.getInt16Ty();
-  Type *U16PtrTy = PointerType::get(U16Ty, PtrTy->getAddressSpace());
-  Value *DataPtr = B.CreateBitCast(Ptr, U16PtrTy);
 
   // Emit the base pointer.
   Value *Offset = Args[0];
-  DataPtr = B.CreateGEP(U16Ty, DataPtr, Offset, "vload_base");
+  Value *DataPtr = B.CreateGEP(U16Ty, Ptr, Offset, "vload_base");
 
   // Load a ushort.
   Value *Data = B.CreateLoad(B.getInt16Ty(), DataPtr, "vload_half");
@@ -2368,12 +2361,10 @@ Value *CLBuiltinInfo::emitBuiltinInlineVStoreHalf(Function *F, StringRef Mode,
     return nullptr;
   }
   auto U16Ty = B.getInt16Ty();
-  Type *U16PtrTy = PointerType::get(U16Ty, PtrTy->getAddressSpace());
-  Value *DataPtr = B.CreateBitCast(Ptr, U16PtrTy);
 
   // Emit the base pointer.
   Value *Offset = Args[1];
-  DataPtr = B.CreateGEP(U16Ty, DataPtr, Offset, "vstore_base");
+  Value *DataPtr = B.CreateGEP(U16Ty, Ptr, Offset, "vstore_base");
 
   // Store the ushort.
   return B.CreateStore(Data, DataPtr);
@@ -2644,7 +2635,7 @@ Value *CLBuiltinInfo::emitBuiltinInlinePrintf(BuiltinID, IRBuilder<> &B,
   // Declare printf if needed.
   Function *Printf = M.getFunction("printf");
   if (!Printf) {
-    PointerType *PtrTy = PointerType::getUnqual(B.getInt8Ty());
+    PointerType *PtrTy = B.getPtrTy(/*AddressSpace=*/0);
     FunctionType *PrintfTy = FunctionType::get(B.getInt32Ty(), {PtrTy}, true);
     Printf =
         Function::Create(PrintfTy, GlobalValue::ExternalLinkage, "printf", &M);

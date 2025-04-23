@@ -113,8 +113,7 @@ static CallInst *createMaskedMemOp(VectorizationContext &Ctx, Value *Data,
   VECZ_FAIL_IF(!Ptr || !Ptr->getType()->isPointerTy());
   VECZ_FAIL_IF(!Mask);
   assert(!Data || Data->getType() == DataTy);
-  auto *PtrTy =
-      PointerType::get(DataTy, Ptr->getType()->getPointerAddressSpace());
+  auto *PtrTy = cast<PointerType>(Ptr->getType());
   Function *F =
       getOrCreateMaskedMemOpFn(Ctx, DataTy, PtrTy, Alignment,
                                /*IsLoad*/ Data == nullptr, EVL != nullptr);
@@ -242,8 +241,7 @@ static CallInst *createInterleavedMemOp(VectorizationContext &Ctx, Value *Data,
   VECZ_FAIL_IF(!DataTy);
   VECZ_FAIL_IF(!Ptr || !Ptr->getType()->isPointerTy());
   assert(!Data || Data->getType() == DataTy);
-  auto *PtrTy = PointerType::get(DataTy->getScalarType(),
-                                 Ptr->getType()->getPointerAddressSpace());
+  auto *PtrTy = cast<PointerType>(Ptr->getType());
   Type *MaskTy = Mask ? Mask->getType() : nullptr;
   Function *F = getOrCreateInterleavedMemOpFn(
       Ctx, DataTy, PtrTy, Stride, MaskTy, Alignment,
