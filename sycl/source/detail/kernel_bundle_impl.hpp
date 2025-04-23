@@ -537,7 +537,7 @@ public:
   get_kernel(const kernel_id &KernelID,
              const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
     if (std::shared_ptr<kernel_impl> KernelImpl =
-            tryGetOfflineKernel(KernelID, Self))
+            tryGetOfflineKernelImpl(KernelID, Self))
       return detail::createSyclObjFromImpl<kernel>(std::move(KernelImpl));
     throw sycl::exception(make_error_code(errc::invalid),
                           "The kernel bundle does not contain the kernel "
@@ -692,7 +692,7 @@ public:
     });
   }
 
-  std::shared_ptr<kernel_impl> tryGetOfflineKernel(
+  std::shared_ptr<kernel_impl> tryGetOfflineKernelImpl(
       const kernel_id &KernelID,
       const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
     using ImageImpl = std::shared_ptr<detail::device_image_impl>;
@@ -759,6 +759,17 @@ public:
   }
 
   std::shared_ptr<kernel_impl>
+  tryGetOfflineKernel(detail::KernelNameStrRefT Name,
+                      const std::shared_ptr<kernel_bundle_impl> &Self) const {
+    // Fall back to regular offline compiled kernel_bundle look-up.
+    if (std::optional<kernel_id> MaybeKernelID =
+            sycl::detail::ProgramManager::getInstance().tryGetSYCLKernelID(
+                Name))
+      return tryGetOfflineKernelImpl(*MaybeKernelID, Self);
+    return nullptr;
+  }
+
+  std::shared_ptr<kernel_impl>
   tryGetKernel(detail::KernelNameStrRefT Name,
                const std::shared_ptr<kernel_bundle_impl> &Self) const {
     // TODO: For source-based kernels, it may be faster to keep a map between
@@ -774,11 +785,7 @@ public:
     }
 
     // Fall back to regular offline compiled kernel_bundle look-up.
-    if (std::optional<kernel_id> MaybeKernelID =
-            sycl::detail::ProgramManager::getInstance().tryGetSYCLKernelID(
-                Name))
-      return tryGetOfflineKernel(*MaybeKernelID, Self);
-    return nullptr;
+    return tryGetOfflineKernel(Name, Self);
   }
 
 private:

@@ -2523,8 +2523,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
 
   if (auto SyclKernelImpl =
           KernelBundleImplPtr
-              ? KernelBundleImplPtr->tryGetKernel(CommandGroup.MKernelName,
-                                                  KernelBundleImplPtr)
+              ? KernelBundleImplPtr->tryGetOfflineKernel(
+                    CommandGroup.MKernelName, KernelBundleImplPtr)
               : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
