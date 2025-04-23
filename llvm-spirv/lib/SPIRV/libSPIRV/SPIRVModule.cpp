@@ -259,9 +259,7 @@ public:
                                      const std::vector<SPIRVType *> &) override;
   SPIRVTypeInt *addIntegerType(unsigned BitWidth) override;
   SPIRVTypeOpaque *addOpaqueType(const std::string &) override;
-  SPIRVTypePointer *addPointerType(SPIRVStorageClassKind, SPIRVType *) override;
-  SPIRVTypeUntypedPointerKHR *
-      addUntypedPointerKHRType(SPIRVStorageClassKind) override;
+  SPIRVType *addPointerType(SPIRVStorageClassKind, SPIRVType *) override;
   SPIRVTypeImage *addImageType(SPIRVType *,
                                const SPIRVTypeImageDescriptor &) override;
   SPIRVTypeImage *addImageType(SPIRVType *, const SPIRVTypeImageDescriptor &,
@@ -1020,26 +1018,27 @@ SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth,
   return addType(Ty);
 }
 
-SPIRVTypePointer *
-SPIRVModuleImpl::addPointerType(SPIRVStorageClassKind StorageClass,
-                                SPIRVType *ElementType) {
+SPIRVType *SPIRVModuleImpl::addPointerType(SPIRVStorageClassKind StorageClass,
+                                           SPIRVType *ElementType = nullptr) {
+  if (ElementType == nullptr) {
+    // Untyped pointer
+    auto Loc = UntypedPtrTyMap.find(StorageClass);
+    if (Loc != UntypedPtrTyMap.end())
+      return Loc->second;
+
+    auto *Ty = new SPIRVTypeUntypedPointerKHR(this, getId(), StorageClass);
+    UntypedPtrTyMap[StorageClass] = Ty;
+    return addType(Ty);
+  }
+
+  // Typed pointer
   auto Desc = std::make_pair(StorageClass, ElementType);
   auto Loc = PointerTypeMap.find(Desc);
   if (Loc != PointerTypeMap.end())
     return Loc->second;
+
   auto *Ty = new SPIRVTypePointer(this, getId(), StorageClass, ElementType);
   PointerTypeMap[Desc] = Ty;
-  return addType(Ty);
-}
-
-SPIRVTypeUntypedPointerKHR *
-SPIRVModuleImpl::addUntypedPointerKHRType(SPIRVStorageClassKind StorageClass) {
-  auto Loc = UntypedPtrTyMap.find(StorageClass);
-  if (Loc != UntypedPtrTyMap.end())
-    return Loc->second;
-
-  auto *Ty = new SPIRVTypeUntypedPointerKHR(this, getId(), StorageClass);
-  UntypedPtrTyMap[StorageClass] = Ty;
   return addType(Ty);
 }
 
