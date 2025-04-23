@@ -547,7 +547,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
 }
 
 bool ur_platform_handle_t_::allowDriverInOrderLists(bool OnlyIfRequested) {
-  return true;
+  return OnlyIfRequested;
 }
 
 /// Checks the version of the level-zero driver.
