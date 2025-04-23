@@ -157,14 +157,34 @@ a!
 ----
 class device {
 
+bool ext_oneapi_can_build(ext::oneapi::experimental::source_language lang);
+
+};
+----
+!====
+
+_Returns:_ The value `true` only if the device supports the
+`ext::oneapi::experimental::build` function on kernel bundles written in the
+source language `lang`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+class device {
+
 bool ext_oneapi_can_compile(ext::oneapi::experimental::source_language lang);
 
 };
 ----
 !====
 
-_Returns:_ The value `true` only if the device supports kernel bundles written
-in the source language `lang`.
+_Returns:_ The value `true` only if the device supports the
+`ext::oneapi::experimental::compile` function on kernel bundles written in the
+source language `lang`.
+
 |====
 
 === New free functions to create and build kernel bundles

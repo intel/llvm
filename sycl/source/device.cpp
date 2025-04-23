@@ -263,6 +263,11 @@ bool device::ext_oneapi_architecture_is(
 }
 
 // kernel_compiler extension methods
+bool device::ext_oneapi_can_build(
+    ext::oneapi::experimental::source_language Language) {
+  return impl->extOneapiCanBuild(Language);
+}
+
 bool device::ext_oneapi_can_compile(
     ext::oneapi::experimental::source_language Language) {
   return impl->extOneapiCanCompile(Language);

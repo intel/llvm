@@ -918,11 +918,23 @@ bool device_impl::isGetDeviceAndHostTimerSupported() {
   return Result != UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
-bool device_impl::extOneapiCanCompile(
+bool device_impl::extOneapiCanBuild(
     ext::oneapi::experimental::source_language Language) {
   try {
     return sycl::ext::oneapi::experimental::detail::
         is_source_kernel_bundle_supported(getBackend(), Language);
+  } catch (sycl::exception &) {
+    return false;
+  }
+}
+
+bool device_impl::extOneapiCanCompile(
+    ext::oneapi::experimental::source_language Language) {
+  try {
+    // Currently only SYCL language is supported for compiling.
+    return Language == ext::oneapi::experimental::source_language::sycl &&
+           sycl::ext::oneapi::experimental::detail::
+               is_source_kernel_bundle_supported(getBackend(), Language);
   } catch (sycl::exception &) {
     return false;
   }

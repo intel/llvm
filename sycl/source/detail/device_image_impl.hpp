@@ -711,7 +711,7 @@ public:
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
       }
-      if (!DevImpl->extOneapiCanCompile(MRTCBinInfo->MLanguage)) {
+      if (!DevImpl->extOneapiCanBuild(MRTCBinInfo->MLanguage)) {
         // This error cannot not be exercised in the current implementation, as
         // compatibility with a source language depends on the backend's
         // capabilities and all devices in one context share the same backend in

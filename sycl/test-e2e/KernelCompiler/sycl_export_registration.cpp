@@ -58,7 +58,7 @@ int main() {
   sycl::queue Q;
   int Failed = 0;
 
-  if (!Q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl)) {
+  if (!Q.get_device().ext_oneapi_can_build(syclex::source_language::sycl)) {
     std::cout << "Device does not support one of the source languages: "
               << Q.get_device().get_info<sycl::info::device::name>()
               << std::endl;

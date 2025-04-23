@@ -3849,6 +3849,7 @@
 ?ext_oneapi_barrier@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?ext_oneapi_barrier@handler@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_can_access_peer@device@_V1@sycl@@QEAA_NAEBV123@W4peer_access@oneapi@ext@23@@Z
+?ext_oneapi_can_build@device@_V1@sycl@@QEAA_NW4source_language@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_can_compile@device@_V1@sycl@@QEAA_NW4source_language@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_cl_profile@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?ext_oneapi_cl_profile_impl@device@_V1@sycl@@AEBA?AVstring@detail@23@XZ
