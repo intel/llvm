@@ -980,12 +980,9 @@ std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
   // This attribute marks virtual functions and effectively dictates how they
   // should be groupped together. By design we won't split those groups of
   // virtual functions further even if functions from the same group use
-  // different optional features and therefore this rule is put here.
-  // Strictly speaking, we don't even care about module-id splitting for
-  // those, but to avoid that we need to refactor the whole categorizer.
-  // However, this is good enough as it is for an initial version.
+  // different optional features and therefore this distinction is put here.
   // TODO: for AOT use case we shouldn't be outlining those and instead should
-  // only select those functions which are compatible with the target device
+  // only select those functions which are compatible with the target device.
   computeFuncCategoryFromAttribute(F, "indirectly-callable", Result);
 
   // Optional features
