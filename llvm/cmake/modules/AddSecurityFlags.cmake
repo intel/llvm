@@ -31,7 +31,7 @@ macro(add_link_option_ext flag name)
   endif()
 endmacro()
 
-function(append_common_extra_security_flags)
+macro(append_common_extra_security_flags)
   if( LLVM_ON_UNIX )
     # Fortify Source (strongly recommended):
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -70,7 +70,7 @@ function(append_common_extra_security_flags)
       CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
       CMAKE_SHARED_LINKER_FLAGS)
   endif()
-endfunction()
+endmacro()
 
 if ( EXTRA_SECURITY_FLAGS )
     if (EXTRA_SECURITY_FLAGS STREQUAL "none")

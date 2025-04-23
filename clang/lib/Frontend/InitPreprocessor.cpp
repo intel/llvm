@@ -692,7 +692,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_lambdas", "200907L");
     Builder.defineMacro("__cpp_constexpr", LangOpts.CPlusPlus26   ? "202406L"
                                            : LangOpts.CPlusPlus23 ? "202211L"
-                                           : LangOpts.CPlusPlus20 ? "201907L"
+                                           : LangOpts.CPlusPlus20 ? "202002L"
                                            : LangOpts.CPlusPlus17 ? "201603L"
                                            : LangOpts.CPlusPlus14 ? "201304L"
                                                                   : "200704");
@@ -748,7 +748,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_nested_namespace_definitions", "201411L");
     Builder.defineMacro("__cpp_variadic_using", "201611L");
     Builder.defineMacro("__cpp_aggregate_bases", "201603L");
-    Builder.defineMacro("__cpp_structured_bindings", "202403L");
+    Builder.defineMacro("__cpp_structured_bindings", "202411L");
     Builder.defineMacro("__cpp_nontype_template_args",
                         "201411L"); // (not latest)
     Builder.defineMacro("__cpp_fold_expressions", "201603L");
@@ -1511,10 +1511,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   }
 
   // CUDA device path compilaton
-  if (LangOpts.CUDAIsDevice && !LangOpts.HIP && !LangOpts.isSYCL()) {
+  // Enabled if CUDA device compilation mode is on unless HIP is
+  // active or SYCL is active without CUDA compatibility enabled.
+  bool EnableCUDADevicePath = LangOpts.CUDAIsDevice && !LangOpts.HIP &&
+                              (!LangOpts.isSYCL() || LangOpts.SYCLCUDACompat);
+  if (EnableCUDADevicePath) {
     // The CUDA_ARCH value is set for the GPU target specified in the NVPTX
     // backend's target defines.
-    // Note: SYCL targeting nvptx-cuda relies on __SYCL_CUDA_ARCH__ instead.
+    // Note: SYCL targeting nvptx-cuda without SYCL-CUDA compatibility relies on
+    // __SYCL_CUDA_ARCH__ only instead.
     Builder.defineMacro("__CUDA_ARCH__");
   }
 

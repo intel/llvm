@@ -15,6 +15,7 @@
 #include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
 #include <sycl/kernel.hpp>        // for kernel_impl
 #include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
@@ -107,15 +108,15 @@ public:
     setNDRangeLeftover();
   }
 
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
-
   NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
            sycl::id<3> Offset, int DimsArg)
       : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
         Dims{size_t(DimsArg)} {
     setNDRangeLeftover();
   }
+
+  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
+      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange, int DimsArg)
@@ -255,7 +256,7 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  std::string MKernelName;
+  KernelNameStrT MKernelName;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -270,7 +271,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName,
+               KernelNameStrT KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -291,9 +292,9 @@ public:
 
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
-  std::vector<ArgDesc> getArguments() const { return MArgs; }
-  std::string getKernelName() const { return MKernelName; }
-  std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
+  const std::vector<ArgDesc> &getArguments() const { return MArgs; }
+  KernelNameStrRefT getKernelName() const { return MKernelName; }
+  const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }
 
@@ -303,7 +304,7 @@ public:
   }
   void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 
-  std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
+  const std::shared_ptr<detail::kernel_bundle_impl> &getKernelBundle() {
     return MKernelBundle;
   }
 
@@ -529,7 +530,7 @@ public:
         PipeName(Name), Blocking(Block), HostPtr(Ptr), TypeSize(Size),
         IsReadOp(Read) {}
 
-  std::string getPipeName() { return PipeName; }
+  const std::string &getPipeName() { return PipeName; }
   void *getHostPtr() { return HostPtr; }
   size_t getTypeSize() { return TypeSize; }
   bool isBlocking() { return Blocking; }
@@ -665,6 +666,34 @@ public:
     return MExternalSemaphore;
   }
   std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
+};
+
+/// "Async Alloc" command group class.
+class CGAsyncAlloc : public CG {
+
+  // Resulting event carried from async alloc execution.
+  ur_event_handle_t MEvent;
+
+public:
+  CGAsyncAlloc(ur_event_handle_t event, CG::StorageInitHelper CGData,
+               detail::code_location loc = {})
+      : CG(CGType::AsyncAlloc, std::move(CGData), std::move(loc)),
+        MEvent(event) {}
+
+  ur_event_handle_t getEvent() const { return MEvent; }
+};
+
+/// "Async Free" command group class.
+class CGAsyncFree : public CG {
+  void *MFreePtr;
+
+public:
+  CGAsyncFree(void *ptr, CG::StorageInitHelper CGData,
+              detail::code_location loc = {})
+      : CG(CGType::AsyncFree, std::move(CGData), std::move(loc)),
+        MFreePtr(ptr) {}
+
+  void *getPtr() const { return MFreePtr; }
 };
 
 /// "Execute command-buffer" command group class.

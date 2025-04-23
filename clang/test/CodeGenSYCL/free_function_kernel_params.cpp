@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -triple spir64 \
 // RUN: -emit-llvm %s -o - | FileCheck %s
 // This test checks parameter IR generation for free functions with parameters
-// of non-decomposed struct type and work group memory type.
+// of non-decomposed struct type, work group memory type and dynamic work group memory type.
 
 #include "sycl.hpp"
 
@@ -71,3 +71,16 @@ void ff_7(sycl::work_group_memory<int> mem) {
 // CHECK-NEXT:  [[REGISTER:%[a-zA-Z0-9_]+]] = load ptr addrspace(3), ptr addrspace(4) %__arg_Ptr.addr.ascast, align 8
 // CHECK-NEXT:  call spir_func void @{{.*}}work_group_memory{{.*}}__init{{.*}}(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) %mem.ascast, ptr addrspace(3) noundef [[REGISTER]])
 
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_7(sycl::dynamic_work_group_memory<int> DynMem) {
+}
+
+// CHECK:  define dso_local spir_kernel void @{{.*}}__sycl_kernel_ff_7{{.*}}(ptr addrspace(3) noundef align 4 %__arg_Ptr)
+// CHECK:  %__arg_Ptr.addr = alloca ptr addrspace(3), align 8
+// CHECK-NEXT: %DynMem = alloca %"class.sycl::_V1::dynamic_work_group_memory", align 8 
+// CHECK:  %__arg_Ptr.addr.ascast = addrspacecast ptr %__arg_Ptr.addr to ptr addrspace(4)
+// CHECK-NEXT:  %DynMem.ascast = addrspacecast ptr %DynMem to ptr addrspace(4)
+// CHECK:  store ptr addrspace(3) %__arg_Ptr, ptr addrspace(4) %__arg_Ptr.addr.ascast, align 8
+// CHECK-NEXT:  [[REGISTER:%[a-zA-Z0-9_]+]] = load ptr addrspace(3), ptr addrspace(4) %__arg_Ptr.addr.ascast, align 8
+// CHECK-NEXT:  call spir_func void @{{.*}}dynamic_work_group_memory{{.*}}__init{{.*}}(ptr addrspace(4) noundef align 8 dereferenceable_or_null(8) %DynMem.ascast, ptr addrspace(3) noundef [[REGISTER]]) 

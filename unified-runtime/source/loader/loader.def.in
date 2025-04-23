@@ -5,6 +5,8 @@ EXPORTS
 	urAdapterGetLastError
 	urAdapterRelease
 	urAdapterRetain
+	urAdapterSetLoggerCallback
+	urAdapterSetLoggerCallbackLevel
 	urBindlessImagesImageAllocateExp
 	urBindlessImagesImageCopyExp
 	urBindlessImagesImageFreeExp
@@ -105,6 +107,7 @@ EXPORTS
 	urEventRetain
 	urEventSetCallback
 	urEventWait
+	urGetAdapterProcAddrTable
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
@@ -179,6 +182,8 @@ EXPORTS
 	urPrintAdapterInfo
 	urPrintAdapterReleaseParams
 	urPrintAdapterRetainParams
+	urPrintAdapterSetLoggerCallbackLevelParams
+	urPrintAdapterSetLoggerCallbackParams
 	urPrintApiVersion
 	urPrintBaseDesc
 	urPrintBaseProperties
@@ -263,6 +268,7 @@ EXPORTS
 	urPrintDeviceReleaseParams
 	urPrintDeviceRetainParams
 	urPrintDeviceSelectBinaryParams
+	urPrintDeviceThrottleReasonsFlags
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
 	urPrintEnqueueCommandBufferExpParams
@@ -387,6 +393,7 @@ EXPORTS
 	urPrintLoaderConfigSetMockingEnabledParams
 	urPrintLoaderInitParams
 	urPrintLoaderTearDownParams
+	urPrintLoggerLevel
 	urPrintMapFlags
 	urPrintMemBufferCreateParams
 	urPrintMemBufferCreateWithNativeHandleParams
@@ -494,6 +501,7 @@ EXPORTS
 	urPrintUsmP2pEnablePeerAccessExpParams
 	urPrintUsmP2pPeerAccessGetInfoExpParams
 	urPrintUsmPitchedAllocExpParams
+	urPrintUsmPoolBufferDesc
 	urPrintUsmPoolCreateExpParams
 	urPrintUsmPoolCreateParams
 	urPrintUsmPoolDesc
@@ -508,7 +516,7 @@ EXPORTS
 	urPrintUsmPoolReleaseParams
 	urPrintUsmPoolRetainParams
 	urPrintUsmPoolSetDevicePoolExpParams
-	urPrintUsmPoolSetThresholdExpParams
+	urPrintUsmPoolSetInfoExpParams
 	urPrintUsmPoolTrimToExpParams
 	urPrintUsmReleaseExpParams
 	urPrintUsmSharedAllocParams
@@ -570,7 +578,7 @@ EXPORTS
 	urUSMPoolRelease
 	urUSMPoolRetain
 	urUSMPoolSetDevicePoolExp
-	urUSMPoolSetThresholdExp
+	urUSMPoolSetInfoExp
 	urUSMPoolTrimToExp
 	urUSMReleaseExp
 	urUSMSharedAlloc

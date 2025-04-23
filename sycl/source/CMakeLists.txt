@@ -24,6 +24,24 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Common compilation step setup
 
+  check_cxx_compiler_flag(-Winstantiation-after-specialization
+    HAS_INST_AFTER_SPEC)
+
+  target_compile_options(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      ${ARG_COMPILE_OPTIONS}
+      $<$<BOOL:${HAS_INST_AFTER_SPEC}>:-Winstantiation-after-specialization>
+    PUBLIC
+      $<$<NOT:$<BOOL:${MSVC}>>:-fvisibility=hidden -fvisibility-inlines-hidden>
+      # Sycl math built-in macros cause a GCC 4.6 'note' to be output
+      # repeatedly.
+      # => note: the ABI for passing parameters with 32-byte alignment has
+      #          changed in GCC 4.6
+      # Seems to be no way to suppress it except use -Wno-psabi
+      $<$<NOT:$<BOOL:${MSVC}>>:-Wno-psabi>
+  )
+
   target_compile_definitions(
     ${LIB_OBJ_NAME}
     PRIVATE
@@ -49,9 +67,23 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       OpenCL-Headers
   )
 
+  # Common link step setup
+
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+  find_package(Threads REQUIRED)
+
+  target_link_libraries(${LIB_NAME}
+    PRIVATE
+      ${CMAKE_DL_LIBS}
+      ${CMAKE_THREAD_LIBS_INIT}
+      $<$<NOT:$<BOOL:${WIN32}>>:UnifiedRuntimeLoader>
+      $<$<BOOL:${WIN32}>:shlwapi>
+  )
+
+  # Feature-specific compilation and link step setup
 
   # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
   # so, we link LLVMSupport lib to matching sycl version only.
@@ -93,10 +125,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     )
   endif()
 
-  if (ARG_COMPILE_OPTIONS)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
-  endif()
-
   add_dependencies(${LIB_OBJ_NAME}
     sycl-headers
   )
@@ -132,7 +160,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   endif()
 
   if (WIN32)
-    target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
     if (ARG_IMPLIB_NAME)
       add_custom_command(
         TARGET ${LIB_NAME} POST_BUILD
@@ -149,14 +176,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     # Install stripped PDB
     add_stripped_pdb(${LIB_NAME})
   else()
-    target_compile_options(${LIB_OBJ_NAME} PUBLIC
-                           -fvisibility=hidden -fvisibility-inlines-hidden)
-
-    # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
-    # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
-    # Seems to be no way to suppress it except use -Wno-psabi
-    target_compile_options(${LIB_OBJ_NAME} PUBLIC -Wno-psabi)
-
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
@@ -184,40 +203,11 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
   endif(SYCL_ENABLE_EXTENSION_JIT)
 
-  find_package(Threads REQUIRED)
-
-  target_link_libraries(${LIB_NAME}
-    PRIVATE
-      ${CMAKE_DL_LIBS}
-      ${CMAKE_THREAD_LIBS_INIT}
-  )
-
-  # Link UR
-  target_link_libraries(${LIB_NAME}
-    PRIVATE
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-  )
-
-  if (NOT WIN32)
-    target_link_libraries(${LIB_NAME}
-      PRIVATE
-      UnifiedRuntimeLoader
-    )
-  endif()
-
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
                         SOVERSION ${SYCL_MAJOR_VERSION})
-
-  check_cxx_compiler_flag(-Winstantiation-after-specialization
-    HAS_INST_AFTER_SPEC)
-  if (HAS_INST_AFTER_SPEC)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE
-      -Winstantiation-after-specialization)
-  endif()
 
   # When building using icx on Windows, the VERSION file
   # produced by cmake is used in source code
@@ -317,6 +307,9 @@ set(SYCL_COMMON_SOURCES
     "stream.cpp"
     "spirv_ops.cpp"
     "virtual_mem.cpp"
+    "detail/memory_pool_impl.cpp"
+    "detail/async_alloc.cpp"
+    "detail/memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )

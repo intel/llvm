@@ -12,7 +12,6 @@
 
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 
 // -- Test again, with caching.

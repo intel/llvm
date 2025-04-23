@@ -938,24 +938,26 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
     IRBuilder<> Bld(Ctx);
     Bld.SetInsertPoint(&Before);
 
-#define CREATE_CALLEE(NAME, FN_NAME)                                           \
-  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, RetTy);       \
-  assert(FnCallee##NAME && "spirv intrinsic creation failed");                 \
-  auto NAME = Bld.CreateCall(FnCallee##NAME, {});
+    auto CreateCallee = [&](StringRef Name) {
+      FunctionCallee Callee = M.getOrInsertFunction(Name, RetTy);
+      assert(Callee.getCallee() && "spirv intrinsic creation failed");
+      return Bld.CreateCall(Callee, {});
+    };
 
-    CREATE_CALLEE(LocalInvocationId_X, "_Z27__spirv_LocalInvocationId_xv");
-    CREATE_CALLEE(LocalInvocationId_Y, "_Z27__spirv_LocalInvocationId_yv");
-    CREATE_CALLEE(LocalInvocationId_Z, "_Z27__spirv_LocalInvocationId_zv");
-
-#undef CREATE_CALLEE
+    Value *LocalInvocationIdX =
+        CreateCallee("_Z27__spirv_LocalInvocationId_xv");
+    Value *LocalInvocationIdY =
+        CreateCallee("_Z27__spirv_LocalInvocationId_yv");
+    Value *LocalInvocationIdZ =
+        CreateCallee("_Z27__spirv_LocalInvocationId_zv");
 
     // 1: returns
     //   __spirv_LocalInvocationId_x() |
     //   __spirv_LocalInvocationId_y() |
     //   __spirv_LocalInvocationId_z()
     //
-    return Bld.CreateOr(LocalInvocationId_X,
-                        Bld.CreateOr(LocalInvocationId_Y, LocalInvocationId_Z));
+    return Bld.CreateOr(LocalInvocationIdX,
+                        Bld.CreateOr(LocalInvocationIdY, LocalInvocationIdZ));
   } else {
     // extern "C" const __constant size_t __spirv_BuiltInLocalInvocationIndex;
     // Must correspond to the code in

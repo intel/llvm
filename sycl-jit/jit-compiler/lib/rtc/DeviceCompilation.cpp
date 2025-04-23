@@ -1,4 +1,4 @@
-//==---------------------- DeviceCompilation.cpp ---------------------------==//
+//===- DeviceCompilation.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,11 +29,11 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
-#include <llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h>
 #include <llvm/SYCLLowerIR/ESIMD/LowerESIMD.h>
 #include <llvm/SYCLLowerIR/LowerInvokeSimd.h>
-#include <llvm/SYCLLowerIR/ModuleSplitter.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
+#include <llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h>
+#include <llvm/SYCLPostLink/ModuleSplitter.h>
 #include <llvm/Support/BLAKE3.h>
 #include <llvm/Support/Base64.h>
 #include <llvm/Support/PropertySetIO.h>
@@ -256,14 +256,14 @@ protected:
 
 public:
   GetLLVMModuleAction(LLVMContext &Context) : Context{Context}, Module{} {}
-  std::unique_ptr<llvm::Module> takeModule() {
+  ModuleUPtr takeModule() {
     assert(Module);
     return std::move(Module);
   }
 
 private:
   LLVMContext &Context;
-  std::unique_ptr<llvm::Module> Module;
+  ModuleUPtr Module;
 };
 
 class ClangDiagnosticWrapper {
@@ -321,20 +321,15 @@ static void adjustArgs(const InputArgList &UserArgList,
   DAL.AddJoinedArg(
       nullptr, OptTable.getOption(OPT_resource_dir_EQ),
       (DPCPPRoot + "/lib/clang/" + Twine(CLANG_VERSION_MAJOR)).str());
-  for (auto *Arg : UserArgList) {
-    DAL.append(Arg);
-  }
-  // Remove args that will trigger an unused command line argument warning for
-  // the FrontendAction invocation, but are handled later (e.g. during device
-  // linking).
-  DAL.eraseArg(OPT_fsycl_device_lib_EQ);
-  DAL.eraseArg(OPT_fno_sycl_device_lib_EQ);
-  DAL.eraseArg(OPT_ftime_trace_EQ);
-  DAL.eraseArg(OPT_ftime_trace_granularity_EQ);
-  DAL.eraseArg(OPT_ftime_trace_verbose);
+  // User args may contain options not intended for the frontend, but we can't
+  // claim them here to tell the driver they're used later. Hence, suppress the
+  // unused argument warning.
+  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
 
   ArgStringList ASL;
   for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
+  for_each(UserArgList,
+           [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
   transform(ASL, std::back_inserter(CommandLine),
             [](const char *AS) { return std::string{AS}; });
 }
@@ -405,7 +400,7 @@ jit_compiler::calculateHash(InMemoryFile SourceFile,
   return createStringError("Calculating source hash failed");
 }
 
-Expected<std::unique_ptr<llvm::Module>>
+Expected<ModuleUPtr>
 jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
                                 View<InMemoryFile> IncludeFiles,
                                 const InputArgList &UserArgList,
@@ -531,10 +526,10 @@ static bool getDeviceLibraries(const ArgList &Args,
   return FoundUnknownLib;
 }
 
-static Expected<std::unique_ptr<llvm::Module>>
-loadBitcodeLibrary(StringRef LibPath, LLVMContext &Context) {
+static Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
+                                               LLVMContext &Context) {
   SMDiagnostic Diag;
-  std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Context);
+  ModuleUPtr Lib = parseIRFile(LibPath, Diag, Context);
   if (!Lib) {
     std::string DiagMsg;
     raw_string_ostream SOS(DiagMsg);
@@ -571,12 +566,12 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   for (const std::string &LibName : LibNames) {
     std::string LibPath = DPCPPRoot + "/lib/" + LibName;
 
-    auto LibOrErr = loadBitcodeLibrary(LibPath, Context);
-    if (!LibOrErr) {
-      return LibOrErr.takeError();
+    ModuleUPtr LibModule;
+    if (auto Error = loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
+      return Error;
     }
 
-    if (Linker::linkModules(Module, std::move(*LibOrErr),
+    if (Linker::linkModules(Module, std::move(LibModule),
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",
                                LibPath.c_str(), BuildLog.c_str());
@@ -643,7 +638,7 @@ static void encodeProperties(PropertySetRegistry &Properties,
 }
 
 Expected<PostLinkResult>
-jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
+jit_compiler::performPostLink(ModuleUPtr Module,
                               const InputArgList &UserArgList) {
   TimeTraceScope TTS{"performPostLink"};
 
@@ -653,10 +648,16 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
 
   const auto SplitMode = getDeviceCodeSplitMode(UserArgList);
 
+  const bool AllowDeviceImageDependencies = UserArgList.hasFlag(
+      options::OPT_fsycl_allow_device_image_dependencies,
+      options::OPT_fno_sycl_allow_device_image_dependencies, false);
+
   // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
   //       `shouldEmitOnlyKernelsAsEntryPoints` in
   //       `clang/lib/Driver/ToolChains/Clang.cpp`.
-  const bool EmitOnlyKernelsAsEntryPoints = true;
+  // If we allow device image dependencies, we should definitely not only emit
+  // kernels as entry points.
+  const bool EmitOnlyKernelsAsEntryPoints = !AllowDeviceImageDependencies;
 
   // TODO: The optlevel passed to `sycl-post-link` is determined by
   //       `getSYCLPostLinkOptimizationLevel` in
@@ -689,7 +690,8 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
 
   std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
       ModuleDesc{std::move(Module)}, SplitMode,
-      /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints);
+      /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints,
+      AllowDeviceImageDependencies);
   assert(Splitter->hasMoreSplits());
 
   if (auto Err = Splitter->verifyNoCrossModuleDeviceGlobalUsage()) {
@@ -697,7 +699,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   }
 
   SmallVector<RTCDevImgInfo> DevImgInfoVec;
-  SmallVector<std::unique_ptr<llvm::Module>> Modules;
+  SmallVector<ModuleUPtr> Modules;
 
   // TODO: The following logic is missing the ability to link ESIMD and SYCL
   //       modules back together, which would be requested via
@@ -712,7 +714,8 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
     //       `invoke_simd` is supported.
 
     SmallVector<ModuleDesc, 2> ESIMDSplits =
-        splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+        splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
+                     AllowDeviceImageDependencies);
     for (auto &ES : ESIMDSplits) {
       MDesc = std::move(ES);
 
@@ -737,7 +740,8 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
           /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
           /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
-          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
+          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq,
+                                  AllowDeviceImageDependencies);
 
       // When the split mode is none, the required work group size will be added
       // to the whole module, which will make the runtime unable to launch the
@@ -768,12 +772,11 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath = DPCPPRoot + "/lib/" + LibName;
-      auto LibOrErr = loadBitcodeLibrary(LibPath, Ctx);
-      if (!LibOrErr) {
-        return LibOrErr.takeError();
+      ModuleUPtr LibModule;
+      if (auto Error = loadBitcodeLibrary(LibPath, Ctx).moveInto(LibModule)) {
+        return Error;
       }
 
-      std::unique_ptr<llvm::Module> LibModule = std::move(*LibOrErr);
       PropertySetRegistry Properties =
           computeDeviceLibProperties(*LibModule, LibName);
       encodeProperties(Properties, DevImgInfoVec.emplace_back());
@@ -811,51 +814,21 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
         UserArgsRef[MissingArgIndex], MissingArgIndex);
   }
 
-  // Check for unsupported options.
-  // TODO: There are probably more, e.g. requesting non-SPIR-V targets.
-  {
-    // -fsanitize=address
-    bool IsDeviceAsanEnabled = false;
-    if (Arg *A = AL.getLastArg(OPT_fsanitize_EQ, OPT_fno_sanitize_EQ)) {
-      if (A->getOption().matches(OPT_fsanitize_EQ) &&
-          A->getValues().size() == 1) {
-        std::string SanitizeVal = A->getValue();
-        IsDeviceAsanEnabled = SanitizeVal == "address";
-      }
-    } else {
-      // User can pass -fsanitize=address to device compiler via
-      // -Xsycl-target-frontend.
-      auto SyclFEArg = AL.getAllArgValues(OPT_Xsycl_frontend);
-      IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
-                                        "-fsanitize=address") > 0);
-      if (!IsDeviceAsanEnabled) {
-        auto SyclFEArgEq = AL.getAllArgValues(OPT_Xsycl_frontend_EQ);
-        IsDeviceAsanEnabled =
-            (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
-                        "-fsanitize=address") > 0);
-      }
-
-      // User can also enable asan for SYCL device via -Xarch_device option.
-      if (!IsDeviceAsanEnabled) {
-        auto DeviceArchVals = AL.getAllArgValues(OPT_Xarch_device);
-        for (auto DArchVal : DeviceArchVals) {
-          if (DArchVal.find("-fsanitize=address") != std::string::npos) {
-            IsDeviceAsanEnabled = true;
-            break;
-          }
-        }
-      }
-    }
-
-    if (IsDeviceAsanEnabled) {
-      return createStringError(
-          "Device ASAN is not supported for runtime compilation");
-    }
-  }
-
-  if (!AL.hasFlag(OPT_fsycl_device_code_split_esimd,
-                  OPT_fno_sycl_device_code_split_esimd, true)) {
-    return createStringError("ESIMD device code split cannot be deactivated");
+  // Check for options that are unsupported because they would interfere with
+  // the in-memory pipeline.
+  Arg *UnsupportedArg =
+      AL.getLastArg(OPT_Action_Group,     // Actions like -c or -S
+                    OPT_Link_Group,       // Linker flags
+                    OPT_o,                // Output file
+                    OPT_fsycl_targets_EQ, // AoT compilation
+                    OPT_fsycl_link_EQ,    // SYCL linker
+                    OPT_fno_sycl_device_code_split_esimd, // invoke_simd
+                    OPT_fsanitize_EQ                      // Sanitizer
+      );
+  if (UnsupportedArg) {
+    return createStringError(
+        "Option '%s' is not supported for SYCL runtime compilation",
+        UnsupportedArg->getAsString(AL).c_str());
   }
 
   return std::move(AL);
@@ -866,20 +839,14 @@ void jit_compiler::encodeBuildOptions(RTCBundleInfo &BundleInfo,
   std::string CompileOptions;
   raw_string_ostream COSOS{CompileOptions};
 
-  for (Arg *A : UserArgList.getArgs()) {
-    if (!(A->getOption().matches(OPT_Xs) ||
-          A->getOption().matches(OPT_Xs_separate))) {
-      continue;
+  for (Arg *A : UserArgList.filtered(OPT_Xs, OPT_Xs_separate)) {
+    if (!CompileOptions.empty()) {
+      COSOS << ' ';
     }
-
-    // Trim first and last quote if they exist, but no others.
-    StringRef AV{A->getValue()};
-    AV = AV.trim();
-    if (AV.front() == AV.back() && (AV.front() == '\'' || AV.front() == '"')) {
-      AV = AV.drop_front().drop_back();
+    if (A->getOption().matches(OPT_Xs)) {
+      COSOS << '-';
     }
-
-    COSOS << (CompileOptions.empty() ? "" : " ") << AV;
+    COSOS << A->getValue();
   }
 
   if (!CompileOptions.empty()) {

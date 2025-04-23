@@ -21,8 +21,13 @@ ur_result_t urAdapterGetLastError(ur_adapter_handle_t hAdapter,
 ur_result_t urAdapterGetInfo(ur_adapter_handle_t hAdapter,
                              ur_adapter_info_t propName, size_t propSize,
                              void *pPropValue, size_t *pPropSizeRet);
-ur_result_t urPlatformGet(ur_adapter_handle_t *phAdapters, uint32_t NumAdapters,
-                          uint32_t NumEntries,
+ur_result_t urAdapterSetLoggerCallback(ur_adapter_handle_t hAdapter,
+                                       ur_logger_callback_t pfnLoggerCallback,
+                                       void *pUserData,
+                                       ur_logger_level_t level);
+ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t hAdapter,
+                                            ur_logger_level_t level);
+ur_result_t urPlatformGet(ur_adapter_handle_t hAdapter, uint32_t NumEntries,
                           ur_platform_handle_t *phPlatforms,
                           uint32_t *pNumPlatforms);
 ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
@@ -493,16 +498,15 @@ ur_result_t urUSMPoolCreateExp(ur_context_handle_t hContext,
 ur_result_t urUSMPoolDestroyExp(ur_context_handle_t hContext,
                                 ur_device_handle_t hDevice,
                                 ur_usm_pool_handle_t hPool);
-ur_result_t urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
-                                     ur_device_handle_t hDevice,
-                                     ur_usm_pool_handle_t hPool,
-                                     size_t newThreshold);
 ur_result_t urUSMPoolGetDefaultDevicePoolExp(ur_context_handle_t hContext,
                                              ur_device_handle_t hDevice,
                                              ur_usm_pool_handle_t *pPool);
 ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
                                 ur_usm_pool_info_t propName, void *pPropValue,
                                 size_t *pPropSizeRet);
+ur_result_t urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool,
+                                ur_usm_pool_info_t propName, void *pPropValue,
+                                size_t propSize);
 ur_result_t urUSMPoolSetDevicePoolExp(ur_context_handle_t hContext,
                                       ur_device_handle_t hDevice,
                                       ur_usm_pool_handle_t hPool);

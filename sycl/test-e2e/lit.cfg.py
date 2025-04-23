@@ -6,6 +6,7 @@ import copy
 import re
 import subprocess
 import textwrap
+import shlex
 import shutil
 
 import lit.formats
@@ -167,6 +168,8 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
+# Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
+llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
 # Temporarily modify environment to be the same that we use when running tests
 class test_env:
@@ -174,10 +177,13 @@ class test_env:
         self.old_environ = dict(os.environ)
         os.environ.clear()
         os.environ.update(config.environment)
+        self.old_dir = os.getcwd()
+        os.chdir(config.sycl_obj_root)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         os.environ.clear()
         os.environ.update(self.old_environ)
+        os.chdir(self.old_dir)
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
@@ -242,6 +248,12 @@ def check_igc_tag_and_add_feature():
             if "igc-dev" in contents:
                 config.available_features.add("igc-dev")
 
+
+def quote_path(path):
+    if platform.system() == "Windows":
+        return f'"{path}"' if path else ""
+    return shlex.quote(path)
+
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
 
@@ -301,12 +313,18 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
-config.level_zero_libs_dir = lit_config.params.get(
-    "level_zero_libs_dir", config.level_zero_libs_dir
+config.level_zero_libs_dir = quote_path(
+    lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
-config.level_zero_include = lit_config.params.get(
-    "level_zero_include",
-    (config.level_zero_include if config.level_zero_include else config.sycl_include),
+config.level_zero_include = quote_path(
+    lit_config.params.get(
+        "level_zero_include",
+        (
+            config.level_zero_include
+            if config.level_zero_include
+            else config.sycl_include
+        ),
+    )
 )
 
 level_zero_options = level_zero_options = (
@@ -406,13 +424,17 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
-config.cuda_libs_dir = lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
-config.cuda_include = lit_config.params.get(
-    "cuda_include",
-    (config.cuda_include if config.cuda_include else config.sycl_include),
+config.cuda_libs_dir = quote_path(
+    lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
+)
+config.cuda_include = quote_path(
+    lit_config.params.get(
+        "cuda_include",
+        (config.cuda_include if config.cuda_include else config.sycl_include),
+    )
 )
 
-cuda_options = cuda_options = (
+cuda_options = (
     (" -L" + config.cuda_libs_dir if config.cuda_libs_dir else "")
     + " -lcuda "
     + " -I"
@@ -424,6 +446,10 @@ if cl_options:
         + (config.cuda_libs_dir + "/cuda.lib " if config.cuda_libs_dir else "cuda.lib")
         + " /I"
         + config.cuda_include
+    )
+if platform.system() == "Windows":
+    cuda_options += (
+        " --cuda-path=" + os.path.dirname(os.path.dirname(config.cuda_libs_dir)) + f'"'
     )
 
 config.substitutions.append(("%cuda_options", cuda_options))
@@ -438,8 +464,62 @@ with test_env():
     else:
         config.substitutions.append(("%cuda_options", ""))
 
+# Check for HIP SDK
+check_hip_file = "hip_include.cpp"
+with open_check_file(check_hip_file) as fp:
+    print(
+        textwrap.dedent(
+            """
+        #define __HIP_PLATFORM_AMD__ 1
+        #include <hip/hip_runtime.h>
+        int main() {  hipError_t r = hipInit(0); return r; }
+        """
+        ),
+        file=fp,
+    )
+config.hip_libs_dir = quote_path(
+    lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
+)
+config.hip_include = quote_path(
+    lit_config.params.get(
+        "hip_include",
+        (config.hip_include if config.hip_include else config.sycl_include),
+    )
+)
+
+hip_options = (
+    (" -L" + config.hip_libs_dir if config.hip_libs_dir else "")
+    + " -lamdhip64 "
+    + " -I"
+    + config.hip_include
+)
+if cl_options:
+    hip_options = (
+        " "
+        + (
+            config.hip_libs_dir + "/amdhip64.lib "
+            if config.hip_libs_dir
+            else "amdhip64.lib"
+        )
+        + " /I"
+        + config.hip_include
+    )
+if platform.system() == "Windows":
+    hip_options += " --rocm-path=" + os.path.dirname(config.hip_libs_dir) + f'"'
+with test_env():
+    sp = subprocess.getstatusoutput(
+        config.dpcpp_compiler + " -fsycl  " + check_hip_file + hip_options
+    )
+    if sp[0] == 0:
+        config.available_features.add("hip_dev_kit")
+        config.substitutions.append(("%hip_options", hip_options))
+    else:
+        config.substitutions.append(("%hip_options", ""))
+
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
+    config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
+    config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
         config.substitutions.append(
             ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
@@ -547,13 +627,17 @@ if (
     if "amdgcn" in sp[1]:
         config.sycl_build_targets.add("target-amd")
 
+cmd = "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
+
+# In contrast to `cpu` feature this is a compile-time feature, which is needed
+# to check if we can build cpu AOT tests.
+if "opencl:cpu" in sycl_ls_output:
+    config.available_features.add("opencl-cpu-rt")
+
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     devices = set()
-    cmd = (
-        "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
-    )
-    sp = subprocess.check_output(cmd, text=True, shell=True)
-    for line in sp.splitlines():
+    for line in sycl_ls_output.splitlines():
         if not line.startswith("["):
             continue
         (backend, device) = line[1:].split("]")[0].split(":")
@@ -581,13 +665,6 @@ for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
-
-# Set ROCM_PATH to help clang find the HIP installation.
-if "target-amd" in config.sycl_build_targets:
-    llvm_config.with_system_environment("ROCM_PATH")
-    config.substitutions.append(
-        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
-    )
 
 if "cuda:gpu" in config.sycl_devices:
     if "CUDA_PATH" not in os.environ:
@@ -771,7 +848,7 @@ for full_name, sycl_device in zip(
 
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
-        env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+        env["SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless
@@ -953,6 +1030,10 @@ if lit_config.params.get("print_features", False):
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    if config.test_mode == "run-only":
+        lit_config.maxIndividualTestTime = 300
+    else:
+        lit_config.maxIndividualTestTime = 600
+
 except ImportError:
     pass

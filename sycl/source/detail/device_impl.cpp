@@ -99,7 +99,7 @@ bool device_impl::is_affinity_supported(
 
 cl_device_id device_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
+  __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(getNative()));
   return ur::cast<cl_device_id>(getNative());
 }
 
@@ -109,8 +109,7 @@ platform device_impl::get_platform() const {
 
 template <typename Param>
 typename Param::return_type device_impl::get_info() const {
-  return get_device_info<Param>(
-      MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
+  return get_device_info<Param>(*this);
 }
 // Explicitly instantiate all device info traits
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
@@ -346,10 +345,11 @@ std::vector<device> device_impl::create_sub_devices() const {
 
 ur_native_handle_t device_impl::getNative() const {
   auto Adapter = getAdapter();
-  if (getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urDeviceRetain>(getHandleRef());
   ur_native_handle_t Handle;
   Adapter->call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  if (getBackend() == backend::opencl) {
+    __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
+  }
   return Handle;
 }
 
@@ -400,17 +400,17 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_cuda_cluster_group:
     return get_info<info::device::ext_oneapi_cuda_cluster_group>();
   case aspect::usm_atomic_host_allocations:
-    return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
-                                 info::device::usm_host_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    return (
+        get_device_info_impl<ur_device_usm_access_capability_flags_t,
+                             info::device::usm_host_allocations>::get(*this) &
+        UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
-                                 info::device::usm_shared_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    return (
+        get_device_info_impl<ur_device_usm_access_capability_flags_t,
+                             info::device::usm_shared_allocations>::get(*this) &
+        UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
@@ -476,6 +476,21 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
+  case aspect::ext_intel_current_clock_throttle_reasons:
+    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS, 0,
+               nullptr, &return_size) == UR_RESULT_SUCCESS;
+  case aspect::ext_intel_fan_speed:
+    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, UR_DEVICE_INFO_FAN_SPEED, 0, nullptr, &return_size) ==
+           UR_RESULT_SUCCESS;
+  case aspect::ext_intel_power_limits:
+    return (getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+                MDevice, UR_DEVICE_INFO_MIN_POWER_LIMIT, 0, nullptr,
+                &return_size) == UR_RESULT_SUCCESS) &&
+           (getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+                MDevice, UR_DEVICE_INFO_MAX_POWER_LIMIT, 0, nullptr,
+                &return_size) == UR_RESULT_SUCCESS);
   case aspect::ext_oneapi_srgb:
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
@@ -492,7 +507,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t legacy_image_support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_IMAGE_SUPPORTED, sizeof(ur_bool_t),
+            MDevice, UR_DEVICE_INFO_IMAGE_SUPPORT, sizeof(ur_bool_t),
             &legacy_image_support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && legacy_image_support;
   }
@@ -572,7 +587,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -580,7 +596,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -588,7 +604,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -596,7 +613,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -604,7 +621,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -612,7 +629,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -644,7 +661,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -652,7 +670,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -660,7 +678,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -799,6 +817,14 @@ bool device_impl::has(aspect Aspect) const {
     backend BE = getBackend();
     bool isCompatibleBE = BE == sycl::backend::ext_oneapi_level_zero;
     return is_gpu() && isCompatibleBE;
+  }
+  case aspect::ext_oneapi_async_memory_alloc: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            MDevice, UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
   }
   }
 

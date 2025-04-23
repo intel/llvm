@@ -75,6 +75,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         test.requires += parsed["REQUIRES:"] or []
         test.unsupported += test.config.unsupported_features
         test.unsupported += parsed["UNSUPPORTED:"] or []
+        if parsed["ALLOW_RETRIES:"]:
+            test.allowed_retries = parsed["ALLOW_RETRIES:"][0]
 
         test.intel_driver_req = parsed["REQUIRES-INTEL-DRIVER:"]
 
@@ -285,7 +287,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 )
 
             if "cuda:gpu" in sycl_devices:
-                extra_env.append("UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
+                extra_env.append("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
 
             return extra_env
 
@@ -372,15 +374,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             recursion_limit=test.config.recursiveExpansionLimit,
         )
 
-        # TODO: workaround for lit hanging when executing non-existent binary
-        # inside our containers
         if len(script) == 0:
             return lit.Test.Result(lit.Test.UNSUPPORTED, "Lit script is empty")
-        useExternalSh = test.config.test_mode == "run-only"
 
-        result = lit.TestRunner._runShTest(
-            test, litConfig, useExternalSh, script, tmpBase
-        )
+        result = lit.TestRunner._runShTest(test, litConfig, False, script, tmpBase)
 
         # Single triple/device - might be an XFAIL.
         def map_result(features, code):

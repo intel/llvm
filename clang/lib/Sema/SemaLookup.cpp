@@ -786,6 +786,7 @@ static void GetProgModelBuiltinFctOverloads(
   FunctionProtoType::ExtProtoInfo PI(
       Context.getDefaultCallingConvention(false, false, true));
   PI.Variadic = IsVariadic;
+  PI.ExceptionSpec = FunctionProtoType::ExceptionSpecInfo{EST_BasicNoexcept};
 
   // Do not attempt to create any FunctionTypes if there are no return types,
   // which happens when a type belongs to a disabled extension.
@@ -951,18 +952,12 @@ bool Sema::LookupBuiltin(LookupResult &R) {
     IdentifierInfo *II = R.getLookupName().getAsIdentifierInfo();
     if (II) {
       if (getLangOpts().CPlusPlus && NameKind == Sema::LookupOrdinaryName) {
-        if (II == getASTContext().getMakeIntegerSeqName()) {
-          R.addDecl(getASTContext().getMakeIntegerSeqDecl());
-          return true;
-        }
-        if (II == getASTContext().getTypePackElementName()) {
-          R.addDecl(getASTContext().getTypePackElementDecl());
-          return true;
-        }
-        if (II == getASTContext().getBuiltinCommonTypeName()) {
-          R.addDecl(getASTContext().getBuiltinCommonTypeDecl());
-          return true;
-        }
+#define BuiltinTemplate(BIName)                                                \
+  if (II == getASTContext().get##BIName##Name()) {                             \
+    R.addDecl(getASTContext().get##BIName##Decl());                            \
+    return true;                                                               \
+  }
+#include "clang/Basic/BuiltinTemplates.inc"
       }
 
       // Check if this is an OpenCL Builtin, and if so, insert its overloads.

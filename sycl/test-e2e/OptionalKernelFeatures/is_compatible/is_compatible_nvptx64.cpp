@@ -1,7 +1,5 @@
-// REQUIRES: target-nvidia, opencl, gpu, cpu
+// REQUIRES: cuda_dev_kit
 
-// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %S/Inputs/is_compatible_with_env.cpp -o %t.out
+// RUN: %clangxx %cuda_options -fsycl -fsycl-targets=nvptx64-nvidia-cuda %S/Inputs/is_compatible_with_env.cpp -o %t.out
 
-// RUN: env ONEAPI_DEVICE_SELECTOR=cuda:gpu %{run} %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %{run} not %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run} not %t.out
+// RUN: %if !cuda %{ not %} %{run} %t.out

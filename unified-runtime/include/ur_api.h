@@ -441,8 +441,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_POOL_CREATE_EXP = 254,
   /// Enumerator for ::urUSMPoolDestroyExp
   UR_FUNCTION_USM_POOL_DESTROY_EXP = 255,
-  /// Enumerator for ::urUSMPoolSetThresholdExp
-  UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP = 256,
   /// Enumerator for ::urUSMPoolGetDefaultDevicePoolExp
   UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP = 257,
   /// Enumerator for ::urUSMPoolSetDevicePoolExp
@@ -457,6 +455,12 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP = 263,
   /// Enumerator for ::urCommandBufferGetNativeHandleExp
   UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP = 264,
+  /// Enumerator for ::urUSMPoolSetInfoExp
+  UR_FUNCTION_USM_POOL_SET_INFO_EXP = 265,
+  /// Enumerator for ::urAdapterSetLoggerCallback
+  UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK = 266,
+  /// Enumerator for ::urAdapterSetLoggerCallbackLevel
+  UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL = 267,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -536,6 +540,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,
   /// ::ur_usm_alloc_location_desc_t
   UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,
+  /// ::ur_usm_pool_buffer_desc_t
+  UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC = 36,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -1250,9 +1256,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 ///
 /// @details
 ///     - When the reference count of the adapter reaches zero, the adapter may
-///       perform adapter-specififc resource teardown. Resources must be left in
-///       a state where it safe for the adapter to be subsequently reinitialized
-///       with ::urAdapterGet
+///       perform adapter-specififc resource teardown. Any objects associated
+///       with the adapter should be considered invalid after this point.
+///     - Calling ::urAdapterGet after any adapter handle's reference count has
+///       reached zero will result in undefined behaviour.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1421,6 +1428,80 @@ typedef enum ur_adapter_backend_t {
 
 } ur_adapter_backend_t;
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Minimum level of messages to be processed by the logger.
+typedef enum ur_logger_level_t {
+  /// Debugging messages used for development purposes.
+  UR_LOGGER_LEVEL_DEBUG = 0,
+  /// General messages not related to debugging, warnings or errors.
+  UR_LOGGER_LEVEL_INFO = 1,
+  /// Used to warn users about potential problems.
+  UR_LOGGER_LEVEL_WARN = 2,
+  /// Used when an error has occurred.
+  UR_LOGGER_LEVEL_ERROR = 3,
+  /// Restrict logger processing any messages.
+  UR_LOGGER_LEVEL_QUIET = 4,
+  /// @cond
+  UR_LOGGER_LEVEL_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_logger_level_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function to retrieve output from the logger.
+typedef void (*ur_logger_callback_t)(
+    /// [out] Minimum level of messages to be processed by the logger.
+    ur_logger_level_t level,
+    /// [in][out] pointer to data to be passed to callback
+    const char *pLoggerMsg,
+    /// [in][out] pointer to data to be passed to callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a callback function for use by the logger to retrieve logging
+/// output.
+///        It is a requirement that the callback function is thread safe and the
+///        creator of the function will be responsible for this.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnLoggerCallback`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the minimum logging level for the logger Callback function.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -1446,17 +1527,15 @@ typedef enum ur_adapter_backend_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phAdapters`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phPlatforms != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pNumPlatforms == NULL && phPlatforms == NULL`
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -1820,7 +1899,9 @@ typedef struct ur_device_binary_t {
 typedef enum ur_device_type_t {
   /// The default device type as preferred by the runtime
   UR_DEVICE_TYPE_DEFAULT = 1,
-  /// Devices of all types
+  /// Devices of all types, for use with ::urDeviceGet() and
+  /// ::urDeviceGetSelected(). This value will never be returned when
+  /// querying about a device.
   UR_DEVICE_TYPE_ALL = 2,
   /// Graphics Processing Unit
   UR_DEVICE_TYPE_GPU = 3,
@@ -1997,7 +2078,7 @@ typedef enum ur_device_info_t {
   /// [uint64_t] max memory allocation size
   UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,
   /// [::ur_bool_t] images are supported
-  UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,
+  UR_DEVICE_INFO_IMAGE_SUPPORT = 29,
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the read_only qualifier
   UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 30,
@@ -2195,7 +2276,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,
   /// [::ur_bool_t] Return true if the device supports enqueueing commands
   /// to read and write pipes from the host.
-  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,
+  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT = 111,
   /// [uint32_t][optional-query] The maximum number of registers available
   /// per block.
   UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,
@@ -2229,6 +2310,18 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] return true if the device has a native assert
   /// implementation.
   UR_DEVICE_INFO_USE_NATIVE_ASSERT = 122,
+  /// [::ur_device_throttle_reasons_flags_t][optional-query] return current
+  /// clock throttle reasons.
+  UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS = 123,
+  /// [int32_t][optional-query] return the current speed of fan as a
+  /// percentage of the maximum speed.
+  UR_DEVICE_INFO_FAN_SPEED = 124,
+  /// [int32_t][optional-query] return min power limit in milliwatts.
+  UR_DEVICE_INFO_MIN_POWER_LIMIT = 125,
+  /// [int32_t][optional-query] return max power limit in milliwatts.
+  UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
+  /// [::ur_bool_t] support for native bfloat16 conversions
+  UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2242,7 +2335,7 @@ typedef enum ur_device_info_t {
   /// command-buffer as a command inside another command-buffer.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP = 0x1003,
   /// [::ur_bool_t] return true if enqueue Cluster Launch is supported
-  UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,
+  UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP = 0x1111,
   /// [::ur_bool_t] returns true if the device supports the creation of
   /// bindless images
   UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,
@@ -2293,19 +2386,19 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP = 0x2012,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP = 0x2012,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP = 0x2013,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP = 0x2013,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP = 0x2014,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP = 0x2014,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP = 0x2015,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP = 0x2015,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 3D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP = 0x2017,
   /// [::ur_bool_t] returns true if the device supports timestamp recording
   UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,
   /// [::ur_bool_t] returns true if the device supports allocating and
@@ -2313,27 +2406,27 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP = 0x2019,
   /// [::ur_bool_t] returns true if the device supports unique addressing
   /// per dimension.
-  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP = 0x201A,
+  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP = 0x201A,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP = 0x201B,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP = 0x201B,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP = 0x201C,
   /// [::ur_bool_t] returns true if the device supports sampled image
   /// gather.
-  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP = 0x201D,
+  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP = 0x201D,
   /// [::ur_bool_t] returns true if the device supports enqueueing of native
   /// work
   UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,
   /// [::ur_bool_t] returns true if the device supports low-power events.
-  UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP = 0x2021,
+  UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP = 0x2021,
   /// [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
   /// of Intel GPU 2D block array capabilities
   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
-  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP = 0x2050,
+  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
   /// [::ur_bool_t] Returns true if the device supports the use of kernel
   /// launch properties.
   UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP = 0x3000,
@@ -2759,6 +2852,11 @@ typedef struct ur_device_native_properties_t {
 ///
 /// @details
 ///     - Creates runtime device handle from native driver device handle.
+///     - Will always return the same handle in `phDevice` for a given
+///       `hNativeDevice`.
+///     - If `hNativeDevice` is a root-level device, the handle returned in
+///       `phDevice` will be one of the handles that can be obtained by calling
+///       ::urDeviceGet with the ::UR_DEVICE_TYPE_ALL device type.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
@@ -2878,6 +2976,34 @@ typedef enum ur_device_usm_access_capability_flag_t {
 } ur_device_usm_access_capability_flag_t;
 /// @brief Bit Mask for validating ur_device_usm_access_capability_flags_t
 #define UR_DEVICE_USM_ACCESS_CAPABILITY_FLAGS_MASK 0xfffffff0
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Clock throttle reasons
+typedef uint32_t ur_device_throttle_reasons_flags_t;
+typedef enum ur_device_throttle_reasons_flag_t {
+  /// The clock frequency is throttled due to hitting the power limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP = UR_BIT(0),
+  /// The clock frequency is throttled due to hitting the current limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT = UR_BIT(1),
+  /// The clock frequency is throttled due to hitting the thermal limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT = UR_BIT(2),
+  /// The clock frequency is throttled due to power supply assertion.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT = UR_BIT(3),
+  /// The clock frequency is throttled due to software supplied frequency
+  /// range.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE = UR_BIT(4),
+  /// The clock frequency is throttled because there is a sub block that has
+  /// a lower frequency when it receives clocks.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE = UR_BIT(5),
+  /// The clock frequency is throttled due to other reason.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER = UR_BIT(6),
+  /// @cond
+  UR_DEVICE_THROTTLE_REASONS_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_device_throttle_reasons_flag_t;
+/// @brief Bit Mask for validating ur_device_throttle_reasons_flags_t
+#define UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK 0xffffff80
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -6720,7 +6846,7 @@ typedef enum ur_queue_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP = UR_BIT(11),
+  UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP = UR_BIT(11),
   /// @cond
   UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -7818,7 +7944,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
 ///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height *
@@ -7904,7 +8030,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
 ///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height *
@@ -9067,6 +9193,30 @@ typedef struct ur_exp_async_usm_alloc_properties_t {
 } ur_exp_async_usm_alloc_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief USM pool buffer descriptor type
+///
+/// @details
+///     - Used for pool creation from USM memory object. Specify these
+///       properties in ::urUSMPoolCreate or ::urUSMPoolCreateExp via
+///       ::ur_usm_pool_desc_t as part of a `pNext` chain.
+typedef struct ur_usm_pool_buffer_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] USM memory object
+  void *pMem;
+  /// [in] size of USM memory object
+  size_t size;
+  /// [in] type of USM memory object
+  ur_usm_type_t memType;
+  /// [in][optional] device associated with the USM memory object
+  ur_device_handle_t device;
+
+} ur_usm_pool_buffer_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue an async device allocation
 ///
 /// @returns
@@ -9277,35 +9427,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(
     ur_usm_pool_handle_t hPool);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a new release threshold for a USM memory pool.
-///
-/// @details
-///     - Set a new release threshold for a USM memory pool.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///         + `NULL == hPool`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any device associated with `hContext` reports `false` for
-///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Get the default pool for a device.
 ///
 /// @details
@@ -9352,7 +9473,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(
@@ -9364,6 +9484,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(
     void *pPropValue,
     /// [out][optional] returned query value size
     size_t *pPropSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a property for a USM memory pool.
+///
+/// @details
+///     - Set a property for a USM memory pool.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set the current pool for a device.
@@ -12296,10 +12451,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(
 typedef enum ur_exp_peer_info_t {
   /// [int] 1 if P2P access is supported otherwise P2P access is not
   /// supported.
-  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,
+  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT = 0,
   /// [int] 1 if atomic operations are supported over the P2P link,
   /// otherwise such operations are not supported.
-  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED = 1,
+  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT = 1,
   /// @cond
   UR_EXP_PEER_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12409,7 +12564,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName`
+///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -12456,7 +12611,7 @@ typedef enum ur_exp_enqueue_ext_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS = UR_BIT(11),
+  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT = UR_BIT(11),
   /// @cond
   UR_EXP_ENQUEUE_EXT_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12695,12 +12850,31 @@ typedef struct ur_loader_config_set_mocking_enabled_params_t {
 } ur_loader_config_set_mocking_enabled_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterSetLoggerCallback
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_set_logger_callback_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_logger_callback_t *ppfnLoggerCallback;
+  void **ppUserData;
+  ur_logger_level_t *plevel;
+} ur_adapter_set_logger_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterSetLoggerCallbackLevel
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_set_logger_callback_level_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_logger_level_t *plevel;
+} ur_adapter_set_logger_callback_level_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_get_params_t {
-  ur_adapter_handle_t **pphAdapters;
-  uint32_t *pNumAdapters;
+  ur_adapter_handle_t *phAdapter;
   uint32_t *pNumEntries;
   ur_platform_handle_t **pphPlatforms;
   uint32_t **ppNumPlatforms;
@@ -14286,17 +14460,6 @@ typedef struct ur_usm_pool_destroy_exp_params_t {
 } ur_usm_pool_destroy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPoolSetThresholdExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pool_set_threshold_exp_params_t {
-  ur_context_handle_t *phContext;
-  ur_device_handle_t *phDevice;
-  ur_usm_pool_handle_t *phPool;
-  size_t *pnewThreshold;
-} ur_usm_pool_set_threshold_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMPoolGetDefaultDevicePoolExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14316,6 +14479,17 @@ typedef struct ur_usm_pool_get_info_exp_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_usm_pool_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolSetInfoExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_set_info_exp_params_t {
+  ur_usm_pool_handle_t *phPool;
+  ur_usm_pool_info_t *ppropName;
+  void **ppPropValue;
+  size_t *ppropSize;
+} ur_usm_pool_set_info_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMPoolSetDevicePoolExp

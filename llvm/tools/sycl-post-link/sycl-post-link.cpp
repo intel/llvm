@@ -30,16 +30,17 @@
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
-#include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
+#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -251,6 +252,11 @@ cl::opt<bool> GenerateDeviceImageWithDefaultSpecConsts{
              "replaced with default values from specialization id(s)."),
     cl::cat(PostLinkCat)};
 
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"), cl::cat(PostLinkCat),
+    cl::init(false)};
+
 struct IrPropSymFilenameTriple {
   std::string Ir;
   std::string Prop;
@@ -315,7 +321,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   // native version of bf16 devicelib and we need new property values to
   // indicate all exported function.
   if (!MD.isSYCLDeviceLib())
-    PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+    PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps,
+                                      AllowDeviceImageDependencies);
   else
     PropSet = computeDeviceLibProperties(MD.getModule(), MD.Name);
 
@@ -444,7 +451,7 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       // don't save IR, just record the filename
       BaseTriple.Ir = IRFilename.str();
     } else {
-      MD.cleanup();
+      MD.cleanup(AllowDeviceImageDependencies);
       BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
     }
   } else {
@@ -585,8 +592,9 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   // unless -split-esimd option is specified. The graphs become disjoint
   // when linked back because functions shared between graphs are cloned and
   // renamed.
-  SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
-      std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+  SmallVector<module_split::ModuleDesc, 2> Result =
+      module_split::splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
+                                 AllowDeviceImageDependencies);
 
   if (Result.size() > 1 && SplitOccurred &&
       (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
@@ -621,7 +629,8 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
     Linked.restoreLinkageOfDirectInvokeSimdTargets();
     string_vector Names;
     Linked.saveEntryPointNames(Names);
-    Linked.cleanup(); // may remove some entry points, need to save/rebuild
+    // cleanup may remove some entry points, need to save/rebuild
+    Linked.cleanup(AllowDeviceImageDependencies);
     Linked.rebuildEntryPoints(Names);
     Result.clear();
     Result.emplace_back(std::move(Linked));
@@ -729,7 +738,7 @@ processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
           module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints);
+          EmitOnlyKernelsAsEntryPoints, AllowDeviceImageDependencies);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -770,7 +779,7 @@ processInputModule(std::unique_ptr<Module> M) {
         error("some modules had to be split, '-" + IROutputOnly.ArgStr +
               "' can't be used");
       }
-      MMs.front().cleanup();
+      MMs.front().cleanup(AllowDeviceImageDependencies);
       saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
       return Tables;
     }
@@ -815,8 +824,7 @@ int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
   LLVMContext Context;
-  cl::HideUnrelatedOptions(
-      {&PostLinkCat, &module_split::getModuleSplitCategory()});
+  cl::HideUnrelatedOptions({&PostLinkCat});
   cl::ParseCommandLineOptions(
       argc, argv,
       "SYCL post-link device code processing tool.\n"

@@ -50,8 +50,10 @@ ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   if (!hPhysicalMem->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
-  ZE2UR_CALL(zePhysicalMemDestroy, (hPhysicalMem->Context->getZeHandle(),
-                                    hPhysicalMem->ZePhysicalMem));
+  if (checkL0LoaderTeardown()) {
+    ZE2UR_CALL(zePhysicalMemDestroy, (hPhysicalMem->Context->getZeHandle(),
+                                      hPhysicalMem->ZePhysicalMem));
+  }
   delete hPhysicalMem;
 
   return UR_RESULT_SUCCESS;

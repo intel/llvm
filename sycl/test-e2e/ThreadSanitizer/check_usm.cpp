@@ -1,4 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
+// ALLOW_RETRIES: 10
 // RUN: %{build} %device_tsan_flags -DMALLOC_DEVICE -O0 -g -o %t1.out
 // RUN: %{run} %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_tsan_flags -DMALLOC_DEVICE -O2 -g -o %t2.out

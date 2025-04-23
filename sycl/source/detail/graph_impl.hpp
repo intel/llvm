@@ -102,8 +102,8 @@ public:
   /// subgraph node.
   std::shared_ptr<exec_graph_impl> MSubGraphImpl;
 
-  /// Used for tracking visited status during cycle checks.
-  bool MVisited = false;
+  /// Used for tracking visited status during cycle checks and node scheduling.
+  size_t MTotalVisitedEdges = 0;
 
   /// Partition number needed to assign a Node to a a partition.
   /// Note : This number is only used during the partitionning process and
@@ -306,6 +306,10 @@ public:
       return createCGCopy<sycl::detail::CGProfilingTag>();
     case sycl::detail::CGType::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
+    case sycl::detail::CGType::AsyncAlloc:
+      return createCGCopy<sycl::detail::CGAsyncAlloc>();
+    case sycl::detail::CGType::AsyncFree:
+      return createCGCopy<sycl::detail::CGAsyncFree>();
     case sycl::detail::CGType::None:
       return nullptr;
     }
@@ -915,6 +919,12 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
+  /// Query for the device_impl tied to this graph.
+  /// @return device_impl shared ptr reference associated with graph.
+  const DeviceImplPtr &getDeviceImplPtr() const {
+    return getSyclObjImpl(MDevice);
+  }
+
   /// Query for the device tied to this graph.
   /// @return Device associated with graph.
   sycl::device getDevice() const { return MDevice; }
@@ -1130,17 +1140,6 @@ public:
   unsigned long long getID() const { return MID; }
 
 private:
-  /// Iterate over the graph depth-first and run \p NodeFunc on each node.
-  /// @param NodeFunc A function which receives as input a node in the graph to
-  /// perform operations on as well as the stack of nodes encountered in the
-  /// current path. The return value of this function determines whether an
-  /// early exit is triggered, if true the depth-first search will end
-  /// immediately and no further nodes will be visited.
-  void
-  searchDepthFirst(std::function<bool(std::shared_ptr<node_impl> &,
-                                      std::deque<std::shared_ptr<node_impl>> &)>
-                       NodeFunc);
-
   /// Check the graph for cycles by performing a depth-first search of the
   /// graph. If a node is visited more than once in a given path through the
   /// graph, a cycle is present and the search ends immediately.
@@ -1486,6 +1485,10 @@ private:
 
 class dynamic_parameter_impl {
 public:
+  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
+      : MGraph(GraphImpl),
+        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
+
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
                          size_t ParamSize, const void *Data)
       : MGraph(GraphImpl), MValueStorage(ParamSize),
@@ -1553,6 +1556,22 @@ public:
   /// @param Acc The new accessor value
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes and dynamic CGs. Should only be
+  /// called for dynamic_work_group_memory arguments parameter.
+  /// @param BufferSize The total size in bytes of the new work_group_memory
+  /// array
+  void updateWorkGroupMem(size_t BufferSize);
+
+  /// Static helper function for updating command-group
+  /// dynamic_work_group_memory arguments.
+  /// @param CG The command-group to update the argument information for.
+  /// @param ArgIndex The argument index to update.
+  /// @param BufferSize The total size in bytes of the new work_group_memory
+  /// array
+  static void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> CG,
+                                   int ArgIndex, size_t BufferSize);
+
   /// Static helper function for updating command-group value arguments.
   /// @param CG The command-group to update the argument information for.
   /// @param ArgIndex The argument index to update.
@@ -1576,7 +1595,7 @@ public:
   // Dynamic command-groups which will be updated
   std::vector<DynamicCGInfo> MDynCGs;
 
-  std::shared_ptr<graph_impl> MGraph;
+  std::weak_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
 
 private:

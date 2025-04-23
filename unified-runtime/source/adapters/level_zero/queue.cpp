@@ -612,6 +612,8 @@ ur_result_t urQueueRelease(
       return UR_RESULT_SUCCESS;
     }
 
+    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
     // are not yet completed. So do full queue synchronization here
@@ -646,11 +648,16 @@ ur_result_t urQueueRelease(
       // runtime. Destroy only if a queue is healthy. Destroying a fence may
       // cause a hang otherwise.
       // If the fence is a nullptr we are using immediate commandlists.
-      if (Queue->Healthy && it->second.ZeFence != nullptr) {
+      if (Queue->Healthy && it->second.ZeFence != nullptr &&
+          checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
       if (Queue->UsingImmCmdLists && Queue->OwnZeCommandQueue) {
         std::scoped_lock<ur_mutex> Lock(
@@ -674,7 +681,7 @@ ur_result_t urQueueRelease(
           // A non-reusable comamnd list that came from a make_queue call is
           // destroyed since it cannot be recycled.
           ze_command_list_handle_t ZeCommandList = it->first;
-          if (ZeCommandList) {
+          if (ZeCommandList && checkL0LoaderTeardown()) {
             ZE2UR_CALL(zeCommandListDestroy, (ZeCommandList));
           }
         }
@@ -779,8 +786,8 @@ ur_result_t urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ur_platform_handle_t Platform{};
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumEntries,
-                                        &Platform, nullptr));
+  UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumEntries, &Platform,
+                                        nullptr));
 
   ur_device_handle_t UrDevice = Device;
   if (UrDevice == nullptr) {
@@ -895,6 +902,9 @@ ur_result_t urQueueFinish(
     std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
+
+  Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -906,24 +916,14 @@ ur_result_t urQueueFlush(
 }
 
 ur_result_t urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_exp_launch_property_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hKernel;
-  std::ignore = workDim;
-  std::ignore = pGlobalWorkOffset;
-  std::ignore = pGlobalWorkSize;
-  std::ignore = pLocalWorkSize;
-  std::ignore = numPropsInLaunchPropList;
-  std::ignore = launchPropList;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
+    ur_queue_handle_t /*hQueue*/, ur_kernel_handle_t /*hKernel*/,
+    uint32_t /*workDim*/, const size_t * /*pGlobalWorkOffset*/,
+    const size_t * /*pGlobalWorkSize*/, const size_t * /*pLocalWorkSize*/,
+    uint32_t /*numPropsInLaunchPropList*/,
+    const ur_exp_launch_property_t * /*launchPropList*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   logger::error("[UR][L0] {} function not implemented!",
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1192,11 +1192,15 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 
   this->CounterBasedEventsEnabled =
-      UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
+      UsingImmCmdLists && isInOrderQueue() &&
+      Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       Device->useDriverCounterBasedEvents() &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
   this->InterruptBasedEventsEnabled =
-      isLowPowerEvents() && isInOrderQueue() && Device->useDriverInOrderLists();
+      isLowPowerEvents() && isInOrderQueue() &&
+      Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/);
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -1599,10 +1603,16 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
       for (auto &QueueGroup : QueueMap)
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
-            auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
-            // Gracefully handle the case that L0 was already unloaded.
-            if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-              return ze2urResult(ZeResult);
+            if (checkL0LoaderTeardown()) {
+              auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
+              // Gracefully handle the case that L0 was already unloaded.
+              if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                               ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+                return ze2urResult(ZeResult);
+              if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+                ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+              }
+            }
           }
   }
 
@@ -1655,7 +1665,7 @@ bool ur_queue_handle_t_::isInOrderQueue() const {
 }
 
 bool ur_queue_handle_t_::isLowPowerEvents() const {
-  return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) != 0);
+  return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP) != 0);
 }
 
 // Helper function to perform the necessary cleanup of the events from reset cmd
@@ -2288,7 +2298,9 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
   bool IsInOrderList = false;
-  if (Device->useDriverInOrderLists() && isInOrderQueue()) {
+  if (Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      isInOrderQueue()) {
     ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_IN_ORDER;
     IsInOrderList = true;
   }
@@ -2325,7 +2337,7 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
     return UR_RESULT_SUCCESS;
 
   // Create a wait-list and retain events.
-  _ur_ze_event_list_t ActiveBarriersWaitList;
+  ur_ze_event_list_t ActiveBarriersWaitList;
   UR_CALL(ActiveBarriersWaitList.createAndRetainUrZeEventList(
       ActiveBarriers.vector().size(), ActiveBarriers.vector().data(),
       reinterpret_cast<ur_queue_handle_t>(this), UseCopyEngine));
@@ -2352,10 +2364,11 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
   Event->WaitList = ActiveBarriersWaitList;
   Event->OwnNativeHandle = true;
 
-  // If there are more active barriers, insert a barrier on the command-list. We
-  // do not need an event for finishing so we pass nullptr.
+  // If there are more active barriers, insert a barrier on the command-list.
+  // We need to signal the current active barrier event otherwise we will leak
+  // the Event object when we replace the active barrier.
   ZE2UR_CALL(zeCommandListAppendBarrier,
-             (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
+             (CmdList->first, Event->ZeEvent, ActiveBarriersWaitList.Length,
               ActiveBarriersWaitList.ZeEventList));
   return UR_RESULT_SUCCESS;
 }
@@ -2425,7 +2438,9 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue()) {
+  if (Queue->Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      Queue->isInOrderQueue()) {
     isInOrderList = true;
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }
