@@ -697,8 +697,7 @@ static bool
 runTest(DX12SYCLDevice &device, sycl::image_channel_type channelType,
         sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
 
-  syclexp::image_descriptor syclImageDesc{globalSize, NChannels,
-                                          channelType};
+  syclexp::image_descriptor syclImageDesc{globalSize, NChannels, channelType};
 
   // Verify ability to allocate the above image descriptor.
   // E.g. LevelZero does not support `unorm` channel types.
