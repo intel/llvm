@@ -3508,6 +3508,18 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // User can specify explicit dependencies via depends_on call that we should
+    // honor here. It is very important for cross queue dependencies. We wait
+    // them explicitly since barrier w/o wait list waits for all commands
+    // submitted before and we can't add new dependencies to its wait list.
+    // Output event for wait operation is not requested since barrier is
+    // submitted immediately after and should synchronize it internally.
+    if (RawEvents.size()) {
+      auto Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+          MQueue->getHandleRef(), RawEvents.size(), &RawEvents[0], nullptr);
+      if (Result != UR_RESULT_SUCCESS)
+        return Result;
+    }
     if (auto Result =
             Adapter->call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, 0, nullptr, Event);
@@ -3542,6 +3554,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // User can specify explicit dependencies via depends_on call that we should
+    // honor here. It is very important for cross queue dependencies. Adding
+    // them to the barrier wait list since barrier w/ wait list waits only for
+    // the events provided in wait list and we can just extend the list.
+    UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
+
     if (auto Result =
             Adapter->call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
