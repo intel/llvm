@@ -47,7 +47,7 @@ struct RefCounted {
 };
 
 // Base class to store common data
-struct _ur_object : RefCounted {
+struct ur_object : RefCounted {
   ur_shared_mutex Mutex;
 };
 

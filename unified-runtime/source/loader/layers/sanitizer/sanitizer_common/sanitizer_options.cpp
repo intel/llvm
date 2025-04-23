@@ -46,6 +46,7 @@ void SanitizerOptions::Init(const std::string &EnvName,
   Parser.ParseBool("print_stats", PrintStats);
   Parser.ParseBool("detect_leaks", DetectLeaks);
   Parser.ParseBool("halt_on_error", HaltOnError);
+  Parser.ParseBool("recover", Recover);
 
   Parser.ParseUint64("quarantine_size_mb", MaxQuarantineSizeMB, 0, UINT32_MAX);
   Parser.ParseUint64("redzone", MinRZSize, 16);

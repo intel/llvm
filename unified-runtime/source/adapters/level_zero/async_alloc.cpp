@@ -64,7 +64,7 @@ static ur_result_t enqueueUSMAllocHelper(
   }
 
   bool UseCopyEngine = false;
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
@@ -206,7 +206,7 @@ ur_result_t urEnqueueUSMFreeExp(
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   bool UseCopyEngine = false;
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
