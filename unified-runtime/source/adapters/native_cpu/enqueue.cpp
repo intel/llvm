@@ -406,39 +406,43 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
       });
 }
 
-static inline ur_result_t doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr,
-                                      const void *SrcPtr, size_t Size,
-                                      uint32_t numEventsInWaitList,
-                                      const ur_event_handle_t *phEventWaitList,
-                                      ur_event_handle_t *phEvent,
-                                      ur_command_t command_type) {
-  return withTimingEvent(command_type, hQueue, numEventsInWaitList,
-                         phEventWaitList, phEvent, [&]() {
-                           if (SrcPtr != DstPtr && Size)
-                             memmove(DstPtr, SrcPtr, Size);
-                           return UR_RESULT_SUCCESS;
-                         });
+template <class T>
+static inline ur_result_t
+doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr,
+            size_t Size, uint32_t numEventsInWaitList,
+            const ur_event_handle_t *phEventWaitList,
+            ur_event_handle_t *phEvent, ur_command_t command_type, T &&Inv) {
+  return withTimingEvent(
+      command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
+      [DstPtr, SrcPtr, Size]() {
+        if (SrcPtr != DstPtr && Size)
+          memmove(DstPtr, SrcPtr, Size);
+        return UR_RESULT_SUCCESS;
+      },
+      Inv);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool /*blockingRead*/,
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
   void *FromPtr = /*Src*/ hBuffer->_mem + offset;
   auto res = doCopy_impl(hQueue, pDst, FromPtr, size, numEventsInWaitList,
-                         phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_READ);
+                         phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_READ,
+                         Invoker(blockingRead));
   return res;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool /*blockingWrite*/,
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
   void *ToPtr = hBuffer->_mem + offset;
   auto res = doCopy_impl(hQueue, ToPtr, pSrc, size, numEventsInWaitList,
-                         phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_WRITE);
+                         phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_WRITE,
+                         Invoker(blockingWrite));
   return res;
 }
 
@@ -477,7 +481,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   const void *SrcPtr = hBufferSrc->_mem + srcOffset;
   void *DstPtr = hBufferDst->_mem + dstOffset;
   return doCopy_impl(hQueue, DstPtr, SrcPtr, size, numEventsInWaitList,
-                     phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_COPY);
+                     phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_COPY,
+                     BlockingWithEvent() /*TODO: check blocking*/);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
