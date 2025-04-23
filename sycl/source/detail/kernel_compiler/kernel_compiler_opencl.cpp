@@ -25,6 +25,10 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
+// forward declaration
+std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
+                             const char *identifier);
+
 // ensures the OclocLibrary has the right version, etc.
 void checkOclocLibrary(void *OclocLibrary) {
   void *OclocVersionHandle =
@@ -64,27 +68,53 @@ static std::unique_ptr<void, std::function<void(void *)>>
       std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
     });
 
-// load the ocloc shared library, check it.
-void loadOclocLibrary(/* const std::vector<uint32_t> &IPVersionVec */) {
+// Load first compatible ocloc shared library.
+void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 #ifdef __SYCL_RT_OS_WINDOWS
-  static const std::string OclocAbsPath = "ocloc64.dll";
-  static const std::string OclocLibraryName = "ocloc64.dll";
+  // first the environment, if not compatible will move on to absolute path.
+  static const std::vector<std::string> OclocPaths = {
+      "ocloc64.dll",
+      "C:\\Program Files (x86)\\Intel\\oneAPI\\ocloc\\latest\\ocloc64.dll"};
 #else
-  static const std::string OclocAbsPath = "libocloc.so";
-  static const std::string OclocLibraryName = "libocloc.so";
+  // linux always uses the environment.
+  static const std::vector<std::string> OclocPaths = {"libocloc.so"};
 #endif
-  void *tempPtr = OclocLibrary.get();
-  if (tempPtr == nullptr) {
-    tempPtr = sycl::detail::ur::loadOsLibrary(OclocLibraryName);
 
-    if (tempPtr == nullptr)
-      throw sycl::exception(make_error_code(errc::build),
-                            "Unable to load ocloc library " + OclocLibraryName);
+  // attemptLoad() sets OclocLibrary value by side effect.
+  auto attemptLoad = [&](std::string path) {
+    void *tempPtr = OclocLibrary.get();
+    if (tempPtr == nullptr) {
+      // Try loading from absolute path.  Make sure it's ok.
+      // Every statement here throws.
+      try {
+        tempPtr = sycl::detail::ur::loadOsLibrary(path);
+        OclocLibrary.reset(tempPtr);
 
-    checkOclocLibrary(tempPtr);
+        if (tempPtr == nullptr)
+          throw sycl::exception(make_error_code(errc::build),
+                                "Unable to load ocloc from " + path);
 
-    OclocLibrary.reset(tempPtr);
+        checkOclocLibrary(tempPtr);
+
+        InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+      } catch (const sycl::exception &e) {
+        tempPtr = nullptr;
+        OclocLibrary.reset(tempPtr);
+      }
+    }
+    return tempPtr;
+  };
+
+  // Load and exit.
+  for (auto path : OclocPaths) {
+    void *tempPtr = attemptLoad(path);
+    if (tempPtr != nullptr)
+      return;
   }
+
+  // If we haven't exited during the for loop, then we throw to indicate
+  // failure.
+  throw sycl::exception(make_error_code(errc::build), "Unable to load ocloc");
 }
 
 bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec) {
@@ -94,7 +124,7 @@ bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec) {
 
   try {
     // loads and checks version
-    loadOclocLibrary();
+    loadOclocLibrary(IPVersionVec);
     return true;
   } catch (...) {
     return false;
@@ -104,11 +134,12 @@ bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec) {
 using voidPtr = void *;
 
 void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
-                  std::error_code the_errc) {
-  if (!oclocInvokeHandle) {
-    if (OclocLibrary == nullptr)
-      loadOclocLibrary();
+                  std::error_code the_errc,
+                  const std::vector<uint32_t> &IPVersionVec) {
+  if (OclocLibrary == nullptr)
+    loadOclocLibrary(IPVersionVec);
 
+  if (!oclocInvokeHandle) {
     oclocInvokeHandle = sycl::detail::ur::getOsLibraryFuncAddress(
         OclocLibrary.get(), "oclocInvoke");
     if (!oclocInvokeHandle)
@@ -147,7 +178,8 @@ std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
   static void *oclocFreeOutputHandle = nullptr;
   std::error_code the_errc = make_error_code(errc::runtime);
 
-  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, the_errc);
+  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, the_errc,
+               IPVersionVec);
 
   uint32_t NumOutputs = 0;
   uint8_t **Outputs = nullptr;
@@ -207,7 +239,8 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
   static void *oclocFreeOutputHandle = nullptr;
   std::error_code build_errc = make_error_code(errc::build);
 
-  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, build_errc);
+  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, build_errc,
+               IPVersionVec);
 
   // assemble ocloc args
   std::string CombinedUserArgs =
