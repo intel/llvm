@@ -211,7 +211,6 @@ ur_result_t updateKernelArguments(
     // constant memory.
     char **zeHandlePtr = nullptr;
     if (newMemObjArg) {
-      // TODO: add support for images
       const ur_kernel_arg_mem_obj_properties_t *properties =
           newMemObjArgDesc.pProperties;
 
