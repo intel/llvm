@@ -12,7 +12,7 @@
 #include "common.hpp"
 #include "device.hpp"
 
-struct ur_program_handle_t_ : _ur_object {
+struct ur_program_handle_t_ : ur_object {
   // ur_program_handle_t_() {}
 
   typedef enum {

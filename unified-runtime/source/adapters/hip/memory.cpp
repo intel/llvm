@@ -28,7 +28,9 @@ size_t imageElementByteSize(hipArray_Format ArrayFormat) {
   case HIP_AD_FORMAT_FLOAT:
     return 4;
   default:
-    die("Invalid HIP format specifier");
+    setErrorMessage("Invalid HIP format specifier",
+                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
   return 0;
 }
@@ -82,7 +84,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     // error for which it is unclear if the function that reported it succeeded
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
-    die("Unrecoverable program state reached in urMemRelease");
+    setErrorMessage("Error in native free, program state may be "
+                    "compromised.",
+                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
   return UR_RESULT_SUCCESS;
@@ -408,9 +413,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
         return UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
       case HIP_AD_FORMAT_FLOAT:
         return UR_IMAGE_CHANNEL_TYPE_FLOAT;
-
       default:
-        die("Invalid Hip format specified.");
+        throw UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
       }
     };
 
