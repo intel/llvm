@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -o %t.out
-// RUN: %{run} %{ %t.out %} 2>&1 | FileCheck %s
+// RUN: %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 
