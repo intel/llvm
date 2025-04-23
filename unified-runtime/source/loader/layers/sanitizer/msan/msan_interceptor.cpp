@@ -434,18 +434,6 @@ ur_result_t MsanInterceptor::prepareLaunch(
     ur_kernel_handle_t Kernel, USMLaunchInfo &LaunchInfo) {
   auto Program = GetProgram(Kernel);
 
-  auto EnqueueWriteGlobal = [&Queue, &Program](const char *Name,
-                                               const void *Value, size_t Size) {
-    auto Result = getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
-        Queue, Program, Name, false, Size, 0, Value, 0, nullptr, nullptr);
-    if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Failed to write device global \"{}\": {}",
-                                 Name, Result);
-      return Result;
-    }
-    return UR_RESULT_SUCCESS;
-  };
-
   // Set membuffer arguments
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
   getContext()->logger.info("KernelInfo {} (Name=<{}>, IsInstrumented={}, "
@@ -578,8 +566,11 @@ ur_result_t MsanInterceptor::prepareLaunch(
       (void *)LaunchInfo.Data.Host.LocalArgs, LaunchInfo.Data.Host.NumLocalArgs,
       ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
-  ur_result_t URes = EnqueueWriteGlobal(
-      "__MsanLaunchInfo", &LaunchInfo.Data.DevicePtr, sizeof(uptr));
+  ur_result_t URes =
+      getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
+          Queue, Program, "__MsanLaunchInfo", false,
+          sizeof(LaunchInfo.Data.DevicePtr), 0, &LaunchInfo.Data.DevicePtr, 0,
+          nullptr, nullptr);
   if (URes != UR_RESULT_SUCCESS) {
     getContext()->logger.info("EnqueueWriteGlobal(__MsanLaunchInfo) "
                               "failed, maybe empty kernel: {}",

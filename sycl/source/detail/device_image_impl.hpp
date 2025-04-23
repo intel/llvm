@@ -66,6 +66,9 @@ public:
 
   ManagedDeviceGlobalsRegistry(const ManagedDeviceGlobalsRegistry &) = delete;
 
+  ManagedDeviceGlobalsRegistry &
+  operator=(const ManagedDeviceGlobalsRegistry &) = delete;
+
   ~ManagedDeviceGlobalsRegistry() {
     try {
       unregisterDeviceGlobalsFromContext();
@@ -127,6 +130,8 @@ public:
       : MBinaries{Binaries} {}
 
   ManagedDeviceBinaries(const ManagedDeviceBinaries &) = delete;
+
+  ManagedDeviceBinaries &operator=(const ManagedDeviceBinaries &) = delete;
 
   ~ManagedDeviceBinaries() {
     try {
@@ -516,7 +521,7 @@ public:
     return MProgram;
   }
 
-  const RTDeviceBinaryImage *const &get_bin_image_ref() const noexcept {
+  const RTDeviceBinaryImage *const &get_bin_image_ref() const {
     return std::get<const RTDeviceBinaryImage *>(MBinImage);
   }
 
