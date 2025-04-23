@@ -924,9 +924,11 @@ bool device_impl::extOneapiCanCompile(
     // Get the shared_ptr to this object from the platform that owns it.
     std::shared_ptr<device_impl> Self =
         MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform);
+    sycl::device SelfDevice = createSyclObjFromImpl<device>(Self);
     return sycl::ext::oneapi::experimental::detail::
         is_source_kernel_bundle_supported(getBackend(), Language,
-                                          createSyclObjFromImpl<device>(Self));
+                                          std::vector<device>{SelfDevice});
+
   } catch (sycl::exception &) {
     return false;
   }

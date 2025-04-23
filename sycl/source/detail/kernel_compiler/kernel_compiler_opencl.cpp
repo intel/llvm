@@ -65,10 +65,12 @@ static std::unique_ptr<void, std::function<void(void *)>>
     });
 
 // load the ocloc shared library, check it.
-void loadOclocLibrary() {
+void loadOclocLibrary(/* const std::vector<uint32_t> &IPVersionVec */) {
 #ifdef __SYCL_RT_OS_WINDOWS
+  static const std::string OclocAbsPath = "ocloc64.dll";
   static const std::string OclocLibraryName = "ocloc64.dll";
 #else
+  static const std::string OclocAbsPath = "libocloc.so";
   static const std::string OclocLibraryName = "libocloc.so";
 #endif
   void *tempPtr = OclocLibrary.get();
@@ -85,7 +87,7 @@ void loadOclocLibrary() {
   }
 }
 
-bool OpenCLC_Compilation_Available() {
+bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec) {
   // Already loaded?
   if (OclocLibrary != nullptr)
     return true;
