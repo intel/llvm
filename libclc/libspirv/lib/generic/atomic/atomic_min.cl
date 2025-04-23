@@ -8,20 +8,16 @@
 
 #include <libspirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
-
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, SUB, NAME, PREFIX, SUFFIX)                                             \
-  _CLC_DEF TYPE                                                                                                    \
-      _Z18##NAME##P##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUB##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                   \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                          \
-    return PREFIX##__sync_fetch_and_##SUFFIX(p, val);                                                              \
+#define IMPL(TYPE, AS, NAME, PREFIX, SUFFIX)                                   \
+  _CLC_OVERLOAD _CLC_DECL TYPE NAME(AS TYPE *p, int scope, int semantics,      \
+                                    TYPE val) {                                \
+    return PREFIX##__sync_fetch_and_##SUFFIX(p, val);                          \
   }
 
-IMPL(int, i, global, U3AS1, 1, __spirv_AtomicSMin, , min)
-IMPL(unsigned int, j, global, U3AS1, 1, __spirv_AtomicUMin, , umin)
-IMPL(int, i, local, U3AS3, 1, __spirv_AtomicSMin, , min)
-IMPL(unsigned int, j, local, U3AS3, 1, __spirv_AtomicUMin, , umin)
+IMPL(int, global, __spirv_AtomicSMin, , min)
+IMPL(unsigned int, global, __spirv_AtomicUMin, , umin)
+IMPL(int, local, __spirv_AtomicSMin, , min)
+IMPL(unsigned int, local, __spirv_AtomicUMin, , umin)
 
 #ifdef cl_khr_int64_extended_atomics
 unsigned long __clc__sync_fetch_and_min_local_8(volatile local long *, long);
@@ -29,28 +25,27 @@ unsigned long __clc__sync_fetch_and_min_global_8(volatile global long *, long);
 unsigned long __clc__sync_fetch_and_umin_local_8(volatile local unsigned long *, unsigned long);
 unsigned long __clc__sync_fetch_and_umin_global_8(volatile global unsigned long *, unsigned long);
 
-IMPL(long, l, global, U3AS1, 1, __spirv_AtomicSMin, __clc, min_global_8)
-IMPL(unsigned long, m, global, U3AS1, 1, __spirv_AtomicUMin, __clc, umin_global_8)
-IMPL(long, l, local, U3AS3, 1, __spirv_AtomicSMin, __clc, min_local_8)
-IMPL(unsigned long, m, local, U3AS3, 1, __spirv_AtomicUMin, __clc, umin_local_8)
+IMPL(long, global, __spirv_AtomicSMin, __clc, min_global_8)
+IMPL(unsigned long, global, __spirv_AtomicUMin, __clc, umin_global_8)
+IMPL(long, local, __spirv_AtomicSMin, __clc, min_local_8)
+IMPL(unsigned long, local, __spirv_AtomicUMin, __clc, umin_local_8)
 #endif
 
 #if _CLC_GENERIC_AS_SUPPORTED
 
+#define IMPL_GENERIC(TYPE, NAME, PREFIX, SUFFIX)                               \
+  IMPL(TYPE, , NAME, PREFIX, SUFFIX)
 
-#define IMPL_GENERIC(TYPE, TYPE_MANGLED, NAME, PREFIX, SUFFIX) \
-  IMPL(TYPE, TYPE_MANGLED, , , 0, NAME, PREFIX, SUFFIX)
-
-IMPL_GENERIC(int, i, __spirv_AtomicSMin, , min)
-IMPL_GENERIC(unsigned int, j, __spirv_AtomicUMin, , umin)
+IMPL_GENERIC(int, __spirv_AtomicSMin, , min)
+IMPL_GENERIC(unsigned int, __spirv_AtomicUMin, , umin)
 
 #ifdef cl_khr_int64_extended_atomics
 
 unsigned long __clc__sync_fetch_and_min_generic_8(volatile generic long *, long);
 unsigned long __clc__sync_fetch_and_umin_generic_8(volatile __generic unsigned long *, unsigned long);
 
-IMPL_GENERIC(long, l, __spirv_AtomicSMin, __clc, min_generic_8)
-IMPL_GENERIC(unsigned long, m,  __spirv_AtomicUMin, __clc, umin_generic_8)
+IMPL_GENERIC(long, __spirv_AtomicSMin, __clc, min_generic_8)
+IMPL_GENERIC(unsigned long, __spirv_AtomicUMin, __clc, umin_generic_8)
 #endif
 
 

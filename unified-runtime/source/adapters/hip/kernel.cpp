@@ -169,15 +169,9 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
-    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
-    uint32_t *pGroupCountRet) {
-  std::ignore = hKernel;
-  std::ignore = hDevice;
-  std::ignore = workDim;
-  std::ignore = pLocalWorkSize;
-  std::ignore = dynamicSharedMemorySize;
-  std::ignore = pGroupCountRet;
+    ur_kernel_handle_t /*hKernel*/, ur_device_handle_t /*hDevice*/,
+    uint32_t /*workDim*/, const size_t * /*pLocalWorkSize*/,
+    size_t /*dynamicSharedMemorySize*/, uint32_t * /*pGroupCountRet*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -195,8 +189,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  std::ignore = pProperties;
+    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -328,8 +321,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
       if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
           Format != HIP_AD_FORMAT_SIGNED_INT32 &&
           Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        die("UR HIP kernels only support images with channel types int32, "
-            "uint32, float, and half.");
+        return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
       }
       hipSurfaceObject_t hipSurf =
           std::get<SurfaceMem>(hArgValue->Mem).getSurface(Device);

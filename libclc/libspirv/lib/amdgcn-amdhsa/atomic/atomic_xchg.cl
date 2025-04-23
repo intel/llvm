@@ -10,13 +10,11 @@
 #include <libspirv/spirv.h>
 #include <libspirv/spirv_types.h>
 
-AMDGPU_ATOMIC(_Z22__spirv_AtomicExchange, int, i, __hip_atomic_exchange)
-AMDGPU_ATOMIC(_Z22__spirv_AtomicExchange, unsigned int, j,
-              __hip_atomic_exchange)
-AMDGPU_ATOMIC(_Z22__spirv_AtomicExchange, long, l, __hip_atomic_exchange)
-AMDGPU_ATOMIC(_Z22__spirv_AtomicExchange, unsigned long, m,
-              __hip_atomic_exchange)
-AMDGPU_ATOMIC(_Z22__spirv_AtomicExchange, float, f, __hip_atomic_exchange)
+AMDGPU_ATOMIC(__spirv_AtomicExchange, int, __hip_atomic_exchange)
+AMDGPU_ATOMIC(__spirv_AtomicExchange, unsigned int, __hip_atomic_exchange)
+AMDGPU_ATOMIC(__spirv_AtomicExchange, long, __hip_atomic_exchange)
+AMDGPU_ATOMIC(__spirv_AtomicExchange, unsigned long, __hip_atomic_exchange)
+AMDGPU_ATOMIC(__spirv_AtomicExchange, float, __hip_atomic_exchange)
 
 // TODO implement for fp64
 
