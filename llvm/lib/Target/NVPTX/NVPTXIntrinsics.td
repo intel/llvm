@@ -2131,29 +2131,33 @@ defm INT_PTX_ATOM_CAS_16 : F_ATOMIC_3_AS<I16RT, atomic_cmp_swap_i16, "", "cas.b1
 
 // Constructs intrinsic name and instruction asm strings.
 multiclass ATOM2N_impl<string OpStr, string IntTypeStr, string TypeStr,
-                       string ScopeStr, string SpaceStr,
+                       string ScopeStr, string SpaceStr, string SemStr,
                        RegTyInfo t, list<Predicate> Preds> {
   defm "" : F_ATOMIC_2<t,
-                       as_str = !if(!eq(ScopeStr, "gpu"), "", "." # ScopeStr),
+                       as_str = !if(!empty(SemStr), "", "." # SemStr)
+                                # !if(!eq(ScopeStr, "gpu"), "", "." # ScopeStr),
                        sem_str = !if(!eq(SpaceStr, "gen"), "", "." # SpaceStr),
                        op_str = OpStr # "." # TypeStr,
                        op = !cast<Intrinsic>(
                               "int_nvvm_atomic_" # OpStr
                               # "_" # SpaceStr # "_" # IntTypeStr
-                              # !if(!empty(ScopeStr), "", "_" # ScopeStr)),
+                              # !if(!empty(SemStr), "", "_" # SemStr)
+                              # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr)),
                        preds = Preds>;
 }
 multiclass ATOM3N_impl<string OpStr, string IntTypeStr, string TypeStr,
-                       string ScopeStr, string SpaceStr,
+                       string ScopeStr, string SpaceStr, string SemStr,
                        RegTyInfo t, list<Predicate> Preds> {
   defm "" : F_ATOMIC_3<t,
-                       as_str = !if(!eq(SpaceStr, "gen"), "", "." # SpaceStr),
+                       as_str = !if(!empty(SemStr), "", "." # SemStr)
+                                # !if(!eq(SpaceStr, "gen"), "", "." # SpaceStr),
                        sem_str = !if(!eq(ScopeStr, "gpu"), "", "." # ScopeStr),
                        op_str = OpStr # "." # TypeStr,
                        op = !cast<Intrinsic>(
                               "int_nvvm_atomic_" # OpStr
                               # "_" # SpaceStr # "_" # IntTypeStr
-                              # !if(!empty(ScopeStr), "", "_" # ScopeStr)),
+                              # !if(!empty(SemStr), "", "_" # SemStr)
+                              # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr)),
                        preds = Preds>;
 }
 
@@ -2162,22 +2166,65 @@ multiclass ATOM2S_impl<string OpStr, string IntTypeStr, string TypeStr,
    // .gpu scope is default and is currently covered by existing
    // atomics w/o explicitly specified scope.
   foreach scope = ["cta", "sys"] in {
-    // For now we only need variants for generic space pointers.
-    foreach space = ["gen"] in {
-      defm _#scope#space : ATOM2N_impl<OpStr, IntTypeStr, TypeStr, scope, space,
+    foreach space = ["gen", "global", "shared"] in {
+      defm _#scope#space : ATOM2N_impl<OpStr, IntTypeStr, TypeStr, scope, space, "",
                          t, !listconcat(Preds, [hasAtomScope])>;
     }
   }
+
+  // .gpu scope is default as is "gen" space. Add unscoped intrinsics with
+  // explicit address spaces.
+  foreach scope = ["gpu"] in {
+    foreach space = ["gen", "global", "shared"] in {
+      defm _#scope#space : ATOM2N_impl<OpStr, IntTypeStr, TypeStr, scope, space,
+                         "", t, Preds>;
+    }
+  }
+
+  // Intrinsics with semantics, in all scopes and address spaces. Note the
+  // separate predicates which keep these loops apart.
+  foreach sem = ["acquire", "release", "acq_rel"] in {
+    foreach scope = ["gpu", "cta", "sys"] in {
+      // For now we only need variants for generic space pointers.
+      foreach space = ["gen", "global", "shared"] in {
+        defm _#sem#scope#space :
+            ATOM2N_impl<OpStr, IntTypeStr, TypeStr, scope, space, sem,
+                        t, !listconcat(Preds, [hasAtomScope, hasAtomSemantics])>;
+      }
+    }
+  }
 }
+
 multiclass ATOM3S_impl<string OpStr, string IntTypeStr, string TypeStr,
                        RegTyInfo t, list<Predicate> Preds> {
    // No need to define ".gpu"-scoped atomics.  They do the same thing
    // as the regular, non-scoped atomics defined elsewhere.
   foreach scope = ["cta", "sys"] in {
-    // For now we only need variants for generic space pointers.
-    foreach space = ["gen"] in {
-      defm _#scope#space : ATOM3N_impl<OpStr, IntTypeStr, TypeStr, scope, space,
+    foreach space = ["gen", "global", "shared"] in {
+      defm _#scope#space : ATOM3N_impl<OpStr, IntTypeStr, TypeStr, scope, space, "",
                          t, !listconcat(Preds,[hasAtomScope])>;
+    }
+  }
+
+  // .gpu scope is default as is "gen" space. Add unscoped intrinsics with
+  // explicit address spaces.
+  foreach scope = ["gpu"] in {
+    foreach space = ["gen", "global", "shared"] in {
+      defm _#scope#space : ATOM3N_impl<OpStr, IntTypeStr, TypeStr, scope, space,
+                         "", t, Preds>;
+    }
+  }
+
+  // Intrinsics with semantics, in all scopes and address spaces. Note the
+  // separate predicates which keep these loops apart.
+  foreach sem = ["acquire", "release", "acq_rel"] in {
+    foreach scope = ["gpu", "cta", "sys"] in {
+      // For now we only need variants for generic space pointers.
+      foreach space = ["gen", "global", "shared"] in {
+        defm _#sem#scope#space :
+            ATOM3N_impl<OpStr, IntTypeStr, TypeStr, scope, space, sem,
+                        t, !listconcat(Preds, [hasAtomScope, hasAtomSemantics])>;
+      }
     }
   }
 }
@@ -2216,6 +2263,7 @@ multiclass ATOM2_minmax_impl<string OpStr> {
 // atom.{inc,dec}
 multiclass ATOM2_incdec_impl<string OpStr> {
   defm _u32 : ATOM2S_impl<OpStr, "i", "u32", I32RT, []>;
+  defm _u64 : ATOM2S_impl<OpStr, "i", "u64", I64RT, []>;
 }
 
 // atom.cas
