@@ -773,37 +773,18 @@ SimdPacket *Scalarizer::assignScalar(SimdPacket *P, Value *V) {
 }
 
 SimdPacket *Scalarizer::scalarizeLoad(LoadInst *Load, PacketMask PM) {
-  Value *VecPtr = Load->getPointerOperand();
-  PointerType *VecPtrTy = cast<PointerType>(VecPtr->getType());
+  Value *PtrBase = Load->getPointerOperand();
   auto *VecDataTy = dyn_cast<FixedVectorType>(Load->getType());
   VECZ_FAIL_IF(!VecDataTy);
   const unsigned SimdWidth = VecDataTy->getNumElements();
 
   Type *ScalarEleTy = VecDataTy->getElementType();
-  PointerType *ScalarPtrTy =
-      PointerType::get(ScalarEleTy, VecPtrTy->getAddressSpace());
 
   // Absorb redundant bitcasts
-  Value *ScalarPtrBase = nullptr;
-  if (auto *BitCast = dyn_cast<BitCastInst>(VecPtr)) {
-    // Note that we assume the bitcast isn't used by anything else other than
-    // loads or stores. Other uses of the bitcast are possible in principle,
-    // which cases could be purposely constructed but it is considered unlikely
-    // to occur naturally. If it happens, the DeleteInstructions pass will not
-    // actually delete it so no harm is done in any case.
-    IC.deleteInstructionLater(BitCast);
-    VecPtr = BitCast->getOperand(0);
-    if (BitCast->getSrcTy() == ScalarPtrTy) {
-      ScalarPtrBase = VecPtr;
-    }
-  }
-  GetElementPtrInst *VecPtrGEP = dyn_cast<GetElementPtrInst>(VecPtr);
-  const bool InBounds = (VecPtrGEP && VecPtrGEP->isInBounds());
+  GetElementPtrInst *PtrGEP = dyn_cast<GetElementPtrInst>(PtrBase);
+  const bool InBounds = (PtrGEP && PtrGEP->isInBounds());
 
   IRBuilder<> B(Load);
-  if (!ScalarPtrBase) {
-    ScalarPtrBase = B.CreateBitCast(VecPtr, ScalarPtrTy);
-  }
 
   SimdPacket PtrPacket;
   SimdPacket *P = getPacket(Load, SimdWidth);
@@ -825,11 +806,10 @@ SimdPacket *Scalarizer::scalarizeLoad(LoadInst *Load, PacketMask PM) {
       }
     }
 
-    Value *ScalarPtr =
-        InBounds
-            ? B.CreateInBoundsGEP(ScalarEleTy, ScalarPtrBase, B.getInt32(i))
-            : B.CreateGEP(ScalarEleTy, ScalarPtrBase, B.getInt32(i));
-    PtrPacket.set(i, ScalarPtr);
+    Value *Ptr = InBounds
+                     ? B.CreateInBoundsGEP(ScalarEleTy, PtrBase, B.getInt32(i))
+                     : B.CreateGEP(ScalarEleTy, PtrBase, B.getInt32(i));
+    PtrPacket.set(i, Ptr);
   }
 
   // The individual elements may need laxer alignment requirements than the
@@ -855,39 +835,23 @@ SimdPacket *Scalarizer::scalarizeLoad(LoadInst *Load, PacketMask PM) {
 }
 
 SimdPacket *Scalarizer::scalarizeStore(StoreInst *Store, PacketMask PM) {
-  Value *VecPtr = Store->getPointerOperand();
-  assert(VecPtr && "Could not get pointer operand from Store");
-  PointerType *VecPtrTy = cast<PointerType>(VecPtr->getType());
+  Value *PtrBase = Store->getPointerOperand();
+  assert(PtrBase && "Could not get pointer operand from Store");
   auto *VecDataTy =
       dyn_cast<FixedVectorType>(Store->getValueOperand()->getType());
   VECZ_FAIL_IF(!VecDataTy);
   const unsigned SimdWidth = VecDataTy->getNumElements();
   Type *ScalarEleTy = VecDataTy->getElementType();
-  PointerType *ScalarPtrTy =
-      PointerType::get(ScalarEleTy, VecPtrTy->getAddressSpace());
   Value *VectorData = Store->getValueOperand();
 
   // Emit scalarized data values.
   const SimdPacket *DataPacket = scalarize(VectorData, PM);
   VECZ_FAIL_IF(!DataPacket);
 
-  // Absorb redundant bitcasts
-  Value *ScalarPtrBase = nullptr;
-  if (auto *BitCast = dyn_cast<BitCastInst>(VecPtr)) {
-    // See comment at equivalent part of Scalarizer::scalarizeLoad()
-    IC.deleteInstructionLater(BitCast);
-    VecPtr = BitCast->getOperand(0);
-    if (BitCast->getSrcTy() == ScalarPtrTy) {
-      ScalarPtrBase = VecPtr;
-    }
-  }
-  GetElementPtrInst *VecPtrGEP = dyn_cast<GetElementPtrInst>(VecPtr);
-  const bool InBounds = (VecPtrGEP && VecPtrGEP->isInBounds());
+  GetElementPtrInst *PtrGEP = dyn_cast<GetElementPtrInst>(PtrBase);
+  const bool InBounds = (PtrGEP && PtrGEP->isInBounds());
 
   IRBuilder<> B(Store);
-  if (!ScalarPtrBase) {
-    ScalarPtrBase = B.CreateBitCast(VecPtr, ScalarPtrTy);
-  }
 
   SimdPacket PtrPacket;
   SimdPacket *P = getPacket(Store, SimdWidth);
@@ -909,11 +873,10 @@ SimdPacket *Scalarizer::scalarizeStore(StoreInst *Store, PacketMask PM) {
       }
     }
 
-    Value *ScalarPtr =
-        InBounds
-            ? B.CreateInBoundsGEP(ScalarEleTy, ScalarPtrBase, B.getInt32(i))
-            : B.CreateGEP(ScalarEleTy, ScalarPtrBase, B.getInt32(i));
-    PtrPacket.set(i, ScalarPtr);
+    Value *Ptr = InBounds
+                     ? B.CreateInBoundsGEP(ScalarEleTy, PtrBase, B.getInt32(i))
+                     : B.CreateGEP(ScalarEleTy, PtrBase, B.getInt32(i));
+    PtrPacket.set(i, Ptr);
   }
 
   // See comment at equivalent part of scalarizeLoad()
@@ -1258,8 +1221,8 @@ SimdPacket *Scalarizer::scalarizeMaskedMemOp(CallInst *CI, PacketMask PM,
   const SimdPacket *MaskPacket = scalarize(MaskedOp.getMaskOperand(), PM);
   VECZ_FAIL_IF(!MaskPacket);
 
-  Value *VecPtr = MaskedOp.getPointerOperand();
-  VECZ_FAIL_IF(!VecPtr);
+  Value *PtrBase = MaskedOp.getPointerOperand();
+  VECZ_FAIL_IF(!PtrBase);
 
   // Scalarize data packet if this is a store
   const SimdPacket *DataPacket = nullptr;
@@ -1268,27 +1231,12 @@ SimdPacket *Scalarizer::scalarizeMaskedMemOp(CallInst *CI, PacketMask PM,
     VECZ_FAIL_IF(!DataPacket);
   }
 
-  PointerType *VecPtrTy = cast<PointerType>(VecPtr->getType());
   Type *ScalarEleTy = VecDataTy->getElementType();
-  PointerType *ScalarPtrTy =
-      PointerType::get(ScalarEleTy, VecPtrTy->getAddressSpace());
 
-  // Absorb redundant bitcasts
-  Value *ScalarPtrBase = nullptr;
-  if (auto *BitCast = dyn_cast<BitCastInst>(VecPtr)) {
-    IC.deleteInstructionLater(BitCast);
-    VecPtr = BitCast->getOperand(0);
-    if (BitCast->getSrcTy() == ScalarPtrTy) {
-      ScalarPtrBase = VecPtr;
-    }
-  }
-  GetElementPtrInst *VecPtrGEP = dyn_cast<GetElementPtrInst>(VecPtr);
-  const bool InBounds = (VecPtrGEP && VecPtrGEP->isInBounds());
+  GetElementPtrInst *PtrGEP = dyn_cast<GetElementPtrInst>(PtrBase);
+  const bool InBounds = (PtrGEP && PtrGEP->isInBounds());
 
   IRBuilder<> B(CI);
-  if (!ScalarPtrBase) {
-    ScalarPtrBase = B.CreateBitCast(VecPtr, ScalarPtrTy);
-  }
 
   SimdPacket PtrPacket;
   SimdPacket *P = getPacket(CI, SimdWidth);
@@ -1300,11 +1248,10 @@ SimdPacket *Scalarizer::scalarizeMaskedMemOp(CallInst *CI, PacketMask PM,
       continue;
     }
 
-    Value *ScalarPtr =
-        InBounds
-            ? B.CreateInBoundsGEP(ScalarEleTy, ScalarPtrBase, B.getInt32(i))
-            : B.CreateGEP(ScalarEleTy, ScalarPtrBase, B.getInt32(i));
-    PtrPacket.set(i, ScalarPtr);
+    Value *Ptr = InBounds
+                     ? B.CreateInBoundsGEP(ScalarEleTy, PtrBase, B.getInt32(i))
+                     : B.CreateGEP(ScalarEleTy, PtrBase, B.getInt32(i));
+    PtrPacket.set(i, Ptr);
   }
 
   const unsigned Alignment = MaskedOp.getAlignment();
@@ -1385,8 +1332,7 @@ SimdPacket *Scalarizer::scalarizeCall(CallInst *CI, PacketMask PM) {
         auto *OldVecTy = cast<FixedVectorType>(PtrRetPointeeTy);
         VECZ_STAT_FAIL_IF(OldVecTy->getNumElements() != SimdWidth,
                           VeczScalarizeFailBuiltin);
-        Type *NewTy = PointerType::get(OldVecTy->getElementType(),
-                                       OldPtrTy->getAddressSpace());
+        Type *NewTy = OldPtrTy;
         Value *ScalarAddrBase = B.CreateBitCast(OrigOp, NewTy);
         SimdPacket *OpPacket = getPacket(ScalarAddrBase, SimdWidth);
         for (unsigned j = 0; j < SimdWidth; j++) {

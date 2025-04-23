@@ -36,7 +36,6 @@
 
 using namespace llvm;
 
-#define NDEBUG_WI_LOOPS
 #define DEBUG_TYPE "work-item-loops"
 
 namespace compiler {
@@ -99,65 +98,6 @@ class BarrierWithLiveVars : public Barrier {
 }  // namespace compiler
 
 namespace {
-#ifndef NDEBUG_WI_LOOPS
-/// @brief Generate IR level printf function call Debug function only.
-///
-/// @param[in] format Format string string.
-/// @param[in] module Current module.
-/// @param[in] v Value for printing.
-/// @param[in] bb Basic block insertion point for @p v.
-///
-/// @return Return instruction to be checked.
-Instruction *IRPrintf(const std::string format, Module &module, Value *v,
-                      BasicBlock *bb) {
-  LLVMContext &context = module.getContext();
-  PointerType *ptr_type = PointerType::getUnqual(IntegerType::get(context, 8));
-
-  SmallVector<Type *, 16> args;
-  args.push_back(ptr_type);
-  FunctionType *printf_type =
-      FunctionType::get(IntegerType::get(context, 32), args, true);
-
-  bool isDeclared = true;
-  Function *func_printf = module.getFunction("printf");
-  if (!func_printf) {
-    func_printf = Function::Create(printf_type, GlobalValue::ExternalLinkage,
-                                   "printf", &module);
-    isDeclared = false;
-  }
-
-  ArrayType *array_type =
-      ArrayType::get(IntegerType::get(context, 8), format.size() + 1);
-  GlobalVariable *str;
-  if (isDeclared) {
-    str = new GlobalVariable(
-        module, array_type, true, GlobalValue::PrivateLinkage, 0, ".str",
-        nullptr, GlobalValue::ThreadLocalMode::NotThreadLocal, 2, false);
-  } else {
-    str = new GlobalVariable(
-        module, array_type, true, GlobalValue::PrivateLinkage, 0, ".str",
-        nullptr, GlobalValue::ThreadLocalMode::NotThreadLocal, 0, false);
-  }
-  str->setAlignment(MaybeAlign(1));
-
-  Constant *const_array = ConstantDataArray::getString(context, format, true);
-  SmallVector<Constant *, 16> indices;
-  ConstantInt *cst_8 = ConstantInt::get(context, APInt(64, StringRef("0"), 10));
-  indices.push_back(cst_8);
-  indices.push_back(cst_8);
-  Constant *cst_ptr = ConstantExpr::getGetElementPtr(nullptr, str, indices);
-
-  str->setInitializer(const_array);
-
-  SmallVector<Value *, 8> call_params;
-  call_params.push_back(cst_ptr);
-  call_params.push_back(v);
-
-  CallInst *call = CallInst::Create(func_printf, call_params, "", bb);
-
-  return call;
-}
-#endif  // NDEBUG_WI_LOOPS
 
 Value *materializeVF(IRBuilder<> &builder,
                      compiler::utils::VectorizationFactor vf) {
@@ -235,13 +175,6 @@ struct ScheduleGenerator {
       Value *const live_var_mem_idxs[] = {byteOffset};
       live_var_ptr =
           ir.CreateInBoundsGEP(ir.getInt8Ty(), mem_space, live_var_mem_idxs);
-
-      // cast to the live mem type
-      live_var_ptr = ir.CreatePointerCast(
-          live_var_ptr,
-          PointerType::get(
-              barrier.getLiveVarsType(),
-              cast<PointerType>(live_var_ptr->getType())->getAddressSpace()));
     }
 
     return live_var_ptr;
@@ -379,10 +312,6 @@ struct ScheduleGenerator {
     }
     ci->setCallingConv(subkernel.getCallingConv());
     ci->setAttributes(compiler::utils::getCopiedFunctionAttrs(subkernel));
-
-#ifndef NDEBUG_WI_LOOPS
-    IRPrintf(std::string("return.kernel.body=%d\x0A"), module, ci, block);
-#endif  // NDEBUG_WI_LOOPS
 
     // And update the location of where we need to go to next (if we need to)
     const auto &successors = barrier.getSuccessorIds(i);

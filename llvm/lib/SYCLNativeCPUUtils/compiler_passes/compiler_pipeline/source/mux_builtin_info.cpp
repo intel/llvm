@@ -897,13 +897,7 @@ Type *BIMuxInfoConcept::getRemappedTargetExtTy(Type *Ty, Module &M) {
   // space to the same structure type (i.e., regardless of image dimensions,
   // etc.)
   if (TgtExtTy->getName() == "spirv.Image") {
-    return PointerType::getUnqual([&Ctx]() {
-      const char *MuxImageTyName = "MuxImage";
-      if (auto *STy = StructType::getTypeByName(Ctx, MuxImageTyName)) {
-        return STy;
-      }
-      return StructType::create(Ctx, MuxImageTyName);
-    }());
+    return PointerType::getUnqual(Ctx);
   }
 
   return nullptr;
@@ -1210,7 +1204,7 @@ BIMuxInfoConcept::getMuxSchedulingParameters(Module &M) {
     auto *const WIInfoS = getWorkItemInfoStructTy(M);
     WIInfo.ID = SchedParamIndices::WI;
     WIInfo.ParamPointeeTy = WIInfoS;
-    WIInfo.ParamTy = PointerType::get(WIInfoS, /*AddressSpace=*/0);
+    WIInfo.ParamTy = PointerType::get(Ctx, /*AddressSpace=*/0);
     WIInfo.ParamName = "wi-info";
     WIInfo.ParamDebugName = WIInfoS->getStructName().str();
     WIInfo.PassedExternally = false;
@@ -1226,7 +1220,7 @@ BIMuxInfoConcept::getMuxSchedulingParameters(Module &M) {
     auto *const WGInfoS = getWorkGroupInfoStructTy(M);
     WGInfo.ID = SchedParamIndices::WG;
     WGInfo.ParamPointeeTy = WGInfoS;
-    WGInfo.ParamTy = PointerType::get(WGInfoS, /*AddressSpace=*/0);
+    WGInfo.ParamTy = PointerType::get(Ctx, /*AddressSpace=*/0);
     WGInfo.ParamName = "wg-info";
     WGInfo.ParamDebugName = WGInfoS->getStructName().str();
     WGInfo.PassedExternally = true;

@@ -108,12 +108,8 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
 
           IRBuilder<> B(load);
           const auto name = load->getName();
-          auto *const newPtrTy =
-              PointerType::get(intTy, ptr->getType()->getPointerAddressSpace());
-          auto *const ptrCast = B.CreatePointerCast(
-              ptr, newPtrTy, Twine(ptr->getName(), ".squashptr"));
           auto *newLoad = cast<LoadInst>(
-              B.CreateLoad(intTy, ptrCast, Twine(name, ".squashed")));
+              B.CreateLoad(intTy, ptr, Twine(name, ".squashed")));
           newLoad->setAlignment(align);
           newLoad->copyMetadata(*load);
 
@@ -151,12 +147,8 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
           }
 
           IRBuilder<> B(store);
-          auto *const newPtrTy =
-              PointerType::get(intTy, ptr->getType()->getPointerAddressSpace());
-          auto *const newPtr = B.CreatePointerCast(
-              ptr, newPtrTy, Twine(ptr->getName(), ".squashptr"));
           auto *const newData = getSquashed(data, intTy, B);
-          auto *newStore = cast<StoreInst>(B.CreateStore(newData, newPtr));
+          auto *newStore = cast<StoreInst>(B.CreateStore(newData, ptr));
           newStore->setAlignment(align);
           newStore->copyMetadata(*store);
 

@@ -2539,8 +2539,7 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
     PACK_FAIL_IF(ptrPacket.empty());
 
     auto *const scalarTy = dataTy->getScalarType();
-    auto *const scalarPtrTy =
-        cast<PointerType>(ptr->getType()->getScalarType());
+    auto *const ptrTy = cast<PointerType>(ptr->getType()->getScalarType());
 
     // When scattering/gathering with a vector type, we can cast it to a
     // vector of pointers to the scalar type and widen it into a vector
@@ -2559,9 +2558,7 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
       const bool success =
           createSubSplats(Ctx.targetInfo(), B, ptrPacket, scalarWidth);
       PACK_FAIL_IF(!success);
-      auto *const newPtrTy = llvm::VectorType::get(
-          PointerType::get(scalarTy, scalarPtrTy->getPointerAddressSpace()),
-          wideEC);
+      auto *const newPtrTy = llvm::VectorType::get(ptrTy, wideEC);
       // Bitcast the above sub-splat to purely scalar pointers
       vecPtr = B.CreateBitCast(vecPtr, newPtrTy);
       // Create an index sequence to start the offseting process
@@ -2590,9 +2587,7 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
         }
       }
 
-      auto *const newPtrTy = FixedVectorType::get(
-          PointerType::get(scalarTy, scalarPtrTy->getPointerAddressSpace()),
-          simdWidth);
+      auto *const newPtrTy = FixedVectorType::get(ptrTy, simdWidth);
 
       auto *const idxVector = ConstantVector::get(indices);
       auto *const undef = UndefValue::get(newPtrTy);
@@ -3337,11 +3332,7 @@ Value *Packetizer::Impl::vectorizeCall(CallInst *CI) {
       B.SetInsertPoint(&*EntryBB.getFirstInsertionPt());
       Type *AllocaTy = getWideType(PtrEleTy, SimdWidth);
       PointerRetAlloca = B.CreateAlloca(AllocaTy, nullptr, "ptr_ret_temp");
-      Value *NewOp = PointerRetAlloca;
-      if (PtrTy->getAddressSpace() != 0) {
-        Type *NewOpTy = PointerType::get(AllocaTy, PtrTy->getAddressSpace());
-        NewOp = B.CreateAddrSpaceCast(NewOp, NewOpTy);
-      }
+      Value *NewOp = B.CreateAddrSpaceCast(PointerRetAlloca, PtrTy);
       PointerRetAddr = ScalarOp;
       PointerRetStride = ConstantStride;
       Ops.push_back(NewOp);

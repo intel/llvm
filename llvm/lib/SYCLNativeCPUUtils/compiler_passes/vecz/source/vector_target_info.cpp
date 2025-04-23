@@ -693,11 +693,6 @@ Value *TargetInfo::createScalableExtractElement(IRBuilder<> &B,
   // Store the packetized vector to the allocation
   B.CreateStore(src, alloc);
 
-  // Re-interpret the allocation as a pointer to the element type
-  auto *const eltptrTy = PointerType::get(eltTy, /*AddressSpace=*/0);
-  auto *const bcastalloc =
-      B.CreatePointerBitCastOrAddrSpaceCast(alloc, eltptrTy, "bcast.alloc");
-
   const unsigned fixedVecElts =
       multi_llvm::getVectorNumElements(origSrc->getType());
 
@@ -711,8 +706,7 @@ Value *TargetInfo::createScalableExtractElement(IRBuilder<> &B,
     // Index into the allocation, coming back with the starting offset from
     // which to begin our loads. This is either a scalar pointer, or a vector of
     // pointers.
-    auto *const gep =
-        B.CreateInBoundsGEP(eltTy, bcastalloc, index, "vec.alloc");
+    auto *const gep = B.CreateInBoundsGEP(eltTy, alloc, index, "vec.alloc");
 
     load = ::createInterleavedLoad(Ctx, narrowTy, gep, stride, /*Mask*/ nullptr,
                                    /*EVL*/ nullptr, alignment.value());
@@ -728,8 +722,7 @@ Value *TargetInfo::createScalableExtractElement(IRBuilder<> &B,
 
     // Index into the allocation, coming back with the starting offset from
     // which to begin our striding load.
-    auto *const gep =
-        B.CreateInBoundsGEP(eltTy, bcastalloc, index, "vec.alloc");
+    auto *const gep = B.CreateInBoundsGEP(eltTy, alloc, index, "vec.alloc");
 
     load = ::createGather(Ctx, narrowTy, gep, /*Mask*/ nullptr, /*EVL*/ nullptr,
                           alignment.value());
@@ -778,15 +771,11 @@ Value *TargetInfo::createScalableBroadcast(IRBuilder<> &B, Value *vector,
 
   auto *const eltTy = cast<llvm::VectorType>(ty)->getElementType();
 
-  auto *const eltptrTy = PointerType::get(eltTy, /*AddressSpace=*/0);
-  auto *const bcastalloc =
-      B.CreatePointerBitCastOrAddrSpaceCast(alloc, eltptrTy, "bcast.alloc");
   auto *const stepsRem = TargetInfo::createBroadcastIndexVector(
       B,
       ScalableVectorType::get(B.getInt32Ty(), cast<ScalableVectorType>(wideTy)),
       factor, URem, "idx1");
-  auto *const gep =
-      B.CreateInBoundsGEP(eltTy, bcastalloc, stepsRem, "vec.alloc");
+  auto *const gep = B.CreateInBoundsGEP(eltTy, alloc, stepsRem, "vec.alloc");
   auto *const boolTrue = ConstantInt::getTrue(B.getContext());
   auto *const mask = B.CreateVectorSplat(wideEltCount, boolTrue, "truemask");
   // Set the alignment to that of vector element type.
@@ -840,11 +829,6 @@ Value *TargetInfo::createScalableInsertElement(IRBuilder<> &B,
   // Store the wide vector to the allocation
   B.CreateStore(into, alloc);
 
-  // Re-interpret the allocation as a pointer to the element type
-  auto *const eltptrTy = PointerType::get(scalarTy, /*AddressSpace=*/0);
-  auto *const bcastalloc =
-      B.CreatePointerBitCastOrAddrSpaceCast(alloc, eltptrTy, "bcast.alloc");
-
   const unsigned fixedVecElts =
       multi_llvm::getVectorNumElements(insert->getOperand(0)->getType());
 
@@ -861,8 +845,7 @@ Value *TargetInfo::createScalableInsertElement(IRBuilder<> &B,
     // Index into the allocation, coming back with the starting offset from
     // which to begin our loads. This is either a scalar pointer, or a vector of
     // pointers.
-    auto *const gep =
-        B.CreateInBoundsGEP(scalarTy, bcastalloc, index, "vec.alloc");
+    auto *const gep = B.CreateInBoundsGEP(scalarTy, alloc, index, "vec.alloc");
 
     store = ::createInterleavedStore(Ctx, elt, gep, stride, /*Mask*/ nullptr,
                                      /*EVL*/ nullptr, alignment.value());
@@ -884,8 +867,7 @@ Value *TargetInfo::createScalableInsertElement(IRBuilder<> &B,
 
     // Index into the allocation, coming back with the starting offset from
     // which to begin our striding load.
-    auto *const gep =
-        B.CreateInBoundsGEP(scalarTy, bcastalloc, index, "vec.alloc");
+    auto *const gep = B.CreateInBoundsGEP(scalarTy, alloc, index, "vec.alloc");
 
     store = ::createScatter(Ctx, elt, gep, /*Mask*/ nullptr,
                             /*EVL*/ nullptr, alignment.value());
@@ -981,13 +963,8 @@ llvm::Value *TargetInfo::createVectorShuffle(llvm::IRBuilder<> &B,
 
   auto *const eltTy = srcTy->getElementType();
 
-  // Re-interpret the allocation as a pointer to the element type
-  auto *const eltptrTy = PointerType::get(eltTy, /*AddressSpace=*/0);
-  auto *const bcastalloc =
-      B.CreatePointerBitCastOrAddrSpaceCast(alloc, eltptrTy, "bcast.alloc");
-
   // Index into the allocation.
-  auto *const gep = B.CreateInBoundsGEP(eltTy, bcastalloc, mask, "vec.alloc");
+  auto *const gep = B.CreateInBoundsGEP(eltTy, alloc, mask, "vec.alloc");
 
   const auto eltCount = maskTy->getElementCount();
   auto *const dstTy = VectorType::get(eltTy, eltCount);
