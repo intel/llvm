@@ -228,45 +228,56 @@ public:
   using KernelCacheT =
       ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
+  using FastKernelCacheKeyT =
+      std::pair<ur_device_handle_t, ur_context_handle_t>;
   using FastKernelCacheValT =
       std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
                  ur_program_handle_t>;
   using FastKernelSubcacheT =
-      ::boost::unordered_flat_map<ur_device_handle_t, FastKernelCacheValT>;
+      ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
 
   class FastKernelCacheWrapper {
   public:
     FastKernelCacheWrapper(void **HintPtr) : MHintPtr{HintPtr} {
-      if (!MHintPtr)
+      if (!MHintPtr) {
+        MCache = new FastKernelSubcacheT();
         return;
-      assert(*MHintPtr == nullptr);
-      *MHintPtr = MCache.get();
+      }
+
+      if (*MHintPtr) {
+        MCache = static_cast<FastKernelSubcacheT *>(*MHintPtr);
+      } else {
+        MCache = new FastKernelSubcacheT();
+        *MHintPtr = MCache;
+      }
     }
     FastKernelCacheWrapper(const FastKernelCacheWrapper &) = delete;
     FastKernelCacheWrapper(FastKernelCacheWrapper &&Other)
-        : MHintPtr{Other.MHintPtr}, MCache{std::move(Other.MCache)} {
+        : MHintPtr{Other.MHintPtr}, MCache{Other.MCache} {
       Other.MHintPtr = nullptr;
+      Other.MCache = nullptr;
     }
     FastKernelCacheWrapper &operator=(const FastKernelCacheWrapper &) = delete;
     FastKernelCacheWrapper &operator=(FastKernelCacheWrapper &&Other) {
       MHintPtr = Other.MHintPtr;
       Other.MHintPtr = nullptr;
-      MCache = std::move(Other.MCache);
+      MCache = Other.MCache;
+      Other.MCache = nullptr;
       return *this;
     };
+
     ~FastKernelCacheWrapper() {
-      if (!MHintPtr)
+      if (!MHintPtr) {
+        delete MCache;
         return;
-      assert(*MHintPtr == MCache.get());
-      *MHintPtr = nullptr;
+      }
     }
 
     FastKernelSubcacheT &get() { return *MCache; }
 
   private:
     void **MHintPtr;
-    std::unique_ptr<FastKernelSubcacheT> MCache =
-        std::make_unique<FastKernelSubcacheT>();
+    FastKernelSubcacheT *MCache = nullptr;
   };
 
   using FastKernelCacheT =
@@ -462,7 +473,8 @@ public:
       KernelSubcache = &It.first->second.get();
     }
 
-    auto It = KernelSubcache->find(Device);
+    ur_context_handle_t Context = getURContext();
+    auto It = KernelSubcache->find(FastKernelCacheKeyT(Device, Context));
     if (It != KernelSubcache->end()) {
       traceKernel("Kernel fetched.", KernelName, true);
       return It->second;
@@ -492,7 +504,9 @@ public:
     traceKernel("Kernel inserted.", KernelName, true);
     auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint);
     FastKernelSubcacheT &KernelSubcache = It.first->second.get();
-    KernelSubcache.emplace(Device, std::move(CacheVal));
+    ur_context_handle_t Context = getURContext();
+    KernelSubcache.emplace(FastKernelCacheKeyT(Device, Context),
+                           std::move(CacheVal));
   }
 
   // Expects locked program cache
@@ -528,14 +542,16 @@ public:
         if (auto FastCacheKeysItr =
                 MProgramToKernelFastCacheKeyMap.find(NativePrg);
             FastCacheKeysItr != MProgramToKernelFastCacheKeyMap.end()) {
-          for (const auto &FastCacheKeys : FastCacheKeysItr->second) {
+          ur_context_handle_t Context = getURContext();
+          for (const auto &FastCacheKey : FastCacheKeysItr->second) {
             if (auto FastKernelCacheItr =
-                    MFastKernelCache.find(FastCacheKeys.first);
+                    MFastKernelCache.find(FastCacheKey.first);
                 FastKernelCacheItr != MFastKernelCache.end()) {
               FastKernelSubcacheT &FastKernelCache =
                   FastKernelCacheItr->second.get();
-              FastKernelCache.erase(FastCacheKeys.second);
-              traceKernel("Kernel evicted.", FastCacheKeys.first, true);
+              FastKernelCache.erase(
+                  FastKernelCacheKeyT(FastCacheKey.second, Context));
+              traceKernel("Kernel evicted.", FastCacheKey.first, true);
               if (FastKernelCache.empty())
                 MFastKernelCache.erase(FastKernelCacheItr);
             }
@@ -826,6 +842,7 @@ private:
   friend class ::MockKernelProgramCache;
 
   const AdapterPtr &getAdapter();
+  ur_context_handle_t getURContext() const;
 };
 } // namespace detail
 } // namespace _V1
