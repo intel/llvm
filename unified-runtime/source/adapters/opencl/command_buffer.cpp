@@ -171,11 +171,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   cl_command_properties_khr *Properties =
       hCommandBuffer->IsUpdatable ? UpdateProperties : nullptr;
 
-  const bool IsInOrder = hCommandBuffer->IsInOrder;
-  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
-  const cl_sync_point_khr *SyncPointWaitList =
-      IsInOrder ? nullptr : pSyncPointWaitList;
-  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  cl_sync_point_khr *RetSyncPoint = pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList = pSyncPointWaitList;
+  uint32_t WaitListSize = numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandNDRangeKernelKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, Properties, hKernel->CLKernel,
       workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, WaitListSize,
@@ -246,11 +244,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
           CLContext, ur::cl::getAdapter()->fnCache.clCommandCopyBufferKHRCache,
           cl_ext::CommandCopyBufferName, &clCommandCopyBufferKHR));
 
-  const bool IsInOrder = hCommandBuffer->IsInOrder;
-  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
-  const cl_sync_point_khr *SyncPointWaitList =
-      IsInOrder ? nullptr : pSyncPointWaitList;
-  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  cl_sync_point_khr *RetSyncPoint = pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList = pSyncPointWaitList;
+  uint32_t WaitListSize = numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandCopyBufferKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, nullptr, hSrcMem->CLMemory,
       hDstMem->CLMemory, srcOffset, dstOffset, size, WaitListSize,
@@ -289,11 +285,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
           ur::cl::getAdapter()->fnCache.clCommandCopyBufferRectKHRCache,
           cl_ext::CommandCopyBufferRectName, &clCommandCopyBufferRectKHR));
 
-  const bool IsInOrder = hCommandBuffer->IsInOrder;
-  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
-  const cl_sync_point_khr *SyncPointWaitList =
-      IsInOrder ? nullptr : pSyncPointWaitList;
-  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  cl_sync_point_khr *RetSyncPoint = pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList = pSyncPointWaitList;
+  uint32_t WaitListSize = numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandCopyBufferRectKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, nullptr, hSrcMem->CLMemory,
       hDstMem->CLMemory, OpenCLOriginRect, OpenCLDstRect, OpenCLRegion,
@@ -397,11 +391,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
           CLContext, ur::cl::getAdapter()->fnCache.clCommandFillBufferKHRCache,
           cl_ext::CommandFillBufferName, &clCommandFillBufferKHR));
 
-  const bool IsInOrder = hCommandBuffer->IsInOrder;
-  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
-  const cl_sync_point_khr *SyncPointWaitList =
-      IsInOrder ? nullptr : pSyncPointWaitList;
-  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  cl_sync_point_khr *RetSyncPoint = pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList = pSyncPointWaitList;
+  uint32_t WaitListSize = numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandFillBufferKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, nullptr, hBuffer->CLMemory,
       pPattern, patternSize, offset, size, WaitListSize, SyncPointWaitList,
@@ -475,9 +467,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
     CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
   }
-  cl_command_queue CLQueue = hCommandBuffer->IsInOrder
-                                 ? hCommandBuffer->hInternalQueue->CLQueue
-                                 : hQueue->CLQueue;
+  cl_command_queue CLQueue = hQueue->CLQueue;
   CL_RETURN_ON_FAILURE(clEnqueueCommandBufferKHR(
       NumberOfQueues, &CLQueue, hCommandBuffer->CLCommandBuffer,
       numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
@@ -768,11 +758,9 @@ ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
           cl_ext::CommandBarrierWithWaitListName,
           &clCommandBarrierWithWaitListKHR));
 
-  const bool IsInOrder = hCommandBuffer->IsInOrder;
-  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
-  const cl_sync_point_khr *SyncPointWaitList =
-      IsInOrder ? nullptr : pSyncPointWaitList;
-  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  cl_sync_point_khr *RetSyncPoint = pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList = pSyncPointWaitList;
+  uint32_t WaitListSize = numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandBarrierWithWaitListKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, nullptr, WaitListSize,
       SyncPointWaitList, nullptr, nullptr));
