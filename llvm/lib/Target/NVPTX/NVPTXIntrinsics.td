@@ -2250,14 +2250,16 @@ multiclass ATOM2_bitwise_impl<string OpStr> {
 multiclass ATOM2_exch_impl<string OpStr> {
   defm _b32 : ATOM2S_impl<OpStr, "i", "b32", I32RT, []>;
   defm _b64 : ATOM2S_impl<OpStr, "i", "b64", I64RT, []>;
+  defm _f32 : ATOM2S_impl<OpStr, "f", "b32", F32RT, []>;
+  defm _f64 : ATOM2S_impl<OpStr, "f", "b64", F64RT, []>;
 }
 
 // atom.{min,max}
 multiclass ATOM2_minmax_impl<string OpStr> {
   defm _s32 : ATOM2S_impl<OpStr, "i", "s32", I32RT, []>;
-  defm _u32 : ATOM2S_impl<OpStr, "i", "u32", I32RT, []>;
+  defm _u32 : ATOM2S_impl<OpStr, "ui", "u32", I32RT, []>;
   defm _s64 : ATOM2S_impl<OpStr, "i", "s64", I64RT, [hasAtomMinMax64]>;
-  defm _u64 : ATOM2S_impl<OpStr, "i", "u64", I64RT, [hasAtomMinMax64]>;
+  defm _u64 : ATOM2S_impl<OpStr, "ui", "u64", I64RT, [hasAtomMinMax64]>;
 }
 
 // atom.{inc,dec}
@@ -2271,6 +2273,8 @@ multiclass ATOM3_cas_impl<string OpStr> {
   defm _b16 : ATOM3S_impl<OpStr, "i", "b16", I16RT, []>;
   defm _b32 : ATOM3S_impl<OpStr, "i", "b32", I32RT, []>;
   defm _b64 : ATOM3S_impl<OpStr, "i", "b64", I64RT, []>;
+  defm _f32 : ATOM3S_impl<OpStr, "f", "b32", F32RT, []>;
+  defm _f64 : ATOM3S_impl<OpStr, "f", "b64", F64RT, []>;
 }
 
 defm INT_PTX_SATOM_ADD  : ATOM2_add_impl<"add">;
