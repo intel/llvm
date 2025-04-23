@@ -697,14 +697,14 @@ static bool
 runTest(DX12SYCLDevice &device, sycl::image_channel_type channelType,
         sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
 
-  syclexp::image_descriptor syclImageDesc{m_globalSize, NChannels,
-                                          m_channelType};
+  syclexp::image_descriptor syclImageDesc{globalSize, NChannels,
+                                          channelType};
 
   // Verify ability to allocate the above image descriptor.
   // E.g. LevelZero does not support `unorm` channel types.
   if (!bindless_helpers::memoryAllocationSupported(
           syclImageDesc, syclexp::image_memory_handle_type::opaque_handle,
-          m_device.getSyclQueue())) {
+          device.getSyclQueue())) {
     // We cannot allocate the image memory, skip the test.
     std::cout << "Memory allocation unsupported. Skipping test.\n";
     return true;

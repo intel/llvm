@@ -22,7 +22,7 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 
 bool memoryAllocationSupported(syclexp::image_descriptor &imgDesc,
                                syclexp::image_memory_handle_type memHandleType,
-                               sycl::queue syclQueue) {
+                               sycl::queue &syclQueue) {
   auto supportedMemTypes =
       syclexp::get_image_memory_support(imgDesc, syclQueue);
   return std::find(supportedMemTypes.begin(), supportedMemTypes.end(),
