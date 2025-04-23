@@ -412,11 +412,15 @@ doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr,
             size_t Size, uint32_t numEventsInWaitList,
             const ur_event_handle_t *phEventWaitList,
             ur_event_handle_t *phEvent, ur_command_t command_type, T &&Inv) {
+  if (SrcPtr == DstPtr || Size == 0)
+    return withTimingEvent(
+        command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
+        []() { return UR_RESULT_SUCCESS; }, BlockingWithEvent());
+
   return withTimingEvent(
       command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
       [DstPtr, SrcPtr, Size]() {
-        if (SrcPtr != DstPtr && Size)
-          memmove(DstPtr, SrcPtr, Size);
+        memmove(DstPtr, SrcPtr, Size);
         return UR_RESULT_SUCCESS;
       },
       Inv);
