@@ -34,10 +34,41 @@ public:
 
   enum class BundleState : uint8_t { Input = 0, Object = 1, Executable = 2 };
 
-  struct ModuleDesc {
-    BundleState State;
+  struct SYCLBINModuleDesc {
     std::string ArchString;
     std::vector<module_split::SplitModule> SplitModules;
+  };
+
+  class SYCLBINDesc {
+  public:
+    SYCLBINDesc(BundleState State, ArrayRef<SYCLBINModuleDesc> ModuleDescs);
+
+    SYCLBINDesc(const SYCLBINDesc &Other) = delete;
+    SYCLBINDesc(SYCLBINDesc &&Other) = default;
+
+    SYCLBINDesc &operator=(const SYCLBINDesc &Other) = delete;
+    SYCLBINDesc &operator=(SYCLBINDesc &&Other) = default;
+
+    size_t getMetadataTableByteSize() const noexcept;
+    Expected<size_t> getBinaryTableByteSize() const noexcept;
+    Expected<size_t> getSYCLBINByteSite() const noexcept;
+
+  private:
+    struct ImageDesc {
+      SmallString<0> Metadata;
+      SmallString<0> FilePath;
+    };
+
+    struct AbstractModuleDesc {
+      SmallString<0> Metadata;
+      SmallVector<ImageDesc, 4> IRModuleDescs;
+      SmallVector<ImageDesc, 4> NativeDeviceCodeImageDescs;
+    };
+
+    SmallString<0> GlobalMetadata;
+    SmallVector<AbstractModuleDesc, 4> AbstractModuleDescs;
+
+    friend class SYCLBIN;
   };
 
   /// The current version of the binary used for backwards compatibility.
@@ -46,9 +77,8 @@ public:
   /// Magic number used to identify SYCLBIN files.
   static constexpr uint32_t MagicNumber = 0x53594249;
 
-  /// Serialize the contents of \p ModuleDescs to a binary buffer to be read
-  /// later.
-  static Expected<SmallString<0>> write(const ArrayRef<ModuleDesc> ModuleDescs);
+  /// Serialize \p Desc to \p OS .
+  static Error write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS);
 
   /// Deserialize the contents of \p Source to produce a SYCLBIN object.
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
@@ -109,19 +139,6 @@ private:
     uint64_t BinaryBytesOffset;
     uint64_t BinaryBytesSize;
   };
-
-  static Expected<std::optional<IRModuleHeaderType>> createIRModuleHeader(
-      const ModuleDesc &Desc, const module_split::SplitModule &SM,
-      SmallString<0> &MetadataByteTable,
-      raw_svector_ostream &MetadataByteTableOS, SmallString<0> &BinaryByteTable,
-      raw_svector_ostream &BinaryByteTableOS);
-  static Expected<std::optional<NativeDeviceCodeImageHeaderType>>
-  createNativeDeviceCodeImageHeader(const ModuleDesc &Desc,
-                                    const module_split::SplitModule &SM,
-                                    SmallString<0> &MetadataByteTable,
-                                    raw_svector_ostream &MetadataByteTableOS,
-                                    SmallString<0> &BinaryByteTable,
-                                    raw_svector_ostream &BinaryByteTableOS);
 };
 
 } // namespace object

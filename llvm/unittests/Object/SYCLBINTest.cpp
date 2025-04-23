@@ -90,16 +90,24 @@ TEST(SYCLBINTest, checkSYCLBINBinaryBasicIRModule) {
   // Create IR module.
   std::vector<module_split::SplitModule> SplitModules{module_split::SplitModule{
       File1.c_str(), util::PropertySetRegistry{}, ""}};
-  SmallVector<SYCLBIN::ModuleDesc> MDs{SYCLBIN::ModuleDesc{
-      SYCLBIN::BundleState::Input, "", std::move(SplitModules)}};
+  SmallVector<SYCLBIN::SYCLBINModuleDesc> MDs{
+      SYCLBIN::SYCLBINModuleDesc{"", std::move(SplitModules)}};
+  SYCLBIN::SYCLBINDesc Desc{SYCLBIN::BundleState::Input, MDs};
+  size_t SYCLBINByteSize = 0;
+  if (Error E = Desc.getSYCLBINByteSite().moveInto(SYCLBINByteSize))
+    FAIL() << "Failed to get SYCLBIN byte size.";
 
   // Serialize the SYCLBIN.
-  Expected<SmallString<0>> SYCLBINDataOrError = SYCLBIN::write(MDs);
-  ASSERT_THAT_EXPECTED(SYCLBINDataOrError, Succeeded());
+  SmallString<0> SYCLBINImage;
+  SYCLBINImage.reserve(SYCLBINByteSize);
+  raw_svector_ostream SYCLBINImageOS{SYCLBINImage};
+  if (Error E = SYCLBIN::write(Desc, SYCLBINImageOS))
+    FAIL() << "Failed to write SYCLBIN.";
 
   // Deserialize the SYCLBIN.
   std::unique_ptr<MemoryBuffer> SYCBINDataBuffer =
-      MemoryBuffer::getMemBufferCopy(*SYCLBINDataOrError);
+      MemoryBuffer::getMemBuffer(SYCLBINImage, /*BufferName=*/"",
+                                 /*RequiresNullTerminator=*/false);
   Expected<std::unique_ptr<SYCLBIN>> SYCLBINObjOrError =
       SYCLBIN::read(*SYCBINDataBuffer);
   ASSERT_THAT_EXPECTED(SYCLBINObjOrError, Succeeded());
@@ -185,16 +193,24 @@ TEST(SYCLBINTest, checkSYCLBINBinaryBasicNativeDeviceCodeImage) {
   // Create IR module.
   std::vector<module_split::SplitModule> SplitModules{module_split::SplitModule{
       File1.c_str(), util::PropertySetRegistry{}, ""}};
-  SmallVector<SYCLBIN::ModuleDesc> MDs{SYCLBIN::ModuleDesc{
-      SYCLBIN::BundleState::Input, Arch, std::move(SplitModules)}};
+  SmallVector<SYCLBIN::SYCLBINModuleDesc> MDs{
+      SYCLBIN::SYCLBINModuleDesc{Arch, std::move(SplitModules)}};
+  SYCLBIN::SYCLBINDesc Desc{SYCLBIN::BundleState::Input, MDs};
+  size_t SYCLBINByteSize = 0;
+  if (Error E = Desc.getSYCLBINByteSite().moveInto(SYCLBINByteSize))
+    FAIL() << "Failed to get SYCLBIN byte size.";
 
   // Serialize the SYCLBIN.
-  Expected<SmallString<0>> SYCLBINDataOrError = SYCLBIN::write(MDs);
-  ASSERT_THAT_EXPECTED(SYCLBINDataOrError, Succeeded());
+  SmallString<0> SYCLBINImage;
+  SYCLBINImage.reserve(SYCLBINByteSize);
+  raw_svector_ostream SYCLBINImageOS{SYCLBINImage};
+  if (Error E = SYCLBIN::write(Desc, SYCLBINImageOS))
+    FAIL() << "Failed to write SYCLBIN.";
 
   // Deserialize the SYCLBIN.
   std::unique_ptr<MemoryBuffer> SYCBINDataBuffer =
-      MemoryBuffer::getMemBufferCopy(*SYCLBINDataOrError);
+      MemoryBuffer::getMemBuffer(SYCLBINImage, /*BufferName=*/"",
+                                 /*RequiresNullTerminator=*/false);
   Expected<std::unique_ptr<SYCLBIN>> SYCLBINObjOrError =
       SYCLBIN::read(*SYCBINDataBuffer);
   ASSERT_THAT_EXPECTED(SYCLBINObjOrError, Succeeded());

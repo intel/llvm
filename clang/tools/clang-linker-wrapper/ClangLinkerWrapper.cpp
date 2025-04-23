@@ -1186,15 +1186,24 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 /// Write an OffloadBinary containing the serialized SYCLBIN resulting from
 /// \p ModuleDescs to the ExecutableName file with the .syclbin extension.
 static Expected<StringRef>
-packageSYCLBIN(const ArrayRef<SYCLBIN::ModuleDesc> Modules) {
-  auto ErrorOrSYCLBIN = SYCLBIN::write(Modules);
-  if (!ErrorOrSYCLBIN)
-    return ErrorOrSYCLBIN.takeError();
+packageSYCLBIN(SYCLBIN::BundleState State,
+               const ArrayRef<SYCLBIN::SYCLBINModuleDesc> Modules) {
+  SYCLBIN::SYCLBINDesc SYCLBIND{State, Modules};
+  size_t SYCLBINByteSize = 0;
+  if (Error E = SYCLBIND.getSYCLBINByteSite().moveInto(SYCLBINByteSize))
+    return std::move(E);
+
+  SmallString<0> SYCLBINImage;
+  SYCLBINImage.reserve(SYCLBINByteSize);
+  raw_svector_ostream SYCLBINImageOS{SYCLBINImage};
+  if (Error E = SYCLBIN::write(SYCLBIND, SYCLBINImageOS))
+    return std::move(E);
 
   OffloadingImage Image{};
   Image.TheImageKind = IMG_SYCLBIN;
   Image.TheOffloadKind = OFK_SYCL;
-  Image.Image = MemoryBuffer::getMemBufferCopy(*ErrorOrSYCLBIN);
+  Image.Image = MemoryBuffer::getMemBuffer(SYCLBINImage, /*BufferName=*/"",
+                                           /*RequiresNullTerminator=*/false);
 
   std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
       OffloadBinary::write(Image), Image.Image->getBufferIdentifier());
@@ -2025,7 +2034,8 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
   // When creating SYCLBIN files, we need to store the compiled modules for
   // combined packaging.
   std::mutex SYCLBINModulesMtx;
-  SmallVector<SYCLBIN::ModuleDesc> SYCLBINModules;
+  SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
+  SmallVector<SYCLBIN::SYCLBINModuleDesc> SYCLBINModules;
 
   // Initialize the images with any overriding inputs.
   if (Args.hasArg(OPT_override_image))
@@ -2133,7 +2143,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       }
 
       if (OutputSYCLBIN) {
-        SYCLBIN::ModuleDesc MD;
+        SYCLBIN::SYCLBINModuleDesc MD;
         MD.ArchString = LinkerArgs.getLastArgValue(OPT_arch_EQ);
         MD.SplitModules = std::move(SplitModules);
         std::scoped_lock Guard(SYCLBINModulesMtx);
@@ -2199,7 +2209,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     return std::move(Err);
 
   if (OutputSYCLBIN) {
-    auto OutputOrErr = sycl::packageSYCLBIN(SYCLBINModules);
+    auto OutputOrErr = sycl::packageSYCLBIN(SYCLBINState, SYCLBINModules);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
     WrappedOutput.push_back(*OutputOrErr);
