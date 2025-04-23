@@ -97,7 +97,7 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
         checkOclocLibrary(tempPtr);
 
         InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
-      } catch (const sycl::exception &e) {
+      } catch (const sycl::exception &) {
         tempPtr = nullptr;
         OclocLibrary.reset(tempPtr);
       }
