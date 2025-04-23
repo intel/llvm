@@ -27,9 +27,6 @@ common/radians.cl
 common/sign.cl
 common/smoothstep.cl
 common/step.cl
-core/integer/clc_add_sat.cl
-core/integer/clc_mad_sat.cl
-core/integer/clc_sub_sat.cl
 geometric/cross.cl
 geometric/distance.cl
 geometric/dot.cl

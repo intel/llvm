@@ -1035,7 +1035,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                     const InputInfo &Output,
                                     const InputInfoList &Inputs) const {
   const bool IsIAMCU = getToolChain().getTriple().isOSIAMCU();
-  const bool IsIntelFPGA = Args.hasArg(options::OPT_fintelfpga);
   bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
                                JA.isDeviceOffloading(Action::OFK_SYCL);
 
@@ -1058,16 +1057,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   else
     ArgM = ArgMD;
 
-  auto createFPGATempDepFile = [&](const char *&DepFile) {
-    // Generate dependency files as temporary. These will be used for the
-    // aoc call/bundled during fat object creation
-    std::string BaseName(Clang::getBaseInputName(Args, Inputs[0]));
-    std::string DepTmpName =
-        C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseName), "d");
-    DepFile = C.addTempFile(C.getArgs().MakeArgString(DepTmpName));
-    C.getDriver().addFPGATempDepFile(DepFile, BaseName);
-  };
-
   if (ArgM) {
     if (!JA.isDeviceOffloading(Action::OFK_HIP)) {
       // Determine the output location.
@@ -1077,15 +1066,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         C.addFailureResultFile(DepFile, &JA);
         // Populate the named dependency file to be used in the bundle
         // or passed to the offline compilation.
-        if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL))
-          C.getDriver().addFPGATempDepFile(
-               DepFile, Clang::getBaseInputName(Args, Inputs[0]));
       } else if (Output.getType() == types::TY_Dependencies) {
         DepFile = Output.getFilename();
       } else if (!ArgMD) {
         DepFile = "-";
-      } else if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {
-        createFPGATempDepFile(DepFile);
       } else {
         DepFile = getDependencyFileName(Args, Inputs);
         C.addFailureResultFile(DepFile, &JA);
@@ -1146,21 +1130,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
          !Args.hasArg(options::OPT_fno_module_file_deps)) ||
         Args.hasArg(options::OPT_fmodule_file_deps))
       CmdArgs.push_back("-module-file-deps");
-  }
-
-  if (!ArgM && IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    // No dep generation option was provided, add all of the needed options
-    // to ensure a successful dep generation.
-    const char *DepFile;
-    createFPGATempDepFile(DepFile);
-    CmdArgs.push_back("-dependency-file");
-    CmdArgs.push_back(DepFile);
-    CmdArgs.push_back("-MT");
-    SmallString<128> P(Inputs[0].getBaseInput());
-    llvm::sys::path::replace_extension(P, "o");
-    SmallString<128> Quoted;
-    quoteMakeTarget(llvm::sys::path::filename(P), Quoted);
-    CmdArgs.push_back(Args.MakeArgString(Quoted));
   }
 
   if (Args.hasArg(options::OPT_MG)) {
@@ -5528,8 +5497,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
   auto LTOMode = IsDeviceOffloadAction ? D.getOffloadLTOMode() : D.getLTOMode();
   bool IsUsingLTO = LTOMode != LTOK_None;
-  bool IsFPGASYCLOffloadDevice =
-      IsSYCLDevice && Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
   const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
 
   // Perform the SYCL host compilation using an external compiler if the user
@@ -5701,15 +5668,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // We want to compile sycl kernels.
       CmdArgs.push_back("-fsycl-is-device");
       CmdArgs.push_back("-fdeclare-spirv-builtins");
-      
+
       // Set O2 optimization level by default
       if (!Args.getLastArg(options::OPT_O_Group))
         CmdArgs.push_back("-O2");
 
-      // Default value for FPGA is false, for all other targets is true.
       if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
-                        options::OPT_fno_sycl_early_optimizations,
-                        !IsFPGASYCLOffloadDevice))
+                        options::OPT_fno_sycl_early_optimizations, true))
         CmdArgs.push_back("-fno-sycl-early-optimizations");
       else if (RawTriple.isSPIROrSPIRV()) {
         // Set `sycl-opt` option to configure LLVM passes for SPIR/SPIR-V target
@@ -5926,8 +5891,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // At -O0, disable the inlining for debugging purposes.
     if (!Args.hasFlag(options::OPT_fsycl_force_inline_kernel_lambda,
                       options::OPT_fno_sycl_force_inline_kernel_lambda,
-                      !DisableSYCLForceInlineKernelLambda &&
-                          !IsFPGASYCLOffloadDevice))
+                      !DisableSYCLForceInlineKernelLambda))
       CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
 
     // Add -ffine-grained-bitfield-accesses option. This will be added
@@ -5972,9 +5936,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString(Twine("-fsycl-unique-prefix=") + UniqueID));
 
-    // Disable parallel for range-rounding for anything involving FPGA
     auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
-    bool HasFPGA = false;
     for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
       llvm::Triple SYCLTriple = TI->second->getTriple();
       if (SYCLTriple.isNVPTX() && IsSYCLCUDACompat && !IsSYCLDevice) {
@@ -5990,14 +5952,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
               CudaVersionToString(CTC->CudaInstallation.version())));
         break;
       }
-      if (SYCLTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-        HasFPGA = true;
-        if (!IsSYCLDevice) {
-          CmdArgs.push_back("-aux-triple");
-          CmdArgs.push_back(Args.MakeArgString(SYCLTriple.getTriple()));
-        }
-        break;
-      }
     }
     // At -O0, imply -fsycl-disable-range-rounding.
     bool DisableRangeRounding = false;
@@ -6008,13 +5962,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         if (!Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
           DisableRangeRounding = true;
     }
-    if (DisableRangeRounding || HasFPGA)
+    if (DisableRangeRounding)
       CmdArgs.push_back("-fsycl-range-rounding=disable");
-
-    if (HasFPGA) {
-      // Pass -fintelfpga to both the host and device SYCL compilations if set.
-      CmdArgs.push_back("-fintelfpga");
-    }
 
     const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
     for (const auto &Arg : DeviceTraitsMacrosArgs) {
@@ -6051,10 +6000,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // are provided.
   TC.addClangWarningOptions(CmdArgs);
 
-  // FIXME: Subclass ToolChain for SPIR/SPIR-V and move this to
-  // addClangWarningOptions.
-  if (Triple.isSPIROrSPIRV())
+  if (Triple.isSPIROrSPIRV()) {
+    // FIXME: Subclass ToolChain for SPIR/SPIR-V and move this to
+    // addClangWarningOptions.
     CmdArgs.push_back("-Wspir-compat");
+    // Disable this option for SPIR targets.
+    // TODO:  This needs to be re-enabled once we have a real fix.
+    CmdArgs.push_back("-fno-offload-use-alloca-addrspace-for-srets");
+  }
 
   // Select the appropriate action.
   RewriteKind rewriteKind = RK_None;
@@ -6364,6 +6317,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.addOptOutFlag(CmdArgs, options::OPT_foptimize_sibling_calls,
                        options::OPT_fno_optimize_sibling_calls);
 
+    Args.addOptOutFlag(CmdArgs,
+                       options::OPT_foffload_use_alloca_addrspace_for_srets,
+                       options::OPT_fno_offload_use_alloca_addrspace_for_srets);
+
     RenderFloatingPointOptions(TC, D, isOptimizationLevelFast(Args), Args,
                                CmdArgs, JA, NoOffloadFP32PrecDiv,
                                NoOffloadFP32PrecSqrt);
@@ -6441,8 +6398,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Discard value names in assert builds unless otherwise specified.
   if (Args.hasFlag(options::OPT_fdiscard_value_names,
-                   options::OPT_fno_discard_value_names,
-                   !IsAssertBuild && !IsFPGASYCLOffloadDevice)) {
+                   options::OPT_fno_discard_value_names, !IsAssertBuild)) {
     if (Args.hasArg(options::OPT_fdiscard_value_names) &&
         llvm::any_of(Inputs, [](const clang::driver::InputInfo &II) {
           return types::isLLVMIR(II.getType());
@@ -9998,24 +9954,6 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       Triples += GPUArchName.str();
     }
   }
-  // If we see we are bundling for FPGA using -fintelfpga, add the
-  // dependency bundle
-  bool IsFPGADepBundle = TCArgs.hasArg(options::OPT_fintelfpga) &&
-                         Output.getType() == types::TY_Object &&
-                         !TCArgs.hasArg(options::OPT_fsycl_link_EQ);
-
-  // For spir64_fpga target, when bundling objects we also want to bundle up the
-  // named dependency file.
-  // TODO - We are currently using the target triple inputs to slot a location
-  // of the dependency information into the bundle.  It would be good to
-  // separate this out to an explicit option in the bundler for the dependency
-  // file as it does not match the type being bundled.
-  if (IsFPGADepBundle) {
-    Triples += ',';
-    Triples += Action::GetOffloadKindName(Action::OFK_SYCL);
-    Triples += '-';
-    Triples += types::getTypeName(types::TY_FPGA_Dependencies);
-  }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
   // Get bundled file command.
@@ -10041,14 +9979,6 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       UB += CurTC->getInputFilename(Inputs[I]);
     }
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
-  }
-  // For -fintelfpga, when bundling objects we also want to bundle up the
-  // named dependency file.
-  if (IsFPGADepBundle) {
-    const char *BaseName = Clang::getBaseInputName(TCArgs, Inputs[0]);
-    SmallString<128> DepFile(C.getDriver().getFPGATempDepFile(BaseName));
-    if (!DepFile.empty())
-      CmdArgs.push_back(TCArgs.MakeArgString("-input=" + DepFile));
   }
   addOffloadCompressArgs(TCArgs, CmdArgs);
   // All the inputs are encoded as commands.
@@ -10079,12 +10009,9 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   const char *TypeArg = types::getTypeTempSuffix(Input.getType());
   const char *InputFileName = Input.getFilename();
   types::ID InputType(Input.getType());
-  bool IsFPGADepUnbundle = JA.getType() == types::TY_FPGA_Dependencies;
   InputInfoList ForeachInputs;
   if (InputType == types::TY_Tempfilelist)
     ForeachInputs.push_back(Input);
-  if (IsFPGADepUnbundle)
-    TypeArg = "o";
 
   bool HasSPIRTarget = false;
   auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
@@ -10169,15 +10096,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += GPUArchName.str();
     }
   }
-  if (IsFPGADepUnbundle) {
-    // TODO - We are currently using the target triple inputs to slot a location
-    // of the dependency information into the bundle.  It would be good to
-    // separate this out to an explicit option in the bundler for the dependency
-    // file as it does not match the type being bundled.
-    Triples += Action::GetOffloadKindName(Action::OFK_SYCL);
-    Triples += '-';
-    Triples += types::getTypeName(types::TY_FPGA_Dependencies);
-  }
   std::string TargetString(UA.getTargetString());
   if (!TargetString.empty()) {
     // The target string was provided, we will override the defaults and use
@@ -10194,21 +10112,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       TCArgs.MakeArgString(Twine("-input=") + InputFileName));
 
   // Get unbundled files command.
-  // When dealing with -fintelfpga, there is an additional unbundle step
-  // that occurs for the dependency file.  In that case, do not use the
-  // dependent information, but just the output file.
-  if (IsFPGADepUnbundle) {
+  for (unsigned I = 0; I < Outputs.size(); ++I) {
     SmallString<128> UB;
     UB += "-output=";
-    UB += Outputs[0].getFilename();
+    UB += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
-  } else {
-    for (unsigned I = 0; I < Outputs.size(); ++I) {
-      SmallString<128> UB;
-      UB += "-output=";
-      UB += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
-      CmdArgs.push_back(TCArgs.MakeArgString(UB));
-    }
   }
   CmdArgs.push_back("-unbundle");
   CmdArgs.push_back("-allow-missing-bundles");
@@ -10369,18 +10277,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     const InputInfo &I = Inputs[0];
     assert(I.isFilename() && "Invalid input.");
 
-    // TODO: The embedded compilation step after the wrapping step restricts
-    // the ability to control the 'for each' methodology used when performing
-    // device code splitting.  We set the individual wrap behavior when we know
-    // the wrapping and compile step should be done individually.  Ideally this
-    // would be controlled at the JobAction creation, but we cannot do that
-    // until the compilation of the wrap is it's own JobAction.
-    bool IndividualWrapCompile = WrapperJob.getWrapIndividualFiles();
     const InputInfo TempOutput(types::TY_LLVM_BC, WrapperFileName,
                                WrapperFileName);
-    if (!IndividualWrapCompile &&
-        (I.getType() == types::TY_Tempfiletable ||
-         I.getType() == types::TY_Tempfilelist || IsEmbeddedIR))
+    if (I.getType() == types::TY_Tempfiletable ||
+        I.getType() == types::TY_Tempfilelist || IsEmbeddedIR)
       // Input files are passed via the batch job file table.
       WrapperArgs.push_back(C.getArgs().MakeArgString("-batch"));
     WrapperArgs.push_back(C.getArgs().MakeArgString(I.getFilename()));
@@ -10389,17 +10289,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         JA, *this, ResponseFileSupport::None(),
         TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
         WrapperArgs, std::nullopt);
-
-    if (IndividualWrapCompile) {
-      // When wrapping FPGA device binaries for FPGA archives, create individual
-      // wrapped and compiled entries for the archive.
-      StringRef ParallelJobs =
-          C.getArgs().getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
-      clang::driver::tools::SYCL::constructLLVMForeachCommand(
-          C, JA, std::move(Cmd), Inputs, TempOutput, this, "", "bc",
-          ParallelJobs);
-    } else
-      C.addCommand(std::move(Cmd));
+    C.addCommand(std::move(Cmd));
 
     if (WrapperCompileEnabled) {
       // TODO Use TC.SelectTool().
@@ -10425,16 +10315,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       auto PostWrapCompileCmd =
           std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                     Clang, ClangArgs, std::nullopt);
-      if (IndividualWrapCompile) {
-        StringRef ParallelJobs = C.getArgs().getLastArgValue(
-            options::OPT_fsycl_max_parallel_jobs_EQ);
-        InputInfoList Inputs;
-        Inputs.push_back(TempOutput);
-        clang::driver::tools::SYCL::constructLLVMForeachCommand(
-            C, JA, std::move(PostWrapCompileCmd), Inputs, Output, this, "",
-            "bc", ParallelJobs);
-      } else
-        C.addCommand(std::move(PostWrapCompileCmd));
+      C.addCommand(std::move(PostWrapCompileCmd));
     }
     return;
   } // end of SYCL flavor of offload wrapper command creation
@@ -10458,44 +10339,15 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   if (OffloadingKind == Action::OFK_None &&
       C.getArgs().hasArg(options::OPT_fsycl_link_EQ)) {
 
-    // For FPGA, we wrap the host objects before archiving them when using
-    // -fsycl-link.  This allows for better extraction control from the
-    // archive when we need the host objects for subsequent compilations.
-    if (C.getArgs().hasArg(options::OPT_fintelfpga)) {
-
-      // Add offload targets and inputs.
-      CmdArgs.push_back(C.getArgs().MakeArgString(
-          Twine("-kind=") + Action::GetOffloadKindName(OffloadingKind)));
-      CmdArgs.push_back(
-          TCArgs.MakeArgString(Twine("-target=") + Triple.getTriple()));
-
-      if (Inputs[0].getType() == types::TY_Tempfiletable ||
-          Inputs[0].getType() == types::TY_Tempfilelist)
-        // Input files are passed via the batch job file table.
-        CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
-
-      // Add input.
-      assert(Inputs[0].isFilename() && "Invalid input.");
-      CmdArgs.push_back(TCArgs.MakeArgString(Inputs[0].getFilename()));
-
-      C.addCommand(std::make_unique<Command>(
-          JA, *this, ResponseFileSupport::None(),
-          TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-          CmdArgs, Inputs));
-      return;
-    } else {
-      // When compiling and linking separately, we need to propagate the
-      // compression related CLI options to offload-wrapper. Don't propagate
-      // these options when wrapping objects for FPGA.
-      if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
-        CmdArgs.push_back(
-            C.getArgs().MakeArgString(Twine("-offload-compress")));
-        // -offload-compression-level=<>
-        if (Arg *A = C.getInputArgs().getLastArg(
-                options::OPT_offload_compression_level_EQ))
-          CmdArgs.push_back(C.getArgs().MakeArgString(
-              Twine("-offload-compression-level=") + A->getValue()));
-      }
+    // When compiling and linking separately, we need to propagate the
+    // compression related CLI options to offload-wrapper.
+    if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
+      CmdArgs.push_back(C.getArgs().MakeArgString(Twine("-offload-compress")));
+      // -offload-compression-level=<>
+      if (Arg *A = C.getInputArgs().getLastArg(
+              options::OPT_offload_compression_level_EQ))
+        CmdArgs.push_back(C.getArgs().MakeArgString(
+            Twine("-offload-compression-level=") + A->getValue()));
     }
   }
 
@@ -10769,17 +10621,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
                                          ArgStringList &TranslatorArgs) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  // Enable NonSemanticShaderDebugInfo.200 for non-FPGA targets.
-  const bool EnableNonSemanticDebug = !C.getDriver().IsFPGAHWMode();
-  if (EnableNonSemanticDebug) {
-    TranslatorArgs.push_back(
-        "-spirv-debug-info-version=nonsemantic-shader-200");
-  } else {
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
-    // Prevent crash in the translator if input IR contains DIExpression
-    // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
-    TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
-  }
+  TranslatorArgs.push_back("-spirv-debug-info-version=nonsemantic-shader-200");
   std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
   if (IsCPU)
     UnknownIntrinsics += ",llvm.fpbuiltin";
@@ -10816,25 +10658,17 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_bindless_images"
       ",+SPV_INTEL_task_sequence";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-  if (C.getDriver().IsFPGAHWMode())
-    // Enable several extensions on FPGA H/W exclusively
-    ExtArg += ",+SPV_INTEL_usm_storage_classes,+SPV_INTEL_runtime_aligned"
-              ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
-              ",+SPV_INTEL_fpga_dsp_control,+SPV_INTEL_fpga_memory_accesses"
-              ",+SPV_INTEL_fpga_memory_attributes";
-  else
-    // Don't enable several freshly added extensions on FPGA H/W
-    ExtArg += ",+SPV_INTEL_bfloat16_conversion"
-              ",+SPV_INTEL_joint_matrix"
-              ",+SPV_INTEL_hw_thread_queries"
-              ",+SPV_KHR_uniform_group_instructions"
-              ",+SPV_INTEL_masked_gather_scatter"
-              ",+SPV_INTEL_tensor_float32_conversion"
-              ",+SPV_INTEL_optnone"
-              ",+SPV_KHR_non_semantic_info"
-              ",+SPV_KHR_cooperative_matrix"
-              ",+SPV_EXT_shader_atomic_float16_add"
-              ",+SPV_INTEL_fp_max_error";
+  ExtArg += ",+SPV_INTEL_bfloat16_conversion"
+            ",+SPV_INTEL_joint_matrix"
+            ",+SPV_INTEL_hw_thread_queries"
+            ",+SPV_KHR_uniform_group_instructions"
+            ",+SPV_INTEL_masked_gather_scatter"
+            ",+SPV_INTEL_tensor_float32_conversion"
+            ",+SPV_INTEL_optnone"
+            ",+SPV_KHR_non_semantic_info"
+            ",+SPV_KHR_cooperative_matrix"
+            ",+SPV_EXT_shader_atomic_float16_add"
+            ",+SPV_INTEL_fp_max_error";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
@@ -11102,8 +10936,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   // See if device code splitting is requested.  The logic here works along side
   // the behavior in getNonTripleBasedSYCLPostLinkOpts, where the option is
   // added based on the user setting of -fsycl-device-code-split.
-  if (!TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ) &&
-      (Triple.getArchName() != "spir64_fpga"))
+  if (!TCArgs.hasArg(options::OPT_fsycl_device_code_split_EQ))
     addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
 
   if (shouldEmitOnlyKernelsAsEntryPoints(TC, TCArgs, Triple))
@@ -11133,7 +10966,6 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd"});
   }
   bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() ||
-               Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   if (TCArgs.hasFlag(options::OPT_fsycl_add_default_spec_consts_image,

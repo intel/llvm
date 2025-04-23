@@ -63,7 +63,7 @@ ur_result_t enqueueMemCopyRectHelper(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent, bool PreferCopyEngine = false);
 
-struct ur_mem_handle_t_ : _ur_object {
+struct ur_mem_handle_t_ : ur_object {
   // Keeps the PI context of this memory handle.
   ur_context_handle_t UrContext;
 
@@ -102,21 +102,21 @@ protected:
                    ur_device_handle_t Device)
       : UrContext{Context}, UrDevice(Device), mem_type(type) {}
 
-  // Since the destructor isn't virtual, callers must destruct it via _ur_buffer
-  // or _ur_image
+  // Since the destructor isn't virtual, callers must destruct it via ur_buffer
+  // or ur_image
   ~ur_mem_handle_t_() {};
 };
 
-struct _ur_buffer final : ur_mem_handle_t_ {
+struct ur_buffer final : ur_mem_handle_t_ {
   // Buffer constructor
-  _ur_buffer(ur_context_handle_t Context, ur_device_handle_t UrDevice,
-             size_t Size);
+  ur_buffer(ur_context_handle_t Context, ur_device_handle_t UrDevice,
+            size_t Size);
 
-  _ur_buffer(ur_context_handle_t Context, size_t Size, char *HostPtr,
-             bool ImportedHostPtr);
+  ur_buffer(ur_context_handle_t Context, size_t Size, char *HostPtr,
+            bool ImportedHostPtr);
 
   // Sub-buffer constructor
-  _ur_buffer(_ur_buffer *Parent, size_t Origin, size_t Size)
+  ur_buffer(ur_buffer *Parent, size_t Origin, size_t Size)
       : ur_mem_handle_t_(mem_type_t::buffer, Parent->UrContext), Size(Size),
         SubBuffer{{Parent, Origin}} {
     // Retain the Parent Buffer due to the Creation of the SubBuffer.
@@ -124,10 +124,10 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   }
 
   // Interop-buffer constructor
-  _ur_buffer(ur_context_handle_t Context, size_t Size,
-             ur_device_handle_t Device, char *ZeMemHandle, bool OwnZeMemHandle);
+  ur_buffer(ur_context_handle_t Context, size_t Size, ur_device_handle_t Device,
+            char *ZeMemHandle, bool OwnZeMemHandle);
 
-  ~_ur_buffer();
+  ~ur_buffer();
 
   // Returns a pointer to the USM allocation representing this PI buffer
   // on the specified Device. If Device is nullptr then the returned
@@ -205,19 +205,19 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   size_t getAlignment() const;
 
   struct SubBuffer_t {
-    _ur_buffer *Parent;
+    ur_buffer *Parent;
     size_t Origin;
   };
   std::optional<SubBuffer_t> SubBuffer;
 };
 
-struct _ur_image final : ur_mem_handle_t_ {
+struct ur_image final : ur_mem_handle_t_ {
   // Image constructor
-  _ur_image(ur_context_handle_t UrContext, ze_image_handle_t ZeImage)
+  ur_image(ur_context_handle_t UrContext, ze_image_handle_t ZeImage)
       : ur_mem_handle_t_(mem_type_t::image, UrContext), ZeImage{ZeImage} {}
 
-  _ur_image(ur_context_handle_t UrContext, ze_image_handle_t ZeImage,
-            bool OwnZeMemHandle)
+  ur_image(ur_context_handle_t UrContext, ze_image_handle_t ZeImage,
+           bool OwnZeMemHandle)
       : ur_mem_handle_t_(mem_type_t::image, UrContext), ZeImage{ZeImage} {
     OwnNativeHandle = OwnZeMemHandle;
   }
@@ -250,7 +250,7 @@ createUrMemFromZeImage(ur_context_handle_t Context, ze_image_handle_t ZeImage,
                        bool OwnZeMemHandle,
                        const ZeStruct<ze_image_desc_t> &ZeImageDesc, T *UrMem) {
   try {
-    auto UrImage = new _ur_image(Context, ZeImage, OwnZeMemHandle);
+    auto UrImage = new ur_image(Context, ZeImage, OwnZeMemHandle);
     UrImage->ZeImageDesc = ZeImageDesc;
     *UrMem = reinterpret_cast<T>(UrImage);
   } catch (const std::bad_alloc &) {

@@ -985,7 +985,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
       break;
     default:
-      die("Unexpected NumChannels returned by HIP");
+      setErrorMessage("Unexpected NumChannels returned by HIP",
+                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
     if (pPropValue) {
       (static_cast<ur_image_format_t *>(pPropValue))->channelType = ChannelType;
