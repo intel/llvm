@@ -128,10 +128,6 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
 }
 
 TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
-  // TODO https://github.com/intel/llvm/issues/17734
-  // Fail on Level-Zero due to blocking wait code in graph_impl.cpp specific
-  // to the level-zero backend that needs moved into the Level-Zero v1 adapter.
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
       0, nullptr, &sync_point, nullptr, nullptr));

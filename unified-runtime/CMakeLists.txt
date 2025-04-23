@@ -40,7 +40,6 @@ option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UR_ENABLE_SANITIZER "enable device sanitizer" ON)
 option(UR_ENABLE_SYMBOLIZER "enable symoblizer for sanitizer" OFF)
 option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" ON)
-option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" ON)
 option(UR_BUILD_ADAPTER_L0 "Build the Level-Zero adapter" OFF)
 option(UR_BUILD_ADAPTER_OPENCL "Build the OpenCL adapter" OFF)
 option(UR_BUILD_ADAPTER_CUDA "Build the CUDA adapter" OFF)
@@ -56,7 +55,7 @@ option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
 option(UR_STATIC_LOADER "Build loader as a static library" OFF)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
-set(UR_EXTERNAL_DEPENDENCIES "" CACHE LIST
+set(UR_EXTERNAL_DEPENDENCIES "" CACHE STRING
     "List of external CMake targets for executables/libraries to depend on")
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
@@ -67,6 +66,7 @@ set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
 option(UR_CONFORMANCE_ENABLE_MATCH_FILES "Enable CTS match files" ON)
 option(UR_CONFORMANCE_TEST_LOADER "Also test the loader in the conformance tests" OFF)
+option(UR_USE_DEBUG_POSTFIX "Enable debug postfix 'd' for libraries" OFF)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
     "Path to external 'level_zero' adapter source dir")
 set(UR_ADAPTER_OPENCL_SOURCE_DIR "" CACHE PATH

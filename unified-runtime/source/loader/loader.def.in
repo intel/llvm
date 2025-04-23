@@ -5,6 +5,8 @@ EXPORTS
 	urAdapterGetLastError
 	urAdapterRelease
 	urAdapterRetain
+	urAdapterSetLoggerCallback
+	urAdapterSetLoggerCallbackLevel
 	urBindlessImagesGetImageMemoryHandleTypeSupportExp
 	urBindlessImagesGetImageSampledHandleSupportExp
 	urBindlessImagesGetImageUnsampledHandleSupportExp
@@ -108,6 +110,7 @@ EXPORTS
 	urEventRetain
 	urEventSetCallback
 	urEventWait
+	urGetAdapterProcAddrTable
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
@@ -182,6 +185,8 @@ EXPORTS
 	urPrintAdapterInfo
 	urPrintAdapterReleaseParams
 	urPrintAdapterRetainParams
+	urPrintAdapterSetLoggerCallbackLevelParams
+	urPrintAdapterSetLoggerCallbackParams
 	urPrintApiVersion
 	urPrintBaseDesc
 	urPrintBaseProperties
@@ -395,6 +400,7 @@ EXPORTS
 	urPrintLoaderConfigSetMockingEnabledParams
 	urPrintLoaderInitParams
 	urPrintLoaderTearDownParams
+	urPrintLoggerLevel
 	urPrintMapFlags
 	urPrintMemBufferCreateParams
 	urPrintMemBufferCreateWithNativeHandleParams

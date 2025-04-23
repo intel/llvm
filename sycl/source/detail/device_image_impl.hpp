@@ -66,6 +66,9 @@ public:
 
   ManagedDeviceGlobalsRegistry(const ManagedDeviceGlobalsRegistry &) = delete;
 
+  ManagedDeviceGlobalsRegistry &
+  operator=(const ManagedDeviceGlobalsRegistry &) = delete;
+
   ~ManagedDeviceGlobalsRegistry() {
     try {
       unregisterDeviceGlobalsFromContext();
@@ -128,6 +131,8 @@ public:
 
   ManagedDeviceBinaries(const ManagedDeviceBinaries &) = delete;
 
+  ManagedDeviceBinaries &operator=(const ManagedDeviceBinaries &) = delete;
+
   ~ManagedDeviceBinaries() {
     try {
       ProgramManager::getInstance().removeImages(MBinaries);
@@ -142,6 +147,9 @@ private:
   sycl_device_binaries MBinaries;
 };
 
+using MangledKernelNameMapT = std::map<std::string, std::string, std::less<>>;
+using KernelNameSetT = std::set<std::string, std::less<>>;
+
 // Information unique to images compiled at runtime through the
 // ext_oneapi_kernel_compiler extension.
 struct KernelCompilerBinaryInfo {
@@ -152,13 +160,12 @@ struct KernelCompilerBinaryInfo {
       : MLanguage{Lang}, MIncludePairs{std::move(IncludePairsVec)} {}
 
   KernelCompilerBinaryInfo(syclex::source_language Lang,
-                           std::set<std::string> &&KernelNames)
+                           KernelNameSetT &&KernelNames)
       : MLanguage{Lang}, MKernelNames{std::move(KernelNames)} {}
 
   KernelCompilerBinaryInfo(
-      syclex::source_language Lang, std::set<std::string> &&KernelNames,
-      std::unordered_map<std::string, std::string> &&MangledKernelNames,
-      std::string &&Prefix,
+      syclex::source_language Lang, KernelNameSetT &&KernelNames,
+      MangledKernelNameMapT &&MangledKernelNames, std::string &&Prefix,
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
       : MLanguage{Lang}, MKernelNames{std::move(KernelNames)},
         MMangledKernelNames{std::move(MangledKernelNames)},
@@ -221,8 +228,8 @@ struct KernelCompilerBinaryInfo {
   }
 
   syclex::source_language MLanguage;
-  std::set<std::string> MKernelNames;
-  std::unordered_map<std::string, std::string> MMangledKernelNames;
+  KernelNameSetT MKernelNames;
+  MangledKernelNameMapT MMangledKernelNames;
   std::string MPrefix;
   include_pairs_t MIncludePairs;
   std::vector<std::shared_ptr<ManagedDeviceGlobalsRegistry>>
@@ -278,7 +285,7 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, const context &Context,
                     const std::vector<device> &Devices, bundle_state State,
                     ur_program_handle_t Program, syclex::source_language Lang,
-                    std::set<std::string> &&KernelNames)
+                    KernelNameSetT &&KernelNames)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
@@ -292,9 +299,8 @@ public:
       const RTDeviceBinaryImage *BinImage, const context &Context,
       const std::vector<device> &Devices, bundle_state State,
       std::shared_ptr<std::vector<kernel_id>> &&KernelIDs,
-      syclex::source_language Lang, std::set<std::string> &&KernelNames,
-      std::unordered_map<std::string, std::string> &&MangledKernelNames,
-      std::string &&Prefix,
+      syclex::source_language Lang, KernelNameSetT &&KernelNames,
+      MangledKernelNameMapT &&MangledKernelNames, std::string &&Prefix,
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(nullptr),
@@ -337,8 +343,7 @@ public:
 
   device_image_impl(const context &Context, const std::vector<device> &Devices,
                     bundle_state State, ur_program_handle_t Program,
-                    syclex::source_language Lang,
-                    std::set<std::string> &&KernelNames)
+                    syclex::source_language Lang, KernelNameSetT &&KernelNames)
       : MBinImage(static_cast<const RTDeviceBinaryImage *>(nullptr)),
         MContext(std::move(Context)), MDevices(std::move(Devices)),
         MState(State), MProgram(Program),
@@ -518,7 +523,7 @@ public:
     return MProgram;
   }
 
-  const RTDeviceBinaryImage *const &get_bin_image_ref() const noexcept {
+  const RTDeviceBinaryImage *const &get_bin_image_ref() const {
     return std::get<const RTDeviceBinaryImage *>(MBinImage);
   }
 
@@ -594,9 +599,9 @@ public:
     }
   }
 
-  std::string adjustKernelName(const std::string &Name) const {
+  std::string adjustKernelName(std::string_view Name) const {
     if (!MRTCBinInfo.has_value())
-      return Name;
+      return Name.data();
 
     if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
       auto It = MRTCBinInfo->MMangledKernelNames.find(Name);
@@ -604,7 +609,7 @@ public:
         return It->second;
     }
 
-    return Name;
+    return Name.data();
   }
 
   bool hasKernelName(const std::string &Name) const {
@@ -614,7 +619,7 @@ public:
   }
 
   std::shared_ptr<kernel_impl> tryGetSourceBasedKernel(
-      const std::string &Name, const context &Context,
+      std::string_view Name, const context &Context,
       const std::shared_ptr<kernel_bundle_impl> &OwnerBundle,
       const std::shared_ptr<device_image_impl> &Self) const {
     if (!(getOriginMask() & ImageOriginKernelCompiler))
@@ -768,8 +773,8 @@ public:
       std::vector<std::shared_ptr<device_image_impl>> Result;
       Result.reserve(NewImages.size());
       for (auto &[NewImage, KernelIDs] : NewImages) {
-        std::set<std::string> KernelNames;
-        std::unordered_map<std::string, std::string> MangledKernelNames;
+        KernelNameSetT KernelNames;
+        MangledKernelNameMapT MangledKernelNames;
         std::unordered_set<std::string> DeviceGlobalIDSet;
         std::vector<std::string> DeviceGlobalIDVec;
         std::vector<std::string> DeviceGlobalNames;
@@ -970,7 +975,7 @@ public:
         &KernelNamesStr[0], nullptr);
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');
-    std::set<std::string> KernelNameSet{KernelNames.begin(), KernelNames.end()};
+    KernelNameSetT KernelNameSet{KernelNames.begin(), KernelNames.end()};
 
     // If caching enabled and kernel not fetched from cache, cache.
     if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache &&
