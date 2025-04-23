@@ -914,7 +914,8 @@ std::string ModuleDesc::makeSymbolTable() const {
 
 namespace {
 
-void computeFuncCategoryFromAttribute(const Function &F, StringRef AttrName,
+void computeFuncCategoryFromAttribute(const Function &F,
+                                      const StringRef AttrName,
                                       SmallString<256> &Result) {
   if (F.hasFnAttribute(AttrName)) {
     const Attribute &Attr = F.getFnAttribute(AttrName);
@@ -925,7 +926,7 @@ void computeFuncCategoryFromAttribute(const Function &F, StringRef AttrName,
 }
 
 void computeFuncCategoryFromStringMetadata(const Function &F,
-                                           StringRef MetadataName,
+                                           const StringRef MetadataName,
                                            SmallString<256> &Result) {
   if (F.hasMetadata(MetadataName)) {
     const auto *MDN = F.getMetadata(MetadataName);
@@ -939,7 +940,7 @@ void computeFuncCategoryFromStringMetadata(const Function &F,
 }
 
 void computeFuncCategoryFromIntegersListMetadata(const Function &F,
-                                                 StringRef MetadataName,
+                                                 const StringRef MetadataName,
                                                  SmallString<256> &Result) {
   if (F.hasMetadata(MetadataName)) {
     auto *MDN = F.getMetadata(MetadataName);
@@ -978,7 +979,7 @@ std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
   computeFuncCategoryFromAttribute(F, sycl::utils::ATTR_SYCL_MODULE_ID, Result);
 
   // This attribute marks virtual functions and effectively dictates how they
-  // should be groupped together. By design we won't split those groups of
+  // should be grouped together. By design we won't split those groups of
   // virtual functions further even if functions from the same group use
   // different optional features and therefore this distinction is put here.
   // TODO: for AOT use case we shouldn't be outlining those and instead should
@@ -986,8 +987,8 @@ std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
   computeFuncCategoryFromAttribute(F, "indirectly-callable", Result);
 
   // Optional features
-  // NOTE: Add more categories at the end of the list to avoid chaning orders of
-  // output files in existing tests.
+  // NOTE: Add more categories at the end of the list to avoid changing orders
+  // of output files in existing tests.
   computeFuncCategoryFromAttribute(F, "sycl-register-alloc-mode", Result);
   computeFuncCategoryFromAttribute(F, "sycl-grf-size", Result);
   computeFuncCategoryFromUsedAspects(F, Result);
