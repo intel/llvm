@@ -475,7 +475,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
     CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
   }
-  cl_command_queue CLQueue = hQueue->CLQueue;
+  cl_command_queue CLQueue = hCommandBuffer->IsInOrder
+                                 ? hCommandBuffer->hInternalQueue->CLQueue
+                                 : hQueue->CLQueue;
   CL_RETURN_ON_FAILURE(clEnqueueCommandBufferKHR(
       NumberOfQueues, &CLQueue, hCommandBuffer->CLCommandBuffer,
       numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
