@@ -547,25 +547,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
 }
 
 bool ur_platform_handle_t_::allowDriverInOrderLists(bool OnlyIfRequested) {
-  // Use in-order lists implementation from L0 driver instead
-  // of adapter's implementation.
-
-  // The following driver version is known to be passing and only this or newer
-  // drivers should be allowed by default for in order lists.
-#define L0_DRIVER_INORDER_MINOR_VERSION 6
-#define L0_DRIVER_INORDER_PATCH_VERSION 32149
-
-  static const bool UseEnvVarDriverInOrderLists = [&] {
-    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    return UrRet ? std::atoi(UrRet) != 0 : false;
-  }();
-  static const bool UseDriverInOrderLists = [this] {
-    bool CompatibleDriver = this->isDriverVersionNewerOrSimilar(
-        1, L0_DRIVER_INORDER_MINOR_VERSION, L0_DRIVER_INORDER_PATCH_VERSION);
-    return CompatibleDriver || UseEnvVarDriverInOrderLists;
-  }();
-
-  return OnlyIfRequested ? UseEnvVarDriverInOrderLists : UseDriverInOrderLists;
+  return true;
 }
 
 /// Checks the version of the level-zero driver.
