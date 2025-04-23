@@ -20,6 +20,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <dlfcn.h>
 #include <iostream>
@@ -78,16 +79,34 @@ void main_run(sycl::queue &deviceQueue) {
 int main() {
   BFP bf16_array[3];
   float fp32_array[3] = {7.0f, 8.5f, 0.5f};
-
   sycl::queue deviceQueue;
-
+  std::vector<sycl::kernel_id> all_kernel_ids;
+  bool dynlib_kernel_available = false;
+  bool dynlib_kernel_unavailable = true;
   main_run(deviceQueue);
 
   void *handle = dlopen(SO_FNAME, RTLD_LAZY);
   void (*func)();
   *(void **)(&func) = dlsym(handle, "_Z3foov");
   func();
+  all_kernel_ids = sycl::get_kernel_ids();
+  for (auto k : all_kernel_ids) {
+    if (k.get_name() && std::strstr(k.get_name(), "FOO_KERN"))
+      dynlib_kernel_available = true;
+  }
+
+  // Before dlclose, the FOO_KERN from sycl dynamic library must exist.
+  assert(dynlib_kernel_available);
+
   dlclose(handle);
+
+  all_kernel_ids = sycl::get_kernel_ids();
+  for (auto k : all_kernel_ids) {
+    if (k.get_name() && std::strstr(k.get_name(), "FOO_KERN"))
+      dynlib_kernel_unavailable = false;
+  }
+
+  assert(dynlib_kernel_unavailable);
 
   {
     buffer<float, 1> fp32_buffer{fp32_array, 3};
