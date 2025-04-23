@@ -6500,7 +6500,8 @@ public:
   /// \param FTD The function declaration to print.
   /// \param S Sema object.
   /// \param Policy Policy for printing.
-  void printFreeFunctionDeclaration(FunctionTemplateDecl *FTD, clang::SemaSYCL &S,
+  void printFreeFunctionDeclaration(FunctionTemplateDecl *FTD,
+                                    clang::SemaSYCL &S,
                                     PrintingPolicy &Policy) {
     const FunctionDecl *TemplatedDecl = FTD->getTemplatedDecl();
     if (!TemplatedDecl)
