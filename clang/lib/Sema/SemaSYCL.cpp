@@ -6496,13 +6496,30 @@ class FreeFunctionPrinter {
 public:
   FreeFunctionPrinter(raw_ostream &O) : O(O) {}
 
+  /// Emits the function declaration of template free function.
+  /// \param FTD The function declaration to print.
+  /// \param S Sema object.
+  /// \param Policy Policy for printing.
+  void printFreeFunctionDeclaration(FunctionTemplateDecl *FTD, clang::SemaSYCL &S,
+                                    PrintingPolicy &Policy) {
+    const FunctionDecl *TemplatedDecl = FTD->getTemplatedDecl();
+    if (!TemplatedDecl)
+      return;
+    const std::string TemplatedDeclParams =
+        getTemplatedParamList(TemplatedDecl->parameters(), Policy);
+    const std::string TemplateParams =
+        getTemplateParameters(FTD->getTemplateParameters(), S);
+    printFreeFunctionDeclaration(TemplatedDecl, TemplatedDeclParams,
+                                 TemplateParams);
+  }
+
   /// Emits the function declaration of a free function.
   /// \param FD The function declaration to print.
   /// \param Args The arguments of the function.
+  /// \param TemplateParameters The template parameters of the function.
   void printFreeFunctionDeclaration(const FunctionDecl *FD,
                                     const std::string &Args,
-                                    std::string_view Templated = "") {
-
+                                    std::string_view TemplateParameters = "") {
     const DeclContext *DC = FD->getDeclContext();
     if (DC) {
       // if function in namespace, print namespace
@@ -6512,7 +6529,7 @@ public:
         // function
         NSInserted = true;
       }
-      O << Templated;
+      O << TemplateParameters;
       O << FD->getReturnType().getAsString() << " ";
       O << FD->getNameAsString() << "(" << Args << ");";
       if (NSInserted) {
@@ -6538,10 +6555,10 @@ public:
     O << FD->getIdentifier()->getName().data();
   }
 
+private:
   /// Helper method to get arguments of templated function as a string
-  /// Should be used only with templates
   /// \param Parameters Array of parameters of the function.
-  /// \param IsWithNames If true, the parameter names are included in the
+  /// \param Policy Printing policy.
   /// returned string Example:
   /// \code
   ///  template <typename T1, typename T2>
@@ -6550,7 +6567,7 @@ public:
   /// returns string "T1 a, T2 b"
   std::string
   getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> &Parameters,
-                        PrintingPolicy Policy, const bool IsWithNames) {
+                        PrintingPolicy Policy) {
     bool FirstParam = true;
     std::string ParamList;
     llvm::raw_string_ostream ParmListOstream{ParamList};
@@ -6560,18 +6577,14 @@ public:
         FirstParam = false;
       else
         ParmListOstream << ", ";
-      if (IsWithNames) {
-        Param->getType().print(ParmListOstream, Policy);
-        ParmListOstream << " " << Param->getNameAsString();
-      } else
-        ParmListOstream << Param->getType().getCanonicalType().getAsString(
-            Policy);
+      Param->getType().print(ParmListOstream, Policy);
+      ParmListOstream << " " << Param->getNameAsString();
     }
     ParmListOstream.flush();
     return ParamList;
   }
 
-  /// Helper method to get representation of the template parameters.
+  /// Helper method to get text representation of the template parameters.
   /// Throws an error if the last parameter is a pack.
   /// \param TPL The template parameter list.
   /// \param S The SemaSYCL object.
@@ -6953,17 +6966,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.EnforceDefaultTemplateArgs = true;
     FreeFunctionPrinter FFPrinter(O);
     if (FTD) {
-      if (auto TemplatedDecl = FTD->getTemplatedDecl(); TemplatedDecl) {
-        const auto TemplatedDeclParams = FFPrinter.getTemplatedParamList(
-            TemplatedDecl->parameters(), Policy, true);
-        const std::string TeplatedParams =
-            FFPrinter.getTemplateParameters(FTD->getTemplateParameters(), S);
-        FFPrinter.printFreeFunctionDeclaration(
-            TemplatedDecl, TemplatedDeclParams, TeplatedParams);
-      }
+      FFPrinter.printFreeFunctionDeclaration(FTD, S, Policy);
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
+
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     if (FTD) {
       const TemplateArgumentList *TAL =
@@ -7232,7 +7239,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   for (const VarDecl *VD : GlobalVars) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
+    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This
     // can happen if it was a deduced type.
     if (!SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
         !SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
