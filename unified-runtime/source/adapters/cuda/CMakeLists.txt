@@ -102,6 +102,8 @@ if (UR_ENABLE_TRACING AND UNIX)
 
   target_include_directories(${TARGET_NAME} PRIVATE
     ${XPTI_INCLUDES}
+  )
+  target_include_directories(${TARGET_NAME} SYSTEM PRIVATE
     ${CUDAToolkit_CUPTI_INCLUDE_DIR}
   )
   target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})

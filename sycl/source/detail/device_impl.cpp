@@ -109,8 +109,7 @@ platform device_impl::get_platform() const {
 
 template <typename Param>
 typename Param::return_type device_impl::get_info() const {
-  return get_device_info<Param>(
-      MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
+  return get_device_info<Param>(*this);
 }
 // Explicitly instantiate all device info traits
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
@@ -401,17 +400,17 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_cuda_cluster_group:
     return get_info<info::device::ext_oneapi_cuda_cluster_group>();
   case aspect::usm_atomic_host_allocations:
-    return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
-                                 info::device::usm_host_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    return (
+        get_device_info_impl<ur_device_usm_access_capability_flags_t,
+                             info::device::usm_host_allocations>::get(*this) &
+        UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
-                                 info::device::usm_shared_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    return (
+        get_device_info_impl<ur_device_usm_access_capability_flags_t,
+                             info::device::usm_shared_allocations>::get(*this) &
+        UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:

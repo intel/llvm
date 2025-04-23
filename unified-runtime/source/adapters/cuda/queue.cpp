@@ -168,15 +168,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 // There is no CUDA counterpart for queue flushing and we don't run into the
 // same problem of having to flush cross-queue dependencies as some of the
 // other plugins, so it can be left as no-op.
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
-                       ur_native_handle_t *phNativeQueue) {
-  std::ignore = pDesc;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
+    ur_queue_handle_t hQueue, ur_queue_native_desc_t * /*pDesc*/,
+    ur_native_handle_t *phNativeQueue) {
 
   ScopedContext Active(hQueue->getDevice());
   *phNativeQueue =
@@ -197,12 +195,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
 
   ur_queue_flags_t Flags = 0;
-  if (CuFlags == CU_STREAM_DEFAULT)
+  if (CuFlags == CU_STREAM_DEFAULT) {
     Flags = UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
-  else if (CuFlags == CU_STREAM_NON_BLOCKING)
+  } else if (CuFlags == CU_STREAM_NON_BLOCKING) {
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
-  else
-    die("Unknown cuda stream");
+  } else {
+    setErrorMessage("Incorrect native stream flags, expecting "
+                    "CU_STREAM_DEFAULT or CU_STREAM_NON_BLOCKING",
+                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
 
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;

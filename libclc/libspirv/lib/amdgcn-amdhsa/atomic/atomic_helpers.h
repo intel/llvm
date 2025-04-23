@@ -59,54 +59,49 @@ extern int __oclc_amdgpu_reflect(__constant char *);
     }                                                                          \
   }
 
-#define AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED,                                              \
-                           SUB1, BUILTIN)                                                                              \
-  _CLC_DEF TYPE                                                                                                        \
-      FUNC_NAME##P##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                       \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                              \
-    int atomic_scope = 0, memory_order = 0;                                                                            \
-    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                           \
-    return BUILTIN(p, val, memory_order, atomic_scope);                                                                \
+#define AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, AS, BUILTIN)                       \
+  _CLC_OVERLOAD _CLC_DECL TYPE FUNC_NAME(AS TYPE *p, int scope, int semantics, \
+                                         TYPE val) {                           \
+    int atomic_scope = 0, memory_order = 0;                                    \
+    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)   \
+    return BUILTIN(p, val, memory_order, atomic_scope);                        \
   }
 
-#define AMDGPU_ATOMIC(FUNC_NAME, TYPE, TYPE_MANGLED, BUILTIN)                  \
-  AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, global, U3AS1, 1, BUILTIN) \
-  AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, local, U3AS3, 1, BUILTIN)  \
-  AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, , , 0, BUILTIN)
+#define AMDGPU_ATOMIC(FUNC_NAME, TYPE, BUILTIN)                                \
+  AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, global, BUILTIN)                         \
+  AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, local, BUILTIN)                          \
+  AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, , BUILTIN)
 
 // Safe atomics will either choose a slow CAS atomic impl (default) or a fast
 // native atomic if --amdgpu-unsafe-int-atomics is passed to LLVM.
 //
 // Safe atomics using CAS may be necessary if PCIe does not support atomic
 // operations such as and, or, xor
-#define AMDGPU_SAFE_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED,                                         \
-                                SUB1, OP, USE_BUILTIN_COND, BUILTIN)                                                   \
-  _CLC_DEF TYPE                                                                                                        \
-      FUNC_NAME##P##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                       \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                              \
-    int atomic_scope = 0, memory_order = 0;                                                                            \
-    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                           \
-    if (USE_BUILTIN_COND)                                                                                              \
-      return BUILTIN(p, val, memory_order, atomic_scope);                                                              \
-    /* CAS atomics*/                                                                                                   \
-    TYPE oldval = __hip_atomic_load(p, memory_order, atomic_scope);                                                    \
-    TYPE newval = 0;                                                                                                   \
-    do {                                                                                                               \
-      newval = oldval OP val;                                                                                          \
-    } while (!__hip_atomic_compare_exchange_strong(                                                                    \
-        p, &oldval, newval, atomic_scope, atomic_scope, memory_order));                                                \
-    return oldval;                                                                                                     \
+#define AMDGPU_SAFE_ATOMIC_IMPL(FUNC_NAME, TYPE, AS, OP, USE_BUILTIN_COND,     \
+                                BUILTIN)                                       \
+  _CLC_OVERLOAD _CLC_DEF TYPE FUNC_NAME(AS TYPE *p, int scope, int semantics,  \
+                                        TYPE val) {                            \
+    int atomic_scope = 0, memory_order = 0;                                    \
+    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)   \
+    if (USE_BUILTIN_COND)                                                      \
+      return BUILTIN(p, val, memory_order, atomic_scope);                      \
+    /* CAS atomics*/                                                           \
+    TYPE oldval = __hip_atomic_load(p, memory_order, atomic_scope);            \
+    TYPE newval = 0;                                                           \
+    do {                                                                       \
+      newval = oldval OP val;                                                  \
+    } while (!__hip_atomic_compare_exchange_strong(                            \
+        p, &oldval, newval, atomic_scope, atomic_scope, memory_order));        \
+    return oldval;                                                             \
   }
 
-#define AMDGPU_SAFE_ATOMIC(FUNC_NAME, TYPE, TYPE_MANGLED, OP, BUILTIN)         \
+#define AMDGPU_SAFE_ATOMIC(FUNC_NAME, TYPE, OP, BUILTIN)                       \
   AMDGPU_SAFE_ATOMIC_IMPL(                                                     \
-      FUNC_NAME, TYPE, TYPE_MANGLED, global, U3AS1, 1, OP,                     \
+      FUNC_NAME, TYPE, global, OP,                                             \
       __oclc_amdgpu_reflect("AMDGPU_OCLC_UNSAFE_INT_ATOMICS"), BUILTIN)        \
-  AMDGPU_SAFE_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, local, U3AS3, 1, OP,  \
+  AMDGPU_SAFE_ATOMIC_IMPL(FUNC_NAME, TYPE, local, OP,                          \
                           true /* local AS should always use builtin*/,        \
                           BUILTIN)                                             \
   AMDGPU_SAFE_ATOMIC_IMPL(                                                     \
-      FUNC_NAME, TYPE, TYPE_MANGLED, , , 0, OP,                                \
+      FUNC_NAME, TYPE, , OP,                                                   \
       __oclc_amdgpu_reflect("AMDGPU_OCLC_UNSAFE_INT_ATOMICS"), BUILTIN)

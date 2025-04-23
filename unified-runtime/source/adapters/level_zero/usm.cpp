@@ -205,9 +205,8 @@ static ur_result_t USMAllocationMakeResident(
 static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
                                       ur_context_handle_t Context,
                                       ur_device_handle_t Device,
-                                      ur_usm_device_mem_flags_t Flags,
+                                      ur_usm_device_mem_flags_t /*Flags*/,
                                       size_t Size, uint32_t Alignment) {
-  std::ignore = Flags;
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_device_mem_alloc_desc_t> ZeDesc;
   ZeDesc.flags = 0;
@@ -295,9 +294,8 @@ USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 
 static ur_result_t USMHostAllocImpl(void **ResultPtr,
                                     ur_context_handle_t Context,
-                                    ur_usm_host_mem_flags_t Flags, size_t Size,
-                                    uint32_t Alignment) {
-  std::ignore = Flags;
+                                    ur_usm_host_mem_flags_t /*flags*/,
+                                    size_t Size, uint32_t Alignment) {
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
   ZeHostDesc.flags = 0;
@@ -626,12 +624,9 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t Context,
-                                           ur_device_handle_t Device,
+ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t /*Context*/,
+                                           ur_device_handle_t /*Device*/,
                                            ur_usm_pool_handle_t Pool) {
-  std::ignore = Context;
-  std::ignore = Device;
-
   std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
   Pool->Context->UsmPoolHandles.remove(Pool);
   delete Pool;
@@ -645,9 +640,8 @@ ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
 }
 
 ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
-    ur_context_handle_t Context, ur_device_handle_t Device,
+    ur_context_handle_t Context, ur_device_handle_t /*Device*/,
     ur_usm_pool_handle_t *Pool) {
-  std::ignore = Device;
 
   // Default async pool should contain an internal pool for all detected
   // devices.
@@ -772,7 +766,6 @@ err_set_status:
 }
 
 umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
-  std::ignore = Ptr;
 
   // Query L0 for min page size. Use provided 'Ptr'.
   if (Ptr) {
@@ -809,9 +802,8 @@ umf_result_t L0MemoryProvider::get_ipc_handle_size(size_t *Size) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t Size,
+umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t /*Size*/,
                                               void *IpcData) {
-  std::ignore = Size;
 
   UR_ASSERT(Ptr && IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
@@ -828,13 +820,12 @@ umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t Size,
 
 umf_result_t L0MemoryProvider::put_ipc_handle(void *IpcData) {
   UR_ASSERT(IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-  ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
-  std::ignore = zeIpcData;
 
   // zeMemPutIpcHandle was introduced in Level Zero 1.6. Before Level Zero 1.6,
   // IPC handle was released automatically when corresponding memory buffer
   // was freed.
 #if (ZE_API_VERSION_CURRENT >= ZE_MAKE_VERSION(1, 6))
+  ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
   auto Ret = ZE_CALL_NOCHECK(zeMemPutIpcHandle,
                              (Context->ZeContext, zeIpcData->zeHandle));
   if (Ret != ZE_RESULT_SUCCESS) {
@@ -876,8 +867,7 @@ umf_result_t L0MemoryProvider::open_ipc_handle(void *IpcData, void **Ptr) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::close_ipc_handle(void *Ptr, size_t Size) {
-  std::ignore = Size;
+umf_result_t L0MemoryProvider::close_ipc_handle(void *Ptr, size_t /*Size*/) {
 
   UR_ASSERT(Ptr, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   auto Ret = ZE_CALL_NOCHECK(zeMemCloseIpcHandle, (Context->ZeContext, Ptr));
@@ -1139,11 +1129,6 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
   if (Alignment > 0) {
     if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
       return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  // Handle the extension structures for 'ur_usm_desc_t'.
-  if (auto UsmHostDesc = find_stype_node<ur_usm_host_desc_t>(USMDesc)) {
-    std::ignore = UsmHostDesc; // Unused
   }
 
   bool DeviceReadOnly = false;

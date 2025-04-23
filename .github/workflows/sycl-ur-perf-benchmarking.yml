@@ -114,8 +114,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - ref: ${{ inputs.commit_hash != '' && inputs.commit_hash || format('refs/pull/{0}/head', inputs.pr_no) }}
-            save_name: ${{ inputs.commit_hash != '' && format('Commit{0}', inputs.commit_hash) || format('PR{0}', inputs.pr_no) }}
+          - ref: ${{ inputs.commit_hash != '' && inputs.commit_hash || inputs.pr_no != '' && format('refs/pull/{0}/head', inputs.pr_no) || github.ref }}
+            save_name: ${{ inputs.commit_hash != '' && format('Commit{0}', inputs.commit_hash) || inputs.pr_no != '' && format('PR{0}', inputs.pr_no) || 'Baseline' }}
             # Set default values if not specified:
             runner: ${{ inputs.runner || '["PVC_PERF"]' }}
             backend: ${{ inputs.backend || 'level_zero:gpu' }}
