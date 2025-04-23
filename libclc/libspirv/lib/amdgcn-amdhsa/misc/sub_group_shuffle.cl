@@ -262,7 +262,7 @@ _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(int Data,
 
 // Sub 32-bit types.
 #define __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(TYPE)                                \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleXorINTEL(                      \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleXorINTEL(                 \
       TYPE Data, unsigned int InvocationId) {                                  \
     return __spirv_SubgroupShuffleXorINTEL((int)Data, InvocationId);           \
   }
