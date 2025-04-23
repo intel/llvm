@@ -140,14 +140,11 @@ TEST_F(SchedulerTest, BarrierWaitListWithDependsOn) {
   // it means that command is enqueued
   ASSERT_NE(EventBImpl->getHandle(), nullptr);
 
-  ASSERT_TRUE(EventsWaitVisited);
-  ASSERT_EQ(EventsInWaitList.size(), 1u);
-  EXPECT_EQ(EventsInWaitList[0], EventAImpl->getHandle()); // depends_on event
+  ASSERT_FALSE(EventsWaitVisited);
   ASSERT_TRUE(BarrierEventsWaitVisited);
   ASSERT_EQ(BarrierEventsInWaitList.size(), 2u);
-  EXPECT_EQ(BarrierEventsInWaitList[0],
-            EventA2Impl->getHandle());            // wait list event
-  EXPECT_NE(BarrierEventsInWaitList[1], nullptr); // wait for depend_on event
+  EXPECT_EQ(BarrierEventsInWaitList[0], EventA2Impl->getHandle());
+  EXPECT_EQ(BarrierEventsInWaitList[1], EventAImpl->getHandle());
 
   QueueA.wait();
   QueueB.wait();
