@@ -437,11 +437,12 @@ void compiler::utils::Barrier::Run(llvm::ModuleAnalysisManager &mam) {
   bi_ = &mam.getResult<BuiltinInfoAnalysis>(module_);
   FindBarriers();
 
+  kernel_id_map_[kBarrier_EndID] = nullptr;
+
   if (barriers_.empty()) {
     // If there are no barriers, we can use the original function as the
     // single barrier region.
-    barrier_graph.emplace_back();
-    auto &node = barrier_graph.back();
+    auto &node = barrier_region_id_map_[kBarrier_FirstID];
     node.entry = &func_.getEntryBlock();
     node.id = kBarrier_FirstID;
     node.successor_ids.push_back(kBarrier_EndID);
@@ -513,11 +514,9 @@ void compiler::utils::Barrier::FindBarriers() {
         if (callee != nullptr) {
           const auto B = bi_->analyzeBuiltin(*callee);
           if (BuiltinInfo::isMuxBuiltinWithWGBarrierID(B.ID)) {
-            unsigned id = ~0u;
             auto *const id_param = call_inst->getOperand(0);
-            if (auto *const id_param_c = dyn_cast<ConstantInt>(id_param)) {
-              id = id_param_c->getZExtValue();
-            }
+            auto *const id_param_c = cast<ConstantInt>(id_param);
+            const auto id = id_param_c->getZExtValue();
             orderedBarriers.emplace_back(id, call_inst);
           }
         }
@@ -548,13 +547,15 @@ void compiler::utils::Barrier::SplitBlockwithBarrier() {
     exit_stub = MakeStubFunction("__barrier_exit", module_, stub_cc);
   }
 
-  barrier_graph.emplace_back();
-  auto &node = barrier_graph.back();
+  auto &node = barrier_region_id_map_[kBarrier_FirstID];
   node.entry = &func_.getEntryBlock();
   node.id = kBarrier_FirstID;
 
-  unsigned barrier_id = kBarrier_StartNewID;
   for (CallInst *split_point : barriers_) {
+    // ID identifying which barrier invoked stub used as argument to call.
+    auto *id = cast<ConstantInt>(split_point->getOperand(0));
+    const auto barrier_id = kBarrier_StartNewID + id->getZExtValue();
+
     if (is_debug_) {
       assert(entry_stub != nullptr);  // Guaranteed as is_debug_ is const.
       assert(exit_stub != nullptr);   // Guaranteed as is_debug_ is const.
@@ -564,10 +565,6 @@ void compiler::utils::Barrier::SplitBlockwithBarrier() {
       // them at a point where live variables have already been loaded. This
       // info won't be available till later.
 
-      // ID identifying which barrier invoked stub used as argument to call.
-      // This number monotonically increases from 0 for each barrier.
-      auto id = ConstantInt::get(Type::getInt32Ty(module_.getContext()),
-                                 barrier_id - kBarrier_StartNewID);
       // Call invoking entry stub
       auto entry_caller = CallInst::Create(entry_stub, id);
       entry_caller->setDebugLoc(split_point->getDebugLoc());
@@ -583,10 +580,9 @@ void compiler::utils::Barrier::SplitBlockwithBarrier() {
           std::make_pair(entry_caller, exit_caller);
     }
 
-    barrier_graph.emplace_back();
-    auto &node = barrier_graph.back();
+    auto &node = barrier_region_id_map_[barrier_id];
     node.barrier_inst = split_point;
-    node.id = barrier_id++;
+    node.id = barrier_id;
     node.schedule = getBarrierSchedule(*split_point);
 
     // Our scan implementation requires a linear work-item ordering, to loop
@@ -603,7 +599,7 @@ void compiler::utils::Barrier::SplitBlockwithBarrier() {
   // We have to gather the basic block data after splitting, because we
   // might not be processing barriers in program order, and things can get
   // awfully confused.
-  for (auto &node : barrier_graph) {
+  for (auto &[i, node] : barrier_region_id_map_) {
     if (node.barrier_inst) {
       auto *const bb = node.barrier_inst->getParent();
       barrier_id_map_[bb] = node.id;
@@ -770,7 +766,7 @@ void compiler::utils::Barrier::FindLiveVariables() {
     }
   }
 
-  for (auto &region : barrier_graph) {
+  for (auto &[i, region] : barrier_region_id_map_) {
     GatherBarrierRegionBlocks(region);
     GatherBarrierRegionUses(region, func_args);
     whole_live_variables_set_.set_union(region.uses_int);
@@ -1150,9 +1146,9 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
     } else if (ReturnInst *ret =
                    dyn_cast<ReturnInst>(cloned_bb->getTerminator())) {
       // Change return instruction with end barrier number.
-      ConstantInt *cst_zero =
+      ConstantInt *cst_endid =
           ConstantInt::get(Type::getInt32Ty(context), kBarrier_EndID);
-      ReturnInst *new_ret = ReturnInst::Create(context, cst_zero);
+      ReturnInst *new_ret = ReturnInst::Create(context, cst_endid);
       new_ret->insertBefore(ret->getIterator());
       ret->replaceAllUsesWith(new_ret);
       ret->eraseFromParent();
@@ -1450,7 +1446,7 @@ BasicBlock *compiler::utils::Barrier::CloneBasicBlock(
 void compiler::utils::Barrier::SeperateKernelWithBarrier() {
   if (barriers_.empty()) return;
 
-  for (auto &region : barrier_graph) {
+  for (auto &[i, region] : barrier_region_id_map_) {
     kernel_id_map_[region.id] = GenerateNewKernel(region);
   }
 
@@ -1467,15 +1463,10 @@ void compiler::utils::Barrier::SeperateKernelWithBarrier() {
 
   LLVM_DEBUG({
     for (const auto &Kid : kernel_id_map_) {
-      dbgs() << "1. kernel_id[" << Kid.first << "] = " << Kid.second->getName()
+      dbgs() << "kernel_id[" << Kid.first << "] = " << Kid.second->getName()
              << "\n";
     }
 
-    for (unsigned I = kBarrier_FirstID;
-         I < kernel_id_map_.size() + kBarrier_FirstID; I++) {
-      dbgs() << "2. kernel_id[" << I << "] = " << kernel_id_map_[I]->getName()
-             << "\n";
-    }
     dbgs() << "\n\n" << module_ << "\n\n";
   });
 }
