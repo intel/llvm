@@ -352,5 +352,21 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 }
 
 } // namespace detail
+
+// We're under sycl/source and these won't be exported but it's way more
+// convenient to be able to reference them without extra `detail::`.
+inline auto get_ur_handles(const sycl::context &syclContext) {
+  sycl::detail::context_impl &Ctx = *sycl::detail::getSyclObjImpl(syclContext);
+  ur_context_handle_t urCtx = Ctx.getHandleRef();
+  const sycl::detail::Adapter *Adapter = Ctx.getAdapter().get();
+  return std::tuple{urCtx, Adapter};
+}
+inline auto get_ur_handles(const sycl::device &syclDevice,
+                           const sycl::context &syclContext) {
+  auto [urCtx, Adapter] = get_ur_handles(syclContext);
+  ur_device_handle_t urDevice =
+      sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
+  return std::tuple{urDevice, urCtx, Adapter};
+}
 } // namespace _V1
 } // namespace sycl
