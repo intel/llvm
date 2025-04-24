@@ -6,10 +6,12 @@
 function(add_ur_adapter name)
     add_ur_library(${name} ${ARGN})
     if(MSVC)
-        set(TARGET_LIBNAME ${name})
+        if(CMAKE_BUILD_TYPE STREQUAL Debug)
+            set(TARGET_LIBNAME ${name}d)
+        else()
+            set(TARGET_LIBNAME ${name})
+        endif()
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
-
-        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
 
         set(ADAPTER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/${name}.def)
 
@@ -27,6 +29,9 @@ function(add_ur_adapter name)
 
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.map.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
         target_link_options(${name} PRIVATE "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}")
+    endif()
+    if(WIN32)
+        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
     endif()
     add_dependencies(ur_loader ${name})
 endfunction()

@@ -12,8 +12,11 @@ set_property(SOURCE ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc
                "RC_COPYRIGHT=\"Copyright (C) 2023 Intel Corporation\"")
 configure_file(../../llvm/resources/windows_version_resource.rc ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc @ONLY)
 add_library(ur_win_proxy_loader SHARED  ur_win_proxy_loader.cpp  ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
-if (MSVC)
-    set_target_properties(ur_win_proxy_loader PROPERTIES DEBUG_POSTFIX d)
+if (WIN32)
+  set_target_properties(ur_win_proxy_loader PROPERTIES DEBUG_POSTFIX d)
+  if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    target_compile_definitions(ur_win_proxy_loader PRIVATE UR_WIN_PROXY_LOADER_DEBUG_POSTFIX)
+  endif()
 endif()
 add_dependencies(ur_win_proxy_loader UnifiedRuntimeLoader)
 install(TARGETS ur_win_proxy_loader

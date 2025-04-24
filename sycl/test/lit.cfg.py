@@ -185,9 +185,6 @@ if "amdgcn-amd-amdhsa" in triple:
             "--offload-arch=gfx906",
         ]
 
-if platform.system() == "Windows" and config.build_mode == "Debug":
-    additional_flags += ["-fms-runtime-lib=dll_dbg"]
-
 config.sycl_headers_filter = lit_config.params.get("SYCL_HEADERS_FILTER", None)
 if config.sycl_headers_filter is not None:
     lit_config.note(
@@ -203,10 +200,13 @@ llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 if not dump_only_tests:
     llvm_config.use_clang(additional_flags=additional_flags)
 
-# Set timeout for test = 10 mins
+# Set timeout for test = 10 mins (Release) or 20 mins (Debug)
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    if config.build_mode != "Debug":
+        lit_config.maxIndividualTestTime = 600
+    else:
+        lit_config.maxIndividualTestTime = 1200
 except ImportError:
     pass

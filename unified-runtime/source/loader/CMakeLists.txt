@@ -14,12 +14,6 @@ if(UR_STATIC_LOADER)
   set(LOADER_LIB_TYPE STATIC)
 endif()
 
-if (MSVC)
-    if(CMAKE_BUILD_TYPE STREQUAL Debug)
-        set(UR_USE_DEBUG_POSTFIX ON)
-    endif()
-endif()
-
 add_ur_library(ur_loader
     ${LOADER_LIB_TYPE}
     ""
@@ -27,8 +21,18 @@ add_ur_library(ur_loader
 )
 install_ur_library(ur_loader)
 
+if (WIN32)
+    if(CMAKE_BUILD_TYPE STREQUAL Debug)
+        target_compile_definitions(ur_loader PRIVATE UR_USE_DEBUG_POSTFIX=1)
+    endif()
+endif()
+
 if (MSVC)
-    set(TARGET_LIBNAME ur_loader)
+    if(CMAKE_BUILD_TYPE STREQUAL Debug)
+        set(TARGET_LIBNAME ur_loaderd)
+    else()
+        set(TARGET_LIBNAME ur_loader)
+    endif()
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
     set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.def)

@@ -78,4 +78,8 @@ endif()
 FetchContent_MakeAvailable(ocl-icd)
 add_library(OpenCL-ICD ALIAS OpenCL)
 
+if (CMAKE_SYSTEM_NAME STREQUAL Windows)
+    set_target_properties(OpenCL PROPERTIES DEBUG_POSTFIX d)
+endif()
+
 add_subdirectory(opencl-aot)

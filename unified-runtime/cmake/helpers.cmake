@@ -138,9 +138,6 @@ function(add_ur_target_compile_options name)
             WIN32_LEAN_AND_MEAN NOMINMAX  # Cajole Windows.h to define fewer symbols
             _CRT_SECURE_NO_WARNINGS       # Slience warnings about getenv
         )
-        if(UR_USE_DEBUG_POSTFIX)
-            target_compile_definitions(${name} PRIVATE UR_USE_DEBUG_POSTFIX=1)
-        endif()
 
         if(UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE
@@ -200,7 +197,9 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
-    set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
+    if(WIN32)
+        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
+    endif()
     if(UR_EXTERNAL_DEPENDENCIES)
         add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})
     endif()

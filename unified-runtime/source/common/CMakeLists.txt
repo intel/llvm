@@ -73,7 +73,7 @@ else()
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
 
-  if (MSVC)
+  if (WIN32)
     if(CMAKE_BUILD_TYPE STREQUAL Debug)
       set(UMF_USE_DEBUG_POSTFIX ON)
     endif()
@@ -134,6 +134,6 @@ target_link_libraries(ur_umf INTERFACE
     umf::headers
 )
 
-if (MSVC)
+if (WIN32)
     set_target_properties(ur_umf PROPERTIES DEBUG_POSTFIX d)
 endif()

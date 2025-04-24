@@ -323,11 +323,6 @@ set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
 set(SYCL_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
 )
 
-if (MSVC)
-  # Append d to the debug libraries on Windows.
-  set(CMAKE_DEBUG_POSTFIX d)
-endif()
-
 check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG)
 if (HAS_SEMANTIC_INTERPOSITION_FLAG AND NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
   # See https://github.com/llvm/llvm-project/issues/58295.
@@ -351,6 +346,13 @@ if (WIN32)
   add_library(sycl ALIAS ${LIB_NAME})
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
     add_library(sycl-preview ALIAS sycl${SYCL_MAJOR_VERSION}-preview)
+  endif()
+endif()
+
+if (WIN32)
+  set_target_properties(${LIB_NAME} PROPERTIES DEBUG_POSTFIX d)
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB AND (CMAKE_BUILD_TYPE STREQUAL Debug))
+    set_target_properties(sycl${SYCL_MAJOR_VERSION}-preview PROPERTIES OUTPUT_NAME sycl${SYCL_MAJOR_VERSION}d-preview)
   endif()
 endif()
 
