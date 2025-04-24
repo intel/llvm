@@ -496,7 +496,7 @@ ur_result_t urEventGetInfo(
     auto HostVisibleEvent = Event->HostVisibleEvent;
     if (Event->Completed) {
       Result = UR_EVENT_STATUS_COMPLETE;
-    } else if (HostVisibleEvent) {
+    } else if (HostVisibleEvent && checkL0LoaderTeardown()) {
       ze_result_t ZeResult;
       ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
