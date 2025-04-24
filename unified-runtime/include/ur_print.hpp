@@ -2356,6 +2356,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_ADAPTER_BACKEND_NATIVE_CPU:
     os << "UR_ADAPTER_BACKEND_NATIVE_CPU";
     break;
+  case UR_ADAPTER_BACKEND_OFFLOAD:
+    os << "UR_ADAPTER_BACKEND_OFFLOAD";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -2552,6 +2555,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_PLATFORM_BACKEND_NATIVE_CPU:
     os << "UR_PLATFORM_BACKEND_NATIVE_CPU";
+    break;
+  case UR_PLATFORM_BACKEND_OFFLOAD:
+    os << "UR_PLATFORM_BACKEND_OFFLOAD";
     break;
   default:
     os << "unknown enumerator";
