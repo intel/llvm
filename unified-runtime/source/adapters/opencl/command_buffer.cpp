@@ -63,9 +63,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  cl_command_buffer_properties_khr Properties[3] = {
-      CL_COMMAND_BUFFER_FLAGS_KHR,
-      IsUpdatable ? CL_COMMAND_BUFFER_MUTABLE_KHR : 0u, 0};
+  // OpenCL command-buffer must be simultaneous use to match expectation of UR
+  // command-buffer specification.
+  cl_command_buffer_flags_khr Flags = CL_COMMAND_BUFFER_SIMULTANEOUS_USE_KHR;
+  if (IsUpdatable) {
+    Flags |= CL_COMMAND_BUFFER_MUTABLE_KHR;
+  }
+
+  cl_command_buffer_properties_khr Properties[3] = {CL_COMMAND_BUFFER_FLAGS_KHR,
+                                                    Flags, 0};
 
   cl_int Res = CL_SUCCESS;
   auto CLCommandBuffer = clCreateCommandBufferKHR(
