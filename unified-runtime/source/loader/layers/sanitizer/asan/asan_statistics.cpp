@@ -92,11 +92,13 @@ void AsanStats::UpdateShadowFreed(uptr ShadowSize) {
 }
 
 void AsanStats::UpdateOverhead() {
-  auto TotalSize = UsmMalloced + ShadowMalloced;
-  if (TotalSize == 0) {
+  assert(UsmMalloced >= UsmMallocedRedzones);
+  auto UserSize = UsmMalloced - UsmMallocedRedzones;
+  if (UserSize == 0) {
     return;
   }
-  auto NewOverhead = (ShadowMalloced + UsmMallocedRedzones) / (double)TotalSize;
+  // Overhead = (Shadow + Redzone) / User
+  auto NewOverhead = (ShadowMalloced + UsmMallocedRedzones) / (double)UserSize;
   Overhead = std::max(Overhead, NewOverhead);
 }
 
