@@ -761,9 +761,15 @@ bool Packetizer::Impl::packetize() {
         continue;
       }
 
-      if (auto *const Callee = CI->getCalledFunction();
-          Callee && Ctx.builtins().analyzeBuiltin(*Callee).ID ==
-                        compiler::utils::eMuxBuiltinGetSubGroupSize) {
+      auto *const Callee = CI->getCalledFunction();
+      if (!Callee) {
+        continue;
+      }
+      auto B = Ctx.builtins().analyzeBuiltin(*Callee);
+      if (!B) {
+        continue;
+      }
+      if (B->ID == compiler::utils::eMuxBuiltinGetSubGroupSize) {
         auto *const replacement = [this](CallInst *CI) -> Value * {
           // The vectorized sub-group size is the mux sub-group reduction sum
           // of all of the vectorized sub-group sizes:
@@ -1199,14 +1205,20 @@ Packetizer::Result Packetizer::Impl::packetizeInstruction(Instruction *Ins) {
 
 Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
   auto *const CI = dyn_cast<CallInst>(I);
-  if (!CI || !CI->getCalledFunction()) {
+  if (!CI) {
     return nullptr;
   }
   const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   Function *callee = CI->getCalledFunction();
+  if (!callee) {
+    return nullptr;
+  }
 
   const auto Builtin = BI.analyzeBuiltin(*callee);
-  const auto Info = BI.isMuxGroupCollective(Builtin.ID);
+  if (!Builtin) {
+    return nullptr;
+  }
+  const auto Info = BI.isMuxGroupCollective(Builtin->ID);
 
   if (!Info || (!Info->isSubGroupScope() && !Info->isWorkGroupScope()) ||
       (!Info->isAnyAll() && !Info->isReduction())) {
@@ -1271,15 +1283,21 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
 
 Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
   auto *const CI = dyn_cast<CallInst>(I);
-  if (!CI || !CI->getCalledFunction()) {
+  if (!CI) {
     return nullptr;
   }
   const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   Function *callee = CI->getCalledFunction();
+  if (!callee) {
+    return nullptr;
+  }
   const auto Builtin = BI.analyzeBuiltin(*callee);
+  if (!Builtin) {
+    return nullptr;
+  }
 
   bool isWorkGroup = false;
-  if (auto Info = BI.isMuxGroupCollective(Builtin.ID)) {
+  if (auto Info = BI.isMuxGroupCollective(Builtin->ID)) {
     if (!Info->isBroadcast() ||
         (!Info->isSubGroupScope() && !Info->isWorkGroupScope())) {
       return nullptr;
@@ -1372,14 +1390,21 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
 std::optional<compiler::utils::GroupCollective>
 Packetizer::Impl::isSubgroupShuffleLike(Instruction *I) {
   auto *const CI = dyn_cast<CallInst>(I);
-  if (!CI || !CI->getCalledFunction()) {
+  if (!CI) {
     return std::nullopt;
   }
   const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   Function *callee = CI->getCalledFunction();
+  if (!callee) {
+    return std::nullopt;
+  }
 
   const auto Builtin = BI.analyzeBuiltin(*callee);
-  const auto Info = BI.isMuxGroupCollective(Builtin.ID);
+  if (!Builtin) {
+    return std::nullopt;
+  }
+
+  const auto Info = BI.isMuxGroupCollective(Builtin->ID);
 
   if (Info && Info->isSubGroupScope() && Info->isShuffleLike()) {
     return Info;
@@ -1560,10 +1585,13 @@ Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleXor(
       B.CreateCall(SubgroupLocalIDFn, {}, "sg.local.id");
   const auto Builtin =
       Ctx.builtins().analyzeBuiltinCall(*SubgroupLocalID, Dimension);
+  if (!Builtin) {
+    return Packetizer::Result(*this);
+  }
 
   // Vectorize the sub-group local ID
   auto *const VecSubgroupLocalID =
-      vectorizeWorkGroupCall(SubgroupLocalID, Builtin);
+      vectorizeWorkGroupCall(SubgroupLocalID, *Builtin);
   if (!VecSubgroupLocalID) {
     return Packetizer::Result(*this);
   }
@@ -1602,10 +1630,10 @@ Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleXor(
   RegularShuffle.Op = compiler::utils::GroupCollective::OpKind::Shuffle;
 
   auto RegularShuffleID = Ctx.builtins().getMuxGroupCollective(RegularShuffle);
-  assert(RegularShuffleID != compiler::utils::eBuiltinInvalid);
+  assert(RegularShuffleID);
 
   auto *const RegularShuffleFn = Ctx.builtins().getOrDeclareMuxBuiltin(
-      RegularShuffleID, *F.getParent(), {CI->getType()});
+      *RegularShuffleID, *F.getParent(), {CI->getType()});
   assert(RegularShuffleFn);
 
   auto *const VecData = PackData.getAsValue();
@@ -1740,10 +1768,13 @@ Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleUpDown(
       B.CreateCall(SubgroupLocalIDFn, {}, "sg.local.id");
   const auto Builtin =
       Ctx.builtins().analyzeBuiltinCall(*SubgroupLocalID, Dimension);
+  if (!Builtin) {
+    return Packetizer::Result(*this);
+  }
 
   // Vectorize the sub-group local ID
   auto *const VecSubgroupLocalID =
-      vectorizeWorkGroupCall(SubgroupLocalID, Builtin);
+      vectorizeWorkGroupCall(SubgroupLocalID, *Builtin);
   if (!VecSubgroupLocalID) {
     return Packetizer::Result(*this);
   }
@@ -1856,8 +1887,9 @@ Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleUpDown(
       B.CreateSub(DeltaLHS, DeltaRHS, "mux.sg.local.id.deltas");
 
   auto ShuffleID = Ctx.builtins().getMuxGroupCollective(ShuffleUpDown);
+  assert(ShuffleID);
   auto *const ShuffleFn = Ctx.builtins().getOrDeclareMuxBuiltin(
-      ShuffleID, *F.getParent(), {LHSPackVal->getType()});
+      *ShuffleID, *F.getParent(), {LHSPackVal->getType()});
   assert(ShuffleFn);
 
   SmallVector<Value *, 16> Results(VF);
@@ -2052,8 +2084,9 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
       return results;
     }
 
-    const auto Props = Ctx.builtins().analyzeBuiltin(*Callee).properties;
-    if (!(Props & compiler::utils::eBuiltinPropertyVectorEquivalent)) {
+    auto Builtin = Ctx.builtins().analyzeBuiltin(*Callee);
+    if (!Builtin || !(Builtin->properties &
+                      compiler::utils::eBuiltinPropertyVectorEquivalent)) {
       return results;
     }
 
@@ -2137,17 +2170,19 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
   const auto Builtin = Ctx.builtins().analyzeBuiltin(*Callee);
 
   // Handle scans, which defer to internal builtins.
-  if (auto Info = Ctx.builtins().isMuxGroupCollective(Builtin.ID)) {
-    if (Info->isScan()) {
-      return packetizeGroupScan(CI, *Info);
+  if (Builtin) {
+    if (auto Info = Ctx.builtins().isMuxGroupCollective(Builtin->ID)) {
+      if (Info->isScan()) {
+        return packetizeGroupScan(CI, *Info);
+      }
     }
-  }
 
-  // Handle external builtins.
-  const auto Props = Builtin.properties;
-  if (Props & compiler::utils::eBuiltinPropertyExecutionFlow ||
-      Props & compiler::utils::eBuiltinPropertyWorkItem) {
-    return results;
+    // Handle external builtins.
+    const auto Props = Builtin->properties;
+    if (Props & compiler::utils::eBuiltinPropertyExecutionFlow ||
+        Props & compiler::utils::eBuiltinPropertyWorkItem) {
+      return results;
+    }
   }
 
   auto *const ty = CI->getType();
@@ -2386,10 +2421,10 @@ ValuePacket Packetizer::Impl::packetizeGroupScan(
   ExclScan.Op = compiler::utils::GroupCollective::OpKind::ScanExclusive;
 
   auto ExclScanID = Ctx.builtins().getMuxGroupCollective(ExclScan);
-  assert(ExclScanID != compiler::utils::eBuiltinInvalid);
+  assert(ExclScanID);
 
   auto *const ExclScanFn = Ctx.builtins().getOrDeclareMuxBuiltin(
-      ExclScanID, *F.getParent(), {CI->getType()});
+      *ExclScanID, *F.getParent(), {CI->getType()});
   assert(ExclScanFn);
 
   SmallVector<Value *, 2> ExclScanOps = {Reduction};
@@ -3272,13 +3307,13 @@ Value *Packetizer::Impl::vectorizeCall(CallInst *CI) {
 
   // Handle external builtins.
   const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
-  const auto Builtin = BI.analyzeBuiltinCall(*CI, Dimension);
-
-  if (Builtin.properties & compiler::utils::eBuiltinPropertyExecutionFlow) {
-    return nullptr;
-  }
-  if (Builtin.properties & compiler::utils::eBuiltinPropertyWorkItem) {
-    return vectorizeWorkGroupCall(CI, Builtin);
+  if (const auto Builtin = BI.analyzeBuiltinCall(*CI, Dimension)) {
+    if (Builtin->properties & compiler::utils::eBuiltinPropertyExecutionFlow) {
+      return nullptr;
+    }
+    if (Builtin->properties & compiler::utils::eBuiltinPropertyWorkItem) {
+      return vectorizeWorkGroupCall(CI, *Builtin);
+    }
   }
 
   // Try to find a unit for this builtin.

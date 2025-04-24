@@ -135,15 +135,20 @@ VectorizationResult &VectorizationContext::getOrCreateBuiltin(
     }
   }
 
+  auto &result = VectorizedBuiltins[&F][SimdWidth];
+
   const auto Builtin = BI.analyzeBuiltin(F);
+  if (!Builtin) {
+    ++VeczContextFailBuiltin;
+    return result;
+  }
 
   // Try to find a vector equivalent for the builtin.
   Function *const VectorCallee =
       isInternalBuiltin(&F)
           ? getInternalVectorEquivalent(&F, SimdWidth)
-          : BI.getVectorEquivalent(Builtin, SimdWidth, &Module);
+          : BI.getVectorEquivalent(*Builtin, SimdWidth, &Module);
 
-  auto &result = VectorizedBuiltins[&F][SimdWidth];
   if (!VectorCallee) {
     ++VeczContextFailBuiltin;
     return result;
@@ -152,7 +157,7 @@ VectorizationResult &VectorizationContext::getOrCreateBuiltin(
   result.func = VectorCallee;
 
   // Gather information about the function's arguments.
-  const auto Props = Builtin.properties;
+  const auto Props = Builtin->properties;
   unsigned i = 0;
   for (const Argument &Arg : F.args()) {
     Type *pointerRetPointeeTy = nullptr;
@@ -182,8 +187,10 @@ VectorizationResult VectorizationContext::getVectorizedFunction(
 
   auto simdWidth = factor.getFixedValue();
   if (auto *vecTy = dyn_cast<FixedVectorType>(callee.getReturnType())) {
-    const auto Builtin = BI.analyzeBuiltin(callee);
-    Function *scalarEquiv = builtins().getScalarEquivalent(Builtin, &Module);
+    Function *scalarEquiv = nullptr;
+    if (const auto Builtin = BI.analyzeBuiltin(callee)) {
+      scalarEquiv = builtins().getScalarEquivalent(*Builtin, &Module);
+    }
     if (!scalarEquiv) {
       ++VeczContextFailScalarizeCall;
       return VectorizationResult();

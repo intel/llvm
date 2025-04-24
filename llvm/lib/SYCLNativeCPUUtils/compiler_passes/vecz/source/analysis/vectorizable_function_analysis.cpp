@@ -74,7 +74,7 @@ bool canVectorize(const Instruction &I, const VectorizationContext &Ctx) {
       // correspond to user functions.
       const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
       const auto Builtin = BI.analyzeBuiltin(*Callee);
-      if (!Builtin.isValid()) {
+      if (!Builtin) {
         // If it is a user function missing a definition, we cannot safely
         // instantiate it. For example, what if it contains calls to
         // get_global_id internally?

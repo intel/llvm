@@ -171,7 +171,11 @@ static bool isGroupBroadcastOrReduction(
   if (!Callee) {
     return false;
   }
-  auto Info = BI.isMuxGroupCollective(BI.analyzeBuiltin(*Callee).ID);
+  auto B = BI.analyzeBuiltin(*Callee);
+  if (!B) {
+    return false;
+  }
+  auto Info = BI.isMuxGroupCollective(B->ID);
   return Info && (Info->isSubGroupScope() || Info->isWorkGroupScope()) &&
          (Info->isAnyAll() || Info->isReduction() || Info->isBroadcast());
 }
@@ -206,7 +210,7 @@ void UniformValueResult::findVectorLeaves(
           if (!Callee->isIntrinsic() && CI->use_empty()) {
             // Try to identify the called function
             const auto Builtin = BI.analyzeBuiltin(*Callee);
-            if (!Builtin.isValid()) {
+            if (!Builtin) {
               Leaves.push_back(CI);
             }
           }
@@ -268,7 +272,10 @@ void UniformValueResult::findVectorRoots(std::vector<Value *> &Roots) const {
         continue;
       }
       const auto Builtin = BI.analyzeBuiltinCall(*CI, dimension);
-      const auto Uniformity = Builtin.uniformity;
+      if (!Builtin) {
+        continue;
+      }
+      const auto Uniformity = Builtin->uniformity;
       if (Uniformity == compiler::utils::eBuiltinUniformityInstanceID ||
           Uniformity == compiler::utils::eBuiltinUniformityMaybeInstanceID) {
         // Calls to `get_global_id`/`get_local_id` are roots.
@@ -329,12 +336,12 @@ void UniformValueResult::markVaryingValues(Value *V, Value *From) {
     Function *Callee = CI->getCalledFunction();
     if (Callee) {
       const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
-      const auto Builtin = BI.analyzeBuiltinCall(*CI, dimension);
-      const auto Uniformity = Builtin.uniformity;
-      if (Uniformity == compiler::utils::eBuiltinUniformityAlways) {
-        return;
+      if (const auto Builtin = BI.analyzeBuiltinCall(*CI, dimension)) {
+        const auto Uniformity = Builtin->uniformity;
+        if (Uniformity == compiler::utils::eBuiltinUniformityAlways) {
+          return;
+        }
       }
-
       if (auto Op = MemOp::get(CI)) {
         // The mask cannot affect the MemOp value, even though we may still
         // need to packetize the mask..
@@ -509,7 +516,8 @@ UniformValueResult UniformValueAnalysis::run(
       if (CallInst *CI = dyn_cast<CallInst>(&I)) {
         if (Function *Callee = CI->getCalledFunction()) {
           const auto Builtin = BI.analyzeBuiltin(*Callee);
-          if (Builtin.properties & compiler::utils::eBuiltinPropertyAtomic) {
+          if (Builtin &&
+              Builtin->properties & compiler::utils::eBuiltinPropertyAtomic) {
             Res.markVaryingValues(&I);
             continue;
           }
