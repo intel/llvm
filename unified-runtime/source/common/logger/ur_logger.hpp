@@ -36,7 +36,7 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
 
 // TODO: consider removing UR_LOG_L and maybe UR_LOG_LEGACY macros, using UR_LOG
 // instead
-#define UR_LOG_LEGACY(level, ...)                                              \
+#define UR_LOG_LEGACY(level, legacy_message, ...)                              \
   URLOG_L_(::logger::get_logger(), level, legacy_message, __VA_ARGS__)
 #define UR_LOG_L(logger, level, ...) URLOG_(logger, level, __VA_ARGS__)
 

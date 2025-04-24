@@ -151,7 +151,7 @@ private:
 #define URLOG_L_INFO(logger_instance, legacy_message, ...)                     \
   URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_INFO, legacy_message, __VA_ARGS__)
 #define URLOG_L_QUIET(logger_instance, legacy_message, ...)                    \
-  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_QUIET, legacy_message, __VA_ARGS__)
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_QUIET, legacy_message, __VA_ARGS__)g
 
 #define URLOG_(logger_instance, level, ...)                                    \
   URLOG_##level(logger_instance, __VA_ARGS__)
