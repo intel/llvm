@@ -30,6 +30,14 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace ext::oneapi::experimental::detail {
+  bool is_source_kernel_bundle_supported(sycl::backend BE, sycl::ext::oneapi::experimental::source_language Language, const context &Ctx);
+
+ bool is_source_kernel_bundle_supported(sycl::backend BE, sycl::ext::oneapi::experimental::source_language Language, const std::vector<sycl::device> &Devices);
+} // namespace ext::oneapi::experimental
+
+
 namespace detail {
 
 static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
@@ -46,7 +54,10 @@ static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
                      [&Aspect](const device &Dev) { return Dev.has(Aspect); });
 }
 
+
+
 namespace syclex = sycl::ext::oneapi::experimental;
+
 
 class kernel_impl;
 

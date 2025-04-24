@@ -387,15 +387,10 @@ namespace detail {
 /////////////////////////
 // syclex::detail::is_source_kernel_bundle_supported
 /////////////////////////
-bool is_source_kernel_bundle_supported(backend BE, source_language Language,
-                                       const context &Ctx) {
-  std::vector<sycl::device> Devices = Ctx.get_devices();
 
-  return is_source_kernel_bundle_supported(BE, Language, Devices);
-}
 
 bool is_source_kernel_bundle_supported(
-    backend BE, source_language Language,
+    backend BE, sycl::ext::oneapi::experimental::source_language Language,
     const std::vector<sycl::device> &Devices) {
   // Support is limited to the opencl and level_zero backends.
   bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
@@ -427,6 +422,13 @@ bool is_source_kernel_bundle_supported(
 
   // otherwise
   return false;
+}
+
+bool is_source_kernel_bundle_supported(backend BE, sycl::ext::oneapi::experimental::source_language Language,
+  const context &Ctx) {
+const std::vector<sycl::device> Devices = Ctx.get_devices();
+
+return is_source_kernel_bundle_supported(BE, Language, Devices);
 }
 
 /////////////////////////
