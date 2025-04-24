@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define _CLC_VLOAD_DECL(SUFFIX, MEM_TYPE, VEC_TYPE, WIDTH, ADDR_SPACE) \
-  _CLC_OVERLOAD _CLC_DECL VEC_TYPE vload##SUFFIX##WIDTH(size_t offset, const ADDR_SPACE MEM_TYPE *x);
+#define _CLC_VLOAD_DECL(SUFFIX, MEM_TYPE, VEC_TYPE, WIDTH, ADDR_SPACE)         \
+  _CLC_OVERLOAD _CLC_DECL VEC_TYPE vload##SUFFIX##WIDTH(                       \
+      size_t offset, const ADDR_SPACE MEM_TYPE *x);
 
 #define _CLC_VECTOR_VLOAD_DECL(SUFFIX, MEM_TYPE, PRIM_TYPE, ADDR_SPACE)        \
   _CLC_VLOAD_DECL(SUFFIX, MEM_TYPE, PRIM_TYPE##2, 2, ADDR_SPACE)               \
@@ -48,12 +49,12 @@ _CLC_VECTOR_VLOAD_PRIM3(_half, half, float)
 _CLC_VECTOR_VLOAD_PRIM3(a_half, half, float)
 
 #ifdef cl_khr_fp64
-#pragma OPENCL EXTENSION cl_khr_fp64: enable
-  _CLC_VECTOR_VLOAD_PRIM1(double)
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+_CLC_VECTOR_VLOAD_PRIM1(double)
 #endif
 #ifdef cl_khr_fp16
-#pragma OPENCL EXTENSION cl_khr_fp16: enable
-  _CLC_VECTOR_VLOAD_PRIM1(half)
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+_CLC_VECTOR_VLOAD_PRIM1(half)
 #endif
 
 // Scalar vload_half also needs to be declared
