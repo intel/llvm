@@ -67,6 +67,14 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     cl_int CLResult;
     cl_kernel Kernel =
         clCreateKernel(hProgram->CLProgram, pKernelName, &CLResult);
+
+    if (CLResult == CL_INVALID_KERNEL_DEFINITION) {
+      cl_adapter::setErrorMessage(
+          "urKernelCreate failing with CL_INVALID_KERNEL_DEFINITION",
+          UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
     CL_RETURN_ON_FAILURE(CLResult);
     auto URKernel = std::make_unique<ur_kernel_handle_t_>(Kernel, hProgram,
                                                           hProgram->Context);
