@@ -46,7 +46,7 @@ and not recommended to use in production environment.
 
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT.
-    A comma-separated list of valid Intel,NVIDIA and AMD Processor Graphics values are supported.
+    A comma-separated list of valid Intel, NVIDIA and AMD Processor Graphics values are supported.
     * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
     * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
     * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture

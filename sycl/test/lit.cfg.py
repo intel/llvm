@@ -169,6 +169,14 @@ if "nvptx64-nvidia-cuda" in triple:
 if "amdgcn-amd-amdhsa" in triple:
     llvm_config.with_system_environment("ROCM_PATH")
     config.available_features.add("hip")
+    # For AMD the specific GPU has to be specified with --offload-arch
+    if not any([f.startswith("--offload-arch") for f in additional_flags]):
+        # If the offload arch wasn't specified in SYCL_CLANG_EXTRA_FLAGS,
+        # hardcode it to gfx906, this is fine because only compiler tests
+        additional_flags += [
+            "-Xsycl-target-backend=amdgcn-amd-amdhsa",
+            "--offload-arch=gfx906",
+        ]
 
 config.sycl_headers_filter = lit_config.params.get("SYCL_HEADERS_FILTER", None)
 if config.sycl_headers_filter is not None:
