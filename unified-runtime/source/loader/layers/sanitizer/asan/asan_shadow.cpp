@@ -49,7 +49,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
   auto URes =
       EnqueuePoisonShadow({}, 0, NullptrRedzoneSize, kNullPointerRedzoneMagic);
   if (URes != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR,
+    UR_LOG_L(getContext()->logger, ERR,
              "EnqueuePoisonShadow(NullPointerRZ): {}", URes);
     return URes;
   }
@@ -105,7 +105,7 @@ ur_result_t ShadowMemoryGPU::Setup() {
   auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
       Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR,
+    UR_LOG_L(getContext()->logger, ERR,
              "Shadow memory reserved failed with size {}: {}",
              (void *)ShadowSize, Result);
     return Result;
@@ -120,7 +120,7 @@ ur_result_t ShadowMemoryGPU::Setup() {
   Result = EnqueuePoisonShadow(Queue, 0, NullptrRedzoneSize,
                                kNullPointerRedzoneMagic);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR,
+    UR_LOG_L(getContext()->logger, ERR,
              "EnqueuePoisonShadow(NullPointerRZ): {}", Result);
     return Result;
   }
@@ -185,7 +185,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
         auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
             Context, Device, PageSize, &Desc, &PhysicalMem);
         if (URes != UR_RESULT_SUCCESS) {
-          UR_LOG_L(getContext()->logger, ERROR, "urPhysicalMemCreate(): {}",
+          UR_LOG_L(getContext()->logger, ERR, "urPhysicalMemCreate(): {}",
                    URes);
           return URes;
         }
@@ -194,7 +194,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
             Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
             UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
         if (URes != UR_RESULT_SUCCESS) {
-          UR_LOG_L(getContext()->logger, ERROR, "urVirtualMemMap({}, {}): {}",
+          UR_LOG_L(getContext()->logger, ERR, "urVirtualMemMap({}, {}): {}",
                    (void *)MappedPtr, PageSize, URes);
           return URes;
         }
@@ -205,7 +205,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
         // Initialize to zero
         URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize);
         if (URes != UR_RESULT_SUCCESS) {
-          UR_LOG_L(getContext()->logger, ERROR, "EnqueueUSMBlockingSet(): {}",
+          UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}",
                    URes);
           return URes;
         }
@@ -222,7 +222,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
            (void *)(size_t)Value, URes);
   if (URes != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR, "EnqueueUSMBlockingSet(): {}", URes);
+    UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}", URes);
     return URes;
   }
 

@@ -53,7 +53,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
     UR_LOG(ERR, "UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
-                  "default set.");
+                "default set.");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
   }
@@ -195,7 +195,7 @@ getZesDeviceData(ur_device_handle_t Device) {
   bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
   if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
     UR_LOG(ERR, "SysMan support is unavailable on this system. Please "
-                  "check your level zero driver installation.");
+                "check your level zero driver installation.");
     return {nullptr, {}, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION};
   }
 

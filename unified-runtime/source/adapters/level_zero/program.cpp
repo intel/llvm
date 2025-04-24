@@ -908,7 +908,7 @@ ur_result_t urProgramSetSpecializationConstant(
     size_t /*SpecSize*/,
     /// [in] pointer to the specialization value bytes
     const void * /*SpecValue*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

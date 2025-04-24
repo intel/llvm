@@ -27,7 +27,7 @@ int main(int, char *[]) {
   // Initialize the platform
   status = urLoaderInit(0, nullptr);
   if (status != UR_RESULT_SUCCESS) {
-    UR_LOG_L(out, ERROR, "urLoaderInit failed with return code: {}", status);
+    UR_LOG_L(out, ERR, "urLoaderInit failed with return code: {}", status);
     return 1;
   }
   UR_LOG_L(out, INFO, "urLoaderInit succeeded.");
@@ -36,14 +36,14 @@ int main(int, char *[]) {
   std::vector<ur_adapter_handle_t> adapters;
   status = urAdapterGet(0, nullptr, &adapterCount);
   if (status != UR_RESULT_SUCCESS) {
-    UR_LOG_L(out, ERROR, "urAdapterGet failed with return code: {}", status);
+    UR_LOG_L(out, ERR, "urAdapterGet failed with return code: {}", status);
     return 1;
   }
 
   adapters.resize(adapterCount);
   status = urAdapterGet(adapterCount, adapters.data(), nullptr);
   if (status != UR_RESULT_SUCCESS) {
-    UR_LOG_L(out, ERROR, "urAdapterGet failed with return code: {}", status);
+    UR_LOG_L(out, ERR, "urAdapterGet failed with return code: {}", status);
     return 1;
   }
 
@@ -53,7 +53,7 @@ int main(int, char *[]) {
     uint32_t adapterPlatformCount = 0;
     status = urPlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
     if (status != UR_RESULT_SUCCESS) {
-      UR_LOG_L(out, ERROR, "urPlatformGet failed with return code: {}", status);
+      UR_LOG_L(out, ERR, "urPlatformGet failed with return code: {}", status);
       goto out;
     }
     UR_LOG_L(out, INFO, "urPlatformGet found {} platforms",
@@ -63,7 +63,7 @@ int main(int, char *[]) {
     status = urPlatformGet(adapter, adapterPlatformCount,
                            &platforms[platformCount], &adapterPlatformCount);
     if (status != UR_RESULT_SUCCESS) {
-      UR_LOG_L(out, ERROR, "urPlatformGet failed with return code: {}", status);
+      UR_LOG_L(out, ERR, "urPlatformGet failed with return code: {}", status);
       goto out;
     }
     platformCount += adapterPlatformCount;
@@ -73,7 +73,7 @@ int main(int, char *[]) {
     size_t name_len;
     status = urPlatformGetInfo(p, UR_PLATFORM_INFO_NAME, 0, nullptr, &name_len);
     if (status != UR_RESULT_SUCCESS) {
-      UR_LOG_L(out, ERROR, "urPlatformGetInfo failed with return code: {}",
+      UR_LOG_L(out, ERR, "urPlatformGetInfo failed with return code: {}",
                status);
       goto out;
     }
@@ -84,7 +84,7 @@ int main(int, char *[]) {
     status =
         urPlatformGetInfo(p, UR_PLATFORM_INFO_NAME, name_len, name, nullptr);
     if (status != UR_RESULT_SUCCESS) {
-      UR_LOG_L(out, ERROR, "urPlatformGetInfo failed with return code: {}",
+      UR_LOG_L(out, ERR, "urPlatformGetInfo failed with return code: {}",
                status);
       free(name);
       goto out;

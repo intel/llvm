@@ -125,7 +125,7 @@ ur_result_t urEnqueueKernelLaunch(
   ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
 
   bool UseCopyEngine = false;
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
@@ -385,7 +385,7 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
   ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
 
   bool UseCopyEngine = false;
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
@@ -1164,7 +1164,7 @@ ur_result_t urKernelSetSpecializationConstants(
     const ur_specialization_constant_info_t
         /// [in] array of specialization constant value descriptions
         * /*SpecConstants*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

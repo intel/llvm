@@ -72,7 +72,7 @@ struct OptionParser {
           SS << " \"" << S << "\"";
         }
         SS << ".";
-        UR_LOG_L(Logger, ERROR, SS.str().c_str());
+        UR_LOG_L(Logger, ERR, SS.str().c_str());
         die("Sanitizer failed to parse options.\n");
       }
     }
@@ -108,7 +108,7 @@ struct OptionParser {
           Result = Value;
         }
       } catch (...) {
-        UR_LOG_L(Logger, ERROR,
+        UR_LOG_L(Logger, ERR,
                  "The valid range of \"{}\" is [{}, {}]. Failed "
                  "to parse the value \"{}\".",
                  Name, Min, Max, ValueStr);

@@ -36,7 +36,7 @@
 // No other calls to zeMemFree
 // CHECK-NOT: zeMemFree
 
-#include "interop-level-zero-buffer-helpers.hpp"
+#include "interop-buffer-helpers.hpp"
 #include <sycl/detail/core.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>

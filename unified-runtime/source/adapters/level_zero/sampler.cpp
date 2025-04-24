@@ -153,7 +153,7 @@ ur_result_t urSamplerGetInfo(
     void * /*PropValue*/,
     /// [out] size in bytes returned in sampler property value
     size_t * /*PropSizeRet*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -164,7 +164,7 @@ ur_result_t urSamplerGetNativeHandle(
     ur_sampler_handle_t /*Sampler*/,
     /// [out] a pointer to the native handle of the sampler.
     ur_native_handle_t * /*NativeSampler*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -179,7 +179,7 @@ ur_result_t urSamplerCreateWithNativeHandle(
     const ur_sampler_native_properties_t * /*Properties*/,
     /// [out] pointer to the handle of the sampler object created.
     ur_sampler_handle_t * /*Sampler*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

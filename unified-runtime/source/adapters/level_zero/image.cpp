@@ -204,7 +204,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
              (hContext->ZeContext, reinterpret_cast<const void *>(hImageMem),
               &MemAllocProperties, nullptr));
   if (MemAllocProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-    _ur_image *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
+    ur_image *UrImage = reinterpret_cast<ur_image *>(hImageMem);
 
     ZE2UR_CALL(zeImageViewCreateExt,
                (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc,
@@ -430,7 +430,7 @@ ur_result_t urBindlessImagesImageCopyExp(
     UseCopyEngine = false;
   }
 
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 
@@ -468,7 +468,7 @@ ur_result_t urBindlessImagesImageCopyExp(
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
-      auto *UrImage = static_cast<_ur_image *>(pDst);
+      auto *UrImage = static_cast<ur_image *>(pDst);
       const char *SrcPtr =
           static_cast<const char *>(pSrc) +
           pCopyRegion->srcOffset.z * SrcSlicePitch +
@@ -508,7 +508,7 @@ ur_result_t urBindlessImagesImageCopyExp(
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->srcOffset,
                                    &pCopyRegion->copyExtent, SrcRegion));
-      auto *UrImage = static_cast<const _ur_image *>(pSrc);
+      auto *UrImage = static_cast<const ur_image *>(pSrc);
       char *DstPtr =
           static_cast<char *>(pDst) + pCopyRegion->dstOffset.z * DstSlicePitch +
           pCopyRegion->dstOffset.y * DstRowPitch +
@@ -545,8 +545,8 @@ ur_result_t urBindlessImagesImageCopyExp(
     ze_image_region_t SrcRegion;
     UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->srcOffset,
                                  &pCopyRegion->copyExtent, SrcRegion));
-    auto *UrImageDst = static_cast<_ur_image *>(pDst);
-    auto *UrImageSrc = static_cast<const _ur_image *>(pSrc);
+    auto *UrImageDst = static_cast<ur_image *>(pDst);
+    auto *UrImageSrc = static_cast<const ur_image *>(pSrc);
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
                (ZeCommandList, UrImageDst->ZeImage, UrImageSrc->ZeImage,
                 &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
@@ -569,7 +569,7 @@ ur_result_t urBindlessImagesImageGetInfoExp(
             UR_RESULT_ERROR_INVALID_ENUMERATION);
   UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  auto *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
+  auto *UrImage = reinterpret_cast<ur_image *>(hImageMem);
   ze_image_desc_t &Desc = UrImage->ZeImageDesc;
   switch (propName) {
   case UR_IMAGE_INFO_WIDTH:
@@ -615,7 +615,7 @@ ur_result_t urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
     ur_exp_image_mem_native_handle_t /*hImageMem*/, uint32_t /*mipmapLevel*/,
     ur_exp_image_mem_native_handle_t * /*phImageMem*/) {
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -800,7 +800,7 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
 
   auto UrPlatform = hContext->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    UR_LOG_LEGACY(ERROR, logger::LegacyMessage("[UR][L0] "),
+    UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] "),
                   " {} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
@@ -932,7 +932,7 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
     ur_exp_external_semaphore_handle_t hExternalSemaphore) {
   auto UrPlatform = hContext->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    UR_LOG_LEGACY(ERROR, logger::LegacyMessage("[UR][L0] "),
+    UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] "),
                   " {} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
@@ -955,7 +955,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    UR_LOG_LEGACY(ERROR,
+    UR_LOG_LEGACY(ERR,
                   logger::LegacyMessage("[UR][L0] {} function not supported!"),
                   "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -966,7 +966,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 
@@ -1040,7 +1040,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    UR_LOG_LEGACY(ERROR,
+    UR_LOG_LEGACY(ERR,
                   logger::LegacyMessage("[UR][L0] {} function not supported!"),
                   "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1051,7 +1051,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 

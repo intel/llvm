@@ -257,7 +257,7 @@ private:
       // on the first error.
       if (backend.empty()) {
         // FIXME: never true because getenv_to_map rejects this case
-        // malformed term: missing backend -- output ERROR, then continue
+        // malformed term: missing backend -- output ERR, then continue
         UR_LOG(ERR, "ERROR: missing backend, format of filter = "
                     "'[!]backend:filterStrings'");
         continue;

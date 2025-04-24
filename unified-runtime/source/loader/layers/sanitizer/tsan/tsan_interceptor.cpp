@@ -143,7 +143,7 @@ TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         Queue, true, &GVInfos[0], MetadataPtr,
         sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERROR, "Device Global[{}] Read Failed: {}",
+      UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
                kSPIR_TsanDeviceGlobalMetadata, Result);
       return Result;
     }
@@ -252,7 +252,7 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ManagedQueue InternalQueue(CI->Handle, DI->Handle);
   if (!InternalQueue) {
-    UR_LOG_L(getContext()->logger, ERROR, "Failed to create internal queue");
+    UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
     return UR_RESULT_ERROR_INVALID_QUEUE;
   }
 
@@ -295,7 +295,7 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
       ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
           Kernel, ArgIndex, nullptr, ArgPointer);
       if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, ERROR,
+        UR_LOG_L(getContext()->logger, ERR,
                  "Failed to set buffer {} as the {} arg to kernel {}: {}",
                  ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
                  URes);

@@ -31,7 +31,7 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
     DI->Type = GetDeviceType(Context, DI->Handle);
     if (DI->Type == DeviceType::UNKNOWN) {
-      UR_LOG_L(getContext()->logger, ERROR, "Unsupport device");
+      UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
     if (!DI->Shadow)
@@ -100,7 +100,7 @@ ur_result_t urContextRetain(
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    UR_LOG_L(getContext()->logger, ERROR, "Invalid context");
+    UR_LOG_L(getContext()->logger, ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
   ContextInfo->RefCount++;
@@ -119,7 +119,7 @@ ur_result_t urContextRelease(
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    UR_LOG_L(getContext()->logger, ERROR, "Invalid context");
+    UR_LOG_L(getContext()->logger, ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
@@ -140,8 +140,13 @@ ur_result_t urProgramBuild(
     const char *pOptions) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuild");
 
-  UR_CALL(
-      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions));
+  auto UrRes =
+      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, hProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
 
@@ -163,9 +168,13 @@ ur_result_t urProgramLink(
     ur_program_handle_t *phProgram) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLink");
 
-  UR_CALL(getContext()->urDdiTable.Program.pfnLink(hContext, count, phPrograms,
-                                                   pOptions, phProgram));
-
+  auto UrRes = getContext()->urDdiTable.Program.pfnLink(
+      hContext, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
   return UR_RESULT_SUCCESS;
@@ -184,8 +193,12 @@ ur_result_t urProgramBuildExp(
     const char *pOptions) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuildExp");
 
-  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnBuildExp(hProgram, numDevices,
-                                                          phDevices, pOptions));
+  auto UrRes = getContext()->urDdiTable.ProgramExp.pfnBuildExp(
+      hProgram, numDevices, phDevices, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
+    return UrRes;
+  }
   UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
 
   return UR_RESULT_SUCCESS;
@@ -209,8 +222,12 @@ ur_result_t urProgramLinkExp(
     ur_program_handle_t *phProgram) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLinkExp");
 
-  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnLinkExp(
-      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram));
+  auto UrRes = getContext()->urDdiTable.ProgramExp.pfnLinkExp(
+      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+    return UrRes;
+  }
 
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
@@ -1454,8 +1471,8 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR,
-             "Initialize TSAN DDI table failed: {}", result);
+    UR_LOG_L(getContext()->logger, ERR, "Initialize TSAN DDI table failed: {}",
+             result);
   }
 
   return result;

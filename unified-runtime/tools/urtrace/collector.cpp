@@ -86,7 +86,7 @@ std::string time_to_str(std::chrono::nanoseconds dur, enum time_unit unit) {
     ostr << d.count() << "s";
   } break;
   default: {
-    UR_LOG_L(out, ERROR, "invalid time unit {}", unit);
+    UR_LOG_L(out, ERR, "invalid time unit {}", unit);
     break;
   }
   }
@@ -346,7 +346,7 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
   } else if (trace_type == TRACE_FN_END) {
     auto ctx = pop_instance_data(instance);
     if (!ctx) {
-      UR_LOG_L(out, ERROR,
+      UR_LOG_L(out, ERR,
                "Received TRACE_FN_END without corresponding "
                "TRACE_FN_BEGIN, instance {}. Skipping...",
                instance);
@@ -380,11 +380,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   }
 
   if (UR_MAKE_VERSION(major_version, minor_version) != UR_API_VERSION_CURRENT) {
-    UR_LOG_L(out, ERROR,
-             "Invalid stream version: {}.{}. Expected: {}.{}. Skipping...",
-             major_version, minor_version,
-             UR_MAJOR_VERSION(UR_API_VERSION_CURRENT),
-             UR_MINOR_VERSION(UR_API_VERSION_CURRENT));
+    UR_LOG_L(
+        out, ERR, "Invalid stream version: {}.{}. Expected: {}.{}. Skipping...",
+        major_version, minor_version, UR_MAJOR_VERSION(UR_API_VERSION_CURRENT),
+        UR_MINOR_VERSION(UR_API_VERSION_CURRENT));
     return;
   }
 

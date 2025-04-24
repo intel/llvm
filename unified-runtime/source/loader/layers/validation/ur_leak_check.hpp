@@ -68,14 +68,17 @@ private:
             ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
                                 getCurrentBacktrace()});
       } else {
-        UR_LOG_L(getContext()->logger, ERROR, "Handle {} already exists", ptr);
+        getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, SHORT_FILE,
+                                 UR_STR_(__LINE__), "Handle {} already exists",
+                                 ptr);
         return;
       }
       break;
     case REFCOUNT_INCREASE:
       if (it == counts.end()) {
-        UR_LOG_L(getContext()->logger, ERROR,
-                 "Attempting to retain nonexistent handle {}", ptr);
+        getContext()->logger.log(
+            UR_LOGGER_LEVEL_ERROR, SHORT_FILE, UR_STR_(__LINE__),
+            "Attempting to retain nonexistent handle {}", ptr);
         return;
       } else {
         it->second.refCount++;
@@ -91,16 +94,19 @@ private:
       }
 
       if (it->second.refCount < 0) {
-        UR_LOG(ERR, "Attempting to release nonexistent handle {}", ptr);
+        getContext()->logger.log(
+            UR_LOGGER_LEVEL_ERROR, SHORT_FILE, UR_STR_(__LINE__),
+            "Attempting to release nonexistent handle {}", ptr);
       } else if (it->second.refCount == 0 && isAdapterHandle) {
         adapterCount--;
       }
       break;
     }
 
-    UR_LOG_L(getContext()->logger, DEBUG,
-             "Reference count for handle {} changed to {}", ptr,
-             it->second.refCount);
+    getContext()->logger.log(UR_LOGGER_LEVEL_DEBUG, SHORT_FILE,
+                             UR_STR_(__LINE__),
+                             "Reference count for handle {} changed to {}", ptr,
+                             it->second.refCount);
 
     if (it->second.refCount == 0) {
       counts.erase(ptr);

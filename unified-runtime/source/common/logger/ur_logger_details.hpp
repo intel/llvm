@@ -122,14 +122,13 @@ private:
   {                                                                            \
     (_logger).log(level, SHORT_FILE, UR_STR_(__LINE__), __VA_ARGS__);          \
   }
-
 #define URLOG_L2_(_logger, level, legacy_message, ...)                         \
   {                                                                            \
     (_logger).log(legacy_message, level, SHORT_FILE, UR_STR_(__LINE__),        \
                   __VA_ARGS__);                                                \
   }
 
-// some symbols usefuls for log levels are predfined in some systems, 
+// some symbols usefuls for log levels are predfined in some systems,
 // eg. ERROR on Windows
 #define URLOG_(_logger, level, ...) URLOG_##level##_(_logger, __VA_ARGS__)
 #define URLOG_L_(_logger, level, ...) URLOG_L_##level##_(_logger, __VA_ARGS__)

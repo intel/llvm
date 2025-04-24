@@ -372,7 +372,7 @@ template <class T> struct ZeCache : private T {
 };
 
 // TODO: populate with target agnostic handling of UR platforms
-struct _ur_platform {};
+struct ur_platform {};
 
 // Controls tracing UR calls from within the UR itself.
 extern bool PrintTrace;

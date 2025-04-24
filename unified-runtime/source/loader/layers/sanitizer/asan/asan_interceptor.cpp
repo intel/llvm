@@ -116,7 +116,7 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
     UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
         Context, Device, Properties, Pool, NeededSize, &Allocated));
   } else {
-    UR_LOG_L(getContext()->logger, ERROR, "Unsupport memory type");
+    UR_LOG_L(getContext()->logger, ERR, "Unsupport memory type");
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
 
@@ -271,7 +271,7 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ManagedQueue InternalQueue(Context, Device);
   if (!InternalQueue) {
-    UR_LOG_L(getContext()->logger, ERROR, "Failed to create internal queue");
+    UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
     return UR_RESULT_ERROR_INVALID_QUEUE;
   }
 
@@ -487,7 +487,7 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
         Queue, true, &SKInfo[0], MetadataPtr,
         sizeof(SpirKernelInfo) * NumOfSpirKernel, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERROR, "Can't read the value of <{}>: {}",
+      UR_LOG_L(getContext()->logger, ERR, "Can't read the value of <{}>: {}",
                kSPIR_AsanSpirKernelMetadata, Result);
       return Result;
     }
@@ -503,7 +503,7 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
           Queue, true, KernelNameV.data(), (void *)SKI.KernelName,
           sizeof(char) * SKI.Size, 0, nullptr, nullptr);
       if (Result != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, ERROR, "Can't read kernel name: {}",
+        UR_LOG_L(getContext()->logger, ERR, "Can't read kernel name: {}",
                  Result);
         return Result;
       }
@@ -553,7 +553,7 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         Queue, true, &GVInfos[0], MetadataPtr,
         sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERROR, "Device Global[{}] Read Failed: {}",
+      UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
                kSPIR_AsanDeviceGlobalMetadata, Result);
       return Result;
     }
@@ -751,7 +751,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
     ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
         Kernel, ArgIndex, nullptr, ArgPointer);
     if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERROR,
+      UR_LOG_L(getContext()->logger, ERR,
                "Failed to set buffer {} as the {} arg to kernel {}: {}",
                ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
                URes);
@@ -772,7 +772,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
     ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
         Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
     if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERROR, "Failed to set launch info: {}",
+      UR_LOG_L(getContext()->logger, ERR, "Failed to set launch info: {}",
                URes);
       return URes;
     }

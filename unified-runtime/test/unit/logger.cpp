@@ -21,34 +21,34 @@ TEST_F(DefaultLoggerWithFileSink, DefaultLevelNoOutput) {
 TEST_F(DefaultLoggerWithFileSink, MultipleLines) {
   UR_LOG_L(*logger, WARN, "Test message: {}", "success");
   UR_LOG_L(*logger, DEBUG, "This should not be printed: {}", 42);
-  UR_LOG_L(*logger, ERROR, "Test message: {}", "success");
+  UR_LOG_L(*logger, ERR, "Test message: {}", "success");
 
   test_msg << test_msg_prefix << "[WARNING]: Test message: success\n"
            << test_msg_prefix << "[ERROR]: Test message: success\n";
 }
 
 TEST_F(DefaultLoggerWithFileSink, ThreeParams) {
-  UR_LOG_L(*logger, ERROR, "{} {}: {}", "Test", 42, 3.8);
+  UR_LOG_L(*logger, ERR, "{} {}: {}", "Test", 42, 3.8);
   test_msg << test_msg_prefix << "[ERROR]: Test 42: 3.8\n";
 }
 
 TEST_F(DefaultLoggerWithFileSink, DoubleBraces) {
-  UR_LOG_L(*logger, ERROR, "{{}} {}: {}", "Test", 42);
+  UR_LOG_L(*logger, ERR, "{{}} {}: {}", "Test", 42);
   test_msg << test_msg_prefix << "[ERROR]: {} Test: 42\n";
 }
 
 TEST_F(DefaultLoggerWithFileSink, DoubleBraces2) {
-  UR_LOG_L(*logger, ERROR, "200 {{ {}: {{{}}} 3.8", "Test", 42);
+  UR_LOG_L(*logger, ERR, "200 {{ {}: {{{}}} 3.8", "Test", 42);
   test_msg << test_msg_prefix << "[ERROR]: 200 { Test: {42} 3.8\n";
 }
 
 TEST_F(DefaultLoggerWithFileSink, DoubleBraces3) {
-  UR_LOG_L(*logger, ERROR, "{{ {}:}} {}}}", "Test", 42);
+  UR_LOG_L(*logger, ERR, "{{ {}:}} {}}}", "Test", 42);
   test_msg << test_msg_prefix << "[ERROR]: { Test:} 42}\n";
 }
 
 TEST_F(DefaultLoggerWithFileSink, NoBraces) {
-  UR_LOG_L(*logger, ERROR, " Test: 42");
+  UR_LOG_L(*logger, ERR, " Test: 42");
   test_msg << test_msg_prefix << "[ERROR]:  Test: 42\n";
 }
 
@@ -82,7 +82,7 @@ TEST_F(DefaultLoggerWithFileSink, SetLevelWarning) {
 
 TEST_F(DefaultLoggerWithFileSink, SetLevelError) {
   logger->setLevel(UR_LOGGER_LEVEL_ERROR);
-  UR_LOG_L(*logger, ERROR, "Test message: {}", "success");
+  UR_LOG_L(*logger, ERR, "Test message: {}", "success");
   UR_LOG_L(*logger, WARN, "This should not be printed: {}", 42);
 
   test_msg << test_msg_prefix << "[ERROR]: Test message: success\n";
@@ -151,7 +151,7 @@ TEST_P(FileSinkLoggerMultipleThreads, Multithreaded) {
   for (int i = 0; i < thread_count; i++) {
     threads.emplace_back([&]() {
       for (int j = 0; j < message_count; ++j) {
-        UR_LOG_L(local_logger, ERROR, "Flushed test message: {}",
+        UR_LOG_L(local_logger, ERR, "Flushed test message: {}",
                  "it's a success");
       }
     });
@@ -197,7 +197,7 @@ TEST_P(CommonLoggerWithMultipleThreads, StdoutMultithreaded) {
   for (int i = 0; i < thread_count; i++) {
     threads.emplace_back([&]() {
       for (int j = 0; j < message_count; ++j) {
-        UR_LOG_L(local_logger, ERROR, "Flushed test message: {}",
+        UR_LOG_L(local_logger, ERR, "Flushed test message: {}",
                  "it's a success");
       }
     });

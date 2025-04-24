@@ -51,8 +51,11 @@ name: AdapterRelease
 decl: static
 ordinal: "3"
 details:
-    - "When the reference count of the adapter reaches zero, the adapter may perform adapter-specififc resource teardown. Resources
-       must be left in a state where it safe for the adapter to be subsequently reinitialized with $xAdapterGet"
+    - "When the reference count of the adapter reaches zero, the adapter may
+       perform adapter-specififc resource teardown. Any objects associated with
+       the adapter should be considered invalid after this point."
+    - "Calling $xAdapterGet after any adapter handle's reference count has
+       reached zero will result in undefined behaviour."
 params:
   - type: "$x_adapter_handle_t"
     name: hAdapter

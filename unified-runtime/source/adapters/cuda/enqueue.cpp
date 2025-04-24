@@ -1103,9 +1103,11 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
   case CU_AD_FORMAT_FLOAT:
     return 4;
   default:
-    die("Invalid image format.");
-    return 0;
+    setErrorMessage("Invalid CUDA format specifier",
+                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
+  return 0;
 }
 
 /// General ND memory copy operation for images.
