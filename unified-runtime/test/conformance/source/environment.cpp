@@ -215,6 +215,16 @@ std::string KernelsEnvironment::getTargetName(ur_platform_handle_t platform) {
     return "nvptx64-nvidia-cuda";
   case UR_PLATFORM_BACKEND_HIP:
     return "amdgcn-amd-amdhsa";
+  case UR_PLATFORM_BACKEND_OFFLOAD: {
+    // TODO: In future this should use urDeviceSelectBinary
+    auto result = ur_getenv("UR_OFFLOAD_TARGET_NAME");
+    if (!result) {
+      error = "For offload testing, please specify a target in "
+              "`UR_OFFLOAD_TARGET_NAME`";
+      return {};
+    }
+    return *result;
+  }
   case UR_PLATFORM_BACKEND_NATIVE_CPU:
     error = "native_cpu doesn't support kernel tests yet";
     return {};
@@ -297,7 +307,8 @@ void KernelsEnvironment::CreateProgram(
                                    sizeof(ur_platform_backend_t), &backend,
                                    nullptr));
   if (backend == UR_PLATFORM_BACKEND_HIP ||
-      backend == UR_PLATFORM_BACKEND_CUDA) {
+      backend == UR_PLATFORM_BACKEND_CUDA ||
+      backend == UR_PLATFORM_BACKEND_OFFLOAD) {
     // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
     // need to use urProgramCreateWithBinary instead.
     auto size = binary.size();
