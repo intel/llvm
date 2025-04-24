@@ -456,6 +456,7 @@ protected:
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       m_DeviceImages;
 
@@ -465,6 +466,7 @@ protected:
 
   /// Caches list of device images that use or provide virtual functions from
   /// the same set. Used to simplify access.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
       m_VFSet2BinImage;
 
