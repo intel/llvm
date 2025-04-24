@@ -131,11 +131,6 @@ private:
 
 // some symbols usefuls for log levels are predfined in some systems,
 // eg. ERROR on Windows
-#define URLOG_(logger_instance, level, ...)                                    \
-  URLOG_##level(logger_instance, __VA_ARGS__)
-#define URLOG_L_(logger_instance, level, ...)                                  \
-  URLOG_L_##level(logger_instance, __VA_ARGS__)
-
 #define URLOG_ERR(logger_instance, ...)                                        \
   URLOG2_(logger_instance, UR_LOGGER_LEVEL_ERROR, __VA_ARGS__)
 #define URLOG_WARN(logger_instance, ...)                                       \
@@ -157,5 +152,10 @@ private:
   URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_INFO, __VA_ARGS__)
 #define URLOG_L_QUIET(logger_instance, ...)                                    \
   URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_QUIET, __VA_ARGS__)
+
+#define URLOG_(logger_instance, level, ...)                                    \
+  URLOG_##level(logger_instance, __VA_ARGS__)
+#define URLOG_L_(logger_instance, level, ...)                                  \
+  URLOG_L_##level(logger_instance, __VA_ARGS__)
 
 #endif /* UR_LOGGER_DETAILS_HPP */
