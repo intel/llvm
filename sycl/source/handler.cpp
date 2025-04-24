@@ -574,7 +574,9 @@ event handler::finalize() {
         LastEventImpl->setEnqueued();
         // connect returned event with dependent events
         if (!MQueue->isInOrder()) {
-          LastEventImpl->getPreparedDepsEvents() = impl->CGData.MEvents;
+          // MEvents is not used anymore, so can move
+          LastEventImpl->getPreparedDepsEvents() = std::move(impl->CGData.MEvents);
+          // LastEventImpl is local for current thread, no need to lock
           LastEventImpl->cleanDepEventsThroughOneLevel();
         }
       }
