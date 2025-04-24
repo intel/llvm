@@ -237,7 +237,7 @@ private:
       // success.
       UR_LOG(ERR, "ERROR: missing backend, format of filter = "
                   "'[!]backend:filterStrings'");
-      return UR_RESULT_SUCCESS;
+      odsEnvMap = std::nullopt;
     }
     UR_LOG(DEBUG, "getenv_to_map parsed env var and {} a map",
            (odsEnvMap.has_value() ? "produced" : "failed to produce"));
@@ -247,6 +247,27 @@ private:
     using EnvVarMap = std::map<std::string, std::vector<std::string>>;
     EnvVarMap mapODS =
         odsEnvMap.has_value() ? odsEnvMap.value() : EnvVarMap{{"*", {"*"}}};
+
+    // Check all backends are valid backend names
+    for (auto entry : mapODS) {
+      if (entry.first == "*" || entry.first == "!*") {
+        continue;
+      }
+      auto check = [&](const ur_adapter_manifest &m) {
+        if (entry.first == m.name || entry.first == "!" + m.name) {
+          return true;
+        }
+        return false;
+      };
+      if (std::any_of(ur_adapter_manifests.begin(), ur_adapter_manifests.end(),
+                      check)) {
+        continue;
+      }
+
+      // Backend name is not legal, wipe the list
+      mapODS = EnvVarMap{{"*", {"*"}}};
+      break;
+    }
 
     std::vector<FilterTerm> positiveFilters;
     std::vector<FilterTerm> negativeFilters;
