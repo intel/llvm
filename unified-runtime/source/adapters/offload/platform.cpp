@@ -49,7 +49,7 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_PROFILE:
     return ReturnValue("FULL_PROFILE");
   case UR_PLATFORM_INFO_BACKEND:
-    olInfo = OL_PLATFORM_INFO_BACKEND;
+    return ReturnValue(UR_BACKEND_OFFLOAD);
     break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -68,24 +68,6 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
             olGetPlatformInfo(reinterpret_cast<ol_platform_handle_t>(hPlatform),
                               olInfo, propSize, pPropValue)) {
       return offloadResultToUR(Res);
-    }
-
-    // Need to explicitly map this type
-    if (olInfo == OL_PLATFORM_INFO_BACKEND) {
-      auto urPropPtr = reinterpret_cast<ur_backend_t *>(pPropValue);
-      auto olPropPtr = reinterpret_cast<ol_platform_backend_t *>(pPropValue);
-
-      switch (*olPropPtr) {
-      case OL_PLATFORM_BACKEND_CUDA:
-        *urPropPtr = UR_BACKEND_CUDA;
-        break;
-      case OL_PLATFORM_BACKEND_AMDGPU:
-        *urPropPtr = UR_BACKEND_HIP;
-        break;
-      default:
-        *urPropPtr = UR_BACKEND_UNKNOWN;
-        break;
-      }
     }
   }
 
