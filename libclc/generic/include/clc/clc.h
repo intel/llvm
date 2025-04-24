@@ -53,9 +53,6 @@
 /* 6.2.4.2 Reinterpreting Types Using as_type() and as_typen() */
 #include <as_type.h>
 
-/* 6.9 Preprocessor Directives and Macros */
-#include <macros.h>
-
 /* 6.11.1 Work-Item Functions */
 #include <clc/workitem/get_global_size.h>
 #include <clc/workitem/get_global_id.h>
