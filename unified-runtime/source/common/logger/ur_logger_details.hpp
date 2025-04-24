@@ -142,16 +142,16 @@ private:
 #define URLOG_QUIET(logger_instance, ...)                                      \
   URLOG2_(logger_instance, UR_LOGGER_LEVEL_QUIET, __VA_ARGS__)
 
-#define URLOG_L_ERR(logger_instance, ...)                                      \
-  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_ERROR, __VA_ARGS__)
-#define URLOG_L_WARN(logger_instance, ...)                                     \
-  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_WARN, __VA_ARGS__)
-#define URLOG_L_DEBUG(logger_instance, ...)                                    \
-  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_DEBUG, __VA_ARGS__)
-#define URLOG_L_INFO(logger_instance, ...)                                     \
-  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_INFO, __VA_ARGS__)
-#define URLOG_L_QUIET(logger_instance, ...)                                    \
-  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_QUIET, __VA_ARGS__)
+#define URLOG_L_ERR(logger_instance, legacy_message, ...)                      \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_ERROR, legacy_message, __VA_ARGS__)
+#define URLOG_L_WARN(logger_instance, legacy_message, ...)                     \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_WARN, legacy_message, __VA_ARGS__)
+#define URLOG_L_DEBUG(logger_instance, legacy_message, ...)                    \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_DEBUG, legacy_message, __VA_ARGS__)
+#define URLOG_L_INFO(logger_instance, legacy_message, ...)                     \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_INFO, legacy_message, __VA_ARGS__)
+#define URLOG_L_QUIET(logger_instance, legacy_message, ...)                    \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_QUIET, legacy_message, __VA_ARGS__)
 
 #define URLOG_(logger_instance, level, ...)                                    \
   URLOG_##level(logger_instance, __VA_ARGS__)
