@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 273
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 261
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -165,11 +165,6 @@
 // CHECK-NEXT: Graph/Explicit/prefetch.cpp
 // CHECK-NEXT: Graph/Explicit/spec_constants_handler_api.cpp
 // CHECK-NEXT: Graph/Explicit/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/Explicit/usm_copy.cpp
-// CHECK-NEXT: Graph/Explicit/usm_fill.cpp
-// CHECK-NEXT: Graph/Explicit/usm_fill_host.cpp
-// CHECK-NEXT: Graph/Explicit/usm_fill_shared.cpp
-// CHECK-NEXT: Graph/Explicit/usm_memset.cpp
 // CHECK-NEXT: Graph/Explicit/work_group_size_prop.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target_2d.cpp
@@ -185,13 +180,6 @@
 // CHECK-NEXT: Graph/RecordReplay/prefetch.cpp
 // CHECK-NEXT: Graph/RecordReplay/spec_constants_handler_api.cpp
 // CHECK-NEXT: Graph/RecordReplay/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_copy.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_copy_in_order.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_fill.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_fill_host.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_fill_shared.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_memset.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_memset_shortcut.cpp
 // CHECK-NEXT: Graph/RecordReplay/work_group_size_prop.cpp
 // CHECK-NEXT: Graph/UnsupportedDevice/device_query.cpp
 // CHECK-NEXT: GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp
