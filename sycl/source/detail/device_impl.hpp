@@ -35,19 +35,9 @@ using PlatformImplPtr = std::shared_ptr<platform_impl>;
 // TODO: Make code thread-safe
 class device_impl {
 public:
-  /// Constructs a SYCL device instance as a host device.
-  device_impl();
-
-  /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(ur_native_handle_t, const AdapterPtr &Adapter);
-
   /// Constructs a SYCL device instance using the provided
   /// UR device instance.
   explicit device_impl(ur_device_handle_t Device, PlatformImplPtr Platform);
-
-  /// Constructs a SYCL device instance using the provided
-  /// UR device instance.
-  explicit device_impl(ur_device_handle_t Device, const AdapterPtr &Adapter);
 
   ~device_impl();
 
@@ -299,10 +289,6 @@ public:
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
 private:
-  explicit device_impl(ur_native_handle_t InteropDevice,
-                       ur_device_handle_t Device, PlatformImplPtr Platform,
-                       const AdapterPtr &Adapter);
-
   ur_device_handle_t MDevice = 0;
   ur_device_type_t MType;
   ur_device_handle_t MRootDevice = nullptr;

@@ -87,9 +87,11 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
   ur_device_handle_t UrDevice = nullptr;
   Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
       NativeHandle, Adapter->getUrAdapter(), nullptr, &UrDevice);
+
   // Construct the SYCL device from UR device.
+  auto Platform = platform_impl::getPlatformFromUrDevice(UrDevice, Adapter);
   return detail::createSyclObjFromImpl<device>(
-      std::make_shared<device_impl>(UrDevice, Adapter));
+      Platform->getOrMakeDeviceImpl(UrDevice, Platform));
 }
 
 __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
