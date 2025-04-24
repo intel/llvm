@@ -573,7 +573,7 @@ bool NameMangler::demangleType(Lexer &L, Type *&Ty, Type **PointerEltTy,
       return false;
     }
     Quals.push_back(QualsAS->Qual);
-    return PointerType::get(nullptr, QualsAS->AS);
+    return llvm::PointerType::get(*Context, QualsAS->AS);
   }
 
   // Match scalable vector types.
@@ -620,11 +620,7 @@ bool NameMangler::demangleType(Lexer &L, Type *&Ty, Type **PointerEltTy,
     if (PointerEltTy) {
       *PointerEltTy = ElementType;
     }
-    if (ElementType->isVoidTy()) {
-      Ty = llvm::PointerType::get(Type::getInt8Ty(*Context), QualsAS->AS);
-    } else {
-      Ty = llvm::PointerType::get(ElementType, QualsAS->AS);
-    }
+    Ty = llvm::PointerType::get(*Context, QualsAS->AS);
     return true;
   }
 

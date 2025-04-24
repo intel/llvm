@@ -312,10 +312,6 @@ Value *compiler::utils::Barrier::LiveValuesHelper::getGEP(const Value *live,
   }
 
   Value *gep;
-  Type *data_ty = live->getType();
-  if (auto *AI = dyn_cast<AllocaInst>(live)) {
-    data_ty = AI->getAllocatedType();
-  }
 
   if (auto field_it = barrier.live_variable_index_map_.find(key);
       field_it != barrier.live_variable_index_map_.end()) {
@@ -356,13 +352,6 @@ Value *compiler::utils::Barrier::LiveValuesHelper::getGEP(const Value *live,
     gep = gepBuilder.CreateInBoundsGEP(
         barrier.live_var_mem_ty_, barrier_struct, live_variable_info_idxs,
         Twine("live_gep_scalable_") + live->getName());
-
-    // Cast the pointer to the scalable vector type
-    gep = gepBuilder.CreatePointerCast(
-        gep,
-        PointerType::get(
-            data_ty,
-            cast<PointerType>(barrier_struct->getType())->getAddressSpace()));
   } else {
     // Fall back and see if this live variable is actually a decomposed
     // structure type.
@@ -1071,7 +1060,7 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
   const bool hasBarrierStruct = !whole_live_variables_set_.empty() &&
                                 region.schedule != BarrierSchedule::Once;
   if (hasBarrierStruct) {
-    PointerType *pty = PointerType::get(live_var_mem_ty_, 0);
+    PointerType *pty = PointerType::get(context, /*AddressSpace=*/0);
     new_func_params.push_back(pty);
   }
 
