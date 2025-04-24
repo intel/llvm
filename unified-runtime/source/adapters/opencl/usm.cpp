@@ -310,10 +310,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       cl_ext::MemBlockingFreeName, &USMFree));
 
   cl_int ClErr = CL_SUCCESS;
-  auto HostBuffer = HostAllocSupported
-                        ? static_cast<uint8_t *>(
-                              HostMemAlloc(CLContext, nullptr, size, 0, &ClErr))
-                        : static_cast<uint8_t *>(malloc(size));
+  uint8_t *HostBuffer = nullptr;
+  AllocDeleterCallbackInfoBase *Info = nullptr;
+
+  if (HostAllocSupported) {
+    HostBuffer = static_cast<uint8_t *>(
+        HostMemAlloc(CLContext, nullptr, size, 0, &ClErr));
+    Info = new AllocDeleterCallbackInfoIntel(USMFree, CLContext, HostBuffer);
+  } else {
+    HostBuffer = new uint8_t[size];
+    Info = new AllocDeleterCallbackInfo(CLContext, HostBuffer);
+  }
+
   CL_RETURN_ON_FAILURE(ClErr);
 
   auto *End = HostBuffer + size;
@@ -346,11 +354,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   }
 
   // This self destructs taking the event and allocation with it.
-  auto Info = new AllocDeleterCallbackInfo(USMFree, CLContext, HostBuffer);
-
-  ClErr =
-      clSetEventCallback(CopyEvent, CL_COMPLETE,
-                         AllocDeleterCallback<AllocDeleterCallbackInfo>, Info);
+  ClErr = clSetEventCallback(CopyEvent, CL_COMPLETE,
+                             AllocDeleterCallback<AllocDeleterCallbackInfoBase>,
+                             Info);
   if (ClErr != CL_SUCCESS) {
     // We can attempt to recover gracefully by attempting to wait for the copy
     // to finish and deleting the info struct here.
@@ -425,7 +431,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
         cl_ext::HostMemAllocName, &HostMemAlloc));
 
-    auto HostAlloc = HostMemAlloc(CLContext, nullptr, size, 0, &CLErr);
+    auto HostAlloc = static_cast<uint8_t *>(
+        HostMemAlloc(CLContext, nullptr, size, 0, &CLErr));
     CL_RETURN_ON_FAILURE(CLErr);
 
     // Now that we've successfully allocated we should try to clean it up if we
