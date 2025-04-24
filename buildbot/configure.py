@@ -167,7 +167,6 @@ def do_configure(args, passthrough_args):
     if args.disable_preview_lib:
         sycl_preview_lib = "OFF"
 
-        
     # lld is needed on Windows or when building AMDGPU
     if platform.system() == "Windows" or "AMDGPU" in llvm_targets_to_build:
         llvm_enable_projects += ";lld"
