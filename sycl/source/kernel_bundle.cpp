@@ -390,18 +390,18 @@ namespace detail {
 
 bool is_source_kernel_bundle_supported(
     backend BE, sycl::ext::oneapi::experimental::source_language Language,
-    const std::vector<sycl::device> &Devices) {
+    const std::vector<DeviceImplPtr> &DeviceImplVec) {
   // Support is limited to the opencl and level_zero backends.
   bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
                        (BE == sycl::backend::opencl);
   if (BE_Acceptable) {
     if (Language == source_language::opencl) {
       std::vector<ur_device_handle_t> DeviceVec;
-      DeviceVec.reserve(Devices.size());
-      for (const auto &SyclDev : Devices)
-        DeviceVec.push_back(getSyclObjImpl(SyclDev)->getHandleRef());
+      DeviceVec.reserve(DeviceImplVec.size());
+      for (const auto &Impl : DeviceImplVec)
+        DeviceVec.push_back(Impl->getHandleRef());
 
-      const AdapterPtr &Adapter = getSyclObjImpl(Devices[0])->getAdapter();
+      const AdapterPtr &Adapter = DeviceImplVec[0]->getAdapter();
       std::vector<uint32_t> IPVersionVec(DeviceVec.size());
       std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
                      [&](ur_device_handle_t d) {
@@ -427,8 +427,15 @@ bool is_source_kernel_bundle_supported(
     backend BE, sycl::ext::oneapi::experimental::source_language Language,
     const context &Ctx) {
   const std::vector<sycl::device> Devices = Ctx.get_devices();
+  std::vector<DeviceImplPtr> DeviceImplVec;
+  DeviceImplVec.reserve(Devices.size());
+  std::transform(Devices.begin(), Devices.end(),
+                 std::back_inserter(DeviceImplVec),
+                 [](const sycl::device &dev) {
+                   return sycl::detail::getSyclObjImpl(dev);
+                 });
 
-  return is_source_kernel_bundle_supported(BE, Language, Devices);
+  return is_source_kernel_bundle_supported(BE, Language, DeviceImplVec);
 }
 
 /////////////////////////
