@@ -1102,7 +1102,6 @@ struct is_property_key_of<registered_names_key,
 namespace detail {
 // forward decls
 
-
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 make_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,

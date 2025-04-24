@@ -388,7 +388,6 @@ namespace detail {
 // syclex::detail::is_source_kernel_bundle_supported
 /////////////////////////
 
-
 bool is_source_kernel_bundle_supported(
     backend BE, sycl::ext::oneapi::experimental::source_language Language,
     const std::vector<sycl::device> &Devices) {
@@ -424,11 +423,12 @@ bool is_source_kernel_bundle_supported(
   return false;
 }
 
-bool is_source_kernel_bundle_supported(backend BE, sycl::ext::oneapi::experimental::source_language Language,
-  const context &Ctx) {
-const std::vector<sycl::device> Devices = Ctx.get_devices();
+bool is_source_kernel_bundle_supported(
+    backend BE, sycl::ext::oneapi::experimental::source_language Language,
+    const context &Ctx) {
+  const std::vector<sycl::device> Devices = Ctx.get_devices();
 
-return is_source_kernel_bundle_supported(BE, Language, Devices);
+  return is_source_kernel_bundle_supported(BE, Language, Devices);
 }
 
 /////////////////////////
