@@ -90,7 +90,7 @@ public:
   const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
-  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+  const PlatformImplPtr &getPlatformImpl() const { return MPlatform; }
 
   /// Queries this context for information.
   ///
@@ -307,10 +307,21 @@ private:
     std::vector<ur_event_handle_t> MDeviceGlobalInitEvents;
   };
 
-  std::map<std::pair<ur_program_handle_t, ur_device_handle_t>,
-           DeviceGlobalInitializer>
+  using HandleDevicePair = std::pair<ur_program_handle_t, ur_device_handle_t>;
+
+  struct HandleDevicePairHash {
+    std::size_t operator()(const HandleDevicePair &Key) const {
+      return std::hash<ur_program_handle_t>{}(Key.first) ^
+             std::hash<ur_device_handle_t>{}(Key.second);
+    }
+  };
+
+  std::unordered_map<HandleDevicePair, DeviceGlobalInitializer,
+                     HandleDevicePairHash>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
+  // The number of device globals that have not been initialized yet.
+  std::atomic<size_t> MDeviceGlobalNotInitializedCnt = 0;
 
   // For device_global variables that are not used in any kernel code we still
   // allow copy operations on them. MDeviceGlobalUnregisteredData stores the
@@ -341,5 +352,21 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 }
 
 } // namespace detail
+
+// We're under sycl/source and these won't be exported but it's way more
+// convenient to be able to reference them without extra `detail::`.
+inline auto get_ur_handles(const sycl::context &syclContext) {
+  sycl::detail::context_impl &Ctx = *sycl::detail::getSyclObjImpl(syclContext);
+  ur_context_handle_t urCtx = Ctx.getHandleRef();
+  const sycl::detail::Adapter *Adapter = Ctx.getAdapter().get();
+  return std::tuple{urCtx, Adapter};
+}
+inline auto get_ur_handles(const sycl::device &syclDevice,
+                           const sycl::context &syclContext) {
+  auto [urCtx, Adapter] = get_ur_handles(syclContext);
+  ur_device_handle_t urDevice =
+      sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
+  return std::tuple{urDevice, urCtx, Adapter};
+}
 } // namespace _V1
 } // namespace sycl

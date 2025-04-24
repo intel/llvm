@@ -130,6 +130,13 @@ ur_result_t urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintLoggerLevel(enum ur_logger_level_t value, char *buffer,
+                               const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintPlatformInfo(enum ur_platform_info_t value, char *buffer,
                                 const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -1193,6 +1200,22 @@ ur_result_t
 urPrintAdapterGetInfoParams(const struct ur_adapter_get_info_params_t *params,
                             char *buffer, const size_t buff_size,
                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintAdapterSetLoggerCallbackParams(
+    const struct ur_adapter_set_logger_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintAdapterSetLoggerCallbackLevelParams(
+    const struct ur_adapter_set_logger_callback_level_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

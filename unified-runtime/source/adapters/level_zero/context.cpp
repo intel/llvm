@@ -27,10 +27,9 @@ ur_result_t urContextCreate(
     /// [in][range(0, DeviceCount)] array of handle of devices.
     const ur_device_handle_t *Devices,
     /// [in][optional] pointer to context creation properties.
-    const ur_context_properties_t *Properties,
+    const ur_context_properties_t * /*Properties*/,
     /// [out] pointer to handle of context object created
     ur_context_handle_t *RetContext) {
-  std::ignore = Properties;
 
   ur_platform_handle_t Platform = Devices[0]->Platform;
   ZeStruct<ze_context_desc_t> ContextDesc{};
@@ -163,14 +162,11 @@ ur_result_t urContextCreateWithNativeHandle(
 
 ur_result_t urContextSetExtendedDeleter(
     /// [in] handle of the context.
-    ur_context_handle_t Context,
+    ur_context_handle_t /*Context*/,
     /// [in] Function pointer to extended deleter.
-    ur_context_extended_deleter_t Deleter,
+    ur_context_extended_deleter_t /*Deleter*/,
     /// [in][out][optional] pointer to data to be passed to callback.
-    void *UserData) {
-  std::ignore = Context;
-  std::ignore = Deleter;
-  std::ignore = UserData;
+    void * /*UserData*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -282,7 +278,7 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
   if (DestroyZeContext) {
     auto ZeResult = ZE_CALL_NOCHECK(zeContextDestroy, (DestroyZeContext));
     // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                      ZeResult != ZE_RESULT_ERROR_UNKNOWN))
       return ze2urResult(ZeResult);
     if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -311,7 +307,7 @@ ur_result_t ur_context_handle_t_::finalize() {
         if (checkL0LoaderTeardown()) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
           // Gracefully handle the case that L0 was already unloaded.
-          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                            ZeResult != ZE_RESULT_ERROR_UNKNOWN))
             return ze2urResult(ZeResult);
           if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -331,7 +327,7 @@ ur_result_t ur_context_handle_t_::finalize() {
         if (checkL0LoaderTeardown()) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
           // Gracefully handle the case that L0 was already unloaded.
-          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                            ZeResult != ZE_RESULT_ERROR_UNKNOWN))
             return ze2urResult(ZeResult);
           if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -347,7 +343,7 @@ ur_result_t ur_context_handle_t_::finalize() {
     // Destroy the command list used for initializations
     auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandListInit));
     // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                      ZeResult != ZE_RESULT_ERROR_UNKNOWN))
       return ze2urResult(ZeResult);
     if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -362,7 +358,7 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList && checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                          ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
         if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -377,7 +373,7 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList && checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                          ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
         if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {

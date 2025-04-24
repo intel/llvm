@@ -50,8 +50,13 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
         return PlatImpl;
     }
 
-    // Otherwise make the impl
-    Result = std::make_shared<platform_impl>(UrPlatform, Adapter);
+    // Otherwise make the impl. Our ctor/dtor are private, so std::make_shared
+    // needs a bit of help...
+    struct creator : platform_impl {
+      creator(ur_platform_handle_t APlatform, const AdapterPtr &AAdapter)
+          : platform_impl(APlatform, AAdapter) {}
+    };
+    Result = std::make_shared<creator>(UrPlatform, Adapter);
     PlatformCache.emplace_back(Result);
   }
 

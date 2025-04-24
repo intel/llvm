@@ -7114,8 +7114,8 @@ defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   BothFlags<[], [ClangOption, CLOption, CC1Option], " that SYCL ID queries fit "
             "within MAX_INT.">>;
 def fsycl_device_obj_EQ : Joined<["-"], "fsycl-device-obj=">,
-  Values<"spirv,llvmir">, HelpText<"Specify format of device code stored in "
-  "the resulting object. Valid values are: spirv, llvmir (default)">;
+  Values<"spirv,llvmir,asm">, HelpText<"Specify format of device code stored "
+  "in the resulting object. Valid values are: spirv, asm, llvmir (default)">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Alias<fsycl_device_obj_EQ>, AliasArgs<["llvmir"]>, Flags<[Deprecated]>,
   HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects (deprecated)">;
@@ -7145,10 +7145,13 @@ defm sycl_force_inline_kernel_lambda
           NegFlag<SetFalse, [], [ClangOption, CLOption], "Disallow">,
           BothFlags<[], [ClangOption, CLOption, CC1Option], " force inline "
                     "SYCL kernels lambda in entry point">>;
-def fsycl_help_EQ : Joined<["-"], "fsycl-help=">, Flags<[NoXarchOption]>,
-  HelpText<"Emit help information from the related offline compilation tool. "
-           "Valid values: all, fpga, gen, x86_64.">,
-  Values<"all,fpga,gen,x86_64">;
+def fsycl_help_EQ
+    : Joined<["-"], "fsycl-help=">,
+      Flags<[NoXarchOption]>,
+      HelpText<
+          "Emit help information from the related offline compilation tool. "
+          "Valid values: all, gen, x86_64.">,
+      Values<"all,gen,x86_64">;
 def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
   Flags<[NoXarchOption]>, AliasArgs<["all"]>,
   HelpText<"Emit help information from all of the offline compilation tools">;
@@ -8827,6 +8830,13 @@ def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
   HelpText<"Perform device compilation for Native CPU.">,
   Visibility<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
+// TODO: This option can be removed once a fix goes in that can
+// work with the community changes for using the alloca address space.
+defm offload_use_alloca_addrspace_for_srets : BoolFOption<"offload-use-alloca-addrspace-for-srets",
+  CodeGenOpts<"UseAllocaASForSrets">,
+  DefaultTrue,
+  PosFlag<SetTrue, [], [CC1Option], "Use alloca address space for sret arguments for offloading targets">,
+  NegFlag<SetFalse>>;
 
 } // let Visibility = [CC1Option]
 
