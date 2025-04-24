@@ -96,7 +96,9 @@ void AsanStats::UpdateOverhead() {
   if (TotalSize == 0) {
     return;
   }
-  auto NewOverhead = (ShadowMalloced + UsmMallocedRedzones) / (double)TotalSize;
+  // Overhead = (Shadow + Redzone) / User
+  auto NewOverhead = (ShadowMalloced + UsmMallocedRedzones) /
+                     (double)(TotalSize - UsmMallocedRedzones);
   Overhead = std::max(Overhead, NewOverhead);
 }
 
