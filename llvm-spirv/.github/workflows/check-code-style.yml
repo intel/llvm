@@ -29,7 +29,7 @@ env:
 jobs:
   clang-format-and-tidy:
     name: clang-format & clang-tidy
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout sources
       uses: actions/checkout@v4
