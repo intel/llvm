@@ -608,6 +608,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-tsan-cpu", "internal"},
       // Currently, we only provide aot tsan libdevice for PVC and CPU.
       // For DG2, we just use libsycl-tsan as placeholder.
+      // TODO: replace "libsycl-tsan" with "libsycl-tsan-dg2" when DG2
+      // AOT support is added.
       {"libsycl-tsan", "internal"},
       {"libsycl-tsan-pvc", "internal"}};
 #endif
