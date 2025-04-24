@@ -13,6 +13,8 @@
 // does not interfere with the linear graph optimization
 //
 // REQUIRES: aspect-usm_host_allocations
+// UNSUPPORTED: opencl
+// UNSUPPORTED-INTENDED: USM memcpy command not supported for OpenCL
 
 #include "../graph_common.hpp"
 

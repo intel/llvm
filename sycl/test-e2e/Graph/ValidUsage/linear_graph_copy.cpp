@@ -12,6 +12,9 @@
 // Tests that the optimization to use the L0 Copy Engine for memory commands
 // does not interfere with the linear graph optimization
 
+// UNSUPPORTED: opencl
+// UNSUPPORTED-INTENDED: USM memcpy command not supported for OpenCL
+
 #include "../graph_common.hpp"
 
 #include <sycl/properties/queue_properties.hpp>
