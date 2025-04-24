@@ -74,7 +74,7 @@ static void call_kernel_code(sycl::queue &q, sycl::kernel &kernel, T start) {
      sycl::nd_range ndr{{NUM}, {WGSIZE}};
      cgh.parallel_for(ndr, kernel);
    }).wait();
-   sycl::free(ptr, q);
+  sycl::free(ptr, q);
 }
 
 template <typename T>
