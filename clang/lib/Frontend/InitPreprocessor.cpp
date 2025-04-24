@@ -1547,6 +1547,13 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
     }
+
+    // Despite the name, DeviceTriple is not necessarily the device triple.
+    if (DeviceTriple.isWindowsMSVCEnvironment()) {
+      // MSVC inline definitions of stdio functions should not be used for SYCL
+      // device code.
+      Builder.defineMacro("_NO_CRT_STDIO_INLINE");
+    }
   } else if (LangOpts.SYCLIsHost && LangOpts.SYCLESIMDBuildHostCode) {
     Builder.defineMacro("__ESIMD_BUILD_HOST_CODE");
   }
