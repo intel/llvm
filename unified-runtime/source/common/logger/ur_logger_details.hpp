@@ -118,41 +118,44 @@ private:
 #define UR_STRIMPL_(x) #x
 #define UR_STR_(x) UR_STRIMPL_(x)
 
-#define URLOG2_(_logger, level, ...)                                           \
+#define URLOG2_(logger_instance, level, ...)                                   \
   {                                                                            \
-    (_logger).log(level, SHORT_FILE, UR_STR_(__LINE__), __VA_ARGS__);          \
+    (logger_instance).log(level, SHORT_FILE, UR_STR_(__LINE__), __VA_ARGS__);  \
   }
-#define URLOG_L2_(_logger, level, legacy_message, ...)                         \
+#define URLOG_L2_(logger_instance, level, legacy_message, ...)                 \
   {                                                                            \
-    (_logger).log(legacy_message, level, SHORT_FILE, UR_STR_(__LINE__),        \
-                  __VA_ARGS__);                                                \
+    (logger_instance)                                                          \
+        .log(legacy_message, level, SHORT_FILE, UR_STR_(__LINE__),             \
+             __VA_ARGS__);                                                     \
   }
 
 // some symbols usefuls for log levels are predfined in some systems,
 // eg. ERROR on Windows
-#define URLOG_(_logger, level, ...) URLOG_##level##_(_logger, __VA_ARGS__)
-#define URLOG_L_(_logger, level, ...) URLOG_L_##level##_(_logger, __VA_ARGS__)
+#define URLOG_(logger_instance, level, ...)                                    \
+  URLOG_##level(logger_instance, __VA_ARGS__)
+#define URLOG_L_(logger_instance, level, ...)                                  \
+  URLOG_L_##level(logger_instance, __VA_ARGS__)
 
-#define URLOG_ERR_(_logger, ...)                                               \
-  URLOG2_(_logger, UR_LOGGER_LEVEL_ERROR, __VA_ARGS__)
-#define URLOG_WARN_(_logger, ...)                                              \
-  URLOG2_(_logger, UR_LOGGER_LEVEL_WARN, __VA_ARGS__)
-#define URLOG_DEBUG_(_logger, ...)                                             \
-  URLOG2_(_logger, UR_LOGGER_LEVEL_DEBUG, __VA_ARGS__)
-#define URLOG_INFO_(_logger, ...)                                              \
-  URLOG2_(_logger, UR_LOGGER_LEVEL_INFO, __VA_ARGS__)
-#define URLOG_QUIET_(_logger, ...)                                             \
-  URLOG2_(_logger, UR_LOGGER_LEVEL_QUIET, __VA_ARGS__)
+#define URLOG_ERR(logger_instance, ...)                                        \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_ERROR, __VA_ARGS__)
+#define URLOG_WARN(logger_instance, ...)                                       \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_WARN, __VA_ARGS__)
+#define URLOG_DEBUG(logger_instance, ...)                                      \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_DEBUG, __VA_ARGS__)
+#define URLOG_INFO(logger_instance, ...)                                       \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_INFO, __VA_ARGS__)
+#define URLOG_QUIET(logger_instance, ...)                                      \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_QUIET, __VA_ARGS__)
 
-#define URLOG_L_ERR_(_logger, ...)                                             \
-  URLOG_L2_(_logger, UR_LOGGER_LEVEL_ERROR, __VA_ARGS__)
-#define URLOG_L_WARN_(_logger, ...)                                            \
-  URLOG_L2_(_logger, UR_LOGGER_LEVEL_WARN, __VA_ARGS__)
-#define URLOG_L_DEBUG_(_logger, ...)                                           \
-  URLOG_L2_(_logger, UR_LOGGER_LEVEL_DEBUG, __VA_ARGS__)
-#define URLOG_L_INFO_(_logger, ...)                                            \
-  URLOG_L2_(_logger, UR_LOGGER_LEVEL_INFO, __VA_ARGS__)
-#define URLOG_L_QUIET_(_logger, ...)                                           \
-  URLOG_L2_(_logger, UR_LOGGER_LEVEL_QUIET, __VA_ARGS__)
+#define URLOG_L_ERR(logger_instance, ...)                                      \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_ERROR, __VA_ARGS__)
+#define URLOG_L_WARN(logger_instance, ...)                                     \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_WARN, __VA_ARGS__)
+#define URLOG_L_DEBUG(logger_instance, ...)                                    \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_DEBUG, __VA_ARGS__)
+#define URLOG_L_INFO(logger_instance, ...)                                     \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_INFO, __VA_ARGS__)
+#define URLOG_L_QUIET(logger_instance, ...)                                    \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_QUIET, __VA_ARGS__)
 
 #endif /* UR_LOGGER_DETAILS_HPP */
