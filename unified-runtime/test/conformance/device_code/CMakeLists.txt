@@ -104,18 +104,36 @@ macro(add_device_binary SOURCE_FILE)
             continue()
         endif()
 
-        add_custom_command(OUTPUT ${BIN_PATH}
-            COMMAND LD_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR}:$ENV{LD_LIBRARY_PATH} 
+        add_custom_command(OUTPUT ${EXE_PATH}
+            COMMAND LD_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR}:$ENV{LD_LIBRARY_PATH}
             ${UR_FOUND_DPCXX} -fsycl -fsycl-targets=${TRIPLE}
             -fsycl-device-code-split=off ${AMD_TARGET_BACKEND}
             ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB} ${DPCXX_BUILD_FLAGS_LIST}
             ${SOURCE_FILE} -o ${EXE_PATH}
 
-            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_FOUND_DEVICE_CODE_EXTRACTOR} -q --stem="${TRIPLE}.bin" ${EXE_PATH}
 
             WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
             DEPENDS ${SOURCE_FILE} ${UR_DPCXX_DEPS}
         )
+
+        if(${TRIPLE} MATCHES "amd")
+            add_custom_command(OUTPUT ${BIN_PATH}
+                COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_FOUND_DEVICE_CODE_EXTRACTOR} -q --stem="${TRIPLE}.bundle" ${EXE_PATH}
+
+                COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_FOUND_DEVICE_BUNDLER} --type=o --input=${TRIPLE}.bundle.0
+                    -unbundle -targets=hipv4-${TRIPLE}--${AMD_ARCH} -output=${TRIPLE}.bin.0
+
+                WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
+                DEPENDS ${EXE_PATH}
+            )
+        else()
+            add_custom_command(OUTPUT ${BIN_PATH}
+                COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_FOUND_DEVICE_CODE_EXTRACTOR} -q --stem="${TRIPLE}.bin" ${EXE_PATH}
+
+                WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
+                DEPENDS ${EXE_PATH}
+            )
+        endif()
         add_custom_target(generate_${KERNEL_NAME}_${TRIPLE} DEPENDS ${BIN_PATH})
         add_dependencies(generate_device_binaries generate_${KERNEL_NAME}_${TRIPLE})
     endforeach()
