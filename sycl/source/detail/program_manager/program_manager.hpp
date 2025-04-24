@@ -63,7 +63,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                   const NDRDescT &NDRDesc = {});
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
-                                const device &Dev);
+                                const device_impl *DevImpl);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -136,11 +136,11 @@ public:
 
   RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
                                       const ContextImplPtr &ContextImpl,
-                                      const device &Device);
+                                      const device_impl *DeviceImpl);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const ContextImplPtr &ContextImpl, const device &Device);
+      const ContextImplPtr &ContextImpl, const device_impl *DeviceImpl);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       const ContextImplPtr &ContextImpl,

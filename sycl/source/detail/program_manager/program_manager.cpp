@@ -874,7 +874,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   auto Device = createSyclObjFromImpl<device>(
       MustBuildOnSubdevice == true ? DeviceImpl : RootDevImpl);
   const RTDeviceBinaryImage &Img =
-      getDeviceImage(KernelName, ContextImpl, Device);
+      getDeviceImage(KernelName, ContextImpl, getSyclObjImpl(Device).get());
 
   // Check that device supports all aspects used by the kernel
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img, NDRDesc))
@@ -1471,9 +1471,9 @@ ProgramManager::ProgramManager()
   }
 }
 
-const char *getArchName(const device &Device) {
+const char *getArchName(const device_impl *DeviceImpl) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  auto Arch = getSyclObjImpl(Device)->getDeviceArch();
+  auto Arch = DeviceImpl->getDeviceArch();
   switch (Arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
@@ -1495,7 +1495,7 @@ template <typename StorageKey>
 RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
     const StorageKey &Key, const ContextImplPtr &ContextImpl,
-    const device &Device) {
+    const device_impl *DeviceImpl) {
   auto [ItBegin, ItEnd] = ImagesSet.equal_range(Key);
   if (ItBegin == ItEnd)
     return nullptr;
@@ -1508,7 +1508,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   std::vector<RTDeviceBinaryImage *> DeviceFilteredImgs;
   DeviceFilteredImgs.reserve(std::distance(ItBegin, ItEnd));
   for (auto It = ItBegin; It != ItEnd; ++It) {
-    if (doesImageTargetMatchDevice(*It->second, Device))
+    if (doesImageTargetMatchDevice(*It->second, DeviceImpl))
       DeviceFilteredImgs.push_back(It->second);
   }
 
@@ -1526,19 +1526,18 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
   ContextImpl->getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
-      getSyclObjImpl(Device)->getHandleRef(), UrBinaries.data(),
-      UrBinaries.size(), &ImgInd);
+      DeviceImpl->getHandleRef(), UrBinaries.data(), UrBinaries.size(),
+      &ImgInd);
   return DeviceFilteredImgs[ImgInd];
 }
 
 RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
                                const ContextImplPtr &ContextImpl,
-                               const device &Device) {
+                               const device_impl *DeviceImpl) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
-              << ContextImpl.get() << ", " << getSyclObjImpl(Device).get()
-              << ")\n";
+              << ContextImpl.get() << ", " << DeviceImpl << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1548,7 +1547,7 @@ ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
     assert(m_SpvFileImage);
     return getDeviceImage(
         std::unordered_set<RTDeviceBinaryImage *>({m_SpvFileImage.get()}),
-        ContextImpl, Device);
+        ContextImpl, DeviceImpl);
   }
 
   RTDeviceBinaryImage *Img = nullptr;
@@ -1557,10 +1556,10 @@ ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
     if (auto KernelId = m_KernelName2KernelIDs.find(KernelName);
         KernelId != m_KernelName2KernelIDs.end()) {
       Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
-                                    ContextImpl, Device);
+                                    ContextImpl, DeviceImpl);
     } else {
       Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName, ContextImpl,
-                                    Device);
+                                    DeviceImpl);
     }
   }
 
@@ -1581,13 +1580,12 @@ ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
     const std::unordered_set<RTDeviceBinaryImage *> &ImageSet,
-    const ContextImplPtr &ContextImpl, const device &Device) {
+    const ContextImplPtr &ContextImpl, const device_impl *DeviceImpl) {
   assert(ImageSet.size() > 0);
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file "
-              << ContextImpl.get() << ", " << getSyclObjImpl(Device).get()
-              << ")\n";
+              << ContextImpl.get() << ", " << DeviceImpl << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1610,8 +1608,8 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   }
 
   ContextImpl->getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
-      getSyclObjImpl(Device)->getHandleRef(), UrBinaries.data(),
-      UrBinaries.size(), &ImgInd);
+      DeviceImpl->getHandleRef(), UrBinaries.data(), UrBinaries.size(),
+      &ImgInd);
 
   ImageIterator = ImageSet.begin();
   std::advance(ImageIterator, ImgInd);
@@ -3802,7 +3800,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
 }
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
-                                const device &Dev) {
+                                const device_impl *DevImpl) {
   auto PropRange = Img.getDeviceRequirements();
   auto PropIt =
       std::find_if(PropRange.begin(), PropRange.end(), [&](const auto &Prop) {
@@ -3810,21 +3808,21 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
       });
   // Device image has no compile_target property, check target.
   if (PropIt == PropRange.end()) {
-    sycl::backend BE = Dev.get_backend();
+    sycl::backend BE = DevImpl->getBackend();
     const char *Target = Img.getRawData().DeviceTargetSpec;
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) {
-      return Dev.is_cpu();
+      return DevImpl->is_cpu();
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-      return Dev.is_gpu() && (BE == sycl::backend::opencl ||
-                              BE == sycl::backend::ext_oneapi_level_zero);
+      return DevImpl->is_gpu() && (BE == sycl::backend::opencl ||
+                                   BE == sycl::backend::ext_oneapi_level_zero);
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
-      return Dev.is_accelerator();
+      return DevImpl->is_accelerator();
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0 ||
         strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64) == 0) {
@@ -3849,7 +3847,7 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
   std::string_view CompileTarget(
       reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
       CompileTargetByteArray.size());
-  std::string_view ArchName = getArchName(Dev);
+  std::string_view ArchName = getArchName(DevImpl);
   // Note: there are no explicit targets for CPUs, so on x86_64,
   // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64
   // compile target image.
