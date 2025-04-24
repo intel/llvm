@@ -3,7 +3,7 @@ add_dependencies(sycl-ls sycl)
 target_include_directories(sycl-ls PRIVATE "${sycl_inc_dir}")
 
 # Disable aspect::image warning.
-target_compile_definitions(sycl-ls PRIVATE SYCL_DISABLE_IMAGE_ASPECT_WARNING)
+target_compile_definitions(sycl-ls PRIVATE SYCL_DISABLE_IMAGE_ASPECT_WARNING SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 
 target_link_libraries(sycl-ls
   PRIVATE

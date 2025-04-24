@@ -14,6 +14,12 @@ if(UR_STATIC_LOADER)
   set(LOADER_LIB_TYPE STATIC)
 endif()
 
+if (MSVC)
+    if(CMAKE_BUILD_TYPE STREQUAL Debug)
+        set(UR_USE_DEBUG_POSTFIX ON)
+    endif()
+endif()
+
 add_ur_library(ur_loader
     ${LOADER_LIB_TYPE}
     ""
@@ -38,11 +44,6 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.map.in ${LOADER_VERSION_SCRIPT} @ONLY)
     target_link_options(ur_loader PRIVATE "-Wl,--version-script=${LOADER_VERSION_SCRIPT}")
 endif()
-
-set_target_properties(ur_loader PROPERTIES
-    LIBRARY_OUTPUT_NAME ur_loader
-    RUNTIME_OUTPUT_NAME ur_loader
-)
 
 add_library(${PROJECT_NAME}::loader ALIAS ur_loader)
 

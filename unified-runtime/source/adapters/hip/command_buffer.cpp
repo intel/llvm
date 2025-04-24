@@ -26,7 +26,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     : Context(hContext), Device(hDevice), IsUpdatable(IsUpdatable),
       HIPGraph{nullptr}, HIPGraphExec{nullptr}, RefCount{1}, NextSyncPoint{0} {
   urContextRetain(hContext);
-  urDeviceRetain(hDevice);
 }
 
 /// The ur_exp_command_buffer_handle_t_ destructor releases
@@ -34,9 +33,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release the memory allocated to the Context stored in the command_buffer
   UR_CALL_NOCHECK(urContextRelease(Context));
-
-  // Release the device
-  UR_CALL_NOCHECK(urDeviceRelease(Device));
 
   // Release the memory allocated to the HIPGraph
   (void)hipGraphDestroy(HIPGraph);
@@ -287,12 +283,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
     ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
   // Preconditions
   // Command handles can only be obtained from updatable command-buffers
   UR_ASSERT(!(phCommand && !hCommandBuffer->IsUpdatable),
@@ -301,9 +296,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
             UR_RESULT_ERROR_INVALID_KERNEL);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   for (uint32_t i = 0; i < numKernelAlternatives; ++i) {
     UR_ASSERT(phKernelAlternatives[i] != hKernel,
@@ -387,18 +379,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
     size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -423,18 +410,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   UR_ASSERT(size + dstOffset <= std::get<BufferMem>(hDstMem->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
   UR_ASSERT(size + srcOffset <= std::get<BufferMem>(hSrcMem->Mem).getSize(),
@@ -471,18 +454,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -519,18 +497,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     size_t offset, size_t size, const void *pSrc,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -559,18 +532,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
     size_t offset, size_t size, void *pDst, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -602,18 +570,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -650,18 +613,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -695,20 +653,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     size_t /*Size*/, ur_usm_migration_flags_t /*Flags*/,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   // Prefetch cmd is not supported by Hip Graph.
   // We implement it as an empty node to enforce dependencies.
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -734,20 +687,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     size_t /*Size*/, ur_usm_advice_flags_t /*Advice*/,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   // Mem-Advise cmd is not supported by Hip Graph.
   // We implement it as an empty node to enforce dependencies.
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -773,13 +721,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     const void *pPattern, size_t patternSize, size_t offset, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
   auto ArgsAreMultiplesOfPatternSize =
       (offset % patternSize == 0) || (size % patternSize == 0);
 
@@ -790,8 +736,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
   UR_ASSERT(ArgsAreMultiplesOfPatternSize && PatternIsValid &&
                 PatternSizeIsValid,
             UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   auto DstDevice = std::get<BufferMem>(hBuffer->Mem)
                        .getPtrWithOffset(hCommandBuffer->Device, offset);
@@ -806,21 +750,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     const void *pPattern, size_t patternSize, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  std::ignore = phCommand;
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t * /*phEvent*/,
+    ur_exp_command_buffer_command_handle_t * /*phCommand*/) {
 
   auto PatternIsValid = (pPattern != nullptr);
 
   auto PatternSizeIsValid = ((patternSize & (patternSize - 1)) == 0) &&
                             (patternSize > 0); // is a positive power of two
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   UR_ASSERT(PatternIsValid && PatternSizeIsValid, UR_RESULT_ERROR_INVALID_SIZE);
   return enqueueCommandBufferFillHelper(
       hCommandBuffer, pPtr, hipMemoryTypeUnified, pPattern, patternSize, size,
@@ -1069,19 +1009,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hCommand;
-  std::ignore = phEvent;
+    ur_exp_command_buffer_command_handle_t /*hCommand*/,
+    ur_event_handle_t * /*phEvent*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateWaitEventsExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
-  std::ignore = hCommand;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = phEventWaitList;
+    ur_exp_command_buffer_command_handle_t /*hCommand*/,
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

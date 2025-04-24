@@ -46,7 +46,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "27f158753caf8422e9f0d5a65ab304f21bc085c5"
+        return "420842fc3f0c01aac7b328bf192c25d3e7b9fd9e"
 
     def setup(self):
         if options.sycl is None:
@@ -69,6 +69,9 @@ class ComputeBench(Suite):
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
         ]
+
+        if options.ur_adapter == "cuda":
+            configure_command += ["-DBUILD_SYCL_WITH_CUDA=ON"]
 
         if options.ur is not None:
             configure_command += [
@@ -112,13 +115,17 @@ class ComputeBench(Suite):
         if options.ur is None:
             runtimes = [r for r in runtimes if r != RUNTIMES.UR]
 
+        # Filter out L0 if cuda backend
+        if options.ur_adapter == "cuda":
+            runtimes = [r for r in runtimes if r != RUNTIMES.LEVEL_ZERO]
+
         return runtimes
 
     def benchmarks(self) -> list[Benchmark]:
         if options.sycl is None:
             return []
 
-        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+        if options.ur_adapter == "hip":
             return []
 
         benches = []
@@ -187,6 +194,15 @@ class ComputeBench(Suite):
                 MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
                 MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
                 MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
+                UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
+                UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
+                UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
+                UsmBatchMemoryAllocation(
+                    self, RUNTIMES.UR, "Device", 128, 16 * 1024, "Both"
+                ),
+                UsmBatchMemoryAllocation(
+                    self, RUNTIMES.UR, "Device", 128, 128 * 1024, "Both"
+                ),
             ]
 
         return benches
@@ -715,4 +731,102 @@ class UllsKernelSwitch(ComputeBenchmark):
             f"--hostVisible={self.hostVisible}",
             f"--ioq={self.ioq}",
             f"--ctrBasedEvents={self.ctrBasedEvents}",
+        ]
+
+
+class UsmMemoryAllocation(ComputeBenchmark):
+    def __init__(
+        self, bench, runtime: RUNTIMES, usm_memory_placement, size, measure_mode
+    ):
+        self.runtime = runtime
+        self.usm_memory_placement = usm_memory_placement
+        self.size = size
+        self.measure_mode = measure_mode
+        super().__init__(
+            bench, f"api_overhead_benchmark_{runtime.value}", "UsmMemoryAllocation"
+        )
+
+    def get_tags(self):
+        return [runtime_to_tag_name(self.runtime), "micro", "latency", "memory"]
+
+    def name(self):
+        return (
+            f"api_overhead_benchmark_{self.runtime.value} UsmMemoryAllocation "
+            f"usmMemoryPlacement:{self.usm_memory_placement} size:{self.size} measureMode:{self.measure_mode}"
+        )
+
+    def explicit_group(self):
+        return f"UsmMemoryAllocation"
+
+    def description(self) -> str:
+        what_is_measured = "Both memory allocation and memory free are timed"
+        if self.measure_mode == "Allocate":
+            what_is_measured = "Only memory allocation is timed"
+        elif self.measure_mode == "Free":
+            what_is_measured = "Only memory free is timed"
+        return (
+            f"Measures memory allocation overhead by allocating {self.size} bytes of "
+            f"usm {self.usm_memory_placement} memory and free'ing it immediately. "
+            f"{what_is_measured}. "
+        )
+
+    def bin_args(self) -> list[str]:
+        return [
+            f"--type={self.usm_memory_placement}",
+            f"--size={self.size}",
+            f"--measureMode={self.measure_mode}",
+            "--iterations=10000",
+        ]
+
+
+class UsmBatchMemoryAllocation(ComputeBenchmark):
+    def __init__(
+        self,
+        bench,
+        runtime: RUNTIMES,
+        usm_memory_placement,
+        allocation_count,
+        size,
+        measure_mode,
+    ):
+        self.runtime = runtime
+        self.usm_memory_placement = usm_memory_placement
+        self.allocation_count = allocation_count
+        self.size = size
+        self.measure_mode = measure_mode
+        super().__init__(
+            bench, f"api_overhead_benchmark_{runtime.value}", "UsmBatchMemoryAllocation"
+        )
+
+    def get_tags(self):
+        return [runtime_to_tag_name(self.runtime), "micro", "latency", "memory"]
+
+    def name(self):
+        return (
+            f"api_overhead_benchmark_{self.runtime.value} UsmBatchMemoryAllocation "
+            f"usmMemoryPlacement:{self.usm_memory_placement} allocationCount:{self.allocation_count} size:{self.size} measureMode:{self.measure_mode}"
+        )
+
+    def explicit_group(self):
+        return f"UsmBatchMemoryAllocation"
+
+    def description(self) -> str:
+        what_is_measured = "Both memory allocation and memory free are timed"
+        if self.measure_mode == "Allocate":
+            what_is_measured = "Only memory allocation is timed"
+        elif self.measure_mode == "Free":
+            what_is_measured = "Only memory free is timed"
+        return (
+            f"Measures memory allocation overhead by allocating {self.size} bytes of "
+            f"usm {self.usm_memory_placement} memory {self.allocation_count} times, then free'ing it all at once. "
+            f"{what_is_measured}. "
+        )
+
+    def bin_args(self) -> list[str]:
+        return [
+            f"--type={self.usm_memory_placement}",
+            f"--allocationCount={self.allocation_count}",
+            f"--size={self.size}",
+            f"--measureMode={self.measure_mode}",
+            "--iterations=1000",
         ]

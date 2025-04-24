@@ -9,6 +9,8 @@ function(add_ur_adapter name)
         set(TARGET_LIBNAME ${name})
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
+        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
+
         set(ADAPTER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/${name}.def)
 
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.def.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
@@ -47,21 +49,30 @@ function(add_ur_adapter_subdirectory name)
     endif()
 endfunction()
 
+list(APPEND TEMP_LIST "mock")
+
 if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(level_zero)
+    list(APPEND TEMP_LIST "level_zero")
 endif()
 
 if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(cuda)
+    list(APPEND TEMP_LIST "cuda")
 endif()
 
 if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(hip)
+    list(APPEND TEMP_LIST "hip")
 endif()
 
 if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(opencl)
+    list(APPEND TEMP_LIST "opencl")
 endif()
 if(UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(native_cpu)
+    list(APPEND TEMP_LIST "native_cpu")
 endif()
+
+set(UR_ADAPTERS_LIST "${TEMP_LIST}" CACHE STRING "" FORCE)

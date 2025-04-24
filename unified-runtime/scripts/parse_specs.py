@@ -1,11 +1,8 @@
-"""
-Copyright (C) 2022-2023 Intel Corporation
-
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-"""
+# Copyright (C) 2022-2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
 import generate_ids
@@ -26,12 +23,9 @@ all_versions = [
     Version(ver) for ver in ["0.6", "0.7", "0.8", "0.9", "0.10", "0.11", "0.12"]
 ]
 
-"""
-    preprocess object
-"""
-
 
 def _preprocess(d):
+    """preprocess object"""
     if "enum" == d["type"]:
         use_hex = False
         next = 0
@@ -52,12 +46,8 @@ def _preprocess(d):
     return d
 
 
-"""
-    substitute tags
-"""
-
-
 def _subt(name, tags):
+    """substitute tags"""
     name = re.sub(r"(\w+)\(.*\)", r"\1", name)  # removes '()' part of macros
     for key, value in tags.items():
         name = re.sub(re.escape(key), value, name)
@@ -65,12 +55,8 @@ def _subt(name, tags):
     return name
 
 
-"""
-    get the line number of each document
-"""
-
-
 def _get_line_nums(f):
+    """get the line number of each document"""
     nums = []
     for line_num, line in enumerate(util.textRead(f)):
         if re.match(r"^\-\-\-.*", line):
@@ -78,12 +64,8 @@ def _get_line_nums(f):
     return nums
 
 
-"""
-    convert etor to int
-"""
-
-
 def _get_etor_value(value, prev):
+    """convert etor to int"""
     if value:
         if value_traits.is_ver(value):
             return (
@@ -99,12 +81,11 @@ def _get_etor_value(value, prev):
         return prev + 1
 
 
-"""
-    validate documents meet some basic (easily detectable) requirements of code generation
-"""
-
-
 def _validate_doc(f, d, tags, line_num, meta):
+    """
+    validate documents meet some basic (easily detectable) requirements of code
+    generation
+    """
     is_iso = lambda x: re.match(r"[_a-zA-Z][_a-zA-Z0-9]{0,30}", x)
 
     def __validate_ordinal(d):
@@ -216,7 +197,6 @@ def _validate_doc(f, d, tags, line_num, meta):
 
     def __validate_details(d):
         if "details" in d:
-
             if not (isinstance(d["details"], list) or isinstance(d["details"], str)):
                 raise Exception("'details' must be a string or a sequence")
 
@@ -640,12 +620,8 @@ def _validate_doc(f, d, tags, line_num, meta):
         raise
 
 
-"""
-    filters object by version
-"""
-
-
 def _filter_version(d, max_ver: Version) -> Optional[Dict]:
+    """filters object by version"""
     ver = Version(d.get("version", default_version))
     if ver > max_ver:
         return None
@@ -691,12 +667,8 @@ def _filter_version(d, max_ver: Version) -> Optional[Dict]:
     return __filter_desc(d)
 
 
-"""
-    creates docs per version
-"""
-
-
 def _make_versions(d, max_ver: Version) -> List[Version]:
+    """creates docs per version"""
     docs = []
     type = d["type"]
     if "function" == type or "struct" == type:
@@ -719,12 +691,8 @@ def _make_versions(d, max_ver: Version) -> List[Version]:
     return docs
 
 
-"""
-    generates meta-data on all objects
-"""
-
-
 def _generate_meta(d, ordinal, meta):
+    """generates meta-data on all objects"""
     type = d["type"]
     name = re.sub(r"(\w+)\(.*\)", r"\1", d["name"])  # removes '()' part of macros
 
@@ -855,12 +823,8 @@ def _generate_meta(d, ordinal, meta):
     return meta
 
 
-"""
-    generates SHA512 string for the given object
-"""
-
-
 def _generate_hash(obj):
+    """generates SHA512 string for the given object"""
     # functions-only (for now)...
     if re.match(r"function", obj["type"]):
         hash = hashlib.sha256()
@@ -876,12 +840,8 @@ def _generate_hash(obj):
     return obj
 
 
-"""
-    generates structure members from base
-"""
-
-
 def _inline_base(obj, meta):
+    """generates structure members from base"""
     if re.match(r"struct|union", obj["type"]):
         base = obj.get("base")
         if base in meta["struct"]:
@@ -896,12 +856,8 @@ def _inline_base(obj, meta):
     return obj
 
 
-"""
-    generate complete return permutations
-"""
-
-
 def _generate_returns(obj, meta):
+    """generate complete return permutations"""
     if re.match(r"function", obj["type"]):
         # default results for all functions
         rets = [
@@ -1035,12 +991,8 @@ def _inline_extended_structs(specs, meta):
             s["objects"][i] = obj
 
 
-"""
-    generates extra content
-"""
-
-
 def _generate_extra(specs, meta):
+    """generates extra content"""
     for s in specs:
         for i, obj in enumerate(s["objects"]):
             obj = _generate_hash(obj)
@@ -1048,12 +1000,8 @@ def _generate_extra(specs, meta):
             s["objects"][i] = obj
 
 
-"""
-    generates reference-data on all objects
-"""
-
-
 def _generate_ref(specs, tags, ref):
+    """generates reference-data on all objects"""
     for s in specs:
         for obj in s["objects"]:
             # create dict if typename is not already known...
@@ -1138,14 +1086,12 @@ def _extend_enums(enum_extensions, specs, meta):
         matching_enum["etors"] = sorted(matching_enum["etors"], key=sort_etors)
 
 
-"""
-Entry-point:
-    Reads each YML file and extracts data
-    Returns list of data per file
-"""
-
-
 def parse(section, version, tags, meta, ref):
+    """
+    Entry-point:
+        Reads each YML file and extracts data
+        Returns list of data per file
+    """
     path = os.path.join("./", section)
     specs = []
 
@@ -1155,7 +1101,6 @@ def parse(section, version, tags, meta, ref):
 
     enum_extensions = []
     for f in files:
-
         print("Parsing %s..." % f)
         docs = util.yamlRead(f)
         line_nums = _get_line_nums(f)
@@ -1199,7 +1144,7 @@ def parse(section, version, tags, meta, ref):
                 if "name" in header:
                     name = header["name"]
                 elif basename.startswith("exp-"):
-                    name = f'{basename[len("exp-"):]} (experimental)'
+                    name = f"{basename[len('exp-') :]} (experimental)"
                 else:
                     name = basename
                 for c in "_-":
