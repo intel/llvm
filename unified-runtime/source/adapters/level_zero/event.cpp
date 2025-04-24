@@ -890,13 +890,14 @@ urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
       (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
        Event->CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER) &&
       Event->Completed;
-  UR_CALL(urEventReleaseInternal(Event));
+  bool isEventDeleted = false;
+  UR_CALL(urEventReleaseInternal(Event, &isEventDeleted));
   // If this is a Completed Event Wait Out Event, then we need to cleanup the
   // event at user release and not at the time of completion.
   // If the event is labelled as completed and no additional references are
   // removed, then we still need to decrement the event, but not mark as
   // completed.
-  if (isEventsWaitCompleted) {
+  if (isEventsWaitCompleted & !isEventDeleted) {
     if (Event->CleanedUp) {
       UR_CALL(urEventReleaseInternal(Event));
     } else {
@@ -1087,12 +1088,13 @@ ur_event_handle_t_::~ur_event_handle_t_() {
   }
 }
 
-ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
+ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
+                                   bool *isEventDeleted) {
   if (!Event->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (Event->OriginAllocEvent) {
-    urEventReleaseInternal(Event->OriginAllocEvent);
+    urEventReleaseInternal(Event->OriginAllocEvent, isEventDeleted);
   }
 
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
@@ -1133,7 +1135,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // and release a reference to it.
   if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
     // Decrement ref-count of the host-visible proxy event.
-    UR_CALL(urEventReleaseInternal(Event->HostVisibleEvent));
+    UR_CALL(urEventReleaseInternal(Event->HostVisibleEvent, isEventDeleted));
   }
 
   // Save pointer to the queue before deleting/resetting event.
@@ -1162,6 +1164,9 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // must released later.
   if (DisableEventsCaching || !Event->OwnNativeHandle) {
     delete Event;
+    if (isEventDeleted) {
+      *isEventDeleted = true;
+    }
   } else {
     Event->Context->addEventToContextCache(Event);
   }
