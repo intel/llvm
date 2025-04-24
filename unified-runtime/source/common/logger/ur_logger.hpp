@@ -32,7 +32,7 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
 
 // use log level as a first parameter
 // available levels: QUIET, ERR, WARN, INFO, DEBUG
-#define UR_LOG(...) URLOG_(::logger::get_logger(), __VA_ARGS__)
+#define UR_LOG(level, ...) URLOG_(::logger::get_logger(), level, __VA_ARGS__)
 #define UR_LOG_LEGACY(...) URLOG_L_(::logger::get_logger(), __VA_ARGS__)
 
 // TODO: consider removing UR_LOG_L and maybe UR_LOG_LEGACY macros, using UR_LOG
