@@ -17,7 +17,7 @@
 #include "queue_api.hpp"
 #include <ze_api.h>
 
-struct ur_exp_command_buffer_handle_t_ : public _ur_object {
+struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_exp_command_buffer_handle_t_(
       ur_context_handle_t context, ur_device_handle_t device,
       v2::raii::command_list_unique_handle &&commandList,
@@ -44,7 +44,7 @@ private:
   ur_event_handle_t currentExecution = nullptr;
 };
 
-struct ur_exp_command_buffer_command_handle_t_ : public _ur_object {
+struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
   ur_exp_command_buffer_command_handle_t_(ur_exp_command_buffer_handle_t,
                                           uint64_t);
 

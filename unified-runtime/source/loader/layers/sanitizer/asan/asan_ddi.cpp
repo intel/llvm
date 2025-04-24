@@ -325,7 +325,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
   auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
     auto Devices = GetDevices(hContext);
-    PrintUrBuildLog(hProgram, Devices.data(), Devices.size());
+    PrintUrBuildLogIfError(UrRes, hProgram, Devices.data(), Devices.size());
     return UrRes;
   }
 
@@ -355,7 +355,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
 
   auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLog(hProgram, phDevices, numDevices);
+    PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
     return UrRes;
   }
 
@@ -388,7 +388,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
   auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
     auto Devices = GetDevices(hContext);
-    PrintUrBuildLog(*phProgram, Devices.data(), Devices.size());
+    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
     return UrRes;
   }
 
@@ -426,7 +426,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
   auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                                  phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLog(*phProgram, phDevices, numDevices);
+    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
     return UrRes;
   }
 
