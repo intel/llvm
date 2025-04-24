@@ -91,7 +91,7 @@ class CLBuiltinInfo : public BILangInfoConcept {
                                      unsigned SimdDimIdx) const override;
 
   /// @see BuiltinInfo::analyzeBuiltin
-  Builtin analyzeBuiltin(const llvm::Function &F) const override;
+  std::optional<Builtin> analyzeBuiltin(const llvm::Function &F) const override;
   /// @see BuiltinInfo::getVectorEquivalent
   llvm::Function *getVectorEquivalent(const Builtin &B, unsigned Width,
                                       llvm::Module *M = nullptr) override;
@@ -106,10 +106,10 @@ class CLBuiltinInfo : public BILangInfoConcept {
   llvm::Instruction *lowerBuiltinToMuxBuiltin(llvm::CallInst &,
                                               BIMuxInfoConcept &) override;
   /// @see BuiltinInfo::getPrintfBuiltin
-  BuiltinID getPrintfBuiltin() const override;
+  std::optional<BuiltinID> getPrintfBuiltin() const override;
 
  private:
-  BuiltinID identifyBuiltin(const llvm::Function &) const;
+  std::optional<BuiltinID> identifyBuiltin(const llvm::Function &) const;
 
   llvm::Function *materializeBuiltin(
       llvm::StringRef BuiltinName, llvm::Module *DestM = nullptr,

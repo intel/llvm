@@ -63,7 +63,8 @@ bool analyzeCall(const VectorizationContext &Ctx, CallInst *CI) {
     return true;
   }
 
-  const auto Props = Ctx.builtins().analyzeBuiltin(*Callee).properties;
+  auto B = Ctx.builtins().analyzeBuiltin(*Callee);
+  const auto Props = B ? B->properties : 0;
 
   // Intrinsics without side-effects can be safely instantiated.
   if (Callee->isIntrinsic() &&

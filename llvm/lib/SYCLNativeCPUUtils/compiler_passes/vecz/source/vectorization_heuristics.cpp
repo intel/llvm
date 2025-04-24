@@ -209,10 +209,12 @@ const Value *Heuristics::shouldVectorizeVisitCmpOperand(
   if (const CallInst *CI = dyn_cast<const CallInst>(Val)) {
     // We only care if the CallInst does involve a call to a work-item builtin.
     const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
-    const auto Uniformity = BI.analyzeBuiltinCall(*CI, SimdDimIdx).uniformity;
-    if (Uniformity == compiler::utils::eBuiltinUniformityInstanceID ||
-        Uniformity == compiler::utils::eBuiltinUniformityMaybeInstanceID) {
-      return (Cache[Val] = CI);
+    if (auto B = BI.analyzeBuiltinCall(*CI, SimdDimIdx)) {
+      const auto Uniformity = B->uniformity;
+      if (Uniformity == compiler::utils::eBuiltinUniformityInstanceID ||
+          Uniformity == compiler::utils::eBuiltinUniformityMaybeInstanceID) {
+        return (Cache[Val] = CI);
+      }
     }
   }
 
@@ -296,8 +298,8 @@ bool Heuristics::shouldVectorize() {
         const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
         if (Function *Callee = CI->getCalledFunction()) {
           const auto builtin = BI.analyzeBuiltin(*Callee);
-          if (!(builtin.properties &
-                compiler::utils::eBuiltinPropertyWorkItem)) {
+          if (!builtin || !(builtin->properties &
+                            compiler::utils::eBuiltinPropertyWorkItem)) {
             weight++;
           }
         }

@@ -96,11 +96,12 @@ unsigned SimdWidthAnalysis::avoidSpillImpl(Function &F,
   auto ShouldConsider = [&](const Value *V) -> bool {
     // Filter out work item builtin calls such as get_local_id()
     if (auto *const CI = dyn_cast<CallInst>(V)) {
-      const Function *Callee = CI->getCalledFunction();
-      if (Callee &&
-          VU.context().builtins().analyzeBuiltin(*Callee).properties ==
-              compiler::utils::eBuiltinPropertyWorkItem) {
-        return false;
+      if (const Function *Callee = CI->getCalledFunction()) {
+        if (auto B = VU.context().builtins().analyzeBuiltin(*Callee)) {
+          if (B->properties == compiler::utils::eBuiltinPropertyWorkItem) {
+            return false;
+          }
+        }
       }
     }
     return true;

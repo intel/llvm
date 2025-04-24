@@ -319,32 +319,33 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
   // Analyse function calls.
   if (CallInst *CI = dyn_cast<CallInst>(Offset)) {
     const auto &BI = SAR.UVR.Ctx.builtins();
-    const auto Builtin = BI.analyzeBuiltinCall(*CI, SAR.UVR.dimension);
-    switch (Builtin.uniformity) {
-      default:
-      case compiler::utils::eBuiltinUniformityMaybeInstanceID:
-      case compiler::utils::eBuiltinUniformityNever:
-        return setMayDiverge();
-      case compiler::utils::eBuiltinUniformityLikeInputs:
-        break;
-      case compiler::utils::eBuiltinUniformityAlways:
-        return setKind(eOffsetUniformVariable);
-      case compiler::utils::eBuiltinUniformityInstanceID:
-        if (Builtin.properties & compiler::utils::eBuiltinPropertyLocalID) {
-          // If the local size is unknown (represented by zero), the resulting
-          // mask will be ~0ULL (all ones). Potentially, it is possible to use
-          // the CL_DEVICE_MAX_WORK_ITEM_SIZES property as an upper bound in
-          // this case.
-          uint64_t LocalBitMask = SAR.UVR.VU.getLocalSize() - 1;
-          LocalBitMask |= LocalBitMask >> 32;
-          LocalBitMask |= LocalBitMask >> 16;
-          LocalBitMask |= LocalBitMask >> 8;
-          LocalBitMask |= LocalBitMask >> 4;
-          LocalBitMask |= LocalBitMask >> 2;
-          LocalBitMask |= LocalBitMask >> 1;
-          BitMask = LocalBitMask;
-        }
-        return setStride(1);
+    if (const auto Builtin = BI.analyzeBuiltinCall(*CI, SAR.UVR.dimension)) {
+      switch (Builtin->uniformity) {
+        default:
+        case compiler::utils::eBuiltinUniformityMaybeInstanceID:
+        case compiler::utils::eBuiltinUniformityNever:
+          return setMayDiverge();
+        case compiler::utils::eBuiltinUniformityLikeInputs:
+          break;
+        case compiler::utils::eBuiltinUniformityAlways:
+          return setKind(eOffsetUniformVariable);
+        case compiler::utils::eBuiltinUniformityInstanceID:
+          if (Builtin->properties & compiler::utils::eBuiltinPropertyLocalID) {
+            // If the local size is unknown (represented by zero), the resulting
+            // mask will be ~0ULL (all ones). Potentially, it is possible to use
+            // the CL_DEVICE_MAX_WORK_ITEM_SIZES property as an upper bound in
+            // this case.
+            uint64_t LocalBitMask = SAR.UVR.VU.getLocalSize() - 1;
+            LocalBitMask |= LocalBitMask >> 32;
+            LocalBitMask |= LocalBitMask >> 16;
+            LocalBitMask |= LocalBitMask >> 8;
+            LocalBitMask |= LocalBitMask >> 4;
+            LocalBitMask |= LocalBitMask >> 2;
+            LocalBitMask |= LocalBitMask >> 1;
+            BitMask = LocalBitMask;
+          }
+          return setStride(1);
+      }
     }
   }
 

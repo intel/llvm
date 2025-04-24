@@ -798,7 +798,6 @@ static constexpr CLBuiltinEntry Builtins[] = {
     {eCLBuiltinCodeplayUnpackNormalize, "codeplay_unpack_normalize"},
     {eCLBuiltinCodeplayUnpackHalf2, "codeplay_unpack_half2"},
 
-    {eBuiltinInvalid, nullptr},
     {eBuiltinUnknown, nullptr}};
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -839,7 +838,9 @@ Function *CLBuiltinInfo::declareBuiltin(Module *M, BuiltinID ID, Type *RetTy,
   return Builtin;
 }
 
-BuiltinID CLBuiltinInfo::getPrintfBuiltin() const { return eCLBuiltinPrintf; }
+std::optional<BuiltinID> CLBuiltinInfo::getPrintfBuiltin() const {
+  return eCLBuiltinPrintf;
+}
 
 Module *CLBuiltinInfo::getBuiltinsModule() {
   if (!Loader) {
@@ -870,13 +871,14 @@ Function *CLBuiltinInfo::materializeBuiltin(StringRef BuiltinName,
   return Loader->materializeBuiltin(BuiltinName, DestM, Flags);
 }
 
-BuiltinID CLBuiltinInfo::identifyBuiltin(const Function &F) const {
+std::optional<BuiltinID> CLBuiltinInfo::identifyBuiltin(
+    const Function &F) const {
   NameMangler Mangler(nullptr);
   const StringRef Name = F.getName();
   const CLBuiltinEntry *entry = Builtins;
   const auto Version = getOpenCLVersion(*F.getParent());
   const StringRef DemangledName = Mangler.demangleName(Name);
-  while (entry->ID != eBuiltinInvalid) {
+  while (entry->ID != eBuiltinUnknown) {
     if (Version >= entry->MinVer && DemangledName == entry->OpenCLFnName) {
       return entry->ID;
     }
@@ -885,7 +887,7 @@ BuiltinID CLBuiltinInfo::identifyBuiltin(const Function &F) const {
 
   if (DemangledName == Name) {
     // The function name is not mangled and so it can not be an OpenCL builtin.
-    return eBuiltinInvalid;
+    return std::nullopt;
   }
 
   Lexer L(Mangler.demangleName(Name));
@@ -940,7 +942,7 @@ BuiltinID CLBuiltinInfo::identifyBuiltin(const Function &F) const {
 
 llvm::StringRef CLBuiltinInfo::getBuiltinName(BuiltinID ID) const {
   const CLBuiltinEntry *entry = Builtins;
-  while (entry->ID != eBuiltinInvalid) {
+  while (entry->ID != eBuiltinUnknown) {
     if (ID == entry->ID) {
       return entry->OpenCLFnName;
     }
@@ -954,21 +956,27 @@ BuiltinUniformity CLBuiltinInfo::isBuiltinUniform(const Builtin &,
                                                   unsigned) const {
   // Assume that builtins with side effects are varying.
   if (Function *Callee = CI->getCalledFunction()) {
-    const auto Props = analyzeBuiltin(*Callee).properties;
-    if (Props & eBuiltinPropertySideEffects) {
-      return eBuiltinUniformityNever;
+    if (auto B = analyzeBuiltin(*Callee)) {
+      const auto Props = B->properties;
+      if (Props & eBuiltinPropertySideEffects) {
+        return eBuiltinUniformityNever;
+      }
     }
   }
 
   return eBuiltinUniformityLikeInputs;
 }
 
-Builtin CLBuiltinInfo::analyzeBuiltin(const Function &Callee) const {
-  const BuiltinID ID = identifyBuiltin(Callee);
+std::optional<Builtin> CLBuiltinInfo::analyzeBuiltin(
+    const Function &Callee) const {
+  const auto ID = identifyBuiltin(Callee);
+  if (!ID) {
+    return std::nullopt;
+  }
 
   bool IsConvergent = false;
   unsigned Properties = eBuiltinPropertyNone;
-  switch (ID) {
+  switch (*ID) {
     default:
       // Assume convergence on unknown builtins.
       IsConvergent = true;
@@ -1252,7 +1260,7 @@ Builtin CLBuiltinInfo::analyzeBuiltin(const Function &Callee) const {
     Properties |= eBuiltinPropertyKnownNonConvergent;
   }
 
-  return Builtin{Callee, ID, (BuiltinProperties)Properties};
+  return Builtin{Callee, *ID, (BuiltinProperties)Properties};
 }
 
 Function *CLBuiltinInfo::getVectorEquivalent(const Builtin &B, unsigned Width,
@@ -1512,12 +1520,12 @@ Value *CLBuiltinInfo::emitBuiltinInline(Function *F, IRBuilder<> &B,
   }
 
   // Handle 'common' builtins.
-  const BuiltinID BuiltinID = identifyBuiltin(*F);
-  if (BuiltinID != eBuiltinInvalid && BuiltinID != eBuiltinUnknown) {
+  const auto BuiltinID = identifyBuiltin(*F);
+  if (BuiltinID && *BuiltinID != eBuiltinUnknown) {
     // Note we have to handle these specially since we need to deduce whether
     // the source operand is signed or not. It is not possible to do this based
     // solely on the BuiltinID.
-    switch (BuiltinID) {
+    switch (*BuiltinID) {
         // 6.2 Explicit Conversions
       case eCLBuiltinConvertChar:
       case eCLBuiltinConvertShort:
@@ -1527,7 +1535,7 @@ Value *CLBuiltinInfo::emitBuiltinInline(Function *F, IRBuilder<> &B,
       case eCLBuiltinConvertUShort:
       case eCLBuiltinConvertUInt:
       case eCLBuiltinConvertULong:
-        return emitBuiltinInlineConvert(F, BuiltinID, B, Args);
+        return emitBuiltinInlineConvert(F, *BuiltinID, B, Args);
         // 6.12.3 Integer Functions
       case eCLBuiltinAddSat:
       case eCLBuiltinSubSat: {
@@ -1590,7 +1598,7 @@ Value *CLBuiltinInfo::emitBuiltinInline(Function *F, IRBuilder<> &B,
       default:
         break;
     }
-    return emitBuiltinInline(BuiltinID, B, Args);
+    return emitBuiltinInline(*BuiltinID, B, Args);
   }
 
   return nullptr;
@@ -2315,26 +2323,26 @@ Value *CLBuiltinInfo::emitBuiltinInlineVStoreHalf(Function *F, StringRef Mode,
   }
 
   // Declare the conversion builtin.
-  BuiltinID ConvID;
+  std::optional<BuiltinID> ConvID;
 
   if (Data->getType() == B.getFloatTy()) {
-    ConvID = StringSwitch<BuiltinID>(Mode)
+    ConvID = StringSwitch<std::optional<BuiltinID>>(Mode)
                  .Case("", eCLBuiltinConvertFloatToHalf)
                  .Case("_rte", eCLBuiltinConvertFloatToHalfRte)
                  .Case("_rtz", eCLBuiltinConvertFloatToHalfRtz)
                  .Case("_rtp", eCLBuiltinConvertFloatToHalfRtp)
                  .Case("_rtn", eCLBuiltinConvertFloatToHalfRtn)
-                 .Default(eBuiltinInvalid);
+                 .Default(std::nullopt);
   } else {
-    ConvID = StringSwitch<BuiltinID>(Mode)
+    ConvID = StringSwitch<std::optional<BuiltinID>>(Mode)
                  .Case("", eCLBuiltinConvertDoubleToHalf)
                  .Case("_rte", eCLBuiltinConvertDoubleToHalfRte)
                  .Case("_rtz", eCLBuiltinConvertDoubleToHalfRtz)
                  .Case("_rtp", eCLBuiltinConvertDoubleToHalfRtp)
                  .Case("_rtn", eCLBuiltinConvertDoubleToHalfRtn)
-                 .Default(eBuiltinInvalid);
+                 .Default(std::nullopt);
   }
-  if (ConvID == eBuiltinInvalid) {
+  if (!ConvID) {
     return nullptr;
   }
   Module *M = F->getParent();
@@ -2343,7 +2351,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineVStoreHalf(Function *F, StringRef Mode,
   // However, if the double extension is enabled, it is also possible to use
   // double instead. This means that we might have to convert either a float or
   // a double to a half.
-  Function *FloatToHalfFn = declareBuiltin(M, ConvID, B.getInt16Ty(),
+  Function *FloatToHalfFn = declareBuiltin(M, *ConvID, B.getInt16Ty(),
                                            {Data->getType()}, {eTypeQualNone});
   if (!FloatToHalfFn) {
     return nullptr;
@@ -2787,11 +2795,16 @@ Instruction *CLBuiltinInfo::lowerBuiltinToMuxBuiltin(
     CallInst &CI, BIMuxInfoConcept &BIMuxImpl) {
   auto &M = *CI.getModule();
   auto *const F = CI.getCalledFunction();
-  assert(F && "No calling function?");
+  if (!F) {
+    return nullptr;
+  }
   const auto ID = identifyBuiltin(*F);
+  if (!ID) {
+    return nullptr;
+  }
 
   // Handle straightforward 1:1 mappings.
-  if (auto MuxID = get1To1BuiltinLowering(ID)) {
+  if (auto MuxID = get1To1BuiltinLowering(*ID)) {
     auto *const MuxBuiltinFn = BIMuxImpl.getOrDeclareMuxBuiltin(*MuxID, M);
     assert(MuxBuiltinFn && "Could not get/declare mux builtin");
     const SmallVector<Value *> Args(CI.args());
@@ -2811,11 +2824,12 @@ Instruction *CLBuiltinInfo::lowerBuiltinToMuxBuiltin(
   unsigned DefaultMemOrder =
       BIMuxInfoConcept::MemSemanticsSequentiallyConsistent;
 
-  switch (ID) {
+  switch (*ID) {
     default:
       // Sub-group and work-group builtins need lowering to their mux
       // equivalents.
-      if (auto *const NewI = lowerGroupBuiltinToMuxBuiltin(CI, ID, BIMuxImpl)) {
+      if (auto *const NewI =
+              lowerGroupBuiltinToMuxBuiltin(CI, *ID, BIMuxImpl)) {
         return NewI;
       }
       return nullptr;
@@ -2889,7 +2903,7 @@ Instruction *CLBuiltinInfo::lowerBuiltinToMuxBuiltin(
     case eCLBuiltinAsyncWorkGroupStridedCopy:
     case eCLBuiltinAsyncWorkGroupCopy2D2D:
     case eCLBuiltinAsyncWorkGroupCopy3D3D:
-      return lowerAsyncBuiltinToMuxBuiltin(CI, ID, BIMuxImpl);
+      return lowerAsyncBuiltinToMuxBuiltin(CI, *ID, BIMuxImpl);
     case eCLBuiltinWaitGroupEvents: {
       auto *const MuxWait =
           BIMuxImpl.getOrDeclareMuxBuiltin(eMuxBuiltinDMAWait, M);
@@ -2927,7 +2941,7 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
   // integer variant and do a checking step afterwards where we refine the
   // builtin ID.
   bool RecheckOpType = false;
-  BaseBuiltinID MuxBuiltinID = eBuiltinInvalid;
+  BaseBuiltinID MuxBuiltinID;
   switch (ID) {
     default:
       return nullptr;

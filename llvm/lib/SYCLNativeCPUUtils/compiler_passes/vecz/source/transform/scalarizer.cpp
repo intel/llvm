@@ -228,9 +228,10 @@ Value *Scalarizer::scalarizeOperands(Instruction *I) {
     if (!Callee->isIntrinsic()) {
       // Check if this is indeed a printf call
       const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
-      const auto ID = BI.analyzeBuiltin(*Callee).ID;
-      if (ID == BI.getPrintfBuiltin()) {
-        return scalarizeOperandsPrintf(CI);
+      if (auto B = BI.analyzeBuiltin(*Callee)) {
+        if (B->ID == BI.getPrintfBuiltin()) {
+          return scalarizeOperandsPrintf(CI);
+        }
       }
     }
 
@@ -1306,11 +1307,12 @@ SimdPacket *Scalarizer::scalarizeCall(CallInst *CI, PacketMask PM) {
   }
 
   const auto Builtin = BI.analyzeBuiltin(*Callee);
-  Function *ScalarEquiv = BI.getScalarEquivalent(Builtin, F.getParent());
+  VECZ_FAIL_IF(!Builtin);
+  Function *ScalarEquiv = BI.getScalarEquivalent(*Builtin, F.getParent());
   VECZ_STAT_FAIL_IF(!ScalarEquiv, VeczScalarizeFailBuiltin);
 
   IRBuilder<> B(CI);
-  const auto Props = Builtin.properties;
+  const auto Props = Builtin->properties;
   // Ignore the mask if present
   const unsigned NumArgs = VectorCallMask ? CI->arg_size() - 1 : CI->arg_size();
   SmallVector<SimdPacket *, 4> OpPackets(NumArgs);

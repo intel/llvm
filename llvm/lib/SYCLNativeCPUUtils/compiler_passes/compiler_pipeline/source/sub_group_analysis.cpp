@@ -107,8 +107,11 @@ std::optional<Builtin> GlobalSubgroupInfo::isMuxSubgroupBuiltin(
     return std::nullopt;
   }
   auto SGBuiltin = BI.analyzeBuiltin(*F);
+  if (!SGBuiltin) {
+    return std::nullopt;
+  }
 
-  switch (SGBuiltin.ID) {
+  switch (SGBuiltin->ID) {
     default:
       break;
     case eMuxBuiltinSubGroupBarrier:
@@ -120,7 +123,7 @@ std::optional<Builtin> GlobalSubgroupInfo::isMuxSubgroupBuiltin(
       return SGBuiltin;
   }
 
-  if (auto GroupOp = BI.isMuxGroupCollective(SGBuiltin.ID);
+  if (auto GroupOp = BI.isMuxGroupCollective(SGBuiltin->ID);
       GroupOp && GroupOp->isSubGroupScope()) {
     return SGBuiltin;
   }

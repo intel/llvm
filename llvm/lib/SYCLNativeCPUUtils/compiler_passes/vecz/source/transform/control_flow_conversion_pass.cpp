@@ -1344,40 +1344,43 @@ bool ControlFlowConversionState::Impl::applyMaskToCall(CallInst *CI,
     return true;
   }
 
-  // Builtins without side effects do not need to be masked.
-  const auto builtin = Ctx.builtins().analyzeBuiltin(*callee);
-  const auto props = builtin.properties;
-  if (props & compiler::utils::eBuiltinPropertyNoSideEffects) {
-    LLVM_DEBUG(dbgs() << "vecz-cf: Called function is an pure builtin\n");
-    return true;
-  }
-  if (props & compiler::utils::eBuiltinPropertyWorkItem) {
-    LLVM_DEBUG(dbgs() << "vecz-cf: Called function is a workitem ID builtin\n");
-    return true;
-  }
-  if (props & compiler::utils::eBuiltinPropertyExecutionFlow) {
-    LLVM_DEBUG(
-        dbgs() << "vecz-cf: Called function is an execution flow builtin\n");
-    // Masking this kind of builtin (a barrier) is not valid.
-    return false;
-  }
   // Functions without side-effects do not need to be masked.
   if (callee->onlyReadsMemory() || callee->doesNotAccessMemory()) {
     LLVM_DEBUG(
         dbgs() << "vecz-cf: Called function does not have any side-effects\n");
     return true;
   }
-  // We don't want to mask work-group collective builtins, because they are
-  // barriers (see above). This should actually be a rare situation, as these
-  // builtins are required to be uniform/convergent and so either all
-  // work-items or no work-items should hit them. Most of the time, this
-  // situation relies on the vectorizer failing to trace the branch flow and
-  // failing to realize the conditions are in fact uniform.
-  if (auto info = Ctx.builtins().isMuxGroupCollective(builtin.ID);
-      info && info->isWorkGroupScope()) {
-    LLVM_DEBUG(
-        dbgs() << "vecz-cf: Called function is a work-group collective\n");
-    return true;
+
+  // Builtins without side effects do not need to be masked.
+  if (const auto builtin = Ctx.builtins().analyzeBuiltin(*callee)) {
+    const auto props = builtin->properties;
+    if (props & compiler::utils::eBuiltinPropertyNoSideEffects) {
+      LLVM_DEBUG(dbgs() << "vecz-cf: Called function is an pure builtin\n");
+      return true;
+    }
+    if (props & compiler::utils::eBuiltinPropertyWorkItem) {
+      LLVM_DEBUG(
+          dbgs() << "vecz-cf: Called function is a workitem ID builtin\n");
+      return true;
+    }
+    if (props & compiler::utils::eBuiltinPropertyExecutionFlow) {
+      LLVM_DEBUG(
+          dbgs() << "vecz-cf: Called function is an execution flow builtin\n");
+      // Masking this kind of builtin (a barrier) is not valid.
+      return false;
+    }
+    // We don't want to mask work-group collective builtins, because they are
+    // barriers (see above). This should actually be a rare situation, as these
+    // builtins are required to be uniform/convergent and so either all
+    // work-items or no work-items should hit them. Most of the time, this
+    // situation relies on the vectorizer failing to trace the branch flow and
+    // failing to realize the conditions are in fact uniform.
+    if (auto info = Ctx.builtins().isMuxGroupCollective(builtin->ID);
+        info && info->isWorkGroupScope()) {
+      LLVM_DEBUG(
+          dbgs() << "vecz-cf: Called function is a work-group collective\n");
+      return true;
+    }
   }
 
   // Create the new function and replace the old one with it

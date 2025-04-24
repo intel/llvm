@@ -28,8 +28,12 @@ PreservedAnalyses compiler::utils::DefineMuxBuiltinsPass::run(
   auto &BI = AM.getResult<BuiltinInfoAnalysis>(M);
 
   auto functionNeedsDefining = [&BI](Function &F) {
-    return F.isDeclaration() && !F.isIntrinsic() &&
-           BI.isMuxBuiltinID(BI.analyzeBuiltin(F).ID);
+    if (F.isDeclaration() && !F.isIntrinsic()) {
+      if (auto B = BI.analyzeBuiltin(F)) {
+        return BI.isMuxBuiltinID(B->ID);
+      }
+    }
+    return false;
   };
 
   // Define all mux builtins
@@ -43,7 +47,8 @@ PreservedAnalyses compiler::utils::DefineMuxBuiltinsPass::run(
     // will be appended to the module's function list and so will be
     // encountered by later iterations.
     auto Builtin = BI.analyzeBuiltin(F);
-    if (BI.defineMuxBuiltin(Builtin.ID, M, Builtin.mux_overload_info)) {
+    assert(Builtin && "Failed to analyze builtin");
+    if (BI.defineMuxBuiltin(Builtin->ID, M, Builtin->mux_overload_info)) {
       Changed = true;
     }
   }

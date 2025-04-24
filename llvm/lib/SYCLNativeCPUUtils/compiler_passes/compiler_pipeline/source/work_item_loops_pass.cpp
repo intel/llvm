@@ -423,7 +423,8 @@ struct ScheduleGenerator {
     }
 
     auto Builtin = BI.analyzeBuiltin(*BarrierCall->getCalledFunction());
-    return BI.isMuxGroupCollective(Builtin.ID);
+    assert(Builtin && "Barrier call must be a known builtin");
+    return BI.isMuxGroupCollective(Builtin->ID);
   }
 
   std::tuple<BasicBlock *, Value *,
@@ -1600,7 +1601,8 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
       if (auto *const CI = barrierMain.getBarrierCall(i)) {
         auto *const callee = CI->getCalledFunction();
         const auto builtin = BI.analyzeBuiltin(*callee);
-        if (builtin.ID == compiler::utils::eMuxBuiltinWorkGroupBarrier) {
+        if (builtin &&
+            builtin->ID == compiler::utils::eMuxBuiltinWorkGroupBarrier) {
           IRBuilder<> B(block);
           auto *MemBarrier =
               BI.getOrDeclareMuxBuiltin(eMuxBuiltinMemBarrier, M);

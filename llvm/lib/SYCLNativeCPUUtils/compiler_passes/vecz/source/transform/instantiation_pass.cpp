@@ -140,8 +140,9 @@ PacketRange InstantiationPass::instantiateCall(CallInst *CI) {
   // Handle special call instructions that return a lane ID.
   const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   const auto Builtin = BI.analyzeBuiltinCall(*CI, packetizer.dimension());
-  if (Builtin.properties & compiler::utils::eBuiltinPropertyWorkItem) {
-    const auto Uniformity = Builtin.uniformity;
+  if (Builtin &&
+      Builtin->properties & compiler::utils::eBuiltinPropertyWorkItem) {
+    const auto Uniformity = Builtin->uniformity;
     if (Uniformity == compiler::utils::eBuiltinUniformityNever) {
       // can't handle these (global/local linear ID probably)
       VECZ_FAIL();
