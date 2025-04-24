@@ -60,7 +60,7 @@ sycl::range<1> r(3);
 // CHECK:       120 |     void * MUserPtr
 
 // CHECK:         0 | class sycl::detail::platform_impl
-// CHECK:        16 |   backend MBackend
+// CHECK:        32 |   backend MBackend
 
 // CHECK:         0 | class sycl::detail::device_impl
 // CHECK:         8 |   ur_device_type_t MType

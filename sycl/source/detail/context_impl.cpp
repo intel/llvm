@@ -41,10 +41,10 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr), MPlatform(), MPropList(PropList),
-      MSupportBufferLocationByDevices(NotChecked) {
+      MContext(nullptr),
+      MPlatform(detail::getSyclObjImpl(MDevices[0].get_platform())),
+      MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
   verifyProps(PropList);
-  MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<ur_device_handle_t> DeviceIds;
   for (const auto &D : MDevices) {
     if (D.has(aspect::ext_oneapi_is_composite)) {
@@ -96,13 +96,13 @@ context_impl::context_impl(ur_context_handle_t UrContext,
           make_error_code(errc::invalid),
           "No devices in the provided device list and native context.");
 
-    std::shared_ptr<detail::platform_impl> Platform =
+    platform_impl &Platform =
         platform_impl::getPlatformFromUrDevice(DeviceIds[0], Adapter);
     for (ur_device_handle_t Dev : DeviceIds) {
-      MDevices.emplace_back(createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(Dev, Platform)));
+      MDevices.emplace_back(
+          createSyclObjFromImpl<device>(Platform.getOrMakeDeviceImpl(Dev)));
     }
-    MPlatform = Platform;
+    MPlatform = Platform.shared_from_this();
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getAdapter() will be the same as the Adapter passed. This should be taken
@@ -158,7 +158,7 @@ uint32_t context_impl::get_info<info::context::reference_count>() const {
                                                           this->getAdapter());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
-  return createSyclObjFromImpl<platform>(MPlatform);
+  return createSyclObjFromImpl<platform>(*MPlatform);
 }
 template <>
 std::vector<sycl::device>

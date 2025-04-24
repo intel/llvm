@@ -184,7 +184,7 @@ ProgramManager &GlobalHandler::getProgramManager() {
   return PM;
 }
 
-std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+std::unordered_map<platform_impl *, ContextImplPtr> &
 GlobalHandler::getPlatformToDefaultContextCache() {
   // The optimization with static reference is not done because
   // there are public methods of the GlobalHandler
@@ -205,8 +205,8 @@ Sync &GlobalHandler::getSync() {
   return sync;
 }
 
-std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
-  static std::vector<PlatformImplPtr> &PlatformCache =
+std::vector<std::shared_ptr<platform_impl>> &GlobalHandler::getPlatformCache() {
+  static std::vector<std::shared_ptr<platform_impl>> &PlatformCache =
       getOrCreate(MPlatformCache);
   return PlatformCache;
 }
