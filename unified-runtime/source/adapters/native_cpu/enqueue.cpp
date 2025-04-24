@@ -55,6 +55,7 @@ namespace {
 struct WaitInfo {
   std::vector<ur_event_handle_t> events;
   WaitInfo() = default;
+  static_assert(std::is_pointer_v<ur_event_handle_t>);
   WaitInfo(uint32_t numEvents, const ur_event_handle_t *WaitList)
       : events(WaitList, WaitList + numEvents) {}
   void wait() const { urEventWait(events.size(), events.data()); }
@@ -153,6 +154,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto kernel = std::make_unique<ur_kernel_handle_t_>(*hKernel);
   kernel->updateMemPool(numParallelThreads);
 
+  native_cpu::WaitInfo *const InEvents =
+      (numEventsInWaitList && phEventWaitList)
+          ? new native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList)
+          : nullptr;
+
 #ifndef NATIVECPU_USE_OCK
   urEventWait(numEventsInWaitList, phEventWaitList);
   for (unsigned g2 = 0; g2 < numWG2; g2++) {
@@ -170,11 +176,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
   }
 #else
-  native_cpu::WaitInfo *const InEvents =
-      (numEventsInWaitList && phEventWaitList)
-          ? new native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList)
-          : nullptr;
-
   bool isLocalSizeOne =
       ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
   if (isLocalSizeOne && ndr.GlobalSize[0] > numParallelThreads &&

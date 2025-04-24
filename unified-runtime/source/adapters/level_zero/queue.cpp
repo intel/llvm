@@ -2337,7 +2337,7 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
     return UR_RESULT_SUCCESS;
 
   // Create a wait-list and retain events.
-  _ur_ze_event_list_t ActiveBarriersWaitList;
+  ur_ze_event_list_t ActiveBarriersWaitList;
   UR_CALL(ActiveBarriersWaitList.createAndRetainUrZeEventList(
       ActiveBarriers.vector().size(), ActiveBarriers.vector().data(),
       reinterpret_cast<ur_queue_handle_t>(this), UseCopyEngine));
