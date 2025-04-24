@@ -14,7 +14,7 @@ endif()
 
 # For the PTX workaround we need to link with CUDA.
 if (NOT TARGET cudadrv)
-        find_package(CUDA 10.1 REQUIRED)
+        find_package(CUDA 10.1)
         add_library(cudadrv SHARED IMPORTED GLOBAL)
         set_target_properties(
                 cudadrv PROPERTIES 
@@ -49,8 +49,14 @@ target_link_libraries(${TARGET_NAME} PRIVATE
         ${PROJECT_NAME}::common
         ${PROJECT_NAME}::umf
         ${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so
-        cudadrv
 )
+
+if (CUDA_CUDA_LIBRARY)
+    target_link_libraries(${TARGET_NAME}
+        cudadrv
+    )
+    target_compile_definitions(${TARGET_NAME} PRIVATE UR_CUDA_ENABLED=1)
+endif()
 
 target_include_directories(${TARGET_NAME} PRIVATE
         "${UR_OFFLOAD_INCLUDE_DIR}/offload"

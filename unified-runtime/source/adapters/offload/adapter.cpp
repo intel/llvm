@@ -47,6 +47,8 @@ ur_result_t ur_adapter_handle_t_::init() {
       },
       this);
 
+  (void)Res;
+
   return UR_RESULT_SUCCESS;
 }
 
