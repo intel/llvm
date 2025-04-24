@@ -67,6 +67,9 @@ int main() {
   // Copy data written to imgOut to host
   q.ext_oneapi_copy(imgMemoryOut.get_handle(), dataOut.data(), desc);
 
+  // Ensure copying data from the device to host is finished before validate
+  q.wait_and_throw();
+
   // Cleanup
   sycl::ext::oneapi::experimental::destroy_image_handle(imgIn, q);
   sycl::ext::oneapi::experimental::destroy_image_handle(imgOut, q);
