@@ -84,6 +84,7 @@ endif()
 
 if(UR_BUILD_ADAPTER_OFFLOAD)
     add_ur_adapter_subdirectory(offload)
+    list(APPEND TEMP_LIST "offload")
 endif()
 
 set(UR_ADAPTERS_LIST "${TEMP_LIST}" CACHE STRING "" FORCE)

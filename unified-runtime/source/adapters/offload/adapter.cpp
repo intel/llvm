@@ -8,9 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <OffloadAPI.h>
 #include <atomic>
 #include <cstdint>
-#include <OffloadAPI.h>
 #include <unordered_set>
 
 #include "adapter.hpp"
@@ -88,7 +88,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
 
   switch (propName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_BACKEND_CUDA); // TODO: Return a proper value
+    return ReturnValue(UR_BACKEND_OFFLOAD);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(Adapter.RefCount.load());
   default:
