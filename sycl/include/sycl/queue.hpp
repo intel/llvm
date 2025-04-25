@@ -86,10 +86,8 @@ public:
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   ext::oneapi::experimental::event_mode_enum &EventMode();
   const ext::oneapi::experimental::event_mode_enum &EventMode() const;
@@ -3620,11 +3618,13 @@ private:
   template <bool UseFallbackAssert, typename PropertiesT>
   event submit_with_event(
       PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
-      [[maybe_unused]] queue *SecondaryQueuePtr,
+      queue *SecondaryQueuePtr,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
+    if (SecondaryQueuePtr)
+      SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
     if constexpr (UseFallbackAssert)
       SI.PostProcessorFunc() =
           [this, &SecondaryQueuePtr,

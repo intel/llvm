@@ -11,7 +11,7 @@
 #include <level_zero/ze_api.h>
 
 // SYCL
-#include "interop-level-zero-buffer-helpers.hpp"
+#include "interop-buffer-helpers.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/interop_handle.hpp>

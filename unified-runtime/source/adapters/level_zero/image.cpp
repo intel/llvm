@@ -75,7 +75,7 @@ ur_result_t urBindlessImagesImageCopyExp(
     UseCopyEngine = false;
   }
 
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 
@@ -131,7 +131,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 
@@ -215,7 +215,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 

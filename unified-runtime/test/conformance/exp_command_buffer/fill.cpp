@@ -109,6 +109,9 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     printFillTestString<urCommandBufferFillCommandsTest>);
 
 TEST_P(urCommandBufferFillCommandsTest, Buffer) {
+  // No buffer read command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
       0, nullptr, &sync_point, nullptr, nullptr));
@@ -128,6 +131,9 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
 }
 
 TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
+  // No buffer read command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
       0, nullptr, &sync_point, nullptr, nullptr));
@@ -149,6 +155,9 @@ TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
 }
 
 TEST_P(urCommandBufferFillCommandsTest, USM) {
+  // No USM fill command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
       cmd_buf_handle, device_ptr, pattern.data(), pattern_size, size, 0,
       nullptr, 0, nullptr, &sync_point, nullptr, nullptr));
