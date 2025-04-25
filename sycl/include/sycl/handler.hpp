@@ -3689,7 +3689,7 @@ private:
 
   template <int Dims>
   static sycl::range<3> padRange(sycl::range<Dims> Range,
-                                 size_t DefaultValue = 0) {
+                                 [[maybe_unused]] size_t DefaultValue = 0) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
