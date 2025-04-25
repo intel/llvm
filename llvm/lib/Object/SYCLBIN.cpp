@@ -133,7 +133,7 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
   }
 }
 
-size_t SYCLBIN::SYCLBINDesc::getMetadataTableByteSize() const noexcept {
+size_t SYCLBIN::SYCLBINDesc::getMetadataTableByteSize() const {
   size_t MetadataTableSize = GlobalMetadata.size();
   for (const SYCLBINDesc::AbstractModuleDesc &AMD : AbstractModuleDescs) {
     MetadataTableSize += AMD.Metadata.size();
@@ -145,7 +145,7 @@ size_t SYCLBIN::SYCLBINDesc::getMetadataTableByteSize() const noexcept {
   return MetadataTableSize;
 }
 
-Expected<size_t> SYCLBIN::SYCLBINDesc::getBinaryTableByteSize() const noexcept {
+Expected<size_t> SYCLBIN::SYCLBINDesc::getBinaryTableByteSize() const {
   size_t BinaryTableSize = 0;
   const auto GetFileSizeAndIncrease =
       [&BinaryTableSize](const StringRef FilePath) -> Error {
@@ -166,7 +166,7 @@ Expected<size_t> SYCLBIN::SYCLBINDesc::getBinaryTableByteSize() const noexcept {
   return BinaryTableSize;
 }
 
-Expected<size_t> SYCLBIN::SYCLBINDesc::getSYCLBINByteSite() const noexcept {
+Expected<size_t> SYCLBIN::SYCLBINDesc::getSYCLBINByteSite() const {
   size_t ByteSize = 0;
   ByteSize +=
       alignTo(sizeof(FileHeaderType), 8) +

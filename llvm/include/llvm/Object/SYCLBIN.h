@@ -49,9 +49,9 @@ public:
     SYCLBINDesc &operator=(const SYCLBINDesc &Other) = delete;
     SYCLBINDesc &operator=(SYCLBINDesc &&Other) = default;
 
-    size_t getMetadataTableByteSize() const noexcept;
-    Expected<size_t> getBinaryTableByteSize() const noexcept;
-    Expected<size_t> getSYCLBINByteSite() const noexcept;
+    size_t getMetadataTableByteSize() const;
+    Expected<size_t> getBinaryTableByteSize() const;
+    Expected<size_t> getSYCLBINByteSite() const;
 
   private:
     struct ImageDesc {
