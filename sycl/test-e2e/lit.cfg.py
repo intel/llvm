@@ -304,7 +304,7 @@ if ps.wait() == 0:
 if config.build_mode == "Debug":
     config.available_features.add("debug_sycl_library")
     # Add /MDd to the build command to make it use the debug library.
-    config.cxx_flags += (" /MDd" if cl_options else " -fms-runtime-lib=dll_dbg")
+    config.cxx_flags += " /MDd" if cl_options else " -fms-runtime-lib=dll_dbg"
 
 # Check for Level Zero SDK
 check_l0_file = "l0_include.cpp"

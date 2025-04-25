@@ -10,15 +10,18 @@ import os
 import subprocess
 import sys
 
+
 def check_file(filepath):
     filename, file_ext = os.path.splitext(entry.name)
-    
+
     # Only consider .dll or .lib files.
     if not (file_ext == ".dll" or file_ext == ".lib"):
         return
 
     has_debug_postfix = filename.endswith("d") or filename.endswith("d-preview")
-    dep_output = subprocess.run(["dumpbin", "/dependents", filepath], shell=False, capture_output=True)
+    dep_output = subprocess.run(
+        ["dumpbin", "/dependents", filepath], shell=False, capture_output=True
+    )
     
     if str(dep_output.stdout).find("ucrtbased.dll"):
         if not has_debug_postfix:
@@ -29,7 +32,7 @@ def check_file(filepath):
             print("Unexpected use of ucrtbase.dll:", filepath)
             sys.exit(1)
 
-if __name__=="__main__":
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Windows UCRT checker utility.")
     parser.add_argument("target_path", type=str)
     args = parser.parse_args()
