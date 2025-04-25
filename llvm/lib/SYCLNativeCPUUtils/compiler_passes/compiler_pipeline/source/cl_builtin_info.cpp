@@ -2635,7 +2635,7 @@ Value *CLBuiltinInfo::emitBuiltinInlinePrintf(BuiltinID, IRBuilder<> &B,
   // Declare printf if needed.
   Function *Printf = M.getFunction("printf");
   if (!Printf) {
-    PointerType *PtrTy = B.getPtrTy(/*AddressSpace=*/0);
+    PointerType *PtrTy = B.getPtrTy(/*AddrSpace=*/0);
     FunctionType *PrintfTy = FunctionType::get(B.getInt32Ty(), {PtrTy}, true);
     Printf =
         Function::Create(PrintfTy, GlobalValue::ExternalLinkage, "printf", &M);
