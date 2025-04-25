@@ -53,11 +53,15 @@ entry:
   %x.addr = alloca i32, align 4
   store i32 %x, ptr %x.addr, align 4
   %0 = load i32, ptr %x.addr, align 4
+; We don't get the convert_char_rtei back, but that's fine because they are
+; functionally equivalent anyway. The rounding information is lost when
+; translating to SPIR-V.
+; CHECK-LLVM: call spir_func i8 @_Z12convert_chari(i32 %[[#]])
+  call spir_func signext i8 @_Z16convert_char_rtei(i32 noundef %0) #1
 ; CHECK-LLVM: %[[Call:[a-z]+]] = sitofp i32 %[[#]] to float
 ; CHECK-LLVM: call spir_func void @_Z18convert_float_func(float %[[Call]])
 ; CHECK-LLVM: call spir_func void @_Z20convert_uint_satfunc(i32 %[[#]])
 ; CHECK-LLVM: call spir_func void @_Z21convert_float_rtzfunc(float %[[Call]])
-  call spir_func signext i8 @_Z16convert_char_rtei(i32 noundef %0) #1
   %call = call spir_func float @_Z13convert_floati(i32 noundef %0) #1
   call spir_func void @_Z18convert_float_func(float noundef %call) #0
   call spir_func void @_Z20convert_uint_satfunc(i32 noundef %0) #0
