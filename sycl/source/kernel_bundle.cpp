@@ -389,8 +389,9 @@ namespace detail {
 /////////////////////////
 
 bool is_source_kernel_bundle_supported(
-    backend BE, sycl::ext::oneapi::experimental::source_language Language,
+    sycl::ext::oneapi::experimental::source_language Language,
     const std::vector<DeviceImplPtr> &DeviceImplVec) {
+  backend BE = DeviceImplVec[0]->getBackend();
   // Support is limited to the opencl and level_zero backends.
   bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
                        (BE == sycl::backend::opencl);
@@ -428,7 +429,7 @@ bool is_source_kernel_bundle_supported(
 }
 
 bool is_source_kernel_bundle_supported(
-    backend BE, sycl::ext::oneapi::experimental::source_language Language,
+    sycl::ext::oneapi::experimental::source_language Language,
     const context &Ctx) {
   const std::vector<sycl::device> Devices = Ctx.get_devices();
   std::vector<DeviceImplPtr> DeviceImplVec;
@@ -439,7 +440,7 @@ bool is_source_kernel_bundle_supported(
                    return sycl::detail::getSyclObjImpl(dev);
                  });
 
-  return is_source_kernel_bundle_supported(BE, Language, DeviceImplVec);
+  return is_source_kernel_bundle_supported(Language, DeviceImplVec);
 }
 
 /////////////////////////
@@ -465,8 +466,7 @@ make_kernel_bundle_from_source(const context &SyclContext,
   for (auto &p : IncludePairViews)
     IncludePairs.push_back({p.first.data(), p.second.data()});
 
-  backend BE = SyclContext.get_backend();
-  if (!is_source_kernel_bundle_supported(BE, Language, SyclContext))
+  if (!is_source_kernel_bundle_supported(Language, SyclContext))
     throw sycl::exception(make_error_code(errc::invalid),
                           "kernel_bundle creation from source not supported");
 
@@ -485,8 +485,7 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
                                          const std::vector<std::byte> &Bytes,
                                          include_pairs_view_t IncludePairs) {
   (void)IncludePairs;
-  backend BE = SyclContext.get_backend();
-  if (!is_source_kernel_bundle_supported(BE, Language, SyclContext))
+  if (!is_source_kernel_bundle_supported(Language, SyclContext))
     throw sycl::exception(make_error_code(errc::invalid),
                           "kernel_bundle creation from source not supported");
 

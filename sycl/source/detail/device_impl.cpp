@@ -895,7 +895,7 @@ bool device_impl::extOneapiCanCompile(
     std::shared_ptr<device_impl> Self =
         MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform);
     return sycl::ext::oneapi::experimental::detail::
-        is_source_kernel_bundle_supported(getBackend(), Language,
+        is_source_kernel_bundle_supported(Language,
                                           std::vector<DeviceImplPtr>{Self});
 
   } catch (sycl::exception &) {

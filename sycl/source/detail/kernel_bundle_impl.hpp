@@ -35,11 +35,11 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
 using DeviceImplPtr = std::shared_ptr<sycl::detail::device_impl>;
 bool is_source_kernel_bundle_supported(
-    sycl::backend BE, sycl::ext::oneapi::experimental::source_language Language,
+    sycl::ext::oneapi::experimental::source_language Language,
     const context &Ctx);
 
 bool is_source_kernel_bundle_supported(
-    sycl::backend BE, sycl::ext::oneapi::experimental::source_language Language,
+    sycl::ext::oneapi::experimental::source_language Language,
     const std::vector<DeviceImplPtr> &Devices);
 } // namespace ext::oneapi::experimental::detail
 
