@@ -11,7 +11,7 @@
 
 #include "common.hpp"
 
-struct ur_sampler_handle_t_ : _ur_object {
+struct ur_sampler_handle_t_ : ur_object {
   ur_sampler_handle_t_(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
 
   // Level Zero sampler handle.
