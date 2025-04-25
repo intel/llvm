@@ -1925,21 +1925,21 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  if (MQueue)
-    return checkContextSupports(MQueue->getContextImplPtr(),
-                                UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  else
-    // Return true when handler_impl is constructed with a graph.
+  // Return true when handler_impl is constructed with a graph.
+  if (!MQueue)
     return true;
+
+  return checkContextSupports(MQueue->getContextImplPtr(),
+                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
 }
 
 bool handler::supportsUSMFill2D() {
-  if (MQueue)
-    return checkContextSupports(MQueue->getContextImplPtr(),
-                                UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  else
-    // Return true when handler_impl is constructed with a graph.
+  // Return true when handler_impl is constructed with a graph.
+  if (!MQueue)
     return true;
+
+  return checkContextSupports(MQueue->getContextImplPtr(),
+                              UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
 }
 
 bool handler::supportsUSMMemset2D() {
