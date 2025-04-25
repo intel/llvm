@@ -1,3 +1,4 @@
+find_package(LLVMGenXIntrinsics QUIET)
 
 add_llvm_library(sycl-jit
    lib/translation/JITContext.cpp

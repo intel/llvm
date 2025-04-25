@@ -1,36 +1,49 @@
 # Lowering of SYCL ESIMD kernels depends on vc-intrinsics
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
-  if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+ find_package(LLVMGenXIntrinsics QUIET)
 
-    # Date: Mar 7, 2025
-    # Update Triple usage after 979c275097
-    set(LLVMGenXIntrinsics_GIT_TAG 9e1935aedc2101deaab45b2f69f4b43ccf6f2b52)
+ if (NOT LLVMGenXIntrinsics_FOUND)
+    if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
+      find_path(LLVMGenXIntrinsics_INCLUDE_DIR GenXIntrinsics/include PATHS ${CMAKE_PREFIX_PATH})
 
-    message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
-    include(FetchContent)
-    FetchContent_Declare(vc-intrinsics
-      GIT_REPOSITORY ${LLVMGenXIntrinsics_GIT_REPO}
-      GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
-    )
-    FetchContent_MakeAvailable(vc-intrinsics)
-    FetchContent_GetProperties(vc-intrinsics)
+      if (NOT LLVMGenXIntrinsics_INCLUDE_DIR)
+        set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    set(LLVMGenXIntrinsics_SOURCE_DIR ${vc-intrinsics_SOURCE_DIR})
-    set(LLVMGenXIntrinsics_BINARY_DIR ${vc-intrinsics_BINARY_DIR})
-  else (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    # -DLLVMGenXIntrinsics_SOURCE_DIR is provided
-    message(STATUS "vc-intrinsics are added manually ${LLVMGenXIntrinsics_SOURCE_DIR}")
+        # Date: Mar 7, 2025
+        # Update Triple usage after 979c275097
+        set(LLVMGenXIntrinsics_GIT_TAG 9e1935aedc2101deaab45b2f69f4b43ccf6f2b52)
 
-    set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
-    add_subdirectory(${LLVMGenXIntrinsics_SOURCE_DIR} ${LLVMGenXIntrinsics_BINARY_DIR})
-  endif (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
+        message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
+        include(FetchContent)
+        FetchContent_Declare(vc-intrinsics
+          GIT_REPOSITORY ${LLVMGenXIntrinsics_GIT_REPO}
+          GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
+        )
+        FetchContent_MakeAvailable(vc-intrinsics)
+        FetchContent_GetProperties(vc-intrinsics)
 
-  target_include_directories(LLVMGenXIntrinsics
-    PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include>
-    PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include>
+        set(LLVMGenXIntrinsics_SOURCE_DIR ${vc-intrinsics_SOURCE_DIR})
+        set(LLVMGenXIntrinsics_BINARY_DIR ${vc-intrinsics_BINARY_DIR})
+      else()
+        message(STATUS "vc-intrinsics found in system at ${LLVMGenXIntrinsics_INCLUDE_DIR}")
+        set(LLVMGenXIntrinsics_SOURCE_DIR ${LLVMGenXIntrinsics_INCLUDE_DIR}/..)
+        set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
+        add_subdirectory(${LLVMGenXIntrinsics_SOURCE_DIR} ${LLVMGenXIntrinsics_BINARY_DIR})
+      endif()
+    else (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
+      # -DLLVMGenXIntrinsics_SOURCE_DIR is provided
+      message(STATUS "vc-intrinsics are added manually ${LLVMGenXIntrinsics_SOURCE_DIR}")
+
+      set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
+      add_subdirectory(${LLVMGenXIntrinsics_SOURCE_DIR} ${LLVMGenXIntrinsics_BINARY_DIR})
+    endif (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
+    target_include_directories(LLVMGenXIntrinsics
+      PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include>
+      PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include>
   )
+  endif()
+
 endif (NOT TARGET LLVMGenXIntrinsics)
 
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics_SOURCE_DIR})
