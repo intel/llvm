@@ -663,7 +663,11 @@ available_devices = {
 }
 for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
-    if be not in available_devices or dev not in available_devices[be]:
+    # Verify platform
+    if be not in available_devices:
+        lit_config.error("Unsupported device {}".format(d))
+    # Verify device from available_devices or accept device number
+    if dev not in available_devices[be] and not dev.isnumeric():
         lit_config.error("Unsupported device {}".format(d))
 
 if "cuda:gpu" in config.sycl_devices:
