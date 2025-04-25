@@ -832,7 +832,7 @@ ur_result_t urEnqueueMemBufferWrite(
           hQueue, Events.size(), Events.data(), phEvent));
     }
 
-    for (auto &E : Events)
+    for (const auto &E : Events)
       UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
   } else {
     UR_CALL(pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size,
@@ -1033,7 +1033,7 @@ ur_result_t urEnqueueMemBufferCopy(
           hQueue, Events.size(), Events.data(), phEvent));
     }
 
-    for (auto &E : Events)
+    for (const auto &E : Events)
       UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
   } else {
     UR_CALL(pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
@@ -1166,7 +1166,7 @@ ur_result_t urEnqueueMemBufferFill(
           hQueue, Events.size(), Events.data(), phEvent));
     }
 
-    for (auto &E : Events)
+    for (const auto &E : Events)
       UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
   } else {
     UR_CALL(pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset,
@@ -1496,7 +1496,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
         hQueue, Events.size(), Events.data(), phEvent));
   }
 
-  for (auto &E : Events)
+  for (const auto &E : Events)
     UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
 
   return UR_RESULT_SUCCESS;
@@ -1570,7 +1570,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         hQueue, Events.size(), Events.data(), phEvent));
   }
 
-  for (auto &E : Events)
+  for (const auto &E : Events)
     UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
 
   return UR_RESULT_SUCCESS;
@@ -1636,7 +1636,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
         hQueue, Events.size(), Events.data(), phEvent));
   }
 
-  for (auto &E : Events)
+  for (const auto &E : Events)
     UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
 
   return UR_RESULT_SUCCESS;
@@ -1721,7 +1721,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         hQueue, Events.size(), Events.data(), phEvent));
   }
 
-  for (auto &E : Events)
+  for (const auto &E : Events)
     UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
 
   return UR_RESULT_SUCCESS;
