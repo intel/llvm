@@ -952,7 +952,7 @@ void computeFuncCategoryFromIntegersListMetadata(const Function &F,
   Result += "-";
 }
 
-void computeFuncCategoryFromUsedAspects(const Function &F,
+void computeFuncCategoryFromSYCLUsedAspects(const Function &F,
                                         SmallString<256> &Result) {
   if (const MDNode *UsedAspects = F.getMetadata("sycl_used_aspects")) {
     SmallVector<std::uint64_t, 8> Values;
@@ -995,7 +995,7 @@ std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
   // of output files in existing tests.
   computeFuncCategoryFromAttribute(F, "sycl-register-alloc-mode", Result);
   computeFuncCategoryFromAttribute(F, "sycl-grf-size", Result);
-  computeFuncCategoryFromUsedAspects(F, Result);
+  computeFuncCategoryFromSYCLUsedAspects(F, Result);
   computeFuncCategoryFromIntegersListMetadata(F, "reqd_work_group_size",
                                               Result);
   computeFuncCategoryFromIntegersListMetadata(F, "work_group_num_dim", Result);
