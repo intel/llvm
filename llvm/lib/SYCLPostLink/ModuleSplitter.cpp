@@ -953,7 +953,7 @@ void computeFuncCategoryFromIntegersListMetadata(const Function &F,
 }
 
 void computeFuncCategoryFromSYCLUsedAspects(const Function &F,
-                                        SmallString<256> &Result) {
+                                           SmallString<256> &Result) {
   if (const MDNode *UsedAspects = F.getMetadata("sycl_used_aspects")) {
     SmallVector<std::uint64_t, 8> Values;
     for (const MDOperand &MDOp : UsedAspects->operands()) {
