@@ -974,6 +974,10 @@ void computeFuncCategoryFromUsedAspects(const Function &F,
   Result += "-";
 }
 
+/// The function computes a string category for the given \p F.
+/// The categories are used to separate functions during the splitting
+/// meaning if functions get different categories they shouldn't end up
+/// in the same split module.
 std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
   SmallString<256> Result;
   computeFuncCategoryFromAttribute(F, sycl::utils::ATTR_SYCL_MODULE_ID, Result);
