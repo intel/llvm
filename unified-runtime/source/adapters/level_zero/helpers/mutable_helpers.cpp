@@ -109,8 +109,8 @@ ur_result_t updateKernelSizes(
     const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
     kernel_command_handle *command, void **nextDesc,
     ze_group_count_t &zeThreadGroupDimensionsList,
-    std::function<ur_result_t(ur_kernel_handle_t, ze_kernel_handle_t &)>
-        getZeKernel,
+    ur_result_t (*getZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
+                               ur_device_handle_t),
     ur_device_handle_t device, desc_storage_t &descs) {
   uint32_t dim = commandDesc.newWorkDim;
   // Update global offset if provided.
@@ -161,7 +161,7 @@ ur_result_t updateKernelSizes(
     bool updateWGSize = newLocalWorkSize == nullptr;
 
     ze_kernel_handle_t zeKernel{};
-    UR_CALL(getZeKernel(command->kernel, zeKernel));
+    UR_CALL(getZeKernel(command->kernel, zeKernel, device));
 
     uint32_t workgroupSize[3];
 
@@ -192,10 +192,12 @@ ur_result_t updateKernelSizes(
 ur_result_t updateKernelArguments(
     const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
     kernel_command_handle *command, void **nextDesc,
-    std::function<ur_result_t(
-        ur_mem_handle_t, const ur_kernel_arg_mem_obj_properties_t *, char **&)>
-        getMemPtr,
-    desc_storage_t &descs) {
+    ur_result_t (*getMemPtr)(ur_mem_handle_t,
+                             const ur_kernel_arg_mem_obj_properties_t *,
+                             char **&, ur_device_handle_t,
+                             device_ptr_storage_t *),
+    ur_device_handle_t device, desc_storage_t &descs,
+    device_ptr_storage_t *ptrStorage) {
   for (uint32_t newMemObjArgNum = commandDesc.numNewMemObjArgs;
        newMemObjArgNum-- > 0;) {
     ur_exp_command_buffer_update_memobj_arg_desc_t newMemObjArgDesc =
@@ -214,7 +216,7 @@ ur_result_t updateKernelArguments(
       const ur_kernel_arg_mem_obj_properties_t *properties =
           newMemObjArgDesc.pProperties;
 
-      getMemPtr(newMemObjArg, properties, zeHandlePtr);
+      getMemPtr(newMemObjArg, properties, zeHandlePtr, device, ptrStorage);
     }
 
     UR_CALL(setMutableMemObjArgDesc(zeMutableArgDesc, newMemObjArgDesc.argIndex,
@@ -259,15 +261,17 @@ ur_result_t updateKernelArguments(
 }
 
 } // namespace
-ur_result_t updateKernelHandle(
-    ur_kernel_handle_t NewKernel,
-    std::function<ur_result_t(ur_kernel_handle_t, ze_kernel_handle_t &)>
-        getZeKernel,
-    ur_platform_handle_t Platform, ze_command_list_handle_t ZeCommandList,
-    kernel_command_handle *Command) {
+ur_result_t updateKernelHandle(ur_kernel_handle_t NewKernel,
+                               ur_result_t (*GetZeKernel)(ur_kernel_handle_t,
+                                                          ze_kernel_handle_t &,
+                                                          ur_device_handle_t),
+                               ur_device_handle_t Device,
+                               ur_platform_handle_t Platform,
+                               ze_command_list_handle_t ZeCommandList,
+                               kernel_command_handle *Command) {
   ze_kernel_handle_t KernelHandle{};
   ze_kernel_handle_t ZeNewKernel{};
-  UR_CALL(getZeKernel(NewKernel, ZeNewKernel));
+  UR_CALL(GetZeKernel(NewKernel, ZeNewKernel, Device));
 
   KernelHandle = ZeNewKernel;
   if (!Platform->ZeMutableCmdListExt.LoaderExtension) {
@@ -284,15 +288,15 @@ ur_result_t updateKernelHandle(
 }
 
 ur_result_t updateCommandBufferUnlocked(
-    std::function<ur_result_t(ur_kernel_handle_t, ze_kernel_handle_t &)>
-        GetZeKernel,
-    std::function<
-        ur_result_t(ur_mem_handle_t MemObj,
-                    const ur_kernel_arg_mem_obj_properties_t *Properties,
-                    char **&ZeHandlePtr)>
-        GetMemPtr,
+    ur_result_t (*GetZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
+                               ur_device_handle_t),
+    ur_result_t (*GetMemPtr)(ur_mem_handle_t,
+                             const ur_kernel_arg_mem_obj_properties_t *,
+                             char **&, ur_device_handle_t,
+                             device_ptr_storage_t *),
     ze_command_list_handle_t ZeCommandList, ur_platform_handle_t Platform,
-    ur_device_handle_t Device, uint32_t NumKernelUpdates,
+    ur_device_handle_t Device, device_ptr_storage_t *PtrStorage,
+    uint32_t NumKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDescs) {
 
   // We need the created descriptors to live till the point when
@@ -319,14 +323,15 @@ ur_result_t updateCommandBufferUnlocked(
 
     ur_kernel_handle_t NewKernel = CommandDesc.hNewKernel;
     if (NewKernel && Command->kernel != NewKernel) {
-      updateKernelHandle(NewKernel, GetZeKernel, Platform, ZeCommandList,
-                         Command);
+      updateKernelHandle(NewKernel, GetZeKernel, Device, Platform,
+                         ZeCommandList, Command);
     }
 
     updateKernelSizes(CommandDesc, Command, &NextDesc,
                       ZeThreadGroupDimensionsList[i], GetZeKernel, Device,
                       Descs);
-    updateKernelArguments(CommandDesc, Command, &NextDesc, GetMemPtr, Descs);
+    updateKernelArguments(CommandDesc, Command, &NextDesc, GetMemPtr, Device,
+                          Descs, PtrStorage);
   }
 
   ZeStruct<ze_mutable_commands_exp_desc_t> MutableCommandDesc{};
@@ -428,7 +433,7 @@ ur_result_t validateCommandDescUnlocked(
  * @param[in] NumKernelAlternatives Number of kernel alternatives.
  * @param[in] KernelAlternatives List of kernel alternatives.
  * @param[in] Platform The platform associated with the new command.
- * @param[in] getZeKernel Function to get the ze kernel handle.
+ * @param[in] GetZeKernel Function to get the ze kernel handle.
  * @param[out] Command The handle to the new command.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
@@ -438,8 +443,9 @@ ur_result_t createCommandHandleUnlocked(
     uint32_t WorkDim, const size_t *GlobalWorkSize,
     uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives,
     ur_platform_handle_t Platform,
-    std::function<ur_result_t(ur_kernel_handle_t, ze_kernel_handle_t &)>
-        getZeKernel,
+    ur_result_t (*GetZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
+                               ur_device_handle_t),
+    ur_device_handle_t Device,
     std::unique_ptr<kernel_command_handle> &Command) {
 
   for (uint32_t i = 0; i < NumKernelAlternatives; ++i) {
@@ -464,7 +470,7 @@ ur_result_t createCommandHandleUnlocked(
                                                   nullptr);
 
     ze_kernel_handle_t ZeMainKernel{};
-    UR_CALL(getZeKernel(Kernel, ZeMainKernel));
+    UR_CALL(GetZeKernel(Kernel, ZeMainKernel, Device));
 
     if (Platform->ZeMutableCmdListExt.LoaderExtension) {
       KernelHandles[0] = ZeMainKernel;
@@ -477,7 +483,7 @@ ur_result_t createCommandHandleUnlocked(
 
     for (size_t i = 0; i < NumKernelAlternatives; i++) {
       ze_kernel_handle_t ZeAltKernel{};
-      UR_CALL(getZeKernel(KernelAlternatives[i], ZeAltKernel));
+      UR_CALL(GetZeKernel(KernelAlternatives[i], ZeAltKernel, Device));
 
       if (Platform->ZeMutableCmdListExt.LoaderExtension) {
         KernelHandles[i + 1] = ZeAltKernel;

@@ -25,6 +25,51 @@ https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-ze
 
 namespace {
 
+ur_result_t
+getMemoryAccessType(const ur_kernel_arg_mem_obj_properties_t *Properties,
+                    ur_mem_handle_t_::access_mode_t &UrAccessMode) {
+  UrAccessMode = ur_mem_handle_t_::read_write;
+  if (Properties) {
+    switch (Properties->memoryAccess) {
+    case UR_MEM_FLAG_READ_WRITE:
+      UrAccessMode = ur_mem_handle_t_::read_write;
+      break;
+    case UR_MEM_FLAG_WRITE_ONLY:
+      UrAccessMode = ur_mem_handle_t_::write_only;
+      break;
+    case UR_MEM_FLAG_READ_ONLY:
+      UrAccessMode = ur_mem_handle_t_::read_only;
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t getZeKernelWrapped(ur_kernel_handle_t Kernel,
+                               ze_kernel_handle_t &ZeKernel,
+                               ur_device_handle_t Device) {
+  ze_kernel_handle_t Tmp{};
+  UR_CALL(getZeKernel(Device->ZeDevice, Kernel, &Tmp));
+  ZeKernel = Tmp;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t getMemPtr(ur_mem_handle_t MemObj,
+                      const ur_kernel_arg_mem_obj_properties_t *Properties,
+                      char **&ZeHandlePtr, ur_device_handle_t Device,
+                      device_ptr_storage_t *) {
+  ur_mem_handle_t_::access_mode_t UrAccessMode;
+  UR_CALL(getMemoryAccessType(Properties, UrAccessMode));
+
+  if (MemObj) {
+    UR_CALL(
+        MemObj->getZeHandlePtr(ZeHandlePtr, UrAccessMode, Device, nullptr, 0u));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
 // Checks whether zeCommandListImmediateAppendCommandListsExp can be used for a
 // given Context and Device.
 bool checkImmediateAppendSupport(ur_context_handle_t Context,
@@ -67,28 +112,6 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
   // Immediate Append path is temporarily disabled until related issues are
   // fixed.
   return false;
-}
-
-ur_result_t
-getMemoryAccessType(const ur_kernel_arg_mem_obj_properties_t *Properties,
-                    ur_mem_handle_t_::access_mode_t &UrAccessMode) {
-  UrAccessMode = ur_mem_handle_t_::read_write;
-  if (Properties) {
-    switch (Properties->memoryAccess) {
-    case UR_MEM_FLAG_READ_WRITE:
-      UrAccessMode = ur_mem_handle_t_::read_write;
-      break;
-    case UR_MEM_FLAG_WRITE_ONLY:
-      UrAccessMode = ur_mem_handle_t_::write_only;
-      break;
-    case UR_MEM_FLAG_READ_ONLY:
-      UrAccessMode = ur_mem_handle_t_::read_only;
-      break;
-    default:
-      return UR_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-  }
-  return UR_RESULT_SUCCESS;
 }
 // Checks whether counter based events are supported for a given Device.
 bool checkCounterBasedEventsSupport(ur_device_handle_t Device) {
@@ -1028,24 +1051,17 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   if (Command) {
     assert(CommandBuffer->IsUpdatable);
     auto Platform = CommandBuffer->Context->getPlatform();
-    auto Device = CommandBuffer->Device;
     ze_command_list_handle_t ZeCommandList =
         CommandBuffer->ZeComputeCommandListTranslated;
     if (Platform->ZeMutableCmdListExt.LoaderExtension) {
       ZeCommandList = CommandBuffer->ZeComputeCommandList;
     }
-    auto getZeKernelWrapped = [&](ur_kernel_handle_t Kernel,
-                                  ze_kernel_handle_t &ZeKernel) {
-      ze_kernel_handle_t Tmp{};
-      UR_CALL(getZeKernel(Device->ZeDevice, Kernel, &Tmp));
-      ZeKernel = Tmp;
-      return UR_RESULT_SUCCESS;
-    };
+
     std::unique_ptr<kernel_command_handle> NewCommand;
     UR_CALL(createCommandHandleUnlocked(
         CommandBuffer, ZeCommandList, Kernel, WorkDim, GlobalWorkSize,
         NumKernelAlternatives, KernelAlternatives, Platform, getZeKernelWrapped,
-        NewCommand));
+        Device, NewCommand));
     *Command = NewCommand.get();
     CommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   }
@@ -1761,30 +1777,10 @@ ur_result_t updateCommandBuffer(
   if (Platform->ZeMutableCmdListExt.LoaderExtension) {
     ZeCommandList = CommandBuffer->ZeComputeCommandList;
   }
-  auto GetZeKernelWrapped = [&](ur_kernel_handle_t Kernel,
-                                ze_kernel_handle_t &ZeKernel) {
-    ze_kernel_handle_t Tmp{};
-    UR_CALL(getZeKernel(CommandBuffer->Device->ZeDevice, Kernel, &Tmp));
-    ZeKernel = Tmp;
-    return UR_RESULT_SUCCESS;
-  };
 
-  auto GetMemPtr = [&](ur_mem_handle_t MemObj,
-                       const ur_kernel_arg_mem_obj_properties_t *Properties,
-                       char **&ZeHandlePtr) {
-    ur_mem_handle_t_::access_mode_t UrAccessMode;
-    UR_CALL(getMemoryAccessType(Properties, UrAccessMode));
-
-    if (MemObj) {
-      UR_CALL(MemObj->getZeHandlePtr(ZeHandlePtr, UrAccessMode,
-                                     CommandBuffer->Device, nullptr, 0u));
-    }
-
-    return UR_RESULT_SUCCESS;
-  };
   UR_CALL(updateCommandBufferUnlocked(
-      GetZeKernelWrapped, GetMemPtr, ZeCommandList, Platform,
-      CommandBuffer->Device, NumKernelUpdates, CommandDescs));
+      getZeKernelWrapped, getMemPtr, ZeCommandList, Platform,
+      CommandBuffer->Device, nullptr, NumKernelUpdates, CommandDescs));
 
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
 

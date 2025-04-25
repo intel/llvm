@@ -19,16 +19,18 @@
 #include "logger/ur_logger.hpp"
 #include <ur/ur.hpp>
 
+using device_ptr_storage_t = std::vector<std::unique_ptr<char *>>;
+
 ur_result_t updateCommandBufferUnlocked(
-    std::function<ur_result_t(ur_kernel_handle_t, ze_kernel_handle_t &)>
-        GetZeKernel,
-    std::function<
-        ur_result_t(ur_mem_handle_t MemObj,
-                    const ur_kernel_arg_mem_obj_properties_t *Properties,
-                    char **&ZeHandlePtr)>
-        GetMemPtr,
+    ur_result_t (*getZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
+                               ur_device_handle_t),
+    ur_result_t (*GetMemPtr)(ur_mem_handle_t,
+                             const ur_kernel_arg_mem_obj_properties_t *,
+                             char **&, ur_device_handle_t,
+                             device_ptr_storage_t *),
     ze_command_list_handle_t ZeCommandList, ur_platform_handle_t Platform,
-    ur_device_handle_t Device, uint32_t NumKernelUpdates,
+    ur_device_handle_t Device, device_ptr_storage_t *PtrStorage,
+    uint32_t NumKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDescs);
 
 ur_result_t validateCommandDescUnlocked(
@@ -42,6 +44,6 @@ ur_result_t createCommandHandleUnlocked(
     uint32_t WorkDim, const size_t *GlobalWorkSize,
     uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives,
     ur_platform_handle_t Platform,
-    std::function<ur_result_t(ur_kernel_handle_t, ze_kernel_handle_t &)>
-        getZeKernel,
-    std::unique_ptr<kernel_command_handle> &Command);
+    ur_result_t (*getZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
+                               ur_device_handle_t),
+    ur_device_handle_t Device, std::unique_ptr<kernel_command_handle> &Command);

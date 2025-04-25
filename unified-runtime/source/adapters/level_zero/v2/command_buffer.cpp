@@ -17,6 +17,39 @@
 
 namespace {
 
+ur_result_t getZeKernelWrapped(ur_kernel_handle_t kernel,
+                               ze_kernel_handle_t &zeKernel,
+                               ur_device_handle_t device) {
+  zeKernel = kernel->getZeHandle(device);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t getMemPtr(ur_mem_handle_t memObj,
+                      const ur_kernel_arg_mem_obj_properties_t *properties,
+                      char **&zeHandlePtr, ur_device_handle_t device,
+                      device_ptr_storage_t *ptrStorage) {
+  char *ptr;
+  if (memObj->isImage()) {
+    auto imageObj = memObj->getImage();
+    ptr = reinterpret_cast<char *>(imageObj->getZeImage());
+  } else {
+    auto memBuffer = memObj->getBuffer();
+    auto urAccessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
+    if (properties != nullptr) {
+      urAccessMode =
+          ur_mem_buffer_t::getDeviceAccessMode(properties->memoryAccess);
+    }
+    ptr = ur_cast<char *>(
+        memBuffer->getDevicePtr(device, urAccessMode, 0, memBuffer->getSize(),
+                                [&](void *, void *, size_t) {}));
+  }
+  assert(ptrStorage != nullptr);
+  ptrStorage->push_back(std::make_unique<char *>(ptr));
+  zeHandlePtr = (*ptrStorage)[ptrStorage->size() - 1].get();
+
+  return UR_RESULT_SUCCESS;
+}
+
 // Checks whether zeCommandListImmediateAppendCommandListsExp can be used for a
 // given context.
 void checkImmediateAppendSupport(ur_context_handle_t context) {
@@ -49,16 +82,11 @@ ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
   auto platform = context->getPlatform();
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
-  auto getZeKernelWrapped = [&](ur_kernel_handle_t kernel,
-                                ze_kernel_handle_t &zeKernel) {
-    zeKernel = kernel->getZeHandle(device);
-    return UR_RESULT_SUCCESS;
-  };
   std::unique_ptr<kernel_command_handle> newCommand;
   UR_CALL(createCommandHandleUnlocked(this, zeCommandList, hKernel, workDim,
                                       pGlobalWorkSize, numKernelAlternatives,
                                       kernelAlternatives, platform,
-                                      getZeKernelWrapped, newCommand));
+                                      getZeKernelWrapped, device, newCommand));
   *command = newCommand.get();
 
   commandHandles.push_back(std::move(newCommand));
@@ -118,45 +146,14 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     currentExecution = nullptr;
   }
 
-  auto getZeKernelWrapped = [&](ur_kernel_handle_t kernel,
-                                ze_kernel_handle_t &zeKernel) {
-    zeKernel = kernel->getZeHandle(device);
-    return UR_RESULT_SUCCESS;
-  };
   device_ptr_storage_t zeHandles;
-  auto getMemPtr = [&](ur_mem_handle_t memObj,
-                       const ur_kernel_arg_mem_obj_properties_t *properties,
-                       char **&zeHandlePtr) {
-    char *ptr;
-    if (memObj->isImage()) {
-      auto imageObj = memObj->getImage();
-      ptr = reinterpret_cast<char *>(imageObj->getZeImage());
-    } else {
-      auto memBuffer = memObj->getBuffer();
-      auto urAccessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
-      if (properties != nullptr) {
-        urAccessMode =
-            ur_mem_buffer_t::getDeviceAccessMode(properties->memoryAccess);
-      }
-      ptr = ur_cast<char *>(memBuffer->getDevicePtr(
-          device, urAccessMode, 0, memBuffer->getSize(),
-          [&](void *src, void *dst, size_t size) {
-            ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                              (commandListLocked->getZeCommandList(), dst, src,
-                               size, nullptr, 0, nullptr));
-          }));
-    }
-    zeHandles.push_back(std::make_unique<char *>(ptr));
-    zeHandlePtr = zeHandles[zeHandles.size() - 1].get();
-    return UR_RESULT_SUCCESS;
-  };
 
   auto platform = context->getPlatform();
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
-  UR_CALL(updateCommandBufferUnlocked(getZeKernelWrapped, getMemPtr,
-                                      zeCommandList, platform, device,
-                                      numUpdateCommands, updateCommands));
+  UR_CALL(updateCommandBufferUnlocked(
+      getZeKernelWrapped, getMemPtr, zeCommandList, platform, device,
+      &zeHandles, numUpdateCommands, updateCommands));
   ZE2UR_CALL(zeCommandListClose, (zeCommandList));
 
   return UR_RESULT_SUCCESS;
