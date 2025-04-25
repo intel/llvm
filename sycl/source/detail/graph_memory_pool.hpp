@@ -64,10 +64,10 @@ public:
   /// memory before use by calling allocateAndMapAll()
   /// @param Size Size of the allocation
   /// @param AllocType Type of the allocation
-  /// @param MemPool Option memory pool from which allocations will not be made
-  /// from directly but properties may be respected.
+  /// @param MemPool Optional memory pool from which allocations will not be
+  /// made directly but properties may be respected.
   /// @return A pointer to the start of the allocation
-  void *malloc(size_t &Size, usm::alloc AllocType,
+  void *malloc(size_t Size, usm::alloc AllocType,
                const std::shared_ptr<memory_pool_impl> &MemPool = nullptr) {
     void *Alloc = nullptr;
     switch (AllocType) {
@@ -101,8 +101,6 @@ public:
       }
 
       MAllocations[Alloc] = AllocInfo;
-      // Modify Size parameter as caller may need to know the adjusted size
-      Size = AlignedSize;
       break;
     }
 
@@ -188,7 +186,10 @@ public:
 
 private:
   /// Returns an aligned byte size given a required granularity
-  size_t alignByteSize(size_t UnalignedByteSize, size_t Granularity) {
+  /// @param UnalignedByteSize The original requested allocation size
+  /// @param Granularity The required granularity for this allocation
+  /// @returns The aligned size
+  static size_t alignByteSize(size_t UnalignedByteSize, size_t Granularity) {
     return ((UnalignedByteSize + Granularity - 1) / Granularity) * Granularity;
   }
 

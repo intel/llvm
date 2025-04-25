@@ -1824,7 +1824,7 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
   if (impl->getMemPool().hasAllocations() && impl->getExecGraphCount() > 0) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Graphs containing allocations can only have a "
-                          "single executable graph alive at any onc time.");
+                          "single executable graph alive at any one time.");
   }
 
   return command_graph<graph_state::executable>{

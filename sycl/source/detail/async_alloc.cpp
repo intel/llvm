@@ -55,8 +55,6 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
   ur_event_handle_t Event = nullptr;
   // If a graph is present do the allocation from the graph memory pool instead.
   if (auto Graph = h.getCommandGraph(); Graph) {
-    // size may be modified to reflect the aligned size based on device
-    // granularity.
     alloc = Graph->getMemPool().malloc(size, kind);
   } else {
     auto &Q = h.MQueue->getHandleRef();
@@ -106,8 +104,6 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
   ur_event_handle_t Event = nullptr;
   // If a graph is present do the allocation from the graph memory pool instead.
   if (auto Graph = h.getCommandGraph(); Graph) {
-    // size may be modified to reflect the aligned size based on device
-    // granularity.
     // Memory pool is passed as the graph may use some properties of it.
     alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(),
                                        sycl::detail::getSyclObjImpl(pool));
