@@ -578,7 +578,7 @@ event handler::finalize() {
           LastEventImpl->getPreparedDepsEvents() =
               std::move(impl->CGData.MEvents);
           // LastEventImpl is local for current thread, no need to lock
-          LastEventImpl->cleanDepEventsThroughOneLevel();
+          LastEventImpl->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
       return MLastEvent;
