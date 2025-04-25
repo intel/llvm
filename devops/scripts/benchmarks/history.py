@@ -60,7 +60,6 @@ class BenchmarkHistory:
         self.runs = benchmark_runs
 
     def create_run(self, name: str, results: list[Result]) -> BenchmarkRun:
-
         def git_info_from_path(path: Path) -> (str, str):
             """
             Derives git repo, commit information from git repo located in path.
