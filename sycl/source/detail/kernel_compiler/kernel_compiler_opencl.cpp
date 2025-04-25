@@ -82,38 +82,35 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 
   // attemptLoad() sets OclocLibrary value by side effect.
   auto attemptLoad = [&](std::string path) {
-    void *tempPtr = OclocLibrary.get();
-    if (tempPtr == nullptr) {
-      // Try loading from absolute path.  Make sure it's ok.
-      // Every statement here throws.
-      try {
-        tempPtr = sycl::detail::ur::loadOsLibrary(path);
-        OclocLibrary.reset(tempPtr);
+    void *tempPtr;
+    try {
+      // Load then perform checks. Each check throws.
+      tempPtr = sycl::detail::ur::loadOsLibrary(path);
+      OclocLibrary.reset(tempPtr);
 
-        if (tempPtr == nullptr)
-          throw sycl::exception(make_error_code(errc::build),
-                                "Unable to load ocloc from " + path);
+      if (tempPtr == nullptr)
+        throw sycl::exception(make_error_code(errc::build),
+                              "Unable to load ocloc from " + path);
 
-        checkOclocLibrary(tempPtr);
+      checkOclocLibrary(tempPtr);
 
-        InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
-      } catch (const sycl::exception &) {
-        tempPtr = nullptr;
-        OclocLibrary.reset(tempPtr);
-      }
+      InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+    } catch (const sycl::exception &) {
+      tempPtr = nullptr;
+      OclocLibrary.reset(tempPtr);
     }
+
     return tempPtr;
   };
 
-  // Load and exit.
+  // Attempt to load each, exiting as soon as we find compatible ocloc.
   for (auto path : OclocPaths) {
     void *tempPtr = attemptLoad(path);
     if (tempPtr != nullptr)
       return;
   }
 
-  // If we haven't exited during the for loop, then we throw to indicate
-  // failure.
+  // If we haven't exited yet, then throw to indicate failure.
   throw sycl::exception(make_error_code(errc::build), "Unable to load ocloc");
 }
 
