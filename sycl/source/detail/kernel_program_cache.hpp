@@ -238,7 +238,8 @@ public:
 
   class FastKernelCacheWrapper {
   public:
-    FastKernelCacheWrapper(void **HintPtr) : MHintPtr{HintPtr} {
+    FastKernelCacheWrapper(void **HintPtr, ur_context_handle_t UrContext)
+        : MHintPtr{HintPtr}, MUrContext{UrContext} {
       if (!MHintPtr) {
         MCache = new FastKernelSubcacheT();
         return;
@@ -267,6 +268,16 @@ public:
     };
 
     ~FastKernelCacheWrapper() {
+      // TODO: do we need lock for Subcache?
+      // Single subcache might be used by different contexts
+      for (auto it = MCache->begin(); it != MCache->end();) {
+        if (it->first.second == MUrContext) {
+          it = MCache->erase(it);
+        } else {
+          ++it;
+        }
+      }
+
       if (!MHintPtr) {
         delete MCache;
         return;
@@ -278,6 +289,7 @@ public:
   private:
     void **MHintPtr;
     FastKernelSubcacheT *MCache = nullptr;
+    ur_context_handle_t MUrContext = nullptr;
   };
 
   using FastKernelCacheT =
@@ -469,7 +481,8 @@ public:
         KernelCacheHint ? static_cast<FastKernelSubcacheT *>(*KernelCacheHint)
                         : nullptr;
     if (!KernelSubcache) {
-      auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint);
+      auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint,
+                                             getURContext());
       KernelSubcache = &It.first->second.get();
     }
 
@@ -502,7 +515,8 @@ public:
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", KernelName, true);
-    auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint);
+    auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint,
+                                           getURContext());
     FastKernelSubcacheT &KernelSubcache = It.first->second.get();
     ur_context_handle_t Context = getURContext();
     KernelSubcache.emplace(FastKernelCacheKeyT(Device, Context),
@@ -698,21 +712,6 @@ public:
     KernelFastCacheWriteLockT L3(MFastKernelCacheMutex);
     MCachedPrograms = ProgramCache{};
     MKernelsPerProgramCache = KernelCacheT{};
-
-    // Need to remove acrual kernel handles
-    for (auto &[KernelName, KernelCache] : MFastKernelCache) {
-      FastKernelSubcacheT &KernelSubcache = KernelCache.get();
-      // TODO: do we need lock for Subcache?
-      // Single subcache might be used by different contexts
-      for (auto it = KernelSubcache.begin(); it != KernelSubcache.end();) {
-        if (it->first.second == getURContext()) {
-          it = KernelSubcache.erase(it);
-        } else {
-          ++it;
-        }
-      }
-    }
-
     MFastKernelCache = FastKernelCacheT{};
     MProgramToKernelFastCacheKeyMap.clear();
     // Clear the eviction lists and its mutexes.
