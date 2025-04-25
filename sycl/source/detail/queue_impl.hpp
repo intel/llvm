@@ -264,7 +264,17 @@ public:
       destructorNotification();
 #endif
       throw_asynchronous();
-      getAdapter()->call<UrApiKind::urQueueRelease>(MQueue);
+      auto status =
+          getAdapter()->call_nocheck<UrApiKind::urQueueRelease>(MQueue);
+      // If loader is already closed, it'll return a not-initialized status
+      // which the UR should convert to SUCCESS code. But that isn't always
+      // working on Windows. This is a temporary workaround until that is fixed.
+      // TODO: Remove this workaround when UR is fixed, and restore
+      // ->call<>() instead of ->call_nocheck<>() above.
+      if (status != UR_RESULT_SUCCESS &&
+          status != UR_RESULT_ERROR_UNINITIALIZED) {
+        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -365,15 +375,9 @@ public:
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
-    event ResEvent;
-    if (SubmitInfo.SecondaryQueue())
-      ResEvent =
-          submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
-                      /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
-    else
-      ResEvent =
-          submit_impl(CGF, Self, nullptr,
-                      /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+    event ResEvent =
+        submit_impl(CGF, Self, Self, SubmitInfo.SecondaryQueue(),
+                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
   }
 
@@ -382,12 +386,8 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    if (SubmitInfo.SecondaryQueue())
-      submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
-                  /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
-    else
-      submit_impl(CGF, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                  IsTopCodeLoc, SubmitInfo);
+    submit_impl(CGF, Self, Self, SubmitInfo.SecondaryQueue(),
+                /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
