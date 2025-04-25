@@ -17,7 +17,7 @@
 //
 // Example usage:
 //
-// auto Info = new AllocDeleterCallbackInfoIntel(USMFreeFuncPtr, Context,
+// auto Info = new AllocDeleterCallbackInfoUSM(USMFreeFuncPtr, Context,
 // Allocation); clSetEventCallback(USMOpEvent, CL_COMPLETE,
 // AllocDeleterCallback, Info);
 
@@ -49,20 +49,20 @@ struct AllocDeleterCallbackInfo : AllocDeleterCallbackInfoBase {
   ~AllocDeleterCallbackInfo() override { delete[] Allocation; }
 };
 
-struct AllocDeleterCallbackInfoIntel : AllocDeleterCallbackInfoBase {
-  AllocDeleterCallbackInfoIntel(clMemBlockingFreeINTEL_fn USMFree,
-                                cl_context CLContext, uint8_t *Allocation)
+struct AllocDeleterCallbackInfoUSM : AllocDeleterCallbackInfoBase {
+  AllocDeleterCallbackInfoUSM(clMemBlockingFreeINTEL_fn USMFree,
+                              cl_context CLContext, uint8_t *Allocation)
       : AllocDeleterCallbackInfoBase(CLContext, Allocation), USMFree(USMFree) {}
-  ~AllocDeleterCallbackInfoIntel() override { USMFree(CLContext, Allocation); }
+  ~AllocDeleterCallbackInfoUSM() override { USMFree(CLContext, Allocation); }
 
   clMemBlockingFreeINTEL_fn USMFree;
 };
 
-struct AllocDeleterCallbackInfoWithQueue : AllocDeleterCallbackInfoIntel {
+struct AllocDeleterCallbackInfoWithQueue : AllocDeleterCallbackInfoUSM {
   AllocDeleterCallbackInfoWithQueue(clMemBlockingFreeINTEL_fn USMFree,
                                     cl_context CLContext, uint8_t *Allocation,
                                     cl_command_queue CLQueue)
-      : AllocDeleterCallbackInfoIntel(USMFree, CLContext, Allocation),
+      : AllocDeleterCallbackInfoUSM(USMFree, CLContext, Allocation),
         CLQueue(CLQueue) {}
   ~AllocDeleterCallbackInfoWithQueue() override {
     clReleaseCommandQueue(CLQueue);
@@ -72,4 +72,4 @@ struct AllocDeleterCallbackInfoWithQueue : AllocDeleterCallbackInfoIntel {
 };
 
 template <class T>
-uint8_t AllocDeleterCallback(cl_event event, cl_int, uint8_t *pUserData);
+void AllocDeleterCallback(cl_event event, cl_int, uint8_t *pUserData);

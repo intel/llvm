@@ -294,7 +294,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   // not a power of 2, we need to do on the host side and copy it into the
   // target allocation.
   clHostMemAllocINTEL_fn HostMemAlloc = nullptr;
-  bool HostAllocSupported =
+  ur_result_t HostAllocSupported =
       cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
           CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
           cl_ext::HostMemAllocName, &HostMemAlloc);
@@ -313,10 +313,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   uint8_t *HostBuffer = nullptr;
   AllocDeleterCallbackInfoBase *Info = nullptr;
 
-  if (HostAllocSupported) {
+  if (HostAllocSupported == UR_RESULT_SUCCESS) {
     HostBuffer = static_cast<uint8_t *>(
         HostMemAlloc(CLContext, nullptr, size, 0, &ClErr));
-    Info = new AllocDeleterCallbackInfoIntel(USMFree, CLContext, HostBuffer);
+    Info = new AllocDeleterCallbackInfoUSM(USMFree, CLContext, HostBuffer);
   } else {
     HostBuffer = new uint8_t[size];
     Info = new AllocDeleterCallbackInfo(CLContext, HostBuffer);
