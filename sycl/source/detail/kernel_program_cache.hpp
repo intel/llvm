@@ -698,6 +698,21 @@ public:
     KernelFastCacheWriteLockT L3(MFastKernelCacheMutex);
     MCachedPrograms = ProgramCache{};
     MKernelsPerProgramCache = KernelCacheT{};
+
+    // Need to remove acrual kernel handles
+    for (auto &[KernelName, KernelCache] : MFastKernelCache) {
+      FastKernelSubcacheT &KernelSubcache = KernelCache.get();
+      // TODO: do we need lock for Subcache?
+      // Single subcache might be used by different contexts
+      for (auto it = KernelSubcache.begin(); it != KernelSubcache.end();) {
+        if (it->first.second == getURContext()) {
+          it = KernelSubcache.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+
     MFastKernelCache = FastKernelCacheT{};
     MProgramToKernelFastCacheKeyMap.clear();
     // Clear the eviction lists and its mutexes.
