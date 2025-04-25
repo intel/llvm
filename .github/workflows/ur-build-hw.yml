@@ -76,13 +76,12 @@ env:
   UR_LOG_LEVEL_ZERO: "level:error;flush:error"
   UR_LOG_NATIVE_CPU: "level:error;flush:error"
   UR_LOG_OPENCL: "level:error;flush:error"
-  CURRENT_DIR: $(pwd)
 
 jobs:
   adapter_build_hw:
     name: Build & CTS
     # run only on upstream; forks won't have the HW
-    # if: github.repository == 'intel/llvm'
+    if: github.repository == 'intel/llvm'
     strategy:
       fail-fast: false
       matrix:
@@ -113,18 +112,19 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - name: Set up Python 3.10
+    # for some reason it's required to re-configure python for venv to work properly.
+    - name: Set up Python 3.12
       if: ${{ inputs.docker_image == 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps' }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
       with:
-        python-version: '3.10'
+        python-version: '3.12'
 
     - name: Install UR python dependencies in venv
       working-directory: ./unified-runtime
       run: |
         python3 -m venv .venv
         . .venv/bin/activate
-        echo "${PWD}/.venv/bin" >> $GITHUB_PATH
+        echo "$PATH" >> $GITHUB_PATH
         pip install -r third_party/requirements.txt
         pip install -r third_party/requirements_testing.txt
 
@@ -177,16 +177,14 @@ jobs:
     - name: Test adapter specific
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        ZE_DEBUG: 1
-      run: ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600
+      run: ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        ZE_DEBUG: 1
-      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "conformance" --timeout 600
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "conformance" --timeout 600 -VV
 
     - name: Get information about platform
       if: ${{ always() }}

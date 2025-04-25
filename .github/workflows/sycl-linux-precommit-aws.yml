@@ -21,7 +21,6 @@ permissions:
 
 jobs:
   create-check:
-    if: false
     runs-on: [Linux, aux-tasks]
     permissions:
       checks: write
@@ -46,7 +45,6 @@ jobs:
             })
 
   aws-start:
-    if: false
     runs-on: ubuntu-latest
     environment: aws
     steps:
@@ -63,7 +61,6 @@ jobs:
           AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
 
   e2e-cuda:
-    if: false
     needs: [aws-start]
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -81,7 +78,6 @@ jobs:
       sycl_toolchain_decompress_command: zstd
 
   update-check:
-    if: false
     needs: [create-check, e2e-cuda]
     if: always()
     runs-on: [Linux, aux-tasks]
@@ -108,7 +104,6 @@ jobs:
             })
 
   aws-stop:
-    if: false
     needs: [aws-start, e2e-cuda]
     if: always()
     runs-on: ubuntu-latest
