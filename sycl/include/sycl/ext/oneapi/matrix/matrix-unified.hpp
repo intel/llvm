@@ -25,6 +25,7 @@
 #include <sycl/ext/oneapi/matrix/query-types.hpp> // for convertTypeToMatrixTypeString
 #include <sycl/marray.hpp>                        // for marray
 #include <sycl/multi_ptr.hpp>                     // for multi_ptr
+#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
 #include <cstring>     // for size_t, memcpy
 #include <stdint.h>    // for uint32_t
@@ -464,7 +465,7 @@ joint_matrix_mad(
   constexpr uint32_t MatrixOperand =
       sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc>();
   D.spvm =
-      __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm, MatrixOperand);
+      __spirv_CooperativeMatrixMulAddKHR<Ta, Tb, Tc, Td>(A.spvm, B.spvm, C.spvm, MatrixOperand);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = A;
@@ -492,7 +493,10 @@ void joint_matrix_copy(
   auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
   auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
   for (int i = 0; i < wi_data_c.length(); i++) {
-    wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
+    if constexpr (std::is_same<T1, bfloat16>::value && std::is_same<T2, float>::value)
+      wi_data_dst[i] = (float)wi_data_c[i];
+    else
+      wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
   }
 #endif // defined(__NVPTX__)
 #else
