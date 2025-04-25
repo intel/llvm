@@ -376,7 +376,7 @@ public:
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
     event ResEvent =
-        submit_impl(CGF, Self, Self, SubmitInfo.SecondaryQueue(),
+        submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
   }
@@ -386,7 +386,7 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    submit_impl(CGF, Self, Self, SubmitInfo.SecondaryQueue(),
+    submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
