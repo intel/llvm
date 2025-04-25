@@ -21,12 +21,22 @@ namespace fuzz {
 constexpr int MAX_VECTOR_SIZE = 1024;
 
 int ur_platform_get(TestState &state) {
-  ur_result_t res = urPlatformGet(state.adapters.data(), state.adapters.size(),
-                                  state.num_entries, state.platforms.data(),
-                                  &state.num_platforms);
-  if (res != UR_RESULT_SUCCESS) {
-    return -1;
+  uint32_t totalPlatformCount = 0;
+  for (auto adapter : state.adapters) {
+    uint32_t adapterPlatformCount = 0;
+    urPlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
+
+    state.platforms.reserve(totalPlatformCount + adapterPlatformCount);
+    ur_result_t res = urPlatformGet(adapter, adapterPlatformCount,
+                                    &state.platforms[totalPlatformCount],
+                                    &adapterPlatformCount);
+    if (res != UR_RESULT_SUCCESS) {
+      return -1;
+    }
+
+    totalPlatformCount += adapterPlatformCount;
   }
+
   if (state.platforms.size() != state.num_platforms) {
     state.platforms.resize(state.num_platforms);
   }

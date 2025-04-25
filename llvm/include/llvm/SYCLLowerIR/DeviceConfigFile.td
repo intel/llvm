@@ -91,6 +91,7 @@ def AspectExt_oneapi_bindless_images_gather : Aspect<"ext_oneapi_bindless_images
 def AspectExt_intel_current_clock_throttle_reasons : Aspect<"ext_intel_current_clock_throttle_reasons">;
 def AspectExt_intel_fan_speed : Aspect<"ext_intel_fan_speed">;
 def AspectExt_intel_power_limits : Aspect<"ext_intel_power_limits">;
+def AspectExt_oneapi_async_memory_alloc : Aspect<"ext_oneapi_async_memory_alloc">;
 
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
@@ -161,7 +162,8 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_intel_spill_memory_size,
     AspectExt_intel_current_clock_throttle_reasons,
     AspectExt_intel_fan_speed,
-    AspectExt_intel_power_limits],
+    AspectExt_intel_power_limits,
+    AspectExt_oneapi_async_memory_alloc],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.

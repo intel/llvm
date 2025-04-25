@@ -300,9 +300,10 @@ ur_result_t UR_APICALL urAdapterGet(
 ///
 /// @details
 ///     - When the reference count of the adapter reaches zero, the adapter may
-///       perform adapter-specififc resource teardown. Resources must be left in
-///       a state where it safe for the adapter to be subsequently reinitialized
-///       with ::urAdapterGet
+///       perform adapter-specififc resource teardown. Any objects associated
+///       with the adapter should be considered invalid after this point.
+///     - Calling ::urAdapterGet after any adapter handle's reference count has
+///       reached zero will result in undefined behaviour.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -442,6 +443,57 @@ ur_result_t UR_APICALL urAdapterGetInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a callback function for use by the logger to retrieve logging
+/// output.
+///        It is a requirement that the callback function is thread safe and the
+///        creator of the function will be responsible for this.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnLoggerCallback`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the minimum logging level for the logger Callback function.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieves all available platforms for the given adapters
 ///
 /// @details
@@ -459,17 +511,15 @@ ur_result_t UR_APICALL urAdapterGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phAdapters`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phPlatforms != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pNumPlatforms == NULL && phPlatforms == NULL`
 ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -1006,6 +1056,11 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///
 /// @details
 ///     - Creates runtime device handle from native driver device handle.
+///     - Will always return the same handle in `phDevice` for a given
+///       `hNativeDevice`.
+///     - If `hNativeDevice` is a root-level device, the handle returned in
+///       `phDevice` will be one of the handles that can be obtained by calling
+///       ::urDeviceGet with the ::UR_DEVICE_TYPE_ALL device type.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
@@ -4678,7 +4733,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
 ///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height *
@@ -4767,7 +4822,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
 ///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height *
@@ -6124,38 +6179,6 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a new release threshold for a USM memory pool.
-///
-/// @details
-///     - Set a new release threshold for a USM memory pool.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///         + `NULL == hPool`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any device associated with `hContext` reports `false` for
-///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
-ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Get the default pool for a device.
 ///
 /// @details
@@ -6205,7 +6228,6 @@ ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urUSMPoolGetInfoExp(
@@ -6217,6 +6239,44 @@ ur_result_t UR_APICALL urUSMPoolGetInfoExp(
     void *pPropValue,
     /// [out][optional] returned query value size
     size_t *pPropSizeRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a property for a USM memory pool.
+///
+/// @details
+///     - Set a property for a USM memory pool.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

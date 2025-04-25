@@ -10,7 +10,14 @@
 
 #include <sycl/sycl.hpp>
 
-// expected-error@* {{SYCL kernel cannot call a variadic function}}
-// expected-error@* {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
-// expected-error@* {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
+// expected-no-diagnostics
+//
+// Our current implementation automatically opts-in for a new implementation if
+// that is possible without breaking ABI.
+// However, depending on the environment (used STL implementation, in
+// particular) it may not be the case. Therefore, the lines below are kept for
+// reference of how an error would look like in a problematic environment.
+// not-expected-error@* {{SYCL kernel cannot call a variadic function}}
+// not-expected-error@* {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
+// not-expected-error@* {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
 SYCL_EXTERNAL auto GetFirstElement(sycl::vec<int, 3> v) { return v[0]; }

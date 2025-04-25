@@ -18,6 +18,7 @@
 #include <queue>
 #include <set>
 #include <shared_mutex>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -188,7 +189,6 @@ using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
-using QueueIdT = std::hash<std::shared_ptr<detail::queue_impl>>::result_type;
 using CommandPtr = std::unique_ptr<Command>;
 
 /// Memory Object Record
@@ -453,8 +453,8 @@ public:
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   ur_kernel_handle_t completeSpecConstMaterialization(
-      QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
-      const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
+      const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
+      KernelNameStrRefT KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();

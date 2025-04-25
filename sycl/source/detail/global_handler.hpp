@@ -73,7 +73,7 @@ public:
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
-  static void registerEarlyShutdownHandler();
+  static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
   void endDeferredRelease();
@@ -95,7 +95,6 @@ private:
 
   bool OkToDefer = true;
 
-  friend void shutdown_win();
   friend void shutdown_early();
   friend void shutdown_late();
   friend class ObjectUsageCounter;
@@ -113,7 +112,7 @@ private:
   };
 
   template <typename T, typename... Types>
-  T &getOrCreate(InstWithLock<T> &IWL, Types... Args);
+  T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;

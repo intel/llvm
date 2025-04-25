@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 function(add_adapter_tests adapter)
-    if(NOT UR_DPCXX)
+    if(NOT UR_FOUND_DPCXX)
         # Tests that require kernels can't be used if we aren't generating
         # device binaries
         message(WARNING
@@ -105,6 +105,15 @@ function(add_adapter_tests adapter)
         ENVIRONMENT
             "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
         )
+
+    add_adapter_test(${adapter}_mem_buffer_create_with_native_handle
+        FIXTURE DEVICES
+        SOURCES
+            urMemBufferCreateWithNativeHandleShared.cpp
+        ENVIRONMENT
+            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
+        )
+    target_link_libraries(test-adapter-${adapter}_mem_buffer_create_with_native_handle PRIVATE LevelZeroLoader LevelZeroLoader-Headers)
 endfunction()
 
 if(UR_BUILD_ADAPTER_L0)

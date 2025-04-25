@@ -9,6 +9,9 @@
 // event is passed as a dependency to a barrier operation in a different
 // in-order queue.
 
+// UNSUPPORTED: opencl
+// UNSUPPORTED-INTENDED: USM fill command not supported for OpenCL
+
 #include "../graph_common.hpp"
 #include <sycl/properties/all_properties.hpp>
 

@@ -107,7 +107,7 @@ if(SYCL_BUILD_BACKEND_CUDA)
   endif()
 
   target_include_directories(cuda_trace_collector
-    PRIVATE
+    SYSTEM PRIVATE
     ${CUDAToolkit_CUPTI_INCLUDE_DIR}
   )
 
@@ -176,4 +176,3 @@ install(TARGETS sycl-trace sycl_ur_trace_collector ${EXTRA_TARGETS_TO_INSTALL}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sycl-trace
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sycl-trace
 )
-

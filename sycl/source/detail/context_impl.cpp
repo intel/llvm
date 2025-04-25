@@ -338,16 +338,23 @@ void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 void context_impl::addDeviceGlobalInitializer(
     ur_program_handle_t Program, const std::vector<device> &Devs,
     const RTDeviceBinaryImage *BinImage) {
+  if (BinImage->getDeviceGlobals().empty())
+    return;
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
   for (const device &Dev : Devs) {
     auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
-    MDeviceGlobalInitializers.emplace(Key, BinImage);
+    auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
+    if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
+      ++MDeviceGlobalNotInitializedCnt;
   }
 }
 
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg,
     const std::shared_ptr<queue_impl> &QueueImpl) {
+  if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
+    return {};
+
   const AdapterPtr &Adapter = getAdapter();
   const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
@@ -369,7 +376,6 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
           [&Adapter](const ur_event_handle_t &Event) {
             return get_event_info<info::event::command_execution_status>(
                        Event, Adapter) == info::event_command_status::complete;
-            return false;
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
@@ -377,8 +383,10 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // Remove them from the collection.
       InitEventsRef.erase(NewEnd, InitEventsRef.end());
       // If there are no more events, we can mark it as fully initialized.
-      if (InitEventsRef.empty())
+      if (InitEventsRef.empty()) {
         InitRef.MDeviceGlobalsFullyInitialized = true;
+        --MDeviceGlobalNotInitializedCnt;
+      }
       return InitEventsRef;
     } else if (InitRef.MDeviceGlobalsFullyInitialized) {
       // MDeviceGlobalsFullyInitialized could have been set while we were
@@ -387,7 +395,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     }
 
     // There were no events and it was not set as fully initialized, so this is
-    // responsible for intializing the device globals.
+    // responsible for initializing the device globals.
     auto DeviceGlobals = InitRef.MBinImage->getDeviceGlobals();
     std::vector<std::string> DeviceGlobalIds;
     DeviceGlobalIds.reserve(DeviceGlobals.size());
@@ -402,6 +410,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     // globals are trivially fully initialized and we can end early.
     if (DeviceGlobalEntries.empty()) {
       InitRef.MDeviceGlobalsFullyInitialized = true;
+      --MDeviceGlobalNotInitializedCnt;
       return {};
     }
 
@@ -560,6 +569,47 @@ void context_impl::verifyProps(const property_list &Props) const {
   auto NoAllowedPropertiesCheck = [](int) { return false; };
   detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
                                                 NoAllowedPropertiesCheck);
+}
+
+// The handle for a device default pool is retrieved once on first request.
+// Subsequent requests are returned immediately without calling the backend.
+std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
+context_impl::get_default_memory_pool(const context &Context,
+                                      const device &Device,
+                                      [[maybe_unused]] const usm::alloc &Kind) {
+
+  assert(Kind == usm::alloc::device);
+
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(Device);
+  ur_device_handle_t DeviceHandle = DevImpl->getHandleRef();
+  const sycl::detail::AdapterPtr &Adapter = this->getAdapter();
+
+  // Check dev is already in our list of device pool pairs.
+  if (auto it = std::find_if(MMemPoolImplPtrs.begin(), MMemPoolImplPtrs.end(),
+                             [&](auto &pair) { return Device == pair.first; });
+      it != MMemPoolImplPtrs.end()) {
+    // Check if the shared_ptr of memory_pool_impl has not been destroyed.
+    if (!it->second.expired())
+      return it->second.lock();
+  }
+
+  // The memory_pool_impl does not exist for this device yet.
+  ur_usm_pool_handle_t PoolHandle;
+  Adapter->call<sycl::errc::runtime,
+                sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
+      this->getHandleRef(), DeviceHandle, &PoolHandle);
+
+  auto MemPoolImplPtr = std::make_shared<
+      sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
+      Context, Device, sycl::usm::alloc::device, PoolHandle,
+      true /*Default pool*/, property_list{});
+
+  // Hold onto a weak_ptr of the memory_pool_impl. Prevents circular
+  // dependencies between the context_impl and memory_pool_impl.
+  MMemPoolImplPtrs.push_back(std::pair(Device, MemPoolImplPtr));
+
+  return MemPoolImplPtr;
 }
 
 } // namespace detail

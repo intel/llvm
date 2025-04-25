@@ -16,7 +16,7 @@ namespace v2 {
 event_pool_cache::event_pool_cache(ur_context_handle_t hContext,
                                    size_t max_devices,
                                    ProviderCreateFunc ProviderCreate)
-    : hContext(hContext), providerCreate(ProviderCreate) {
+    : hContext(hContext), providerCreate(std::move(ProviderCreate)) {
   pools.resize(max_devices * (1ULL << EVENT_FLAGS_USED_BITS));
 }
 

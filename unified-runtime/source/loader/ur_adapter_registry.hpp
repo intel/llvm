@@ -234,7 +234,7 @@ private:
       // success.
       logger::error("ERROR: missing backend, format of filter = "
                     "'[!]backend:filterStrings'");
-      return UR_RESULT_SUCCESS;
+      odsEnvMap = std::nullopt;
     }
     logger::debug("getenv_to_map parsed env var and {} a map",
                   (odsEnvMap.has_value() ? "produced" : "failed to produce"));
@@ -245,6 +245,27 @@ private:
     EnvVarMap mapODS =
         odsEnvMap.has_value() ? odsEnvMap.value() : EnvVarMap{{"*", {"*"}}};
 
+    // Check all backends are valid backend names
+    for (auto entry : mapODS) {
+      if (entry.first == "*" || entry.first == "!*") {
+        continue;
+      }
+      auto check = [&](const ur_adapter_manifest &m) {
+        if (entry.first == m.name || entry.first == "!" + m.name) {
+          return true;
+        }
+        return false;
+      };
+      if (std::any_of(ur_adapter_manifests.begin(), ur_adapter_manifests.end(),
+                      check)) {
+        continue;
+      }
+
+      // Backend name is not legal, wipe the list
+      mapODS = EnvVarMap{{"*", {"*"}}};
+      break;
+    }
+
     std::vector<FilterTerm> positiveFilters;
     std::vector<FilterTerm> negativeFilters;
 
@@ -252,13 +273,6 @@ private:
       std::string backend = termPair.first;
       // TODO: Figure out how to process all ODS errors rather than returning
       // on the first error.
-      if (backend.empty()) {
-        // FIXME: never true because getenv_to_map rejects this case
-        // malformed term: missing backend -- output ERROR, then continue
-        logger::error("ERROR: missing backend, format of filter = "
-                      "'[!]backend:filterStrings'");
-        continue;
-      }
       logger::debug("ONEAPI_DEVICE_SELECTOR Pre-Filter with backend '{}' ",
                     backend);
 
@@ -277,9 +291,9 @@ private:
                      [](unsigned char c) { return std::tolower(c); });
 
       if (PositiveFilter) {
-        positiveFilters.push_back({backend, termPair.second});
+        positiveFilters.push_back({std::move(backend), termPair.second});
       } else {
-        negativeFilters.push_back({backend, termPair.second});
+        negativeFilters.push_back({std::move(backend), termPair.second});
       }
     }
 
@@ -294,7 +308,8 @@ private:
       for (const auto &device : manifest.device_types) {
         ur_device_tuple single_device = {manifest.backend, device};
 
-        auto matchesFilter = [single_device](const FilterTerm &f) -> bool {
+        const auto matchesFilter =
+            [single_device](const FilterTerm &f) -> bool {
           return f.matches(single_device);
         };
 

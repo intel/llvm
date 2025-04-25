@@ -667,6 +667,19 @@ private:
   __attribute((opencl_local)) DataT *Ptr;
 };
 
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory {
+public:
+  dynamic_work_group_memory() = default;
+
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->LocalMem.__init(Ptr); }
+  work_group_memory<DataT> get() const { return LocalMem; }
+
+private:
+  work_group_memory<DataT> LocalMem;
+};
+
 template <typename T, int dimensions = 1,
           typename AllocatorT = int /*fake type as AllocatorT is not used*/>
 class buffer {
