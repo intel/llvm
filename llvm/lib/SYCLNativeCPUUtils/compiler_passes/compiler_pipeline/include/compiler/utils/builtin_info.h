@@ -40,7 +40,6 @@ using BuiltinID = int32_t;
 
 enum BaseBuiltinID {
   eBuiltinUnknown,
-  eBuiltinInvalid,
 
   // Mux builtins
   eMuxBuiltinIsFTZ,
@@ -237,9 +236,6 @@ struct Builtin {
   /// overloadable mux builtins)
   std::vector<llvm::Type *> mux_overload_info = {};
 
-  /// @brief returns whether the builtin is valid
-  bool isValid() const { return ID != eBuiltinInvalid; }
-
   /// @brief returns whether the builtin is unknown
   bool isUnknown() const { return ID == eBuiltinUnknown; }
 };
@@ -362,13 +358,13 @@ class BuiltinInfo {
   /// @brief Determine general properties for the given builtin function.
   /// @param[in] F Function to analyze.
   /// @return Analyzed properties for the builtin.
-  Builtin analyzeBuiltin(const llvm::Function &F) const;
+  std::optional<Builtin> analyzeBuiltin(const llvm::Function &F) const;
 
   /// @brief Determine general properties for the given builtin function.
   /// @param[in] CI Call instruction to analyze.
   /// @return Analyzed properties for the builtin call.
-  BuiltinCall analyzeBuiltinCall(const llvm::CallInst &CI,
-                                 unsigned SimdDimIdx) const;
+  std::optional<BuiltinCall> analyzeBuiltinCall(const llvm::CallInst &CI,
+                                                unsigned SimdDimIdx) const;
 
   /// @brief Try to find a builtin function that is a vector equivalent of the
   /// given function with the given vector width, if it exists.
@@ -418,11 +414,11 @@ class BuiltinInfo {
   /// @return An identifier for the builtin, or the invalid builtin if there
   /// is none. This builtin should have a signature of `<void type | integer
   /// type> <builtin name>(<char*>, ...)`.
-  BuiltinID getPrintfBuiltin() const;
+  std::optional<BuiltinID> getPrintfBuiltin() const;
 
   /// @brief Returns true if the given ID is a ComputeMux builtin ID.
   static bool isMuxBuiltinID(BuiltinID ID) {
-    return ID > eBuiltinInvalid && ID < eFirstTargetBuiltin;
+    return ID > eBuiltinUnknown && ID < eFirstTargetBuiltin;
   }
 
   /// @brief Returns true if the given ID is an overloadable ComputeMux builtin
@@ -451,7 +447,8 @@ class BuiltinInfo {
 
   /// @brief Returns the mux builtin ID matching the group collective, or
   /// eBuiltinInvalid.
-  static BuiltinID getMuxGroupCollective(const GroupCollective &Group);
+  static std::optional<BuiltinID> getMuxGroupCollective(
+      const GroupCollective &Group);
 
   /// @brief Returns true if the mux builtin has a barrier ID as its first
   /// operand.
@@ -649,8 +646,8 @@ class BuiltinInfo {
   /// @param[in] F The function to identify.
   /// @return Valid builtin ID if the name was identified, as well as any types
   /// required to overload the builtin ID.
-  std::pair<BuiltinID, std::vector<llvm::Type *>> identifyMuxBuiltin(
-      const llvm::Function &F) const;
+  std::optional<std::pair<BuiltinID, std::vector<llvm::Type *>>>
+  identifyMuxBuiltin(const llvm::Function &F) const;
 
   /// @brief Determine whether the given builtin function returns uniform values
   /// or not. An optional call instruction can be passed for more accuracy.
@@ -792,7 +789,8 @@ class BILangInfoConcept {
   /// @see BuiltinInfo::getBuiltinsModule
   virtual llvm::Module *getBuiltinsModule() { return nullptr; }
   /// @see BuiltinInfo::analyzeBuiltin
-  virtual Builtin analyzeBuiltin(const llvm::Function &F) const = 0;
+  virtual std::optional<Builtin> analyzeBuiltin(
+      const llvm::Function &F) const = 0;
   /// @see BuiltinInfo::isBuiltinUniform
   virtual BuiltinUniformity isBuiltinUniform(const Builtin &B,
                                              const llvm::CallInst *,
@@ -820,7 +818,7 @@ class BILangInfoConcept {
     return nullptr;
   }
   /// @see BuiltinInfo::getPrintfBuiltin
-  virtual BuiltinID getPrintfBuiltin() const = 0;
+  virtual std::optional<BuiltinID> getPrintfBuiltin() const = 0;
 };
 
 /// @brief Caches and returns the BuiltinInfo for a Module.

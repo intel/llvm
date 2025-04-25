@@ -59,11 +59,13 @@ std::optional<compiler::utils::GroupCollective> getWorkGroupCollectiveCall(
     return std::nullopt;
   }
 
-  Function *callee = ci->getCalledFunction();
-  assert(callee && "could not get called function");
-  auto info = bi.isMuxGroupCollective(bi.analyzeBuiltin(*callee).ID);
-  if (info && info->isWorkGroupScope()) {
-    return info;
+  if (Function *callee = ci->getCalledFunction()) {
+    if (const auto b = bi.analyzeBuiltin(*callee)) {
+      const auto info = bi.isMuxGroupCollective(b->ID);
+      if (info && info->isWorkGroupScope()) {
+        return info;
+      }
+    }
   }
   return std::nullopt;
 }
@@ -164,15 +166,17 @@ inline bool CheckValidUse(Value *v) {
 
 bool IsRematerializableBuiltinCall(Value *v, compiler::utils::BuiltinInfo &bi) {
   if (auto *call = dyn_cast<CallInst>(v)) {
-    assert(call->getCalledFunction() && "Could not get called function");
-    const auto B = bi.analyzeBuiltin(*call->getCalledFunction());
-    if (B.properties & compiler::utils::eBuiltinPropertyRematerializable) {
-      for (auto &op : call->operands()) {
-        if (isa<Instruction>(op.get())) {
-          return false;
+    if (auto *F = call->getCalledFunction()) {
+      if (const auto B = bi.analyzeBuiltin(*F)) {
+        if (B->properties & compiler::utils::eBuiltinPropertyRematerializable) {
+          for (auto &op : call->operands()) {
+            if (isa<Instruction>(op.get())) {
+              return false;
+            }
+          }
+          return true;
         }
       }
-      return true;
     }
   }
   return false;
@@ -510,10 +514,9 @@ void compiler::utils::Barrier::FindBarriers() {
     for (Instruction &bi : b) {
       // Check call instructions for barrier.
       if (CallInst *call_inst = dyn_cast<CallInst>(&bi)) {
-        Function *callee = call_inst->getCalledFunction();
-        if (callee != nullptr) {
+        if (Function *callee = call_inst->getCalledFunction()) {
           const auto B = bi_->analyzeBuiltin(*callee);
-          if (BuiltinInfo::isMuxBuiltinWithWGBarrierID(B.ID)) {
+          if (B && BuiltinInfo::isMuxBuiltinWithWGBarrierID(B->ID)) {
             auto *const id_param = call_inst->getOperand(0);
             auto *const id_param_c = cast<ConstantInt>(id_param);
             const auto id = id_param_c->getZExtValue();

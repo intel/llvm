@@ -62,8 +62,8 @@ Value *processCallSite(CallInst *CI, bool &NeedLLVMInline,
   // Emit builtins inline when they have no vector/scalar equivalent.
   IRBuilder<> B(CI);
   const auto Builtin = BI.analyzeBuiltin(*Callee);
-  if (Builtin.properties &
-      compiler::utils::eBuiltinPropertyInlinePostVectorization) {
+  if (Builtin && Builtin->properties &
+                     compiler::utils::eBuiltinPropertyInlinePostVectorization) {
     const SmallVector<Value *, 4> Args(CI->args());
     if (Value *Impl = BI.emitBuiltinInline(Callee, B, Args)) {
       VECZ_ERROR_IF(

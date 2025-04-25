@@ -232,12 +232,13 @@ PreservedAnalyses OptimalBuiltinReplacementPass::run(LazyCallGraph::SCC &C,
 
   const auto &MAMProxy = AM.getResult<ModuleAnalysisManagerCGSCCProxy>(C, CG);
   if (auto *BI = MAMProxy.getCachedResult<BuiltinInfoAnalysis>(M)) {
-    replacements.emplace_back(
-        [BI](CallBase &CB, StringRef, const SmallVectorImpl<Type *> &,
-             const SmallVectorImpl<TypeQualifiers> &) -> Value * {
-          Function *Callee = CB.getCalledFunction();
-          const auto Props = BI->analyzeBuiltin(*Callee).properties;
-          if (Props & eBuiltinPropertyCanEmitInline) {
+    replacements.emplace_back([BI](CallBase &CB, StringRef,
+                                   const SmallVectorImpl<Type *> &,
+                                   const SmallVectorImpl<TypeQualifiers> &)
+                                  -> Value * {
+      if (Function *Callee = CB.getCalledFunction()) {
+        if (const auto Builtin = BI->analyzeBuiltin(*Callee)) {
+          if (Builtin->properties & eBuiltinPropertyCanEmitInline) {
             IRBuilder<> B(&CB);
             const SmallVector<Value *, 4> Args(CB.args());
             if (Value *Impl = BI->emitBuiltinInline(Callee, B, Args)) {
@@ -248,8 +249,10 @@ PreservedAnalyses OptimalBuiltinReplacementPass::run(LazyCallGraph::SCC &C,
               return Impl;
             }
           }
-          return nullptr;
-        });
+        }
+      }
+      return nullptr;
+    });
   }
 
   if (adjustReplacements) {

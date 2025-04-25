@@ -45,11 +45,11 @@ Module *BuiltinInfo::getBuiltinsModule() {
   return nullptr;
 }
 
-std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
-    const Function &F) const {
+std::optional<std::pair<BuiltinID, std::vector<Type *>>>
+BuiltinInfo::identifyMuxBuiltin(const Function &F) const {
   StringRef Name = F.getName();
   auto ID =
-      StringSwitch<BuiltinID>(Name)
+      StringSwitch<std::optional<BuiltinID>>(Name)
           .Case(MuxBuiltins::isftz, eMuxBuiltinIsFTZ)
           .Case(MuxBuiltins::usefast, eMuxBuiltinUseFast)
           .Case(MuxBuiltins::isembeddedprofile, eMuxBuiltinIsEmbeddedProfile)
@@ -87,11 +87,11 @@ std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
           .Case(MuxBuiltins::work_group_barrier, eMuxBuiltinWorkGroupBarrier)
           .Case(MuxBuiltins::sub_group_barrier, eMuxBuiltinSubGroupBarrier)
           .Case(MuxBuiltins::mem_barrier, eMuxBuiltinMemBarrier)
-          .Default(eBuiltinInvalid);
-  if (ID != eBuiltinInvalid) {
-    switch (ID) {
+          .Default(std::nullopt);
+  if (ID) {
+    switch (*ID) {
       default:
-        return {ID, {}};
+        return {{*ID, {}}};
       case eMuxBuiltinDMARead1D:
       case eMuxBuiltinDMARead2D:
       case eMuxBuiltinDMARead3D:
@@ -104,7 +104,7 @@ std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
         // builtins' name (i.e., it's not mangled) as it's required to be
         // consistent at any single snapshot of the module, though it may
         // change through time.
-        return {ID, {F.getReturnType()}};
+        return {{*ID, {F.getReturnType()}}};
     }
   }
 
@@ -115,7 +115,7 @@ std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
   const bool IsVecgroupOp = Name.consume_front("__mux_vec_group_");
   if (!IsSubgroupOp && !IsVecgroupOp &&
       !Name.consume_front("__mux_work_group_")) {
-    return {eBuiltinInvalid, {}};
+    return std::nullopt;
   }
 
 #define SCOPED_GROUP_OP(OP)                 \
@@ -135,22 +135,22 @@ std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
     ID = SCOPED_GROUP_OP(Broadcast);
   } else if (Name.consume_front("shuffle_up")) {
     if (!IsSubgroupOp) {
-      return {eBuiltinInvalid, {}};
+      return std::nullopt;
     }
     ID = eMuxBuiltinSubgroupShuffleUp;
   } else if (Name.consume_front("shuffle_down")) {
     if (!IsSubgroupOp) {
-      return {eBuiltinInvalid, {}};
+      return std::nullopt;
     }
     ID = eMuxBuiltinSubgroupShuffleDown;
   } else if (Name.consume_front("shuffle_xor")) {
     if (!IsSubgroupOp) {
-      return {eBuiltinInvalid, {}};
+      return std::nullopt;
     }
     ID = eMuxBuiltinSubgroupShuffleXor;
   } else if (Name.consume_front("shuffle")) {
     if (!IsSubgroupOp) {
-      return {eBuiltinInvalid, {}};
+      return std::nullopt;
     }
     ID = eMuxBuiltinSubgroupShuffle;
   } else if (Name.consume_front("reduce_")) {
@@ -166,7 +166,7 @@ std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
       Name = Name.drop_front(RealGroup.size());
     }
 
-    ID = StringSwitch<BuiltinID>(Group)
+    ID = StringSwitch<std::optional<BuiltinID>>(Group)
              .Case("add", SCOPED_GROUP_OP(ReduceAdd))
              .Case("fadd", SCOPED_GROUP_OP(ReduceFAdd))
              .Case("mul", SCOPED_GROUP_OP(ReduceMul))
@@ -183,11 +183,11 @@ std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
              .Case("logical_and", SCOPED_GROUP_OP(ReduceLogicalAnd))
              .Case("logical_or", SCOPED_GROUP_OP(ReduceLogicalOr))
              .Case("logical_xor", SCOPED_GROUP_OP(ReduceLogicalXor))
-             .Default(eBuiltinInvalid);
+             .Default(std::nullopt);
   } else if (Name.consume_front("scan_")) {
     const bool IsInclusive = Name.consume_front("inclusive_");
     if (!IsInclusive && !Name.consume_front("exclusive_")) {
-      return {eBuiltinInvalid, {}};
+      return std::nullopt;
     }
 
     auto NextIdx = Name.find_first_of('_');
@@ -201,7 +201,7 @@ std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
       Name = Name.drop_front(RealGroup.size());
     }
 
-    ID = StringSwitch<BuiltinID>(Group)
+    ID = StringSwitch<std::optional<BuiltinID>>(Group)
              .Case("add", IsInclusive ? SCOPED_GROUP_OP(ScanAddInclusive)
                                       : SCOPED_GROUP_OP(ScanAddExclusive))
              .Case("fadd", IsInclusive ? SCOPED_GROUP_OP(ScanFAddInclusive)
@@ -237,39 +237,41 @@ std::pair<BuiltinID, std::vector<Type *>> BuiltinInfo::identifyMuxBuiltin(
              .Case("logical_xor",
                    IsInclusive ? SCOPED_GROUP_OP(ScanLogicalXorInclusive)
                                : SCOPED_GROUP_OP(ScanLogicalXorExclusive))
-             .Default(eBuiltinInvalid);
+             .Default(std::nullopt);
+  }
+  if (!ID) {
+    return std::nullopt;
   }
 
   std::vector<Type *> OverloadInfo;
-  if (ID != eBuiltinInvalid) {
-    // Consume the rest of this group Op function name. If we can't identify a
-    // series of mangled type names, this builtin is invalid.
-    unsigned NumMangledArgs = 0;
-    // Work-group builtins have an unmangled 'barrier ID' parameter first, which
-    // we want to skip.
-    const unsigned Offset = ID >= eFirstMuxWorkgroupCollectiveBuiltin &&
-                            ID <= eLastMuxWorkgroupCollectiveBuiltin;
-    while (!Name.empty()) {
-      if (!Name.consume_front("_")) {
-        return {eBuiltinInvalid, {}};
-      }
-      auto [Ty, NewName] = getDemangledTypeFromStr(Name, F.getContext());
-      Name = NewName;
 
-      auto ParamIdx = Offset + NumMangledArgs;
-      if (ParamIdx >= F.arg_size() || Ty != F.getArg(ParamIdx)->getType()) {
-        return {eBuiltinInvalid, {}};
-      }
+  // Consume the rest of this group Op function name. If we can't identify a
+  // series of mangled type names, this builtin is invalid.
+  unsigned NumMangledArgs = 0;
+  // Work-group builtins have an unmangled 'barrier ID' parameter first, which
+  // we want to skip.
+  const unsigned Offset = ID >= eFirstMuxWorkgroupCollectiveBuiltin &&
+                          ID <= eLastMuxWorkgroupCollectiveBuiltin;
+  while (!Name.empty()) {
+    if (!Name.consume_front("_")) {
+      return std::nullopt;
+    }
+    auto [Ty, NewName] = getDemangledTypeFromStr(Name, F.getContext());
+    Name = NewName;
 
-      ++NumMangledArgs;
-      OverloadInfo.push_back(Ty);
+    auto ParamIdx = Offset + NumMangledArgs;
+    if (ParamIdx >= F.arg_size() || Ty != F.getArg(ParamIdx)->getType()) {
+      return std::nullopt;
     }
-    if (NumMangledArgs != NumExpectedMangledArgs) {
-      return {eBuiltinInvalid, {}};
-    }
+
+    ++NumMangledArgs;
+    OverloadInfo.push_back(Ty);
+  }
+  if (NumMangledArgs != NumExpectedMangledArgs) {
+    return std::nullopt;
   }
 
-  return {ID, OverloadInfo};
+  return {{*ID, OverloadInfo}};
 #undef SCOPED_GROUP_OP
 }
 
@@ -330,7 +332,7 @@ BuiltinUniformity BuiltinInfo::isBuiltinUniform(const Builtin &B,
   return eBuiltinUniformityUnknown;
 }
 
-Builtin BuiltinInfo::analyzeBuiltin(const Function &F) const {
+std::optional<Builtin> BuiltinInfo::analyzeBuiltin(const Function &F) const {
   // Handle LLVM intrinsics.
   if (F.isIntrinsic()) {
     int32_t Properties = eBuiltinPropertyNone;
@@ -413,15 +415,16 @@ Builtin BuiltinInfo::analyzeBuiltin(const Function &F) const {
     return Builtin{F, eBuiltinUnknown, (BuiltinProperties)Properties};
   }
 
-  auto [ID, OverloadInfo] = identifyMuxBuiltin(F);
-
-  if (ID == eBuiltinInvalid) {
+  auto MB = identifyMuxBuiltin(F);
+  if (!MB) {
     // It's not a Mux builtin, so defer to the language implementation
     if (LangImpl) {
       return LangImpl->analyzeBuiltin(F);
     }
-    return Builtin{F, ID, eBuiltinPropertyNone};
+    return std::nullopt;
   }
+
+  auto [ID, OverloadInfo] = *MB;
 
   // Check that all overloadable builtins have returned some overloading
   // information, for API consistency.
@@ -488,13 +491,15 @@ Builtin BuiltinInfo::analyzeBuiltin(const Function &F) const {
   return Builtin{F, ID, (BuiltinProperties)Properties, OverloadInfo};
 }
 
-BuiltinCall BuiltinInfo::analyzeBuiltinCall(const CallInst &CI,
-                                            unsigned SimdDimIdx) const {
-  auto *const callee = CI.getCalledFunction();
-  assert(callee && "Call instruction with no callee");
-  const auto B = analyzeBuiltin(*callee);
-  const auto U = isBuiltinUniform(B, &CI, SimdDimIdx);
-  return BuiltinCall{B, CI, U};
+std::optional<BuiltinCall> BuiltinInfo::analyzeBuiltinCall(
+    const CallInst &CI, unsigned SimdDimIdx) const {
+  if (auto *const callee = dyn_cast<Function>(CI.getCalledOperand())) {
+    if (const auto B = analyzeBuiltin(*callee)) {
+      const auto U = isBuiltinUniform(*B, &CI, SimdDimIdx);
+      return BuiltinCall{*B, CI, U};
+    }
+  }
+  return std::nullopt;
 }
 
 Function *BuiltinInfo::getVectorEquivalent(const Builtin &B, unsigned Width,
@@ -570,8 +575,9 @@ std::optional<llvm::ConstantRange> BuiltinInfo::getBuiltinRange(
   }
 
   // First, check mux builtins
-  if (auto [ID, _] = identifyMuxBuiltin(*F); isMuxBuiltinID(ID)) {
-    return MuxImpl->getBuiltinRange(CI, ID, MaxLocalSizes, MaxGlobalSizes);
+  if (auto MB = identifyMuxBuiltin(*F); MB && isMuxBuiltinID(MB->first)) {
+    return MuxImpl->getBuiltinRange(CI, MB->first, MaxLocalSizes,
+                                    MaxGlobalSizes);
   }
 
   // Next, ask the language builtin info
@@ -590,11 +596,11 @@ Instruction *BuiltinInfo::lowerBuiltinToMuxBuiltin(CallInst &CI) {
   return nullptr;
 }
 
-BuiltinID BuiltinInfo::getPrintfBuiltin() const {
+std::optional<BuiltinID> BuiltinInfo::getPrintfBuiltin() const {
   if (LangImpl) {
     return LangImpl->getPrintfBuiltin();
   }
-  return eBuiltinInvalid;
+  return std::nullopt;
 }
 
 bool BuiltinInfo::requiresSchedulingParameters(BuiltinID ID) {
@@ -1144,7 +1150,8 @@ std::optional<GroupCollective> BuiltinInfo::isMuxGroupCollective(BuiltinID ID) {
 #undef CASE_GROUP_OP_ALL_SCOPES
 }
 
-BuiltinID BuiltinInfo::getMuxGroupCollective(const GroupCollective &Group) {
+std::optional<BuiltinID> BuiltinInfo::getMuxGroupCollective(
+    const GroupCollective &Group) {
 #define SIMPLE_SCOPE_SWITCH(OP)                     \
   do {                                              \
     switch (Group.Scope) {                          \
@@ -1219,19 +1226,26 @@ BuiltinID BuiltinInfo::getMuxGroupCollective(const GroupCollective &Group) {
       COMPLEX_SCOPE_SWITCH(Scan, Inclusive);
       break;
     case GroupCollective::OpKind::Shuffle:
-      return Group.isSubGroupScope() ? eMuxBuiltinSubgroupShuffle
-                                     : eBuiltinInvalid;
     case GroupCollective::OpKind::ShuffleUp:
-      return Group.isSubGroupScope() ? eMuxBuiltinSubgroupShuffleUp
-                                     : eBuiltinInvalid;
     case GroupCollective::OpKind::ShuffleDown:
-      return Group.isSubGroupScope() ? eMuxBuiltinSubgroupShuffleDown
-                                     : eBuiltinInvalid;
     case GroupCollective::OpKind::ShuffleXor:
-      return Group.isSubGroupScope() ? eMuxBuiltinSubgroupShuffleXor
-                                     : eBuiltinInvalid;
+      if (!Group.isSubGroupScope()) {
+        break;
+      }
+      switch (Group.Op) {
+        default:
+          llvm_unreachable("Unhandled op");
+        case GroupCollective::OpKind::Shuffle:
+          return eMuxBuiltinSubgroupShuffle;
+        case GroupCollective::OpKind::ShuffleUp:
+          return eMuxBuiltinSubgroupShuffleUp;
+        case GroupCollective::OpKind::ShuffleDown:
+          return eMuxBuiltinSubgroupShuffleDown;
+        case GroupCollective::OpKind::ShuffleXor:
+          return eMuxBuiltinSubgroupShuffleXor;
+      }
   }
-  return eBuiltinInvalid;
+  return std::nullopt;
 #undef COMPLEX_SCOPE_SWITCH
 #undef SCOPE_SWITCH
 }
