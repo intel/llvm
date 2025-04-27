@@ -420,8 +420,6 @@ ur_result_t urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
-  auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
-
   getContext()->logger.debug("==== urEnqueueKernelLaunch");
 
   USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
