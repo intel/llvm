@@ -314,28 +314,26 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(Queue.get(),
+    : impl(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: This function is not used anymore, remove it in the next
 // ABI-breaking window.
-handler::handler(
-    std::shared_ptr<detail::queue_impl> Queue,
-    std::shared_ptr<detail::queue_impl> PrimaryQueue,
-    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
-    bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue.get(),
-                                                  CallerNeedsEvent)),
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(
+          PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent)),
       MQueue(Queue) {}
 #endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  detail::queue_impl *PrimaryQueue,
-                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue,
+                 detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue, SecondaryQueue,
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
@@ -1775,6 +1773,14 @@ void handler::use_kernel_bundle(
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the primary queue is different from the "
+        "context associated with the kernel bundle");
+
+  if (impl->MSubmissionSecondaryQueue &&
+      impl->MSubmissionSecondaryQueue->get_context() !=
+          ExecBundle.get_context())
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Context associated with the secondary queue is different from the "
         "context associated with the kernel bundle");
 
   setStateExplicitKernelBundle();

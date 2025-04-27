@@ -19,59 +19,29 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
-                         const AdapterPtr &Adapter)
-    : device_impl(InteropDeviceHandle, nullptr, nullptr, Adapter) {}
-
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, PlatformImplPtr Platform)
-    : device_impl(0, Device, Platform, Platform->getAdapter()) {}
-
-/// Constructs a SYCL device instance using the provided
-/// UR device instance.
-device_impl::device_impl(ur_device_handle_t Device, const AdapterPtr &Adapter)
-    : device_impl(0, Device, nullptr, Adapter) {}
-
-device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
-                         ur_device_handle_t Device, PlatformImplPtr Platform,
-                         const AdapterPtr &Adapter)
-    : MDevice(Device), MDeviceHostBaseTime(std::make_pair(0, 0)) {
-  bool InteroperabilityConstructor = false;
-  if (Device == nullptr) {
-    assert(InteropDeviceHandle);
-    // Get UR device from the raw device handle.
-    // NOTE: this is for OpenCL interop only (and should go away).
-    // With SYCL-2020 BE generalization "make" functions are used instead.
-    Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
-        InteropDeviceHandle, Adapter->getUrAdapter(), nullptr, &MDevice);
-    InteroperabilityConstructor = true;
-  }
+    : MDevice(Device), MPlatform(Platform),
+      MDeviceHostBaseTime(std::make_pair(0, 0)) {
+  const AdapterPtr &Adapter = Platform->getAdapter();
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Adapter->call<UrApiKind::urDeviceGetInfo>(
       MDevice, UR_DEVICE_INFO_TYPE, sizeof(ur_device_type_t), &MType, nullptr);
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
-  if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
+  if (!Platform->MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     Adapter->call<UrApiKind::urDeviceGetInfo>(
         MDevice, UR_DEVICE_INFO_PARENT_DEVICE, sizeof(ur_device_handle_t),
         &MRootDevice, nullptr);
   }
 
-  if (!InteroperabilityConstructor) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    // Interoperability Constructor already calls DeviceRetain in
-    // urDeviceCreateWithNativeHandle.
-    Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
-  }
-
-  // set MPlatform
-  if (!Platform) {
-    Platform = platform_impl::getPlatformFromUrDevice(MDevice, Adapter);
-  }
-  MPlatform = Platform;
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  // Interoperability Constructor already calls DeviceRetain in
+  // urDeviceCreateWithNativeHandle.
+  Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
 
   Adapter->call<UrApiKind::urDeviceGetInfo>(
       MDevice, UR_DEVICE_INFO_USE_NATIVE_ASSERT, sizeof(ur_bool_t),
