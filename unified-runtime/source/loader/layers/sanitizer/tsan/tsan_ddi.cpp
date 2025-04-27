@@ -467,18 +467,10 @@ ur_result_t urEnqueueMemBufferWrite(
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     ur_device_handle_t Device = GetDevice(hQueue);
     char *pDst = nullptr;
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     UR_CALL(MemBuffer->getHandle(Device, pDst));
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
         hQueue, blockingWrite, pDst + offset, pSrc, size, numEventsInWaitList,
-        phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferWrite(
         hQueue, hBuffer, blockingWrite, offset, size, pSrc, numEventsInWaitList,
@@ -647,17 +639,9 @@ ur_result_t urEnqueueMemBufferCopy(
     char *DstHandle = nullptr;
     UR_CALL(DstBuffer->getHandle(Device, DstHandle));
 
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
         hQueue, false, DstHandle + dstOffset, SrcHandle + srcOffset, size,
-        numEventsInWaitList, phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        numEventsInWaitList, phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferCopy(
         hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset, size,
@@ -759,19 +743,11 @@ ur_result_t urEnqueueMemBufferFill(
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     char *Handle = nullptr;
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     ur_device_handle_t Device = GetDevice(hQueue);
     UR_CALL(MemBuffer->getHandle(Device, Handle));
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
         hQueue, Handle + offset, patternSize, pPattern, size,
-        numEventsInWaitList, phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        numEventsInWaitList, phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferFill(
         hQueue, hBuffer, pPattern, patternSize, offset, size,

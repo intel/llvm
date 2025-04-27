@@ -812,6 +812,9 @@ ur_result_t urEnqueueMemBufferWrite(
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
           hQueue, Events.size(), Events.data(), phEvent));
     }
+
+    for (const auto &E : Events)
+      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
   } else {
     UR_CALL(pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size,
                               pSrc, numEventsInWaitList, phEventWaitList,
@@ -1010,6 +1013,9 @@ ur_result_t urEnqueueMemBufferCopy(
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
           hQueue, Events.size(), Events.data(), phEvent));
     }
+
+    for (const auto &E : Events)
+      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
   } else {
     UR_CALL(pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
                              dstOffset, size, numEventsInWaitList,
@@ -1140,6 +1146,9 @@ ur_result_t urEnqueueMemBufferFill(
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
           hQueue, Events.size(), Events.data(), phEvent));
     }
+
+    for (const auto &E : Events)
+      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
   } else {
     UR_CALL(pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset,
                              size, numEventsInWaitList, phEventWaitList,
@@ -1468,6 +1477,9 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
         hQueue, Events.size(), Events.data(), phEvent));
   }
 
+  for (const auto &E : Events)
+    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -1539,6 +1551,9 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         hQueue, Events.size(), Events.data(), phEvent));
   }
 
+  for (const auto &E : Events)
+    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -1601,6 +1616,9 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
         hQueue, Events.size(), Events.data(), phEvent));
   }
+
+  for (const auto &E : Events)
+    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1683,6 +1701,9 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
         hQueue, Events.size(), Events.data(), phEvent));
   }
+
+  for (const auto &E : Events)
+    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
 
   return UR_RESULT_SUCCESS;
 }

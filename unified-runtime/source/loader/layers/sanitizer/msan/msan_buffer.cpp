@@ -106,6 +106,9 @@ ur_result_t EnqueueMemCopyRectHelper(
                                                            &Events[0], Event));
   }
 
+  for (const auto &E : Events)
+    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+
   return UR_RESULT_SUCCESS;
 }
 
