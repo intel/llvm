@@ -32,11 +32,13 @@ class device_impl;
 // TODO: implement extension management for host device
 // TODO: implement parameters treatment for host device
 class platform_impl {
-public:
   /// Constructs platform_impl from a UR platform handle.
   ///
   /// \param APlatform is a raw plug-in platform handle.
   /// \param AAdapter is a plug-in handle.
+  //
+  // Platforms can only be created under `GlobalHandler`'s ownership via
+  // `platform_impl::getOrMakePlatformImpl` method.
   explicit platform_impl(ur_platform_handle_t APlatform,
                          const std::shared_ptr<Adapter> &AAdapter)
       : MPlatform(APlatform), MAdapter(AAdapter) {
@@ -50,6 +52,7 @@ public:
 
   ~platform_impl() = default;
 
+public:
   /// Checks if this platform supports extension.
   ///
   /// \param ExtensionName is a string containing extension name.

@@ -15,6 +15,8 @@
 #include <ur_api.h>
 
 #include "../device.hpp"
+#include "../helpers/memory_helpers.hpp"
+#include "../image_common.hpp"
 #include "common.hpp"
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
