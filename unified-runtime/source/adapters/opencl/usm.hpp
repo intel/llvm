@@ -27,7 +27,7 @@ struct AllocDeleterCallbackInfoBase {
     clRetainContext(CLContext);
   }
 
-  virtual ~AllocDeleterCallbackInfoBase() = 0;
+  virtual ~AllocDeleterCallbackInfoBase() { clReleaseContext(CLContext); }
 
   AllocDeleterCallbackInfoBase(const AllocDeleterCallbackInfoBase &) = delete;
   AllocDeleterCallbackInfoBase &
@@ -37,10 +37,6 @@ protected:
   cl_context CLContext;
   uint8_t *Allocation;
 };
-
-inline AllocDeleterCallbackInfoBase::~AllocDeleterCallbackInfoBase() {
-  clReleaseContext(CLContext);
-}
 
 struct AllocDeleterCallbackInfo : AllocDeleterCallbackInfoBase {
   AllocDeleterCallbackInfo(cl_context CLContext, uint8_t *Allocation)
@@ -58,13 +54,14 @@ struct AllocDeleterCallbackInfoUSM : AllocDeleterCallbackInfoBase {
   clMemBlockingFreeINTEL_fn USMFree;
 };
 
-struct AllocDeleterCallbackInfoWithQueue : AllocDeleterCallbackInfoUSM {
-  AllocDeleterCallbackInfoWithQueue(clMemBlockingFreeINTEL_fn USMFree,
-                                    cl_context CLContext, uint8_t *Allocation,
-                                    cl_command_queue CLQueue)
+struct AllocDeleterCallbackInfoUSMWithQueue : AllocDeleterCallbackInfoUSM {
+  AllocDeleterCallbackInfoUSMWithQueue(clMemBlockingFreeINTEL_fn USMFree,
+                                       cl_context CLContext,
+                                       uint8_t *Allocation,
+                                       cl_command_queue CLQueue)
       : AllocDeleterCallbackInfoUSM(USMFree, CLContext, Allocation),
         CLQueue(CLQueue) {}
-  ~AllocDeleterCallbackInfoWithQueue() override {
+  ~AllocDeleterCallbackInfoUSMWithQueue() override {
     clReleaseCommandQueue(CLQueue);
   }
 
