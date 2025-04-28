@@ -56,18 +56,12 @@ struct urCommandBufferCommandsTest
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferCommandsTest);
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMMemcpyExp) {
-  // No USM memcpy command in cl_khr_command_buffer
-  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
-
   ASSERT_SUCCESS(urCommandBufferAppendUSMMemcpyExp(
       cmd_buf_handle, device_ptrs[0], device_ptrs[1], allocation_size, 0,
       nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMFillExp) {
-  // No USM fill command in cl_khr_command_buffer
-  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
-
   uint32_t pattern = 42;
   ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
       cmd_buf_handle, device_ptrs[0], &pattern, sizeof(pattern),
