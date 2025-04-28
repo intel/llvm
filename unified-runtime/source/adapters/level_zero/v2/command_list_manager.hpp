@@ -20,9 +20,12 @@ struct wait_list_view {
   ze_event_handle_t *handles;
   uint32_t num;
 
+  wait_list_view(ze_event_handle_t *handles, uint32_t num)
+      : handles(num > 0 ? handles : nullptr), num(num) {}
+
   operator bool() const {
     assert((handles != nullptr) == (num > 0));
-    return handles != nullptr;
+    return num > 0;
   }
 
   void clear() {

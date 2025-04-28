@@ -374,23 +374,9 @@ public:
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
-    if (SubmitInfo.SecondaryQueue()) {
-      event ResEvent;
-      const std::shared_ptr<queue_impl> &SecondQueue =
-          SubmitInfo.SecondaryQueue();
-      try {
-        ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
-                               /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
-                               SubmitInfo);
-      } catch (...) {
-        ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                            /*CallerNeedsEvent=*/true, Loc,
-                                            IsTopCodeLoc, SubmitInfo);
-      }
-      return ResEvent;
-    }
+
     event ResEvent =
-        submit_impl(CGF, Self, Self, nullptr,
+        submit_impl(CGF, Self, Self, SubmitInfo.SecondaryQueue(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
   }
@@ -400,21 +386,8 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    if (SubmitInfo.SecondaryQueue()) {
-      const std::shared_ptr<queue_impl> SecondQueue =
-          SubmitInfo.SecondaryQueue();
-      try {
-        submit_impl(CGF, Self, Self, SecondQueue,
-                    /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
-      } catch (...) {
-        SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc,
-                                 SubmitInfo);
-      }
-    } else {
-      submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                  IsTopCodeLoc, SubmitInfo);
-    }
+    submit_impl(CGF, Self, Self, SubmitInfo.SecondaryQueue(),
+                /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
