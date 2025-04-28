@@ -834,13 +834,6 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
     ur_exp_command_buffer_handle_t CommandBuffer,
     std::shared_ptr<node_impl> Node) {
 
-  // Queue which will be used for allocation operations for accessors.
-  // Will also be used in native commands to return to the user in
-  // `interop_handler::get_native_queue()` calls.
-  auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
-      DeviceImpl, sycl::detail::getSyclObjImpl(Ctx), sycl::async_handler{},
-      sycl::property_list{});
-
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
   for (auto &N : Node->MPredecessors) {
     findRealDeps(Deps, N.lock(), MPartitionNodes[Node]);
@@ -848,8 +841,8 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
 
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
-          Node->getCGCopy(), AllocaQueue, /*EventNeeded=*/true, CommandBuffer,
-          Deps);
+          Node->getCGCopy(), MQueueImpl,
+          /*EventNeeded=*/true, CommandBuffer, Deps);
 
   if (MIsUpdatable) {
     MCommandMap[Node] = Event->getCommandBufferCommand();
@@ -922,6 +915,10 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
     : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
+      MQueueImpl(std::make_shared<sycl::detail::queue_impl>(
+          sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+          sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+          sycl::property_list{})),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MExecutionEvents(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
@@ -1360,16 +1357,11 @@ void exec_graph_impl::update(
       ++It;
     }
 
-    auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
-        sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
-        sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
-        sycl::async_handler{}, sycl::property_list{});
-
     // Track the event for the update command since execution may be blocked by
     // other scheduler commands
     auto UpdateEvent =
         sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-            this, Nodes, AllocaQueue, std::move(UpdateRequirements),
+            this, Nodes, MQueueImpl, std::move(UpdateRequirements),
             MExecutionEvents);
 
     MExecutionEvents.push_back(UpdateEvent);
