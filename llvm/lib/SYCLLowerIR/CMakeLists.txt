@@ -1,7 +1,9 @@
 # Lowering of SYCL ESIMD kernels depends on vc-intrinsics
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
- find_package(LLVMGenXIntrinsics QUIET)
+ if(NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR AND NOT LLVMGenXIntrinsics_INCLUDE_DIR)
+   find_package(LLVMGenXIntrinsics QUIET)
+ endif()
 
  if (NOT LLVMGenXIntrinsics_FOUND)
     if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)

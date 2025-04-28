@@ -1,5 +1,3 @@
-find_package(LLVMGenXIntrinsics QUIET)
-
 set(LLVM_LINK_COMPONENTS
   BitWriter
   Core
