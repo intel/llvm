@@ -40,9 +40,8 @@ device::device(cl_device_id DeviceId) {
   Adapter->call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
       detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter->getUrAdapter(),
       nullptr, &Device);
-  auto Platform =
-      detail::platform_impl::getPlatformFromUrDevice(Device, Adapter);
-  impl = Platform->getOrMakeDeviceImpl(Device, Platform);
+  impl = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
+             .getOrMakeDeviceImpl(Device);
   __SYCL_OCL_CALL(clRetainDevice, DeviceId);
 }
 
