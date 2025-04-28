@@ -675,6 +675,10 @@ Type *SPIRVEmitIntrinsics::deduceElementTypeHelper(
         Ty = cast<Instruction>(U)->getAccessType();
         assert(Ty && "Unable to get type for resource pointer.");
       }
+    } else if (II && II->getIntrinsicID() ==
+                         Intrinsic::spv_generic_cast_to_ptr_explicit) {
+      Ty = deduceElementTypeHelper(CI->getArgOperand(0), Visited,
+                                   UnknownElemTypeI8);
     } else if (Function *CalledF = CI->getCalledFunction()) {
       std::string DemangledName =
           getOclOrSpirvBuiltinDemangledName(CalledF->getName());
