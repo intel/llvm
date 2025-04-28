@@ -49,9 +49,9 @@ int main() {
   // Shouldn't be captured in graph as a dependency
   Queue.submit([&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      X[it] += 0.5f;
-      Y[it] += 0.5f;
-      Z[it] += 0.5f;
+      X[it] += 1.0f;
+      Y[it] += 1.0f;
+      Z[it] += 1.0f;
     });
   });
 
