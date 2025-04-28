@@ -5413,7 +5413,7 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
       if (RTOptionID == options::OPT__SLASH_MDd) {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
-                            "-previewd");
+                            "d-preview");
         else
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
       } else {
@@ -7033,7 +7033,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (isDependentLibAdded(Args, "msvcrtd")) {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
-                            "-previewd");
+                            "d-preview");
         else
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
       }
