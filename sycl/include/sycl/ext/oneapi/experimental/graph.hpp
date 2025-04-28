@@ -511,19 +511,10 @@ public:
   dynamic_parameter_base() = default;
 #endif
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED("Dynamic_parameter constructors taking a graph object have "
-                    "been deprecated "
-                    "and will be removed in the next ABI breaking window.")
-#endif
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED("Dynamic_parameter constructors taking a graph object have "
-                    "been deprecated "
-                    "and will be removed in the next ABI breaking window.")
-#endif
+
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
