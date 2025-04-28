@@ -126,14 +126,18 @@ llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")
-    llvm_config.with_system_environment(["LD_LIBRARY_PATH", "LIBRARY_PATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"])
+    llvm_config.with_system_environment(
+        ["LD_LIBRARY_PATH", "LIBRARY_PATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"]
+    )
     llvm_config.with_environment(
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
 elif platform.system() == "Windows":
     config.available_features.add("windows")
-    llvm_config.with_system_environment(["LIB", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "INCLUDE"])
+    llvm_config.with_system_environment(
+        ["LIB", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "INCLUDE"]
+    )
     llvm_config.with_environment("LIB", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment("PATH", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment(
