@@ -324,7 +324,7 @@ AsanInterceptor::getOrCreateShadowMemory(ur_device_handle_t Device,
   if (m_ShadowMap.find(Type) == m_ShadowMap.end()) {
     m_ShadowMap[Type] = CreateShadowMemory(Device, Type);
     m_ShadowMap[Type]->Setup();
-    getContext()->logger.info("ShadowMemory(Global, {} ~ {})", 
+    getContext()->logger.info("ShadowMemory(Global, {} ~ {})",
                               (void *)m_ShadowMap[Type]->ShadowBegin,
                               (void *)m_ShadowMap[Type]->ShadowEnd);
   }
