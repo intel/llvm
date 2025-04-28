@@ -56,6 +56,7 @@ sycl/source/detail/posix_ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/windows_ur.cpp @intel/unified-runtime-reviewers
 sycl/test-e2e/Adapters/ @intel/unified-runtime-reviewers
+sycl/test-e2e/Adapters/level_zero/ @intel/unified-runtime-reviewers-level-zero
 
 # Win Proxy Loader
 sycl/ur_win_proxy_loader @intel/llvm-reviewers-runtime

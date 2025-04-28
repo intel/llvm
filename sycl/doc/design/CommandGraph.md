@@ -626,8 +626,8 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferReleaseExp | clReleaseCommandBufferKHR | Yes |
 | urCommandBufferFinalizeExp | clFinalizeCommandBufferKHR | Yes |
 | urCommandBufferAppendKernelLaunchExp | clCommandNDRangeKernelKHR | Yes |
-| urCommandBufferAppendUSMMemcpyExp |  | No |
-| urCommandBufferAppendUSMFillExp |  | No |
+| urCommandBufferAppendUSMMemcpyExp | clCommandSVMMemcpyKHR | Partial, [see below](#unsupported-command-types) |
+| urCommandBufferAppendUSMFillExp | clCommandSVMMemFillKHR | Partial, [see below](#unsupported-command-types) |
 | urCommandBufferAppendMembufferCopyExp | clCommandCopyBufferKHR | Yes |
 | urCommandBufferAppendMemBufferWriteExp |  | No |
 | urCommandBufferAppendMemBufferReadExp |  | No |
@@ -643,8 +643,6 @@ adapter where there is matching support for each function in the list.
 |  | clCommandCopyImageToBufferKHR | No |
 |  | clCommandFillImageKHR | No |
 |  | clGetCommandBufferInfoKHR | No |
-|  | clCommandSVMMemcpyKHR | No |
-|  | clCommandSVMMemFillKHR | No |
 | urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Partial [See Update Section](#update-support) |
 
 We are looking to address these gaps in the future so that SYCL-Graph can be
@@ -664,17 +662,21 @@ terminate called after throwing an instance of 'sycl::_V1::exception'
 what():  USM copy command not supported by graph backend
 ```
 
-The types of commands which are unsupported, and lead to this exception are:
+The types of commands which are unsupported, and may lead to this exception are:
 * `handler::copy(src, dest)` - Where `src` is an accessor and `dest` is a pointer.
    This corresponds to a memory buffer read command.
 * `handler::copy(src, dest)` - Where `src` is an pointer and `dest` is an accessor.
   This corresponds to a memory buffer write command.
 * `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
-   `dest` are USM pointers. This corresponds to a USM copy command.
+   `dest` are USM pointers. This corresponds to a USM copy command that is
+   mapped to `clCommandSVMMemcpyKHR`, which will only work on OpenCL devices
+   which don't differentiate between USM and SVM.
 * `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
-  fill command.
+  fill command that is mapped to `clCommandSVMMemFillKHR`, which will only work
+  on OpenCL devices which don't differentiate between USM and SVM.
 * `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
-  fill command.
+  fill command that is mapped to `clCommandSVMMemFillKHR`, which will only work
+  on OpenCL devices which don't differentiate between USM and SVM.
 * `handler::prefetch()`.
 * `handler::mem_advise()`.
 

@@ -308,6 +308,52 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
   }
 }
 
+TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
+  sycl::unittest::UrMock<> Mock;
+
+  const sycl::device Dev = sycl::platform().get_devices()[0];
+  const sycl::context PrimaryCtx{Dev};
+  const sycl::context SecondaryCtx{Dev};
+
+  ASSERT_NE(PrimaryCtx, SecondaryCtx);
+
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+      PrimaryCtx, {Dev});
+
+  sycl::queue PrimaryQueue{PrimaryCtx, Dev};
+  sycl::queue SecondaryQueue{SecondaryCtx, Dev};
+
+  class UnqiueException {};
+
+  try {
+    PrimaryQueue.submit(
+        [&](sycl::handler &CGH) {
+          try {
+            CGH.use_kernel_bundle(KernelBundle);
+            FAIL() << "No exception was thrown.";
+            CGH.single_task<TestKernel>([]() {});
+          } catch (const sycl::exception &e) {
+            ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
+                << "sycl::exception code was not the expected "
+                   "sycl::errc::invalid.";
+            // Throw uniquely identifiable exception to distinguish between that
+            // the sycl::exception originates from the correct level.
+            throw UnqiueException{};
+          } catch (...) {
+            FAIL() << "Unexpected exception was thrown in kernel invocation "
+                      "function.";
+          }
+        },
+        SecondaryQueue);
+  } catch (const UnqiueException &) {
+    // Expected path
+  } catch (const sycl::exception &) {
+    FAIL() << "sycl::exception thrown at the wrong level.";
+  } catch (...) {
+    FAIL() << "Unexpected exception was thrown in submit.";
+  }
+}
+
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
   sycl::unittest::UrMock<> Mock;
 
