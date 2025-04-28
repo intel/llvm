@@ -54,12 +54,21 @@ struct NDRDescT {
 namespace {
 struct WaitInfo {
   std::vector<ur_event_handle_t> events;
-  WaitInfo() = default;
   static_assert(std::is_pointer_v<ur_event_handle_t>);
   WaitInfo(uint32_t numEvents, const ur_event_handle_t *WaitList)
       : events(WaitList, WaitList + numEvents) {}
   void wait() const { urEventWait(events.size(), events.data()); }
 };
+
+inline static std::unique_ptr<WaitInfo>
+getWaitInfo(uint32_t numEventsInWaitList,
+            const ur_event_handle_t *phEventWaitList) {
+  return (numEventsInWaitList && phEventWaitList)
+             ? std::make_unique<native_cpu::WaitInfo>(numEventsInWaitList,
+                                                      phEventWaitList)
+             : nullptr;
+}
+
 } // namespace
 } // namespace native_cpu
 
@@ -132,10 +141,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto kernel = std::make_unique<ur_kernel_handle_t_>(*hKernel);
   kernel->updateMemPool(numParallelThreads);
 
-  native_cpu::WaitInfo *const InEvents =
-      (numEventsInWaitList && phEventWaitList)
-          ? new native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList)
-          : nullptr;
+  auto InEvents = native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
 
 #ifndef NATIVECPU_USE_OCK
   urEventWait(numEventsInWaitList, phEventWaitList);
@@ -180,7 +186,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         for (unsigned g0 = 0; g0 < new_num_work_groups_0; g0 += 1) {
           futures.emplace_back(
               tp.schedule_task([ndr, itemsPerThread, &kernel = *kernel, g0, g1,
-                                g2, InEvents](size_t) {
+                                g2, InEvents = InEvents.get()](size_t) {
                 native_cpu::state resized_state =
                     getResizedState(ndr, itemsPerThread);
                 resized_state.update(g0, g1, g2);
@@ -212,7 +218,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         for (unsigned g1 = 0; g1 < numWG1; g1++) {
           futures.emplace_back(tp.schedule_task(
               [state, &kernel = *kernel, numWG0, g1, g2, numParallelThreads,
-               InEvents](size_t threadId) mutable {
+               InEvents = InEvents.get()](size_t threadId) mutable {
                 for (unsigned g0 = 0; g0 < numWG0; g0++) {
                   state.update(g0, g1, g2);
                   if (InEvents)
@@ -232,8 +238,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         for (unsigned g1 = 0; g1 < numWG1; g1++) {
           for (unsigned g0 = 0; g0 < numWG0; g0++) {
             groups.push_back([state, g0, g1, g2, numParallelThreads,
-                              InEvents](size_t threadId,
-                                        ur_kernel_handle_t_ &kernel) mutable {
+                              InEvents = InEvents.get()](
+                                 size_t threadId,
+                                 ur_kernel_handle_t_ &kernel) mutable {
               state.update(g0, g1, g2);
               if (InEvents)
                 InEvents->wait();
@@ -280,11 +287,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   if (phEvent) {
     *phEvent = event;
   }
-  event->set_callback([kernel = std::move(kernel), hKernel, event, InEvents]() {
+  event->set_callback([kernel = std::move(kernel), hKernel, event,
+                       InEvents = std::move(InEvents)]() {
     event->tick_end();
     // TODO: avoid calling clear() here.
     hKernel->_localArgInfo.clear();
-    delete InEvents;
   });
 
   if (hQueue->isInOrder()) {
