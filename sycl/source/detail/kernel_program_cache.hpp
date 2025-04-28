@@ -268,6 +268,8 @@ public:
     };
 
     ~FastKernelCacheWrapper() {
+      if (!MCache)
+        return;
       // TODO: do we need lock for Subcache?
       // Single subcache might be used by different contexts
       for (auto it = MCache->begin(); it != MCache->end();) {
