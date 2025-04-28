@@ -82,7 +82,6 @@ CLC_TABLE_FUNCTION_DECL(float, sinhcosh_tbl_tail);
 
 CLC_TABLE_FUNCTION_DECL(double, ln_tbl_lo);
 CLC_TABLE_FUNCTION_DECL(double, ln_tbl_hi);
-TABLE_FUNCTION_DECL(double2, atan_jby256_tbl);
 CLC_TABLE_FUNCTION_DECL(double, atan_jby256_tbl_head);
 CLC_TABLE_FUNCTION_DECL(double, atan_jby256_tbl_tail);
 CLC_TABLE_FUNCTION_DECL(double, two_to_jby64_ep_tbl_head);
