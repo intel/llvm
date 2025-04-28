@@ -170,9 +170,39 @@ template void templated(int *, int *);
 template void templated(sycl::X<ChildTwo>, sycl::X<ChildTwo>);
 }
 
-namespace TestNamespace::_V1 {
-  template void templated1(Arg<One::Two::Three::AnotherStruct, float, 10>, One::Two::Three::AnotherStruct end);
+namespace TestNamespace {
+  inline namespace _V1 {
+    template void templated1(Arg<One::Two::Three::AnotherStruct, float, 10>, One::Two::Three::AnotherStruct end);
+  }
 }
+
+template <typename... Args>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void
+variadic_templated(Args... args) {
+}
+
+template void variadic_templated(int, float, char);
+template void variadic_templated(int, float, char, int);
+template void variadic_templated<float, float>(float, float);
+
+template <typename T, typename... Args>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void
+variadic_templated1(T b, Args... args) {
+}
+
+template void variadic_templated1<float, char, char>(float, char, char);
+template void variadic_templated1(int, float, char);
+
+namespace Testing::Tests {
+  template <typename T, typename... Args>
+  [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void
+  variadic_templated(T b, Args... args) {
+  }
+
+  template void variadic_templated<float, float>(float, float);
+  template void variadic_templated(int, int, int, int);
+}
+
 
 // CHECK: namespace sycl {
 // CHECK-NEXT:  inline namespace _V1 {
@@ -201,6 +231,13 @@ namespace TestNamespace::_V1 {
 // CHECK-NEXT:    "_ZN26__sycl_kernel__GLOBAL__N_19templatedIPiEEvT_S2_",
 // CHECK-NEXT:    "_ZN26__sycl_kernel__GLOBAL__N_19templatedIN4sycl1XI8ChildTwoEEEEvT_S5_",
 // CHECK-NEXT:    "_ZN27__sycl_kernel_TestNamespace3_V110templated1IN3One3Two5Three13AnotherStructELi10EEEvN2ns3ArgIT_fXT0_ENS6_9notatupleEJEEES8_",
+// CHECK-NEXT:    "_Z32__sycl_kernel_variadic_templatedIJifcEEvDpT_",
+// CHECK-NEXT:    "_Z32__sycl_kernel_variadic_templatedIJifciEEvDpT_",
+// CHECK-NEXT:    "_Z32__sycl_kernel_variadic_templatedIJffEEvDpT_",
+// CHECK-NEXT:    "_Z33__sycl_kernel_variadic_templated1IfJccEEvT_DpT0_", 
+// CHECK-NEXT:    "_Z33__sycl_kernel_variadic_templated1IiJfcEEvT_DpT0_",
+// CHECK-NEXT:    "_ZN21__sycl_kernel_Testing5Tests18variadic_templatedIfJfEEEvT_DpT0_", 
+// CHECK-NEXT:    "_ZN21__sycl_kernel_Testing5Tests18variadic_templatedIiJiiiEEEvT_DpT0_", 
 // CHECK-NEXT:    "",
 // CHECK-NEXT:  };
 
@@ -512,6 +549,119 @@ namespace TestNamespace::_V1 {
 // CHECK-NEXT:  };
 // CHECK-NEXT:  template <>
 // CHECK-NEXT:  struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim21(), 2> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  }
+
+// CHECK: template <typename ... Args> void variadic_templated(Args... args);
+// CHECK-NEXT: static constexpr auto __sycl_shim22() {
+// CHECK-NEXT:  return (void (*)(int, float, char))variadic_templated<int, float, char>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim22()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim22(), 2> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
+// CHECK: template <typename ... Args> void variadic_templated(Args... args);
+// CHECK-NEXT: static constexpr auto __sycl_shim23() {
+// CHECK-NEXT:  return (void (*)(int, float, char, int))variadic_templated<int, float, char, int>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim23()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim23(), 2> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
+// CHECK: template <typename ... Args> void variadic_templated(Args... args);
+// CHECK-NEXT: static constexpr auto __sycl_shim24() {
+// CHECK-NEXT:  return (void (*)(float, float))variadic_templated<float, float>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim24()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim24(), 2> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
+// CHECK: template <typename T, typename ... Args> void variadic_templated1(T b, Args... args);
+// CHECK-NEXT: static constexpr auto __sycl_shim25() {
+// CHECK-NEXT:  return (void (*)(float, char, char))variadic_templated1<float, char, char>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim25()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim25(), 2> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
+// CHECK: template <typename T, typename ... Args> void variadic_templated1(T b, Args... args);
+// CHECK-NEXT: static constexpr auto __sycl_shim26() {
+// CHECK-NEXT:  return (void (*)(int, float, char))variadic_templated1<int, float, char>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim26()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim26(), 2> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
+// CHECK: namespace Testing {
+// CHECK-NEXT:  namespace Tests {
+// CHECK-NEXT:  template <typename T, typename ... Args> void variadic_templated(T b, Args... args);
+// CHECK-NEXT:  } // namespace Tests
+// CHECK-NEXT:  } // namespace Testing
+// CHECK:  static constexpr auto __sycl_shim27() {
+// CHECK-NEXT:    return (void (*)(float, float))Testing::Tests::variadic_templated<float, float>;
+// CHECK-NEXT:  }
+// CHECK-NEXT:  namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_kernel<__sycl_shim27()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim27(), 2> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  }
+
+// CHECK:  namespace Testing {
+// CHECK-NEXT:  namespace Tests {
+// CHECK-NEXT:  template <typename T, typename ... Args> void variadic_templated(T b, Args... args);
+// CHECK-NEXT:  } // namespace Tests
+// CHECK-NEXT:  } // namespace Testing
+// CHECK:  static constexpr auto __sycl_shim28() {
+// CHECK-NEXT:    return (void (*)(int, int, int, int))Testing::Tests::variadic_templated<int, int, int, int>;
+// CHECK-NEXT:  }
+// CHECK-NEXT:  namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_kernel<__sycl_shim28()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim28(), 2> {
 // CHECK-NEXT:    static constexpr bool value = true;
 // CHECK-NEXT:  };
 // CHECK-NEXT:  }
