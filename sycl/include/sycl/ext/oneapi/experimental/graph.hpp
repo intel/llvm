@@ -562,13 +562,12 @@ public:
   dynamic_work_group_memory_base(size_t Size)
       : dynamic_parameter_base(), BufferSize(Size) {}
 #endif
-// TODO: Remove in next ABI breaking window
+  // TODO: Remove in next ABI breaking window
   dynamic_work_group_memory_base(
       experimental::command_graph<graph_state::modifiable> Graph, size_t Size)
       : dynamic_parameter_base(Graph), BufferSize(Size) {}
 #else
-  dynamic_work_group_memory_base(size_t Size)
-      : BufferSize(Size) {}
+  dynamic_work_group_memory_base(size_t Size) : BufferSize(Size) {}
   dynamic_work_group_memory_base(
       experimental::command_graph<graph_state::modifiable> /*Graph*/,
       size_t Size)
@@ -665,12 +664,11 @@ class dynamic_parameter : public detail::dynamic_parameter_base {
 
 public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-/// Constructs a new dynamic parameter.
-/// @param Graph The graph associated with this parameter.
-/// @param Param A reference value for this parameter used for CTAD.
-dynamic_parameter(const ValueT &Param)
-    : detail::dynamic_parameter_base(sizeof(ValueT), &Param) {}
-
+  /// Constructs a new dynamic parameter.
+  /// @param Graph The graph associated with this parameter.
+  /// @param Param A reference value for this parameter used for CTAD.
+  dynamic_parameter(const ValueT &Param)
+      : detail::dynamic_parameter_base(sizeof(ValueT), &Param) {}
 #endif
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
