@@ -68,7 +68,6 @@ static std::unique_ptr<void, std::function<void(void *)>>
       std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
     });
 
-// Load first compatible ocloc shared library.
 void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 #ifdef __SYCL_RT_OS_WINDOWS
   static const std::string OclocPath = "ocloc64.dll";
