@@ -321,9 +321,12 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(),
                   CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+
+#if XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
   }
+#endif
 
   {
     NestedCallsTracker tracker;
@@ -439,7 +442,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
             ExpandedDepEventImplPtrs.push_back(
                 detail::getSyclObjImpl(DepEvent));
 
-          EventImpl->cleanDepEventsThroughOneLevel();
+          // EventImpl is local for current thread, no need to lock.
+          EventImpl->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
 
