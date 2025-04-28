@@ -76,10 +76,9 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 #endif
 
   // set OclocLibrary value by side effect.
-  void *tempPtr;
   try {
     // Load then perform checks. Each check throws.
-    tempPtr = sycl::detail::ur::loadOsLibrary(OclocPath);
+    void *tempPtr = sycl::detail::ur::loadOsLibrary(OclocPath);
     OclocLibrary.reset(tempPtr);
 
     if (tempPtr == nullptr)
@@ -90,7 +89,6 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 
     InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
   } catch (const sycl::exception &) {
-    tempPtr = nullptr;
     OclocLibrary.reset(tempPtr);
     std::rethrow_exception(std::current_exception());
   }
