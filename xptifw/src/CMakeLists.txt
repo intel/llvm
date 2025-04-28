@@ -68,10 +68,4 @@ function(add_xpti_library LIB_NAME)
   )
 endfunction(add_xpti_library)
 
-# MSVC provides two incompatible build variants for its CRT: release and debug
-# To avoid potential issues in user code we also need to provide two kinds
-# of XPTIFW for release and debug configurations.
 add_xpti_library(xptifw)
-if (MSVC)
-  add_xpti_library(xptifwd)
-endif()

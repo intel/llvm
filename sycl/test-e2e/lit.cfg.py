@@ -747,7 +747,7 @@ if platform.system() == "Linux":
 elif platform.system() == "Windows":
     # Use debug version of xptifw library if tests are built with \MDd.
     xptifw_dispatcher_name = (
-        XPTIFW_DEBUG if "/MDd" in config.cxx_flags else XPTIFW_RELEASE
+        XPTIFW_DEBUG if config.build_mode == "Debug" in config.cxx_flags else XPTIFW_RELEASE
     )
     xptifw_dispatcher = os.path.join(
         config.dpcpp_root_dir, "bin", xptifw_dispatcher_name + ".dll"
@@ -760,7 +760,7 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
     config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
     if cl_options:
         # Use debug version of xptifw library if tests are built with \MDd.
-        xptifw_lib_name = XPTIFW_DEBUG if "/MDd" in config.cxx_flags else XPTIFW_RELEASE
+        xptifw_lib_name = XPTIFW_DEBUG if config.build_mode == "Debug" in config.cxx_flags else XPTIFW_RELEASE
         xptifw_lib = os.path.normpath(
             os.path.join(xptifw_lib_dir, xptifw_lib_name + ".lib")
         )
