@@ -294,14 +294,15 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                 uint32_t numEventsInWaitList,
                 const ur_event_handle_t *phEventWaitList,
                 ur_event_handle_t *phEvent, T &&f, I &&inv) {
-  urEventWait(numEventsInWaitList, phEventWaitList);
   if (phEvent) {
     ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
     event->tick_start();
-    ur_result_t result = inv(std::forward<T>(f), event, hQueue);
+    ur_result_t result = inv(std::forward<T>(f), event, hQueue,
+                             numEventsInWaitList, phEventWaitList);
     *phEvent = event;
     return result;
   }
+  urEventWait(numEventsInWaitList, phEventWaitList);
   ur_result_t result = f();
   return result;
 }
@@ -309,8 +310,10 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
 namespace {
 struct BlockingWithEvent {
   template <class T>
-  ur_result_t operator()(T &&op, ur_event_handle_t event,
-                         ur_queue_handle_t) const {
+  ur_result_t operator()(T &&op, ur_event_handle_t event, ur_queue_handle_t,
+                         uint32_t numEventsInWaitList,
+                         const ur_event_handle_t *phEventWaitList) const {
+    urEventWait(numEventsInWaitList, phEventWaitList);
     ur_result_t result = op();
     event->tick_end();
     return result;
@@ -320,12 +323,24 @@ struct BlockingWithEvent {
 struct NonBlocking {
   template <class T>
   ur_result_t operator()(T &&op, ur_event_handle_t event,
-                         ur_queue_handle_t hQueue) const {
+                         ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
+                         const ur_event_handle_t *phEventWaitList) const {
     auto &tp = hQueue->getDevice()->tp;
     std::vector<std::future<void>> futures;
-    futures.emplace_back(tp.schedule_task([op](size_t) { op(); }));
+    native_cpu::WaitInfo *const InEvents =
+        (numEventsInWaitList && phEventWaitList)
+            ? new native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList)
+            : nullptr;
+    futures.emplace_back(tp.schedule_task([op, InEvents](size_t) {
+      if (InEvents)
+        InEvents->wait();
+      op();
+    }));
     event->set_futures(futures);
-    event->set_callback([event]() { event->tick_end(); });
+    event->set_callback([event, InEvents]() {
+      event->tick_end();
+      delete InEvents;
+    });
     return UR_RESULT_SUCCESS;
   }
 };
@@ -335,10 +350,13 @@ struct Invoker {
   Invoker(bool blocking) : blocking(blocking) {}
   template <class T>
   ur_result_t operator()(T &&f, ur_event_handle_t event,
-                         ur_queue_handle_t hQueue) const {
+                         ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
+                         const ur_event_handle_t *phEventWaitList) const {
     if (blocking)
-      return BlockingWithEvent()(std::forward<T>(f), event, hQueue);
-    return NonBlocking()(std::forward<T>(f), event, hQueue);
+      return BlockingWithEvent()(std::forward<T>(f), event, hQueue,
+                                 numEventsInWaitList, phEventWaitList);
+    return NonBlocking()(std::forward<T>(f), event, hQueue, numEventsInWaitList,
+                         phEventWaitList);
   };
 };
 
@@ -667,6 +685,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  if (pSrc == pDst || size == 0)
+    return withTimingEvent(
+        UR_COMMAND_USM_MEMCPY, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
+        []() { return UR_RESULT_SUCCESS; }, BlockingWithEvent());
 
   return withTimingEvent(
       UR_COMMAND_USM_MEMCPY, hQueue, numEventsInWaitList, phEventWaitList,
