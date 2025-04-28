@@ -126,14 +126,14 @@ llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")
-    llvm_config.with_system_environment(["LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH"])
+    llvm_config.with_system_environment(["LD_LIBRARY_PATH", "LIBRARY_PATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"])
     llvm_config.with_environment(
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
 elif platform.system() == "Windows":
     config.available_features.add("windows")
-    llvm_config.with_system_environment(["LIB", "CPATH", "INCLUDE"])
+    llvm_config.with_system_environment(["LIB", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "INCLUDE"])
     llvm_config.with_environment("LIB", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment("PATH", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment(
@@ -142,14 +142,19 @@ elif platform.system() == "Windows":
 
 elif platform.system() == "Darwin":
     # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
-    llvm_config.with_system_environment("CPATH")
+    llvm_config.with_system_environment(["C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"])
     llvm_config.with_environment(
-        "CPATH",
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1",
         append_path=True,
     )
     llvm_config.with_environment(
-        "CPATH",
+        "C_INCLUDE_PATH",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
+        append_path=True,
+    )
+    llvm_config.with_environment(
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
         append_path=True,
     )
@@ -537,9 +542,9 @@ if cl_options:
             "%sycl_options",
             " "
             + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
-            + " /I"
+            + " -Xclang -isystem -Xclang "
             + config.sycl_include
-            + " /I"
+            + " -Xclang -isystem -Xclang "
             + os.path.join(config.sycl_include, "sycl"),
         )
     )
@@ -555,9 +560,9 @@ else:
         (
             "%sycl_options",
             (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
-            + " -I"
+            + " -isystem "
             + config.sycl_include
-            + " -I"
+            + " -isystem "
             + os.path.join(config.sycl_include, "sycl")
             + " -L"
             + config.sycl_libs_dir,
