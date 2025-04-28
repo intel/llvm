@@ -384,9 +384,6 @@ _Returns:_ The newly created kernel bundle, which has `object` state.
 
 _Throws:_
 
-* An `exception` with the `errc::invalid` error code if `source` was not created
-  with `source_language::sycl`.
-
 * An `exception` with the `errc::invalid` error code if any of the devices in
   `devs` is not contained by the context associated with `sourceBundle`.
 
