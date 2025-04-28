@@ -750,7 +750,7 @@ elif platform.system() == "Windows":
         XPTIFW_DEBUG
         if config.build_mode == "Debug" in config.cxx_flags
         else XPTIFW_RELEASE
-     )
+    )
     xptifw_dispatcher = os.path.join(
         config.dpcpp_root_dir, "bin", xptifw_dispatcher_name + ".dll"
     )
