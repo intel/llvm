@@ -705,12 +705,12 @@ public:
         getSyclObjImpl(MContext);
 
     for (const auto &SyclDev : Devices) {
-      const DeviceImplPtr &DevImpl = getSyclObjImpl(SyclDev);
+      device_impl &DevImpl = *getSyclObjImpl(SyclDev);
       if (!ContextImpl->hasDevice(DevImpl)) {
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
       }
-      if (!DevImpl->extOneapiCanCompile(MRTCBinInfo->MLanguage)) {
+      if (!DevImpl.extOneapiCanCompile(MRTCBinInfo->MLanguage)) {
         // This error cannot not be exercised in the current implementation, as
         // compatibility with a source language depends on the backend's
         // capabilities and all devices in one context share the same backend in

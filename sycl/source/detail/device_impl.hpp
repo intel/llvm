@@ -32,7 +32,7 @@ namespace detail {
 class platform_impl;
 
 // TODO: Make code thread-safe
-class device_impl {
+class device_impl : public std::enable_shared_from_this<device_impl> {
   struct private_tag {
     explicit private_tag() = default;
   };

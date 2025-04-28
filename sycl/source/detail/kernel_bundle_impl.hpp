@@ -49,7 +49,7 @@ static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
                                         const context &Context) {
   return std::all_of(
       Devices.begin(), Devices.end(), [&Context](const device &Dev) {
-        return getSyclObjImpl(Context)->isDeviceValid(getSyclObjImpl(Dev));
+        return getSyclObjImpl(Context)->isDeviceValid(*getSyclObjImpl(Dev));
       });
 }
 

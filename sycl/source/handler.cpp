@@ -43,13 +43,13 @@ inline namespace _V1 {
 
 namespace detail {
 
-const DeviceImplPtr &getDeviceImplFromHandler(handler &CGH) {
+device_impl &getDeviceImplFromHandler(handler &CGH) {
   assert((CGH.MQueue || getSyclObjImpl(CGH)->MGraph) &&
          "One of MQueue or MGraph should be nonnull!");
   if (CGH.MQueue)
-    return CGH.MQueue->getDeviceImplPtr();
+    return CGH.MQueue->getDeviceImpl();
 
-  return getSyclObjImpl(CGH)->MGraph->getDeviceImplPtr();
+  return getSyclObjImpl(CGH)->MGraph->getDeviceImpl();
 }
 
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
@@ -1887,8 +1887,8 @@ void handler::verifyDeviceHasProgressGuarantee(
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
   using forward_progress =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
-  auto deviceImplPtr = MQueue->getDeviceImplPtr();
-  const bool supported = deviceImplPtr->supportsForwardProgress(
+  device_impl &deviceImpl = MQueue->getDeviceImpl();
+  const bool supported = deviceImpl.supportsForwardProgress(
       guarantee, threadScope, coordinationScope);
   if (threadScope == execution_scope::work_group) {
     if (!supported) {
@@ -1961,7 +1961,7 @@ backend handler::getDeviceBackend() const {
   if (impl->MGraph)
     return impl->MGraph->getDevice().get_backend();
   else
-    return MQueue->getDeviceImplPtr()->getBackend();
+    return MQueue->getDeviceImpl().getBackend();
 }
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
@@ -2015,17 +2015,14 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
                                            size_t NumBytes, size_t Offset) {
   std::weak_ptr<detail::context_impl> WeakContextImpl =
       MQueue->getContextImplPtr();
-  std::weak_ptr<detail::device_impl> WeakDeviceImpl =
-      MQueue->getDeviceImplPtr();
   host_task([=] {
     // Capture context and device as weak to avoid keeping them alive for too
     // long. If they are dead by the time this executes, the operation would not
     // have been visible anyway.
     std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
-    std::shared_ptr<detail::device_impl> DeviceImpl = WeakDeviceImpl.lock();
-    if (ContextImpl && DeviceImpl)
+    if (ContextImpl)
       ContextImpl->memcpyToHostOnlyDeviceGlobal(
-          DeviceImpl, DeviceGlobalPtr, Src, DeviceGlobalTSize,
+          MQueue->getDeviceImpl(), DeviceGlobalPtr, Src, DeviceGlobalTSize,
           IsDeviceImageScoped, NumBytes, Offset);
   });
 }
@@ -2036,12 +2033,13 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
                                              size_t NumBytes, size_t Offset) {
   const std::shared_ptr<detail::context_impl> &ContextImpl =
       MQueue->getContextImplPtr();
-  const std::shared_ptr<detail::device_impl> &DeviceImpl =
-      MQueue->getDeviceImplPtr();
-  host_task([=] {
-    // Unlike memcpy to device_global, we need to keep the context and device
-    // alive in the capture of this operation as we must be able to correctly
-    // copy the value to the user-specified pointer.
+  detail::device_impl &DeviceImpl = MQueue->getDeviceImpl();
+  host_task([=, &DeviceImpl] {
+    // Unlike memcpy to device_global, we need to keep the context alive in the
+    // capture of this operation as we must be able to correctly copy the value
+    // to the user-specified pointer. Device is guaranteed to live until SYCL RT
+    // library shutdown (but even if it wasn't, alive conext has to guarantee
+    // alive device).
     ContextImpl->memcpyFromHostOnlyDeviceGlobal(
         DeviceImpl, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes,
         Offset);
@@ -2114,10 +2112,10 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  const auto &DeviceImpl = detail::getDeviceImplFromHandler(*this);
+  device_impl &DeviceImpl = detail::getDeviceImplFromHandler(*this);
   std::array<size_t, 3> UrResult = {};
-  auto Ret = DeviceImpl->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-      DeviceImpl->getHandleRef(),
+  auto Ret = DeviceImpl.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl.getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);

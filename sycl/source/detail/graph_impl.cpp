@@ -784,7 +784,7 @@ void exec_graph_impl::findRealDeps(
 
 ur_exp_command_buffer_sync_point_t
 exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
-                                   sycl::detail::DeviceImplPtr DeviceImpl,
+                                   sycl::detail::device_impl &DeviceImpl,
                                    ur_exp_command_buffer_handle_t CommandBuffer,
                                    std::shared_ptr<node_impl> Node) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
@@ -861,10 +861,10 @@ void exec_graph_impl::createCommandBuffers(
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
+  sycl::detail::device_impl & DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res =
       Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
-          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
+          ContextImpl->getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
@@ -1462,7 +1462,8 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
+  sycl::detail::device_impl &DeviceImpl =
+      *sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
   // Gather arg information from Node
   auto &ExecCG =
@@ -1515,7 +1516,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     LocalSize = &NDRDesc.LocalSize[0];
   else {
     Adapter->call<sycl::detail::UrApiKind::urKernelGetGroupInfo>(
-        UrKernel, DeviceImpl->getHandleRef(),
+        UrKernel, DeviceImpl.getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
         /* param_value_size_ret = */ nullptr);

@@ -368,8 +368,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
 
   appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
-  const detail::DeviceImplPtr &DeviceImpl = detail::getSyclObjImpl(Devs[0]);
-  const platform_impl &PlatformImpl = DeviceImpl->getPlatformImpl();
+  const platform_impl &PlatformImpl =
+      detail::getSyclObjImpl(Devs[0])->getPlatformImpl();
 
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
@@ -584,11 +584,10 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
 
 static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
                                  const device &Dev) {
-  const std::shared_ptr<detail::device_impl> &DeviceImpl =
-      detail::getSyclObjImpl(Dev);
-  auto &Adapter = DeviceImpl->getAdapter();
+  detail::device_impl &DeviceImpl = *detail::getSyclObjImpl(Dev);
+  auto &Adapter = DeviceImpl.getAdapter();
 
-  const ur_device_handle_t &URDeviceHandle = DeviceImpl->getHandleRef();
+  const ur_device_handle_t &URDeviceHandle = DeviceImpl.getHandleRef();
 
   // Call urDeviceSelectBinary with only one image to check if an image is
   // compatible with implementation. The function returns invalid index if no
@@ -641,11 +640,10 @@ bool ProgramManager::isSpecialDeviceImageShouldBeUsed(
     // more devicelib images in this way.
     enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
     ur_bool_t NativeBF16Supported = false;
-    const std::shared_ptr<detail::device_impl> &DeviceImpl =
-        detail::getSyclObjImpl(Dev);
+    detail::device_impl &DeviceImpl = *detail::getSyclObjImpl(Dev);
     ur_result_t CallSuccessful =
-        DeviceImpl->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            DeviceImpl->getHandleRef(),
+        DeviceImpl.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            DeviceImpl.getHandleRef(),
             UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE, sizeof(ur_bool_t),
             &NativeBF16Supported, nullptr);
     if (CallSuccessful != UR_RESULT_SUCCESS) {
@@ -847,22 +845,24 @@ CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 // When caching is enabled, the returned UrProgram will already have
 // its ref count incremented.
 ur_program_handle_t ProgramManager::getBuiltURProgram(
-    const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
+    const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
     KernelNameStrRefT KernelName, const NDRDescT &NDRDesc) {
-  DeviceImplPtr RootDevImpl;
+  device_impl *RootDevImpl;
   ur_bool_t MustBuildOnSubdevice = true;
 
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
-  if (!DeviceImpl->isRootDevice()) {
-    RootDevImpl = DeviceImpl;
+  if (!DeviceImpl.isRootDevice()) {
+    RootDevImpl = &DeviceImpl;
     while (!RootDevImpl->isRootDevice()) {
-      auto ParentDev = detail::getSyclObjImpl(
-          RootDevImpl->get_info<info::device::parent_device>());
+      device_impl *ParentDev =
+          detail::getSyclObjImpl(
+              RootDevImpl->get_info<info::device::parent_device>())
+              .get();
       // Sharing is allowed within a single context only
-      if (!ContextImpl->hasDevice(ParentDev))
+      if (!ContextImpl->hasDevice(*ParentDev))
         break;
-      RootDevImpl = std::move(ParentDev);
+      RootDevImpl = ParentDev;
     }
 
     ContextImpl->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
@@ -870,8 +870,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         sizeof(ur_bool_t), &MustBuildOnSubdevice, nullptr);
   }
 
-  auto Device = createSyclObjFromImpl<device>(
-      MustBuildOnSubdevice == true ? DeviceImpl : RootDevImpl);
+  device Device = createSyclObjFromImpl<device>(
+      MustBuildOnSubdevice == true ? DeviceImpl : *RootDevImpl);
   const RTDeviceBinaryImage &Img =
       getDeviceImage(KernelName, ContextImpl, getSyclObjImpl(Device).get());
 
@@ -1108,18 +1108,18 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
            ur_program_handle_t>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
-                                  const DeviceImplPtr &DeviceImpl,
+                                  device_impl &DeviceImpl,
                                   KernelNameStrRefT KernelName,
                                   const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
-              << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
+              << ", " << &DeviceImpl << ", " << KernelName << ")\n";
   }
 
   using KernelArgMaskPairT = KernelProgramCache::KernelArgMaskPairT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
-  ur_device_handle_t UrDevice = DeviceImpl->getHandleRef();
+  ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
 
   auto key = std::make_pair(UrDevice, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
@@ -3283,8 +3283,8 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
     std::cerr << ">>> Adding the kernel to the cache.\n";
   const ContextImplPtr &ContextImpl = detail::getSyclObjImpl(Context);
   auto Program = createURProgram(Img, ContextImpl, {Device});
-  auto DeviceImpl = detail::getSyclObjImpl(Device);
-  auto &Adapter = DeviceImpl->getAdapter();
+  detail::device_impl &DeviceImpl = *detail::getSyclObjImpl(Device);
+  auto &Adapter = DeviceImpl.getAdapter();
   UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
   auto programRelease =
       programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
@@ -3295,7 +3295,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   // No linking of extra programs reqruired.
   std::vector<ur_program_handle_t> ExtraProgramsToLink;
-  std::vector<ur_device_handle_t> Devs = {DeviceImpl->getHandleRef()};
+  std::vector<ur_device_handle_t> Devs = {DeviceImpl.getHandleRef()};
   auto BuildProgram =
       build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts, Devs,
             /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
