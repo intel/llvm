@@ -71,47 +71,30 @@ static std::unique_ptr<void, std::function<void(void *)>>
 // Load first compatible ocloc shared library.
 void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 #ifdef __SYCL_RT_OS_WINDOWS
-  // first the environment, if not compatible will move on to absolute path.
-  static const std::vector<std::string> OclocPaths = {
-      "ocloc64.dll",
-      "C:\\Program Files (x86)\\Intel\\oneAPI\\ocloc\\latest\\ocloc64.dll"};
+  static const std::string OclocPath = "ocloc64.dll";
 #else
-  // linux always uses the environment.
-  static const std::vector<std::string> OclocPaths = {"libocloc.so"};
+  static const std::string OclocPath = "libocloc.so";
 #endif
 
-  // attemptLoad() sets OclocLibrary value by side effect.
-  auto attemptLoad = [&](std::string path) {
-    void *tempPtr;
-    try {
-      // Load then perform checks. Each check throws.
-      tempPtr = sycl::detail::ur::loadOsLibrary(path);
-      OclocLibrary.reset(tempPtr);
+  // set OclocLibrary value by side effect.
+  void *tempPtr;
+  try {
+    // Load then perform checks. Each check throws.
+    tempPtr = sycl::detail::ur::loadOsLibrary(OclocPath);
+    OclocLibrary.reset(tempPtr);
 
-      if (tempPtr == nullptr)
-        throw sycl::exception(make_error_code(errc::build),
-                              "Unable to load ocloc from " + path);
+    if (tempPtr == nullptr)
+      throw sycl::exception(make_error_code(errc::build),
+                            "Unable to load ocloc from " + OclocPath);
 
-      checkOclocLibrary(tempPtr);
+    checkOclocLibrary(tempPtr);
 
-      InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
-    } catch (const sycl::exception &) {
-      tempPtr = nullptr;
-      OclocLibrary.reset(tempPtr);
-    }
-
-    return tempPtr;
-  };
-
-  // Attempt to load each, exiting as soon as we find compatible ocloc.
-  for (auto path : OclocPaths) {
-    void *tempPtr = attemptLoad(path);
-    if (tempPtr != nullptr)
-      return;
+    InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+  } catch (const sycl::exception &) {
+    tempPtr = nullptr;
+    OclocLibrary.reset(tempPtr);
+    std::rethrow_exception(std::current_exception());
   }
-
-  // If we haven't exited yet, then throw to indicate failure.
-  throw sycl::exception(make_error_code(errc::build), "Unable to load ocloc");
 }
 
 bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec) {
