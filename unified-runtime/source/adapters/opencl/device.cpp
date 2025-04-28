@@ -1317,7 +1317,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     const cl_device_info info_name = CL_DEVICE_SUB_GROUP_SIZES_INTEL;
-    bool isExtensionSupported;
+    bool isExtensionSupported = false;
     if (hDevice->checkDeviceExtensions({"cl_intel_required_subgroup_size"},
                                        isExtensionSupported) !=
             UR_RESULT_SUCCESS ||
@@ -1598,13 +1598,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_adapter_handle_t,
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
+
+  auto SetDeviceProps = [&]() {
+    (*phDevice)->IsNativeHandleOwned =
+        pProperties ? pProperties->isNativeHandleOwned : false;
+  };
+
   cl_device_id NativeHandle = reinterpret_cast<cl_device_id>(hNativeDevice);
 
   uint32_t NumPlatforms = 0;
-  UR_RETURN_ON_FAILURE(urPlatformGet(nullptr, 0, 0, nullptr, &NumPlatforms));
+  UR_RETURN_ON_FAILURE(urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
   std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
   UR_RETURN_ON_FAILURE(
-      urPlatformGet(nullptr, 0, NumPlatforms, Platforms.data(), nullptr));
+      urPlatformGet(nullptr, NumPlatforms, Platforms.data(), nullptr));
 
   for (uint32_t i = 0; i < NumPlatforms; i++) {
     uint32_t NumDevices = 0;
@@ -1617,12 +1623,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     for (auto &Device : Devices) {
       if (Device->CLDevice == NativeHandle) {
         *phDevice = Device;
-        (*phDevice)->IsNativeHandleOwned =
-            pProperties ? pProperties->isNativeHandleOwned : false;
+        SetDeviceProps();
         return UR_RESULT_SUCCESS;
       }
     }
   }
+
+  // Handle sub-devices by storing/querying a map stored in the platform
+  cl_device_id Parent = nullptr;
+  CL_RETURN_ON_FAILURE(clGetDeviceInfo(NativeHandle, CL_DEVICE_PARENT_DEVICE,
+                                       sizeof(Parent), &Parent, nullptr));
+  if (Parent != nullptr) {
+    ur_device_handle_t ParentUrHandle;
+    // This will either create a new device handle, or return an existing one
+    UR_RETURN_ON_FAILURE(urDeviceCreateWithNativeHandle(
+        reinterpret_cast<ur_native_handle_t>(Parent), nullptr, nullptr,
+        &ParentUrHandle));
+
+    ur_platform_handle_t PlatformHandle = ParentUrHandle->Platform;
+    assert(PlatformHandle);
+
+    {
+      std::lock_guard lock{PlatformHandle->SubDevicesLock};
+
+      if (PlatformHandle->SubDevices.count(NativeHandle)) {
+        *phDevice = PlatformHandle->SubDevices[NativeHandle];
+      } else {
+        *phDevice = std::make_unique<ur_device_handle_t_>(
+                        NativeHandle, PlatformHandle, ParentUrHandle)
+                        .release();
+        PlatformHandle->SubDevices[NativeHandle] = *phDevice;
+      }
+    }
+
+    SetDeviceProps();
+    return UR_RESULT_SUCCESS;
+  }
+
   return UR_RESULT_ERROR_INVALID_DEVICE;
 }
 

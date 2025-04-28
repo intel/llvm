@@ -200,6 +200,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -587,13 +588,6 @@ static const PlatformMemoryMapParams Intel_SPIR_MemoryMapParams = {
     nullptr,
     &Intel_SPIR64_MemoryMapParams,
 };
-
-// Spir memory address space
-static constexpr unsigned kSpirOffloadPrivateAS = 0;
-static constexpr unsigned kSpirOffloadGlobalAS = 1;
-static constexpr unsigned kSpirOffloadConstantAS = 2;
-static constexpr unsigned kSpirOffloadLocalAS = 3;
-static constexpr unsigned kSpirOffloadGenericAS = 4;
 
 namespace {
 
@@ -1746,6 +1740,18 @@ static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
     return true;
 
+  // Ignore load/store for target ext type since we can't know exactly what size
+  // it is.
+  if (auto *SI = dyn_cast<StoreInst>(I))
+    if (getTargetExtType(SI->getValueOperand()->getType()) ||
+        isJointMatrixAccess(SI->getPointerOperand()))
+      return true;
+
+  if (auto *LI = dyn_cast<LoadInst>(I))
+    if (getTargetExtType(I->getType()) ||
+        isJointMatrixAccess(LI->getPointerOperand()))
+      return true;
+
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   switch (PtrTy->getPointerAddressSpace()) {
   case kSpirOffloadPrivateAS:
@@ -2193,7 +2199,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       Value *Cmp = convertToBool(ConvertedShadow, IRB, "_mscmp");
       Instruction *CheckTerm = SplitBlockAndInsertIfThen(
           Cmp, &*IRB.GetInsertPoint(),
-          /* Unreachable */ !MS.Recover, MS.ColdCallWeights);
+          /* Unreachable */ SpirOrSpirv ? false : !MS.Recover,
+          MS.ColdCallWeights);
 
       IRB.SetInsertPoint(CheckTerm);
       insertWarningFn(IRB, Origin);
@@ -3145,8 +3152,24 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRBuilder<> IRB(&I);
     auto *Shadow0 = getShadow(&I, 0);
     auto *Shadow1 = getShadow(&I, 1);
-    setShadow(&I, IRB.CreateShuffleVector(Shadow0, Shadow1, I.getShuffleMask(),
-                                          "_msprop"));
+    // For Spirv target, we need to make sure poison mask always point to a
+    // clean shadow to avoid pollution of launch info clean shadow.
+    if (SpirOrSpirv &&
+        any_of(I.getShuffleMask(), [](int Mask) { return Mask == -1; })) {
+      auto *V = IRB.CreateShuffleVector(Shadow0, Shadow1, I.getShuffleMask(),
+                                        "_msprop");
+      auto *Shadow2 = getCleanShadow(V);
+      SmallVector<int, 4> NewMask;
+      I.getShuffleMask(NewMask);
+      for (auto &Mask : NewMask) {
+        if (Mask == -1)
+          Mask = NewMask.size() + 1;
+      }
+      setShadow(&I, IRB.CreateShuffleVector(V, Shadow2, NewMask, "_msprop"));
+    } else {
+      setShadow(&I, IRB.CreateShuffleVector(Shadow0, Shadow1,
+                                            I.getShuffleMask(), "_msprop"));
+    }
     setOriginForNaryOp(I);
   }
 

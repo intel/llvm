@@ -16,7 +16,7 @@ struct RAIIHipEvent {
 
   ~RAIIHipEvent() {
     if (handle) {
-      std::ignore = hipEventDestroy(handle);
+      (void)hipEventDestroy(handle);
     }
   }
 

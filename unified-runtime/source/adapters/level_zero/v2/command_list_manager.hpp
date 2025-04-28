@@ -20,9 +20,12 @@ struct wait_list_view {
   ze_event_handle_t *handles;
   uint32_t num;
 
+  wait_list_view(ze_event_handle_t *handles, uint32_t num)
+      : handles(num > 0 ? handles : nullptr), num(num) {}
+
   operator bool() const {
     assert((handles != nullptr) == (num > 0));
-    return handles != nullptr;
+    return num > 0;
   }
 
   void clear() {
@@ -37,7 +40,13 @@ struct ur_command_list_manager {
                           ur_device_handle_t device,
                           v2::raii::command_list_unique_handle &&commandList,
                           v2::event_flags_t flags, ur_queue_t_ *queue);
+  ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
+
+  ur_command_list_manager &
+  operator=(const ur_command_list_manager &src) = delete;
+  ur_command_list_manager &operator=(ur_command_list_manager &&src) = default;
+
   ~ur_command_list_manager();
 
   ur_result_t appendKernelLaunch(ur_kernel_handle_t hKernel, uint32_t workDim,

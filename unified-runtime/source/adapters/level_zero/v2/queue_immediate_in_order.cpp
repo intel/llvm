@@ -16,6 +16,8 @@
 
 #include "../common/latency_tracker.hpp"
 #include "../helpers/kernel_helpers.hpp"
+#include "../image_common.hpp"
+
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
 
@@ -138,14 +140,8 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
-void ur_queue_immediate_in_order_t::deferEventFree(ur_event_handle_t hEvent) {
-  auto commandListLocked = commandListManager.lock();
-  deferredEvents.push_back(hEvent);
-}
-
 ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
-    ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
-  std::ignore = pDesc;
+    ur_queue_native_desc_t * /*pDesc*/, ur_native_handle_t *phNativeQueue) {
   *phNativeQueue = reinterpret_cast<ur_native_handle_t>(
       this->commandListManager.get_no_lock()->getZeCommandList());
   return UR_RESULT_SUCCESS;
@@ -160,12 +156,6 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
       "ur_queue_immediate_in_order_t::zeCommandListHostSynchronize");
   ZE2UR_CALL(zeCommandListHostSynchronize,
              (commandListLocked->getZeCommandList(), UINT64_MAX));
-
-  // Free deferred events
-  for (auto &hEvent : deferredEvents) {
-    UR_CALL(hEvent->releaseDeferred());
-  }
-  deferredEvents.clear();
 
   // Free deferred kernels
   for (auto &hKernel : submittedKernels) {
@@ -190,7 +180,7 @@ ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
   try {
     UR_CALL_THROWS(queueFinish());
   } catch (...) {
-    logger::error("Failed to finish queue on destruction");
+    // Ignore errors during destruction
   }
 }
 
@@ -618,18 +608,11 @@ ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFill2D(
-    void *pMem, size_t pitch, size_t patternSize, const void *pPattern,
-    size_t width, size_t height, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = pMem;
-  std::ignore = pitch;
-  std::ignore = patternSize;
-  std::ignore = pPattern;
-  std::ignore = width;
-  std::ignore = height;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    void * /*pMem*/, size_t /*pitch*/, size_t /*patternSize*/,
+    const void * /*pPattern*/, size_t /*width*/, size_t /*height*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -703,32 +686,20 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableRead(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueReadHostPipe(
-    ur_program_handle_t hProgram, const char *pipe_symbol, bool blocking,
-    void *pDst, size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_program_handle_t /*hProgram*/, const char * /*pipe_symbol*/,
+    bool /*blocking*/, void * /*pDst*/, size_t /*size*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueWriteHostPipe(
-    ur_program_handle_t hProgram, const char *pipe_symbol, bool blocking,
-    void *pSrc, size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pSrc;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_program_handle_t /*hProgram*/, const char * /*pipe_symbol*/,
+    bool /*blocking*/, void * /*pSrc*/, size_t /*size*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -767,45 +738,36 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = pDst;
-  std::ignore = pSrc;
-  std::ignore = pSrcImageDesc;
-  std::ignore = pDstImageDesc;
-  std::ignore = imageCopyFlags;
-  std::ignore = pSrcImageFormat;
-  std::ignore = pDstImageFormat;
-  std::ignore = pCopyRegion;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  auto commandListMgr = commandListManager.lock();
+
+  auto zeSignalEvent =
+      getSignalEvent(commandListMgr, phEvent, UR_COMMAND_MEM_IMAGE_COPY);
+  auto waitListView =
+      getWaitListView(commandListMgr, phEventWaitList, numEventsInWaitList);
+
+  return bindlessImagesHandleCopyFlags(
+      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
+      pDstImageFormat, pCopyRegion, imageCopyFlags,
+      commandListMgr->getZeCommandList(), zeSignalEvent, waitListView.num,
+      waitListView.handles);
 }
 
 ur_result_t
 ur_queue_immediate_in_order_t::bindlessImagesWaitExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
-    uint64_t waitValue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hSemaphore;
-  std::ignore = hasWaitValue;
-  std::ignore = waitValue;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_exp_external_semaphore_handle_t /*hSemaphore*/, bool /*hasWaitValue*/,
+    uint64_t /*waitValue*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t
 ur_queue_immediate_in_order_t::bindlessImagesSignalExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
-    uint64_t signalValue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hSemaphore;
-  std::ignore = hasSignalValue;
-  std::ignore = signalValue;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_exp_external_semaphore_handle_t /*hSemaphore*/, bool /*hasSignalValue*/,
+    uint64_t /*signalValue*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -870,7 +832,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
       "ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp");
 
   auto commandListLocked = commandListManager.lock();
-  if (!phEvent && !*phEvent) {
+  if (!phEvent) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
   getSignalEvent(commandListLocked, phEvent,
@@ -910,16 +872,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList,
                       additionalWaitEvent);
-  // zeCommandListImmediateAppendCommandListsExp is not working with in-order
-  // immediate lists what causes problems with synchronization
-  // TODO: remove synchronization when it is not needed
-  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
-                  (commandListLocked->getZeCommandList(), UINT64_MAX));
+
   ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
              (commandListLocked->getZeCommandList(), numCommandLists,
               phCommandLists, zeSignalEvent, numWaitEvents, pWaitEvents));
-  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
-                  (commandListLocked->getZeCommandList(), UINT64_MAX));
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -948,22 +905,13 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
-    ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_exp_launch_property_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hKernel;
-  std::ignore = workDim;
-  std::ignore = pGlobalWorkOffset;
-  std::ignore = pGlobalWorkSize;
-  std::ignore = pLocalWorkSize;
-  std::ignore = numPropsInLaunchPropList;
-  std::ignore = launchPropList;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_kernel_handle_t /*hKernel*/, uint32_t /*workDim*/,
+    const size_t * /*pGlobalWorkOffset*/, const size_t * /*pGlobalWorkSize*/,
+    const size_t * /*pLocalWorkSize*/, uint32_t /*numPropsInLaunchPropList*/,
+    const ur_exp_launch_property_t * /*launchPropList*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -971,6 +919,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace v2

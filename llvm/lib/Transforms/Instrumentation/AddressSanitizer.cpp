@@ -74,6 +74,7 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
+#include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 #include "llvm/Transforms/Utils/ASanStackFrameLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
@@ -194,13 +195,6 @@ constexpr size_t kAccessSizeIndexShift = 1;
 constexpr size_t kAccessSizeIndexMask = 0xf;
 constexpr size_t kIsWriteShift = 5;
 constexpr size_t kIsWriteMask = 0x1;
-
-// Spir memory address space
-static constexpr unsigned kSpirOffloadPrivateAS = 0;
-static constexpr unsigned kSpirOffloadGlobalAS = 1;
-static constexpr unsigned kSpirOffloadConstantAS = 2;
-static constexpr unsigned kSpirOffloadLocalAS = 3;
-static constexpr unsigned kSpirOffloadGenericAS = 4;
 
 // Command-line flags.
 
@@ -1653,49 +1647,6 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
-static TargetExtType *getTargetExtType(Type *Ty) {
-  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
-    return TargetTy;
-
-  if (Ty->isVectorTy())
-    return getTargetExtType(Ty->getScalarType());
-
-  if (Ty->isArrayTy())
-    return getTargetExtType(Ty->getArrayElementType());
-
-  if (auto *STy = dyn_cast<StructType>(Ty)) {
-    for (unsigned int i = 0; i < STy->getNumElements(); i++)
-      if (auto *TargetTy = getTargetExtType(STy->getElementType(i)))
-        return TargetTy;
-    return nullptr;
-  }
-
-  return nullptr;
-}
-
-// Skip pointer operand that is sycl joint matrix access since it isn't from
-// user code, e.g. %call:
-// clang-format off
-// %a = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
-// %0 = getelementptr inbounds %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", ptr %a, i64 0, i32 0
-// %call = call spir_func ptr
-// @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
-// %1 = load float, ptr %call, align 4
-// store float %1, ptr %call, align 4
-// clang-format on
-static bool isJointMatrixAccess(Value *V) {
-  auto *ActualV = V->stripInBoundsOffsets();
-  if (auto *CI = dyn_cast<CallInst>(ActualV)) {
-    for (Value *Op : CI->args()) {
-      if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
-        if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
-          return TargetTy->getName().starts_with("spirv.") &&
-                 TargetTy->getName().contains("Matrix");
-    }
-  }
-  return false;
-}
-
 static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   // Non image scope device globals are implemented by device USM, and the
   // out-of-bounds check for them will be done by sanitizer USM part. So we
@@ -1708,7 +1659,7 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
     return true;
 
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
-    return true;
+    return !ClSpirOffloadLocals;
 
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
@@ -2904,6 +2855,10 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
       G.setName("nameless_global");
 
     if (isUnsupportedDeviceGlobal(&G))
+      continue;
+
+    // This case is handled by instrumentSyclStaticLocalMemory
+    if (G.getAddressSpace() == kSpirOffloadLocalAS)
       continue;
 
     Type *Ty = G.getValueType();

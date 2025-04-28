@@ -14,6 +14,7 @@ class E2EExpr(BooleanExpression):
         "any-target-is-nvidia",
         "any-target-is-amd",
         "any-target-is-native_cpu",
+        "opencl-cpu-rt",
         "spirv-backend",
         "linux",
         "system-linux",
@@ -33,6 +34,8 @@ class E2EExpr(BooleanExpression):
         "hip_dev_kit",
         "zstd",
         "vulkan",
+        "hip_options",
+        "cuda_options",
         "true",
         "false",
     }
