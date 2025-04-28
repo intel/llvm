@@ -1929,34 +1929,28 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  for (detail::queue_impl *QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl &&
-        !checkContextSupports(QueueImpl->getContextImplPtr(),
-                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
-      return false;
-  }
-  return true;
+  auto &PrimQueue = impl->MSubmissionPrimaryQueue;
+  if (PrimQueue)
+    return checkContextSupports(PrimQueue->getContextImplPtr(),
+                                UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  else
+    // Return true when handler_impl is constructed with a graph.
+    return true;
 }
 
 bool handler::supportsUSMFill2D() {
-  for (detail::queue_impl *QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
-                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
-      return false;
-  }
-  return true;
+  auto &PrimQueue = impl->MSubmissionPrimaryQueue;
+  if (PrimQueue)
+    return checkContextSupports(PrimQueue->getContextImplPtr(),
+                                UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
+  else
+    // Return true when handler_impl is constructed with a graph.
+    return true;
 }
 
 bool handler::supportsUSMMemset2D() {
-  for (detail::queue_impl *QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
-                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
-      return false;
-  }
-  return true;
+  // memset use the same UR check as fill2D.
+  return supportsUSMFill2D();
 }
 
 id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
