@@ -22,7 +22,7 @@ def check_file(filepath):
     dep_output = subprocess.run(
         ["dumpbin", "/dependents", filepath], shell=False, capture_output=True
     )
-    
+
     if str(dep_output.stdout).find("ucrtbased.dll"):
         if not has_debug_postfix:
             print("Unexpected use of ucrtbased.dll:", filepath)
@@ -31,6 +31,7 @@ def check_file(filepath):
         if has_debug_postfix:
             print("Unexpected use of ucrtbase.dll:", filepath)
             sys.exit(1)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Windows UCRT checker utility.")
