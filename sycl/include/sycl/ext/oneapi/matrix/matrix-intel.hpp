@@ -270,7 +270,9 @@ public:
                             sycl::ext::oneapi::bfloat16, NumRows, NumCols,
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
-  return __imf_bfloat162float(*ExtractP);
+  float* tmp;
+  BF16VecToFloatVec<1>(ExtractP, tmp);
+  return *tmp;//*ExtractP->to_float(*ExtractP);
 
 #else
     throw exception(make_error_code(errc::runtime),
