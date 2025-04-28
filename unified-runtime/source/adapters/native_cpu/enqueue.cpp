@@ -452,7 +452,8 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
       });
 }
 
-template <class T>
+template <void *(copy_func)(void *dst, const void *src, size_t) = memmove,
+          class T>
 static inline ur_result_t
 doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr,
             size_t Size, uint32_t numEventsInWaitList,
@@ -466,7 +467,7 @@ doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr,
   return withTimingEvent(
       command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
       [DstPtr, SrcPtr, Size]() {
-        memmove(DstPtr, SrcPtr, Size);
+        copy_func(DstPtr, SrcPtr, Size);
         return UR_RESULT_SUCCESS;
       },
       Inv);
@@ -692,19 +693,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  if (pSrc == pDst || size == 0)
-    return withTimingEvent(
-        UR_COMMAND_USM_MEMCPY, hQueue, numEventsInWaitList, phEventWaitList,
-        phEvent, []() { return UR_RESULT_SUCCESS; }, BlockingWithEvent());
-
-  return withTimingEvent(
-      UR_COMMAND_USM_MEMCPY, hQueue, numEventsInWaitList, phEventWaitList,
-      phEvent,
-      [pDst, pSrc, size]() {
-        memcpy(pDst, pSrc, size);
-        return UR_RESULT_SUCCESS;
-      },
-      Invoker(blocking || size < 100));
+  return doCopy_impl<memcpy>(hQueue, pDst, pSrc, size, numEventsInWaitList,
+                             phEventWaitList, phEvent, UR_COMMAND_USM_MEMCPY,
+                             Invoker(blocking));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
