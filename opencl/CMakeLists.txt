@@ -78,7 +78,7 @@ endif()
 FetchContent_MakeAvailable(ocl-icd)
 add_library(OpenCL-ICD ALIAS OpenCL)
 
-if (CMAKE_SYSTEM_NAME STREQUAL Windows)
+if (WIN32)
     set_target_properties(OpenCL PROPERTIES DEBUG_POSTFIX d)
 endif()
 
