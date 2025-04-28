@@ -9233,6 +9233,9 @@ typedef struct ur_usm_pool_buffer_desc_t {
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -9271,6 +9274,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -9310,6 +9316,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -9346,6 +9355,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,

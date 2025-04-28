@@ -500,8 +500,9 @@ graph_impl::add(std::function<void(handler &)> CGF,
   (void)Args;
   sycl::handler Handler{shared_from_this()};
 
-  // save code location if one was set in TLS.
-  // idealy it would be nice to capture user's call code location
+#if XPTI_ENABLE_INSTRUMENTATION
+  // Save code location if one was set in TLS.
+  // Ideally it would be nice to capture user's call code location
   // by adding a parameter to the graph.add function, but this will
   // break the API. At least capture code location from TLS, user
   // can set it before calling graph.add
@@ -509,6 +510,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
     sycl::detail::tls_code_loc_t Tls;
     Handler.saveCodeLoc(Tls.query(), Tls.isToplevel());
   }
+#endif
 
   CGF(Handler);
 
@@ -1474,18 +1476,18 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   ur_kernel_handle_t UrKernel = nullptr;
   auto Kernel = ExecCG.MSyclKernel;
   auto KernelBundleImplPtr = ExecCG.MKernelBundle;
-  std::shared_ptr<sycl::detail::kernel_impl> SyclKernelImpl = nullptr;
   const sycl::detail::KernelArgMask *EliminatedArgMask = nullptr;
 
-  if (auto SyclKernelImpl = KernelBundleImplPtr
-                                ? KernelBundleImplPtr->tryGetKernel(
-                                      ExecCG.MKernelName, KernelBundleImplPtr)
-                                : std::shared_ptr<kernel_impl>{nullptr}) {
-    UrKernel = SyclKernelImpl->getHandleRef();
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-  } else if (Kernel != nullptr) {
+  if (Kernel != nullptr) {
     UrKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
+  } else if (auto SyclKernelImpl =
+                 KernelBundleImplPtr
+                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName,
+                                                         KernelBundleImplPtr)
+                     : std::shared_ptr<kernel_impl>{nullptr}) {
+    UrKernel = SyclKernelImpl->getHandleRef();
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
