@@ -41,9 +41,8 @@ if (NOT TARGET LLVMGenXIntrinsics)
     target_include_directories(LLVMGenXIntrinsics
       PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include>
       PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include>
-  )
-  endif()
-
+    )
+ endif()
 endif (NOT TARGET LLVMGenXIntrinsics)
 
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics_SOURCE_DIR})
