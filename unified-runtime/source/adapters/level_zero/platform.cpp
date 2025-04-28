@@ -543,6 +543,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
 
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeImageGetDeviceOffsetExp",
+                   reinterpret_cast<void **>(
+                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+
+  ZeImageGetDeviceOffsetExt.Supported =
+      ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
+
   return UR_RESULT_SUCCESS;
 }
 

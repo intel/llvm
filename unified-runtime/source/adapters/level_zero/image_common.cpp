@@ -19,6 +19,7 @@
 #include "helpers/memory_helpers.hpp"
 #include "image_common.hpp"
 #include "logger/ur_logger.hpp"
+#include "platform.hpp"
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
 
@@ -26,11 +27,7 @@ typedef ze_result_t(ZE_APICALL *zeMemGetPitchFor2dImage_pfn)(
     ze_context_handle_t hContext, ze_device_handle_t hDevice, size_t imageWidth,
     size_t imageHeight, unsigned int elementSizeInBytes, size_t *rowPitch);
 
-typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
-    ze_image_handle_t hImage, uint64_t *pDeviceOffset);
-
 zeMemGetPitchFor2dImage_pfn zeMemGetPitchFor2dImageFunctionPtr = nullptr;
-zeImageGetDeviceOffsetExp_pfn zeImageGetDeviceOffsetExpFunctionPtr = nullptr;
 
 namespace {
 
@@ -351,25 +348,16 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  static std::once_flag InitFlag;
-  std::call_once(InitFlag, [&]() {
-    ze_driver_handle_t DriverHandle = hContext->getPlatform()->ZeDriver;
-    auto Result = zeDriverGetExtensionFunctionAddress(
-        DriverHandle, "zeImageGetDeviceOffsetExp",
-        (void **)&zeImageGetDeviceOffsetExpFunctionPtr);
-    if (Result != ZE_RESULT_SUCCESS)
-      logger::error("zeDriverGetExtensionFunctionAddress "
-                    "zeImageGetDeviceOffsetExpv failed, err = {}",
-                    Result);
-  });
-  if (!zeImageGetDeviceOffsetExpFunctionPtr)
+  if (!hDevice->Platform->ZeImageGetDeviceOffsetExt.Supported)
     return UR_RESULT_ERROR_INVALID_OPERATION;
+
   uint64_t DeviceOffset{};
   ze_image_handle_t ZeImageTranslated;
   ZE2UR_CALL(zelLoaderTranslateHandle,
              (ZEL_HANDLE_IMAGE, ZeImage, (void **)&ZeImageTranslated));
-  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr,
-             (ZeImageTranslated, &DeviceOffset));
+  ZE2UR_CALL(
+      hDevice->Platform->ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp,
+      (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
   std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
