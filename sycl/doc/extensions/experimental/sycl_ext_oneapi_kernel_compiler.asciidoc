@@ -259,9 +259,11 @@ function.
 
 This function succeeds even if some devices in `ctxt` do not support the source
 language `lang`.
-However, the `build` function fails unless _all_ of its devices support `lang`.
-Therefore, applications should take care to omit devices that do not support
-`lang` when calling `build`.
+However, the `build` and `compile` functions will fail if any of its devices
+return `false` for `ext_oneapi_can_build(lang)` and
+`ext_oneapi_can_compile(lang)` respectively. Therefore, applications should take
+care to omit devices that do not support `lang` for the functions they intend on
+calling.
 _{endnote}_]
 
 a|
@@ -311,15 +313,11 @@ _Returns:_ The newly created kernel bundle, which has `executable` state.
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if any of the devices in
-  `devs` return `false` for `ext_oneapi_can_build` with the source language
-  `lang`.
+  `devs` return `false` for `ext_oneapi_can_build` with the source language of
+  `sourceBundle`.
 
 * An `exception` with the `errc::invalid` error code if any of the devices in
   `devs` is not contained by the context associated with `sourceBundle`.
-
-* An `exception` with the `errc::invalid` error code if any of the devices in
-  `devs` does not support compilation of kernels in the source language of
-  `sourceBundle`.
 
 * An `exception` with the `errc::invalid` error code if the source language
   `lang` does not support one of the properties in `PropertyListT` or if
@@ -387,15 +385,11 @@ _Returns:_ The newly created kernel bundle, which has `object` state.
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if any of the devices in
-  `devs` return `false` for `ext_oneapi_can_compile` with the source language
-  `lang`.
+  `devs` return `false` for `ext_oneapi_can_compile` with the source language of
+  `sourceBundle`.
 
 * An `exception` with the `errc::invalid` error code if any of the devices in
   `devs` is not contained by the context associated with `sourceBundle`.
-
-* An `exception` with the `errc::invalid` error code if any of the devices in
-  `devs` does not support compilation of kernels in the source language of
-  `sourceBundle`.
 
 * An `exception` with the `errc::invalid` error code if the source language
   `lang` does not support one of the properties in `PropertyListT` or if
