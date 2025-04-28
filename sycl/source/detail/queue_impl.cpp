@@ -442,7 +442,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
             ExpandedDepEventImplPtrs.push_back(
                 detail::getSyclObjImpl(DepEvent));
 
-          EventImpl->cleanDepEventsThroughOneLevel();
+          // EventImpl is local for current thread, no need to lock.
+          EventImpl->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
 
