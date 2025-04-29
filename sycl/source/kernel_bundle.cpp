@@ -387,22 +387,60 @@ namespace detail {
 /////////////////////////
 // syclex::detail::is_source_kernel_bundle_supported
 /////////////////////////
-bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
+
+bool is_source_kernel_bundle_supported(
+    sycl::ext::oneapi::experimental::source_language Language,
+    const std::vector<DeviceImplPtr> &DeviceImplVec) {
+  backend BE = DeviceImplVec[0]->getBackend();
   // Support is limited to the opencl and level_zero backends.
   bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
                        (BE == sycl::backend::opencl);
-  if (BE_Acceptable) {
-    if (Language == source_language::opencl) {
-      return detail::OpenCLC_Compilation_Available();
-    } else if (Language == source_language::spirv) {
-      return true;
-    } else if (Language == source_language::sycl) {
-      return detail::SYCL_JIT_Compilation_Available();
-    }
+  if (!BE_Acceptable)
+    return false;
+
+  if (Language == source_language::spirv) {
+    return true;
+  } else if (Language == source_language::sycl) {
+    return detail::SYCL_JIT_Compilation_Available();
+  } else if (Language == source_language::opencl) {
+    if (DeviceImplVec.empty())
+      return false;
+
+    const AdapterPtr &Adapter = DeviceImplVec[0]->getAdapter();
+    std::vector<uint32_t> IPVersionVec;
+    IPVersionVec.reserve(DeviceImplVec.size());
+
+    std::transform(DeviceImplVec.begin(), DeviceImplVec.end(),
+                   std::back_inserter(IPVersionVec),
+                   [&](const DeviceImplPtr &Impl) {
+                     uint32_t ipVersion = 0;
+                     ur_device_handle_t DeviceHandle = Impl->getHandleRef();
+                     Adapter->call<UrApiKind::urDeviceGetInfo>(
+                         DeviceHandle, UR_DEVICE_INFO_IP_VERSION,
+                         sizeof(uint32_t), &ipVersion, nullptr);
+                     return ipVersion;
+                   });
+
+    return detail::OpenCLC_Compilation_Available(IPVersionVec);
   }
 
   // otherwise
   return false;
+}
+
+bool is_source_kernel_bundle_supported(
+    sycl::ext::oneapi::experimental::source_language Language,
+    const context &Ctx) {
+  const std::vector<sycl::device> Devices = Ctx.get_devices();
+  std::vector<DeviceImplPtr> DeviceImplVec;
+  DeviceImplVec.reserve(Devices.size());
+  std::transform(Devices.begin(), Devices.end(),
+                 std::back_inserter(DeviceImplVec),
+                 [](const sycl::device &dev) {
+                   return sycl::detail::getSyclObjImpl(dev);
+                 });
+
+  return is_source_kernel_bundle_supported(Language, DeviceImplVec);
 }
 
 /////////////////////////
@@ -428,8 +466,7 @@ make_kernel_bundle_from_source(const context &SyclContext,
   for (auto &p : IncludePairViews)
     IncludePairs.push_back({p.first.data(), p.second.data()});
 
-  backend BE = SyclContext.get_backend();
-  if (!is_source_kernel_bundle_supported(BE, Language))
+  if (!is_source_kernel_bundle_supported(Language, SyclContext))
     throw sycl::exception(make_error_code(errc::invalid),
                           "kernel_bundle creation from source not supported");
 
@@ -448,8 +485,7 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
                                          const std::vector<std::byte> &Bytes,
                                          include_pairs_view_t IncludePairs) {
   (void)IncludePairs;
-  backend BE = SyclContext.get_backend();
-  if (!is_source_kernel_bundle_supported(BE, Language))
+  if (!is_source_kernel_bundle_supported(Language, SyclContext))
     throw sycl::exception(make_error_code(errc::invalid),
                           "kernel_bundle creation from source not supported");
 

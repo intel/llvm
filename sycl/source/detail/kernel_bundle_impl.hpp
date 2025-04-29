@@ -9,6 +9,7 @@
 #pragma once
 
 #include <detail/device_image_impl.hpp>
+#include <detail/device_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
@@ -29,6 +30,18 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace ext::oneapi::experimental::detail {
+using DeviceImplPtr = std::shared_ptr<sycl::detail::device_impl>;
+bool is_source_kernel_bundle_supported(
+    sycl::ext::oneapi::experimental::source_language Language,
+    const context &Ctx);
+
+bool is_source_kernel_bundle_supported(
+    sycl::ext::oneapi::experimental::source_language Language,
+    const std::vector<DeviceImplPtr> &Devices);
+} // namespace ext::oneapi::experimental::detail
+
 namespace detail {
 
 static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,

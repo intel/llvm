@@ -24,8 +24,8 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
                              const std::vector<uint32_t> &IPVersionVec,
                              const std::vector<std::string> &UserArgs,
                              std::string *LogPtr);
-
-bool OpenCLC_Compilation_Available();
+// IPVersionVec gets flattened and passed to ocloc as the -dev flag.
+bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec);
 
 bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion);
 
