@@ -1545,67 +1545,67 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
 }
 
 ur_result_t urBindlessImagesGetImageMemoryHandleTypeSupportExp(
-  ur_context_handle_t hContext, ur_device_handle_t hDevice,
-  const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-  ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
-UR_ASSERT(std::find(hContext->getDevices().begin(),
-                    hContext->getDevices().end(),
-                    hDevice) != hContext->getDevices().end(),
-          UR_RESULT_ERROR_INVALID_CONTEXT);
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
 
-// Verify support for common image properties (dims, channel types, image
-// types, etc.).
-*pSupportedRet = verifyCommonImagePropertiesSupport(
-    hDevice, pImageDesc, pImageFormat, imageMemHandleType);
-return UR_RESULT_SUCCESS;
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
-  ur_context_handle_t hContext, ur_device_handle_t hDevice,
-  const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-  ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
-UR_ASSERT(std::find(hContext->getDevices().begin(),
-                    hContext->getDevices().end(),
-                    hDevice) != hContext->getDevices().end(),
-          UR_RESULT_ERROR_INVALID_CONTEXT);
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
 
-// Currently the Bindless Images extension does not allow creation of
-// unsampled image handles from non-opaque (USM) memory.
-if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
-  *pSupportedRet = false;
+  // Currently the Bindless Images extension does not allow creation of
+  // unsampled image handles from non-opaque (USM) memory.
+  if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
+    *pSupportedRet = false;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Bindless Images do not allow creation of `unsampled_image_handle`s for
+  // mipmap images.
+  if (pImageDesc->numMipLevel > 1) {
+    *pSupportedRet = false;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
+
   return UR_RESULT_SUCCESS;
-}
-
-// Bindless Images do not allow creation of `unsampled_image_handle`s for
-// mipmap images.
-if (pImageDesc->numMipLevel > 1) {
-  *pSupportedRet = false;
-  return UR_RESULT_SUCCESS;
-}
-
-// Verify support for common image properties (dims, channel types, image
-// types, etc.).
-*pSupportedRet = verifyCommonImagePropertiesSupport(
-    hDevice, pImageDesc, pImageFormat, imageMemHandleType);
-
-return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesGetImageSampledHandleSupportExp(
-  ur_context_handle_t hContext, ur_device_handle_t hDevice,
-  const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-  ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
-UR_ASSERT(std::find(hContext->getDevices().begin(),
-                    hContext->getDevices().end(),
-                    hDevice) != hContext->getDevices().end(),
-          UR_RESULT_ERROR_INVALID_CONTEXT);
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
 
-// Verify support for common image properties (dims, channel types, image
-// types, etc.).
-*pSupportedRet = verifyCommonImagePropertiesSupport(
-    hDevice, pImageDesc, pImageFormat, imageMemHandleType);
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
 
-return UR_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur::level_zero
