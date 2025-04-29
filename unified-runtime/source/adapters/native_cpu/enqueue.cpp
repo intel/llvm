@@ -350,22 +350,6 @@ struct NonBlocking {
     return UR_RESULT_SUCCESS;
   }
 };
-
-struct Invoker {
-  const bool blocking;
-  Invoker(bool blocking) : blocking(blocking) {}
-  template <class T>
-  ur_result_t operator()(T &&f, ur_event_handle_t event,
-                         ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
-                         const ur_event_handle_t *phEventWaitList) const {
-    if (blocking)
-      return BlockingWithEvent()(std::forward<T>(f), event, hQueue,
-                                 numEventsInWaitList, phEventWaitList);
-    return NonBlocking()(std::forward<T>(f), event, hQueue, numEventsInWaitList,
-                         phEventWaitList);
-  };
-};
-
 } // namespace
 
 template <class T>
@@ -377,6 +361,21 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
   return withTimingEvent(command_type, hQueue, numEventsInWaitList,
                          phEventWaitList, phEvent, std::forward<T>(f),
                          BlockingWithEvent());
+}
+
+template <class T>
+static inline ur_result_t
+withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
+                uint32_t numEventsInWaitList,
+                const ur_event_handle_t *phEventWaitList,
+                ur_event_handle_t *phEvent, T &&f, bool blocking) {
+  if (blocking)
+    return withTimingEvent(command_type, hQueue, numEventsInWaitList,
+                           phEventWaitList, phEvent, std::forward<T>(f),
+                           BlockingWithEvent());
+  return withTimingEvent(command_type, hQueue, numEventsInWaitList,
+                         phEventWaitList, phEvent, std::forward<T>(f),
+                         NonBlocking());
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
@@ -452,13 +451,11 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
       });
 }
 
-template <void *(copy_func)(void *dst, const void *src, size_t) = memmove,
-          class T>
-static inline ur_result_t
-doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr,
-            size_t Size, uint32_t numEventsInWaitList,
-            const ur_event_handle_t *phEventWaitList,
-            ur_event_handle_t *phEvent, ur_command_t command_type, T &&Inv) {
+template <void *(copy_func)(void *dst, const void *src, size_t) = memmove>
+static inline ur_result_t doCopy_impl(
+    ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr, size_t Size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent, ur_command_t command_type, bool blocking) {
   if (SrcPtr == DstPtr || Size == 0)
     return withTimingEvent(
         command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
@@ -470,7 +467,7 @@ doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr,
         copy_func(DstPtr, SrcPtr, Size);
         return UR_RESULT_SUCCESS;
       },
-      Inv);
+      blocking);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
@@ -481,7 +478,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   void *FromPtr = /*Src*/ hBuffer->_mem + offset;
   auto res = doCopy_impl(hQueue, pDst, FromPtr, size, numEventsInWaitList,
                          phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_READ,
-                         Invoker(blockingRead));
+                         blockingRead);
   return res;
 }
 
@@ -493,7 +490,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   void *ToPtr = hBuffer->_mem + offset;
   auto res = doCopy_impl(hQueue, ToPtr, pSrc, size, numEventsInWaitList,
                          phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_WRITE,
-                         Invoker(blockingWrite));
+                         blockingWrite);
   return res;
 }
 
@@ -533,7 +530,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   void *DstPtr = hBufferDst->_mem + dstOffset;
   return doCopy_impl(hQueue, DstPtr, SrcPtr, size, numEventsInWaitList,
                      phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_COPY,
-                     BlockingWithEvent() /*TODO: check blocking*/);
+                     true /*TODO: check blocking*/);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
@@ -695,7 +692,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
   return doCopy_impl<memcpy>(hQueue, pDst, pSrc, size, numEventsInWaitList,
                              phEventWaitList, phEvent, UR_COMMAND_USM_MEMCPY,
-                             Invoker(blocking));
+                             blocking);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
