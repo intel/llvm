@@ -209,9 +209,6 @@ OpenCLC_to_SPIRV(const std::string &Source,
                  const std::vector<uint32_t> &IPVersionVec,
                  const std::vector<sycl::detail::string_view> &UserArgs,
                  std::string *LogPtr) {
-  std::vector<sycl::detail::string_view> CMUserArgs = UserArgs;
-  CMUserArgs.push_back(sycl::detail::string_view{"-cmc"});
-
   // handles into ocloc shared lib
   static void *oclocInvokeHandle = nullptr;
   static void *oclocFreeOutputHandle = nullptr;
