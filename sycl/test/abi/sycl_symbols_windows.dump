@@ -4171,6 +4171,7 @@
 ?get_queue@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEBA?AVqueue@56@XZ
 ?get_range@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$range@$02@56@XZ
 ?get_range@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$02@34@XZ
+?get_required_mem_size@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?get_reserved_size_current@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?get_root_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_size@image_plain@detail@_V1@sycl@@IEBA_KXZ
