@@ -21,7 +21,8 @@ namespace detail {
 
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
-device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform)
+device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
+                         device_impl::private_tag)
     : MDevice(Device), MPlatform(Platform.shared_from_this()),
       MDeviceHostBaseTime(std::make_pair(0, 0)) {
   const AdapterPtr &Adapter = Platform.getAdapter();
