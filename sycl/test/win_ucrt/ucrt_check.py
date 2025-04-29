@@ -16,6 +16,7 @@ import sys
 #                the compiler release packages.
 exclude_list = {"OpenCL.dll"}
 
+
 def check_file(filepath):
     filename, file_ext = os.path.splitext(entry.name)
 

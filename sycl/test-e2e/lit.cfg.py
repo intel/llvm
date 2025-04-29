@@ -542,7 +542,13 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/" + ("sycl8d.lib" if config.use_debug_libs else "sycl8.lib")))
+            + os.path.normpath(
+                os.path.join(
+                    config.sycl_libs_dir
+                    + "/../lib/"
+                    + ("sycl8d.lib" if config.use_debug_libs else "sycl8.lib")
+                )
+            )
             + " /I"
             + config.sycl_include
             + " /I"
@@ -560,7 +566,11 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            ((" -lsycl8d" if config.use_debug_libs else " -lsycl8") if platform.system() == "Windows" else " -lsycl")
+            (
+                (" -lsycl8d" if config.use_debug_libs else " -lsycl8")
+                if platform.system() == "Windows"
+                else " -lsycl"
+            )
             + " -I"
             + config.sycl_include
             + " -I"
@@ -746,9 +756,7 @@ if platform.system() == "Linux":
     xptifw_dispatcher = os.path.join(xptifw_lib_dir, "libxptifw.so")
 elif platform.system() == "Windows":
     # Use debug version of xptifw library if tests are built with \MDd.
-    xptifw_dispatcher_name = (
-        XPTIFW_DEBUG if config.use_debug_libs else XPTIFW_RELEASE
-    )
+    xptifw_dispatcher_name = XPTIFW_DEBUG if config.use_debug_libs else XPTIFW_RELEASE
     xptifw_dispatcher = os.path.join(
         config.dpcpp_root_dir, "bin", xptifw_dispatcher_name + ".dll"
     )
@@ -760,9 +768,7 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
     config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
     if cl_options:
         # Use debug version of xptifw library if tests are built with \MDd.
-        xptifw_lib_name = (
-            XPTIFW_DEBUG if config.use_debug_libs else XPTIFW_RELEASE
-        )
+        xptifw_lib_name = XPTIFW_DEBUG if config.use_debug_libs else XPTIFW_RELEASE
         xptifw_lib = os.path.normpath(
             os.path.join(xptifw_lib_dir, xptifw_lib_name + ".lib")
         )
