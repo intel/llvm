@@ -3,6 +3,7 @@
 #include <ur_api.h>
 
 #include "context.hpp"
+#include "device.hpp"
 #include "queue.hpp"
 #include "ur2offload.hpp"
 
@@ -13,14 +14,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   assert(hContext->Device == hDevice);
 
   ur_queue_handle_t Queue = new ur_queue_handle_t_();
-  auto Res = olCreateQueue(reinterpret_cast<ol_device_handle_t>(hDevice),
-                           &Queue->OffloadQueue);
+  auto Res = olCreateQueue(hDevice->OffloadDevice, &Queue->OffloadQueue);
   if (Res != OL_SUCCESS) {
     delete Queue;
     return offloadResultToUR(Res);
   }
 
-  Queue->OffloadDevice = reinterpret_cast<ol_device_handle_t>(hDevice);
+  Queue->OffloadDevice = hDevice->OffloadDevice;
 
   *phQueue = Queue;
 

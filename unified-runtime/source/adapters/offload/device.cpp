@@ -2,6 +2,8 @@
 #include <ur/ur.hpp>
 #include <ur_api.h>
 
+#include "device.hpp"
+#include "platform.hpp"
 #include "ur2offload.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
@@ -9,38 +11,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
                                                 uint32_t NumEntries,
                                                 ur_device_handle_t *phDevices,
                                                 uint32_t *pNumDevices) {
-
-  uint32_t NumDevices = 0;
-  // Pass a few things to the callback (we can't use a lambda with captures)
-  using ParamsT = struct {
-    uint32_t DeviceLimit;
-    uint32_t &NumDevices;
-    ol_platform_handle_t Platform;
-    ol_device_handle_t *DevicesOut;
-  };
-  ParamsT Params = {NumEntries, NumDevices,
-                    reinterpret_cast<ol_platform_handle_t>(hPlatform),
-                    reinterpret_cast<ol_device_handle_t *>(phDevices)};
-
-  olIterateDevices(
-      [](ol_device_handle_t D, void *Data) {
-        auto Params = reinterpret_cast<ParamsT *>(Data);
-        ol_platform_handle_t Platform = nullptr;
-        olGetDeviceInfo(D, OL_DEVICE_INFO_PLATFORM, sizeof(Platform),
-                        &Platform);
-        if (Platform == Params->Platform) {
-          if (Params->DevicesOut) {
-            Params->DevicesOut[Params->NumDevices] = D;
-          }
-          Params->NumDevices++;
-        }
-        return Params->NumDevices == Params->DeviceLimit;
-      },
-      &Params);
-
   if (pNumDevices) {
-    *pNumDevices = NumDevices;
+    *pNumDevices = static_cast<uint32_t>(hPlatform->Devices.size());
   }
+
+  size_t NumDevices =
+      std::min(static_cast<uint32_t>(hPlatform->Devices.size()), NumEntries);
+
+  for (size_t I = 0; I < NumDevices; I++) {
+    phDevices[I] = &hPlatform->Devices[I];
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -74,7 +55,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     olInfo = OL_DEVICE_INFO_DRIVER_VERSION;
     break;
   case UR_DEVICE_INFO_PLATFORM:
-    olInfo = OL_DEVICE_INFO_PLATFORM;
+    return ReturnValue(hDevice->Platform);
     break;
   case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
     return ReturnValue(UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
@@ -86,16 +67,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   if (pPropSizeRet) {
     if (auto Res =
-            olGetDeviceInfoSize(reinterpret_cast<ol_device_handle_t>(hDevice),
-                                olInfo, pPropSizeRet)) {
+            olGetDeviceInfoSize(hDevice->OffloadDevice, olInfo, pPropSizeRet)) {
       return offloadResultToUR(Res);
     }
   }
 
   if (pPropValue) {
-    if (auto Res =
-            olGetDeviceInfo(reinterpret_cast<ol_device_handle_t>(hDevice),
-                            olInfo, propSize, pPropValue)) {
+    if (auto Res = olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize,
+                                   pPropValue)) {
       return offloadResultToUR(Res);
     }
     // Need to explicitly map this type

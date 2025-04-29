@@ -4,6 +4,7 @@
 #include <ur_api.h>
 
 #include "adapter.hpp"
+#include "device.hpp"
 #include "ur2offload.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -17,8 +18,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   if (phPlatforms) {
     size_t PlatformIndex = 0;
     for (auto &Platform : Adapter.Platforms) {
-      phPlatforms[PlatformIndex++] =
-          reinterpret_cast<ur_platform_handle_t>(Platform);
+      phPlatforms[PlatformIndex++] = &Platform;
       if (PlatformIndex == NumEntries) {
         break;
       }
@@ -56,17 +56,15 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   }
 
   if (pPropSizeRet) {
-    if (auto Res = olGetPlatformInfoSize(
-            reinterpret_cast<ol_platform_handle_t>(hPlatform), olInfo,
-            pPropSizeRet)) {
+    if (auto Res = olGetPlatformInfoSize(hPlatform->OffloadPlatform, olInfo,
+                                         pPropSizeRet)) {
       return offloadResultToUR(Res);
     }
   }
 
   if (pPropValue) {
-    if (auto Res =
-            olGetPlatformInfo(reinterpret_cast<ol_platform_handle_t>(hPlatform),
-                              olInfo, propSize, pPropValue)) {
+    if (auto Res = olGetPlatformInfo(hPlatform->OffloadPlatform, olInfo,
+                                     propSize, pPropValue)) {
       return offloadResultToUR(Res);
     }
   }
