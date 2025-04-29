@@ -842,7 +842,7 @@ private:
                  return !std::isspace(c);
                }).base();
     if (Start != std::end(str) && End != std::begin(str) && Start < End) {
-      return std::string_view(Start, std::distance(Start, End));
+      return std::string_view(&*Start, std::distance(Start, End));
     }
 
     return "";
