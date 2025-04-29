@@ -649,6 +649,9 @@ etors:
 - name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
   desc: Enumerator for $xAdapterSetLoggerCallbackLevel
   value: '267'
+- name: USM_CONTEXT_MEMCPY_EXP
+  desc: Enumerator for $xUSMContextMemcpyExp
+  value: '268'
 ---
 type: enum
 desc: Defines structure types

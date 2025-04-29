@@ -183,18 +183,14 @@ printFlags(const testing::TestParamInfo<typename T::ParamType> &info) {
   return platform_device_name + "__" + str;
 }
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(urEventCacheTest,
-                                 ::testing::Combine(
-                                     testing::Values(
-                                         0, UR_QUEUE_FLAG_DISCARD_EVENTS),
-                                     testing::Values(
-                                         0,
-                                         UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
-                                     // TODO: why the test fails with
-                                     // UR_QUEUE_FLAG_SUBMISSION_BATCHED?
-                                     testing::
-                                         Values(
-                                             UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE /*, UR_QUEUE_FLAG_SUBMISSION_BATCHED */),
-                                     testing::Values(
-                                         0, UR_QUEUE_FLAG_PROFILING_ENABLE)),
-                                 printFlags<urEventCacheTest>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEventCacheTest,
+    ::testing::Combine(
+        testing::Values(0, UR_QUEUE_FLAG_DISCARD_EVENTS),
+        testing::Values(0, UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
+        // TODO: why the test fails with
+        // UR_QUEUE_FLAG_SUBMISSION_BATCHED?
+        testing::Values(
+            UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE /*, UR_QUEUE_FLAG_SUBMISSION_BATCHED */),
+        testing::Values(0, UR_QUEUE_FLAG_PROFILING_ENABLE)),
+    printFlags<urEventCacheTest>);
