@@ -308,17 +308,17 @@ struct MergedDeviceRequirements {
   std::unordered_set<std::string_view> JointMatrix;
   std::unordered_set<std::string_view> JointMatrixMad;
 
-  size_t GetPropertiesCount() const {
+  size_t getPropertiesCount() const {
     return MergeMap.size() + !Aspects.empty() + !JointMatrix.empty() +
            !JointMatrixMad.empty();
   }
 
-  size_t GetAspectsContentSize() const {
+  size_t getAspectsContentSize() const {
     return Aspects.size() * sizeof(uint32_t);
   }
 
   static size_t
-  GetStringSetContentSize(const std::unordered_set<std::string_view> &Set) {
+  getStringSetContentSize(const std::unordered_set<std::string_view> &Set) {
     size_t Result = 0;
     Result += Set.size() - 1;               // Semi-colon delimiters.
     for (const std::string_view &Str : Set) // Strings.
@@ -326,33 +326,33 @@ struct MergedDeviceRequirements {
     return Result;
   }
 
-  size_t GetPropertiesContentByteSize() const {
+  size_t getPropertiesContentByteSize() const {
     size_t Result = 0;
     for (const auto &PropIt : MergeMap)
       Result += strlen(PropIt.second->Name) + 1 + PropIt.second->ValSize;
 
     if (!Aspects.empty())
-      Result += strlen("aspects") + 1 + GetAspectsContentSize();
+      Result += strlen("aspects") + 1 + getAspectsContentSize();
 
     if (!JointMatrix.empty())
       Result +=
-          strlen("joint_matrix") + 1 + GetStringSetContentSize(JointMatrix);
+          strlen("joint_matrix") + 1 + getStringSetContentSize(JointMatrix);
 
     if (!JointMatrixMad.empty())
       Result += strlen("joint_matrix_mad") + 1 +
-                GetStringSetContentSize(JointMatrixMad);
+                getStringSetContentSize(JointMatrixMad);
 
     return Result;
   }
 
-  void WriteAspectProperty(sycl_device_binary_property &NextFreeProperty,
+  void writeAspectProperty(sycl_device_binary_property &NextFreeProperty,
                            char *&NextFreeContent) const {
     if (Aspects.empty())
       return;
     // Get the next free property entry and move the needle.
     sycl_device_binary_property NewProperty = NextFreeProperty++;
     NewProperty->Type = SYCL_PROPERTY_TYPE_BYTE_ARRAY;
-    NewProperty->ValSize = GetAspectsContentSize();
+    NewProperty->ValSize = getAspectsContentSize();
     // Copy the name.
     const size_t NameLen = std::strlen("aspects");
     std::memcpy(NextFreeContent, "aspects", NameLen + 1);
@@ -366,7 +366,7 @@ struct MergedDeviceRequirements {
     NextFreeContent += NewProperty->ValSize;
   }
 
-  static void WriteStringSetProperty(
+  static void writeStringSetProperty(
       const std::unordered_set<std::string_view> &Set, const char *SetName,
       sycl_device_binary_property &NextFreeProperty, char *&NextFreeContent) {
     if (Set.empty())
@@ -374,7 +374,7 @@ struct MergedDeviceRequirements {
     // Get the next free property entry and move the needle.
     sycl_device_binary_property NewProperty = NextFreeProperty++;
     NewProperty->Type = SYCL_PROPERTY_TYPE_BYTE_ARRAY;
-    NewProperty->ValSize = GetStringSetContentSize(Set);
+    NewProperty->ValSize = getStringSetContentSize(Set);
     // Copy the name.
     const size_t NameLen = std::strlen(SetName);
     std::memcpy(NextFreeContent, SetName, NameLen + 1);
@@ -394,7 +394,7 @@ struct MergedDeviceRequirements {
 // Merging device requirements is a little more involved, as it may impose
 // new requirements.
 static MergedDeviceRequirements
-MergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
+mergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
   MergedDeviceRequirements MergedReqs;
   for (const RTDeviceBinaryImage *Img : Imgs) {
     const RTDeviceBinaryImage::PropertyRange &Range =
@@ -451,7 +451,7 @@ MergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
 }
 
 // Copies a property into new memory.
-static void CopyProperty(sycl_device_binary_property &NextFreeProperty,
+static void copyProperty(sycl_device_binary_property &NextFreeProperty,
                          char *&NextFreeContent,
                          const sycl_device_binary_property OldProperty) {
   // Get the next free property entry and move the needle.
@@ -554,7 +554,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 
   // For device requirements we need to do special handling to merge the
   // property values as well.
-  MergedDeviceRequirements MergedDevReqs = MergeDeviceRequirements(Imgs);
+  MergedDeviceRequirements MergedDevReqs = mergeDeviceRequirements(Imgs);
 
   // Now that we have merged all properties, we need to calculate how much
   // memory we need to store the new property sets.
@@ -571,7 +571,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     PropertyCount += Vec->size();
   for (const auto &Map : MergedMaps)
     PropertyCount += Map->size();
-  PropertyCount += MergedDevReqs.GetPropertiesCount();
+  PropertyCount += MergedDevReqs.getPropertiesCount();
 
   // Count the bytes needed for the values and names of the properties.
   auto GetPropertyContentSize = [](const sycl_device_binary_property Prop) {
@@ -586,7 +586,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     for (const auto &PropIt : *Map)
       PropertyContentByteSize += strlen(PropIt.second->Name) + 1 +
                                  GetPropertyContentSize(PropIt.second);
-  PropertyContentByteSize += MergedDevReqs.GetPropertiesContentByteSize();
+  PropertyContentByteSize += MergedDevReqs.getPropertiesContentByteSize();
 
   const size_t PropertySectionSize = PropertyCount * PaddedPropertyByteSize;
 
@@ -617,7 +617,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
           return;
         TargetRange.Begin = NextFreeProperty;
         for (const sycl_device_binary_property Prop : Properties)
-          CopyProperty(NextFreeProperty, NextFreeContent, Prop);
+          copyProperty(NextFreeProperty, NextFreeContent, Prop);
         TargetRange.End = NextFreeProperty;
       };
   auto CopyPropertiesMap =
@@ -627,7 +627,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
           return;
         TargetRange.Begin = NextFreeProperty;
         for (const auto &PropIt : Properties)
-          CopyProperty(NextFreeProperty, NextFreeContent, PropIt.second);
+          copyProperty(NextFreeProperty, NextFreeContent, PropIt.second);
         TargetRange.End = NextFreeProperty;
       };
 
@@ -652,12 +652,12 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   {
     DeviceRequirements.Begin = NextFreeProperty;
     for (const auto &PropIt : MergedDevReqs.MergeMap)
-      CopyProperty(NextFreeProperty, NextFreeContent, PropIt.second);
-    MergedDevReqs.WriteAspectProperty(NextFreeProperty, NextFreeContent);
-    MergedDeviceRequirements::WriteStringSetProperty(
+      copyProperty(NextFreeProperty, NextFreeContent, PropIt.second);
+    MergedDevReqs.writeAspectProperty(NextFreeProperty, NextFreeContent);
+    MergedDeviceRequirements::writeStringSetProperty(
         MergedDevReqs.JointMatrix, "joint_matrix", NextFreeProperty,
         NextFreeContent);
-    MergedDeviceRequirements::WriteStringSetProperty(
+    MergedDeviceRequirements::writeStringSetProperty(
         MergedDevReqs.JointMatrixMad, "joint_matrix_mad", NextFreeProperty,
         NextFreeContent);
     DeviceRequirements.End = NextFreeProperty;
