@@ -68,7 +68,7 @@ private:
             ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
                                 getCurrentBacktrace()});
       } else {
-        getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, SHORT_FILE,
+        getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, __FILE__,
                                  UR_STR_(__LINE__), "Handle {} already exists",
                                  ptr);
         return;
@@ -77,7 +77,7 @@ private:
     case REFCOUNT_INCREASE:
       if (it == counts.end()) {
         getContext()->logger.log(
-            UR_LOGGER_LEVEL_ERROR, SHORT_FILE, UR_STR_(__LINE__),
+            UR_LOGGER_LEVEL_ERROR, __FILE__, UR_STR_(__LINE__),
             "Attempting to retain nonexistent handle {}", ptr);
         return;
       } else {
@@ -95,7 +95,7 @@ private:
 
       if (it->second.refCount < 0) {
         getContext()->logger.log(
-            UR_LOGGER_LEVEL_ERROR, SHORT_FILE, UR_STR_(__LINE__),
+            UR_LOGGER_LEVEL_ERROR, __FILE__, UR_STR_(__LINE__),
             "Attempting to release nonexistent handle {}", ptr);
       } else if (it->second.refCount == 0 && isAdapterHandle) {
         adapterCount--;
@@ -103,8 +103,7 @@ private:
       break;
     }
 
-    getContext()->logger.log(UR_LOGGER_LEVEL_DEBUG, SHORT_FILE,
-                             UR_STR_(__LINE__),
+    getContext()->logger.log(UR_LOGGER_LEVEL_DEBUG, __FILE__, UR_STR_(__LINE__),
                              "Reference count for handle {} changed to {}", ptr,
                              it->second.refCount);
 
@@ -114,7 +113,7 @@ private:
 
     // No more active adapters, so any references still held are leaked
     if (adapterCount == 0) {
-      logInvalidReferences(SHORT_FILE, UR_STR_(__LINE__));
+      logInvalidReferences(__FILE__, UR_STR_(__LINE__));
       counts.clear();
     }
   }
@@ -175,10 +174,10 @@ public:
 } // namespace ur_validation_layer
 
 #define URLOG_CTX_INVALID_REFERENCE(ptr)                                       \
-  getContext()->refCountContext->logInvalidReference(SHORT_FILE,               \
+  getContext()->refCountContext->logInvalidReference(__FILE__,                 \
                                                      UR_STR_(__LINE__), ptr);
 #define URLOG_CTX_INVALID_REFERENCES()                                         \
-  getContext()->refCountContext->logInvalidReferences(SHORT_FILE,              \
+  getContext()->refCountContext->logInvalidReferences(__FILE__,                \
                                                       UR_STR_(__LINE__));
 
 #endif /* UR_LEAK_CHECK_H */

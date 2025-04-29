@@ -106,27 +106,18 @@ private:
 
 } // namespace logger
 
-#ifdef SRC_PATH_SIZE
-#define SHORT_FILE                                                             \
-  ((SRC_PATH_SIZE < sizeof(__FILE__))                                          \
-       ? ((const char *)__FILE__ + SRC_PATH_SIZE)                              \
-       : __FILE__)
-#else
-#define SHORT_FILE __FILE__
-#endif
-
 #define UR_STRIMPL_(x) #x
 #define UR_STR_(x) UR_STRIMPL_(x)
 
 #define URLOG2_(logger_instance, level, ...)                                   \
   {                                                                            \
-    (logger_instance).log(level, SHORT_FILE, UR_STR_(__LINE__), __VA_ARGS__);  \
+    (logger_instance).log(level, __FILE__, UR_STR_(__LINE__), __VA_ARGS__);    \
   }
+
 #define URLOG_L2_(logger_instance, level, legacy_message, ...)                 \
   {                                                                            \
     (logger_instance)                                                          \
-        .log(legacy_message, level, SHORT_FILE, UR_STR_(__LINE__),             \
-             __VA_ARGS__);                                                     \
+        .log(legacy_message, level, __FILE__, UR_STR_(__LINE__), __VA_ARGS__); \
   }
 
 // some symbols usefuls for log levels are predfined in some systems,
