@@ -181,7 +181,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
     size_t CheckPropSize = 0;
     cl_int RetErr = clGetEventInfo(hEvent->CLEvent, CLEventInfo, propSize,
                                    pPropValue, &CheckPropSize);
-    if (pPropValue && CheckPropSize != propSize) {
+    if (pPropValue && CheckPropSize != propSize &&
+        propName != UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+      // Opencl:cpu may (incorrectly) return 0 for propSize when checking
+      // execution status when status is CL_COMPLETE.
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     CL_RETURN_ON_FAILURE(RetErr);

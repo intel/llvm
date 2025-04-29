@@ -60,9 +60,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  cl_command_buffer_properties_khr Properties[3] = {
-      CL_COMMAND_BUFFER_FLAGS_KHR,
-      IsUpdatable ? CL_COMMAND_BUFFER_MUTABLE_KHR : 0u, 0};
+  // OpenCL command-buffer must be simultaneous use to match expectation of UR
+  // command-buffer specification.
+  cl_command_buffer_flags_khr Flags = CL_COMMAND_BUFFER_SIMULTANEOUS_USE_KHR;
+  if (IsUpdatable) {
+    Flags |= CL_COMMAND_BUFFER_MUTABLE_KHR;
+  }
+
+  cl_command_buffer_properties_khr Properties[3] = {CL_COMMAND_BUFFER_FLAGS_KHR,
+                                                    Flags, 0};
 
   ur_queue_handle_t Queue = nullptr;
   ur_queue_properties_t QueueProperties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
@@ -198,33 +204,59 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
-    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
-    [[maybe_unused]] void *pDst, [[maybe_unused]] const void *pSrc,
-    [[maybe_unused]] size_t size,
-    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
-    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
-        *pSyncPointWaitList,
-    [[maybe_unused]] uint32_t numEventsInWaitList,
-    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    [[maybe_unused]] ur_event_handle_t *phEvent,
-    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
+    size_t size, uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
+  // No extension entry-point exists for USM memcpy, use SVM memcpy in
+  // preparation for USVM.
+  cl_context CLContext = hCommandBuffer->hContext->CLContext;
+  cl_ext::clCommandSVMMemcpyKHR_fn clCommandSVMMemcpyKHR = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clCommandSVMMemcpyKHR)>(
+          CLContext, ur::cl::getAdapter()->fnCache.clCommandSVMMemcpyKHRCache,
+          cl_ext::CommandSVMMemcpyName, &clCommandSVMMemcpyKHR));
+
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  CL_RETURN_ON_FAILURE(clCommandSVMMemcpyKHR(
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr, pDst, pSrc, size,
+      WaitListSize, SyncPointWaitList, RetSyncPoint, nullptr));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
-    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
-    [[maybe_unused]] void *pMemory, [[maybe_unused]] const void *pPattern,
-    [[maybe_unused]] size_t patternSize, [[maybe_unused]] size_t size,
-    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
-    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
-        *pSyncPointWaitList,
-    [[maybe_unused]] uint32_t numEventsInWaitList,
-    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    [[maybe_unused]] ur_event_handle_t *phEvent,
-    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_command_buffer_handle_t hCommandBuffer, void *pMemory,
+    const void *pPattern, size_t patternSize, size_t size,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
+  // No extension entry-point exists for USM fill, use SVM fill in preparation
+  // for USVM.
+  cl_context CLContext = hCommandBuffer->hContext->CLContext;
+  cl_ext::clCommandSVMMemFillKHR_fn clCommandSVMMemFillKHR = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clCommandSVMMemFillKHR)>(
+          CLContext, ur::cl::getAdapter()->fnCache.clCommandSVMMemFillKHRCache,
+          cl_ext::CommandSVMMemFillName, &clCommandSVMMemFillKHR));
+
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  CL_RETURN_ON_FAILURE(
+      clCommandSVMMemFillKHR(hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
+                             pMemory, pPattern, patternSize, size, WaitListSize,
+                             SyncPointWaitList, RetSyncPoint, nullptr));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(

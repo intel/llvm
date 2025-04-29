@@ -3152,8 +3152,24 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRBuilder<> IRB(&I);
     auto *Shadow0 = getShadow(&I, 0);
     auto *Shadow1 = getShadow(&I, 1);
-    setShadow(&I, IRB.CreateShuffleVector(Shadow0, Shadow1, I.getShuffleMask(),
-                                          "_msprop"));
+    // For Spirv target, we need to make sure poison mask always point to a
+    // clean shadow to avoid pollution of launch info clean shadow.
+    if (SpirOrSpirv &&
+        any_of(I.getShuffleMask(), [](int Mask) { return Mask == -1; })) {
+      auto *V = IRB.CreateShuffleVector(Shadow0, Shadow1, I.getShuffleMask(),
+                                        "_msprop");
+      auto *Shadow2 = getCleanShadow(V);
+      SmallVector<int, 4> NewMask;
+      I.getShuffleMask(NewMask);
+      for (auto &Mask : NewMask) {
+        if (Mask == -1)
+          Mask = NewMask.size() + 1;
+      }
+      setShadow(&I, IRB.CreateShuffleVector(V, Shadow2, NewMask, "_msprop"));
+    } else {
+      setShadow(&I, IRB.CreateShuffleVector(Shadow0, Shadow1,
+                                            I.getShuffleMask(), "_msprop"));
+    }
     setOriginForNaryOp(I);
   }
 
