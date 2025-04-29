@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "detail/queue_impl.hpp"
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -1405,14 +1406,11 @@ public:
 private:
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
-  /// @param Ctx Context to use.
-  /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
-  enqueueNode(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
-              ur_exp_command_buffer_handle_t CommandBuffer,
+  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
               std::shared_ptr<node_impl> Node);
 
   /// Enqueue a node directly to the command-buffer without going through the
@@ -1510,6 +1508,8 @@ private:
   std::unordered_map<std::shared_ptr<node_impl>,
                      ur_exp_command_buffer_sync_point_t>
       MSyncPoints;
+  /// Sycl queue impl ptr associated with this graph.
+  std::shared_ptr<sycl::detail::queue_impl> MQueueImpl;
   /// Map of nodes in the exec graph to the partition number to which they
   /// belong.
   std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
