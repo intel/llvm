@@ -47,7 +47,6 @@ public:
 
   Adapter(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
-        TracingMutex(std::make_shared<std::mutex>()),
         MAdapterMutex(std::make_shared<std::mutex>()) {
 
 #ifdef _WIN32
@@ -212,7 +211,6 @@ public:
 private:
   ur_adapter_handle_t MAdapter;
   backend MBackend;
-  std::shared_ptr<std::mutex> TracingMutex;
   // Mutex to guard UrPlatforms and LastDeviceIds.
   // Note that this is a temporary solution until we implement the global
   // Device/Platform cache later.

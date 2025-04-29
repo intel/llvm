@@ -375,8 +375,9 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
 
   // Get platform's backend and put it to DeviceDesc
   DeviceDescT DeviceDesc;
-  auto PlatformImpl = platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
-  backend Backend = PlatformImpl->getBackend();
+  platform_impl &PlatformImpl =
+      platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
+  backend Backend = PlatformImpl.getBackend();
 
   for (const auto &SyclBe : getSyclBeMap()) {
     if (SyclBe.second == Backend) {
@@ -395,7 +396,7 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
 
   int InsertIDx = 0;
   for (ur_device_handle_t Device : UrDevices) {
-    auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
+    auto DeviceImpl = PlatformImpl.getOrMakeDeviceImpl(Device);
     // get DeviceType value and put it to DeviceDesc
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
     Adapter->call<UrApiKind::urDeviceGetInfo>(
@@ -428,18 +429,20 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     }
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
-        sycl::detail::get_device_info<info::device::vendor_id>(DeviceImpl);
+        sycl::detail::get_device_info<info::device::vendor_id>(
+            *DeviceImpl.get());
     std::stringstream DeviceVendorIdHexStringStream;
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
     const std::string &DriverVersionValue =
-        sycl::detail::get_device_info<info::device::driver_version>(DeviceImpl);
+        sycl::detail::get_device_info<info::device::driver_version>(
+            *DeviceImpl.get());
     DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
     const std::string &DeviceNameValue =
-        sycl::detail::get_device_info<info::device::name>(DeviceImpl);
+        sycl::detail::get_device_info<info::device::name>(*DeviceImpl.get());
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc

@@ -140,8 +140,13 @@ ur_result_t urProgramBuild(
     const char *pOptions) {
   getContext()->logger.debug("==== urProgramBuild");
 
-  UR_CALL(
-      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions));
+  auto UrRes =
+      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, hProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
 
@@ -163,9 +168,13 @@ ur_result_t urProgramLink(
     ur_program_handle_t *phProgram) {
   getContext()->logger.debug("==== urProgramLink");
 
-  UR_CALL(getContext()->urDdiTable.Program.pfnLink(hContext, count, phPrograms,
-                                                   pOptions, phProgram));
-
+  auto UrRes = getContext()->urDdiTable.Program.pfnLink(
+      hContext, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
   return UR_RESULT_SUCCESS;
@@ -184,8 +193,12 @@ ur_result_t urProgramBuildExp(
     const char *pOptions) {
   getContext()->logger.debug("==== urProgramBuildExp");
 
-  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnBuildExp(hProgram, numDevices,
-                                                          phDevices, pOptions));
+  auto UrRes = getContext()->urDdiTable.ProgramExp.pfnBuildExp(
+      hProgram, numDevices, phDevices, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
+    return UrRes;
+  }
   UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
 
   return UR_RESULT_SUCCESS;
@@ -209,8 +222,12 @@ ur_result_t urProgramLinkExp(
     ur_program_handle_t *phProgram) {
   getContext()->logger.debug("==== urProgramLinkExp");
 
-  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnLinkExp(
-      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram));
+  auto UrRes = getContext()->urDdiTable.ProgramExp.pfnLinkExp(
+      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+    return UrRes;
+  }
 
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
@@ -467,18 +484,10 @@ ur_result_t urEnqueueMemBufferWrite(
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     ur_device_handle_t Device = GetDevice(hQueue);
     char *pDst = nullptr;
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     UR_CALL(MemBuffer->getHandle(Device, pDst));
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
         hQueue, blockingWrite, pDst + offset, pSrc, size, numEventsInWaitList,
-        phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferWrite(
         hQueue, hBuffer, blockingWrite, offset, size, pSrc, numEventsInWaitList,
@@ -647,17 +656,9 @@ ur_result_t urEnqueueMemBufferCopy(
     char *DstHandle = nullptr;
     UR_CALL(DstBuffer->getHandle(Device, DstHandle));
 
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
         hQueue, false, DstHandle + dstOffset, SrcHandle + srcOffset, size,
-        numEventsInWaitList, phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        numEventsInWaitList, phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferCopy(
         hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset, size,
@@ -759,19 +760,11 @@ ur_result_t urEnqueueMemBufferFill(
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     char *Handle = nullptr;
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     ur_device_handle_t Device = GetDevice(hQueue);
     UR_CALL(MemBuffer->getHandle(Device, Handle));
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
         hQueue, Handle + offset, patternSize, pPattern, size,
-        numEventsInWaitList, phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        numEventsInWaitList, phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferFill(
         hQueue, hBuffer, pPattern, patternSize, offset, size,

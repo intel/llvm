@@ -25,7 +25,7 @@
 // CHECK-OPTS: clang{{.*}}"-triple" "[[TRIPLE]]"{{.*}}"-fsycl-is-device"
 // CHECK-OPTS-NOT: -sycl-opt
 // CHECK-OPTS-SAME: "-Wno-override-module" "-mllvm" "-sycl-native-cpu-backend"
-// CHECK-OPTS-SAME: "-target-feature" "+v9.4a"
+// CHECK-OPTS-SAME: "-aux-target-feature" "+v9.4a"
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -### 2>&1 | FileCheck -check-prefix=CHECK-NONATIVECPU %s
 // CHECK-NONATIVECPU-NOT: "-D" "__SYCL_NATIVE_CPU__"

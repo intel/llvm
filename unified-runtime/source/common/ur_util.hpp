@@ -59,15 +59,23 @@ int ur_duplicate_fd(int pid, int fd_in);
     defined(SANITIZER_THREAD)
 #define SANITIZER_ANY
 #endif
+
 ///////////////////////////////////////////////////////////////////////////////
+#if UR_USE_DEBUG_POSTFIX
+#define LIBRARY_NAME(NAME) NAME "d"
+#else
+#define LIBRARY_NAME(NAME) NAME
+#endif
+
 #if defined(_WIN32)
-#define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
+#define MAKE_LIBRARY_NAME(NAME, VERSION) LIBRARY_NAME(NAME) ".dll"
 #define STATIC_LIBRARY_EXTENSION ".lib"
 #else
 #if defined(__APPLE__)
-#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME "." VERSION ".dylib"
+#define MAKE_LIBRARY_NAME(NAME, VERSION)                                       \
+  "lib" LIBRARY_NAME(NAME) "." VERSION ".dylib"
 #else
-#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
+#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" LIBRARY_NAME(NAME) ".so." VERSION
 #endif
 #define STATIC_LIBRARY_EXTENSION ".a"
 #endif

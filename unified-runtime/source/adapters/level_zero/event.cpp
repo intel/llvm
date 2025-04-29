@@ -21,7 +21,7 @@
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 
-void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
+void printZeEventList(const ur_ze_event_list_t &UrZeEventList) {
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     std::stringstream ss;
     ss << "  NumEventsInWaitList " << UrZeEventList.Length << ":";
@@ -81,7 +81,7 @@ ur_result_t urEnqueueEventsWait(
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-    _ur_ze_event_list_t TmpWaitList = {};
+    ur_ze_event_list_t TmpWaitList = {};
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
@@ -198,9 +198,9 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
 
   // Helper function for appending a barrier to a command list.
   auto insertBarrierIntoCmdList =
-      [&Queue](ur_command_list_ptr_t CmdList,
-               _ur_ze_event_list_t &EventWaitList, ur_event_handle_t &Event,
-               bool IsInternal, bool InterruptBasedEventsEnabled) {
+      [&Queue](ur_command_list_ptr_t CmdList, ur_ze_event_list_t &EventWaitList,
+               ur_event_handle_t &Event, bool IsInternal,
+               bool InterruptBasedEventsEnabled) {
         UR_CALL(createEventAndAssociateQueue(
             Queue, &Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, CmdList,
             IsInternal, InterruptBasedEventsEnabled));
@@ -281,7 +281,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
   if (NumEventsInWaitList || !UseMultipleCmdlistBarriers ||
       Queue->isInOrderQueue()) {
     // Retain the events as they will be owned by the result event.
-    _ur_ze_event_list_t TmpWaitList;
+    ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, false /*UseCopyEngine=*/));
 
@@ -377,7 +377,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
     // command-lists.
     std::vector<ur_event_handle_t> EventWaitVector(CmdLists.size());
     for (size_t I = 0; I < CmdLists.size(); ++I) {
-      _ur_ze_event_list_t waitlist;
+      ur_ze_event_list_t waitlist;
       UR_CALL(insertBarrierIntoCmdList(CmdLists[I], waitlist,
                                        EventWaitVector[I], true /*IsInternal*/,
                                        InterruptBasedEventsEnabled));
@@ -390,7 +390,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
 
     // Create an event list. It will take ownership over all relevant events so
     // we relinquish ownership and let it keep all events it needs.
-    _ur_ze_event_list_t BaseWaitList;
+    ur_ze_event_list_t BaseWaitList;
     UR_CALL(BaseWaitList.createAndRetainUrZeEventList(
         EventWaitVector.size(),
         reinterpret_cast<const ur_event_handle_t *>(EventWaitVector.data()),
@@ -406,7 +406,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
     // If there is only a single queue then insert a barrier and the single
     // result event can be used as our active barrier and used as the return
     // event. Take into account whether output event is discarded or not.
-    _ur_ze_event_list_t waitlist;
+    ur_ze_event_list_t waitlist;
     UR_CALL(insertBarrierIntoCmdList(CmdLists[0], waitlist, ResultEvent,
                                      IsInternal, InterruptBasedEventsEnabled));
   }
@@ -496,7 +496,7 @@ ur_result_t urEventGetInfo(
     auto HostVisibleEvent = Event->HostVisibleEvent;
     if (Event->Completed) {
       Result = UR_EVENT_STATUS_COMPLETE;
-    } else if (HostVisibleEvent) {
+    } else if (HostVisibleEvent && checkL0LoaderTeardown()) {
       ze_result_t ZeResult;
       ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
@@ -743,7 +743,7 @@ ur_result_t urEnqueueTimestampRecordingExp(
   ur_device_handle_t Device = Queue->Device;
 
   bool UseCopyEngine = false;
-  _ur_ze_event_list_t TmpWaitList;
+  ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
@@ -890,13 +890,14 @@ urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
       (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
        Event->CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER) &&
       Event->Completed;
-  UR_CALL(urEventReleaseInternal(Event));
+  bool isEventDeleted = false;
+  UR_CALL(urEventReleaseInternal(Event, &isEventDeleted));
   // If this is a Completed Event Wait Out Event, then we need to cleanup the
   // event at user release and not at the time of completion.
   // If the event is labelled as completed and no additional references are
   // removed, then we still need to decrement the event, but not mark as
   // completed.
-  if (isEventsWaitCompleted) {
+  if (isEventsWaitCompleted & !isEventDeleted) {
     if (Event->CleanedUp) {
       UR_CALL(urEventReleaseInternal(Event));
     } else {
@@ -1087,12 +1088,13 @@ ur_event_handle_t_::~ur_event_handle_t_() {
   }
 }
 
-ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
+ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
+                                   bool *isEventDeleted) {
   if (!Event->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (Event->OriginAllocEvent) {
-    urEventReleaseInternal(Event->OriginAllocEvent);
+    urEventReleaseInternal(Event->OriginAllocEvent, isEventDeleted);
   }
 
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
@@ -1133,7 +1135,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // and release a reference to it.
   if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
     // Decrement ref-count of the host-visible proxy event.
-    UR_CALL(urEventReleaseInternal(Event->HostVisibleEvent));
+    UR_CALL(urEventReleaseInternal(Event->HostVisibleEvent, isEventDeleted));
   }
 
   // Save pointer to the queue before deleting/resetting event.
@@ -1162,6 +1164,9 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // must released later.
   if (DisableEventsCaching || !Event->OwnNativeHandle) {
     delete Event;
+    if (isEventDeleted) {
+      *isEventDeleted = true;
+    }
   } else {
     Event->Context->addEventToContextCache(Event);
   }
@@ -1438,7 +1443,7 @@ ur_result_t ur_event_handle_t_::reset() {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
+ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
     uint32_t EventListLength, const ur_event_handle_t *EventList,
     ur_queue_handle_t CurQueue, bool UseCopyEngine) {
   this->Length = 0;
@@ -1697,7 +1702,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t _ur_ze_event_list_t::insert(_ur_ze_event_list_t &Other) {
+ur_result_t ur_ze_event_list_t::insert(ur_ze_event_list_t &Other) {
   if (this != &Other) {
     // save of the previous object values
     uint32_t PreLength = this->Length;
@@ -1735,7 +1740,7 @@ ur_result_t _ur_ze_event_list_t::insert(_ur_ze_event_list_t &Other) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
+ur_result_t ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
     std::list<ur_event_handle_t> &EventsToBeReleased) {
   // event wait lists are owned by events, this function is called with owning
   // event lock taken, hence it is thread safe

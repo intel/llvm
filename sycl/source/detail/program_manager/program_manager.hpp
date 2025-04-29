@@ -459,6 +459,7 @@ protected:
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       m_DeviceImages;
 
@@ -468,6 +469,7 @@ protected:
 
   /// Caches list of device images that use or provide virtual functions from
   /// the same set. Used to simplify access.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
       m_VFSet2BinImage;
 
@@ -541,7 +543,7 @@ protected:
   // version and 2nd is for native version. These bfloat16 device library
   // images are provided by compiler long time ago, we expect no further
   // update, so keeping 1 copy should be OK.
-  std::array<DynRTDeviceBinaryImageUPtr, 2> m_Bfloat16DeviceLibImages;
+  std::array<RTDeviceBinaryImageUPtr, 2> m_Bfloat16DeviceLibImages;
 
   friend class ::ProgramManagerTest;
 };
