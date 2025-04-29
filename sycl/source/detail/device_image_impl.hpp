@@ -694,8 +694,9 @@ public:
 
   std::vector<std::shared_ptr<device_image_impl>> buildFromSource(
       const std::vector<device> &Devices,
-      const std::vector<std::string> &BuildOptions, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames,
+      const std::vector<sycl::detail::string_view> &BuildOptions,
+      std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &RegisteredKernelNames,
       std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
       const {
     assert(!std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage));
@@ -779,8 +780,9 @@ public:
 
   std::vector<std::shared_ptr<device_image_impl>> compileFromSource(
       const std::vector<device> &Devices,
-      const std::vector<std::string> &CompileOptions, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames,
+      const std::vector<sycl::detail::string_view> &CompileOptions,
+      std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &RegisteredKernelNames,
       std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
       const {
     assert(!std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage));
@@ -822,7 +824,7 @@ private:
            get_bin_image_ref() != nullptr;
   }
 
-  static std::string trimXsFlags(std::string &str) {
+  static std::string_view trimXsFlags(std::string_view &str) {
     // Trim first and last quote if they exist, but no others.
     char EncounteredQuote = '\0';
     auto Start = std::find_if(str.begin(), str.end(), [&](char c) {
@@ -840,31 +842,31 @@ private:
                  return !std::isspace(c);
                }).base();
     if (Start != std::end(str) && End != std::begin(str) && Start < End) {
-      return std::string(Start, End);
+      return std::string_view(Start, std::distance(Start, End));
     }
 
     return "";
   }
 
   static std::string
-  extractXsFlags(const std::vector<std::string> &BuildOptions) {
+  extractXsFlags(const std::vector<sycl::detail::string_view> &BuildOptions) {
     std::stringstream SS;
-    for (std::string Option : BuildOptions) {
-      auto Where = Option.find("-Xs");
-      if (Where != std::string::npos) {
+    for (sycl::detail::string_view Option : BuildOptions) {
+      std::string_view OptionSV{Option.data()};
+      auto Where = OptionSV.find("-Xs");
+      if (Where != std::string_view::npos) {
         Where += 3;
-        std::string Flags = Option.substr(Where);
+        std::string_view Flags = OptionSV.substr(Where);
         SS << trimXsFlags(Flags) << " ";
       }
     }
     return SS.str();
   }
 
-  bool
-  extKernelCompilerFetchFromCache(const std::vector<device> Devices,
-                                  const std::vector<std::string> &BuildOptions,
-                                  const std::string &SourceStr,
-                                  ur_program_handle_t &UrProgram) const {
+  bool extKernelCompilerFetchFromCache(
+      const std::vector<device> Devices,
+      const std::vector<sycl::detail::string_view> &BuildOptions,
+      const std::string &SourceStr, ur_program_handle_t &UrProgram) const {
     const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
         getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
@@ -976,12 +978,12 @@ private:
     }
   }
 
-  std::vector<std::shared_ptr<device_image_impl>>
-  createSYCLImages(const std::vector<device> &Devices, bundle_state State,
-                   const std::vector<std::string> &Options, std::string *LogPtr,
-                   const std::vector<std::string> &RegisteredKernelNames,
-                   std::vector<std::shared_ptr<ManagedDeviceBinaries>>
-                       &OutDeviceBins) const {
+  std::vector<std::shared_ptr<device_image_impl>> createSYCLImages(
+      const std::vector<device> &Devices, bundle_state State,
+      const std::vector<sycl::detail::string_view> &Options, std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &RegisteredKernelNames,
+      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
+      const {
     assert(MRTCBinInfo);
     assert(MRTCBinInfo->MLanguage == syclex::source_language::sycl);
     assert(std::holds_alternative<std::string>(MBinImage));
@@ -993,8 +995,9 @@ private:
       SourceExt << SourceStr << '\n';
 
       auto EmitEntry =
-          [&SourceExt](const std::string &Name) -> std::ostringstream & {
-        SourceExt << "  {\"" << Name << "\", " << Name << "}";
+          [&SourceExt](
+              const sycl::detail::string_view &Name) -> std::ostringstream & {
+        SourceExt << "  {\"" << Name.data() << "\", " << Name.data() << "}";
         return SourceExt;
       };
 
@@ -1183,7 +1186,7 @@ private:
 
   ur_program_handle_t
   createProgramFromSource(const std::vector<device> Devices,
-                          const std::vector<std::string> &Options,
+                          const std::vector<sycl::detail::string_view> &Options,
                           std::string *LogPtr) const {
     const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
         getSyclObjImpl(MContext);

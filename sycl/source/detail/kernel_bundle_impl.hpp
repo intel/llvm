@@ -527,11 +527,11 @@ public:
       MDeviceImages.emplace_back(DevImg);
   }
 
-  std::shared_ptr<kernel_bundle_impl>
-  build_from_source(const std::vector<device> Devices,
-                    const std::vector<std::string> &BuildOptions,
-                    std::string *LogPtr,
-                    const std::vector<std::string> &RegisteredKernelNames) {
+  std::shared_ptr<kernel_bundle_impl> build_from_source(
+      const std::vector<device> Devices,
+      const std::vector<sycl::detail::string_view> &BuildOptions,
+      std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
     assert(MState == bundle_state::ext_oneapi_source &&
            "bundle_state::ext_oneapi_source required");
     assert(allSourceBasedImages() && "All images must be source-based.");
@@ -551,11 +551,11 @@ public:
         bundle_state::executable);
   }
 
-  std::shared_ptr<kernel_bundle_impl>
-  compile_from_source(const std::vector<device> Devices,
-                      const std::vector<std::string> &CompileOptions,
-                      std::string *LogPtr,
-                      const std::vector<std::string> &RegisteredKernelNames) {
+  std::shared_ptr<kernel_bundle_impl> compile_from_source(
+      const std::vector<device> Devices,
+      const std::vector<sycl::detail::string_view> &CompileOptions,
+      std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
     assert(MState == bundle_state::ext_oneapi_source &&
            "bundle_state::ext_oneapi_source required");
     assert(allSourceBasedImages() && "All images must be source-based.");

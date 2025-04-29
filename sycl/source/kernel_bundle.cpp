@@ -468,14 +468,6 @@ obj_kb compile_from_source(
     const std::vector<sycl::detail::string_view> &BuildOptions,
     sycl::detail::string *LogView,
     const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
-  std::vector<std::string> Options;
-  for (const sycl::detail::string_view option : BuildOptions)
-    Options.push_back(option.data());
-
-  std::vector<std::string> KernelNames;
-  for (const sycl::detail::string_view name : RegisteredKernelNames)
-    KernelNames.push_back(name.data());
-
   std::string Log;
   std::string *LogPtr = nullptr;
   if (LogView)
@@ -484,7 +476,7 @@ obj_kb compile_from_source(
       sycl::detail::removeDuplicateDevices(Devices);
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->compile_from_source(
-      UniqueDevices, Options, LogPtr, KernelNames);
+      UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
   if (LogView)
     *LogView = Log;
@@ -500,14 +492,6 @@ exe_kb build_from_source(
     const std::vector<sycl::detail::string_view> &BuildOptions,
     sycl::detail::string *LogView,
     const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
-  std::vector<std::string> Options;
-  for (const sycl::detail::string_view option : BuildOptions)
-    Options.push_back(option.data());
-
-  std::vector<std::string> KernelNames;
-  for (const sycl::detail::string_view name : RegisteredKernelNames)
-    KernelNames.push_back(name.data());
-
   std::string Log;
   std::string *LogPtr = nullptr;
   if (LogView)
@@ -517,7 +501,7 @@ exe_kb build_from_source(
   const std::shared_ptr<kernel_bundle_impl> &sourceImpl =
       getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
-      UniqueDevices, Options, LogPtr, KernelNames);
+      UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));
   if (LogView)
     *LogView = Log;
