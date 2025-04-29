@@ -15,8 +15,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include <map>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace sycl {
@@ -274,11 +274,12 @@ naiveMergeBinaryProperties(const std::vector<const RTDeviceBinaryImage *> &Imgs,
 // Exclusive property merge logic. If IgnoreDuplicates is false it assumes there
 // are no cases where properties have different values and throws otherwise.
 template <typename RangeGetterT>
-static std::map<std::string_view, const sycl_device_binary_property>
+static std::unordered_map<std::string_view, const sycl_device_binary_property>
 exclusiveMergeBinaryProperties(
     const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false) {
-  std::map<std::string_view, const sycl_device_binary_property> MergeMap;
+  std::unordered_map<std::string_view, const sycl_device_binary_property>
+      MergeMap;
   for (const RTDeviceBinaryImage *Img : Imgs) {
     const RTDeviceBinaryImage::PropertyRange &Range = RangeGetter(*Img);
     for (const sycl_device_binary_property Prop : Range) {
@@ -303,7 +304,8 @@ exclusiveMergeBinaryProperties(
 // Device requirements needs the ability to produce new properties. The
 // information for these are kept in this struct.
 struct MergedDeviceRequirements {
-  std::map<std::string_view, const sycl_device_binary_property> MergeMap;
+  std::unordered_map<std::string_view, const sycl_device_binary_property>
+      MergeMap;
   std::unordered_set<uint32_t> Aspects;
   std::unordered_set<std::string_view> JointMatrix;
   std::unordered_set<std::string_view> JointMatrixMad;
@@ -542,8 +544,9 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
         return Img.getMiscProperties();
       });
 
-  std::array<
-      const std::map<std::string_view, const sycl_device_binary_property> *, 4>
+  std::array<const std::unordered_map<std::string_view,
+                                      const sycl_device_binary_property> *,
+             4>
       MergedMaps{&MergedDeviceLibReqMask, &MergedProgramMetadata,
                  &MergedImportedSymbols, &MergedMisc};
 
