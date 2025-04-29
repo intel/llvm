@@ -225,7 +225,8 @@ public:
     // regular offline-compiled SYCL device images in separation.
     // TODO: Remove when spec const overwriting issue has been fixed in L0.
     std::vector<const DevImgPlainWithDeps *> OfflineDeviceImages;
-    std::set<std::shared_ptr<device_image_impl>> OfflineDeviceImageSet;
+    std::unordered_set<std::shared_ptr<device_image_impl>>
+        OfflineDeviceImageSet;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
       for (const DevImgPlainWithDeps &DeviceImageWithDeps :

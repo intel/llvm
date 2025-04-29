@@ -17,7 +17,7 @@
 #include <cstring>
 #include <map>
 #include <memory>
-#include <set>
+#include <unordered_set>
 
 namespace sycl {
 inline namespace _V1 {
@@ -250,11 +250,12 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   Bin = nullptr;
 }
 
-// Exclusive property merge logic. It assumes there are no cases where
-// properties have different values and throws otherwise.
+// "Naive" property merge logic. It merges the properties into a single property
+// vector without checking for duplicates. As such, duplicates may occur in the
+// final result.
 template <typename RangeGetterT>
 static std::vector<sycl_device_binary_property>
-NaiveMergeBinaryProperties(const std::vector<const RTDeviceBinaryImage *> &Imgs,
+naiveMergeBinaryProperties(const std::vector<const RTDeviceBinaryImage *> &Imgs,
                            const RangeGetterT &RangeGetter) {
   size_t PropertiesCount = 0;
   for (const RTDeviceBinaryImage *Img : Imgs)
@@ -274,7 +275,7 @@ NaiveMergeBinaryProperties(const std::vector<const RTDeviceBinaryImage *> &Imgs,
 // are no cases where properties have different values and throws otherwise.
 template <typename RangeGetterT>
 static std::map<std::string_view, const sycl_device_binary_property>
-ExclusiveMergeBinaryProperties(
+exclusiveMergeBinaryProperties(
     const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false) {
   std::map<std::string_view, const sycl_device_binary_property> MergeMap;
@@ -303,9 +304,9 @@ ExclusiveMergeBinaryProperties(
 // information for these are kept in this struct.
 struct MergedDeviceRequirements {
   std::map<std::string_view, const sycl_device_binary_property> MergeMap;
-  std::set<uint32_t> Aspects;
-  std::set<std::string_view> JointMatrix;
-  std::set<std::string_view> JointMatrixMad;
+  std::unordered_set<uint32_t> Aspects;
+  std::unordered_set<std::string_view> JointMatrix;
+  std::unordered_set<std::string_view> JointMatrixMad;
 
   size_t GetPropertiesCount() const {
     return MergeMap.size() + !Aspects.empty() + !JointMatrix.empty() +
@@ -316,7 +317,8 @@ struct MergedDeviceRequirements {
     return Aspects.size() * sizeof(uint32_t);
   }
 
-  static size_t GetStringSetContentSize(const std::set<std::string_view> &Set) {
+  static size_t
+  GetStringSetContentSize(const std::unordered_set<std::string_view> &Set) {
     size_t Result = 0;
     Result += Set.size() - 1;               // Semi-colon delimiters.
     for (const std::string_view &Str : Set) // Strings.
@@ -365,7 +367,7 @@ struct MergedDeviceRequirements {
   }
 
   static void WriteStringSetProperty(
-      const std::set<std::string_view> &Set, const char *SetName,
+      const std::unordered_set<std::string_view> &Set, const char *SetName,
       sycl_device_binary_property &NextFreeProperty, char *&NextFreeContent) {
     if (Set.empty())
       return;
@@ -398,10 +400,10 @@ MergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
     const RTDeviceBinaryImage::PropertyRange &Range =
         Img->getDeviceRequirements();
     for (const sycl_device_binary_property Prop : Range) {
-      std::string_view NameView = std::string_view{Prop->Name};
+      std::string_view NameView{Prop->Name};
 
       // Aspects we collect in a set early and add them afterwards.
-      if (NameView == std::string_view{"aspects"}) {
+      if (NameView == "aspects") {
         // Skip size bytes.
         auto AspectIt = reinterpret_cast<const uint32_t *>(
             reinterpret_cast<char *>(Prop->ValAddr) + 8);
@@ -412,12 +414,10 @@ MergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
 
       // joint_matrix and joint_matrix_mad have the same format, so we parse
       // them the same way.
-      if (NameView == std::string_view{"joint_matrix"} ||
-          NameView == std::string_view{"joint_matrix_mad"}) {
-        std::set<std::string_view> &Set =
-            NameView == std::string_view{"joint_matrix"}
-                ? MergedReqs.JointMatrix
-                : MergedReqs.JointMatrixMad;
+      if (NameView == "joint_matrix" || NameView == "joint_matrix_mad") {
+        std::unordered_set<std::string_view> &Set =
+            NameView == "joint_matrix" ? MergedReqs.JointMatrix
+                                       : MergedReqs.JointMatrixMad;
 
         // Skip size bytes.
         std::string_view Contents{reinterpret_cast<char *>(Prop->ValAddr) + 8,
@@ -481,39 +481,39 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 
   // Naive merges.
   auto MergedSpecConstants =
-      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getSpecConstants();
       });
   auto MergedSpecConstantsDefaultValues =
-      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getSpecConstantsDefaultValues();
       });
   auto MergedKernelParamOptInfo =
-      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getKernelParamOptInfo();
       });
-  auto MergedAssertUsed = NaiveMergeBinaryProperties(
+  auto MergedAssertUsed = naiveMergeBinaryProperties(
       Imgs, [](const RTDeviceBinaryImage &Img) { return Img.getAssertUsed(); });
   auto MergedDeviceGlobals =
-      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getDeviceGlobals();
       });
-  auto MergedHostPipes = NaiveMergeBinaryProperties(
+  auto MergedHostPipes = naiveMergeBinaryProperties(
       Imgs, [](const RTDeviceBinaryImage &Img) { return Img.getHostPipes(); });
   auto MergedVirtualFunctions =
-      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getVirtualFunctions();
       });
   auto MergedImplicitLocalArg =
-      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getImplicitLocalArg();
       });
   auto MergedExportedSymbols =
-      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getExportedSymbols();
       });
   auto MergedRegisteredKernels =
-      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getRegisteredKernels();
       });
 
@@ -526,19 +526,19 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 
   // Exclusive merges.
   auto MergedDeviceLibReqMask =
-      ExclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      exclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getDeviceLibReqMask();
       });
   auto MergedProgramMetadata =
-      ExclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      exclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getProgramMetadata();
       });
-  auto MergedImportedSymbols = ExclusiveMergeBinaryProperties(
+  auto MergedImportedSymbols = exclusiveMergeBinaryProperties(
       Imgs,
       [](const RTDeviceBinaryImage &Img) { return Img.getImportedSymbols(); },
       /*IgnoreDuplicates=*/true);
   auto MergedMisc =
-      ExclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+      exclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getMiscProperties();
       });
 

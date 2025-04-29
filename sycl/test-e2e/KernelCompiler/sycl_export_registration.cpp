@@ -1,4 +1,4 @@
-//==----------- sycl_link.cpp --- kernel_compiler extension tests ----------==//
+//==--- sycl_export_registration.cpp --- kernel_compiler extension tests ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
