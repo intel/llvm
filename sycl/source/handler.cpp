@@ -314,26 +314,24 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
-                                                  CallerNeedsEvent)),
+    : impl(std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: This function is not used anymore, remove it in the next
 // ABI-breaking window.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(
-          PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent)),
+handler::handler(
+    std::shared_ptr<detail::queue_impl> Queue,
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
+    std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue.get(),
+                                                  CallerNeedsEvent)),
       MQueue(Queue) {}
 #endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 detail::queue_impl *PrimaryQueue,
                  detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue, SecondaryQueue,
+    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue,
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
@@ -1769,8 +1767,7 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  if ((!impl->MGraph && (impl->MSubmissionPrimaryQueue->get_context() !=
-                         ExecBundle.get_context())) ||
+  if ((!impl->MGraph && (MQueue->get_context() != ExecBundle.get_context())) ||
       (impl->MGraph &&
        (impl->MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(
@@ -1931,23 +1928,21 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  auto &PrimQueue = impl->MSubmissionPrimaryQueue;
-  if (PrimQueue)
-    return checkContextSupports(PrimQueue->getContextImplPtr(),
-                                UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  else
-    // Return true when handler_impl is constructed with a graph.
+  // Return true when handler_impl is constructed with a graph.
+  if (!MQueue)
     return true;
+
+  return checkContextSupports(MQueue->getContextImplPtr(),
+                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
 }
 
 bool handler::supportsUSMFill2D() {
-  auto &PrimQueue = impl->MSubmissionPrimaryQueue;
-  if (PrimQueue)
-    return checkContextSupports(PrimQueue->getContextImplPtr(),
-                                UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  else
-    // Return true when handler_impl is constructed with a graph.
+  // Return true when handler_impl is constructed with a graph.
+  if (!MQueue)
     return true;
+
+  return checkContextSupports(MQueue->getContextImplPtr(),
+                              UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
 }
 
 bool handler::supportsUSMMemset2D() {

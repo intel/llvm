@@ -373,8 +373,7 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
-        detail::type_erased_cgfo_ty{CGF},
-        /*SecondaryQueuePtr=*/nullptr, CodeLoc);
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -3609,6 +3608,7 @@ private:
   ///
   /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
+  /// \param SecondaryQueuePtr is a pointer to the secondary queue.
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
   //
@@ -3649,6 +3649,41 @@ private:
   /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return a SYCL event object for the submitted command group.
+  //
+  // UseFallBackAssert as template param vs `#if` in function body is necessary
+  // to prevent ODR-violation between TUs built with different fallback assert
+  // modes.
+  template <bool UseFallbackAssert, typename PropertiesT>
+  event submit_with_event(
+      PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::SubmissionInfo SI{};
+    ProcessSubmitProperties(Props, SI);
+    if constexpr (UseFallbackAssert)
+      SI.PostProcessorFunc() = [this, &TlsCodeLocCapture](bool IsKernel,
+                                                          bool KernelUsesAssert,
+                                                          event &E) {
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert && !device_has(aspect::accelerator)) {
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          // Fallback assert isn't supported for FPGA
+          submitAssertCapture(*this, E, nullptr, TlsCodeLocCapture.query());
+        }
+      };
+    return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
+                                  TlsCodeLocCapture.isToplevel());
+  }
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param Props is a property list with submission properties.
+  /// \param CGF is a function object containing command group.
+  /// \param CodeLoc is the code location of the submit call (default argument)
   //
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
@@ -3660,7 +3695,7 @@ private:
     if constexpr (UseFallbackAssert) {
       // If post-processing is needed, fall back to the regular submit.
       // TODO: Revisit whether we can avoid this.
-      submit_with_event<UseFallbackAssert>(Props, CGF, nullptr, CodeLoc);
+      submit_with_event<UseFallbackAssert>(Props, CGF, CodeLoc);
     } else {
       detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
       detail::SubmissionInfo SI{};
