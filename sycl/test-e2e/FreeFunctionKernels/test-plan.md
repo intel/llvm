@@ -65,7 +65,9 @@ of `false_type`.
 #### Perform tests on new `kernel_bundle` member functions for free function kernels by declaring `nd_range_kernel` and `single_task_kernel` and verifying that:
 
 - the `get_kernel_id` member function returns a valid kernel identifier 
-associated with free function kernel.
+associated with free function kernel which can be found within all kernel 
+identifiers for any free function kernels defined by the application which can 
+be queried using `get_kernel_ids()`.
 - the `get_kernel_bundle(const context& ctxt)` member function returns a 
 kernel bundle that contains the corresponding free function kernel.
 - the `get_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` 
