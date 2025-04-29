@@ -357,18 +357,7 @@ static inline ur_result_t
 withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                 uint32_t numEventsInWaitList,
                 const ur_event_handle_t *phEventWaitList,
-                ur_event_handle_t *phEvent, T &&f) {
-  return withTimingEvent(command_type, hQueue, numEventsInWaitList,
-                         phEventWaitList, phEvent, std::forward<T>(f),
-                         BlockingWithEvent());
-}
-
-template <class T>
-static inline ur_result_t
-withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
-                uint32_t numEventsInWaitList,
-                const ur_event_handle_t *phEventWaitList,
-                ur_event_handle_t *phEvent, T &&f, bool blocking) {
+                ur_event_handle_t *phEvent, T &&f, bool blocking = true) {
   if (blocking)
     return withTimingEvent(command_type, hQueue, numEventsInWaitList,
                            phEventWaitList, phEvent, std::forward<T>(f),
