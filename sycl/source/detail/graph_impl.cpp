@@ -829,10 +829,9 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   return NewSyncPoint;
 }
 
-ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
-    sycl::context Ctx, std::shared_ptr<sycl::detail::device_impl> DeviceImpl,
-    ur_exp_command_buffer_handle_t CommandBuffer,
-    std::shared_ptr<node_impl> Node) {
+ur_exp_command_buffer_sync_point_t
+exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
+                             std::shared_ptr<node_impl> Node) {
 
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
   for (auto &N : Node->MPredecessors) {
@@ -887,8 +886,7 @@ void exec_graph_impl::createCommandBuffers(
       MSyncPoints[Node] =
           enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node);
     } else {
-      MSyncPoints[Node] =
-          enqueueNode(MContext, DeviceImpl, OutCommandBuffer, Node);
+      MSyncPoints[Node] = enqueueNode(OutCommandBuffer, Node);
     }
 
     // Append Node requirements to overall graph requirements
