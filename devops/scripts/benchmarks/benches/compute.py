@@ -14,6 +14,7 @@ from enum import Enum
 
 
 class RUNTIMES(Enum):
+    SYCL_PREVIEW = "syclpreview"
     SYCL = "sycl"
     LEVEL_ZERO = "l0"
     UR = "ur"
@@ -21,6 +22,7 @@ class RUNTIMES(Enum):
 
 def runtime_to_name(runtime: RUNTIMES) -> str:
     return {
+        RUNTIMES.SYCL_PREVIEW: "SYCL Preview",
         RUNTIMES.SYCL: "SYCL",
         RUNTIMES.LEVEL_ZERO: "Level Zero",
         RUNTIMES.UR: "Unified Runtime",
@@ -29,6 +31,7 @@ def runtime_to_name(runtime: RUNTIMES) -> str:
 
 def runtime_to_tag_name(runtime: RUNTIMES) -> str:
     return {
+        RUNTIMES.SYCL_PREVIEW: "SYCL",
         RUNTIMES.SYCL: "SYCL",
         RUNTIMES.LEVEL_ZERO: "L0",
         RUNTIMES.UR: "UR",
@@ -46,7 +49,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "420842fc3f0c01aac7b328bf192c25d3e7b9fd9e"
+        return "9c1ed6fd59a7a40f8829251df4b5c0d847591183"
 
     def setup(self):
         if options.sycl is None:
@@ -69,6 +72,9 @@ class ComputeBench(Suite):
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
         ]
+
+        if options.ur_adapter == "cuda":
+            configure_command += ["-DBUILD_SYCL_WITH_CUDA=ON"]
 
         if options.ur is not None:
             configure_command += [
@@ -104,13 +110,23 @@ class ComputeBench(Suite):
             ),
         }
 
-    def enabled_runtimes(self, supported_runtimes=None):
+    def enabled_runtimes(self, supported_runtimes=None, extra_runtimes=None):
         # all runtimes in the RUNTIMES enum
         runtimes = supported_runtimes or list(RUNTIMES)
+
+        # filter out SYCL_PREVIEW which is not supported by default in all benchmarks
+        runtimes = [r for r in runtimes if r != RUNTIMES.SYCL_PREVIEW]
+
+        if extra_runtimes is not None:
+            runtimes.extend(extra_runtimes)
 
         # Filter out UR if not available
         if options.ur is None:
             runtimes = [r for r in runtimes if r != RUNTIMES.UR]
+
+        # Filter out L0 if cuda backend
+        if options.ur_adapter == "cuda":
+            runtimes = [r for r in runtimes if r != RUNTIMES.LEVEL_ZERO]
 
         return runtimes
 
@@ -118,27 +134,23 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return []
 
-        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+        if options.ur_adapter == "hip":
             return []
 
         benches = []
 
         # Add SubmitKernel benchmarks using loops
-        for runtime in self.enabled_runtimes():
+        for runtime in self.enabled_runtimes(extra_runtimes=[RUNTIMES.SYCL_PREVIEW]):
             for in_order_queue in [0, 1]:
                 for measure_completion in [0, 1]:
-                    for enqueue_functions in [0, 1]:
-                        # only SYCL backend supports enqueue functions
-                        if enqueue_functions == 1 and runtime != RUNTIMES.SYCL:
-                            continue
-
+                    for use_events in [0, 1]:
                         benches.append(
                             SubmitKernel(
                                 self,
                                 runtime,
                                 in_order_queue,
                                 measure_completion,
-                                enqueue_functions,
+                                use_events,
                             )
                         )
 
@@ -298,13 +310,11 @@ class ComputeBenchmark(Benchmark):
 
 
 class SubmitKernel(ComputeBenchmark):
-    def __init__(
-        self, bench, runtime: RUNTIMES, ioq, MeasureCompletion=0, EnqueueFunctions=0
-    ):
+    def __init__(self, bench, runtime: RUNTIMES, ioq, MeasureCompletion=0, UseEvents=0):
         self.ioq = ioq
         self.runtime = runtime
         self.MeasureCompletion = MeasureCompletion
-        self.EnqueueFunctions = EnqueueFunctions
+        self.UseEvents = UseEvents
         super().__init__(
             bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel"
         )
@@ -315,25 +325,30 @@ class SubmitKernel(ComputeBenchmark):
     def name(self):
         order = "in order" if self.ioq else "out of order"
         completion_str = " with measure completion" if self.MeasureCompletion else ""
-        enqueue_str = " using eventless SYCL enqueue" if self.EnqueueFunctions else ""
-        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{enqueue_str}"
+
+        # this needs to be inversed (i.e., using events is empty string)
+        # to match the existing already stored results
+        events_str = " not using events" if not self.UseEvents else ""
+
+        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{events_str}"
 
     def explicit_group(self):
-        # make eventless enqueue its own group, since only SYCL supports this mode
-        if self.EnqueueFunctions:
-            return "Submit Kernel using eventless SYCL enqueue"
-
         order = "In Order" if self.ioq else "Out Of Order"
         completion_str = " With Completion" if self.MeasureCompletion else ""
-        return f"SubmitKernel {order}{completion_str}"
+
+        # this needs to be inversed (i.e., using events is empty string)
+        # to match the existing already stored results
+        events_str = " not using events" if not self.UseEvents else ""
+
+        return f"SubmitKernel {order}{completion_str}{events_str}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
         runtime_name = runtime_to_name(self.runtime)
 
-        completion_desc = ""
-        if self.runtime == RUNTIMES.UR:
-            completion_desc = f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
+        completion_desc = completion_desc = (
+            f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
+        )
 
         return (
             f"Measures CPU time overhead of submitting {order} kernels through {runtime_name} API{completion_desc}. "
@@ -346,13 +361,12 @@ class SubmitKernel(ComputeBenchmark):
     def bin_args(self) -> list[str]:
         return [
             f"--Ioq={self.ioq}",
-            "--DiscardEvents=0",
             f"--MeasureCompletion={self.MeasureCompletion}",
             "--iterations=100000",
             "--Profiling=0",
             "--NumKernels=10",
             "--KernelExecTime=1",
-            f"--EnqueueFunctions={self.EnqueueFunctions}",
+            f"--UseEvents={self.UseEvents}",
         ]
 
 
@@ -613,6 +627,9 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
         ]
 
 
+# TODO: once L0 SubmitGraph exists, this needs to be cleaned up split benchmarks into more groups,
+# set all the parameters (NoEvents 0/1, which should get inverted into UseEvents) and
+# unify the benchmark naming scheme with SubmitKernel.
 class GraphApiSubmitGraph(ComputeBenchmark):
     def __init__(
         self, bench, runtime: RUNTIMES, inOrderQueue, numKernels, measureCompletionTime
@@ -652,6 +669,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--InOrderQueue={self.inOrderQueue}",
             "--Profiling=0",
             "--KernelExecutionTime=1",
+            "--NoEvents=1",  # not all implementations support NoEvents=0
         ]
 
 

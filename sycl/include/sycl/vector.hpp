@@ -309,8 +309,13 @@ template <typename Self> class ConversionToVecMixin {
 
 public:
   operator vec_ty() const {
-    vec_ty res{*static_cast<const Self *>(this)};
-    return res;
+    auto &self = *static_cast<const Self *>(this);
+    if constexpr (vec_ty::size() == 1)
+      // Avoid recursion by explicitly going through `vec(const DataT &)` ctor.
+      return vec_ty{static_cast<typename vec_ty::element_type>(self)};
+    else
+      // Uses `vec`'s variadic ctor.
+      return vec_ty{self};
   }
 };
 
@@ -398,9 +403,8 @@ class __SYCL_EBO Swizzle
       public ApplyIf<sizeof...(Indexes) == 1,
                      ScalarConversionOperatorsMixIn<
                          Swizzle<IsConstVec, DataT, VecSize, Indexes...>>>,
-      public ApplyIf<sizeof...(Indexes) != 1,
-                     ConversionToVecMixin<
-                         Swizzle<IsConstVec, DataT, VecSize, Indexes...>>>,
+      public ConversionToVecMixin<
+          Swizzle<IsConstVec, DataT, VecSize, Indexes...>>,
       public NamedSwizzlesMixinBoth<
           Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
   using Base = SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>;
