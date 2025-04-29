@@ -4,6 +4,7 @@
 
 #include "context.hpp"
 #include "device.hpp"
+#include "platform.hpp"
 #include "program.hpp"
 #include "ur2offload.hpp"
 
@@ -31,7 +32,10 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
   cuLinkComplete(State, &CuBin, &CuBinSize);
   RealBinary = (uint8_t *)CuBin;
   RealLength = CuBinSize;
+
+#if 0
   fprintf(stderr, "Performed CUDA bin workaround (size = %lu)\n", RealLength);
+#endif
 
   ur_program_handle_t Program = new ur_program_handle_t_();
   auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
@@ -39,7 +43,6 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
 
   // Program owns the linked module now
   cuLinkDestroy(State);
-  (void)State;
 
   if (Res != OL_SUCCESS) {
     delete Program;
@@ -146,13 +149,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ur_platform_handle_t DevicePlatform;
-  urDeviceGetInfo(phDevices[0], UR_DEVICE_INFO_PLATFORM,
-                  sizeof(ur_platform_handle_t), &DevicePlatform, nullptr);
-  ur_backend_t PlatformBackend;
-  urPlatformGetInfo(DevicePlatform, UR_PLATFORM_INFO_BACKEND,
-                    sizeof(ur_backend_t), &PlatformBackend, nullptr);
-
   auto *RealBinary = ppBinaries[0];
   size_t RealLength = pLengths[0];
 
@@ -171,7 +167,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     }
   }
 
-  if (PlatformBackend == UR_BACKEND_CUDA) {
+  ol_platform_backend_t Backend;
+  olGetPlatformInfo(phDevices[0]->Platform->OffloadPlatform,
+                    OL_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend);
+  if (Backend == OL_PLATFORM_BACKEND_CUDA) {
     return ProgramCreateCudaWorkaround(hContext, RealBinary, RealLength,
                                        phProgram);
   }

@@ -18,8 +18,8 @@ if (NOT TARGET cudadrv)
         add_library(cudadrv SHARED IMPORTED GLOBAL)
         set_target_properties(
                 cudadrv PROPERTIES 
-                IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+                IMPORTED_LOCATION             ${CUDA_cuda_driver_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
         )
 endif()
 
@@ -44,19 +44,21 @@ set_target_properties(${TARGET_NAME} PROPERTIES
         SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
 
+set(ADDITIONAL_LINK_LIBS "")
+if (CUDA_cuda_driver_LIBRARY)
+    list(APPEND ADDITIONAL_LINK_LIBS
+        cudadrv
+    )
+    target_compile_definitions(${TARGET_NAME} PRIVATE UR_CUDA_ENABLED)
+endif()
+
 target_link_libraries(${TARGET_NAME} PRIVATE
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::common
         ${PROJECT_NAME}::umf
         ${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so
+        ${ADDITIONAL_LINK_LIBS}
 )
-
-if (CUDA_CUDA_LIBRARY)
-    target_link_libraries(${TARGET_NAME}
-        cudadrv
-    )
-    target_compile_definitions(${TARGET_NAME} PRIVATE UR_CUDA_ENABLED=1)
-endif()
 
 target_include_directories(${TARGET_NAME} PRIVATE
         "${UR_OFFLOAD_INCLUDE_DIR}/offload"
