@@ -980,7 +980,8 @@ private:
 
   std::vector<std::shared_ptr<device_image_impl>> createSYCLImages(
       const std::vector<device> &Devices, bundle_state State,
-      const std::vector<sycl::detail::string_view> &Options, std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &Options,
+      std::string *LogPtr,
       const std::vector<sycl::detail::string_view> &RegisteredKernelNames,
       std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
       const {
