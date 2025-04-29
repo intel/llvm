@@ -1,6 +1,6 @@
 // Test to isolate sycl::vec bug due to use of std::array in
 // the constructor.
-// REQUIRES: windows
+// REQUIRES: windows && debug_sycl_library
 
 // RUN: not %clangxx -O0 -fsycl -D_DEBUG -shared %s &> %t.compile.log
 // RUN: FileCheck %s -input-file=%t.compile.log
