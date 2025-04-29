@@ -12,7 +12,10 @@ if (WIN32 AND "${build_type_lower}" MATCHES "debug")
 endif()
 target_link_libraries(syclbin-dump PRIVATE ${sycl_lib})
 
-target_compile_options(syclbin-dump PRIVATE -fno-rtti)
+if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+    (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+  target_compile_options(syclbin-dump PRIVATE -fno-rtti)
+endif()
 
 add_dependencies(sycl-toolchain syclbin-dump)
 
