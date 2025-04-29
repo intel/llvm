@@ -31,7 +31,7 @@ class device_impl;
 
 // TODO: implement extension management for host device
 // TODO: implement parameters treatment for host device
-class platform_impl {
+class platform_impl : public std::enable_shared_from_this<platform_impl> {
   /// Constructs platform_impl from a UR platform handle.
   ///
   /// \param APlatform is a raw plug-in platform handle.
@@ -171,9 +171,7 @@ public:
   /// \param PlatormImpl is the Platform for that Device
   ///
   /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl>
-  getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
-                      const std::shared_ptr<platform_impl> &PlatformImpl);
+  std::shared_ptr<device_impl> getOrMakeDeviceImpl(ur_device_handle_t UrDevice);
 
   /// Queries the cache to see if the specified UR platform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
@@ -182,9 +180,8 @@ public:
   /// \param UrPlatform is the UR Platform handle representing the platform
   /// \param Adapter is the UR adapter providing the backend for the platform
   /// \return the platform_impl representing the UR platform
-  static std::shared_ptr<platform_impl>
-  getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                        const AdapterPtr &Adapter);
+  static platform_impl &getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
+                                              const AdapterPtr &Adapter);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
@@ -195,9 +192,8 @@ public:
   /// \param Adapter is the UR adapter providing the backend for the device and
   /// platform
   /// \return the platform_impl that contains the input device
-  static std::shared_ptr<platform_impl>
-  getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                          const AdapterPtr &Adapter);
+  static platform_impl &getPlatformFromUrDevice(ur_device_handle_t UrDevice,
+                                                const AdapterPtr &Adapter);
 
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.
