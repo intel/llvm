@@ -6,11 +6,11 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
+#include <cassert>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
-#include <cassert>
 
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
