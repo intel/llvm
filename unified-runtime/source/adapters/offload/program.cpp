@@ -56,6 +56,86 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t, const uint8_t *,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 #endif
+
+// https://clang.llvm.org/docs/ClangOffloadBundler.html#bundled-binary-file-layout
+class HipOffloadBundleParser {
+  static constexpr std::string_view Magic = "__CLANG_OFFLOAD_BUNDLE__";
+  const uint8_t *Buff;
+  size_t Length;
+
+  struct __attribute__((packed)) BundleEntry {
+    uint64_t ObjectOffset;
+    uint64_t ObjectSize;
+    uint64_t EntryIdSize;
+    char EntryIdStart;
+  };
+
+  struct __attribute__((packed)) BundleHeader {
+    const char HeaderMagic[Magic.size()];
+    uint64_t EntryCount;
+    BundleEntry FirstEntry;
+  };
+
+  HipOffloadBundleParser() = delete;
+  HipOffloadBundleParser(const uint8_t *Buff, size_t Length)
+      : Buff(Buff), Length(Length) {}
+
+public:
+  static std::optional<HipOffloadBundleParser> load(const uint8_t *Buff,
+                                                    size_t Length) {
+    if (std::string_view{reinterpret_cast<const char *>(Buff), Length}.find(
+            Magic) != 0) {
+      return std::nullopt;
+    }
+    return HipOffloadBundleParser(Buff, Length);
+  }
+
+  ur_result_t extract(std::string_view SearchTargetId,
+                      const uint8_t *&OutBinary, size_t &OutLength) {
+    const char *Limit = reinterpret_cast<const char *>(&Buff[Length]);
+
+    // The different check here means that a binary consisting of only the magic
+    // bytes (but nothing else) will result in INVALID_PROGRAM rather than being
+    // treated as a non-bundle
+    auto *Header = reinterpret_cast<const BundleHeader *>(Buff);
+    if (reinterpret_cast<const char *>(&Header->FirstEntry) > Limit) {
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+    const auto *CurrentEntry = &Header->FirstEntry;
+    for (uint64_t I = 0; I < Header->EntryCount; I++) {
+      if (&CurrentEntry->EntryIdStart > Limit) {
+        return UR_RESULT_ERROR_INVALID_PROGRAM;
+      }
+      auto EntryId = std::string_view(&CurrentEntry->EntryIdStart,
+                                      CurrentEntry->EntryIdSize);
+      if (EntryId.end() > Limit) {
+        return UR_RESULT_ERROR_INVALID_PROGRAM;
+      }
+
+      // Will match either "hip" or "hipv4"
+      bool isHip = EntryId.find("hip") == 0;
+      bool VersionMatches =
+          EntryId.find_last_of(SearchTargetId) == EntryId.size() - 1;
+
+      if (isHip && VersionMatches) {
+        OutBinary = reinterpret_cast<const uint8_t *>(
+            &Buff[CurrentEntry->ObjectOffset]);
+        OutLength = CurrentEntry->ObjectSize;
+
+        if (reinterpret_cast<const char *>(&OutBinary[OutLength]) > Limit) {
+          return UR_RESULT_ERROR_INVALID_PROGRAM;
+        }
+        return UR_RESULT_SUCCESS;
+      }
+
+      CurrentEntry = reinterpret_cast<const BundleEntry *>(EntryId.end());
+    }
+
+    return UR_RESULT_ERROR_INVALID_PROGRAM;
+  }
+};
+
 } // namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
@@ -72,17 +152,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   ur_backend_t PlatformBackend;
   urPlatformGetInfo(DevicePlatform, UR_PLATFORM_INFO_BACKEND,
                     sizeof(ur_backend_t), &PlatformBackend, nullptr);
-  if (PlatformBackend == UR_BACKEND_CUDA) {
-    return ProgramCreateCudaWorkaround(hContext, ppBinaries[0], pLengths[0],
-                                       phProgram);
+
+  auto *RealBinary = ppBinaries[0];
+  size_t RealLength = pLengths[0];
+
+  if (auto Parser = HipOffloadBundleParser::load(RealBinary, RealLength)) {
+    std::string DevName{};
+    size_t DevNameLength;
+    olGetDeviceInfoSize(reinterpret_cast<ol_device_handle_t>(phDevices[0]),
+                        OL_DEVICE_INFO_NAME, &DevNameLength);
+    DevName.resize(DevNameLength);
+    olGetDeviceInfo(reinterpret_cast<ol_device_handle_t>(phDevices[0]),
+                    OL_DEVICE_INFO_NAME, DevNameLength, DevName.data());
+
+    auto Res = Parser->extract(DevName, RealBinary, RealLength);
+    if (Res != UR_RESULT_SUCCESS) {
+      return Res;
+    }
   }
 
-  auto *RealBinary = const_cast<uint8_t *>(ppBinaries[0]);
+  if (PlatformBackend == UR_BACKEND_CUDA) {
+    return ProgramCreateCudaWorkaround(hContext, RealBinary, RealLength,
+                                       phProgram);
+  }
 
   ur_program_handle_t Program = new ur_program_handle_t_();
   auto Res =
       olCreateProgram(reinterpret_cast<ol_device_handle_t>(hContext->Device),
-                      RealBinary, pLengths[0], &Program->OffloadProgram);
+                      RealBinary, RealLength, &Program->OffloadProgram);
 
   if (Res != OL_SUCCESS) {
     delete Program;
