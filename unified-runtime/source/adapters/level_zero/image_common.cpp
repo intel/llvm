@@ -308,7 +308,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   ZeImageDesc.pNext = &BindlessDesc;
 
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
-  if (hSampler) {
+  const bool WithSampler = hSampler != nullptr;
+  if (WithSampler) {
     ZeSamplerDesc = hSampler->ZeSamplerDesc;
     BindlessDesc.pNext = &ZeSamplerDesc;
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
@@ -338,7 +339,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
              MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
     ZeStruct<ze_image_pitched_exp_desc_t> PitchedDesc;
     PitchedDesc.ptr = reinterpret_cast<void *>(hImageMem);
-    if (hSampler) {
+    if (WithSampler) {
       ZeSamplerDesc.pNext = &PitchedDesc;
     } else {
       BindlessDesc.pNext = &PitchedDesc;
@@ -372,9 +373,19 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
              (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
-  std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
-  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
-  Lock.release();
+  std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex, std::defer_lock);
+  if (WithSampler) {
+    // Get a non-exclsuive (shared) read-access to the sampler handle.
+    std::shared_lock<ur_shared_mutex> SLock(hSampler->Mutex, std::defer_lock);
+    std::scoped_lock LockAll(Lock, SLock);
+    // Associate the bindless image with host object handle and sampler handle.
+    hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
+    hDevice->ZeImageToSamplerMap[*phImage] = hSampler->ZeSampler;
+  } else {
+    Lock.lock();
+    hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
+    Lock.release();
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -1006,9 +1017,22 @@ ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
   // Sampled image is a combination of unsampled image and sampler.
-  // Sampler is released in urSamplerRelease.
-  return ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
-      hContext, hDevice, hImage);
+  // We destroy the unsampled image image handle first; then the sampler handle.
+  UR_CALL(ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
+      hContext, hDevice, hImage));
+
+  std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
+  auto Item = hDevice->ZeImageToSamplerMap.find(hImage);
+  if (Item != hDevice->ZeImageToSamplerMap.end()) {
+    hDevice->ZeImageToSamplerMap.erase(Item);
+    Lock.release();
+    ZE2UR_CALL(zeSamplerDestroy, (Item->second));
+  } else {
+    Lock.release();
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
