@@ -6595,11 +6595,11 @@ private:
   /// \endcode
   /// returns string "T1 a, T2 b"
   std::string
-  getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> &Parameters,
+  getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> Parameters,
                         PrintingPolicy Policy) {
     bool FirstParam = true;
-    std::string ParamList;
-    llvm::raw_string_ostream ParmListOstream{ParamList};
+    llvm::SmallString<128> ParamList;
+    llvm::raw_svector_ostream ParmListOstream{ParamList};
     Policy.SuppressTagKeyword = true;
     for (ParmVarDecl *Param : Parameters) {
       if (FirstParam)
@@ -6609,8 +6609,7 @@ private:
       ParmListOstream << Param->getType().getAsString(Policy);
       ParmListOstream << " " << Param->getNameAsString();
     }
-    ParmListOstream.flush();
-    return ParamList;
+    return ParamList.str().str();
   }
 
   /// Helper method to get text representation of the template parameters.
@@ -7261,7 +7260,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   for (const VarDecl *VD : GlobalVars) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This
+    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
     // can happen if it was a deduced type.
     if (!SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
         !SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
