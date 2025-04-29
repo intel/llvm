@@ -26,7 +26,7 @@ are instead focused on making sure that all APIs are consistent with respect to
 existing APIs.
 
 
-#### Perform tests on free function kernels requirements which should check                                 that:
+#### Perform tests on free function kernels requirements which should check that:
  - the compiler will emit diagnostic when free function kernel is declared with 
  reference types as parameters.
  - the compiler will emit diagnostic when free function kernel is declared with 
@@ -39,7 +39,7 @@ existing APIs.
  as a kernel. Only static member function at class scope are allowed as 
  free function kernel.
 
-#### Perform tests on free function kernel declaration with properties                          `nd_range_kernel` and `single_task_kernel` which should check the following:
+#### Perform tests on free function kernel declaration with properties `nd_range_kernel` and `single_task_kernel` which should check the following:
  - that if the property does not appear on the first declaration of the 
 function in the translation unit, it will result in a compilation error.
  - that if the property appears on the first declaration of the function, and 
@@ -50,7 +50,7 @@ will result in a compilation error.
  - that if a redeclaration of a function is decorated with the same property 
 but with different arguments, the program should result in a compilation error.
 
-#### Perform tests on new traits for free function kernels which should check                                 the following:
+#### Perform tests on new traits for free function kernels which should check the following:
 - that `is_nd_range_kernel_v` trait should be a subclass of `true_type` if 
 function declaration is decorated with `nd_range_kernel` property or a 
 subclass of `false_type` if it is not.
@@ -62,7 +62,7 @@ whose declaration is decorated with either the `nd_range_kernel` property or
 the `single_task_kernel` property when it is not then it should be a subclass 
 of `false_type`.
 
-#### Perform tests on new `kernel_bundle` member functions for free function                                kernels by declaring `nd_range_kernel` and `single_task_kernel` and verifying                                 that:
+#### Perform tests on new `kernel_bundle` member functions for free function kernels by declaring `nd_range_kernel` and `single_task_kernel` and verifying that:
 
 - the `get_kernel_id` member function returns a valid kernel identifier 
 associated with free function kernel.
@@ -101,7 +101,7 @@ Write test that perform all the checks mentioned above on `nd_range_kernel`
 and `single_task_kernel` free functions, which are declared in one translation 
 unit and defined in another.
 
-#### Perform tests on new free functions to query kernel information descriptors                             which should check the following:
+#### Perform tests on new free functions to query kernel information descriptors which should check the following:
 
 - that `get_kernel_info(const context& ctxt)` produces the same result as would 
 be computed by 
@@ -150,7 +150,7 @@ subsequent tests are executed with `Dimensions` $$\in \{1, 2, 3\}$$.
 In all subsequent tests, free function kernels should be declared within a 
 namespace, as static member functions of a class, or in the global namespace.
 
-#### Perform test that free function kernel can be used as device function                                 within another kernel:
+#### Perform test that free function kernel can be used as device function within another kernel:
 A series of checks should be performed that free function kernel can be used 
 within another kernel and behave as device function.
 
@@ -178,7 +178,7 @@ A series of checks should be performed that we can pass `range` where
 `Dimensions` is in $$\in \{1, 2, 3\}$$ as kernel parameter to free function 
 kernel and use it within kernel.
 
-#### Test `marray<T, NumElements>` when `T` is device copyable as kernel                                parameter:
+#### Test `marray<T, NumElements>` when `T` is device copyable as kernel parameter:
 A series of checks should be performed that we can pass `marray<T, NumElements>` 
 as kernel parameter to free function kernel and use it within kernel.
 
@@ -199,7 +199,7 @@ use it within kernel.
 A series of checks should be performed that we can pass `local_accessor` 
 as kernel parameter to free function kernel and use it within kernel.
 
-#### Test structs that contain one of the following `accessor`,                                  `local_accessor`, `sampled_image_accessor` or  `unsampled_image_accessor` types                              when used as kernel parameter:
+#### Test structs that contain one of the following `accessor`, `local_accessor`, `sampled_image_accessor` or `unsampled_image_accessor` types when used as kernel parameter:
 A series of checks should be performed that we can pass struct that contain 
 one of the following `accessor`, `local_accessor`, `sampled_image_accessor` or 
 `unsampled_image_accessor` types as kernel parameter to free function kernel 
@@ -217,7 +217,7 @@ parameter and use it within kernel.
 A series of checks should be performed that we can pass scoped enumeration as 
 kernel parameter and use it within kernel.
 
-#### Test unscoped enumeration that has an explicit underlying type defined at                            namespace scope as kernel parameter:
+#### Test unscoped enumeration that has an explicit underlying type defined at namespace scope as kernel parameter:
 A series of checks should be performed that we can pass unscoped enumeration 
 that has an explicit underlying type as kernel parameter and use it 
 within kernel.
