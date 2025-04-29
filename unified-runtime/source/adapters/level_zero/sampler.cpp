@@ -17,6 +17,37 @@
 #include "context.hpp"
 #endif
 
+ur_result_t releaseSamplerHandle(
+    /// [in] handle of the sampler object to release
+    ur_sampler_handle_t Sampler) {
+  if (!Sampler->RefCount.decrementAndTest())
+    return UR_RESULT_SUCCESS;
+
+  if (checkL0LoaderTeardown()) {
+#ifndef NDEBUG
+    // Verify that the ZeSampler memory has not been destroyed already,
+    // otherwise this will return ZE_RESULT_ERROR_INVALID_NULL_HANDLE. This is
+    // logically impossible due to the way we have managed the lifetime of the
+    // sampler handle, but it may still be a good sanity check in debug.
+    std::shared_lock<ur_shared_mutex> Lock(Sampler->Mutex);
+    assert(Sampler->ZeSampler &&
+           "Invalid ZeSampler handle in releaseSamplerHandle");
+    Lock.release();
+#endif
+    auto ZeResult = ZE_CALL_NOCHECK(zeSamplerDestroy, (Sampler->ZeSampler));
+    // Gracefully handle the case that L0 was already unloaded.
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                     ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+      return ze2urResult(ZeResult);
+    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+    }
+  }
+  delete Sampler;
+
+  return UR_RESULT_SUCCESS;
+}
+
 namespace ur::level_zero {
 
 ur_result_t urSamplerCreate(
@@ -126,22 +157,7 @@ ur_result_t urSamplerRetain(
 ur_result_t urSamplerRelease(
     /// [in] handle of the sampler object to release
     ur_sampler_handle_t Sampler) {
-  if (!Sampler->RefCount.decrementAndTest())
-    return UR_RESULT_SUCCESS;
-
-  if (checkL0LoaderTeardown()) {
-    auto ZeResult = ZE_CALL_NOCHECK(zeSamplerDestroy, (Sampler->ZeSampler));
-    // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
-                     ZeResult != ZE_RESULT_ERROR_UNKNOWN))
-      return ze2urResult(ZeResult);
-    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
-      ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
-    }
-  }
-  delete Sampler;
-
-  return UR_RESULT_SUCCESS;
+  return releaseSamplerHandle(Sampler);
 }
 
 ur_result_t urSamplerGetInfo(

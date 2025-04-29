@@ -349,6 +349,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
                (zeCtx, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
     ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
   } else {
+    // Release sampler handle memory to avoid memory leak.
+    UR_CALL(releaseSamplerHandle(hSampler));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -363,8 +365,11 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
                     "zeImageGetDeviceOffsetExpv failed, err = {}",
                     Result);
   });
-  if (!zeImageGetDeviceOffsetExpFunctionPtr)
+  if (!zeImageGetDeviceOffsetExpFunctionPtr) {
+    // Release sampler handle memory to avoid memory leak.
+    UR_CALL(releaseSamplerHandle(hSampler));
     return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
   uint64_t DeviceOffset{};
   ze_image_handle_t ZeImageTranslated;
   ZE2UR_CALL(zelLoaderTranslateHandle,
@@ -380,7 +385,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     std::scoped_lock LockAll(Lock, SLock);
     // Associate the bindless image with host object handle and sampler handle.
     hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
-    hDevice->ZeImageToSamplerMap[*phImage] = hSampler->ZeSampler;
+    hDevice->UrImageToSamplerMap[*phImage] = hSampler;
   } else {
     Lock.lock();
     hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
@@ -1022,11 +1027,11 @@ ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
       hContext, hDevice, hImage));
 
   std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
-  auto Item = hDevice->ZeImageToSamplerMap.find(hImage);
-  if (Item != hDevice->ZeImageToSamplerMap.end()) {
-    hDevice->ZeImageToSamplerMap.erase(Item);
+  auto Item = hDevice->UrImageToSamplerMap.find(hImage);
+  if (Item != hDevice->UrImageToSamplerMap.end()) {
+    hDevice->UrImageToSamplerMap.erase(Item);
     Lock.release();
-    ZE2UR_CALL(zeSamplerDestroy, (Item->second));
+    UR_CALL(releaseSamplerHandle(Item->second));
   } else {
     Lock.release();
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;

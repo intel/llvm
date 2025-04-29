@@ -19,3 +19,7 @@ struct ur_sampler_handle_t_ : ur_object {
 
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
 };
+
+ur_result_t releaseSamplerHandle(
+    /// [in] handle of the sampler object to release
+    ur_sampler_handle_t Sampler);

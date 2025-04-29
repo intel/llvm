@@ -237,9 +237,9 @@ struct ur_device_handle_t_ : ur_object {
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
       ZeOffsetToImageHandleMap;
 
-  // Map (sampled) bindless image handle to its corresponding sampler.
-  std::unordered_map<ur_exp_image_native_handle_t, ze_sampler_handle_t>
-      ZeImageToSamplerMap;
+  // Map (sampled) bindless image handle to its corresponding sampler handle.
+  std::unordered_map<ur_exp_image_native_handle_t, ur_sampler_handle_t>
+      UrImageToSamplerMap;
 
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
