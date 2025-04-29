@@ -214,14 +214,23 @@ KernelsEnvironment::getDefaultTargetName(ur_platform_handle_t platform) {
   case UR_BACKEND_HIP:
     return "amdgcn-amd-amdhsa";
   case UR_BACKEND_OFFLOAD: {
-    // TODO: In future this should use urDeviceSelectBinary
-    auto result = ur_getenv("UR_OFFLOAD_TARGET_NAME");
-    if (!result) {
-      error = "For offload testing, please specify a target in "
-              "`UR_OFFLOAD_TARGET_NAME`";
+    // All Offload platforms report this backend, use the platform name to select
+    // the actual underlying backend.
+    std::vector<char> PlatformName;
+    size_t PlatformNameSize = 0;
+    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, 0, nullptr,
+                      &PlatformNameSize);
+    PlatformName.resize(PlatformNameSize);
+    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, PlatformNameSize,
+                      PlatformName.data(), nullptr);
+    if (std::strcmp(PlatformName.data(), "CUDA") == 0) {
+      return "nvptx64-nvidia-cuda";
+    } else if (std::strcmp(PlatformName.data(), "AMDGPU") == 0) {
+      return "amdgcn-amd-amdhsa";
+    } else {
+      error = "Could not detect target for Offload platform";
       return {};
     }
-    return *result;
   }
   case UR_BACKEND_NATIVE_CPU:
     error = "native_cpu doesn't support kernel tests yet";
