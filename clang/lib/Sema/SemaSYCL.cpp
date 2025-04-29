@@ -402,7 +402,7 @@ bool SemaSYCL::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
     }
 
     const DeclContext *DC = FD->getDeclContext();
-    if (II && II->isStr("__spirv_ocl_printf") && 
+    if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&
         FD->getLanguageLinkage() == CXXLanguageLinkage &&
         DC->getEnclosingNamespaceContext()->isTranslationUnit())
@@ -1006,7 +1006,7 @@ class SingleDeviceFunctionTracker {
         !KernelBody->hasAttr<AlwaysInlineAttr>() &&
         !KernelBody->hasAttr<SYCLSimdAttr>()) {
       KernelBody->addAttr(AlwaysInlineAttr::CreateImplicit(
-        KernelBody->getASTContext(), {}, AlwaysInlineAttr::Keyword_forceinline));
+          KernelBody->getASTContext(), {}, AlwaysInlineAttr::Keyword_forceinline));
     }
   }
 
@@ -1099,7 +1099,7 @@ public:
       return true;
     auto Name = Callee->getName();
     if (Name != "wait_for" ||
-      Callee->hasAttr<SYCLScopeAttr>())
+        Callee->hasAttr<SYCLScopeAttr>())
       return true;
     // it is a call to sycl::group::wait_for - mark the callee
     Callee->addAttr(
@@ -1326,9 +1326,7 @@ template <> struct bind_param<CXXBaseSpecifier &> {
 
 template <> struct bind_param<FieldDecl *&> { using type = FieldDecl *; };
 
-template <> struct bind_param<FieldDecl *const &> {
-  using type = FieldDecl *;
-};
+template <> struct bind_param<FieldDecl *const &> { using type = FieldDecl *; };
 
 template <typename T> using bind_param_t = typename bind_param<T>::type;
 
@@ -2067,7 +2065,7 @@ public:
     NotForwardDeclarableReason NFDR =
         isForwardDeclarable(RD, SemaSYCLRef, /*DiagForFreeFunction=*/true);
     if (NFDR != NotForwardDeclarableReason::None) {
-           Diag.Report(PD->getLocation(),
+      Diag.Report(PD->getLocation(),
                   diag::err_bad_kernel_param_type)
           << ParamTy;
       Diag.Report(PD->getLocation(),
