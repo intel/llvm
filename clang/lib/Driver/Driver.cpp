@@ -3572,6 +3572,8 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
               Ty = types::TY_CXX;
             else if (CCCIsCPP() || CCGenDiagnostics)
               Ty = CType;
+            else if (IsDXCMode())
+              Ty = types::TY_HLSL;
             else
               Ty = types::TY_Object;
           }
