@@ -59,7 +59,7 @@ int main() {
 
     // Extension: verify ability to create the unsampled image handles below
     bool supportedUnsampledHandle =
-        sycl::ext::oneapi::experimental::get_image_handle_supported<
+        sycl::ext::oneapi::experimental::is_image_handle_supported<
             sycl::ext::oneapi::experimental::unsampled_image_handle>(
             desc,
             sycl::ext::oneapi::experimental::image_memory_handle_type::

@@ -949,7 +949,7 @@ get_image_memory_support(const image_descriptor &imageDescriptor,
 }
 
 template <>
-__SYCL_EXPORT bool get_image_handle_supported<unsampled_image_handle>(
+__SYCL_EXPORT bool is_image_handle_supported<unsampled_image_handle>(
     const image_descriptor &imageDescriptor,
     image_memory_handle_type imageMemoryHandleType,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
@@ -979,17 +979,17 @@ __SYCL_EXPORT bool get_image_handle_supported<unsampled_image_handle>(
 }
 
 template <>
-__SYCL_EXPORT bool get_image_handle_supported<unsampled_image_handle>(
+__SYCL_EXPORT bool is_image_handle_supported<unsampled_image_handle>(
     const image_descriptor &imageDescriptor,
     image_memory_handle_type imageMemoryHandleType,
     const sycl::queue &syclQueue) {
-  return get_image_handle_supported<unsampled_image_handle>(
+  return is_image_handle_supported<unsampled_image_handle>(
       imageDescriptor, imageMemoryHandleType, syclQueue.get_device(),
       syclQueue.get_context());
 }
 
 template <>
-__SYCL_EXPORT bool get_image_handle_supported<sampled_image_handle>(
+__SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
     const image_descriptor &imageDescriptor,
     image_memory_handle_type imageMemoryHandleType,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
@@ -1019,11 +1019,11 @@ __SYCL_EXPORT bool get_image_handle_supported<sampled_image_handle>(
 }
 
 template <>
-__SYCL_EXPORT bool get_image_handle_supported<sampled_image_handle>(
+__SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
     const image_descriptor &imageDescriptor,
     image_memory_handle_type imageMemoryHandleType,
     const sycl::queue &syclQueue) {
-  return get_image_handle_supported<sampled_image_handle>(
+  return is_image_handle_supported<sampled_image_handle>(
       imageDescriptor, imageMemoryHandleType, syclQueue.get_device(),
       syclQueue.get_context());
 }

@@ -649,10 +649,10 @@ get_image_memory_support(const image_descriptor &imageDescriptor,
 
 template <typename ImageHandleType>
 __SYCL_EXPORT bool
-get_image_handle_supported(const image_descriptor &imageDescriptor,
-                           image_memory_handle_type imageMemoryHandleType,
-                           const sycl::device &syclDevice,
-                           const sycl::context &syclContext);
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::device &syclDevice,
+                          const sycl::context &syclContext);
 
 /**
  *  @brief   Returns `true` if the device supports creation of images of the
@@ -672,9 +672,9 @@ get_image_handle_supported(const image_descriptor &imageDescriptor,
  */
 template <typename ImageHandleType>
 __SYCL_EXPORT bool
-get_image_handle_supported(const image_descriptor &imageDescriptor,
-                           image_memory_handle_type imageMemoryHandleType,
-                           const sycl::queue &syclQueue);
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::queue &syclQueue);
 
 namespace detail {
 

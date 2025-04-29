@@ -304,7 +304,7 @@ get_image_memory_support(const image_descriptor &imageDescriptor,
 
 In order to query what types of image handles are supported for a combination
 of a given `image_descriptor` and `image_memory_handle_type`, the user should
-use the `get_image_handle_supported` query.
+use the `is_image_handle_supported` query.
 
 The template parameter passed to this query should be either 
 `unsampled_image_handle` or `sampled_image_handle`.
@@ -318,16 +318,16 @@ namespace sycl::ext::oneapi::experimental {
 
 template <typename ImageHandleType>
 bool
-get_image_handle_supported(const image_descriptor &imageDescriptor,
-                           image_memory_handle_type imageMemoryHandleType,
-                           const sycl::device &syclDevice,
-                           const sycl::context &syclContext);
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::device &syclDevice,
+                          const sycl::context &syclContext);
 
 template <typename ImageHandleType>
 bool
-get_image_handle_supported(const image_descriptor &imageDescriptor,
-                           image_memory_handle_type imageMemoryHandleType,
-                           const sycl::queue &syclQueue);
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::queue &syclQueue);
 }
 ```
 
