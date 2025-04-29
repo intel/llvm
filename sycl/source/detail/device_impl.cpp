@@ -906,9 +906,11 @@ bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
     // Currently only SYCL language is supported for compiling.
+    std::shared_ptr<device_impl> Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return Language == ext::oneapi::experimental::source_language::sycl &&
            sycl::ext::oneapi::experimental::detail::
-               is_source_kernel_bundle_supported(getBackend(), Language);
+               is_source_kernel_bundle_supported(
+                   Language, std::vector<DeviceImplPtr>{Self});
   } catch (sycl::exception &) {
     return false;
   }
