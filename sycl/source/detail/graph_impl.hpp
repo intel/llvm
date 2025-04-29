@@ -1338,8 +1338,6 @@ public:
 private:
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
-  /// @param Ctx Context to use.
-  /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
