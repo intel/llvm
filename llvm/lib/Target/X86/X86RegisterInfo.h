@@ -176,6 +176,9 @@ public:
                              SmallVectorImpl<MCPhysReg> &Hints,
                              const MachineFunction &MF, const VirtRegMap *VRM,
                              const LiveRegMatrix *Matrix) const override;
+
+  const TargetRegisterClass *
+  constrainRegClassToNonRex2(const TargetRegisterClass *RC) const;
 };
 
 } // End llvm namespace
