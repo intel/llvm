@@ -33,7 +33,9 @@ class platform_impl;
 
 // TODO: Make code thread-safe
 class device_impl {
-  struct private_tag {};
+  struct private_tag {
+    explicit private_tag() = default;
+  };
   friend class platform_impl;
 
 public:
