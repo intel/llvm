@@ -16,6 +16,8 @@
 
 #include "../common/latency_tracker.hpp"
 #include "../helpers/kernel_helpers.hpp"
+#include "../image_common.hpp"
+
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
 
@@ -179,7 +181,7 @@ ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
   try {
     UR_CALL_THROWS(queueFinish());
   } catch (...) {
-    UR_LOG(ERR, "Failed to finish queue on destruction");
+    // Ignore errors during destruction
   }
 }
 
@@ -730,17 +732,26 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFreeExp(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
-    const void * /*pSrc*/, void * /*pDst*/,
-    const ur_image_desc_t * /*pSrcImageDesc*/,
-    const ur_image_desc_t * /*pDstImageDesc*/,
-    const ur_image_format_t * /*pSrcImageFormat*/,
-    const ur_image_format_t * /*pDstImageFormat*/,
-    ur_exp_image_copy_region_t * /*pCopyRegion*/,
-    ur_exp_image_copy_flags_t /*imageCopyFlags*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+    const ur_image_desc_t *pDstImageDesc,
+    const ur_image_format_t *pSrcImageFormat,
+    const ur_image_format_t *pDstImageFormat,
+    ur_exp_image_copy_region_t *pCopyRegion,
+    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  auto commandListMgr = commandListManager.lock();
+
+  auto zeSignalEvent =
+      getSignalEvent(commandListMgr, phEvent, UR_COMMAND_MEM_IMAGE_COPY);
+  auto waitListView =
+      getWaitListView(commandListMgr, phEventWaitList, numEventsInWaitList);
+
+  return bindlessImagesHandleCopyFlags(
+      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
+      pDstImageFormat, pCopyRegion, imageCopyFlags,
+      commandListMgr->getZeCommandList(), zeSignalEvent, waitListView.num,
+      waitListView.handles);
 }
 
 ur_result_t
@@ -909,6 +920,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
+  UR_LOG_LEGACY(
+      ERR, logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace v2

@@ -29,7 +29,6 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 namespace detail {
-using PlatformImplPtr = std::shared_ptr<detail::platform_impl>;
 class context_impl {
 public:
   /// Constructs a context_impl using a single SYCL devices.
@@ -90,7 +89,7 @@ public:
   const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
-  const PlatformImplPtr &getPlatformImpl() const { return MPlatform; }
+  platform_impl &getPlatformImpl() const { return *MPlatform; }
 
   /// Queries this context for information.
   ///
@@ -257,7 +256,8 @@ private:
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
   ur_context_handle_t MContext;
-  PlatformImplPtr MPlatform;
+  // TODO: Make it a reference instead, but that needs a bit more refactoring:
+  std::shared_ptr<platform_impl> MPlatform;
   property_list MPropList;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;
@@ -352,5 +352,21 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 }
 
 } // namespace detail
+
+// We're under sycl/source and these won't be exported but it's way more
+// convenient to be able to reference them without extra `detail::`.
+inline auto get_ur_handles(const sycl::context &syclContext) {
+  sycl::detail::context_impl &Ctx = *sycl::detail::getSyclObjImpl(syclContext);
+  ur_context_handle_t urCtx = Ctx.getHandleRef();
+  const sycl::detail::Adapter *Adapter = Ctx.getAdapter().get();
+  return std::tuple{urCtx, Adapter};
+}
+inline auto get_ur_handles(const sycl::device &syclDevice,
+                           const sycl::context &syclContext) {
+  auto [urCtx, Adapter] = get_ur_handles(syclContext);
+  ur_device_handle_t urDevice =
+      sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
+  return std::tuple{urDevice, urCtx, Adapter};
+}
 } // namespace _V1
 } // namespace sycl
