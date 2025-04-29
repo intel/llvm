@@ -119,15 +119,20 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  std::ignore = hDevice;
-  std::ignore = pBinaries;
-  std::ignore = NumBinaries;
-  std::ignore = pSelectedBinary;
 
-  // TODO: Don't hard code nvptx64!
-  const char *image_target = UR_DEVICE_BINARY_TARGET_NVPTX64;
+  ol_platform_backend_t Backend;
+  olGetPlatformInfo(hDevice->Platform->OffloadPlatform,
+                    OL_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend);
+
+  const char *ImageTarget = UR_DEVICE_BINARY_TARGET_UNKNOWN;
+  if (Backend == OL_PLATFORM_BACKEND_CUDA) {
+    ImageTarget = UR_DEVICE_BINARY_TARGET_NVPTX64;
+  } else if (Backend == OL_PLATFORM_BACKEND_AMDGPU) {
+    ImageTarget = UR_DEVICE_BINARY_TARGET_AMDGCN;
+  }
+
   for (uint32_t i = 0; i < NumBinaries; ++i) {
-    if (strcmp(pBinaries[i].pDeviceTargetSpec, image_target) == 0) {
+    if (strcmp(pBinaries[i].pDeviceTargetSpec, ImageTarget) == 0) {
       *pSelectedBinary = i;
       return UR_RESULT_SUCCESS;
     }
