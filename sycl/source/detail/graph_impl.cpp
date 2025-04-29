@@ -500,8 +500,9 @@ graph_impl::add(std::function<void(handler &)> CGF,
   (void)Args;
   sycl::handler Handler{shared_from_this()};
 
-  // save code location if one was set in TLS.
-  // idealy it would be nice to capture user's call code location
+#if XPTI_ENABLE_INSTRUMENTATION
+  // Save code location if one was set in TLS.
+  // Ideally it would be nice to capture user's call code location
   // by adding a parameter to the graph.add function, but this will
   // break the API. At least capture code location from TLS, user
   // can set it before calling graph.add
@@ -509,6 +510,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
     sycl::detail::tls_code_loc_t Tls;
     Handler.saveCodeLoc(Tls.query(), Tls.isToplevel());
   }
+#endif
 
   CGF(Handler);
 
