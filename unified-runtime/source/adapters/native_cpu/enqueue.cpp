@@ -445,10 +445,12 @@ static inline ur_result_t doCopy_impl(
     ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr, size_t Size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent, ur_command_t command_type, bool blocking) {
-  if (SrcPtr == DstPtr || Size == 0)
+  if (SrcPtr == DstPtr || Size == 0) {
+    bool hasInEvents = numEventsInWaitList && phEventWaitList;
     return withTimingEvent(
         command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
-        []() { return UR_RESULT_SUCCESS; }, BlockingWithEvent());
+        []() { return UR_RESULT_SUCCESS; }, blocking || !hasInEvents);
+  }
 
   return withTimingEvent(
       command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
