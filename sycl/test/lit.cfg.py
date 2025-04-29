@@ -89,14 +89,19 @@ elif platform.system() == "Windows":
 
 elif platform.system() == "Darwin":
     # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
-    llvm_config.with_system_environment("CPATH")
+    llvm_config.with_system_environment(["C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"])
     llvm_config.with_environment(
-        "CPATH",
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1",
         append_path=True,
     )
     llvm_config.with_environment(
-        "CPATH",
+        "C_INCLUDE_PATH",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
+        append_path=True,
+    )
+    llvm_config.with_environment(
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
         append_path=True,
     )
