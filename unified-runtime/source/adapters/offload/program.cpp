@@ -3,6 +3,7 @@
 #include <ur_api.h>
 
 #include "context.hpp"
+#include "device.hpp"
 #include "program.hpp"
 #include "ur2offload.hpp"
 
@@ -33,9 +34,8 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
   fprintf(stderr, "Performed CUDA bin workaround (size = %lu)\n", RealLength);
 
   ur_program_handle_t Program = new ur_program_handle_t_();
-  auto Res =
-      olCreateProgram(reinterpret_cast<ol_device_handle_t>(hContext->Device),
-                      RealBinary, RealLength, &Program->OffloadProgram);
+  auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
+                             RealLength, &Program->OffloadProgram);
 
   // Program owns the linked module now
   cuLinkDestroy(State);
@@ -177,9 +177,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   }
 
   ur_program_handle_t Program = new ur_program_handle_t_();
-  auto Res =
-      olCreateProgram(reinterpret_cast<ol_device_handle_t>(hContext->Device),
-                      RealBinary, RealLength, &Program->OffloadProgram);
+  auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
+                             RealLength, &Program->OffloadProgram);
 
   if (Res != OL_SUCCESS) {
     delete Program;

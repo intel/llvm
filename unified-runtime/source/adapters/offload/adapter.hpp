@@ -6,13 +6,15 @@
 
 #include <OffloadAPI.h>
 
+#include "common.hpp"
 #include "logger/ur_logger.hpp"
+#include "platform.hpp"
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur::offload::handle_base {
   std::atomic_uint32_t RefCount = 0;
   logger::Logger &Logger = logger::get_logger("offload");
   ol_device_handle_t HostDevice = nullptr;
-  std::unordered_set<ol_platform_handle_t> Platforms;
+  std::vector<ur_platform_handle_t_> Platforms;
 
   ur_result_t init();
 };

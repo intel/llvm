@@ -14,6 +14,8 @@
 #include <unordered_set>
 
 #include "adapter.hpp"
+#include "device.hpp"
+#include "platform.hpp"
 #include "ur/ur.hpp"
 #include "ur_api.h"
 
@@ -24,14 +26,15 @@ ur_result_t ur_adapter_handle_t_::init() {
   auto Res = olInit();
   (void)Res;
 
-  // Discover every platform that isn't the host platform.
-  // Use an unordered_set to deduplicate platforms we discover multiple times
-  // from different devices.
-  // Also discover the host device. We only expect one so don't need to worry
-  // about overwriting it.
+  struct InitUserData {
+    std::unordered_map<ol_platform_handle_t, ur_platform_handle_t> TempMap;
+  } InitUserData{{}};
+
+  // Discover every platform and device
   Res = olIterateDevices(
       [](ol_device_handle_t D, void *UserData) {
-        auto Adapter = static_cast<ur_adapter_handle_t>(UserData);
+        auto *Data = reinterpret_cast<decltype(InitUserData) *>(UserData);
+
         ol_platform_handle_t Platform;
         olGetDeviceInfo(D, OL_DEVICE_INFO_PLATFORM, sizeof(Platform),
                         &Platform);
@@ -39,13 +42,22 @@ ur_result_t ur_adapter_handle_t_::init() {
         olGetPlatformInfo(Platform, OL_PLATFORM_INFO_BACKEND, sizeof(Backend),
                           &Backend);
         if (Backend == OL_PLATFORM_BACKEND_HOST) {
-          Adapter->HostDevice = D;
+          Adapter.HostDevice = D;
         } else if (Backend != OL_PLATFORM_BACKEND_UNKNOWN) {
-          Adapter->Platforms.insert(Platform);
+          ur_platform_handle_t UrPlatform;
+          if (!Data->TempMap.count(Platform)) {
+            Adapter.Platforms.push_back(ur_platform_handle_t_{Platform});
+            UrPlatform = &Adapter.Platforms.back();
+            Data->TempMap.insert({Platform, UrPlatform});
+          } else {
+            UrPlatform = Data->TempMap[Platform];
+          }
+
+          UrPlatform->Devices.push_back(ur_device_handle_t_{UrPlatform, D});
         }
         return false;
       },
-      this);
+      &InitUserData);
 
   (void)Res;
 
