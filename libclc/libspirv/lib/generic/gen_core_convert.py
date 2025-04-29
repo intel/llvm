@@ -84,7 +84,7 @@ print(
    THE SOFTWARE.
 */
 
-#include <core/clc_core.h>
+#include <clc/clc_as_type.h>
 #include <clc/integer/clc_abs.h>
 #include <clc/shared/clc_clamp.h>
 #include <clc/shared/clc_max.h>
@@ -226,7 +226,7 @@ def generate_saturated_conversion(src, dst, size):
     # the unsigned type.
     bool_conv_fn = clc_core_fn_name(bool_type[dst], size=size)
     if dst in unsigned_types:
-        bool_prefix = "as_{DST}{N}({BOOL_CONV_FN}".format(
+        bool_prefix = "__clc_as_{DST}{N}({BOOL_CONV_FN}".format(
             DST=dst, BOOL_CONV_FN=bool_conv_fn, N=size
         )
         bool_suffix = ")"

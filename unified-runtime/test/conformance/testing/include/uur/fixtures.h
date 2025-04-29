@@ -367,9 +367,6 @@ struct urQueueTest : urContextTest {
 
 struct urHostPipeTest : urQueueTest {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     // The host pipe support query isn't implement on l0
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
@@ -396,8 +393,9 @@ struct urHostPipeTest : urQueueTest {
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
         "foo", platform, il_binary));
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, device, *il_binary, nullptr, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, nullptr, &program));
   }
 
   void TearDown() override {
@@ -1214,9 +1212,6 @@ std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
 
 struct urProgramTest : urQueueTest {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
     ur_platform_backend_t backend;
@@ -1233,8 +1228,9 @@ struct urProgramTest : urQueueTest {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, device, *il_binary, &properties, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, &properties, &program));
   }
 
   void TearDown() override {
@@ -1252,9 +1248,6 @@ struct urProgramTest : urQueueTest {
 
 template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam<T>::SetUp());
 
     ur_platform_backend_t backend;
@@ -1273,9 +1266,10 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
 
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        this->platform, this->context, this->device, *il_binary, &properties,
-        &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            this->platform, this->context, this->device, *il_binary,
+            &properties, &program));
   }
 
   void TearDown() override {
@@ -1300,9 +1294,6 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
 // instead.
 struct urBaseKernelTest : urProgramTest {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
     auto kernel_names =
         uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);

@@ -118,6 +118,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.def
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/node_properties.def
+// CHECK-NEXT: ext/oneapi/experimental/work_group_memory.hpp
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/cl.h
 // CHECK-NEXT: CL/cl.h
@@ -125,6 +126,7 @@
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/id_queries_fit_in_int.hpp
+// CHECK-NEXT: detail/kernel_name_str_t.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ur_api_funcs.def

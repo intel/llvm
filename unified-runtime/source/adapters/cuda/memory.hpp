@@ -393,6 +393,9 @@ struct ur_mem_handle_t_ {
       urMemRelease(std::get<BufferMem>(Mem).Parent);
       return;
     }
+    if (LastQueueWritingToMemObj != nullptr) {
+      urQueueRelease(LastQueueWritingToMemObj);
+    }
     urContextRelease(Context);
   }
 

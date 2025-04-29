@@ -30,24 +30,13 @@ namespace detail {
 
 // Forward declaration
 class platform_impl;
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
 // TODO: Make code thread-safe
 class device_impl {
 public:
-  /// Constructs a SYCL device instance as a host device.
-  device_impl();
-
-  /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(ur_native_handle_t, const AdapterPtr &Adapter);
-
   /// Constructs a SYCL device instance using the provided
   /// UR device instance.
-  explicit device_impl(ur_device_handle_t Device, PlatformImplPtr Platform);
-
-  /// Constructs a SYCL device instance using the provided
-  /// UR device instance.
-  explicit device_impl(ur_device_handle_t Device, const AdapterPtr &Adapter);
+  explicit device_impl(ur_device_handle_t Device, platform_impl &Platform);
 
   ~device_impl();
 
@@ -289,8 +278,7 @@ public:
   backend getBackend() const { return MPlatform->getBackend(); }
 
   /// @brief  Get the platform impl serving this device
-  /// @return PlatformImplPtr
-  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+  platform_impl &getPlatformImpl() const { return *MPlatform; }
 
   /// Get device info string
   std::string get_device_info_string(ur_device_info_t InfoCode) const;
@@ -299,14 +287,10 @@ public:
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
 private:
-  explicit device_impl(ur_native_handle_t InteropDevice,
-                       ur_device_handle_t Device, PlatformImplPtr Platform,
-                       const AdapterPtr &Adapter);
-
   ur_device_handle_t MDevice = 0;
   ur_device_type_t MType;
   ur_device_handle_t MRootDevice = nullptr;
-  PlatformImplPtr MPlatform;
+  std::shared_ptr<platform_impl> MPlatform;
   bool MUseNativeAssert = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;

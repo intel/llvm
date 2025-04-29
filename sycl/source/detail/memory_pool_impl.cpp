@@ -24,14 +24,7 @@ ur_usm_pool_handle_t
 create_memory_pool_device(const sycl::context &ctx, const sycl::device &dev,
                           const size_t threshold, const size_t maxSize,
                           const bool readOnly, const bool zeroInit) {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(ctx);
-  ur_context_handle_t C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(dev);
-  ur_device_handle_t Device = DevImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(dev, ctx);
 
   ur_usm_pool_limits_desc_t LimitsDesc{UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC,
                                        nullptr, maxSize, threshold};
@@ -49,25 +42,18 @@ create_memory_pool_device(const sycl::context &ctx, const sycl::device &dev,
 
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolCreateExp>(
-          C, Device, &PoolDesc, &poolHandle);
+          urCtx, urDevice, &PoolDesc, &poolHandle);
 
   return poolHandle;
 }
 
 void destroy_memory_pool(const sycl::context &ctx, const sycl::device &dev,
                          ur_usm_pool_handle_t &poolHandle) {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(ctx);
-  ur_context_handle_t C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(dev);
-  ur_device_handle_t Device = DevImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(dev, ctx);
 
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolDestroyExp>(
-          C, Device, poolHandle);
+          urCtx, urDevice, poolHandle);
 }
 } // namespace
 
@@ -123,10 +109,14 @@ memory_pool_impl::~memory_pool_impl() {
   if (MIsDefaultPool)
     return;
 
-  ur_usm_pool_handle_t handle = this->get_handle();
-  sycl::context ctx = this->get_context();
-  sycl::device dev = this->get_device();
-  destroy_memory_pool(ctx, dev, handle);
+  try {
+    ur_usm_pool_handle_t handle = this->get_handle();
+    sycl::context ctx = this->get_context();
+    sycl::device dev = this->get_device();
+    destroy_memory_pool(ctx, dev, handle);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~memory_pool_impl", e);
+  }
 }
 
 size_t memory_pool_impl::get_threshold() const {

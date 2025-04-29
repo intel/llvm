@@ -14,7 +14,7 @@
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_log1p(float x) {
   float w = x;
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint ax = ux & EXSIGNBIT_SP32;
 
   // |x| < 2^-4
@@ -28,23 +28,23 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_log1p(float x) {
       x;
 
   // |x| >= 2^-4
-  ux = as_uint(x + 1.0f);
+  ux = __clc_as_uint(x + 1.0f);
 
   int m = (int)((ux >> EXPSHIFTBITS_SP32) & 0xff) - EXPBIAS_SP32;
   float mf = (float)m;
   uint indx = (ux & 0x007f0000) + ((ux & 0x00008000) << 1);
-  float F = as_float(indx | 0x3f000000);
+  float F = __clc_as_float(indx | 0x3f000000);
 
   // x > 2^24
-  float fg24 = F - as_float(0x3f000000 | (ux & MANTBITS_SP32));
+  float fg24 = F - __clc_as_float(0x3f000000 | (ux & MANTBITS_SP32));
 
   // x <= 2^24
   uint xhi = ux & 0xffff8000;
-  float xh = as_float(xhi);
+  float xh = __clc_as_float(xhi);
   float xt = (1.0f - xh) + w;
   uint xnm = ((~(xhi & 0x7f800000)) - 0x00800000) & 0x7f800000;
-  xt = xt * as_float(xnm) * 0.5f;
-  float fl24 = F - as_float(0x3f000000 | (xhi & MANTBITS_SP32)) - xt;
+  xt = xt * __clc_as_float(xnm) * 0.5f;
+  float fl24 = F - __clc_as_float(0x3f000000 | (xhi & MANTBITS_SP32)) - xt;
 
   float f = mf > 24.0f ? fg24 : fl24;
 
@@ -67,8 +67,8 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_log1p(float x) {
 
   // Edge cases
   z = ax >= PINFBITPATT_SP32 ? w : z;
-  z = w < -1.0f ? as_float(QNANBITPATT_SP32) : z;
-  z = w == -1.0f ? as_float(NINFBITPATT_SP32) : z;
+  z = w < -1.0f ? __clc_as_float(QNANBITPATT_SP32) : z;
+  z = w == -1.0f ? __clc_as_float(NINFBITPATT_SP32) : z;
   // fix subnormals
   z = ax < 0x33800000 ? x : z;
 
@@ -93,17 +93,17 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_log1p(double x) {
   // for the kernel approximation.
 
   // Process Inside the threshold now
-  ulong ux = as_ulong(1.0 + x);
-  int xexp = ((as_int2(ux).hi >> 20) & 0x7ff) - EXPBIAS_DP64;
-  double f = as_double(ONEEXPBITS_DP64 | (ux & MANTBITS_DP64));
+  ulong ux = __clc_as_ulong(1.0 + x);
+  int xexp = ((__clc_as_int2(ux).hi >> 20) & 0x7ff) - EXPBIAS_DP64;
+  double f = __clc_as_double(ONEEXPBITS_DP64 | (ux & MANTBITS_DP64));
 
-  int j = as_int2(ux).hi >> 13;
+  int j = __clc_as_int2(ux).hi >> 13;
   j = ((0x80 | (j & 0x7e)) >> 1) + (j & 0x1);
   double f1 = (double)j * 0x1.0p-6;
   j -= 64;
 
   double f2temp = f - f1;
-  double m2 = as_double(__spirv_SatConvertSToU_Rulong(0x3ff - xexp)
+  double m2 = __clc_as_double(__spirv_SatConvertSToU_Rulong(0x3ff - xexp)
                         << EXPSHIFTBITS_DP64);
   double f2l = __spirv_ocl_fma(m2, x, m2 - f1);
   double f2g = __spirv_ocl_fma(m2, x, -f1) + m2;
@@ -158,8 +158,8 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_log1p(double x) {
   result2 = x < log1p_thresh1 || x > log1p_thresh2 ? result1 : result2;
 
   result2 = __spirv_IsInf(x) ? x : result2;
-  result2 = x < -1.0 ? as_double(QNANBITPATT_DP64) : result2;
-  result2 = x == -1.0 ? as_double(NINFBITPATT_DP64) : result2;
+  result2 = x < -1.0 ? __clc_as_double(QNANBITPATT_DP64) : result2;
+  result2 = x == -1.0 ? __clc_as_double(NINFBITPATT_DP64) : result2;
   return result2;
 }
 

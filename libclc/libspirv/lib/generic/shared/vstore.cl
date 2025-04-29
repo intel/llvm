@@ -184,7 +184,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_noop(float x) { return x; }
 _CLC_DEF _CLC_OVERLOAD float __clc_rtz(float x) {
   /* Remove lower 13 bits to make sure the number is rounded down */
   int mask = 0xffffe000;
-  const int exp = (as_uint(x) >> 23 & 0xff) - 127;
+  const int exp = ( __clc_as_uint(x) >> 23 & 0xff) - 127;
   /* Denormals cannot be flushed, and they use different bit for rounding */
   if (exp < -14)
     mask <<= __spirv_ocl_s_min(-(exp + 14), 10);
@@ -194,32 +194,32 @@ _CLC_DEF _CLC_OVERLOAD float __clc_rtz(float x) {
   /* Handle nan corner case */
   if (__spirv_IsNan(x))
     return x;
-  return as_float(as_uint(x) & mask);
+  return  __clc_as_float( __clc_as_uint(x) & mask);
 }
 _CLC_DEF _CLC_OVERLOAD float __clc_rti(float x) {
   const float inf = __spirv_ocl_copysign(INFINITY, x);
   /* Set lower 13 bits */
   int mask = (1 << 13) - 1;
-  const int exp = (as_uint(x) >> 23 & 0xff) - 127;
+  const int exp = ( __clc_as_uint(x) >> 23 & 0xff) - 127;
   /* Denormals cannot be flushed, and they use different bit for rounding */
   if (exp < -14)
     mask = (1 << (13 + __spirv_ocl_s_min(-(exp + 14), 10))) - 1;
   /* Handle nan corner case */
   if (__spirv_IsNan(x))
     return x;
-  const float next = __spirv_ocl_nextafter(as_float(as_uint(x) | mask), inf);
-  return ((as_uint(x) & mask) == 0) ? x : next;
+  const float next = __spirv_ocl_nextafter(__clc_as_float(__clc_as_uint(x) | mask), inf);
+  return ((__clc_as_uint(x) & mask) == 0) ? x : next;
 }
 _CLC_DEF _CLC_OVERLOAD float __clc_rtn(float x) {
-  return ((as_uint(x) & 0x80000000) == 0) ? __clc_rtz(x) : __clc_rti(x);
+  return ((__clc_as_uint(x) & 0x80000000) == 0) ? __clc_rtz(x) : __clc_rti(x);
 }
 _CLC_DEF _CLC_OVERLOAD float __clc_rtp(float x) {
-  return ((as_uint(x) & 0x80000000) == 0) ? __clc_rti(x) : __clc_rtz(x);
+  return ((__clc_as_uint(x) & 0x80000000) == 0) ? __clc_rti(x) : __clc_rtz(x);
 }
 _CLC_DEF _CLC_OVERLOAD float __clc_rte(float x) {
   /* Mantisa + implicit bit */
-  const uint mantissa = (as_uint(x) & 0x7fffff) | (1u << 23);
-  const int exp = (as_uint(x) >> 23 & 0xff) - 127;
+  const uint mantissa = (__clc_as_uint(x) & 0x7fffff) | (1u << 23);
+  const int exp = (__clc_as_uint(x) >> 23 & 0xff) - 127;
   int shift = 13;
   if (exp < -14) {
     /* The default assumes lower 13 bits are rounded,
@@ -242,7 +242,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_noop(double x) { return x; }
 _CLC_DEF _CLC_OVERLOAD double __clc_rtz(double x) {
   /* Remove lower 42 bits to make sure the number is rounded down */
   ulong mask = 0xfffffc0000000000UL;
-  const int exp = (as_ulong(x) >> 52 & 0x7ff) - 1023;
+  const int exp = (__clc_as_ulong(x) >> 52 & 0x7ff) - 1023;
   /* Denormals cannot be flushed, and they use different bit for rounding */
   if (exp < -14)
     mask <<= __spirv_ocl_s_min(-(exp + 14), 10);
@@ -252,34 +252,34 @@ _CLC_DEF _CLC_OVERLOAD double __clc_rtz(double x) {
   /* Handle nan corner case */
   if (__spirv_IsNan(x))
     return x;
-  return as_double(as_ulong(x) & mask);
+  return __clc_as_double(__clc_as_ulong(x) & mask);
 }
 _CLC_DEF _CLC_OVERLOAD double __clc_rti(double x) {
   const double inf = __spirv_ocl_copysign((double)INFINITY, x);
   /* Set lower 42 bits */
   long mask = (1UL << 42UL) - 1UL;
-  const int exp = (as_ulong(x) >> 52 & 0x7ff) - 1023;
+  const int exp = (__clc_as_ulong(x) >> 52 & 0x7ff) - 1023;
   /* Denormals cannot be flushed, and they use different bit for rounding */
   if (exp < -14)
     mask = (1UL << (42UL + __spirv_ocl_s_min(-(exp + 14), 10))) - 1;
   /* Handle nan corner case */
   if (__spirv_IsNan(x))
     return x;
-  const double next = __spirv_ocl_nextafter(as_double(as_ulong(x) | mask), inf);
-  return ((as_ulong(x) & mask) == 0) ? x : next;
+  const double next = __spirv_ocl_nextafter(__clc_as_double(__clc_as_ulong(x) | mask), inf);
+  return ((__clc_as_ulong(x) & mask) == 0) ? x : next;
 }
 _CLC_DEF _CLC_OVERLOAD double __clc_rtn(double x) {
-  return ((as_ulong(x) & 0x8000000000000000UL) == 0) ? __clc_rtz(x)
+  return ((__clc_as_ulong(x) & 0x8000000000000000UL) == 0) ? __clc_rtz(x)
                                                      : __clc_rti(x);
 }
 _CLC_DEF _CLC_OVERLOAD double __clc_rtp(double x) {
-  return ((as_ulong(x) & 0x8000000000000000UL) == 0) ? __clc_rti(x)
+  return ((__clc_as_ulong(x) & 0x8000000000000000UL) == 0) ? __clc_rti(x)
                                                      : __clc_rtz(x);
 }
 _CLC_DEF _CLC_OVERLOAD double __clc_rte(double x) {
   /* Mantisa + implicit bit */
-  const ulong mantissa = (as_ulong(x) & 0xfffffffffffff) | (1UL << 52);
-  const int exp = (as_ulong(x) >> 52 & 0x7ff) - 1023;
+  const ulong mantissa = (__clc_as_ulong(x) & 0xfffffffffffff) | (1UL << 52);
+  const int exp = (__clc_as_ulong(x) >> 52 & 0x7ff) - 1023;
   int shift = 42;
   if (exp < -14) {
     /* The default assumes lower 13 bits are rounded,

@@ -17,6 +17,7 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
+from utils.validate import Validate
 from presets import enabled_suites, presets
 
 import argparse
@@ -168,6 +169,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         TestSuite(),
     ]
 
+    # Collect metadata from all benchmarks without setting them up
+    metadata = collect_metadata(suites)
+
     # If dry run, we're done
     if options.dry_run:
         suites = []
@@ -255,8 +259,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         chart_data = {this_name: results}
 
     results_dir = directory
-    if options.custom_results_dir:
-        results_dir = Path(options.custom_results_dir)
+    if options.results_directory_override:
+        results_dir = Path(options.results_directory_override)
     history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
@@ -299,14 +303,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             compare_names.append(saved_name)
 
     if options.output_html:
-        html_content = generate_html(history.runs, "intel/llvm", compare_names)
-
-        with open("benchmark_results.html", "w") as file:
-            file.write(html_content)
-
-        print(
-            f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html"
-        )
+        html_path = options.output_directory
+        if options.output_directory is None:
+            html_path = os.path.join(os.path.dirname(__file__), "html")
+        generate_html(history.runs, compare_names, html_path, metadata)
 
 
 def validate_and_parse_env_args(env_args):
@@ -415,13 +415,17 @@ if __name__ == "__main__":
         help="Specify whether markdown output should fit the content size limit for request validation",
     )
     parser.add_argument(
-        "--output-html", help="Create HTML output", action="store_true", default=False
+        "--output-html",
+        help="Create HTML output. Local output is for direct local viewing of the html file, remote is for server deployment.",
+        nargs="?",
+        const=options.output_html,
+        choices=["local", "remote"],
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         help="Location for output files, if --output-html or --output-markdown was specified.",
-        default=None,
+        default=options.output_directory,
     )
     parser.add_argument(
         "--dry-run",
@@ -473,12 +477,6 @@ if __name__ == "__main__":
         default=options.preset,
     )
     parser.add_argument(
-        "--results-dir",
-        type=str,
-        help="Specify a custom results directory",
-        default=options.custom_results_dir,
-    )
-    parser.add_argument(
         "--build-jobs",
         type=int,
         help="Number of build jobs to run simultaneously",
@@ -489,6 +487,47 @@ if __name__ == "__main__":
         type=str,
         help="HIP device architecture",
         default=None,
+    )
+
+    # Options intended for CI:
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom directory to load/store (historical) results from",
+        default=options.results_directory_override,
+    )
+    parser.add_argument(
+        "--timestamp-override",
+        type=lambda ts: Validate.timestamp(
+            ts,
+            throw=argparse.ArgumentTypeError(
+                "Specified timestamp not in YYYYMMDD_HHMMSS format."
+            ),
+        ),
+        help="Manually specify timestamp used in metadata",
+        default=options.timestamp_override,
+    )
+    parser.add_argument(
+        "--github-repo",
+        type=lambda gh_repo: Validate.github_repo(
+            gh_repo,
+            throw=argparse.ArgumentTypeError(
+                "Specified github repo not in <owner>/<repo> format."
+            ),
+        ),
+        help="Manually specify github repo metadata of component tested (e.g. SYCL, UMF)",
+        default=options.github_repo_override,
+    )
+    parser.add_argument(
+        "--git-commit",
+        type=lambda commit: Validate.commit_hash(
+            commit,
+            throw=argparse.ArgumentTypeError(
+                "Specified commit is not a valid commit hash."
+            ),
+        ),
+        help="Manually specify commit hash metadata of component tested (e.g. SYCL, UMF)",
+        default=options.git_commit_override,
     )
 
     args = parser.parse_args()
@@ -516,7 +555,7 @@ if __name__ == "__main__":
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
     options.preset = args.preset
-    options.custom_results_dir = args.results_dir
+    options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
 
@@ -530,6 +569,17 @@ if __name__ == "__main__":
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
 
+    # Options intended for CI:
+    options.timestamp_override = args.timestamp_override
+    if args.results_dir is not None:
+        if not os.path.isdir(args.results_dir):
+            parser.error("Specified --results-dir is not a valid path")
+        options.results_directory_override = os.path.abspath(args.results_dir)
+    if args.github_repo is not None or args.git_commit is not None:
+        if args.github_repo is None or args.git_commit is None:
+            parser.error("--github-repo and --git_commit must both be defined together")
+        options.github_repo_override = args.github_repo
+        options.git_commit_override = args.git_commit
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

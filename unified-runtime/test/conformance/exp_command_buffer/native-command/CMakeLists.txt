@@ -15,7 +15,7 @@ endif()
 
 if (UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_v2)
     target_sources(test-exp_command_buffer PRIVATE "append_native_L0.cpp")
-    target_link_libraries(test-exp_command_buffer PRIVATE LevelZeroLoader)
+    target_link_libraries(test-exp_command_buffer PRIVATE LevelZeroLoader LevelZeroLoader-Headers)
 endif()
 
 if (UR_BUILD_ADAPTER_OPENCL)
