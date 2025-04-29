@@ -925,8 +925,9 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
       "__msan_unpoison_stack", IRB.getVoidTy(), PtrTy, IntptrTy);
 
   MsanUnpoisonStridedCopyFunc = M.getOrInsertFunction(
-      "__msan_unpoison_strided_copy", IRB.getVoidTy(), IntptrTy, IntptrTy,
-      IRB.getInt32Ty(), IRB.getInt64Ty(), IRB.getInt64Ty());
+      "__msan_unpoison_strided_copy", IRB.getVoidTy(), IntptrTy,
+      IRB.getInt32Ty(), IntptrTy, IRB.getInt32Ty(), IRB.getInt32Ty(),
+      IRB.getInt64Ty(), IRB.getInt64Ty());
 }
 
 // Handle global variables:
@@ -6051,7 +6052,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   void visitCallBase(CallBase &CB) {
     assert(!CB.getMetadata(LLVMContext::MD_nosanitize));
-    outs() << "!!! call base\n";
 
     if (CB.isInlineAsm()) {
       // For inline asm (either a call to asm function, or callbr instruction),
@@ -6088,7 +6088,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     if (auto *Call = dyn_cast<CallInst>(&CB)) {
       assert(!isa<IntrinsicInst>(Call) && "intrinsics are handled elsewhere");
-      outs() << "!!! call inst\n";
 
       // We are going to insert code that relies on the fact that the callee
       // will become a non-readonly function after it is instrumented by us. To
@@ -6227,12 +6226,14 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
           // Skip "_Z22__spirv_GroupAsyncCopyiPU3AS3", get the size of parameter type directly
           int ElementSize = getTypeSizeFromManglingName(FuncName.substr(33));
-          
-          IRB.CreateCall(MS.Spirv.MsanUnpoisonStridedCopyFunc,
-                         {IRB.CreatePointerCast(Dest, MS.Spirv.IntptrTy),
-                          IRB.CreatePointerCast(Src, MS.Spirv.IntptrTy),
-                          IRB.getInt32(ElementSize),
-                          NumElements, Stride});
+
+          IRB.CreateCall(
+              MS.Spirv.MsanUnpoisonStridedCopyFunc,
+              {IRB.CreatePointerCast(Dest, MS.Spirv.IntptrTy),
+               IRB.getInt32(Dest->getType()->getPointerAddressSpace()),
+               IRB.CreatePointerCast(Src, MS.Spirv.IntptrTy),
+               IRB.getInt32(Src->getType()->getPointerAddressSpace()),
+               IRB.getInt32(ElementSize), NumElements, Stride});
         }
       }
     }
