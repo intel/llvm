@@ -87,7 +87,7 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelName, ContextImpl, Device);
+        KernelName, ContextImpl, DeviceImpl.get());
     Program = detail::ProgramManager::getInstance().createURProgram(
         *DeviceImage, ContextImpl, {std::move(Device)});
   }
