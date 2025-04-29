@@ -339,7 +339,7 @@ struct NonBlocking {
     auto InEvents =
         native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
     futures.emplace_back(
-        tp.schedule_task([op, InEvents = InEvents.get()](size_t) {
+        tp.schedule_task([op, InEvents = InEvents.get()](size_t) mutable {
           if (InEvents)
             InEvents->wait();
           op();
@@ -395,7 +395,7 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
 
 template <bool IsRead>
 static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
-    ur_queue_handle_t hQueue, ur_mem_handle_t Buff, bool,
+    ur_queue_handle_t hQueue, ur_mem_handle_t Buff, bool blocking,
     ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
     ur_rect_region_t region, size_t BufferRowPitch, size_t BufferSlicePitch,
     size_t HostRowPitch, size_t HostSlicePitch,
@@ -408,7 +408,9 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
   else
     command_t = UR_COMMAND_MEM_BUFFER_WRITE_RECT;
   return withTimingEvent(
-      command_t, hQueue, NumEventsInWaitList, phEventWaitList, phEvent, [&]() {
+      command_t, hQueue, NumEventsInWaitList, phEventWaitList, phEvent,
+      [BufferRowPitch, region, BufferSlicePitch, HostRowPitch, HostSlicePitch,
+       BufferOffset, HostOffset, Buff, DstMem]() mutable {
         // TODO: blocking, check other constraints, performance optimizations
         //       More sharing with level_zero where possible
 
@@ -437,7 +439,8 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
             }
 
         return UR_RESULT_SUCCESS;
-      });
+      },
+      blocking);
 }
 
 template <void *(copy_func)(void *dst, const void *src, size_t) = memmove>
@@ -532,7 +535,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   return enqueueMemBufferReadWriteRect_impl<true /*read*/>(
-      hQueue, hBufferSrc, false /*todo: check blocking*/, srcOrigin,
+      hQueue, hBufferSrc, true /*todo: check blocking*/, srcOrigin,
       /*HostOffset*/ dstOrigin, region, srcRowPitch, srcSlicePitch, dstRowPitch,
       dstSlicePitch, hBufferDst->_mem, numEventsInWaitList, phEventWaitList,
       phEvent);
