@@ -799,6 +799,7 @@ private:
   void instrumentDynamicLocalMemory(Function &F);
   void instrumentKernelsMetadata();
   void instrumentPrivateArguments(Function &F, Instruction *FnPrologueEnd);
+  void instrumentPrivateBase(Function &F);
 
   void initializeRetVecMap(Function *F);
   void initializeKernelCallerMap(Function *F);
@@ -830,6 +831,7 @@ private:
   FunctionCallee MsanUnpoisonShadowDynamicLocalFunc;
   FunctionCallee MsanBarrierFunc;
   FunctionCallee MsanUnpoisonStackFunc;
+  FunctionCallee MsanSetPrivateBaseFunc;
 };
 
 } // end anonymous namespace
@@ -920,6 +922,13 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   // )
   MsanUnpoisonStackFunc = M.getOrInsertFunction(
       "__msan_unpoison_stack", IRB.getVoidTy(), PtrTy, IntptrTy);
+
+  // __msan_set_private_base(
+  //   as(0) void *  ptr
+  // )
+  MsanSetPrivateBaseFunc =
+      M.getOrInsertFunction("__msan_set_private_base", IRB.getVoidTy(),
+                            PointerType::get(C, kSpirOffloadPrivateAS));
 }
 
 // Handle global variables:
@@ -1097,6 +1106,16 @@ void MemorySanitizerOnSpirv::instrumentDynamicLocalMemory(Function &F) {
   InsertBarrier[&F] = true;
 }
 
+void MemorySanitizerOnSpirv::instrumentPrivateBase(Function &F) {
+  if (!ClSpirOffloadPrivates)
+    return;
+
+  IRBuilder<> IRB(&F.getEntryBlock().front());
+  AllocaInst *PrivateBase = IRB.CreateAlloca(
+      IRB.getInt8Ty(), ConstantInt::get(Int32Ty, 1), "__private_base");
+  IRB.CreateCall(MsanSetPrivateBaseFunc, {PrivateBase});
+}
+
 void MemorySanitizerOnSpirv::instrumentPrivateArguments(
     Function &F, Instruction *FnPrologueEnd) {
   if (!ClSpirOffloadPrivates)
@@ -1235,8 +1254,10 @@ void MemorySanitizerOnSpirv::afterInstrumentFunction(Function &F) {
   if (!IsSPIRV)
     return;
 
-  if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
     instrumentDynamicLocalMemory(F);
+    instrumentPrivateBase(F);
+  }
 }
 
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
@@ -1543,8 +1564,8 @@ void MemorySanitizer::initializeCallbacks(Module &M,
       "__msan_instrument_asm_store", IRB.getVoidTy(), PtrTy, IntptrTy);
 
   MsanGetShadowFn = M.getOrInsertFunction(
-      "__msan_get_shadow", IntptrTy, IntptrTy, IRB.getInt32Ty(),
-      IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+      "__msan_get_shadow", PointerType::get(*C, kSpirOffloadGlobalAS), IntptrTy,
+      IRB.getInt32Ty(), IRB.getInt8PtrTy(kSpirOffloadConstantAS));
 
   if (CompileKernel) {
     createKernelApi(M, TLI);
