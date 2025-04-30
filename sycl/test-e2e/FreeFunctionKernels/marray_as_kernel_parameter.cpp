@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// This test verifies whether an id<Dimensions> can be passed as a kernel
+// This test verifies whether a marray<T, NumElements> can be passed as a kernel
 // parameter to a free function kernel.
 
 #include <sycl/usm.hpp>
@@ -11,34 +11,47 @@
 
 #include "helpers.hpp"
 
+static constexpr size_t M_ARRAY_SIZE = 5;
+
+static float sumMArray(sycl::marray<float, M_ARRAY_SIZE> MArray) {
+  float SumOfMArray = 0.0;
+  for (const auto Value : MArray) {
+    SumOfMArray += Value;
+  }
+  return SumOfMArray;
+}
+
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
-void globalScopeSingleFreeFuncKernel(int *Ptr, size_t NumOfElements,
-                                     sycl::id<1> Id) {
+void globalScopeSingleFreeFuncKernel(float *Ptr, size_t NumOfElements,
+                                     sycl::marray<float, M_ARRAY_SIZE> MArray) {
   for (size_t i = 0; i < NumOfElements; ++i) {
-    Ptr[i] = static_cast<int>(Id[0]);
+    Ptr[i] = sumMArray(MArray);
   }
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<2>))
-void globalScopeNdRangeFreeFuncKernel(int *Ptr, sycl::id<2> Id) {
+void globalScopeNdRangeFreeFuncKernel(
+    float *Ptr, sycl::marray<float, M_ARRAY_SIZE> MArray) {
   size_t Item =
       syclext::this_work_item::get_nd_item<2>().get_global_linear_id();
-  Ptr[Item] = static_cast<int>(Id[0] + Id[1]);
+  Ptr[Item] = sumMArray(MArray);
 }
 
 namespace ns {
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
-void nsSingleFreeFuncKernel(int *Ptr, size_t NumOfElements, sycl::id<1> Id) {
+void nsSingleFreeFuncKernel(float *Ptr, size_t NumOfElements,
+                            sycl::marray<float, M_ARRAY_SIZE> MArray) {
   for (size_t i = 0; i < NumOfElements; ++i) {
-    Ptr[i] = static_cast<int>(Id[0]);
+    Ptr[i] = sumMArray(MArray);
   }
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<3>))
-void nsNdRangeFreeFuncKernel(int *Ptr, sycl::id<3> Id) {
+void nsNdRangeFreeFuncKernel(float *Ptr,
+                             sycl::marray<float, M_ARRAY_SIZE> MArray) {
   size_t Item =
       syclext::this_work_item::get_nd_item<3>().get_global_linear_id();
-  Ptr[Item] = static_cast<int>(Id[0] + Id[1] + Id[2]);
+  Ptr[Item] = sumMArray(MArray);
 }
 } // namespace ns
 
@@ -50,17 +63,17 @@ int main() {
   sycl::queue Queue;
   sycl::context Context = Queue.get_context();
   constexpr size_t NumOfElements = 1024;
-  int *Data = sycl::malloc_shared<int>(NumOfElements, Queue);
+  float *Data = sycl::malloc_shared<float>(NumOfElements, Queue);
 
   {
     std::fill(Data, Data + NumOfElements, 0);
     sycl::kernel UsedKernel = getKernel<ns::nsSingleFreeFuncKernel>(Context);
 
-    sycl::id<1> Id{11};
-    int ExpectedResultValue = static_cast<int>(Id[0]);
+    sycl::marray<float, M_ARRAY_SIZE> MArray{1.0, 2.0, 3.0, 4.0, 5.0};
+    float ExpectedResultValue = sumMArray(MArray);
     Queue
         .submit([&](sycl::handler &Handler) {
-          Handler.set_args(Data, NumOfElements, Id);
+          Handler.set_args(Data, NumOfElements, MArray);
           Handler.single_task(UsedKernel);
         })
         .wait();
@@ -72,12 +85,13 @@ int main() {
   {
     std::fill(Data, Data + NumOfElements, 0);
     sycl::kernel UsedKernel = getKernel<ns::nsNdRangeFreeFuncKernel>(Context);
-    sycl::id<3> Id{22, 22, 22};
-    int ExpectedResultValue = static_cast<int>(Id[0] + Id[1] + Id[2]);
+
+    sycl::marray<float, M_ARRAY_SIZE> MArray{100.0, 100.0, 100.0, 100.0, 100.0};
+    float ExpectedResultValue = sumMArray(MArray);
     Queue
         .submit([&](sycl::handler &Handler) {
           Handler.set_arg(0, Data);
-          Handler.set_arg(1, Id);
+          Handler.set_arg(1, MArray);
           sycl::nd_range<3> Ndr{{4, 4, NumOfElements / 16}, {4, 4, 4}};
           Handler.parallel_for(Ndr, UsedKernel);
         })
@@ -92,13 +106,13 @@ int main() {
     std::fill(Data, Data + NumOfElements, 0);
     sycl::kernel UsedKernel =
         getKernel<globalScopeSingleFreeFuncKernel>(Context);
-    sycl::id<1> Id{33};
-    int ExpectedResultValue = static_cast<int>(Id[0]);
+    sycl::marray<float, M_ARRAY_SIZE> MArray{500.0, 500.0, 500.0, 500.0, 500.0};
+    float ExpectedResultValue = sumMArray(MArray);
     Queue
         .submit([&](sycl::handler &Handler) {
           Handler.set_arg(0, Data);
           Handler.set_arg(1, NumOfElements);
-          Handler.set_arg(2, Id);
+          Handler.set_arg(2, MArray);
           Handler.single_task(UsedKernel);
         })
         .wait();
@@ -112,11 +126,12 @@ int main() {
     std::fill(Data, Data + NumOfElements, 0);
     sycl::kernel UsedKernel =
         getKernel<globalScopeNdRangeFreeFuncKernel>(Context);
-    sycl::id<2> Id{44, 44};
-    int ExpectedResultValue = static_cast<int>(Id[0] + Id[1]);
+    sycl::marray<float, M_ARRAY_SIZE> MArray{1000.0, 1000.0, 1000.0, 1000.0,
+                                             1000.0};
+    float ExpectedResultValue = sumMArray(MArray);
     Queue
         .submit([&](sycl::handler &Handler) {
-          Handler.set_args(Data, Id);
+          Handler.set_args(Data, MArray);
           sycl::nd_range<2> Ndr{{8, NumOfElements / 8}, {8, 8}};
           Handler.parallel_for(Ndr, UsedKernel);
         })

@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// This test verifies whether an range<Dimensions> can be passed as a kernel
+// This test verifies whether a range<Dimensions> can be passed as a kernel
 // parameter to a free function kernel.
 
 #include <sycl/usm.hpp>
@@ -10,9 +10,6 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 
 #include "helpers.hpp"
-
-namespace syclext = sycl::ext::oneapi;
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
 void globalScopeSingleFreeFuncKernel(int *Ptr, size_t NumOfElements,

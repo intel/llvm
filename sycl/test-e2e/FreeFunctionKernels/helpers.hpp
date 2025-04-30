@@ -3,6 +3,9 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+namespace syclext = sycl::ext::oneapi;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
 template <typename T>
 static int performResultCheck(size_t NumberOfElements, const T *ResultPtr,
                               std::string_view TestName,
