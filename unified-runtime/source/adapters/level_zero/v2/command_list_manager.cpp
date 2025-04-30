@@ -229,6 +229,8 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
              (zeCommandList.get(), hZeKernel, &zeThreadGroupDimensions,
               zeSignalEvent, waitListView.num, waitListView.handles));
 
+  postSubmit(hZeKernel, pGlobalWorkOffset);
+
   return UR_RESULT_SUCCESS;
 }
 

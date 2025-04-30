@@ -115,7 +115,4 @@ private:
 
   // pointer to any non-null kernel in deviceKernels
   ur_single_device_kernel_t *nonEmptyKernel;
-
-  // keep track of whether the offset is non-zero
-  bool hadOffset = false;
 };

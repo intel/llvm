@@ -280,19 +280,9 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     std::function<void(void *, void *, size_t)> migrate) {
   auto hZeKernel = getZeHandle(hDevice);
 
-  // If we have a new offset, update the zeKernel object
   if (pGlobalWorkOffset != NULL) {
     UR_CALL(
         setKernelGlobalOffset(hContext, hZeKernel, workDim, pGlobalWorkOffset));
-    hadOffset = true;
-  }
-
-  // If we have no offset now but the last submission had one, clear it
-  else if (hadOffset) {
-    size_t zeroOffset[3] = {0, 0, 0};
-    UR_CALL(
-        setKernelGlobalOffset(hContext, hZeKernel, workDim, zeroOffset));
-    hadOffset = false;
   }
 
   ZE2UR_CALL(zeKernelSetGroupSize,

@@ -822,6 +822,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
 
   recordSubmittedKernel(hKernel);
 
+  postSubmit(hZeKernel, pGlobalWorkOffset);
+
   return UR_RESULT_SUCCESS;
 }
 
