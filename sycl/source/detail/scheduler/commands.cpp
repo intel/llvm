@@ -2431,10 +2431,6 @@ static ur_result_t SetKernelParamsAndLaunch(
 
   size_t RequiredWGSize[3] = {0, 0, 0};
   size_t *LocalSize = nullptr;
-  size_t *GlobalOffset = nullptr;
-
-  if (NDRDesc.hasOffset())
-    GlobalOffset = &NDRDesc.GlobalOffset[0];
 
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
@@ -2482,9 +2478,9 @@ static ur_result_t SetKernelParamsAndLaunch(
     ur_event_handle_t UREvent = nullptr;
     ur_result_t Error =
         Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchCustomExp>(
-            Queue->getHandleRef(), Kernel, NDRDesc.Dims, GlobalOffset,
-            &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
-            property_list.data(), RawEvents.size(),
+            Queue->getHandleRef(), Kernel, NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
+            property_list.size(), property_list.data(), RawEvents.size(),
             RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEventImpl ? &UREvent : nullptr);
     if ((Error == UR_RESULT_SUCCESS) && OutEventImpl) {
@@ -2501,7 +2497,7 @@ static ur_result_t SetKernelParamsAndLaunch(
                   Args...);
         }
         return Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunch>(Args...);
-      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, GlobalOffset,
+      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &UREvent : nullptr);
@@ -2609,10 +2605,6 @@ ur_result_t enqueueImpCommandBufferKernel(
 
   size_t RequiredWGSize[3] = {0, 0, 0};
   size_t *LocalSize = nullptr;
-  size_t *GlobalOffset = nullptr;
-
-  if (NDRDesc.hasOffset())
-    GlobalOffset = &NDRDesc.GlobalOffset[0];
 
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
@@ -2641,7 +2633,7 @@ ur_result_t enqueueImpCommandBufferKernel(
 
   ur_result_t Res =
       Adapter->call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
-          CommandBuffer, UrKernel, NDRDesc.Dims, GlobalOffset,
+          CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
           &NDRDesc.GlobalSize[0], LocalSize, AltUrKernels.size(),
           AltUrKernels.size() ? AltUrKernels.data() : nullptr,
           SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr, 0,

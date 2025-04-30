@@ -134,13 +134,6 @@ public:
       ClusterDimensions[I] = (I < Dims) ? N[I] : 1;
   }
 
-  bool hasOffset() const {
-    bool HasOffset = false;
-    for (int I = 0; I < 3; ++I)
-      HasOffset |= GlobalOffset[I];
-    return HasOffset;
-  }
-
   NDRDescT &operator=(const NDRDescT &Desc) = default;
   NDRDescT &operator=(NDRDescT &&Desc) = default;
 
