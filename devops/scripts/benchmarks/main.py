@@ -18,11 +18,13 @@ from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
 from utils.validate import Validate
+from utils.detect_versions import DetectVersion
 from presets import enabled_suites, presets
 
 import argparse
 import re
 import statistics
+import os
 
 # Update this if you are changing the layout of the results files
 INTERNAL_WORKDIR_VERSION = "2.0"
@@ -530,6 +532,19 @@ if __name__ == "__main__":
         default=options.git_commit_override,
     )
 
+    parser.add_argument(
+        "--detect-version",
+        type=str,
+        help="Detect versions of software used: comma-separated list with choices from [dpcpp, compute-runtime]",
+        default=None
+    )
+    parser.add_argument(
+        "--detect-version-cpp-path",
+        type=Path,
+        help="Location of detect_version.cpp used to query e.g. DPC++, L0",
+        default=Path(f"{os.path.dirname(__file__)}/utils/detect_version.cpp")
+    )
+
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
 
@@ -580,6 +595,12 @@ if __name__ == "__main__":
             parser.error("--github-repo and --git_commit must both be defined together")
         options.github_repo_override = args.github_repo
         options.git_commit_override = args.git_commit
+
+    # Automatically detect versions:
+    if args.detect_version is not None:
+        DetectVersion.init(
+            args.detect_version_cpp_path
+        )
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
