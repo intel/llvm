@@ -591,7 +591,7 @@ __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
     return;
   const size_t sid = SubWorkGroupLinearId();
   GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
-  __spirv_ocl_printf(__msan_print_private_base, sid, ptr);
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
 }
 
 #endif // __SPIR__ || __SPIRV__
