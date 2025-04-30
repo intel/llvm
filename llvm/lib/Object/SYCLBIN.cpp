@@ -205,7 +205,7 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
   FileHeader.MetadataByteTableSize = Desc.getMetadataTableByteSize();
   if (Error E = Desc.getBinaryTableByteSize().moveInto(
           FileHeader.BinaryByteTableSize))
-    return std::move(E);
+    return E;
   OS << StringRef(reinterpret_cast<char *>(&FileHeader), sizeof(FileHeader));
   OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
   HeaderTrackedMetadataOffset += FileHeader.GlobalMetadataSize;
