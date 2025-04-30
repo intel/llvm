@@ -358,7 +358,7 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                 uint32_t numEventsInWaitList,
                 const ur_event_handle_t *phEventWaitList,
                 ur_event_handle_t *phEvent, T &&f, bool blocking = true) {
-  if (blocking)
+  if (blocking || hQueue->isInOrder())
     return withTimingEvent(command_type, hQueue, numEventsInWaitList,
                            phEventWaitList, phEvent, std::forward<T>(f),
                            BlockingWithEvent());
