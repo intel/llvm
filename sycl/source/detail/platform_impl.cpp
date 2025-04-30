@@ -306,7 +306,7 @@ platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
   // Otherwise make the impl
   Result = std::make_shared<device_impl>(UrDevice, *this,
                                          device_impl::private_tag{});
-  MDeviceCache.emplace_back(Result);
+  MDevices.emplace_back(Result);
 
   return Result;
 }
@@ -637,11 +637,9 @@ bool platform_impl::has(aspect Aspect) const {
 
 std::shared_ptr<device_impl>
 platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == UrDevice)
-        return Device;
-    }
+  for (const std::shared_ptr<device_impl> &Device : MDevices) {
+    if (Device->getHandleRef() == UrDevice)
+      return Device;
   }
   return nullptr;
 }
