@@ -166,10 +166,7 @@ __DPCPP_SYCL_EXTERNAL inline uint32_t __spirv_SubgroupLocalInvocationId() {
 #endif // !(defined(__SPIR__) || defined(__SPIRV__))
 
 #undef __SPIRV_VAR_QUALIFIERS
-#ifdef __spirv
-#define __RECOVER_SPIRV_MACRO__ __spirv
-#undef __spirv
-#endif // __spirv
+
 namespace __spirv {
 
 // Helper function templates to initialize and get vector component from SPIR-V
@@ -209,10 +206,6 @@ __SPIRV_DEFINE_INIT_AND_GET_HELPERS(WorkgroupId)
 __SPIRV_DEFINE_INIT_AND_GET_HELPERS(GlobalOffset)
 
 #undef __SPIRV_DEFINE_INIT_AND_GET_HELPERS
-#ifdef __RECOVER_SPIRV_MACRO__
-#define __spirv __RECOVER_SPIRV_MACRO__
-#undef __RECOVER_SPIRV_MACRO__
-#endif // __RECOVER_SPIRV_MACRO__
 
 } // namespace __spirv
 

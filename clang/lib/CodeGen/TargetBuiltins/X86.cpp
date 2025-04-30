@@ -74,20 +74,10 @@ static Value *getMaskVecValue(CodeGenFunction &CGF, Value *Mask,
   }
   return MaskVec;
 }
-// static Value *EmitX86MaskedStore(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
-//   Align Alignment) {
-// Value *Ptr = CGF.Builder.CreateAddrSpaceCast(
-// Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
-
-// Value *MaskVec = getMaskVecValue(
-// CGF, Ops[2],
-// cast<llvm::FixedVectorType>(Ops[1]->getType())->getNumElements());
-
-// return CGF.Builder.CreateMaskedStore(Ops[1], Ptr, Alignment, MaskVec);
-// }
 static Value *EmitX86MaskedStore(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
                                  Align Alignment) {
-  Value *Ptr = Ops[0];
+  Value *Ptr = CGF.Builder.CreateAddrSpaceCast(
+      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2],
@@ -99,7 +89,8 @@ static Value *EmitX86MaskedStore(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
 static Value *EmitX86MaskedLoad(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
                                 Align Alignment) {
   llvm::Type *Ty = Ops[1]->getType();
-  Value *Ptr = Ops[0];
+  Value *Ptr = CGF.Builder.CreateAddrSpaceCast(
+      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2], cast<llvm::FixedVectorType>(Ty)->getNumElements());
