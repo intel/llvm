@@ -70,8 +70,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
 
     if (CLResult == CL_INVALID_KERNEL_DEFINITION) {
       cl_adapter::setErrorMessage(
-          "urKernelCreate failing with CL_INVALID_KERNEL_DEFINITION",
-          UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+          "clCreateKernel failed with CL_INVALID_KERNEL_DEFINITION", CLResult);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
 
