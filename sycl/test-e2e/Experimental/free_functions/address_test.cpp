@@ -34,9 +34,10 @@ template <typename T> int test_iota_kernel_id(sycl::context &ctxt) {
   sycl::kernel_id id = syclexp::get_kernel_id<iota<T>>();
   auto exe_bndl =
       syclexp::get_kernel_bundle<iota<T>, sycl::bundle_state::executable>(ctxt);
-  if (exe_bndl.has_kernel(id)) 
+  if (exe_bndl.has_kernel(id))
     return 0;
-  std::cout << "Kernel bundle does not contain the expected kernel" << std::endl;
+  std::cout << "Kernel bundle does not contain the expected kernel"
+            << std::endl;
   return 1;
 }
 

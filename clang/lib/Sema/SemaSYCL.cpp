@@ -5794,8 +5794,7 @@ void SemaSYCL::MarkDevices() {
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
     if (FD->isVariadic()) {
-      Diag(FD->getLocation(),
-             diag::err_free_function_variadic_args);
+      Diag(FD->getLocation(), diag::err_free_function_variadic_args);
       return;
     }
     SyclKernelDecompMarker DecompMarker(*this);
