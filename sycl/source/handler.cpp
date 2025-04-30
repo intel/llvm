@@ -2024,8 +2024,8 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
     std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
     if (ContextImpl)
       ContextImpl->memcpyToHostOnlyDeviceGlobal(
-          Dev, DeviceGlobalPtr, Src, DeviceGlobalTSize,
-          IsDeviceImageScoped, NumBytes, Offset);
+          Dev, DeviceGlobalPtr, Src, DeviceGlobalTSize, IsDeviceImageScoped,
+          NumBytes, Offset);
   });
 }
 
