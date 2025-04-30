@@ -294,8 +294,7 @@ device_impl *platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   return getDeviceImplHelper(UrDevice);
 }
 
-device_impl&
-platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
   if (device_impl *Result = getDeviceImplHelper(UrDevice))

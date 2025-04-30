@@ -83,8 +83,8 @@ public:
       return detail::getSyclObjImpl(
           context{createSyclObjFromImpl<device>(Device), {}, {}});
 
-    ContextImplPtr DefaultContext = detail::getSyclObjImpl(
-        Device.get_platform().khr_get_default_context());
+    ContextImplPtr DefaultContext =
+        detail::getSyclObjImpl(Device.get_platform().khr_get_default_context());
     if (DefaultContext->isDeviceValid(Device))
       return DefaultContext;
     return detail::getSyclObjImpl(

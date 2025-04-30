@@ -55,8 +55,7 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
     return DGUSMPtr->second;
 
   void *NewDGUSMPtr = detail::usm::alignedAllocInternal(
-      0, MDeviceGlobalTSize, CtxImpl.get(), &DevImpl,
-      sycl::usm::alloc::device);
+      0, MDeviceGlobalTSize, CtxImpl.get(), &DevImpl, sycl::usm::alloc::device);
 
   auto NewAllocIt = MDeviceToUSMPtrMap.emplace(
       std::piecewise_construct, std::forward_as_tuple(&DevImpl, CtxImpl.get()),

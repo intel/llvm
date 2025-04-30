@@ -861,7 +861,7 @@ void exec_graph_impl::createCommandBuffers(
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  sycl::detail::device_impl & DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
+  sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res =
       Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
           ContextImpl->getHandleRef(), DeviceImpl.getHandleRef(), &Desc,

@@ -460,9 +460,9 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(
 }
 
 void context_impl::memcpyToHostOnlyDeviceGlobal(
-    device_impl &DeviceImpl, const void *DeviceGlobalPtr,
-    const void *Src, size_t DeviceGlobalTSize, bool IsDeviceImageScoped,
-    size_t NumBytes, size_t Offset) {
+    device_impl &DeviceImpl, const void *DeviceGlobalPtr, const void *Src,
+    size_t DeviceGlobalTSize, bool IsDeviceImageScoped, size_t NumBytes,
+    size_t Offset) {
   std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
     KeyDevice = DeviceImpl.getHandleRef();
@@ -482,9 +482,8 @@ void context_impl::memcpyToHostOnlyDeviceGlobal(
 }
 
 void context_impl::memcpyFromHostOnlyDeviceGlobal(
-    device_impl &DeviceImpl, void *Dest,
-    const void *DeviceGlobalPtr, bool IsDeviceImageScoped, size_t NumBytes,
-    size_t Offset) {
+    device_impl &DeviceImpl, void *Dest, const void *DeviceGlobalPtr,
+    bool IsDeviceImageScoped, size_t NumBytes, size_t Offset) {
 
   std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
