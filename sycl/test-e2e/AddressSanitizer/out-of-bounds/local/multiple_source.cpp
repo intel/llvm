@@ -22,7 +22,7 @@ void foo(sycl::queue &Q, int *data) {
         sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {
           data[item.get_global_id()] = acc[item.get_local_id() + 1];
           // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Local Memory
-          // CHECK: READ of size 4 at kernel {{<.*MyKernel>}} LID(0, 0, 0) GID({{.*}}, 0, 0)
+          // CHECK: READ of size 4 at kernel {{<.*MyKernelA>}} LID(0, 0, 0) GID({{.*}}, 0, 0)
           // CHECK:   #0 {{.*}} {{.*multiple_source.cpp}}:[[@LINE-3]]
         });
   });
