@@ -1,3 +1,13 @@
+//===----------- enqueue.cpp - LLVM Offload Adapter  ----------------------===//
+//
+// Copyright (C) 2025 Intel Corporation
+//
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include <OffloadAPI.h>
 #include <assert.h>
 #include <ur_api.h>
@@ -17,8 +27,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   (void)phEventWaitList;
   //
 
-  (void) pGlobalWorkOffset;
-  (void) pLocalWorkSize;
+  (void)pGlobalWorkOffset;
+  (void)pLocalWorkSize;
 
   assert(workDim == 1);
 
