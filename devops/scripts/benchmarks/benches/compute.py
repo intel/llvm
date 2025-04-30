@@ -168,7 +168,7 @@ class ComputeBench(Suite):
             benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
         # Add GraphApiSubmitGraph benchmarks
-        for runtime in self.enabled_runtimes([RUNTIMES.SYCL, RUNTIMES.UR]):
+        for runtime in self.enabled_runtimes():
             for in_order_queue in [0, 1]:
                 for num_kernels in [4, 10, 32]:
                     for measure_completion_time in [0, 1]:
