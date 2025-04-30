@@ -215,6 +215,11 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   return GetMsanLaunchInfo->CleanShadow;
 }
 
+inline void __msan_exit() {
+  if (!GetMsanLaunchInfo->IsRecover)
+    __devicelib_exit();
+}
+
 } // namespace
 
 #define MSAN_MAYBE_WARNING(type, size)                                         \
@@ -225,6 +230,7 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
       return;                                                                  \
     if (UNLIKELY(s)) {                                                         \
       __msan_report_error(size, file, line, func, o);                          \
+      __msan_exit();                                                           \
     }                                                                          \
   }
 
@@ -236,13 +242,19 @@ MSAN_MAYBE_WARNING(u64, 8)
 DEVICE_EXTERN_C_NOINLINE void
 __msan_warning(const char __SYCL_CONSTANT__ *file, uint32_t line,
                const char __SYCL_CONSTANT__ *func) {
+  if (!GetMsanLaunchInfo)
+    return;
   __msan_report_error(1, file, line, func);
+  __msan_exit();
 }
 
 DEVICE_EXTERN_C_NOINLINE void
 __msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
                         const char __SYCL_CONSTANT__ *func) {
+  if (!GetMsanLaunchInfo)
+    return;
   __msan_internal_report_save(1, file, line, func, 0);
+  __msan_exit();
 }
 
 // For mapping detail, ref to

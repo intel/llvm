@@ -1077,6 +1077,12 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-dependency-file");
       CmdArgs.push_back(DepFile);
     }
+    // Cmake generates dependency files using all compilation options specified
+    // by users. Claim those not used for dependency files.
+    if (JA.isOffloading(Action::OFK_HIP)) {
+      Args.ClaimAllArgs(options::OPT_offload_compress);
+      Args.ClaimAllArgs(options::OPT_no_offload_compress);
+    }
 
     bool HasTarget = false;
     for (const Arg *A : Args.filtered(options::OPT_MT, options::OPT_MQ)) {
@@ -1160,8 +1166,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
       !Args.hasArg(options::OPT_nostdinc) &&
       !Args.hasArg(options::OPT_nogpuinc) &&
-      (getToolChain().getTriple().isNVPTX() ||
-       getToolChain().getTriple().isAMDGCN())) {
+      getToolChain().getTriple().isGPU()) {
     if (!Args.hasArg(options::OPT_nobuiltininc)) {
       // Add openmp_wrappers/* to our system include path.  This lets us wrap
       // standard library headers.
@@ -1366,8 +1371,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     // Without an offloading language we will include these headers directly.
     // Offloading languages will instead only use the declarations stored in
     // the resource directory at clang/lib/Headers/llvm_libc_wrappers.
-    if ((getToolChain().getTriple().isNVPTX() ||
-         getToolChain().getTriple().isAMDGCN()) &&
+    if (getToolChain().getTriple().isGPU() &&
         C.getActiveOffloadKinds() == Action::OFK_None) {
       SmallString<128> P(llvm::sys::path::parent_path(D.Dir));
       llvm::sys::path::append(P, "include");
@@ -2952,6 +2956,17 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   if (MipsTargetFeature != nullptr) {
     CmdArgs.push_back("-target-feature");
     CmdArgs.push_back(MipsTargetFeature);
+  }
+
+  // Those OSes default to enabling VIS on 64-bit SPARC.
+  // See also the corresponding code for external assemblers in
+  // sparc::getSparcAsmModeForCPU().
+  bool IsSparcV9ATarget =
+      (C.getDefaultToolChain().getArch() == llvm::Triple::sparcv9) &&
+      (Triple.isOSLinux() || Triple.isOSFreeBSD() || Triple.isOSOpenBSD());
+  if (IsSparcV9ATarget && SparcTargetFeatures.empty()) {
+    CmdArgs.push_back("-target-feature");
+    CmdArgs.push_back("+vis");
   }
   for (const char *Feature : SparcTargetFeatures) {
     CmdArgs.push_back("-target-feature");
@@ -5651,7 +5666,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // We want to compile sycl kernels.
       CmdArgs.push_back("-fsycl-is-device");
       CmdArgs.push_back("-fdeclare-spirv-builtins");
-      
+
       // Set O2 optimization level by default
       if (!Args.getLastArg(options::OPT_O_Group))
         CmdArgs.push_back("-O2");
@@ -5983,10 +5998,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // are provided.
   TC.addClangWarningOptions(CmdArgs);
 
-  // FIXME: Subclass ToolChain for SPIR/SPIR-V and move this to
-  // addClangWarningOptions.
-  if (Triple.isSPIROrSPIRV())
+  if (Triple.isSPIROrSPIRV()) {
+    // FIXME: Subclass ToolChain for SPIR/SPIR-V and move this to
+    // addClangWarningOptions.
     CmdArgs.push_back("-Wspir-compat");
+    // Disable this option for SPIR targets.
+    // TODO:  This needs to be re-enabled once we have a real fix.
+    CmdArgs.push_back("-fno-offload-use-alloca-addrspace-for-srets");
+  }
 
   // Select the appropriate action.
   RewriteKind rewriteKind = RK_None;
@@ -6286,6 +6305,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         options::OPT_Wa_COMMA,
         options::OPT_Xassembler,
         options::OPT_mllvm,
+        options::OPT_mmlir,
     };
     for (const auto &A : Args)
       if (llvm::is_contained(kBitcodeOptionIgnorelist, A->getOption().getID()))
@@ -6294,6 +6314,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Render the CodeGen options that need to be passed.
     Args.addOptOutFlag(CmdArgs, options::OPT_foptimize_sibling_calls,
                        options::OPT_fno_optimize_sibling_calls);
+
+    Args.addOptOutFlag(CmdArgs,
+                       options::OPT_foffload_use_alloca_addrspace_for_srets,
+                       options::OPT_fno_offload_use_alloca_addrspace_for_srets);
 
     RenderFloatingPointOptions(TC, D, isOptimizationLevelFast(Args), Args,
                                CmdArgs, JA, NoOffloadFP32PrecDiv,
@@ -7218,10 +7242,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fconvergent_functions,
                   options::OPT_fno_convergent_functions);
 
-  // NVPTX/AMDGCN doesn't support PGO or coverage. There's no runtime support
-  // for sampling, overhead of call arc collection is way too high and there's
-  // no way to collect the output.
-  if (!Triple.isNVPTX() && !Triple.isAMDGCN())
+  // NVPTX doesn't support PGO or coverage
+  if (!Triple.isNVPTX())
     addPGOAndCoverageFlags(TC, C, JA, Output, Args, SanitizeArgs, CmdArgs);
 
   Args.AddLastArg(CmdArgs, options::OPT_fclang_abi_compat_EQ);
@@ -7760,8 +7782,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
     else if (S.consumeInteger(10, Size) ||
-             (!S.empty() && (!S.consume_front(",") ||
-                             S.consumeInteger(10, Offset) || !S.empty())))
+             (!S.empty() &&
+              (!S.consume_front(",") || S.consumeInteger(10, Offset))) ||
+             (!S.empty() && (!S.consume_front(",") || S.empty())))
       D.Diag(diag::err_drv_invalid_argument_to_option)
           << S0 << A->getOption().getName();
     else if (Size < Offset)
@@ -7770,6 +7793,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(A->getSpelling() + Twine(Size)));
       CmdArgs.push_back(Args.MakeArgString(
           "-fpatchable-function-entry-offset=" + Twine(Offset)));
+      if (!S.empty())
+        CmdArgs.push_back(
+            Args.MakeArgString("-fpatchable-function-entry-section=" + S));
     }
   }
 
@@ -8447,24 +8473,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addOptOutFlag(CmdArgs, options::OPT_fgnu_inline_asm,
                      options::OPT_fno_gnu_inline_asm);
 
-  // Enable vectorization per default according to the optimization level
-  // selected. For optimization levels that want vectorization we use the alias
-  // option to simplify the hasFlag logic.
-  bool EnableVec = shouldEnableVectorizerAtOLevel(Args, false);
-  OptSpecifier VectorizeAliasOption =
-      EnableVec ? options::OPT_O_Group : options::OPT_fvectorize;
-  if (Args.hasFlag(options::OPT_fvectorize, VectorizeAliasOption,
-                   options::OPT_fno_vectorize, EnableVec))
-    CmdArgs.push_back("-vectorize-loops");
-
-  // -fslp-vectorize is enabled based on the optimization level selected.
-  bool EnableSLPVec = shouldEnableVectorizerAtOLevel(Args, true);
-  OptSpecifier SLPVectAliasOption =
-      EnableSLPVec ? options::OPT_O_Group : options::OPT_fslp_vectorize;
-  if (Args.hasFlag(options::OPT_fslp_vectorize, SLPVectAliasOption,
-                   options::OPT_fno_slp_vectorize, EnableSLPVec))
-    CmdArgs.push_back("-vectorize-slp");
-
+  handleVectorizeLoopsArgs(Args, CmdArgs);
+  handleVectorizeSLPArgs(Args, CmdArgs);
   ParseMPreferVectorWidth(D, Args, CmdArgs);
 
   Args.AddLastArg(CmdArgs, options::OPT_fshow_overloads_EQ);
@@ -8635,6 +8645,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // This needs to run after -Xclang argument forwarding to pick up the target
   // features enabled through -Xclang -target-feature flags.
   SanitizeArgs.addArgs(TC, Args, CmdArgs, InputType);
+
+#if CLANG_ENABLE_CIR
+  // Forward -mmlir arguments to to the MLIR option parser.
+  for (const Arg *A : Args.filtered(options::OPT_mmlir)) {
+    A->claim();
+    A->render(Args, CmdArgs);
+  }
+#endif // CLANG_ENABLE_CIR
 
   // With -save-temps, we want to save the unoptimized bitcode output from the
   // CompileJobAction, use -disable-llvm-passes to get pristine IR generated
@@ -11221,6 +11239,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_load,
       OPT_fno_lto,
       OPT_flto,
+      OPT_flto_partitions_EQ,
       OPT_flto_EQ};
   const llvm::DenseSet<unsigned> LinkerOptions{OPT_mllvm, OPT_Zlinker_input};
   auto ShouldForward = [&](const llvm::DenseSet<unsigned> &Set, Arg *A) {
@@ -11232,8 +11251,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   const Driver &D = getToolChain().getDriver();
   const llvm::Triple TheTriple = getToolChain().getTriple();
   ArgStringList CmdArgs;
-  for (Action::OffloadKind Kind :
-    {Action::OFK_Cuda, Action::OFK_OpenMP, Action::OFK_SYCL}) {
+  for (Action::OffloadKind Kind : {Action::OFK_Cuda, Action::OFK_OpenMP,
+                                   Action::OFK_HIP, Action::OFK_SYCL}) {
     auto TCRange = C.getOffloadToolChains(Kind);
     for (auto &I : llvm::make_range(TCRange)) {
       const ToolChain *TC = I.second;
@@ -11504,6 +11523,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString("--device-linker=" + TC.getTripleString() + "=" +
                                "-lclang_rt.builtins"));
+      bool HasFlangRT = HasCompilerRT && C.getDriver().IsFlangMode();
+      if (HasFlangRT)
+        CmdArgs.push_back(
+            Args.MakeArgString("--device-linker=" + TC.getTripleString() + "=" +
+                               "-lflang_rt.runtime"));
     });
   }
 
