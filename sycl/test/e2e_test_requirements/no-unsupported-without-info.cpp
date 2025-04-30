@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 261
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 260
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -92,6 +92,7 @@
 // CHECK-NEXT: Basic/image/image_accessor_range.cpp
 // CHECK-NEXT: Basic/kernel_info_attr.cpp
 // CHECK-NEXT: Basic/submit_time.cpp
+// CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: DeviceImageDependencies/dynamic.cpp
 // CHECK-NEXT: DeviceImageDependencies/math_device_lib.cpp
 // CHECK-NEXT: DeviceImageDependencies/objects.cpp
@@ -119,8 +120,6 @@
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
 // CHECK-NEXT: DeviceLib/std_complex_math_fp64_test.cpp
 // CHECK-NEXT: DeviceLib/std_complex_math_test.cpp
-// CHECK-NEXT: DiscardEvents/discard_events_check_images.cpp
-// CHECK-NEXT: DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/Stencil.cpp
