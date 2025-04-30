@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
 #include <sycl/detail/core.hpp>
@@ -30,30 +30,36 @@ void ping(int *x) {
   // ...
 }
 
-template <typename T> void test_iota_kernel_id(sycl::context &ctxt) {
+template <typename T> int test_iota_kernel_id(sycl::context &ctxt) {
   sycl::kernel_id id = syclexp::get_kernel_id<iota<T>>();
   auto exe_bndl =
       syclexp::get_kernel_bundle<iota<T>, sycl::bundle_state::executable>(ctxt);
-  assert(exe_bndl.has_kernel(id) &&
-         "Kernel bundle does not contain the expected kernel");
+  if (exe_bndl.has_kernel(id)) 
+    return 0;
+  std::cout << "Kernel bundle does not contain the expected kernel" << std::endl;
+  return 1;
 }
 
-template <typename T> void test_ping_kernel_id(sycl::context &ctxt) {
+template <typename T> int test_ping_kernel_id(sycl::context &ctxt) {
   sycl::kernel_id id = syclexp::get_kernel_id<(void (*)(T *))ping>();
   auto exe_bndl =
       syclexp::get_kernel_bundle<(void (*)(T *))ping,
                                  sycl::bundle_state::executable>(ctxt);
-  assert(exe_bndl.has_kernel(id) &&
-         "Kernel bundle does not contain the expected kernel");
+  if (exe_bndl.has_kernel(id))
+    return 0;
+  std::cout << "Kernel bundle does not contain the expected kernel"
+            << std::endl;
+  return 1;
 }
 
 int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
 
-  test_iota_kernel_id<float>(ctxt);
-  test_iota_kernel_id<int>(ctxt);
-  test_ping_kernel_id<float>(ctxt);
-  test_ping_kernel_id<int>(ctxt);
-  return 0;
+  int failed = 0;
+  failed += test_iota_kernel_id<float>(ctxt);
+  failed += test_iota_kernel_id<int>(ctxt);
+  failed += test_ping_kernel_id<float>(ctxt);
+  failed += test_ping_kernel_id<int>(ctxt);
+  return failed;
 }

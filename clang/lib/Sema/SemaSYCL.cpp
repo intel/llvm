@@ -5793,6 +5793,11 @@ void SemaSYCL::MarkDevices() {
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
+    if (FD->isVariadic()) {
+      Diag(FD->getLocation(),
+             diag::err_free_function_variadic_args);
+      return;
+    }
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
@@ -6501,7 +6506,6 @@ public:
   /// Emits the function declaration of template free function.
   /// \param FTD The function declaration to print.
   /// \param S Sema object.
-  /// \param Policy Policy for printing.
   void printFreeFunctionDeclaration(FunctionTemplateDecl *FTD,
                                     clang::SemaSYCL &S) {
     const FunctionDecl *TemplatedDecl = FTD->getTemplatedDecl();
@@ -6923,11 +6927,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   for (const KernelDesc &K : KernelDescs) {
     if (!S.isFreeFunction(K.SyclKernel))
       continue;
-    if (K.SyclKernel->isVariadic()) {
-      S.Diag(K.SyclKernel->getLocation(),
-             diag::err_free_function_variadic_args);
-      continue;
-    }
     ++FreeFunctionCount;
     // Generate forward declaration for free function.
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
