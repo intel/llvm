@@ -274,7 +274,15 @@ ur_result_t createUrImgFromZeImage(ze_context_handle_t hContext,
                                    ur_exp_image_mem_native_handle_t *pImg) {
   ze_image_handle_t ZeImage;
   ZE2UR_CALL(zeImageCreate, (hContext, hDevice, &ZeImageDesc, &ZeImage));
-  ZE2UR_CALL(zeContextMakeImageResident, (hContext, hDevice, ZeImage));
+  if (ZeImage == nullptr) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+  try {
+    ZE2UR_CALL_THROWS(zeContextMakeImageResident, (hContext, hDevice, ZeImage));
+  } catch (const ze_result_t &result) {
+    ZE2UR_CALL(zeImageDestroy, (ZeImage));
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
 
   try {
     ur_bindless_mem_handle_t *urImg =
@@ -346,7 +354,16 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
 
     ZE2UR_CALL(zeImageCreate,
                (zeCtx, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
-    ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
+    if (ZeImage == nullptr) {
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    try {
+      ZE2UR_CALL_THROWS(zeContextMakeImageResident,
+                        (zeCtx, hDevice->ZeDevice, ZeImage));
+    } catch (const ze_result_t &result) {
+      ZE2UR_CALL(zeImageDestroy, (ZeImage));
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
   } else {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
