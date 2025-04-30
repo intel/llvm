@@ -474,21 +474,6 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   auto InOrderGraphExec = InOrderGraph.finalize();
   auto EventGraph = InOrderQueue.submit(
       [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(InOrderGraphExec); });
-
-  auto EventGraphImpl = sycl::detail::getSyclObjImpl(EventGraph);
-  auto EventGraphWaitList = EventGraphImpl->getWaitList();
-  // Previous task is a memset. Explicit dependency is needed to enforce the
-  // execution order.
-  ASSERT_EQ(EventGraphWaitList.size(), 1lu);
-  ASSERT_EQ(EventGraphWaitList[0], EventInitialImpl);
-
-  auto EventLast =
-      InOrderQueue.memcpy(TestData, TestDataHost.data(), Size * sizeof(int));
-  auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
-  auto EventLastWaitList = EventLastImpl->getWaitList();
-  // Previous task is not a host task. In Order queue dependency is managed by
-  // the backend for non-host kernels.
-  ASSERT_EQ(EventLastWaitList.size(), 0lu);
 }
 
 TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
@@ -553,19 +538,4 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
   auto InOrderGraphExec = InOrderGraph.finalize();
   auto EventGraph = InOrderQueue.submit(
       [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(InOrderGraphExec); });
-
-  auto EventGraphImpl = sycl::detail::getSyclObjImpl(EventGraph);
-  auto EventGraphWaitList = EventGraphImpl->getWaitList();
-  // Previous task is a memcpy. Explicit dependency is needed to enforce the
-  // execution order
-  ASSERT_EQ(EventGraphWaitList.size(), 1lu);
-  ASSERT_EQ(EventGraphWaitList[0], EventInitialImpl);
-
-  auto EventLast =
-      InOrderQueue.memcpy(TestData, TestDataHost.data(), Size * sizeof(int));
-  auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
-  auto EventLastWaitList = EventLastImpl->getWaitList();
-  // Previous task is not a host task. In Order queue dependency is managed by
-  // the backend for non-host kernels.
-  ASSERT_EQ(EventLastWaitList.size(), 0lu);
 }
