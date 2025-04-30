@@ -1,4 +1,4 @@
-//===----------- adapter.cpp - LLVM Offload Plugin  -----------------------===//
+//===----------- adapter.cpp - LLVM Offload Adapter  ----------------------===//
 //
 // Copyright (C) 2024 Intel Corporation
 //

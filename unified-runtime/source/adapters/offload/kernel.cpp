@@ -1,3 +1,13 @@
+//===----------- kernel.cpp - LLVM Offload Adapter  -----------------------===//
+//
+// Copyright (C) 2025 Intel Corporation
+//
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "kernel.hpp"
 #include "program.hpp"
 #include "ur2offload.hpp"
@@ -56,10 +66,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelGetGroupInfo(ur_kernel_handle_t, ur_device_handle_t,
-                     ur_kernel_group_info_t propName, size_t propSize,
-                     void *pPropValue, size_t *pPropSizeRet) {
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
+    ur_kernel_handle_t, ur_device_handle_t, ur_kernel_group_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   if (propName == UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE) {
