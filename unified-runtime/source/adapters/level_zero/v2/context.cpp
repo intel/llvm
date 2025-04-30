@@ -68,7 +68,7 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),
       p2pAccessDevices(populateP2PDevices(
           phDevices[0]->Platform->getNumDevices(), this->hDevices)),
-      defaultUSMPool(this, nullptr) {}
+      defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
 
 ur_result_t ur_context_handle_t_::retain() {
   RefCount.increment();
@@ -104,6 +104,8 @@ bool ur_context_handle_t_::isValidDevice(ur_device_handle_t hDevice) const {
 ur_usm_pool_handle_t ur_context_handle_t_::getDefaultUSMPool() {
   return &defaultUSMPool;
 }
+
+ur_usm_pool_handle_t ur_context_handle_t_::getAsyncPool() { return &asyncPool; }
 
 const std::vector<ur_device_handle_t> &
 ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
