@@ -16,14 +16,6 @@ using namespace sycl;
 int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
   try {
-    // Initialize Level Zero driver is required if this test is linked
-    // statically with Level Zero loader, the driver will not be init otherwise.
-    ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
-    if (result != ZE_RESULT_SUCCESS) {
-      std::cout << "zeInit failed\n";
-      return 1;
-    }
-
     platform Plt{gpu_selector_v};
 
     auto Devices = Plt.get_devices();
@@ -31,6 +23,14 @@ int main() {
     if (Devices.size() < 1) {
       std::cout << "Devices not found" << std::endl;
       return 0;
+    }
+
+    // Initialize Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, the driver will not be init otherwise.
+    ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+    if (result != ZE_RESULT_SUCCESS) {
+      std::cout << "zeInit failed\n";
+      return 1;
     }
 
     device Device = Devices[0];
