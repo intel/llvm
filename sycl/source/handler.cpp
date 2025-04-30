@@ -2015,14 +2015,16 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
                                            size_t NumBytes, size_t Offset) {
   std::weak_ptr<detail::context_impl> WeakContextImpl =
       MQueue->getContextImplPtr();
-  host_task([=] {
-    // Capture context and device as weak to avoid keeping them alive for too
-    // long. If they are dead by the time this executes, the operation would not
-    // have been visible anyway.
+  detail::device_impl &Dev = MQueue->getDeviceImpl();
+  host_task([=, &Dev] {
+    // Capture context as weak to avoid keeping it alive for too long. If it is
+    // dead by the time this executes, the operation would not have been visible
+    // anyway. Devices are alive till library shutdown so capturing a reference
+    // to one is fine.
     std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
     if (ContextImpl)
       ContextImpl->memcpyToHostOnlyDeviceGlobal(
-          MQueue->getDeviceImpl(), DeviceGlobalPtr, Src, DeviceGlobalTSize,
+          Dev, DeviceGlobalPtr, Src, DeviceGlobalTSize,
           IsDeviceImageScoped, NumBytes, Offset);
   });
 }
