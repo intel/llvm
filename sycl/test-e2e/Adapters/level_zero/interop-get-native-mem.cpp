@@ -2,6 +2,8 @@
 // L0 adapter incorrectly reports memory leaks because it doesn't take into
 // account direct calls to L0 API.
 // UNSUPPORTED: ze_debug
+// XFAIL: linux && gpu-intel-dg2 && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18273
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 
