@@ -40,15 +40,9 @@ jobs:
     name: Detect Changes
     uses: ./.github/workflows/sycl-detect-changes.yml
 
-  source_checks:
-    name: Source Checks
-    needs: [detect_changes]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
-    uses: ./.github/workflows/ur-source-checks.yml
-
   adapters:
     name: Adapters
-    needs: [detect_changes, source_checks]
+    needs: [detect_changes]
     if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
