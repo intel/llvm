@@ -282,18 +282,22 @@ event queue_impl::memcpyFromDeviceGlobal(
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
 }
 
-sycl::detail::optional<event> queue_impl::getLastEvent() {
+sycl::detail::optional<event>
+queue_impl::getLastEvent(const std::shared_ptr<queue_impl> &Self) {
   // The external event is required to finish last if set, so it is considered
   // the last event if present.
   if (std::optional<event> ExternalEvent = MInOrderExternalEvent.read())
     return ExternalEvent;
 
   std::lock_guard<std::mutex> Lock{MMutex};
-  if (MGraph.expired() && !MDefaultGraphDeps.LastEventPtr)
+  if (MEmpty)
     return std::nullopt;
-  if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
-    return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
-  return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
+  auto &LastEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                     : MExtGraphDeps.LastEventPtr;
+  if (LastEvent)
+    return detail::createSyclObjFromImpl<event>(LastEvent);
+  // We insert a marker to represent an event at end.
+  return detail::createSyclObjFromImpl<event>(insertMarkerEvent(Self));
 }
 
 void queue_impl::addEvent(const event &Event) {
@@ -344,9 +348,49 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+  auto isHostTask = Type == CGType::CodeplayHostTask;
 
-  addEvent(Event);
+  // TODO: this shouldn't be needed but without this
+  // the legacy adapter doesn't synchronize the operations properly
+  // when non-immediate command lists are used.
+  auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
+
+  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
+  auto noLastEventPath = !isHostTask && !isGraphSubmission &&
+                         MNoEventMode.load(std::memory_order_relaxed) &&
+                         !requiresPostProcess;
+
+  if (noLastEventPath) {
+    std::unique_lock<std::mutex> Lock(MMutex);
+
+    // Check if we are still in no event mode. There could
+    // have been a concurrent submit.
+    if (MNoEventMode.load(std::memory_order_relaxed)) {
+      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+    }
+  }
+
+  event Event;
+  if (!isInOrder()) {
+    Event = finalizeHandlerOutOfOrder(Handler);
+    addEvent(Event);
+  } else {
+    if (isHostTask) {
+      std::unique_lock<std::mutex> Lock(MMutex);
+      Event = finalizeHandlerInOrderHostTaskUnlocked(Handler);
+    } else {
+      std::unique_lock<std::mutex> Lock(MMutex);
+
+      if (!isGraphSubmission && trySwitchingToNoEventsMode()) {
+        Event = finalizeHandlerInOrderNoEventsUnlocked(Handler);
+      } else {
+        Event = finalizeHandlerInOrderWithDepsUnlocked(Handler);
+      }
+    }
+  }
+
+  if (SubmitInfo.PostProcessorFunc())
+    handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
 
   const auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
@@ -370,63 +414,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const std::shared_ptr<queue_impl> &Self,
-                              const std::shared_ptr<queue_impl> &PrimaryQueue,
+                              const std::shared_ptr<queue_impl> &,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(PrimaryQueue.get(), CallerNeedsEvent);
-  detail::handler_impl *HandlerImpl = &HandlerImplVal;
-  handler Handler(HandlerImpl, Self);
-#else
-  handler Handler(Self, CallerNeedsEvent);
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
-#endif
-
-#if XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    Handler.saveCodeLoc(Loc, IsTopCodeLoc);
-  }
-#endif
-
-  {
-    NestedCallsTracker tracker;
-    CGF(Handler);
-  }
-
-  // Scheduler will later omit events, that are not required to execute tasks.
-  // Host and interop tasks, however, are not submitted to low-level runtimes
-  // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
-  std::vector<StreamImplPtr> Streams;
-  if (Type == CGType::Kernel)
-    Streams = std::move(Handler.MStreamStorage);
-
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
-
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
-
-  addEvent(Event);
-
-  const auto &EventImpl = detail::getSyclObjImpl(Event);
-  for (auto &Stream : Streams) {
-    // We don't want stream flushing to be blocking operation that is why submit
-    // a host task to print stream buffer. It will fire up as soon as the kernel
-    // finishes execution.
-    auto L = [&](handler &ServiceCGH) {
-      Stream->generateFlushCommand(ServiceCGH);
-    };
-    detail::type_erased_cgfo_ty CGF{L};
-    event FlushEvent =
-        submit_impl(CGF, Self, PrimaryQueue, SecondaryQueue,
-                    /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
-    EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
-    registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
-  }
-
-  return Event;
+  return submit_impl(CGF, Self, SecondaryQueue.get(), CallerNeedsEvent, Loc,
+                     IsTopCodeLoc, SubmitInfo);
 }
 #endif
 
@@ -467,24 +462,19 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     const std::vector<event> &ExpandedDepEvents =
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
+    MEmpty = false;
+
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
                                 ExpandedDepEvents, MContext)) {
-      if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+      auto isNoEventsMode = trySwitchingToNoEventsMode();
+      if (!CallerNeedsEvent && isNoEventsMode) {
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr);
 
-        event DiscardedEvent = createDiscardedEvent();
-        if (isInOrder()) {
-          // Store the discarded event for proper in-order dependency tracking.
-          auto &EventToStoreIn = MGraph.expired()
-                                     ? MDefaultGraphDeps.LastEventPtr
-                                     : MExtGraphDeps.LastEventPtr;
-          EventToStoreIn = detail::getSyclObjImpl(DiscardedEvent);
-        }
-        return DiscardedEvent;
+        return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
@@ -509,7 +499,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         }
       }
 
-      if (isInOrder()) {
+      if (isInOrder() && !isNoEventsMode) {
         auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                                 : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
@@ -637,9 +627,11 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
 
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
+  EventImplPtr LastEvent;
   {
     std::lock_guard<std::mutex> Lock(MMutex);
     WeakEvents.swap(MEventsWeak);
+    LastEvent = MDefaultGraphDeps.LastEventPtr;
 
     MMissedCleanupRequests.unset(
         [&](MissedCleanupRequestsType &MissedCleanupRequests) {
@@ -664,6 +656,11 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       }
     }
   }
+
+  if (LastEvent) {
+    LastEvent->wait(LastEvent);
+  }
+
   const AdapterPtr &Adapter = getAdapter();
   Adapter->call<UrApiKind::urQueueFinish>(getHandleRef());
 
@@ -754,21 +751,20 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 }
 
 bool queue_impl::queue_empty() const {
-  // If we have in-order queue where events are not discarded then just check
-  // the status of the last event.
+  // If we have in-order queue with non-empty last event, just check its status.
   if (isInOrder()) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    // If there is no last event we know that no work has been submitted, so it
-    // must be trivially empty.
-    if (!MDefaultGraphDeps.LastEventPtr)
-      return true;
-    // Otherwise, check if the last event is finished.
-    // Note that we fall back to the backend query if the event was discarded,
-    // which may happend despite the queue not being a discard event queue.
-    if (!MDefaultGraphDeps.LastEventPtr->isDiscarded())
+    if (MDefaultGraphDeps.LastEventPtr)
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==
              info::event_command_status::complete;
+    else if (getContextImplPtr()->getBackend() == backend::opencl) {
+      assert(!MNoEventMode);
+      // openCL does not support urQueueGetInfo and will never have
+      // MNoEventMode set, so if there is no last event, the queue
+      // must be empty.
+      return true;
+    }
   }
 
   // Check the status of the backend queue if this is not a host queue.
@@ -777,6 +773,11 @@ bool queue_impl::queue_empty() const {
       MQueue, UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
   if (!IsReady)
     return false;
+
+  // If got here, it means that LastEventPtr is nullptr (so no possible Host
+  // Tasks) and there is nothing executing on the device.
+  if (isInOrder())
+    return true;
 
   // We may have events like host tasks which are not submitted to the backend
   // queue so we need to get their status separately.
