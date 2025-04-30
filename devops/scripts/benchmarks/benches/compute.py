@@ -670,6 +670,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             "--Profiling=0",
             "--KernelExecutionTime=1",
             "--UseEvents=0",  # not all implementations support UseEvents=1
+            "--UseExplicit=0",
         ]
 
 
