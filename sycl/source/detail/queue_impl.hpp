@@ -116,6 +116,7 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
+        MNoEventMode(MIsInorder),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
@@ -180,7 +181,8 @@ public:
 #endif
   }
 
-  sycl::detail::optional<event> getLastEvent();
+  sycl::detail::optional<event>
+  getLastEvent(const std::shared_ptr<queue_impl> &Self);
 
 private:
   void queue_impl_interop(ur_queue_handle_t UrQueue) {
@@ -630,6 +632,7 @@ public:
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
     MExtGraphDeps.reset();
+    MNoEventMode = false;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -720,6 +723,29 @@ protected:
   }
 
   template <typename HandlerType = handler>
+  void synchronizeWithExternalEvent(HandlerType &Handler) {
+    // If there is an external event set, add it as a dependency and clear it.
+    // We do not need to hold the lock as MLastEventMtx will ensure the last
+    // event reflects the corresponding external event dependence as well.
+    std::optional<event> ExternalEvent = popExternalEvent();
+    if (ExternalEvent)
+      Handler.depends_on(*ExternalEvent);
+  }
+
+  template <typename HandlerType = handler>
+  event finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
+    assert(isInOrder());
+    assert(MGraph.expired());
+    assert(MNoEventMode);
+
+    MEmpty = false;
+
+    synchronizeWithExternalEvent(Handler);
+
+    return Handler.finalize();
+  }
+
+  template <typename HandlerType = handler>
   event finalizeHandlerInOrder(HandlerType &Handler) {
     // Accessing and changing of an event isn't atomic operation.
     // Hence, here is the lock for thread-safety.
@@ -727,6 +753,16 @@ protected:
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
+
+    if (!MEmpty && MNoEventMode &&
+        Handler.getType() == CGType::CodeplayHostTask) {
+      assert(MGraph.expired());
+      assert(MDefaultGraphDeps.LastEventPtr == nullptr);
+      // There might be some operations submitted to the queue
+      // but the LastEventPtr is not set. If we are to run a host_task,
+      // we need to insert a barrier to ensure proper synchronization.
+      Handler.depends_on(insertHelperBarrier(Handler));
+    }
 
     // This dependency is needed for the following purposes:
     //    - host tasks are handled by the runtime and cannot be implicitly
@@ -736,6 +772,9 @@ protected:
     //    the RT but will not be passed to the backend. See getPIEvents in
     //    Command.
     if (EventToBuildDeps) {
+      // If we have last event, this means we are no longer in no-event mode.
+      assert(!MNoEventMode);
+
       // In the case where the last event was discarded and we are to run a
       // host_task, we insert a barrier into the queue and use the resulting
       // event as the dependency for the host_task.
@@ -754,12 +793,10 @@ protected:
         Handler.depends_on(EventToBuildDeps);
     }
 
-    // If there is an external event set, add it as a dependency and clear it.
-    // We do not need to hold the lock as MLastEventMtx will ensure the last
-    // event reflects the corresponding external event dependence as well.
-    std::optional<event> ExternalEvent = popExternalEvent();
-    if (ExternalEvent)
-      Handler.depends_on(*ExternalEvent);
+    MEmpty = false;
+    MNoEventMode = false;
+
+    synchronizeWithExternalEvent(Handler);
 
     auto EventRet = Handler.finalize();
     EventToBuildDeps = getSyclObjImpl(EventRet);
@@ -771,6 +808,9 @@ protected:
   event finalizeHandlerOutOfOrder(HandlerType &Handler) {
     const CGType Type = getSyclObjImpl(Handler)->MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
+
+    MEmpty = false;
+
     // The following code supports barrier synchronization if host task is
     // involved in the scenario. Native barriers cannot handle host task
     // dependency so in the case where some commands were not enqueued
@@ -1005,6 +1045,14 @@ protected:
   };
 
   const bool MIsInorder;
+
+  // Specifies whether this queue records last event. This can only
+  // be true if the queue is in-order, the command graph is not
+  // associated with the queue and there has never been any host
+  // tasks submitted to the queue.
+  std::atomic<bool> MNoEventMode;
+
+  bool MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
   std::mutex MStreamsServiceEventsMutex;

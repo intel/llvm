@@ -302,7 +302,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
   assert(!QueueImpl->hasCommandGraph() &&
          "Should not be called in on graph recording.");
 
-  sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent();
+  sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent(QueueImpl);
   if (LastEvent)
     return *LastEvent;
 
@@ -321,10 +321,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
       !impl->MIsProfilingEnabled) {
-    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
-    // If the last event was discarded, fall back to enqueuing a barrier.
-    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
-      return InOrderLastEvent;
+    return getBarrierEventForInorderQueueHelper(impl);
   }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
@@ -349,10 +346,7 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
       });
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
       !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
-    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
-    // If the last event was discarded, fall back to enqueuing a barrier.
-    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
-      return InOrderLastEvent;
+    return getBarrierEventForInorderQueueHelper(impl);
   }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
@@ -432,20 +426,7 @@ sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
         make_error_code(errc::invalid),
         "ext_oneapi_get_last_event() can only be called on in-order queues.");
 
-  sycl::detail::optional<event> LastEvent = impl->getLastEvent();
-
-  // If there was no last event, the queue is yet to have any work submitted and
-  // we return a std::nullopt.
-  if (!LastEvent)
-    return std::nullopt;
-
-  // If the last event was discarded or a NOP, we insert a marker to represent
-  // an event at end.
-  auto LastEventImpl = detail::getSyclObjImpl(*LastEvent);
-  if (LastEventImpl->isDiscarded() || LastEventImpl->isNOP())
-    LastEvent =
-        detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));
-  return LastEvent;
+  return impl->getLastEvent(impl);
 }
 
 void queue::ext_oneapi_set_external_event(const event &external_event) {
