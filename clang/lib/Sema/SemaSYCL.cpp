@@ -320,8 +320,7 @@ ExprResult SemaSYCL::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
 /// Returns true if the target requires a new type.
 /// This happens if a pointer to generic cannot be passed
 static bool targetRequiresNewType(ASTContext &Context) {
-  llvm::Triple T = Context.getTargetInfo().getTriple();
-  return !T.isNVPTX();
+  return false;
 }
 
 // This information is from Section 4.13 of the SYCL spec
