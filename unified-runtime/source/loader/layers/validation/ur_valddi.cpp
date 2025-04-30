@@ -4907,7 +4907,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     if (phEventWaitList != NULL && numEventsInWaitList == 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
-    if (region.width == 0 || region.height == 0 || region.width == 0)
+    if (region.width == 0 || region.height == 0 || region.depth == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
 
     if (bufferRowPitch != 0 && bufferRowPitch < region.width)
@@ -5037,7 +5037,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     if (phEventWaitList != NULL && numEventsInWaitList == 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
-    if (region.width == 0 || region.height == 0 || region.width == 0)
+    if (region.width == 0 || region.height == 0 || region.depth == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
 
     if (bufferRowPitch != 0 && bufferRowPitch < region.width)
@@ -6804,6 +6804,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
         UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
         if (phEventWaitList[i] == NULL) {
@@ -6874,6 +6880,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
     if (NULL != pProperties &&
         UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
@@ -6946,6 +6958,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
         UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
         if (phEventWaitList[i] == NULL) {
@@ -7007,6 +7025,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
 
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {

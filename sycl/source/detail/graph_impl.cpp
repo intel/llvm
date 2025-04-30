@@ -57,6 +57,10 @@ inline const char *nodeTypeToString(node_type NodeType) {
     return "host_task";
   case node_type::native_command:
     return "native_command";
+  case node_type::async_malloc:
+    return "async_malloc";
+  case node_type::async_free:
+    return "async_free";
   }
   assert(false && "Unhandled node type");
   return {};
@@ -340,7 +344,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
                        const sycl::device &SyclDevice,
                        const sycl::property_list &PropList)
     : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-      MEventsMap(), MInorderQueueMap(),
+      MEventsMap(), MInorderQueueMap(), MGraphMemPool(SyclContext, SyclDevice),
       MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
   checkGraphPropertiesAndThrow(PropList);
   if (PropList.has_property<property::graph::no_cycle_check>()) {
@@ -505,8 +509,9 @@ graph_impl::add(std::function<void(handler &)> CGF,
   sycl::handler Handler{shared_from_this()};
 #endif
 
-  // save code location if one was set in TLS.
-  // idealy it would be nice to capture user's call code location
+#if XPTI_ENABLE_INSTRUMENTATION
+  // Save code location if one was set in TLS.
+  // Ideally it would be nice to capture user's call code location
   // by adding a parameter to the graph.add function, but this will
   // break the API. At least capture code location from TLS, user
   // can set it before calling graph.add
@@ -514,6 +519,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
     sycl::detail::tls_code_loc_t Tls;
     Handler.saveCodeLoc(Tls.query(), Tls.isToplevel());
   }
+#endif
 
   CGF(Handler);
 
@@ -755,12 +761,12 @@ void graph_impl::beginRecording(
   }
 }
 
-// Check if nodes are empty and if so loop back through predecessors until we
-// find the real dependency.
+// Check if nodes do not require enqueueing and if so loop back through
+// predecessors until we find the real dependency.
 void exec_graph_impl::findRealDeps(
     std::vector<ur_exp_command_buffer_sync_point_t> &Deps,
     std::shared_ptr<node_impl> CurrentNode, int ReferencePartitionNum) {
-  if (CurrentNode->isEmpty()) {
+  if (!CurrentNode->requiresEnqueue()) {
     for (auto &N : CurrentNode->MPredecessors) {
       auto NodeImpl = N.lock();
       findRealDeps(Deps, NodeImpl, ReferencePartitionNum);
@@ -832,17 +838,9 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   return NewSyncPoint;
 }
 
-ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
-    sycl::context Ctx, std::shared_ptr<sycl::detail::device_impl> DeviceImpl,
-    ur_exp_command_buffer_handle_t CommandBuffer,
-    std::shared_ptr<node_impl> Node) {
-
-  // Queue which will be used for allocation operations for accessors.
-  // Will also be used in native commands to return to the user in
-  // `interop_handler::get_native_queue()` calls.
-  auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
-      DeviceImpl, sycl::detail::getSyclObjImpl(Ctx), sycl::async_handler{},
-      sycl::property_list{});
+ur_exp_command_buffer_sync_point_t
+exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
+                             std::shared_ptr<node_impl> Node) {
 
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
   for (auto &N : Node->MPredecessors) {
@@ -851,8 +849,8 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
 
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
-          Node->getCGCopy(), AllocaQueue, /*EventNeeded=*/true, CommandBuffer,
-          Deps);
+          Node->getCGCopy(), MQueueImpl,
+          /*EventNeeded=*/true, CommandBuffer, Deps);
 
   if (MIsUpdatable) {
     MCommandMap[Node] = Event->getCommandBufferCommand();
@@ -880,9 +878,9 @@ void exec_graph_impl::createCommandBuffers(
   Partition->MCommandBuffers[Device] = OutCommandBuffer;
 
   for (const auto &Node : Partition->MSchedule) {
-    // Empty nodes are not processed as other nodes, but only their
+    // Some nodes are not scheduled like other nodes, and only their
     // dependencies are propagated in findRealDeps
-    if (Node->isEmpty())
+    if (!Node->requiresEnqueue())
       continue;
 
     sycl::detail::CGType type = Node->MCGType;
@@ -897,8 +895,7 @@ void exec_graph_impl::createCommandBuffers(
       MSyncPoints[Node] =
           enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node);
     } else {
-      MSyncPoints[Node] =
-          enqueueNode(MContext, DeviceImpl, OutCommandBuffer, Node);
+      MSyncPoints[Node] = enqueueNode(OutCommandBuffer, Node);
     }
 
     // Append Node requirements to overall graph requirements
@@ -925,6 +922,10 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
     : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
+      MQueueImpl(std::make_shared<sycl::detail::queue_impl>(
+          sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+          sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+          sycl::property_list{})),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MExecutionEvents(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
@@ -948,6 +949,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 
 exec_graph_impl::~exec_graph_impl() {
   try {
+    MGraphImpl->markExecGraphDestroyed();
+
     const sycl::detail::AdapterPtr &Adapter =
         sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
@@ -956,6 +959,9 @@ exec_graph_impl::~exec_graph_impl() {
     for (auto &Event : MExecutionEvents) {
       Event->wait(Event);
     }
+
+    // Clean up any graph-owned allocations that were allocated
+    MGraphImpl->getMemPool().deallocateAndUnmapAll();
 
     for (const auto &Partition : MPartitions) {
       Partition->MSchedule.clear();
@@ -1009,39 +1015,19 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     auto CommandBuffer = CurrentPartition->MCommandBuffers[Queue->get_device()];
 
     if (CommandBuffer) {
-      // if previous submissions are incompleted, we automatically
-      // add completion events of previous submissions as dependencies.
-      // With Level-Zero backend we cannot resubmit a command-buffer until the
-      // previous one has already completed.
-      // Indeed, since a command-list does not accept a list a dependencies at
-      // submission, we circumvent this lack by adding a barrier that waits on a
-      // specific event and then define the conditions to signal this event in
-      // another command-list. Consequently, if a second submission is
-      // performed, the signal conditions of this single event are redefined by
-      // this second submission. Thus, this can lead to an undefined behaviour
-      // and potential hangs. We have therefore to expliclty wait in the host
-      // for previous submission to complete before resubmitting the
-      // command-buffer for level-zero backend.
-      // TODO https://github.com/intel/llvm/issues/17734
-      // Remove this backend specific behavior and allow multiple concurrent
-      // submissions of the UR command-buffer.
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
                MExecutionEvents.begin();
            It != MExecutionEvents.end();) {
         auto Event = *It;
         if (!Event->isCompleted()) {
-          if (Queue->get_device().get_backend() ==
-              sycl::backend::ext_oneapi_level_zero) {
-            Event->wait(Event);
-          } else {
-            auto &AttachedEventsList = Event->getPostCompleteEvents();
-            CGData.MEvents.reserve(AttachedEventsList.size() + 1);
-            CGData.MEvents.push_back(Event);
-            // Add events of the previous execution of all graph partitions.
-            for (auto &AttachedEvent : AttachedEventsList) {
-              CGData.MEvents.push_back(AttachedEvent);
-            }
-          }
+          auto &AttachedEventsList = Event->getPostCompleteEvents();
+          CGData.MEvents.reserve(CGData.MEvents.size() +
+                                 AttachedEventsList.size() + 1);
+          CGData.MEvents.push_back(Event);
+          // Add events of the previous execution of all graph partitions.
+          CGData.MEvents.insert(CGData.MEvents.end(),
+                                AttachedEventsList.begin(),
+                                AttachedEventsList.end());
           ++It;
         } else {
           // Remove completed events
@@ -1107,46 +1093,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
           NodeImpl->getCGCopy(), Queue, /*EventNeeded=*/true);
-    } else {
-      std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
-      for (auto &NodeImpl : CurrentPartition->MSchedule) {
-        std::vector<ur_event_handle_t> RawEvents;
-
-        // If the node has no requirements for accessors etc. then we skip the
-        // scheduler and enqueue directly.
-        if (NodeImpl->MCGType == sycl::detail::CGType::Kernel &&
-            NodeImpl->MCommandGroup->getRequirements().size() +
-                    static_cast<sycl::detail::CGExecKernel *>(
-                        NodeImpl->MCommandGroup.get())
-                        ->MStreams.size() ==
-                0) {
-          sycl::detail::CGExecKernel *CG =
-              static_cast<sycl::detail::CGExecKernel *>(
-                  NodeImpl->MCommandGroup.get());
-          auto OutEvent = CreateNewEvent();
-          sycl::detail::enqueueImpKernel(
-              Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle,
-              CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
-              // TODO: Pass accessor mem allocations
-              nullptr,
-              // TODO: Extract from handler
-              UR_KERNEL_CACHE_CONFIG_DEFAULT, CG->MKernelIsCooperative,
-              CG->MKernelUsesClusterLaunch, CG->MKernelWorkGroupMemorySize);
-          ScheduledEvents.push_back(NewEvent);
-        } else if (!NodeImpl->isEmpty()) {
-          // Empty nodes are node processed as other nodes, but only their
-          // dependencies are propagated in findRealDeps
-          sycl::detail::EventImplPtr EventImpl =
-              sycl::detail::Scheduler::getInstance().addCG(
-                  NodeImpl->getCGCopy(), Queue, /*EventNeeded=*/true);
-
-          ScheduledEvents.push_back(EventImpl);
-        }
-      }
-      // Create an event which has all kernel events as dependencies
-      NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
-      NewEvent->setStateIncomplete();
-      NewEvent->getPreparedDepsEvents() = ScheduledEvents;
     }
     PartitionsExecutionEvents[CurrentPartition] = NewEvent;
   }
@@ -1423,16 +1369,11 @@ void exec_graph_impl::update(
       ++It;
     }
 
-    auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
-        sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
-        sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
-        sycl::async_handler{}, sycl::property_list{});
-
     // Track the event for the update command since execution may be blocked by
     // other scheduler commands
     auto UpdateEvent =
         sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-            this, Nodes, AllocaQueue, std::move(UpdateRequirements),
+            this, Nodes, MQueueImpl, std::move(UpdateRequirements),
             MExecutionEvents);
 
     MExecutionEvents.push_back(UpdateEvent);
@@ -1539,18 +1480,18 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   ur_kernel_handle_t UrKernel = nullptr;
   auto Kernel = ExecCG.MSyclKernel;
   auto KernelBundleImplPtr = ExecCG.MKernelBundle;
-  std::shared_ptr<sycl::detail::kernel_impl> SyclKernelImpl = nullptr;
   const sycl::detail::KernelArgMask *EliminatedArgMask = nullptr;
 
-  if (auto SyclKernelImpl = KernelBundleImplPtr
-                                ? KernelBundleImplPtr->tryGetKernel(
-                                      ExecCG.MKernelName, KernelBundleImplPtr)
-                                : std::shared_ptr<kernel_impl>{nullptr}) {
-    UrKernel = SyclKernelImpl->getHandleRef();
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-  } else if (Kernel != nullptr) {
+  if (Kernel != nullptr) {
     UrKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
+  } else if (auto SyclKernelImpl =
+                 KernelBundleImplPtr
+                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName,
+                                                         KernelBundleImplPtr)
+                     : std::shared_ptr<kernel_impl>{nullptr}) {
+    UrKernel = SyclKernelImpl->getHandleRef();
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
@@ -1875,6 +1816,14 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
   // Graph is read and written in this scope so we lock
   // this graph with full priviledges.
   graph_impl::WriteLock Lock(impl->MMutex);
+  // If the graph uses graph-owned allocations and an executable graph already
+  // exists we must throw an error.
+  if (impl->getMemPool().hasAllocations() && impl->getExecGraphCount() > 0) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Graphs containing allocations can only have a "
+                          "single executable graph alive at any one time.");
+  }
+
   return command_graph<graph_state::executable>{
       this->impl, this->impl->getContext(), PropList};
 }
@@ -2002,10 +1951,15 @@ executable_command_graph::executable_command_graph(
     const property_list &PropList)
     : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph, PropList)) {
   finalizeImpl(); // Create backend representation for executable graph
+  // Mark that we have created an executable graph from the modifiable graph.
+  Graph->markExecGraphCreated();
 }
 
 void executable_command_graph::finalizeImpl() {
   impl->makePartitions();
+
+  // Handle any work required for graph-owned memory allocations
+  impl->finalizeMemoryAllocations();
 
   auto Device = impl->getGraphImpl()->getDevice();
   for (auto Partition : impl->getPartitions()) {
@@ -2032,6 +1986,13 @@ void executable_command_graph::update(const std::vector<node> &Nodes) {
   }
 
   impl->update(NodeImpls);
+}
+
+size_t executable_command_graph::get_required_mem_size() const {
+  // Since each graph has a unique mem pool, return the current memory usage for
+  // now. This call my change if we move to being able to share memory between
+  // unique graphs.
+  return impl->getGraphImpl()->getMemPool().getMemUseCurrent();
 }
 
 dynamic_parameter_base::dynamic_parameter_base(

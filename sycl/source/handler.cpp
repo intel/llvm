@@ -333,28 +333,24 @@ handler::handler(detail::handler_impl *HandlerImpl)
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(Queue.get(),
-                                                  CallerNeedsEvent)),
-      MQueue(Queue) {}
+    : impl(std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
+      MQueue(std::move(Queue)) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: This function is not used anymore, remove it in the next
 // ABI-breaking window.
 handler::handler(
     std::shared_ptr<detail::queue_impl> Queue,
-    std::shared_ptr<detail::queue_impl> PrimaryQueue,
-    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
-    bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue.get(),
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
+    std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue.get(),
                                                   CallerNeedsEvent)),
       MQueue(Queue) {}
 #endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 detail::queue_impl *PrimaryQueue,
-                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue,
+                 detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue,
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
@@ -595,8 +591,11 @@ event handler::finalize() {
         LastEventImpl->setEnqueued();
         // connect returned event with dependent events
         if (!MQueue->isInOrder()) {
-          LastEventImpl->getPreparedDepsEvents() = impl->CGData.MEvents;
-          LastEventImpl->cleanDepEventsThroughOneLevel();
+          // MEvents is not used anymore, so can move.
+          LastEventImpl->getPreparedDepsEvents() =
+              std::move(impl->CGData.MEvents);
+          // LastEventImpl is local for current thread, no need to lock.
+          LastEventImpl->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
       return MLastEvent;
@@ -1789,13 +1788,20 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  if ((!impl->MGraph && (impl->MSubmissionPrimaryQueue->get_context() !=
-                         ExecBundle.get_context())) ||
+  if ((!impl->MGraph && (MQueue->get_context() != ExecBundle.get_context())) ||
       (impl->MGraph &&
        (impl->MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the primary queue is different from the "
+        "context associated with the kernel bundle");
+
+  if (impl->MSubmissionSecondaryQueue &&
+      impl->MSubmissionSecondaryQueue->get_context() !=
+          ExecBundle.get_context())
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Context associated with the secondary queue is different from the "
         "context associated with the kernel bundle");
 
   setStateExplicitKernelBundle();
@@ -1943,23 +1949,21 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  auto &PrimQueue = impl->MSubmissionPrimaryQueue;
-  if (PrimQueue)
-    return checkContextSupports(PrimQueue->getContextImplPtr(),
-                                UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  else
-    // Return true when handler_impl is constructed with a graph.
+  // Return true when handler_impl is constructed with a graph.
+  if (!MQueue)
     return true;
+
+  return checkContextSupports(MQueue->getContextImplPtr(),
+                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
 }
 
 bool handler::supportsUSMFill2D() {
-  auto &PrimQueue = impl->MSubmissionPrimaryQueue;
-  if (PrimQueue)
-    return checkContextSupports(PrimQueue->getContextImplPtr(),
-                                UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  else
-    // Return true when handler_impl is constructed with a graph.
+  // Return true when handler_impl is constructed with a graph.
+  if (!MQueue)
     return true;
+
+  return checkContextSupports(MQueue->getContextImplPtr(),
+                              UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
 }
 
 bool handler::supportsUSMMemset2D() {
@@ -2067,6 +2071,9 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
 
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
+  if (impl->MGraph) {
+    return impl->MGraph->getContextImplPtr();
+  }
   return MQueue->getContextImplPtr();
 }
 
@@ -2239,16 +2246,16 @@ sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
 void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
                                          bool SetNumWorkGroups, int Dims) {
-  impl->MNDRDesc.reset(N, SetNumWorkGroups, Dims);
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups, Dims};
 }
 void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc.reset(NumWorkItems, Offset, Dims);
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset, Dims};
 }
 void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::range<3> LocalSize,
                                          sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc.reset(NumWorkItems, LocalSize, Offset, Dims);
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {

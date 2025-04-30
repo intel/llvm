@@ -312,6 +312,59 @@ void queue_impl::addEvent(const event &Event) {
 
 event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const std::shared_ptr<queue_impl> &Self,
+                              queue_impl *SecondaryQueue, bool CallerNeedsEvent,
+                              const detail::code_location &Loc,
+                              bool IsTopCodeLoc,
+                              const SubmissionInfo &SubmitInfo) {
+  handler Handler(Self, SecondaryQueue, CallerNeedsEvent);
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    Handler.saveCodeLoc(Loc, IsTopCodeLoc);
+  }
+#endif
+
+  {
+    NestedCallsTracker tracker;
+    CGF(Handler);
+  }
+
+  // Scheduler will later omit events, that are not required to execute tasks.
+  // Host and interop tasks, however, are not submitted to low-level runtimes
+  // and require separate dependency management.
+  const CGType Type = HandlerImpl->MCGType;
+  std::vector<StreamImplPtr> Streams;
+  if (Type == CGType::Kernel)
+    Streams = std::move(Handler.MStreamStorage);
+
+  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+
+  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+
+  addEvent(Event);
+
+  const auto &EventImpl = detail::getSyclObjImpl(Event);
+  for (auto &Stream : Streams) {
+    // We don't want stream flushing to be blocking operation that is why submit
+    // a host task to print stream buffer. It will fire up as soon as the kernel
+    // finishes execution.
+    auto L = [&](handler &ServiceCGH) {
+      Stream->generateFlushCommand(ServiceCGH);
+    };
+    detail::type_erased_cgfo_ty CGF{L};
+    event FlushEvent =
+        submit_impl(CGF, Self, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
+                    IsTopCodeLoc, {});
+    EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
+    registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
+  }
+
+  return Event;
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                              const std::shared_ptr<queue_impl> &Self,
                               const std::shared_ptr<queue_impl> &PrimaryQueue,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
                               bool CallerNeedsEvent,
@@ -323,13 +376,15 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
   handler Handler(HandlerImpl, Self);
 #else
-  handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(),
-                  CallerNeedsEvent);
+  handler Handler(Self, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #endif
+
+#if XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
   }
+#endif
 
   {
     NestedCallsTracker tracker;
@@ -368,6 +423,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   return Event;
 }
+#endif
 
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
@@ -445,7 +501,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
             ExpandedDepEventImplPtrs.push_back(
                 detail::getSyclObjImpl(DepEvent));
 
-          EventImpl->cleanDepEventsThroughOneLevel();
+          // EventImpl is local for current thread, no need to lock.
+          EventImpl->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
 

@@ -264,7 +264,17 @@ public:
       destructorNotification();
 #endif
       throw_asynchronous();
-      getAdapter()->call<UrApiKind::urQueueRelease>(MQueue);
+      auto status =
+          getAdapter()->call_nocheck<UrApiKind::urQueueRelease>(MQueue);
+      // If loader is already closed, it'll return a not-initialized status
+      // which the UR should convert to SUCCESS code. But that isn't always
+      // working on Windows. This is a temporary workaround until that is fixed.
+      // TODO: Remove this workaround when UR is fixed, and restore
+      // ->call<>() instead of ->call_nocheck<>() above.
+      if (status != UR_RESULT_SUCCESS &&
+          status != UR_RESULT_ERROR_UNINITIALIZED) {
+        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -364,23 +374,9 @@ public:
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
-    if (SubmitInfo.SecondaryQueue()) {
-      event ResEvent;
-      const std::shared_ptr<queue_impl> &SecondQueue =
-          SubmitInfo.SecondaryQueue();
-      try {
-        ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
-                               /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
-                               SubmitInfo);
-      } catch (...) {
-        ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                            /*CallerNeedsEvent=*/true, Loc,
-                                            IsTopCodeLoc, SubmitInfo);
-      }
-      return ResEvent;
-    }
+
     event ResEvent =
-        submit_impl(CGF, Self, Self, nullptr,
+        submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
   }
@@ -390,21 +386,8 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    if (SubmitInfo.SecondaryQueue()) {
-      const std::shared_ptr<queue_impl> SecondQueue =
-          SubmitInfo.SecondaryQueue();
-      try {
-        submit_impl(CGF, Self, Self, SecondQueue,
-                    /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
-      } catch (...) {
-        SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc,
-                                 SubmitInfo);
-      }
-    } else {
-      submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                  IsTopCodeLoc, SubmitInfo);
-    }
+    submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
+                /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -810,12 +793,12 @@ protected:
     auto EventRet = Handler.finalize();
     const EventImplPtr &EventRetImpl = getSyclObjImpl(EventRet);
     if (Type == CGType::CodeplayHostTask)
-      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = EventRetImpl;
+      Deps.LastBarrier = std::move(EventRetImpl);
       Deps.UnenqueuedCmdEvents.clear();
     } else if (!EventRetImpl->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
     }
 
     return EventRet;
@@ -857,6 +840,7 @@ protected:
     }
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -876,6 +860,23 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
                     bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
+#endif
+
+  /// Performs command group submission to the queue.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a pointer to this queue.
+  /// \param SecondaryQueue is a pointer to the secondary queue.
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param Loc is the code location of the submit call (default argument)
+  /// \param SubmitInfo is additional optional information for the submission.
+  /// \return a SYCL event representing submitted command group.
+  event submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                    const std::shared_ptr<queue_impl> &Self,
+                    queue_impl *SecondaryQueue, bool CallerNeedsEvent,
+                    const detail::code_location &Loc, bool IsTopCodeLoc,
+                    const SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
