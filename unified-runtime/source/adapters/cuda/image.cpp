@@ -78,7 +78,7 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
   size_t pixel_size_bytes = 0;
   unsigned int num_channels = 0;
   unsigned int normalized_dtype_flag = 0;
-  UR_CHECK_ERROR(urCalculateNumChannels(image_channel_order, &num_channels));
+  UR_CALL(urCalculateNumChannels(image_channel_order, &num_channels));
 
   switch (image_channel_type) {
 #define CASE(FROM, TO, SIZE, NORM)                                             \
@@ -300,8 +300,14 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
+  try {
+    UR_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)hImage));
+  } catch (ur_result_t error) {
+    return error;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
 
-  UR_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)hImage));
   return UR_RESULT_SUCCESS;
 }
 
@@ -313,8 +319,14 @@ urBindlessImagesSampledImageHandleDestroyExp(
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
+  try {
+    UR_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)hImage));
+  } catch (ur_result_t error) {
+    return error;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
 
-  UR_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)hImage));
   return UR_RESULT_SUCCESS;
 }
 
@@ -330,12 +342,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
   // Populate descriptor
   CUDA_ARRAY3D_DESCRIPTOR array_desc = {};
 
-  UR_CHECK_ERROR(urCalculateNumChannels(pImageFormat->channelOrder,
-                                        &array_desc.NumChannels));
+  UR_CALL(urCalculateNumChannels(pImageFormat->channelOrder,
+                                 &array_desc.NumChannels));
 
-  UR_CHECK_ERROR(urToCudaImageChannelFormat(
-      pImageFormat->channelType, pImageFormat->channelOrder, &array_desc.Format,
-      nullptr, nullptr));
+  UR_CALL(urToCudaImageChannelFormat(pImageFormat->channelType,
+                                     pImageFormat->channelOrder,
+                                     &array_desc.Format, nullptr, nullptr));
 
   array_desc.Flags = 0; // No flags required
   array_desc.Width = pImageDesc->width;
@@ -387,12 +399,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
       *phImageMem = (ur_exp_image_mem_native_handle_t)ImageArray;
     } catch (ur_result_t Err) {
       if (ImageArray != CUarray{}) {
-        UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
+        (void)cuArrayDestroy(ImageArray);
       }
       return Err;
     } catch (...) {
       if (ImageArray != CUarray{}) {
-        UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
+        (void)cuArrayDestroy(ImageArray);
       }
       return UR_RESULT_ERROR_UNKNOWN;
     }
@@ -407,12 +419,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
       *phImageMem = (ur_exp_image_mem_native_handle_t)mip_array;
     } catch (ur_result_t Err) {
       if (mip_array) {
-        UR_CHECK_ERROR(cuMipmappedArrayDestroy(mip_array));
+        (void)cuMipmappedArrayDestroy(mip_array);
       }
       return Err;
     } catch (...) {
       if (mip_array) {
-        UR_CHECK_ERROR(cuMipmappedArrayDestroy(mip_array));
+        (void)cuMipmappedArrayDestroy(mip_array);
       }
       return UR_RESULT_ERROR_UNKNOWN;
     }
@@ -457,14 +469,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
   unsigned int NumChannels = 0;
-  UR_CHECK_ERROR(
-      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
+  UR_CALL(urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
   size_t PixelSizeBytes;
-  UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType,
-                                            pImageFormat->channelOrder, &format,
-                                            &PixelSizeBytes, nullptr));
+  UR_CALL(urToCudaImageChannelFormat(pImageFormat->channelType,
+                                     pImageFormat->channelOrder, &format,
+                                     &PixelSizeBytes, nullptr));
 
   try {
 
@@ -504,15 +515,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   ScopedContext Active(hDevice);
 
   unsigned int NumChannels = 0;
-  UR_CHECK_ERROR(
-      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
+  UR_CALL(urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
   size_t PixelSizeBytes;
   unsigned int normalized_dtype_flag;
-  UR_CHECK_ERROR(urToCudaImageChannelFormat(
-      pImageFormat->channelType, pImageFormat->channelOrder, &format,
-      &PixelSizeBytes, &normalized_dtype_flag));
+  UR_CALL(urToCudaImageChannelFormat(pImageFormat->channelType,
+                                     pImageFormat->channelOrder, &format,
+                                     &PixelSizeBytes, &normalized_dtype_flag));
 
   try {
     CUDA_RESOURCE_DESC image_res_desc = {};
@@ -598,14 +608,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   unsigned int NumChannels = 0;
   size_t PixelSizeBytes = 0;
 
-  UR_CHECK_ERROR(
-      urCalculateNumChannels(pSrcImageFormat->channelOrder, &NumChannels));
+  UR_CALL(urCalculateNumChannels(pSrcImageFormat->channelOrder, &NumChannels));
 
   // We need to get this now in bytes for calculating the total image size
   // later.
-  UR_CHECK_ERROR(urToCudaImageChannelFormat(pSrcImageFormat->channelType,
-                                            pSrcImageFormat->channelOrder,
-                                            nullptr, &PixelSizeBytes, nullptr));
+  UR_CALL(urToCudaImageChannelFormat(pSrcImageFormat->channelType,
+                                     pSrcImageFormat->channelOrder, nullptr,
+                                     &PixelSizeBytes, nullptr));
 
   try {
     ScopedContext Active(hQueue->getDevice());
@@ -945,7 +954,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   }
 
   CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
-  UR_CHECK_ERROR(cuArray3DGetDescriptor(&ArrayDesc, hCUarray));
+  Err = cuArray3DGetDescriptor(&ArrayDesc, hCUarray);
+  if (Err != CUDA_SUCCESS) {
+    return mapErrorUR(Err);
+  }
+
   switch (propName) {
   case UR_IMAGE_INFO_WIDTH:
     if (pPropValue) {
@@ -974,7 +987,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   case UR_IMAGE_INFO_FORMAT:
     ur_image_channel_type_t ChannelType;
     ur_image_channel_order_t ChannelOrder;
-    UR_CHECK_ERROR(cudaToUrImageChannelFormat(ArrayDesc.Format, &ChannelType));
+    UR_CALL(cudaToUrImageChannelFormat(ArrayDesc.Format, &ChannelType));
     // CUDA does not have a notion of channel "order" in the same way that
     // SYCL 1.2.1 does.
     switch (ArrayDesc.NumChannels) {
@@ -1118,13 +1131,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
   unsigned int NumChannels = 0;
-  UR_CHECK_ERROR(
-      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
+  UR_CALL(urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
-  UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType,
-                                            pImageFormat->channelOrder, &format,
-                                            nullptr, nullptr));
+  UR_CALL(urToCudaImageChannelFormat(pImageFormat->channelType,
+                                     pImageFormat->channelOrder, &format,
+                                     nullptr, nullptr));
 
   try {
     ScopedContext Active(hDevice);
