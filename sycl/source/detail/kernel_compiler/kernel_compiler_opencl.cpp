@@ -75,11 +75,12 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
       "ocloc64.dll",
       "C:\\Program Files (x86)\\Intel\\oneAPI\\ocloc\\latest\\ocloc64.dll"};
 #else
-  static const std::vector<std::string> OclocPaths = {"libocloc.so"};
+  static const std::vector<std::string_view> OclocPaths = {"libocloc.so"};
 #endif
 
   // attemptLoad() sets OclocLibrary value by side effect.
-  auto attemptLoad = [&](std::string OclocPath) {
+  auto attemptLoad = [&](std::string_view OclocPath_sv) {
+    std::string OclocPath(OclocPath_sv);
     try {
       // Load then perform checks. Each check throws.
       void *tempPtr = sycl::detail::ur::loadOsLibrary(OclocPath);
@@ -98,7 +99,7 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
     }
     return true;
   };
-  for (const auto &result : OclocPaths) {
+  for (const std::string_view result : OclocPaths) {
     if (attemptLoad(result))
       return; // exit on successful attempt
   }
