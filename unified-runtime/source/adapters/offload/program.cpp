@@ -159,11 +159,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   if (auto Parser = HipOffloadBundleParser::load(RealBinary, RealLength)) {
     std::string DevName{};
     size_t DevNameLength;
-    olGetDeviceInfoSize(reinterpret_cast<ol_device_handle_t>(phDevices[0]),
-                        OL_DEVICE_INFO_NAME, &DevNameLength);
+    olGetDeviceInfoSize(phDevices[0]->OffloadDevice, OL_DEVICE_INFO_NAME,
+                        &DevNameLength);
     DevName.resize(DevNameLength);
-    olGetDeviceInfo(reinterpret_cast<ol_device_handle_t>(phDevices[0]),
-                    OL_DEVICE_INFO_NAME, DevNameLength, DevName.data());
+    olGetDeviceInfo(phDevices[0]->OffloadDevice, OL_DEVICE_INFO_NAME,
+                    DevNameLength, DevName.data());
 
     auto Res = Parser->extract(DevName, RealBinary, RealLength);
     if (Res != UR_RESULT_SUCCESS) {
