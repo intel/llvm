@@ -72,16 +72,18 @@ getWaitInfo(uint32_t numEventsInWaitList,
 } // namespace
 } // namespace native_cpu
 
-#ifdef NATIVECPU_USE_OCK
-static native_cpu::state getResizedState(const native_cpu::NDRDescT &ndr,
-                                         size_t itemsPerThread) {
+static inline native_cpu::state getResizedState(const native_cpu::NDRDescT &ndr,
+                                                size_t itemsPerThread) {
   native_cpu::state resized_state(
       ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2], itemsPerThread,
       ndr.LocalSize[1], ndr.LocalSize[2], ndr.GlobalOffset[0],
       ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
   return resized_state;
 }
-#endif
+
+static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
+  return getResizedState(ndr, ndr.LocalSize[0]);
+}
 
 using IndexT = std::array<size_t, 3>;
 using RangeT = native_cpu::NDRDescT::RangeT;
@@ -152,10 +154,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
-  native_cpu::state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
-                          ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
-                          ndr.LocalSize[2], ndr.GlobalOffset[0],
-                          ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
   auto event = new ur_event_handle_t_(hQueue, UR_COMMAND_KERNEL_LAUNCH);
   event->tick_start();
 
@@ -166,6 +164,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto InEvents = native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
 
 #ifndef NATIVECPU_USE_OCK
+  native_cpu::state state = getState(ndr);
   urEventWait(numEventsInWaitList, phEventWaitList);
   for (unsigned g2 = 0; g2 < numWG2; g2++) {
     for (unsigned g1 = 0; g1 < numWG1; g1++) {
@@ -221,12 +220,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       // Peel the remaining work items. Since the local size is 1, we iterate
       // over the work groups.
       futures.emplace_back(tp.schedule_task(
-          [state, &kernel = *kernel, start_wg0_remainder, numWG0, numWG1,
-           numWG2, InEvents = InEvents.get()](size_t) mutable {
+          [ndr, &kernel = *kernel, start_wg0_remainder, numWG0, numWG1, numWG2,
+           InEvents = InEvents.get()](size_t) mutable {
             IndexT first = {start_wg0_remainder, 0, 0};
             IndexT last = {numWG0, numWG1, numWG2};
             if (InEvents)
               InEvents->wait();
+            native_cpu::state state = getState(ndr);
             execute_range(state, kernel, first, last);
           }));
     }
@@ -252,10 +252,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         wg_start += groupsPerThread[dim];
         last[dim] = wg_start;
         futures.emplace_back(tp.schedule_task(
-            [state, numParallelThreads, &kernel = *kernel, first, last,
+            [ndr, numParallelThreads, &kernel = *kernel, first, last,
              InEvents = InEvents.get()](size_t threadId) mutable {
               if (InEvents)
                 InEvents->wait();
+              native_cpu::state state = getState(ndr);
               execute_range(state, kernel,
                             kernel.getArgs(numParallelThreads, threadId), first,
                             last);
@@ -266,10 +267,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       first[dim] = wg_start;
       last[dim] = numWG[dim];
       futures.emplace_back(tp.schedule_task(
-          [state, numParallelThreads, &kernel = *kernel, first, last,
+          [ndr, numParallelThreads, &kernel = *kernel, first, last,
            InEvents = InEvents.get()](size_t threadId) mutable {
             if (InEvents)
               InEvents->wait();
+            native_cpu::state state = getState(ndr);
             execute_range(state, kernel,
                           kernel.getArgs(numParallelThreads, threadId), first,
                           last);
