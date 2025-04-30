@@ -628,7 +628,7 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
 
 
 # TODO: once L0 SubmitGraph exists, this needs to be cleaned up split benchmarks into more groups,
-# set all the parameters (NoEvents 0/1, which should get inverted into UseEvents) and
+# set all the parameters (UseEvents 0/1) and
 # unify the benchmark naming scheme with SubmitKernel.
 class GraphApiSubmitGraph(ComputeBenchmark):
     def __init__(
@@ -669,7 +669,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--InOrderQueue={self.inOrderQueue}",
             "--Profiling=0",
             "--KernelExecutionTime=1",
-            "--NoEvents=1",  # not all implementations support NoEvents=0
+            "--UseEvents=0",  # not all implementations support UseEvents=1
         ]
 
 
