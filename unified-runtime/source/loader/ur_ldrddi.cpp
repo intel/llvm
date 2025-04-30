@@ -7005,8 +7005,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [in] sampler to be used
-    ur_sampler_handle_t hSampler,
+    /// [in] pointer to sampler description to be used
+    const ur_sampler_desc_t *pSamplerDesc,
     /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage) {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -7026,12 +7026,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   // convert loader handle to platform handle
   hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
-  // convert loader handle to platform handle
-  hSampler = reinterpret_cast<ur_sampler_object_t *>(hSampler)->handle;
-
   // forward to device-platform
   result = pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                    pImageDesc, hSampler, phImage);
+                                    pImageDesc, pSamplerDesc, phImage);
 
   if (UR_RESULT_SUCCESS != result)
     return result;

@@ -286,6 +286,9 @@ Changelog
 |          ||  - GetImageUnsampledHandleSupportExp                       |
 |          ||  - GetImageSampledHandleSupportExp                         |
 +----------+-------------------------------------------------------------+
+| 23.0     || Update the ${x}BindlessImagesSampledImageCreateExp API     |
+|          || to take a sampled description instead of sampler handle.   |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
@@ -296,3 +299,4 @@ Contributors
 * Chedy Najjar `chedy.najjar@codeplay.com <chedy.najjar@codeplay.com>`_
 * Sean Stirling `sean.stirling@codeplay.com <sean.stirling@codeplay.com>`_
 * Peter Zuzek `peter@codeplay.com peter@codeplay.com <peter@codeplay.com>`_
+* Georgi Mirazchiyski `georgi.mirazchiyski@codeplay.com <georgi.mirazchiyski@codeplay.com>`_

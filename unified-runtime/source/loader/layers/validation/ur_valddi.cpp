@@ -7742,8 +7742,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [in] sampler to be used
-    ur_sampler_handle_t hSampler,
+    /// [in] pointer to sampler description to be used
+    const ur_sampler_desc_t *pSamplerDesc,
     /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage) {
   auto pfnSampledImageCreateExp =
@@ -7760,6 +7760,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     if (NULL == pImageDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (NULL == pSamplerDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == phImage)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -7769,8 +7772,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (NULL == hSampler)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    if (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT <
+        pSamplerDesc->addressingMode)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (UR_SAMPLER_FILTER_MODE_LINEAR < pSamplerDesc->filterMode)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
@@ -7786,14 +7793,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hSampler)) {
-    URLOG_CTX_INVALID_REFERENCE(hSampler);
-  }
-
   ur_result_t result =
       pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                               pImageDesc, hSampler, phImage);
+                               pImageDesc, pSamplerDesc, phImage);
 
   return result;
 }
