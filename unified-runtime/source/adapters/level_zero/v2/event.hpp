@@ -108,6 +108,8 @@ public:
   // Caller is responsible for signaling the event once the timestamp is ready.
   std::pair<uint64_t *, ze_event_handle_t> getEventEndTimestampAndHandle();
 
+  void setOriginAllocEvent(ur_event_handle_t originAllocEvent);
+
   uint64_t getEventStartTimestmap() const;
   uint64_t getEventEndTimestamp();
 
@@ -130,4 +132,8 @@ protected:
 
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
+
+  // Used only for asynchronous allocations. This is the event originally used
+  // on async free to indicate when the allocation can be used again.
+  ur_event_handle_t originAllocEvent = nullptr;
 };
