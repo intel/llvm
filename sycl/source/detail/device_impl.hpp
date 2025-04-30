@@ -33,10 +33,19 @@ class platform_impl;
 
 // TODO: Make code thread-safe
 class device_impl {
+  struct private_tag {
+    explicit private_tag() = default;
+  };
+  friend class platform_impl;
+
 public:
   /// Constructs a SYCL device instance using the provided
   /// UR device instance.
-  explicit device_impl(ur_device_handle_t Device, platform_impl &Platform);
+  //
+  // Must be called through `platform_impl::getOrMakeDeviceImpl` only.
+  // `private_tag` ensures that is true.
+  explicit device_impl(ur_device_handle_t Device, platform_impl &Platform,
+                       private_tag);
 
   ~device_impl();
 

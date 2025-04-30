@@ -287,7 +287,7 @@ template <typename DataT> class vec_base<DataT, 1> {
 
 protected:
   static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
-  alignas(alignment) DataType m_Data{};
+  alignas(alignment) DataType m_Data;
 
 public:
   constexpr vec_base() = default;
