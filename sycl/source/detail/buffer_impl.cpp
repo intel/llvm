@@ -79,16 +79,11 @@ buffer_impl::getNativeVector(backend BackendName) const {
     // doesn't have context and platform
     if (!Ctx)
       continue;
-    PlatformImplPtr Platform = Ctx->getPlatformImpl();
-    assert(Platform && "Platform must be present for device context");
-    if (Platform->getBackend() != BackendName)
+    const platform_impl &Platform = Ctx->getPlatformImpl();
+    if (Platform.getBackend() != BackendName)
       continue;
 
-    auto Adapter = Platform->getAdapter();
-
-    if (Platform->getBackend() == backend::opencl) {
-      __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(NativeMem));
-    }
+    auto Adapter = Platform.getAdapter();
 
     ur_native_handle_t Handle = 0;
     // When doing buffer interop we don't know what device the memory should be
@@ -97,6 +92,10 @@ buffer_impl::getNativeVector(backend BackendName) const {
     Adapter->call<UrApiKind::urMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
                                                    &Handle);
     Handles.push_back(Handle);
+
+    if (Platform.getBackend() == backend::opencl) {
+      __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(Handle));
+    }
   }
 
   addInteropObject(Handles);

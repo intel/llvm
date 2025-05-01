@@ -121,7 +121,9 @@ enum class node_type {
   memadvise = 7,
   ext_oneapi_barrier = 8,
   host_task = 9,
-  native_command = 10
+  native_command = 10,
+  async_malloc = 11,
+  async_free = 12
 };
 
 /// Class representing a node in the graph, returned by command_graph::add().
@@ -429,6 +431,10 @@ public:
   /// @param Nodes The nodes to use for updating the graph.
   void update(const std::vector<node> &Nodes);
 
+  /// Return the total amount of memory required by this graph for graph-owned
+  /// memory allocations.
+  size_t get_required_mem_size() const;
+
   /// Common Reference Semantics
   friend bool operator==(const executable_command_graph &LHS,
                          const executable_command_graph &RHS) {
@@ -549,15 +555,16 @@ class dynamic_work_group_memory_base
 {
 public:
   dynamic_work_group_memory_base() = default;
-  dynamic_work_group_memory_base(
-      [[maybe_unused]] experimental::command_graph<graph_state::modifiable>
-          Graph,
-      [[maybe_unused]] size_t Size)
 #ifndef __SYCL_DEVICE_ONLY__
-      : dynamic_parameter_base(Graph), BufferSize(Size)
+  dynamic_work_group_memory_base(
+      experimental::command_graph<graph_state::modifiable> Graph, size_t Size)
+      : dynamic_parameter_base(Graph), BufferSize(Size) {}
+#else
+  dynamic_work_group_memory_base(
+      experimental::command_graph<graph_state::modifiable> /*Graph*/,
+      size_t Size)
+      : BufferSize(Size) {}
 #endif
-  {
-  }
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__

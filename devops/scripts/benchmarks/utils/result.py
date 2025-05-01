@@ -42,6 +42,7 @@ class BenchmarkRun:
         default=None,
         metadata=config(encoder=datetime.isoformat, decoder=datetime.fromisoformat),
     )
+    compute_runtime: str = "Unknown"
 
 
 @dataclass_json
@@ -59,6 +60,8 @@ class BenchmarkMetadata:
     notes: str = None
     unstable: str = None
     tags: list[str] = field(default_factory=list)
+    range_min: float = None
+    range_max: float = None
 
 
 @dataclass_json

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_INTERNAL_API
 
 #include <detail/context_impl.hpp>

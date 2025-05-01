@@ -32,7 +32,7 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
 
 #define UUR_RETURN_ON_FATAL_FAILURE(...)                                       \
   __VA_ARGS__;                                                                 \
-  if (this->HasFatalFailure() || this->IsSkipped()) {                          \
+  if (::testing::Test::HasFatalFailure() || ::testing::Test::IsSkipped()) {    \
     return;                                                                    \
   }                                                                            \
   (void)0

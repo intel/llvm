@@ -7,17 +7,93 @@ include(FetchContent)
 FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG        release-1.12.1
+  GIT_TAG        v1.13.0
 )
+
+include(FindLit)
 
 set(UR_TEST_DEVICES_COUNT 1 CACHE STRING "Count of devices on which conformance and adapters tests will be run")
 set(UR_TEST_PLATFORMS_COUNT 1 CACHE STRING "Count of platforms on which conformance and adapters tests will be run")
 set(UR_TEST_FUZZTESTS ON CACHE BOOL "Run fuzz tests if using clang and UR_DPCXX is specified")
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND UR_DPCXX AND UR_TEST_FUZZTESTS)
+    set(UR_FUZZTESTING_ENABLED ON)
+endif()
+
 set(INSTALL_GTEST OFF)
 FetchContent_MakeAvailable(googletest)
 enable_testing()
+
+# Set up the root `check-unified-runtime` target
+configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+add_custom_target(deps_check-unified-runtime)
+if(UR_STANDALONE_BUILD)
+  add_custom_target(check-unified-runtime
+    COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -v
+    DEPENDS deps_check-unified-runtime
+  )
+else()
+  # Use the LLVM method to add the test suite - this also registers it under `check-all`
+  add_lit_testsuite(check-unified-runtime "Running Unified Runtime ${suite} tests"
+    ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS FileCheck deps_check-unified-runtime
+  )
+endif()
+if(UR_STANDALONE_BUILD)
+  add_test(NAME lit COMMAND ${URLIT_LIT_BINARY} "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
+
+# Create a new test suite that can be ran with `check-unified-runtime-${suite}`
+# Lit will execute tests in `${CMAKE_CURRENT_BINARY_DIR}`, and any `add_gtest_test`s will be added as dependencies of
+# this test suite
+function(add_ur_lit_testsuite suite)
+  cmake_parse_arguments(PARSE_ARGV 0 arg
+    "" "" "DEPENDS"
+  )
+  set(TARGET "check-unified-runtime-${suite}")
+
+  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in)
+    configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+  endif()
+
+  if(UR_STANDALONE_BUILD)
+    add_custom_target(${TARGET}
+      COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -v
+    )
+  else()
+    add_lit_testsuite(${TARGET} "Running Unified Runtime ${suite} tests"
+      ${CMAKE_CURRENT_BINARY_DIR}
+      DEPENDS FileCheck
+    )
+  endif()
+
+  add_custom_target(deps_${TARGET} DEPENDS "${arg_DEPENDS}")
+  add_dependencies(${TARGET} deps_${TARGET})
+  add_dependencies(deps_check-unified-runtime deps_${TARGET})
+  set(TEST_CURRENT_SUITE "${TARGET}" PARENT_SCOPE)
+endfunction()
+
+# Add a new gtest test; it will be added to the dependency list of the current `add_ur_lit_testsuite`
+function(add_gtest_test name)
+    set(TEST_TARGET_NAME ${name}-test)
+    add_ur_executable(${TEST_TARGET_NAME} ${ARGN})
+    target_link_libraries(${TEST_TARGET_NAME}
+        PRIVATE
+        ${PROJECT_NAME}::loader
+        ${PROJECT_NAME}::headers
+        ${PROJECT_NAME}::testing
+        ${PROJECT_NAME}::mock
+        ${PROJECT_NAME}::common
+        gmock
+        GTest::gtest_main)
+    set_target_properties(${TEST_TARGET_NAME}
+        PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    )
+    add_dependencies(deps_${TEST_CURRENT_SUITE} ${TEST_TARGET_NAME})
+endfunction()
 
 # Conformance defines the generate_device_binaries target which should be
 # imported first
@@ -27,11 +103,11 @@ add_subdirectory(loader)
 add_subdirectory(adapters)
 add_subdirectory(usm)
 add_subdirectory(layers)
+add_subdirectory(logger)
 add_subdirectory(unit)
-add_subdirectory(mock)
 if(UR_BUILD_TOOLS)
   add_subdirectory(tools)
 endif()
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND UR_DPCXX AND UR_TEST_FUZZTESTS)
+if(UR_FUZZTESTING_ENABLED)
     add_subdirectory(fuzz)
 endif()

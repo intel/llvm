@@ -8,10 +8,12 @@ int main() {
     sycl::vec<int, 4> X{1};
     static_assert(std::is_same_v<decltype(X.swizzle<0>())::element_type, int>);
     static_assert(std::is_same_v<decltype(X.swizzle<0>())::value_type, int>);
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(std::is_same_v<decltype(X.swizzle<0>())::vector_t,
                                  sycl::vec<int, 1>::vector_t>);
 #endif // __SYCL_DEVICE_ONLY__
+#endif
   });
   return 0;
 }

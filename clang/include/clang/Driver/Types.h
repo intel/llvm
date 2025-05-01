@@ -89,9 +89,6 @@ namespace types {
   /// isHIP - Is this a HIP input.
   bool isHIP(ID Id);
 
-  /// isFPGA - Is this FPGA input.
-  bool isFPGA(ID Id);
-
   /// isArchive - Is this an archive input.
   bool isArchive(ID Id);
 

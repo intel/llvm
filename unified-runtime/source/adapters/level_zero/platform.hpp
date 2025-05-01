@@ -25,7 +25,7 @@ struct ur_zes_device_handle_data_t {
   ze_bool_t SubDevice = false;
 };
 
-struct ur_platform_handle_t_ : public _ur_platform {
+struct ur_platform_handle_t_ : public ur_platform {
   ur_platform_handle_t_(ze_driver_handle_t Driver)
       : ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
   // Performs initialization of a newly constructed PI platform.
@@ -47,6 +47,10 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Helper wrapper for working with Driver Version String extension in Level
   // Zero.
   ZeDriverVersionStringExtension ZeDriverVersionString;
+
+  // Helper function to check if the driver supports Driver In Order Lists or
+  // the User has Requested this support.
+  bool allowDriverInOrderLists(bool OnlyIfRequested = false);
 
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;

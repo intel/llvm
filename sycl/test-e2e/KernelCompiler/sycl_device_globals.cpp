@@ -15,7 +15,6 @@
 // UNSUPPORTED-TRACKER: GSD-4287
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -54,7 +53,7 @@ int test_device_global() {
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
 
-  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = d.ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source kernel "
                  "bundle extension: "
@@ -142,7 +141,7 @@ int test_error() {
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
 
-  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = d.ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     return 0;
   }

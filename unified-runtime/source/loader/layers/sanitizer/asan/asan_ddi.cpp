@@ -322,7 +322,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 
   getContext()->logger.debug("==== urProgramBuild");
 
-  UR_CALL(pfnProgramBuild(hContext, hProgram, pOptions));
+  auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, hProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getAsanInterceptor()->registerProgram(hProgram));
 
@@ -348,7 +353,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
 
   getContext()->logger.debug("==== urProgramBuildExp");
 
-  UR_CALL(pfnBuildExp(hProgram, numDevices, phDevices, pOptions));
+  auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
+    return UrRes;
+  }
+
   UR_CALL(getAsanInterceptor()->registerProgram(hProgram));
 
   return UR_RESULT_SUCCESS;
@@ -375,7 +385,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
   getContext()->logger.debug("==== urProgramLink");
 
-  UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
+  auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
@@ -408,8 +423,12 @@ ur_result_t UR_APICALL urProgramLinkExp(
 
   getContext()->logger.debug("==== urProgramLinkExp");
 
-  UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count, phPrograms,
-                            pOptions, phProgram));
+  auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
+                                 phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+    return UrRes;
+  }
 
   UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
@@ -494,22 +513,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  ur_event_handle_t hEvent{};
-  ur_result_t result =
-      pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                      pGlobalWorkSize, LaunchInfo.LocalWorkSize.data(),
-                      numEventsInWaitList, phEventWaitList, &hEvent);
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      LaunchInfo.LocalWorkSize.data(), numEventsInWaitList, phEventWaitList,
+      phEvent));
 
-  if (result == UR_RESULT_SUCCESS) {
-    UR_CALL(
-        getAsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
-  }
+  UR_CALL(getAsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  if (phEvent) {
-    *phEvent = hEvent;
-  }
-
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1391,6 +1402,57 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+
+  getContext()->logger.debug("==== urEnqueueCooperativeKernelLaunchExp");
+
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, workDim);
+  UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
+
+  UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      LaunchInfo.LocalWorkSize.data(), numEventsInWaitList, phEventWaitList,
+      phEvent));
+
+  UR_CALL(getAsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
@@ -1933,6 +1995,25 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EnqueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+__urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_enqueue_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnCooperativeKernelLaunchExp =
+      ur_sanitizer_layer::asan::urEnqueueCooperativeKernelLaunchExp;
+  return UR_RESULT_SUCCESS;
+}
+
 template <class A, class B> struct NotSupportedApi;
 
 template <class MsgType, class R, class... A>
@@ -2126,6 +2207,11 @@ ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::asan::urGetVirtualMemProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->VirtualMem);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::asan::urGetEnqueueExpProcAddrTable(
+        &dditable->EnqueueExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

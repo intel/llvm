@@ -78,9 +78,6 @@ enum InternalOp {
   IOpCooperativeMatrixStoreOffsetINTEL = 6240,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpTypeTaskSequenceINTEL = 6199,
-  IOpComplexFMulINTEL = 6415,
-  IOpComplexFDivINTEL = 6416,
-  IOpRoundFToTF32INTEL = 6426,
   IOpMaskedGatherINTEL = 6428,
   IOpMaskedScatterINTEL = 6429,
   IOpJointMatrixGetElementCoordINTEL = 6440,
@@ -89,7 +86,6 @@ enum InternalOp {
   IOpConvertHandleToImageINTEL = 6529,
   IOpConvertHandleToSamplerINTEL = 6530,
   IOpConvertHandleToSampledImageINTEL = 6531,
-  IOpBitwiseFunctionINTEL = 6242,
   IOpPrev = OpMax - 2,
   IOpForward
 };
@@ -114,8 +110,6 @@ enum InternalCapability {
   ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
   ICapabilityCooperativeMatrixOffsetInstructionsINTEL = 6238,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
-  ICapabilityComplexFloatMulDivINTEL = 6414,
-  ICapabilityTensorFloat32RoundingINTEL = 6425,
   ICapabilityMaskedGatherScatterINTEL = 6427,
   ICapabilityJointMatrixWIInstructionsINTEL = 6435,
   ICapabilityCooperativeMatrixInvocationInstructionsINTEL = 6435,
@@ -125,8 +119,7 @@ enum InternalCapability {
   ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
   ICapabilityCacheControlsINTEL = 6441,
   ICapabilitySubgroupRequirementsINTEL = 6445,
-  ICapabilityBindlessImagesINTEL = 6528,
-  ICapabilityTernaryBitwiseFunctionINTEL = 6241
+  ICapabilityBindlessImagesINTEL = 6528
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
@@ -198,16 +191,9 @@ _SPIRV_OP(Capability, HWThreadQueryINTEL)
 _SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
 _SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
 
-_SPIRV_OP(Capability, ComplexFloatMulDivINTEL)
-_SPIRV_OP(Op, ComplexFMulINTEL)
-_SPIRV_OP(Op, ComplexFDivINTEL)
-
 _SPIRV_OP(Capability, MaskedGatherScatterINTEL)
 _SPIRV_OP(Op, MaskedGatherINTEL)
 _SPIRV_OP(Op, MaskedScatterINTEL)
-
-_SPIRV_OP(Capability, TensorFloat32RoundingINTEL)
-_SPIRV_OP(Op, RoundFToTF32INTEL)
 
 _SPIRV_OP(Capability, CacheControlsINTEL)
 
@@ -224,9 +210,6 @@ _SPIRV_OP(Capability, BindlessImagesINTEL)
 _SPIRV_OP(Op, ConvertHandleToImageINTEL)
 _SPIRV_OP(Op, ConvertHandleToSamplerINTEL)
 _SPIRV_OP(Op, ConvertHandleToSampledImageINTEL)
-
-_SPIRV_OP(Capability, TernaryBitwiseFunctionINTEL)
-_SPIRV_OP(Op, BitwiseFunctionINTEL)
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =

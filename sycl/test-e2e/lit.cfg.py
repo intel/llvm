@@ -6,6 +6,7 @@ import copy
 import re
 import subprocess
 import textwrap
+import shlex
 import shutil
 
 import lit.formats
@@ -120,19 +121,34 @@ llvm_config.with_system_environment(
     ]
 )
 
+# Take into account extra system environment variables if provided via parameter.
+if config.extra_system_environment:
+    lit_config.note(
+        "Extra system variables to propagate value from: "
+        + config.extra_system_environment
+    )
+    extra_env_vars = config.extra_system_environment.split(",")
+    for var in extra_env_vars:
+        if var in os.environ:
+            llvm_config.with_system_environment(var)
+
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")
-    llvm_config.with_system_environment(["LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH"])
+    llvm_config.with_system_environment(
+        ["LD_LIBRARY_PATH", "LIBRARY_PATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"]
+    )
     llvm_config.with_environment(
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
 elif platform.system() == "Windows":
     config.available_features.add("windows")
-    llvm_config.with_system_environment(["LIB", "CPATH", "INCLUDE"])
+    llvm_config.with_system_environment(
+        ["LIB", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "INCLUDE"]
+    )
     llvm_config.with_environment("LIB", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment("PATH", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment(
@@ -141,14 +157,19 @@ elif platform.system() == "Windows":
 
 elif platform.system() == "Darwin":
     # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
-    llvm_config.with_system_environment("CPATH")
+    llvm_config.with_system_environment(["C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"])
     llvm_config.with_environment(
-        "CPATH",
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1",
         append_path=True,
     )
     llvm_config.with_environment(
-        "CPATH",
+        "C_INCLUDE_PATH",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
+        append_path=True,
+    )
+    llvm_config.with_environment(
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
         append_path=True,
     )
@@ -167,6 +188,8 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
+# Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
+llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
 # Temporarily modify environment to be the same that we use when running tests
 class test_env:
@@ -245,6 +268,14 @@ def check_igc_tag_and_add_feature():
             if "igc-dev" in contents:
                 config.available_features.add("igc-dev")
 
+
+def quote_path(path):
+    if not path:
+        return ""
+    if platform.system() == "Windows":
+        return f'"{path}"'
+    return shlex.quote(path)
+
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
 
@@ -304,12 +335,18 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
-config.level_zero_libs_dir = lit_config.params.get(
-    "level_zero_libs_dir", config.level_zero_libs_dir
+config.level_zero_libs_dir = quote_path(
+    lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
-config.level_zero_include = lit_config.params.get(
-    "level_zero_include",
-    (config.level_zero_include if config.level_zero_include else config.sycl_include),
+config.level_zero_include = quote_path(
+    lit_config.params.get(
+        "level_zero_include",
+        (
+            config.level_zero_include
+            if config.level_zero_include
+            else config.sycl_include
+        ),
+    )
 )
 
 level_zero_options = level_zero_options = (
@@ -409,13 +446,17 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
-config.cuda_libs_dir = lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
-config.cuda_include = lit_config.params.get(
-    "cuda_include",
-    (config.cuda_include if config.cuda_include else config.sycl_include),
+config.cuda_libs_dir = quote_path(
+    lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
+)
+config.cuda_include = quote_path(
+    lit_config.params.get(
+        "cuda_include",
+        (config.cuda_include if config.cuda_include else config.sycl_include),
+    )
 )
 
-cuda_options = cuda_options = (
+cuda_options = (
     (" -L" + config.cuda_libs_dir if config.cuda_libs_dir else "")
     + " -lcuda "
     + " -I"
@@ -427,6 +468,10 @@ if cl_options:
         + (config.cuda_libs_dir + "/cuda.lib " if config.cuda_libs_dir else "cuda.lib")
         + " /I"
         + config.cuda_include
+    )
+if platform.system() == "Windows":
+    cuda_options += (
+        " --cuda-path=" + os.path.dirname(os.path.dirname(config.cuda_libs_dir)) + f'"'
     )
 
 config.substitutions.append(("%cuda_options", cuda_options))
@@ -454,13 +499,17 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
-config.hip_libs_dir = lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
-config.hip_include = lit_config.params.get(
-    "hip_include",
-    (config.hip_include if config.hip_include else config.sycl_include),
+config.hip_libs_dir = quote_path(
+    lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
+)
+config.hip_include = quote_path(
+    lit_config.params.get(
+        "hip_include",
+        (config.hip_include if config.hip_include else config.sycl_include),
+    )
 )
 
-hip_options = hip_options = (
+hip_options = (
     (" -L" + config.hip_libs_dir if config.hip_libs_dir else "")
     + " -lamdhip64 "
     + " -I"
@@ -477,7 +526,8 @@ if cl_options:
         + " /I"
         + config.hip_include
     )
-
+if platform.system() == "Windows":
+    hip_options += " --rocm-path=" + os.path.dirname(config.hip_libs_dir) + f'"'
 with test_env():
     sp = subprocess.getstatusoutput(
         config.dpcpp_compiler + " -fsycl  " + check_hip_file + hip_options
@@ -490,6 +540,8 @@ with test_env():
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
+    config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
+    config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
         config.substitutions.append(
             ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
@@ -507,9 +559,9 @@ if cl_options:
             "%sycl_options",
             " "
             + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
-            + " /I"
+            + " -Xclang -isystem -Xclang "
             + config.sycl_include
-            + " /I"
+            + " -Xclang -isystem -Xclang "
             + os.path.join(config.sycl_include, "sycl"),
         )
     )
@@ -525,9 +577,9 @@ else:
         (
             "%sycl_options",
             (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
-            + " -I"
+            + " -isystem "
             + config.sycl_include
-            + " -I"
+            + " -isystem "
             + os.path.join(config.sycl_include, "sycl")
             + " -L"
             + config.sycl_libs_dir,
@@ -556,18 +608,16 @@ else:
 config.substitutions.append(("%vulkan_include_dir", config.vulkan_include_dir))
 config.substitutions.append(("%vulkan_lib", config.vulkan_lib))
 
+link_vulkan = "-I %s " % (config.vulkan_include_dir)
 if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%link-vulkan", "-l %s -I %s" % (config.vulkan_lib, config.vulkan_include_dir))
-    )
+    if cl_options:
+        link_vulkan += "/clang:-l%s" % (config.vulkan_lib)
+    else:
+        link_vulkan += "-l %s" % (config.vulkan_lib)
 else:
     vulkan_lib_path = os.path.dirname(config.vulkan_lib)
-    config.substitutions.append(
-        (
-            "%link-vulkan",
-            "-L %s -lvulkan -I %s" % (vulkan_lib_path, config.vulkan_include_dir),
-        )
-    )
+    link_vulkan += "-L %s -lvulkan" % (vulkan_lib_path)
+config.substitutions.append(("%link-vulkan", link_vulkan))
 
 if config.vulkan_found == "TRUE":
     config.available_features.add("vulkan")
@@ -597,13 +647,17 @@ if (
     if "amdgcn" in sp[1]:
         config.sycl_build_targets.add("target-amd")
 
+cmd = "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
+
+# In contrast to `cpu` feature this is a compile-time feature, which is needed
+# to check if we can build cpu AOT tests.
+if "opencl:cpu" in sycl_ls_output:
+    config.available_features.add("opencl-cpu-rt")
+
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     devices = set()
-    cmd = (
-        "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
-    )
-    sp = subprocess.check_output(cmd, text=True, shell=True)
-    for line in sp.splitlines():
+    for line in sycl_ls_output.splitlines():
         if not line.startswith("["):
             continue
         (backend, device) = line[1:].split("]")[0].split(":")
@@ -996,6 +1050,10 @@ if lit_config.params.get("print_features", False):
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    if config.test_mode == "run-only":
+        lit_config.maxIndividualTestTime = 300
+    else:
+        lit_config.maxIndividualTestTime = 600
+
 except ImportError:
     pass

@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "event.hpp"
 #include "common.hpp"
 
 #include <mutex>
@@ -110,39 +111,49 @@ ur_command_t convertCLCommandTypeToUR(const cl_command_type &CommandType) {
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
-                              [[maybe_unused]] ur_context_handle_t hContext,
-                              const ur_event_native_properties_t *pProperties,
-                              ur_event_handle_t *phEvent) {
-  *phEvent = reinterpret_cast<ur_event_handle_t>(hNativeEvent);
-  if (!pProperties || !pProperties->isNativeHandleOwned) {
-    return urEventRetain(*phEvent);
+UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
+    ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
+    const ur_event_native_properties_t *pProperties,
+    ur_event_handle_t *phEvent) {
+  cl_event NativeHandle = reinterpret_cast<cl_event>(hNativeEvent);
+  try {
+    auto UREvent =
+        std::make_unique<ur_event_handle_t_>(NativeHandle, hContext, nullptr);
+    UREvent->IsNativeHandleOwned =
+        pProperties ? pProperties->isNativeHandleOwned : false;
+    *phEvent = UREvent.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ur_native_handle_t *phNativeEvent) {
-  return getNativeHandle(hEvent, phNativeEvent);
+  return getNativeHandle(hEvent->CLEvent, phNativeEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
-  cl_int RetErr = clReleaseEvent(cl_adapter::cast<cl_event>(hEvent));
-  CL_RETURN_ON_FAILURE(RetErr);
+  if (hEvent->decrementReferenceCount() == 0) {
+    delete hEvent;
+  }
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  cl_int RetErr = clRetainEvent(cl_adapter::cast<cl_event>(hEvent));
-  CL_RETURN_ON_FAILURE(RetErr);
+  hEvent->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
-  cl_int RetErr = clWaitForEvents(
-      numEvents, cl_adapter::cast<const cl_event *>(phEventWaitList));
+  std::vector<cl_event> CLEvents(numEvents);
+  for (uint32_t i = 0; i < numEvents; i++) {
+    CLEvents[i] = phEventWaitList[i]->CLEvent;
+  }
+  cl_int RetErr = clWaitForEvents(numEvents, CLEvents.data());
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
@@ -153,31 +164,50 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
   cl_event_info CLEventInfo = convertUREventInfoToCL(propName);
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  size_t CheckPropSize = 0;
-  cl_int RetErr =
-      clGetEventInfo(cl_adapter::cast<cl_event>(hEvent), CLEventInfo, propSize,
-                     pPropValue, &CheckPropSize);
-  if (pPropValue && CheckPropSize != propSize) {
-    return UR_RESULT_ERROR_INVALID_SIZE;
+  switch (propName) {
+  case UR_EVENT_INFO_CONTEXT: {
+    return ReturnValue(hEvent->Context);
   }
-  CL_RETURN_ON_FAILURE(RetErr);
-  if (pPropSizeRet) {
-    *pPropSizeRet = CheckPropSize;
+  case UR_EVENT_INFO_COMMAND_QUEUE: {
+    hEvent->ensureQueue();
+    return ReturnValue(hEvent->Queue);
   }
+  case UR_EVENT_INFO_REFERENCE_COUNT: {
+    return ReturnValue(hEvent->getReferenceCount());
+  }
+  default: {
+    size_t CheckPropSize = 0;
+    cl_int RetErr = clGetEventInfo(hEvent->CLEvent, CLEventInfo, propSize,
+                                   pPropValue, &CheckPropSize);
+    if (pPropValue && CheckPropSize != propSize &&
+        propName != UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+      // Opencl:cpu may (incorrectly) return 0 for propSize when checking
+      // execution status when status is CL_COMPLETE.
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(RetErr);
+    if (pPropSizeRet) {
+      *pPropSizeRet = CheckPropSize;
+    }
 
-  if (pPropValue) {
-    if (propName == UR_EVENT_INFO_COMMAND_TYPE) {
-      *reinterpret_cast<ur_command_t *>(pPropValue) = convertCLCommandTypeToUR(
-          *reinterpret_cast<cl_command_type *>(pPropValue));
-    } else if (propName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
-      const auto param_value_int = static_cast<ur_event_status_t *>(pPropValue);
-      if (*param_value_int < 0) {
-        // This can contain a negative return code to signify that the command
-        // terminated in an unexpected way.
-        *param_value_int = UR_EVENT_STATUS_ERROR;
+    if (pPropValue) {
+      if (propName == UR_EVENT_INFO_COMMAND_TYPE) {
+        *reinterpret_cast<ur_command_t *>(pPropValue) =
+            convertCLCommandTypeToUR(
+                *reinterpret_cast<cl_command_type *>(pPropValue));
+      } else if (propName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+        const auto param_value_int =
+            static_cast<ur_event_status_t *>(pPropValue);
+        if (*param_value_int < 0) {
+          // This can contain a negative return code to signify that the command
+          // terminated in an unexpected way.
+          *param_value_int = UR_EVENT_STATUS_ERROR;
+        }
       }
     }
+  }
   }
 
   return UR_RESULT_SUCCESS;
@@ -187,9 +217,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     ur_event_handle_t hEvent, ur_profiling_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropSizeRet) {
   cl_profiling_info CLProfilingInfo = convertURProfilingInfoToCL(propName);
-  cl_int RetErr = clGetEventProfilingInfo(cl_adapter::cast<cl_event>(hEvent),
-                                          CLProfilingInfo, propSize, pPropValue,
-                                          pPropSizeRet);
+  cl_int RetErr = clGetEventProfilingInfo(hEvent->CLEvent, CLProfilingInfo,
+                                          propSize, pPropValue, pPropSizeRet);
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
@@ -254,8 +283,8 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
     auto *C = static_cast<EventCallback *>(pUserData);
     C->execute();
   };
-  CL_RETURN_ON_FAILURE(clSetEventCallback(cl_adapter::cast<cl_event>(hEvent),
-                                          CallbackType, ClCallback, Callback));
+  CL_RETURN_ON_FAILURE(
+      clSetEventCallback(hEvent->CLEvent, CallbackType, ClCallback, Callback));
   return UR_RESULT_SUCCESS;
 }
 

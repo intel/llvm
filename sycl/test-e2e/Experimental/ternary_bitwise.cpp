@@ -124,14 +124,10 @@ int main() {
   auto *ULongObj = createMem<unsigned long>(Q);
   auto *SChar2Obj = createMem<sycl::vec<int8_t, 2>>(Q);
   auto *UShort8Obj = createMem<sycl::vec<uint16_t, 8>>(Q);
-  auto *Int2Obj = createMem<sycl::vec<int32_t, 2>>(Q);
-  auto *ULong8Obj = createMem<sycl::vec<uint64_t, 8>>(Q);
-  auto *CharMarrayObj = createMem<sycl::marray<char, 3>>(Q);
-  auto *UShortMarrayObj = createMem<sycl::marray<unsigned short, 3>>(Q);
   auto *IntMarrayObj = createMem<sycl::marray<int, 3>>(Q);
   auto *ULongMarrayObj = createMem<sycl::marray<unsigned long, 3>>(Q);
 
-  Q.parallel_for(17, [=](sycl::id<1> Idx) {
+  Q.parallel_for(13, [=](sycl::id<1> Idx) {
      // We let the ID determine which memory object the work-item processes.
      size_t WorkCounter = 0;
 #define APPLY(MEM_OBJ)                                                         \
@@ -148,10 +144,6 @@ int main() {
      APPLY(ULongObj)
      APPLY(SChar2Obj)
      APPLY(UShort8Obj)
-     APPLY(Int2Obj)
-     APPLY(ULong8Obj)
-     APPLY(CharMarrayObj)
-     APPLY(UShortMarrayObj)
      APPLY(IntMarrayObj)
      APPLY(ULongMarrayObj)
    }).wait_and_throw();
@@ -169,10 +161,6 @@ int main() {
   Failed += checkResult(*ULongObj, "unsigned long");
   Failed += checkResult(*SChar2Obj, "sycl::vec<int8_t, 2>");
   Failed += checkResult(*UShort8Obj, "sycl::vec<uint16_t, 8>");
-  Failed += checkResult(*Int2Obj, "sycl::vec<int32_t, 2>");
-  Failed += checkResult(*ULong8Obj, "sycl::vec<uint64_t, 8>");
-  Failed += checkResult(*CharMarrayObj, "sycl::marray<char, 3>");
-  Failed += checkResult(*UShortMarrayObj, "sycl::marray<unsigned short, 3>");
   Failed += checkResult(*IntMarrayObj, "sycl::marray<int, 3>");
   Failed += checkResult(*ULongMarrayObj, "sycl::marray<unsigned long, 3>");
 
@@ -187,10 +175,6 @@ int main() {
   sycl::free(ULongObj, Q);
   sycl::free(SChar2Obj, Q);
   sycl::free(UShort8Obj, Q);
-  sycl::free(Int2Obj, Q);
-  sycl::free(ULong8Obj, Q);
-  sycl::free(CharMarrayObj, Q);
-  sycl::free(UShortMarrayObj, Q);
   sycl::free(IntMarrayObj, Q);
   sycl::free(ULongMarrayObj, Q);
 
