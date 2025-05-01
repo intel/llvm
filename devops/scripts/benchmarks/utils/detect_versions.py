@@ -61,6 +61,9 @@ class DetectVersion:
 		cls._instance = cls.__new__(cls)
 		cls._instance.l0_ver = get_var("L0_VER")
 		cls._instance.dpcpp_ver = get_var("DPCPP_VER")
+		cls._instance.dpcpp_exec = dpcpp_exec
+		# Do not make 2 API calls if compute_runtime_ver was already obtained
+		cls._instance.compute_runtime_ver_cache = None
 		return cls._instance
 
 	@classmethod
@@ -84,11 +87,14 @@ class DetectVersion:
 		return self.dpcpp_ver
 
 	def get_dpcpp_git_info(self) -> [str, str]:
+		"""
+		Returns: (git_repo, commit_hash)
+		"""
 		# clang++ formats are in <clang ver> (<git url> <commit>): if this
 		# regex does not match, it is likely this is not upstream clang.
 		git_info_match = re.search(r'\(http.+ [0-9a-f]+\)', self.dpcpp_ver)
 		if git_info_match is None:
-			return None
+			raise RuntimeError(f"detect_version: Unable to obtain git info from {self.dpcpp_exec}, are you sure you are using DPC++?")
 		git_info = git_info_match.group(0)
 		return git_info[1:-1].split(' ')
 
@@ -104,10 +110,16 @@ class DetectVersion:
 			return options.detect_versions.not_found_placeholder
 		return git_info[0]
 
+	def get_compute_runtime_ver_cached(self) -> str:
+		return self.compute_runtime_ver_cache
+
 	def get_compute_runtime_ver(self) -> str:
 		"""
 		Returns the compute-runtime version by deriving from l0 version.
 		"""
+		if self.compute_runtime_ver_cache is not None:
+			return self.compute_runtime_ver_cache
+
 		# L0 version strings follows semver: major.minor.patch+optional
 		# compute-runtime version tags follow year.WW.patch.optional instead,
 		# but patch, pptional is still the same across both.
@@ -136,6 +148,7 @@ class DetectVersion:
 					# provides tags from newer -> older, we take the first tag
 					# that matches as it would be the "longest" ver. to match.
 					if tag_patch == patch[:len(tag_patch)]:
+						self.compute_runtime_ver_cache = tag
 						return tag
 
 				def get_link_name(link: str) -> str:

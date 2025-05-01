@@ -94,9 +94,12 @@ class BenchmarkHistory:
             return git_hash, github_repo
 
         if options.git_commit_override is None or options.github_repo_override is None:
-            git_hash, github_repo = git_info_from_path(
-                os.path.dirname(os.path.abspath(__file__))
-            )
+            if options.detect_versions.sycl:
+                github_repo, git_hash = DetectVersion.instance().get_dpcpp_git_info()
+            else:
+                git_hash, github_repo = git_info_from_path(
+                    os.path.dirname(os.path.abspath(__file__))
+                )
         else:
             git_hash, github_repo = (
                 options.git_commit_override,
@@ -119,9 +122,11 @@ class BenchmarkHistory:
                 throw=ValueError("Illegal characters found in specified RUNNER_NAME."),
             )
 
-        compute_runtime = (
-            options.compute_runtime_tag if options.build_compute_runtime else None
-        )
+        compute_runtime = None
+        if options.build_compute_runtime:
+            compute_runtime = options.compute_runtime_tag
+        elif options.detect_versions.compute_runtime:
+            compute_runtime = DetectVersion.instance().get_compute_runtime_ver()
 
         return BenchmarkRun(
             name=name,

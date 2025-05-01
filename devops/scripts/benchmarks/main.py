@@ -604,9 +604,9 @@ if __name__ == "__main__":
     if args.detect_version is not None:
         detect_ver_path = args.detect_version_cpp_path
         if detect_ver_path is None:
-            detect_ver_path = Path(f"{os.path.dirname(__file__)}/utils/detect_version.cpp")
+            detect_ver_path = Path(f"{os.path.dirname(__file__)}/utils/detect_versions.cpp")
             if not detect_ver_path.is_file():
-                parser.error(f"Unable to find detect_version.cpp at {detect_ver_path}, please specify --detect-version-cpp-path")
+                parser.error(f"Unable to find detect_versions.cpp at {detect_ver_path}, please specify --detect-version-cpp-path")
         elif not detect_ver_path.is_file():
             parser.error(f"Specified --detect-version-cpp-path is not a valid file")
 
@@ -614,7 +614,20 @@ if __name__ == "__main__":
         options.detect_versions.sycl = "sycl" in enabled_components
         options.detect_versions.compute_runtime = "compute_runtime" in enabled_components
         
-        DetectVersion.init(detect_ver_path)
+        detect_res = DetectVersion.init(detect_ver_path)
+        # Since get_compute_runtime_ver requires github API calls, make sure
+        # these calls are successful first before running benchmarks. We don't
+        # want to benchmarks only to be unable to detect compute-runtime
+        # version.
+        if options.detect_versions.compute_runtime:
+            for attempt in range(2):
+                if attempt > 0:
+                    print(f"detect_version: Failed to get compute_runtime version. Commencing attempt #{attempt}")
+                detect_res.get_compute_runtime_ver()
+                if detect_res.get_compute_runtime_ver_cached() is not None:
+                    break
+            if detect_res.get_compute_runtime_ver_cached() is None:
+                raise RuntimeError("Unable to parse compute_runtime tag from github tags API!")
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
