@@ -1,7 +1,7 @@
-# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
-# Merge: d3e97040 b1b0c60c
+# commit d03f19a88e42cb98be9604ff24b61190d1e48727
+# Merge: 3ce6fcc9 84454b0e
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 13:59:15 2025 +0000
-#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
-#     Fix potential deadlock in the WaitEvent path of CmdBuffers
-set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)
+# Date:   Thu Feb 13 11:43:34 2025 +0000
+#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
+#     Do not fetch cudart from gitlab for UMF
+set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)

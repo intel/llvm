@@ -7,13 +7,13 @@
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
 // RUN: %{run} %t2.out
 
-// UNSUPPORTED: cuda, hip
+// UNSUPPORTED: target-nvidia, target-amd
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
 // Depends on SPIR-V Backend & run-time drivers version.
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include "imf_utils.hpp"

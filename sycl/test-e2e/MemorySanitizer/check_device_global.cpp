@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu || (gpu && level_zero)
+// REQUIRES: linux && (cpu || gpu && level_zero)
 // RUN: %{build} %device_msan_flags -O0 -g -o %t1.out
 // RUN: %{run} not %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -O1 -g -o %t2.out

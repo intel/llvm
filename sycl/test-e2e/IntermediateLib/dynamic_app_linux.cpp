@@ -4,7 +4,7 @@
 // RUN: %clangxx -fsycl -fPIC -shared -o %T/simple_lib.so %S/Inputs/simple_lib.cpp
 
 // build app
-// RUN: %clangxx -DSO_PATH="%T/simple_lib.so" -o %t.out %s
+// RUN: %clangxx -DSO_PATH="%T/simple_lib.so" -o %t.out %s %if preview-mode %{-Wno-unused-command-line-argument%}
 
 // RUN: %{run} %t.out
 // RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out

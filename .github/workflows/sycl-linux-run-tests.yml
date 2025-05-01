@@ -12,7 +12,7 @@ on:
         required: True
       image:
         type: string
-        required: True
+        required: False
       image_options:
         type: string
         required: True
@@ -25,7 +25,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Two possible options: "e2e" and "cts".
+          Three possible options: "e2e", "cts", and "benchmarks".
         type: string
         default: "e2e"
 
@@ -35,16 +35,20 @@ on:
         type: string
         default: ''
 
-      ref:
+      repo_ref:
         type: string
         required: True
-      merge_ref:
         description: |
-          Commit-ish to merge post-checkout if non-empty. Must be reachable from
-          the default_branch input paramter.
+          Commit SHA or branch to checkout the intel/llvm repo.
+      devops_ref:
         type: string
-        default: 'FETCH_HEAD'
         required: False
+        description: |
+          Commit SHA or branch to checkout the devops directory.
+      tests_ref:
+        type: string
+        required: False
+        description: Commit SHA or branch to checkout e2e/cts tests.
 
       sycl_toolchain_artifact:
         type: string
@@ -61,31 +65,23 @@ on:
 
       e2e_binaries_artifact:
         description: |
-          By setting this the E2E binaries folder will not be created, rather it
-          will be downloaded and extracted from the specified artifact. When
-          running tests in `run-only` mode this must be provided.
+          Must be set if `e2e_testing_mode` is equal to `run-only` and the
+          artifact must exist. Can be set in other modes resulting in artifact
+          upload.
         type: string
         default: ''
         required: False
       e2e_testing_mode:
         description: |
           Testing mode to run E2E tests in, can be either `full`, `build-only`
-          or `run-only`. In `build-only` mode an artifact of the E2E binaries
-          will be uploaded.
+          or `run-only`.
         type: string
         default: 'full'
-      artifact_suffix:
-        description: 'Suffix for E2E binaries artifact that is output when in `build-only`.'
-        type: string
-        default: 'default'
       retention-days:
         description: 'E2E/SYCL-CTS binaries artifact retention period.'
         type: string
         default: 1
 
-      reset_intel_gpu:
-        type: string
-        required: False
       install_igc_driver:
         type: string
         required: False
@@ -115,6 +111,33 @@ on:
         default: ''
         required: False
 
+      benchmark_upload_results:
+        description: |
+          Set to true to upload results to git repository storing benchmarking
+          results.
+        type: string
+        default: 'false'
+        required: False
+      benchmark_save_name:
+        description: |
+          Save name to use for benchmark results: Save names are stored in
+          metadata of result file, and are used to identify benchmark results in
+          the same series (e.g. same configuration, same device, etc.).
+
+          Note: Currently, benchmark result filenames are in the format of
+          <benchmark_save_name>_<Device>_<Backend>_YYYYMMDD_HHMMSS.json
+        type: string
+        default: ''
+        required: False
+      benchmark_preset:
+        description: |
+          Name of benchmark preset to run.
+
+          See /devops/scripts/benchmarks/presets.py for all presets available.
+        type: string
+        default: 'Minimal'
+        required: False
+
   workflow_dispatch:
     inputs:
       runner:
@@ -126,30 +149,35 @@ on:
           - '["Linux", "pvc"]'
           - '["cts-cpu"]'
           - '["Linux", "build"]'
+          - '["cuda"]'
+          - '["PVC_PERF"]'
       image:
         type: choice
         options:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
+          - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options:
         description: |
           Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
         type: choice
         options:
-          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
           - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --gpus all --cap-add SYS_ADMIN'
       target_devices:
         type: choice
         options:
+          - 'level_zero:gpu'
           - 'opencl:cpu'
           - 'opencl:gpu'
-          - 'opencl:fpga'
-          - 'level_zero:gpu'
           - 'hip:gpu'
+          - 'cuda:gpu'
       tests_selector:
         type: choice
         options:
           - e2e
           - cts
+          - benchmarks
 
       env:
         description: |
@@ -167,17 +195,6 @@ on:
           Extra options to be added to LIT_OPTS.
         default: ''
 
-      install_igc_driver:
-        type: choice
-        options:
-          - false
-          - true
-
-      install_dev_igc_driver:
-        type: choice
-        options:
-          - false
-          - true
       e2e_testing_mode:
         type: choice
         options:
@@ -194,22 +211,19 @@ jobs:
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
-      image: ${{ inputs.image }}
+      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
-    - name: Reset Intel GPU
-      if: inputs.reset_intel_gpu == 'true'
-      run: |
-        sudo mount -t debugfs none /sys/kernel/debug
-        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
     - uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.ref }}
+        ref: ${{ inputs.devops_ref || inputs.repo_ref }}
         sparse-checkout: |
           devops
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
+    - name: Reset Intel GPU
+      uses: ./devops/actions/reset_gpu
     - name: Install drivers
       if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
@@ -219,7 +233,7 @@ jobs:
             # If libllvm14 is already installed (dev igc docker), still return true.
             sudo apt-get install -yqq libllvm14 || true;
         fi
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+        sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
@@ -294,23 +308,36 @@ jobs:
     - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
       uses: ./devops/actions/run-tests/e2e
+      timeout-minutes: 60
       with:
-        ref: ${{ inputs.ref || github.sha }}
-        merge_ref: ${{ inputs.merge_ref }}
-        e2e_binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        testing_mode: ${{ inputs.e2e_testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
-        e2e_testing_mode: ${{ inputs.e2e_testing_mode }}
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
-        artifact_suffix: ${{ inputs.artifact_suffix }}
         retention-days: ${{ inputs.retention-days }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/cts
       with:
+        ref: ${{ inputs.tests_ref || 'main' }}
+        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
+
+    - name: Run benchmarks
+      if: inputs.tests_selector == 'benchmarks'
+      uses: ./devops/actions/run-tests/benchmark
+      with:
+        target_devices: ${{ inputs.target_devices }}
+        upload_results: ${{ inputs.benchmark_upload_results }}
+        save_name: ${{ inputs.benchmark_save_name }}
+        preset: ${{ inputs.benchmark_preset }}
+      env:
+        RUNNER_TAG: ${{ inputs.runner }}
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

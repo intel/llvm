@@ -1,3 +1,6 @@
+// UNSUPPORTED: preview-mode
+// UNSUPPORTED-INTENDED: Functionality is removed under
+//                       `-fpreview-breaking-changes`
 // RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 //

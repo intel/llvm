@@ -6,7 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/clcmacro.h>
+#include <clc/math/clc_mad.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <mad.inc>
-#include <clc/math/gentype.inc>
+_CLC_DEFINE_TERNARY_BUILTIN(float, __spirv_ocl_mad, __clc_mad, float, float, float)
+
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
+_CLC_DEFINE_TERNARY_BUILTIN(double, __spirv_ocl_mad, __clc_mad, double, double, double)
+
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_TERNARY_BUILTIN(half, __spirv_ocl_mad, __clc_mad, half, half, half)
+
+#endif

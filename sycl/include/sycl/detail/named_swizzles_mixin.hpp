@@ -18,6 +18,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+// Will be defined in another header.
+template <typename T> struct from_incomplete;
+
 #ifndef SYCL_SIMPLE_SWIZZLES
 #define __SYCL_SWIZZLE_MIXIN_SIMPLE_SWIZZLES
 #else
@@ -785,7 +788,8 @@ namespace detail {
     return (*static_cast<const Self_ *>(this))[INDEX];                         \
   }
 
-template <typename Self, int NumElements> struct NamedSwizzlesMixinConst {
+template <typename Self, int NumElements = from_incomplete<Self>::size()>
+struct NamedSwizzlesMixinConst {
 #define __SYCL_SWIZZLE_MIXIN_METHOD(COND, NAME, ...)                           \
   __SYCL_SWIZZLE_MIXIN_METHOD_CONST(COND, NAME, __VA_ARGS__)
 
@@ -798,7 +802,8 @@ template <typename Self, int NumElements> struct NamedSwizzlesMixinConst {
 #undef __SYCL_SWIZZLE_MIXIN_METHOD
 };
 
-template <typename Self, int NumElements> struct NamedSwizzlesMixinBoth {
+template <typename Self, int NumElements = from_incomplete<Self>::size()>
+struct NamedSwizzlesMixinBoth {
 #define __SYCL_SWIZZLE_MIXIN_METHOD(COND, NAME, ...)                           \
   __SYCL_SWIZZLE_MIXIN_METHOD_NON_CONST(COND, NAME, __VA_ARGS__)               \
   __SYCL_SWIZZLE_MIXIN_METHOD_CONST(COND, NAME, __VA_ARGS__)

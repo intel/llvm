@@ -305,7 +305,7 @@ std::optional<float> FPBuiltinIntrinsic::getRequiredAccuracy() const {
 }
 
 bool FPBuiltinIntrinsic::hasUnrecognizedFPAttrs(
-    const StringSet<> recognizedAttrs) {
+    const StringSet<> recognizedAttrs) const {
   AttributeSet FnAttrs = getAttributes().getFnAttrs();
   for (const Attribute &Attr : FnAttrs) {
     if (!Attr.isStringAttribute())
@@ -969,4 +969,32 @@ Type *SYCLAllocaInst::getAllocatedType() const {
 
 Align SYCLAllocaInst::getAlign() const {
   return cast<ConstantInt>(getArgOperand(4))->getAlignValue();
+}
+
+ConvergenceControlInst *ConvergenceControlInst::CreateAnchor(BasicBlock &BB) {
+  Module *M = BB.getModule();
+  Function *Fn = Intrinsic::getOrInsertDeclaration(
+      M, llvm::Intrinsic::experimental_convergence_anchor);
+  auto *Call = CallInst::Create(Fn, "", BB.getFirstInsertionPt());
+  return cast<ConvergenceControlInst>(Call);
+}
+
+ConvergenceControlInst *ConvergenceControlInst::CreateEntry(BasicBlock &BB) {
+  Module *M = BB.getModule();
+  Function *Fn = Intrinsic::getOrInsertDeclaration(
+      M, llvm::Intrinsic::experimental_convergence_entry);
+  auto *Call = CallInst::Create(Fn, "", BB.getFirstInsertionPt());
+  return cast<ConvergenceControlInst>(Call);
+}
+
+ConvergenceControlInst *
+ConvergenceControlInst::CreateLoop(BasicBlock &BB,
+                                   ConvergenceControlInst *ParentToken) {
+  Module *M = BB.getModule();
+  Function *Fn = Intrinsic::getOrInsertDeclaration(
+      M, llvm::Intrinsic::experimental_convergence_loop);
+  llvm::Value *BundleArgs[] = {ParentToken};
+  llvm::OperandBundleDef OB("convergencectrl", BundleArgs);
+  auto *Call = CallInst::Create(Fn, {}, {OB}, "", BB.getFirstInsertionPt());
+  return cast<ConvergenceControlInst>(Call);
 }

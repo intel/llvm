@@ -1223,8 +1223,8 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img =
-      PM.getDeviceImage(DeviceGlobalEntry->MImages, Context, Device);
+  RTDeviceBinaryImage &Img = PM.getDeviceImage(
+      DeviceGlobalEntry->MImages, ContextImpl, getSyclObjImpl(Device).get());
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =
@@ -1567,9 +1567,17 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
                     "NULL pointer argument in memory fill operation.");
 
   const AdapterPtr &Adapter = Context->getAdapter();
-  Adapter->call<UrApiKind::urCommandBufferAppendUSMFillExp>(
-      CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
-      Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
+  ur_result_t Result =
+      Adapter->call_nocheck<UrApiKind::urCommandBufferAppendUSMFillExp>(
+          CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len,
+          Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
+  if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "USM fill command not supported by graph backend");
+  } else {
+    Adapter->checkUrResult(Result);
+  }
 }
 
 void MemoryManager::ext_oneapi_fill_cmd_buffer(
@@ -1644,7 +1652,8 @@ void MemoryManager::copy_image_bindless(
          "Copy image bindless must be called with a valid device queue");
   assert((Flags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
           Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST ||
-          Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) &&
+          Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+          Flags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) &&
          "Invalid flags passed to copy_image_bindless.");
   if (!Dst || !Src)
     throw sycl::exception(

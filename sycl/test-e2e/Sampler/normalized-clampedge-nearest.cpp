@@ -1,11 +1,6 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Missing __spirv_ImageWrite, __spirv_SampledImage,
-// __spirv_ImageSampleExplicitLod on AMD
-// XFAIL: hip
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14732
 
 /*
     This file sets up an image, initializes it with data,

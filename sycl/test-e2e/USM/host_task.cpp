@@ -1,10 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Concurrent access to shared USM allocations is not supported by CUDA on
-// Windows, this occurs when the host-task and device kernel both access
-// USM without a dependency between the commands.
 // UNSUPPORTED: cuda && windows
+// UNSUPPORTED-INTENDED: Concurrent access to shared USM allocations is not
+// supported by CUDA on Windows, this occurs when the host-task and device
+// kernel both access USM without a dependency between the commands.
 
 // REQUIRES: aspect-usm_shared_allocations
 

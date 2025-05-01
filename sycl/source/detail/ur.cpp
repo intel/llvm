@@ -49,7 +49,7 @@ namespace pi {
 void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
-  auto impl = getSyclObjImpl(context);
+  const auto &impl = getSyclObjImpl(context);
   const auto &Adapter = impl->getAdapter();
   Adapter->call<UrApiKind::urContextSetExtendedDeleter>(
       impl->getHandleRef(),
@@ -76,6 +76,13 @@ void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 }
 
 ur_code_location_t codeLocationCallback(void *);
+
+void urLoggerCallback([[maybe_unused]] ur_logger_level_t level, const char *msg,
+                      [[maybe_unused]] void *userData) {
+  if (level == UR_LOGGER_LEVEL_WARN) {
+    std::cerr << msg << std::endl;
+  }
+}
 
 namespace ur {
 bool trace(TraceLevel Level) {
@@ -138,6 +145,11 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
   auto adapterGetInfo =
       adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterSetLoggerCallback>
+      adapterSetLoggerCallbackInfo;
+  auto adapterSetLoggerCallback =
+      adapterSetLoggerCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
@@ -219,6 +231,12 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
     Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
+
+    const char *env_value = std::getenv("UR_LOG_CALLBACK");
+    if (env_value == nullptr || std::string(env_value) != "disabled") {
+      CHECK_UR_SUCCESS(adapterSetLoggerCallback(UrAdapter, urLoggerCallback,
+                                                nullptr, UR_LOGGER_LEVEL_WARN));
+    }
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

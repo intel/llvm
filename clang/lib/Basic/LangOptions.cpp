@@ -183,7 +183,7 @@ void LangOptions::setLangDefaults(LangOptions &Opts, Language Lang,
   }
 
   Opts.HIP = Lang == Language::HIP;
-  Opts.CUDA = Lang == Language::CUDA || Opts.HIP;
+  Opts.CUDA = Lang == Language::CUDA || Opts.HIP || Opts.SYCLCUDACompat;
   if (Opts.HIP) {
     // HIP toolchain does not support 'Fast' FPOpFusion in backends since it
     // fuses multiplication/addition instructions without contract flag from
@@ -208,6 +208,8 @@ void LangOptions::setLangDefaults(LangOptions &Opts, Language Lang,
 
   // OpenCL and HLSL have half keyword
   Opts.Half = Opts.OpenCL || Opts.HLSL;
+
+  Opts.PreserveVec3Type = Opts.HLSL;
 }
 
 FPOptions FPOptions::defaultWithoutTrailingStorage(const LangOptions &LO) {

@@ -34,9 +34,5 @@ entry:
 !5 = !{i32 1, !"sycl-device", i32 1}
 ;.
 ; CHECK: [[META0:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
-; CHECK: [[META1:![0-9]+]] = !{null, !"align", i32 8}
-; CHECK: [[META2:![0-9]+]] = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
-; CHECK: [[META3:![0-9]+]] = !{null, !"align", i32 16}
-; CHECK: [[META4:![0-9]+]] = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
 ; CHECK: [[META5:![0-9]+]] = !{i32 1, i32 4}
 ;.

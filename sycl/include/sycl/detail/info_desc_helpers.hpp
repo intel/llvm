@@ -88,6 +88,15 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
 #include <sycl/info/kernel_device_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
+  template <>                                                                  \
+  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
+      : std::true_type {                                                       \
+    using return_type = Namespace::info::DescType::Desc::return_type;          \
+  };
+#include <sycl/info/ext_intel_kernel_info_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
@@ -118,8 +127,19 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
       : std::true_type {                                                       \
     using return_type = Namespace::info::DescType::Desc::return_type;          \
   };
+
+#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
+                                                  ReturnT, UrCode)             \
+  template <int Dimensions>                                                    \
+  struct is_##Desctype##_info_desc<                                            \
+      Namespace::info::Desctype::Desc<Dimensions>> : std::true_type {          \
+    using return_type =                                                        \
+        typename Namespace::info::Desctype::Desc<Dimensions>::return_type;     \
+  };
+
 #include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <>                                                                  \

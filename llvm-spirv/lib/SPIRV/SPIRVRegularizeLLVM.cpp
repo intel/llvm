@@ -101,7 +101,7 @@ void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
     Intrinsic->setCalledFunction(F);
     return;
   }
-  // TODO copy arguments attributes: nocapture writeonly.
+  // TODO copy arguments attributes: captures(none) writeonly.
   FunctionCallee FC =
       M->getOrInsertFunction(FuncName, Intrinsic->getFunctionType());
   auto IntrinsicID = Intrinsic->getIntrinsicID();
@@ -231,7 +231,7 @@ void SPIRVRegularizeLLVMBase::buildUMulWithOverflowFunc(Function *UMulFunc) {
   // umul.with.overflow intrinsic return a structure, where the first element
   // is the multiplication result, and the second is an overflow bit.
   auto *StructTy = UMulFunc->getReturnType();
-  auto *Agg = Builder.CreateInsertValue(UndefValue::get(StructTy), Mul, {0});
+  auto *Agg = Builder.CreateInsertValue(PoisonValue::get(StructTy), Mul, {0});
   auto *Res = Builder.CreateInsertValue(Agg, Overflow, {1});
   Builder.CreateRet(Res);
 }
@@ -487,7 +487,7 @@ void regularizeWithOverflowInstrinsics(StringRef MangledName, CallInst *Call,
   Value *V2 = Builder.CreateICmpNE(V1, ConstZero);
   Type *StructI32I1Ty =
       StructType::create(Call->getContext(), {RetTy, V2->getType()});
-  Value *Undef = UndefValue::get(StructI32I1Ty);
+  Value *Undef = PoisonValue::get(StructI32I1Ty);
   Value *V3 = Builder.CreateInsertValue(Undef, V0, {0});
   Value *V4 = Builder.CreateInsertValue(V3, V2, {1});
   SmallVector<User *> Users(Call->users());
@@ -753,7 +753,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           IRBuilder<> Builder(Cmpxchg);
           auto *Cmp = Builder.CreateICmpEQ(Res, Comparator, "cmpxchg.success");
           auto *V1 = Builder.CreateInsertValue(
-              UndefValue::get(Cmpxchg->getType()), Res, 0);
+              PoisonValue::get(Cmpxchg->getType()), Res, 0);
           auto *V2 = Builder.CreateInsertValue(V1, Cmp, 1, Cmpxchg->getName());
           Cmpxchg->replaceAllUsesWith(V2);
           ToErase.push_back(Cmpxchg);

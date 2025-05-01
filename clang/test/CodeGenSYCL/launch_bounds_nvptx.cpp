@@ -44,9 +44,9 @@ int main() {
   return 0;
 }
 
-// CHECK: define dso_local void @{{.*}}kernel_name1() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]] !max_work_group_size ![[MWGS:[0-9]+]]
-// CHECK: define dso_local void @{{.*}}kernel_name2() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]] !max_work_group_size ![[MWGS:[0-9]+]]
-// CHECK: define dso_local void @{{.*}}kernel_name3() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC_MWGPM:[0-9]+]] !max_work_groups_per_mp ![[MWGPC_MWGPM]] !max_work_group_size ![[MWGS_2:[0-9]+]]
+// CHECK: define dso_local ptx_kernel void @{{.*}}kernel_name1() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]] !max_work_group_size ![[MWGS:[0-9]+]]
+// CHECK: define dso_local ptx_kernel void @{{.*}}kernel_name2() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]] !max_work_group_size ![[MWGS:[0-9]+]]
+// CHECK: define dso_local ptx_kernel void @{{.*}}kernel_name3() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC_MWGPM:[0-9]+]] !max_work_groups_per_mp ![[MWGPC_MWGPM]] !max_work_group_size ![[MWGS_2:[0-9]+]]
 
 // CHECK: ![[MWGPC]] = !{i32 2}
 // CHECK: ![[MWGPM]] = !{i32 4}

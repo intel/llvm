@@ -23,6 +23,41 @@ using namespace sycl;
 
 namespace sycl_ext = sycl::ext::oneapi::experimental;
 
+template <typename T1, typename T2, typename T3> struct KernelFunctor {
+  T1 m_props;
+  T2 mLocalAccessor;
+  T3 mAcc;
+  KernelFunctor(T1 props, T2 LocalAccessor, T3 Acc)
+      : m_props(props), mLocalAccessor(LocalAccessor), mAcc(Acc) {}
+
+  void operator()(nd_item<1> Item) const {
+    int *Ptr =
+        reinterpret_cast<int *>(sycl_ext::get_work_group_scratch_memory());
+    size_t GroupOffset = Item.get_group_linear_id() * ElemPerWG;
+    for (size_t I = 0; I < RepeatWG; ++I) {
+      Ptr[WgSize * I + Item.get_local_linear_id()] = Item.get_local_linear_id();
+    }
+    Item.barrier();
+
+    for (size_t I = 0; I < RepeatWG; ++I) {
+      // Check that the local accessor works.
+      size_t LocalIdx = Item.get_local_linear_id() ^ 1;
+      mLocalAccessor[WgSize * I + LocalIdx] = Ptr[WgSize * I + LocalIdx] + 1;
+    }
+    Item.barrier();
+
+    for (size_t I = 0; I < RepeatWG; ++I) {
+      // Check that the memory is accessible from other
+      // work-items
+      size_t BaseIdx = GroupOffset + (I * WgSize);
+      size_t LocalIdx = Item.get_local_linear_id();
+      size_t GlobalIdx = BaseIdx + LocalIdx;
+      mAcc[GlobalIdx] = mLocalAccessor[WgSize * I + LocalIdx];
+    }
+  }
+  auto get(sycl_ext::properties_tag) const { return m_props; }
+};
+
 int main() {
   queue Q;
   std::vector<int> Vec(Size, 0);
@@ -36,34 +71,7 @@ int main() {
     auto LocalAccessor =
         sycl::local_accessor<int>(WgSize * RepeatWG * sizeof(int), Cgh);
     Cgh.parallel_for(nd_range<1>(range<1>(WgSize * WgCount), range<1>(WgSize)),
-                     properties, [=](nd_item<1> Item) {
-                       int *Ptr = reinterpret_cast<int *>(
-                           sycl_ext::get_work_group_scratch_memory());
-                       size_t GroupOffset =
-                           Item.get_group_linear_id() * ElemPerWG;
-                       for (size_t I = 0; I < RepeatWG; ++I) {
-                         Ptr[WgSize * I + Item.get_local_linear_id()] =
-                             Item.get_local_linear_id();
-                       }
-                       Item.barrier();
-
-                       for (size_t I = 0; I < RepeatWG; ++I) {
-                         // Check that the local accessor works.
-                         size_t LocalIdx = Item.get_local_linear_id() ^ 1;
-                         LocalAccessor[WgSize * I + LocalIdx] =
-                             Ptr[WgSize * I + LocalIdx] + 1;
-                       }
-                       Item.barrier();
-
-                       for (size_t I = 0; I < RepeatWG; ++I) {
-                         // Check that the memory is accessible from other
-                         // work-items
-                         size_t BaseIdx = GroupOffset + (I * WgSize);
-                         size_t LocalIdx = Item.get_local_linear_id();
-                         size_t GlobalIdx = BaseIdx + LocalIdx;
-                         Acc[GlobalIdx] = LocalAccessor[WgSize * I + LocalIdx];
-                       }
-                     });
+                     KernelFunctor(properties, LocalAccessor, Acc));
   });
 
   host_accessor Acc(Buf, read_only);

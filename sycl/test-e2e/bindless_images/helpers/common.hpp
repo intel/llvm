@@ -102,10 +102,12 @@ bool equal_vec(sycl::vec<DType, NChannels> v1, sycl::vec<DType, NChannels> v2) {
   return true;
 }
 
-template <typename DType, int NChannels>
-static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
+template <typename T>
+static void fill_rand(std::vector<T> &v,
                       int seed = std::default_random_engine::default_seed) {
   assert(!v.empty());
+  using DType = sycl::detail::get_elem_type_t<T>;
+  constexpr int NChannels = sycl::detail::get_vec_size<T>::size;
   std::default_random_engine generator;
   generator.seed(seed);
   auto distribution = [&]() {
@@ -120,10 +122,12 @@ static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
     }
   }();
   for (int i = 0; i < v.size(); ++i) {
-    sycl::vec<DType, NChannels> temp;
-
-    for (int j = 0; j < NChannels; j++) {
-      temp[j] = static_cast<DType>(distribution(generator));
+    T temp;
+    if constexpr (NChannels == 1) {
+      temp = static_cast<DType>(distribution(generator));
+    } else {
+      for (int j = 0; j < NChannels; ++j)
+        temp[j] = static_cast<DType>(distribution(generator));
     }
 
     v[i] = temp;

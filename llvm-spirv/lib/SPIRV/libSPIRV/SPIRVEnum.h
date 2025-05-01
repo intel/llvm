@@ -223,6 +223,9 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
                {CapabilityCooperativeMatrixKHR});
   ADD_VEC_INIT(internal::CapabilityCooperativeMatrixOffsetInstructionsINTEL,
                {CapabilityCooperativeMatrixKHR});
+  ADD_VEC_INIT(CapabilityBFloat16DotProductKHR, {CapabilityBFloat16TypeKHR});
+  ADD_VEC_INIT(CapabilityBFloat16CooperativeMatrixKHR,
+               {CapabilityBFloat16TypeKHR, CapabilityCooperativeMatrixKHR});
 }
 
 template <> inline void SPIRVMap<SPIRVExecutionModelKind, SPIRVCapVec>::init() {
@@ -396,7 +399,6 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationSample, {CapabilitySampleRateShading});
   ADD_VEC_INIT(DecorationInvariant, {CapabilityShader});
   ADD_VEC_INIT(DecorationConstant, {CapabilityKernel});
-  ADD_VEC_INIT(DecorationUniform, {CapabilityShader});
   ADD_VEC_INIT(DecorationSaturatedConversion, {CapabilityKernel});
   ADD_VEC_INIT(DecorationStream, {CapabilityGeometryStreams});
   ADD_VEC_INIT(DecorationLocation, {CapabilityShader});

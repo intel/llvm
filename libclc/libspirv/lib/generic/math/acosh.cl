@@ -10,10 +10,10 @@
 
 #include "ep_log.h"
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_acosh(float x) {
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
 
   // Arguments greater than 1/sqrt(epsilon) in magnitude are
   // approximated by acosh(x) = ln(2) + ln(x)
@@ -30,7 +30,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_acosh(float x) {
   float z = __spirv_ocl_log1p(v) + (high ? 0x1.62e430p-1f : 0.0f);
 
   z = ux >= PINFBITPATT_SP32 ? x : z;
-  z = x < 1.0f ? as_float(QNANBITPATT_SP32) : z;
+  z = x < 1.0f ? __clc_as_float(QNANBITPATT_SP32) : z;
 
   return z;
 }
@@ -99,13 +99,13 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_acosh(double x) {
   // For arguments 1.13 <= x <= 1.5 the log1p function is good enough
   double ret2 = __spirv_ocl_log1p(t);
 
-  ulong ux = as_ulong(x);
+  ulong ux = __clc_as_ulong(x);
   double ret = x >= 128.0 ? ret1 : ret2;
 
   ret = ux >= 0x7FF0000000000000 ? x : ret;
   ret = x == 1.0 ? 0.0 : ret;
   ret =
-      (ux & SIGNBIT_DP64) != 0UL || x < 1.0 ? as_double(QNANBITPATT_DP64) : ret;
+      (ux & SIGNBIT_DP64) != 0UL || x < 1.0 ? __clc_as_double(QNANBITPATT_DP64) : ret;
 
   return ret;
 }
@@ -118,6 +118,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_acosh, double)
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_acosh, __builtin_acosh, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_acosh, __builtin_acoshf, half)
 
 #endif

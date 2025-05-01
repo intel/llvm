@@ -247,13 +247,13 @@ bool propagateConstexprLayout(Function *F) {
   // and keep track if we have removed them before to avoid double free().
   SmallPtrSet<Instruction *, 8> Erased;
   for (Instruction *II : ToErase) {
-    if (!II->use_empty())
-      continue;
     if (Erased.contains(II))
       continue;
+    if (!II->use_empty())
+      continue;
+    Erased.insert(II);
     II->dropAllReferences();
     II->eraseFromParent();
-    Erased.insert(II);
   }
   return !ToErase.empty();
 }

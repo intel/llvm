@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
-// REQUIRES: cuda, cuda_dev_kit
-// REQUIRES: build-and-run-mode
+// REQUIRES: target-nvidia, cuda_dev_kit
 
 #include <iostream>
 #include <sycl/backend.hpp>

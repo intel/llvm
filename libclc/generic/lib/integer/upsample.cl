@@ -1,7 +1,15 @@
-#include <clc/clc.h>
-#include <core/clc_core.h>
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
-#define __CLC_UPSAMPLE_IMPL(BGENTYPE, GENTYPE, UGENTYPE, GENSIZE)              \
+#include <clc/clc.h>
+#include <clc/integer/clc_upsample.h>
+
+#define __CLC_UPSAMPLE_IMPL(BGENTYPE, GENTYPE, UGENTYPE)                       \
   _CLC_OVERLOAD _CLC_DEF BGENTYPE upsample(GENTYPE hi, UGENTYPE lo) {          \
     return __clc_upsample(hi, lo);                                             \
   }                                                                            \
@@ -22,13 +30,13 @@
     return __clc_upsample(hi, lo);                                             \
   }
 
-#define __CLC_UPSAMPLE_TYPES() \
-    __CLC_UPSAMPLE_IMPL(short, char, uchar, 8) \
-    __CLC_UPSAMPLE_IMPL(ushort, uchar, uchar, 8) \
-    __CLC_UPSAMPLE_IMPL(int, short, ushort, 16) \
-    __CLC_UPSAMPLE_IMPL(uint, ushort, ushort, 16) \
-    __CLC_UPSAMPLE_IMPL(long, int, uint, 32) \
-    __CLC_UPSAMPLE_IMPL(ulong, uint, uint, 32) \
+#define __CLC_UPSAMPLE_TYPES()                                                 \
+  __CLC_UPSAMPLE_IMPL(short, char, uchar)                                      \
+  __CLC_UPSAMPLE_IMPL(ushort, uchar, uchar)                                    \
+  __CLC_UPSAMPLE_IMPL(int, short, ushort)                                      \
+  __CLC_UPSAMPLE_IMPL(uint, ushort, ushort)                                    \
+  __CLC_UPSAMPLE_IMPL(long, int, uint)                                         \
+  __CLC_UPSAMPLE_IMPL(ulong, uint, uint)
 
 __CLC_UPSAMPLE_TYPES()
 

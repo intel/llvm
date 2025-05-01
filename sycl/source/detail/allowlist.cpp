@@ -289,6 +289,26 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
   return AllowListParsed;
 }
 
+static void traceAllowFiltering(const DeviceDescT &DeviceDesc, bool Allowed) {
+  bool shouldTrace = false;
+  if (Allowed) {
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_BASIC);
+  } else {
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL);
+  }
+
+  if (shouldTrace) {
+    auto selectionMsg = Allowed ? "allowed" : "filtered";
+    std::cout << "SYCL_UR_TRACE: Device " << selectionMsg
+              << " by SYCL_DEVICE_ALLOWLIST" << std::endl
+              << "SYCL_UR_TRACE: "
+              << "  platform: " << DeviceDesc.at(PlatformNameKeyName)
+              << std::endl
+              << "SYCL_UR_TRACE: "
+              << "  device: " << DeviceDesc.at(DeviceNameKeyName) << std::endl;
+  }
+}
+
 // Checking if we can allow device with device description DeviceDesc
 bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
                      const AllowListParsedT &AllowListParsed) {
@@ -355,8 +375,9 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
 
   // Get platform's backend and put it to DeviceDesc
   DeviceDescT DeviceDesc;
-  auto PlatformImpl = platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
-  backend Backend = PlatformImpl->getBackend();
+  platform_impl &PlatformImpl =
+      platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
+  backend Backend = PlatformImpl.getBackend();
 
   for (const auto &SyclBe : getSyclBeMap()) {
     if (SyclBe.second == Backend) {
@@ -375,7 +396,7 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
 
   int InsertIDx = 0;
   for (ur_device_handle_t Device : UrDevices) {
-    auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
+    auto DeviceImpl = PlatformImpl.getOrMakeDeviceImpl(Device);
     // get DeviceType value and put it to DeviceDesc
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
     Adapter->call<UrApiKind::urDeviceGetInfo>(
@@ -408,24 +429,28 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     }
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
-        sycl::detail::get_device_info<info::device::vendor_id>(DeviceImpl);
+        sycl::detail::get_device_info<info::device::vendor_id>(
+            *DeviceImpl.get());
     std::stringstream DeviceVendorIdHexStringStream;
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
     const std::string &DriverVersionValue =
-        sycl::detail::get_device_info<info::device::driver_version>(DeviceImpl);
+        sycl::detail::get_device_info<info::device::driver_version>(
+            *DeviceImpl.get());
     DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
     const std::string &DeviceNameValue =
-        sycl::detail::get_device_info<info::device::name>(DeviceImpl);
+        sycl::detail::get_device_info<info::device::name>(*DeviceImpl.get());
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc
-    if (deviceIsAllowed(DeviceDesc, AllowListParsed)) {
+    bool isAllowed = deviceIsAllowed(DeviceDesc, AllowListParsed);
+    if (isAllowed) {
       UrDevices[InsertIDx++] = Device;
     }
+    traceAllowFiltering(DeviceDesc, isAllowed);
   }
   UrDevices.resize(InsertIDx);
 }

@@ -93,20 +93,25 @@ namespace detail {
 template <typename T, typename> struct CheckFieldsAreDeviceCopyable;
 template <typename T, typename> struct CheckBasesAreDeviceCopyable;
 
+template <typename T>
+inline constexpr bool is_deprecated_device_copyable_v =
+    is_device_copyable_v<T> || (std::is_trivially_copy_constructible_v<T> &&
+                                std::is_trivially_destructible_v<T>);
+
 template <typename T, unsigned... FieldIds>
 struct CheckFieldsAreDeviceCopyable<T, std::index_sequence<FieldIds...>> {
-  static_assert(
-      ((is_device_copyable_v<decltype(__builtin_field_type(T, FieldIds))> &&
-        ...)),
-      "The specified type is not device copyable");
+  static_assert(((is_deprecated_device_copyable_v<
+                      decltype(__builtin_field_type(T, FieldIds))> &&
+                  ...)),
+                "The specified type is not device copyable");
 };
 
 template <typename T, unsigned... BaseIds>
 struct CheckBasesAreDeviceCopyable<T, std::index_sequence<BaseIds...>> {
-  static_assert(
-      ((is_device_copyable_v<decltype(__builtin_base_type(T, BaseIds))> &&
-        ...)),
-      "The specified type is not device copyable");
+  static_assert(((is_deprecated_device_copyable_v<
+                      decltype(__builtin_base_type(T, BaseIds))> &&
+                  ...)),
+                "The specified type is not device copyable");
 };
 
 // All the captures of a lambda or functor of type FuncT passed to a kernel

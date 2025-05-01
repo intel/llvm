@@ -68,6 +68,14 @@ public:
   event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
+  /// Sets a queue associated with the event
+  ///
+  /// Please note that this function changes the event state
+  /// as it was constructed with the queue based constructor.
+  ///
+  /// \param Queue is a queue to be associated with the event
+  void setQueue(const QueueImplPtr &Queue);
+
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
@@ -209,6 +217,9 @@ public:
   /// Cleans dependencies of this event's dependencies.
   void cleanDepEventsThroughOneLevel();
 
+  /// Cleans dependencies of this event's dependencies w/o locking MMutex.
+  void cleanDepEventsThroughOneLevelUnlocked();
+
   /// Checks if this event is discarded by SYCL implementation.
   ///
   /// \return true if this event is discarded.
@@ -299,6 +310,8 @@ public:
   getCommandGraph() const {
     return MGraph.lock();
   }
+
+  bool hasCommandGraph() const { return !MGraph.expired(); }
 
   void setEventFromSubmittedExecCommandBuffer(bool value) {
     MEventFromSubmittedExecCommandBuffer = value;

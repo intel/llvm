@@ -12,7 +12,7 @@ ADD sycl_linux.tar.gz /opt/sycl/
 ENV PATH /opt/sycl/bin:$PATH
 ENV LD_LIBRARY_PATH /opt/sycl/lib:$LD_LIBRARY_PATH
 
-USER sycl_ci
+USER sycl
 
 ENTRYPOINT ["/bin/bash", "/drivers_entrypoint.sh"]
 

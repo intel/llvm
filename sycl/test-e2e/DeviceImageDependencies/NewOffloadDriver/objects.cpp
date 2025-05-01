@@ -1,6 +1,6 @@
 // Test -fsycl-allow-device-image-dependencies with objects.
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/a.cpp -I %S/Inputs -c -o %t_a.o
@@ -9,9 +9,6 @@
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/d.cpp -I %S/Inputs -c -o %t_d.o
 // RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies %t_a.o %t_b.o %t_c.o %t_d.o -I %S/Inputs -o %t.out
 // RUN: %{run} %t.out
-
-// XFAIL: spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16319
 
 #include "a.hpp"
 #include <iostream>

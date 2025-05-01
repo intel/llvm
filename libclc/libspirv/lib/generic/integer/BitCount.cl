@@ -8,8 +8,8 @@
 
 #include <libspirv/spirv.h>
 
-#define __CLC_FUNC __spirv_BitCount
-#define __CLC_IMPL_FUNC __spirv_ocl_popcount
+#define FUNCTION __spirv_BitCount
+#define __CLC_FUNCTION(x) __spirv_ocl_popcount
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-#define __CLC_BODY "../../../../generic/lib/clc_unary.inc"
 #include <clc/integer/gentype.inc>

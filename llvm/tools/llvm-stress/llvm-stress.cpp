@@ -259,7 +259,7 @@ protected:
       if (V->getType()->isPointerTy())
         return V;
     }
-    return UndefValue::get(pickPointerType());
+    return UndefValue::get(PointerType::get(Context, 0));
   }
 
   /// Return a random value of any vector type.
@@ -276,12 +276,6 @@ protected:
   /// Pick a random type.
   Type *pickType() {
     return (getRandom() & 1) ? pickVectorType() : pickScalarType();
-  }
-
-  /// Pick a random pointer type.
-  Type *pickPointerType() {
-    Type *Ty = pickType();
-    return PointerType::get(Ty, 0);
   }
 
   /// Pick a random vector type.
@@ -542,7 +536,7 @@ struct CastModifier: public Modifier {
     // Pointers:
     if (VTy->isPointerTy()) {
       if (!DestTy->isPointerTy())
-        DestTy = PointerType::get(DestTy, 0);
+        DestTy = PointerType::get(Context, 0);
       return PT->push_back(
           new BitCastInst(V, DestTy, "PC", BB->getTerminator()->getIterator()));
     }
@@ -708,7 +702,7 @@ static void IntroduceControlFlow(Function *F, Random &R) {
     BasicBlock *Curr = Instr->getParent();
     BasicBlock::iterator Loc = Instr->getIterator();
     BasicBlock *Next = Curr->splitBasicBlock(Loc, "CF");
-    Instr->moveBefore(Curr->getTerminator());
+    Instr->moveBefore(Curr->getTerminator()->getIterator());
     if (Curr != &F->getEntryBlock()) {
       BranchInst::Create(Curr, Next, Instr,
                          Curr->getTerminator()->getIterator());

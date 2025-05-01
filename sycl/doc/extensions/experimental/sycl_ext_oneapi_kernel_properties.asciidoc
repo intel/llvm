@@ -37,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 4 and
+This extension is written against the SYCL 2020 specification, Revision 9 and
 the following extensions:
 
 - link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
@@ -287,136 +287,6 @@ by the property, the implementation must throw a synchronous exception with the
 
 |===
 
-=== Adding a Property List to a Kernel Launch
-
-To enable properties to be associated with kernels, this extension adds
-new overloads to each of the variants of `single_task`, `parallel_for` and
-`parallel_for_work_group` defined in the `queue` and `handler` classes. These
-new overloads accept a `sycl::ext::oneapi::experimental::properties` argument. For
-variants accepting a parameter pack, the `sycl::ext::oneapi::experimental::properties`
-argument is inserted immediately prior to the parameter pack; for variants not
-accepting a parameter pack, the `sycl::ext::oneapi::experimental::properties` argument is
-inserted immediately prior to the kernel function.
-
-The overloads introduced by this extension are listed below:
-```c++
-namespace sycl {
-class queue {
- public:
-  template <typename KernelName, typename KernelType, typename PropertyList>
-  event single_task(PropertyList properties, const KernelType &kernelFunc);
-
-  template <typename KernelName, typename KernelType, typename PropertyList>
-  event single_task(event depEvent, PropertyList properties,
-                    const KernelType &kernelFunc);
-
-  template <typename KernelName, typename KernelType, typename PropertyList>
-  event single_task(const std::vector<event> &depEvents,
-                    PropertyList properties,
-                    const KernelType &kernelFunc);
-
-  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
-  event parallel_for(range<Dims> numWorkItems,
-                     Rest&&... rest);
-
-  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
-  event parallel_for(range<Dims> numWorkItems, event depEvent,
-                     PropertyList properties,
-                     Rest&&... rest);
-
-  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
-  event parallel_for(range<Dims> numWorkItems,
-                     const std::vector<event> &depEvents,
-                     PropertyList properties,
-                     Rest&&... rest);
-
-  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
-  event parallel_for(nd_range<Dims> executionRange,
-                     PropertyList properties,
-                     Rest&&... rest);
-
-  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
-  event parallel_for(nd_range<Dims> executionRange,
-                     event depEvent,
-                     PropertyList properties,
-                     Rest&&... rest);
-
-  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
-  event parallel_for(nd_range<Dims> executionRange,
-                     const std::vector<event> &depEvents,
-                     PropertyList properties,
-                     Rest&&... rest);
-}
-}
-
-namespace sycl {
-class handler {
- public:
-  template <typename KernelName, typename KernelType, typename PropertyList>
-  void single_task(PropertyList properties, const KernelType &kernelFunc);
-
-  template <typename KernelName, int dimensions, typename PropertyList, typename... Rest>
-  void parallel_for(range<dimensions> numWorkItems,
-                    PropertyList properties,
-                    Rest&&... rest);
-
-  template <typename KernelName, int dimensions, typename PropertyList, typename... Rest>
-  void parallel_for(nd_range<dimensions> executionRange,
-                    PropertyList properties,
-                    Rest&&... rest);
-
-  template <typename KernelName, typename WorkgroupFunctionType, int dimensions, typename PropertyList>
-  void parallel_for_work_group(range<dimensions> numWorkGroups,
-                               PropertyList properties,
-                               const WorkgroupFunctionType &kernelFunc);
-
-  template <typename KernelName, typename WorkgroupFunctionType, int dimensions, typename PropertyList>
-  void parallel_for_work_group(range<dimensions> numWorkGroups,
-                               range<dimensions> workGroupSize,
-                               PropertyList properties,
-                               const WorkgroupFunctionType &kernelFunc);
-}
-}
-```
-
-Passing a property list as an argument in this way allows properties to be
-associated with a kernel function without modifying its type. This enables
-the same kernel function (e.g. a lambda) to be submitted multiple times with
-different properties, or for libraries building on SYCL to add properties
-(e.g. for performance reasons) to user-provided kernel functions.
-
-All the properties defined in this extension have compile-time values. However,
-an implementation may support additional properties which could have run-time
-values. When this occurs, the `properties` parameter may be a property list
-containing a mix of both run-time and compile-time values, and a SYCL
-implementation should respect both run-time and compile-time information when
-determining the correct way to launch a kernel. However, only compile-time
-information can modify the compilation of the kernel function itself.
-
-A simple example of using this extension to set a required work-group size
-and required sub-group size is given below:
-
-```c++
-sycl::ext::oneapi::experimental::properties properties{sycl::ext::oneapi::experimental::work_group_size<8, 8>,
-                                                       sycl::ext::oneapi::experimental::sub_group_size<8>};
-q.parallel_for(range<2>{16, 16}, properties, [=](id<2> i) {
-  a[i] = b[i] + c[i];
-}).wait();
-```
-
-NOTE: It is currently not possible to use the same kernel function in two
-commands with different properties. For example, the following will result in an
-error at compile-time:
-
-```c++
-  auto kernelFunc = [=](){};
-  q.single_task(kernelFunc);
-  q.single_task(
-      sycl::ext::oneapi::experimental::properties{
-          sycl::ext::oneapi::experimental::sub_group_size<8>},
-      kernelFunc);
-```
-
 == Embedding Properties into a Kernel
 
 In other situations it may be useful to embed a kernel's properties directly
@@ -425,7 +295,7 @@ that it depends upon for correctness.
 
 To enable this use-case, this extension adds a mechanism for implementations to
 extract a property list from a kernel functor, if a kernel functor declares
-a member function named `get` accepting a `sycl::ext::oneapi::experimental::properties_tag`
+a const member function named `get` accepting a `sycl::ext::oneapi::experimental::properties_tag`
 tag type and returning an instance of `sycl::ext::oneapi::experimental::properties`.
 
 ```c++
@@ -468,7 +338,7 @@ struct KernelFunctor {
     a[i] = b[i] + c[i];
   }
 
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{sycl::ext::oneapi::experimental::work_group_size<8, 8>,
                                                        sycl::ext::oneapi::experimental::sub_group_size<8>};
   }

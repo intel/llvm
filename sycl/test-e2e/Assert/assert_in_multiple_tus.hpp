@@ -3,6 +3,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #ifdef DEFINE_NDEBUG_INFILE1
 #define NDEBUG
@@ -44,7 +45,7 @@ void enqueueKernel_1_fromFile1(queue *Q) {
 
 int main(int Argc, const char *Argv[]) {
 
-  queue Q;
+  queue Q({sycl::property::queue::in_order{}});
   enqueueKernel_1_fromFile1(&Q);
   enqueueKernel_2_fromFile2(&Q);
   Q.wait();

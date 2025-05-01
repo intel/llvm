@@ -2,10 +2,7 @@
 // XFAIL: (opencl && !cpu && !accelerator)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14641
 
-// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
-// https://github.com/intel/llvm/issues/16451. Rewrite testRootGroup() amd
-// remove the flag once the issue is resolved.
-// RUN: %{build} -I . -o %t.out -Wno-deprecated-declarations %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
+// RUN: %{build} -I . -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
 
 // Disabled temporarily while investigation into the failure is ongoing.
@@ -47,7 +44,7 @@ void testQueriesAndProperties() {
               q, wgRange, wgRange.size() * sizeof(int));
   struct TestKernel0 {
     void operator()() const {}
-    auto get(sycl::ext::oneapi::experimental::properties_tag) {
+    auto get(sycl::ext::oneapi::experimental::properties_tag) const {
       return sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::use_root_sync};
     }
@@ -62,6 +59,34 @@ void testQueriesAndProperties() {
   check_max_num_work_group_sync(maxWGs);
   check_max_num_work_group_sync(maxWGsWithLimits);
 }
+
+template <typename T> struct TestKernel1 {
+  T m_data;
+  TestKernel1(T &data_) : m_data(data_) {}
+  void operator()(sycl::nd_item<1> it) const {
+    volatile float X = 1.0f;
+    volatile float Y = 1.0f;
+    auto root = it.ext_oneapi_get_root_group();
+    m_data[root.get_local_id()] = root.get_local_id();
+    sycl::group_barrier(root);
+    // Delay half of the workgroups with extra work to check that the barrier
+    // synchronizes the whole device.
+    if (it.get_group(0) % 2 == 0) {
+      X += sycl::sin(X);
+      Y += sycl::cos(Y);
+    }
+    root = sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
+    int sum = m_data[root.get_local_id()] +
+              m_data[root.get_local_range() - root.get_local_id() - 1];
+    sycl::group_barrier(root);
+    m_data[root.get_local_id()] = sum;
+  }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::use_root_sync};
+    ;
+  }
+};
 
 void testRootGroup() {
   sycl::queue q;
@@ -79,26 +104,7 @@ void testRootGroup() {
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
     sycl::accessor data{dataBuf, h};
-    h.parallel_for<
-        class RootGroupKernel>(range, props, [=](sycl::nd_item<1> it) {
-      volatile float X = 1.0f;
-      volatile float Y = 1.0f;
-      auto root = it.ext_oneapi_get_root_group();
-      data[root.get_local_id()] = root.get_local_id();
-      sycl::group_barrier(root);
-      // Delay half of the workgroups with extra work to check that the barrier
-      // synchronizes the whole device.
-      if (it.get_group(0) % 2 == 0) {
-        X += sycl::sin(X);
-        Y += sycl::cos(Y);
-      }
-      root =
-          sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
-      int sum = data[root.get_local_id()] +
-                data[root.get_local_range() - root.get_local_id() - 1];
-      sycl::group_barrier(root);
-      data[root.get_local_id()] = sum;
-    });
+    h.parallel_for<class RootGroupKernel>(range, TestKernel1(data));
   });
   sycl::host_accessor data{dataBuf};
   const int workItemCount = static_cast<int>(range.get_global_range().size());
@@ -127,7 +133,7 @@ template <typename T> struct TestKernel2 {
           root.get_local_linear_range() == root.get_local_range().size();
     }
   }
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::use_root_sync};
   }

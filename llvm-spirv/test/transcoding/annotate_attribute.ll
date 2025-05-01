@@ -85,7 +85,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.start.p0(i64, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64, ptr captures(none)) #1
 
 ; Function Attrs: inlinehint nounwind
 define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr %this) #2 align 2 {
@@ -99,7 +99,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.end.p0(i64, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64, ptr captures(none)) #1
 
 ; Function Attrs: nounwind
 define spir_func void @_Z3foov() #3 {
@@ -109,17 +109,17 @@ entry:
   %var_three = alloca i8, align 1
   %var_four = alloca i8, align 1
   call void @llvm.lifetime.start.p0(i64 4, ptr %var_one) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr poison, i32 poison, ptr poison)
   call void @llvm.var.annotation(ptr %var_one, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 2, ptr addrspace(1) undef)
   call void @llvm.lifetime.start.p0(i64 4, ptr %var_two) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR2]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR2]], ptr poison, i32 poison, ptr poison)
   call void @llvm.var.annotation(ptr %var_two, ptr addrspace(1) @.str.2, ptr addrspace(1) @.str.1, i32 3, ptr addrspace(1) undef)
   call void @llvm.lifetime.start.p0(i64 1, ptr %var_three) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR3]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR3]], ptr poison, i32 poison, ptr poison)
   call void @llvm.var.annotation(ptr %var_three, ptr addrspace(1) @.str.3, ptr addrspace(1) @.str.1, i32 4, ptr addrspace(1) undef)
   call void @llvm.lifetime.end.p0(i64 1, ptr %var_three) #4
   call void @llvm.lifetime.start.p0(i64 1, ptr %var_four) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR7]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR7]], ptr poison, i32 poison, ptr poison)
   call void @llvm.var.annotation(ptr %var_four, ptr addrspace(1) @.str.7, ptr addrspace(1) @.str.1, i32 4, ptr addrspace(1) @.args.0)
   call void @llvm.lifetime.end.p0(i64 1, ptr %var_four) #4
   call void @llvm.lifetime.end.p0(i64 4, ptr %var_two) #4
@@ -212,7 +212,7 @@ define weak_odr dso_local spir_kernel void @_ZTSZ11TestKernelAvE4MyIP(ptr addrsp
   %4 = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) %3, ptr addrspace(1) @.str.11, ptr addrspace(1) @.str.1.12, i32 13, ptr addrspace(1) @.args)
   ; CHECK-LLVM: %[[ALLOCA:.*]] = alloca %struct.MyIP, align 8
   ; CHECK-LLVM: %[[ASCAST:.*]] = addrspacecast ptr %[[ALLOCA]] to ptr addrspace(4)
-  ; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr addrspace(4) %[[ASCAST]], ptr [[STR12]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr addrspace(4) %[[ASCAST]], ptr [[STR12]], ptr poison, i32 poison, ptr poison)
   %5 = addrspacecast ptr addrspace(1) %0 to ptr addrspace(4)
   store ptr addrspace(4) %5, ptr addrspace(4) %4, align 8, !tbaa !17
   %6 = load ptr addrspace(4), ptr addrspace(4) %4, align 8, !tbaa !17
