@@ -196,9 +196,11 @@ class ComputeBench(Suite):
         # Add UR-specific benchmarks
         if options.ur is not None:
             benches += [
-                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
-                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
-                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
+                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1, 1),
+                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1, 1),
+                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 1),
+                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 0),
+                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0, 1),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
                 UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
@@ -538,6 +540,7 @@ class MemcpyExecute(ComputeBenchmark):
         srcUSM,
         dstUSM,
         useEvent,
+        useCopyOffload,
     ):
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
@@ -546,22 +549,31 @@ class MemcpyExecute(ComputeBenchmark):
         self.srcUSM = srcUSM
         self.dstUSM = dstUSM
         self.useEvents = useEvent
+        self.useCopyOffload = useCopyOffload
         super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
+
+    def extra_env_vars(self) -> dict:
+        if not self.useCopyOffload:
+            return {"UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD": "1"}
+        else:
+            return {}
 
     def name(self):
         return (
             f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
             + (" without events" if not self.useEvents else "")
+            + (" without copy offload" if not self.useCopyOffload else "")
         )
 
     def description(self) -> str:
         src_type = "device" if self.srcUSM == 1 else "host"
         dst_type = "device" if self.dstUSM == 1 else "host"
         events = "with" if self.useEvents else "without"
+        copy_offload = "with" if self.useCopyOffload else "without"
         return (
             f"Measures multithreaded memory copy performance with {self.numThreads} threads "
             f"each performing {self.numOpsPerThread} operations on {self.allocSize} bytes "
-            f"from {src_type} to {dst_type} memory {events} events."
+            f"from {src_type} to {dst_type} memory {events} events {copy_offload} driver copy offload."
         )
 
     def get_tags(self):

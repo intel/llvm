@@ -65,10 +65,9 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
         "has_extension can only be used with an OpenCL backend");
   }
 
-  std::shared_ptr<sycl::detail::device_impl> DeviceImpl =
-      getSyclObjImpl(SyclDevice);
-  ur_device_handle_t AdapterDevice = DeviceImpl->getHandleRef();
-  const AdapterPtr &Adapter = DeviceImpl->getAdapter();
+  detail::device_impl &DeviceImpl = *getSyclObjImpl(SyclDevice);
+  ur_device_handle_t AdapterDevice = DeviceImpl.getHandleRef();
+  const AdapterPtr &Adapter = DeviceImpl.getAdapter();
 
   // Manual invocation of UR API to avoid using deprecated
   // info::device::extensions call.
