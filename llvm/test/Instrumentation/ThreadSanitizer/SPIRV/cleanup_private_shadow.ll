@@ -5,10 +5,24 @@ target triple = "spir64-unknown-unknown"
 %"class.sycl::_V1::range" = type { %"class.sycl::_V1::detail::array" }
 %"class.sycl::_V1::detail::array" = type { [1 x i64] }
 
-define spir_kernel void @test() {
+%struct.Dimensions = type { i32, i32, i32, i32, i32, i32 }
+
+define spir_kernel void @test(i32 %val) {
 entry:
   %agg.tmp = alloca %"class.sycl::_V1::range", align 8
+  %cmp = icmp eq i32 %val, 1
+  br i1 %cmp, label %for.body.preheader, label %exit
+
+for.body.preheader:                     ; preds = %entry
+  br label %for.body
+
+for.body:                               ; preds = %for.body.preheader
+  %device-byval-temp.ascast234298 = alloca %struct.Dimensions, i32 0, align 8, addrspace(4)
+  br label %exit
+
+exit:
 ; CHECK: [[REG1:%[0-9]+]] = ptrtoint ptr %agg.tmp to i64
 ; CHECK-NEXT: call void @__tsan_cleanup_private(i64 [[REG1]], i32 8)
+; CHECK-NOT: ptrtoint ptr %device-byval-temp.ascast234298 to i64
   ret void
 }

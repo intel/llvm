@@ -7,13 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
-
-// Map the llvm intrinsic to an OpenCL function.
-#define __CLC_FUNCTION __clc___spirv_ocl_round
-#define __CLC_INTRINSIC "llvm.round"
-#include <clc/math/unary_intrin.inc>
+#include <clc/math/clc_round.h>
 
 #undef __CLC_FUNCTION
+#define __CLC_BUILTIN __clc_round
 #define __CLC_FUNCTION __spirv_ocl_round
-#include <clc/math/unary_builtin_scalarize.inc>
+#include <clc/math/unary_builtin.inc>

@@ -166,7 +166,7 @@ public:
     }
     const QueueOrder QOrder =
         MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
-    MQueues.push_back(createQueue(QOrder));
+    MQueue = createQueue(QOrder);
     // This section is the second part of the instrumentation that uses the
     // tracepoint information and notifies
 
@@ -191,13 +191,13 @@ private:
                             "discard_events and enable_profiling.");
     }
 
-    MQueues.push_back(UrQueue);
+    MQueue = UrQueue;
 
     ur_device_handle_t DeviceUr{};
     const AdapterPtr &Adapter = getAdapter();
     // TODO catch an exception and put it to list of asynchronous exceptions
     Adapter->call<UrApiKind::urQueueGetInfo>(
-        MQueues[0], UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
+        MQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
     if (MDevice == nullptr) {
       throw sycl::exception(
@@ -264,7 +264,17 @@ public:
       destructorNotification();
 #endif
       throw_asynchronous();
-      getAdapter()->call<UrApiKind::urQueueRelease>(MQueues[0]);
+      auto status =
+          getAdapter()->call_nocheck<UrApiKind::urQueueRelease>(MQueue);
+      // If loader is already closed, it'll return a not-initialized status
+      // which the UR should convert to SUCCESS code. But that isn't always
+      // working on Windows. This is a temporary workaround until that is fixed.
+      // TODO: Remove this workaround when UR is fixed, and restore
+      // ->call<>() instead of ->call_nocheck<>() above.
+      if (status != UR_RESULT_SUCCESS &&
+          status != UR_RESULT_ERROR_UNINITIALIZED) {
+        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -274,7 +284,7 @@ public:
 
   cl_command_queue get() {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
+    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                           &nativeHandle);
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
@@ -322,9 +332,7 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    for (const auto &queue : MQueues) {
-      getAdapter()->call<UrApiKind::urQueueFlush>(queue);
-    }
+    getAdapter()->call<UrApiKind::urQueueFlush>(MQueue);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -366,23 +374,9 @@ public:
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
-    if (SubmitInfo.SecondaryQueue()) {
-      event ResEvent;
-      const std::shared_ptr<queue_impl> &SecondQueue =
-          SubmitInfo.SecondaryQueue();
-      try {
-        ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
-                               /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
-                               SubmitInfo);
-      } catch (...) {
-        ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                            /*CallerNeedsEvent=*/true, Loc,
-                                            IsTopCodeLoc, SubmitInfo);
-      }
-      return ResEvent;
-    }
+
     event ResEvent =
-        submit_impl(CGF, Self, Self, nullptr,
+        submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
   }
@@ -392,21 +386,8 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    if (SubmitInfo.SecondaryQueue()) {
-      const std::shared_ptr<queue_impl> SecondQueue =
-          SubmitInfo.SecondaryQueue();
-      try {
-        submit_impl(CGF, Self, Self, SecondQueue,
-                    /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
-      } catch (...) {
-        SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc,
-                                 SubmitInfo);
-      }
-    } else {
-      submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                  IsTopCodeLoc, SubmitInfo);
-    }
+    submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
+                /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -540,62 +521,15 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    ur_result_t Error = Adapter->call_nocheck<UrApiKind::urQueueCreate>(
-        Context, Device, &Properties, &Queue);
-
-    // If creating out-of-order queue failed and this property is not
-    // supported (for example, on FPGA), it will return
-    // UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES and will try to create in-order
-    // queue.
-    if (!MEmulateOOO && Error == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
-      MEmulateOOO = true;
-      Queue = createQueue(QueueOrder::Ordered);
-    } else {
-      Adapter->checkUrResult(Error);
-    }
+    Adapter->call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
+                                            &Queue);
 
     return Queue;
   }
 
-  /// \return a raw UR handle for a free queue. The returned handle is not
-  /// retained. It is caller responsibility to make sure queue is still alive.
-  ur_queue_handle_t &getExclusiveUrQueueHandleRef() {
-    ur_queue_handle_t *PIQ = nullptr;
-    bool ReuseQueue = false;
-    {
-      std::lock_guard<std::mutex> Lock(MMutex);
-
-      // To achieve parallelism for FPGA with in order execution model with
-      // possibility of two kernels to share data with each other we shall
-      // create a queue for every kernel enqueued.
-      if (MQueues.size() < MaxNumQueues) {
-        MQueues.push_back({});
-        PIQ = &MQueues.back();
-      } else {
-        // If the limit of OpenCL queues is going to be exceeded - take the
-        // earliest used queue, wait until it finished and then reuse it.
-        PIQ = &MQueues[MNextQueueIdx];
-        MNextQueueIdx = (MNextQueueIdx + 1) % MaxNumQueues;
-        ReuseQueue = true;
-      }
-    }
-
-    if (!ReuseQueue)
-      *PIQ = createQueue(QueueOrder::Ordered);
-    else
-      getAdapter()->call<UrApiKind::urQueueFinish>(*PIQ);
-
-    return *PIQ;
-  }
-
   /// \return a raw UR queue handle. The returned handle is not retained. It
   /// is caller responsibility to make sure queue is still alive.
-  ur_queue_handle_t &getHandleRef() {
-    if (!MEmulateOOO)
-      return MQueues[0];
-
-    return getExclusiveUrQueueHandleRef();
-  }
+  ur_queue_handle_t &getHandleRef() { return MQueue; }
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
@@ -710,14 +644,18 @@ public:
   void *getTraceEvent() { return MTraceEvent; }
 
   void setExternalEvent(const event &Event) {
-    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
-    MInOrderExternalEvent = Event;
+    MInOrderExternalEvent.set([&](std::optional<event> &InOrderExternalEvent) {
+      InOrderExternalEvent = Event;
+    });
   }
 
   std::optional<event> popExternalEvent() {
-    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
     std::optional<event> Result = std::nullopt;
-    std::swap(Result, MInOrderExternalEvent);
+
+    MInOrderExternalEvent.unset(
+        [&](std::optional<event> &InOrderExternalEvent) {
+          std::swap(Result, InOrderExternalEvent);
+        });
     return Result;
   }
 
@@ -838,12 +776,12 @@ protected:
     // dependency so in the case where some commands were not enqueued
     // (blocked), we track them to prevent barrier from being enqueued
     // earlier.
-    {
-      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
-      for (auto &UpdatedGraph : MMissedCleanupRequests)
-        doUnenqueuedCommandCleanup(UpdatedGraph);
-      MMissedCleanupRequests.clear();
-    }
+    MMissedCleanupRequests.unset(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+          for (auto &UpdatedGraph : MissedCleanupRequests)
+            doUnenqueuedCommandCleanup(UpdatedGraph);
+          MissedCleanupRequests.clear();
+        });
     auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
     if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
       Handler.depends_on(Deps.UnenqueuedCmdEvents);
@@ -855,12 +793,12 @@ protected:
     auto EventRet = Handler.finalize();
     const EventImplPtr &EventRetImpl = getSyclObjImpl(EventRet);
     if (Type == CGType::CodeplayHostTask)
-      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = EventRetImpl;
+      Deps.LastBarrier = std::move(EventRetImpl);
       Deps.UnenqueuedCmdEvents.clear();
     } else if (!EventRetImpl->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
     }
 
     return EventRet;
@@ -878,7 +816,7 @@ protected:
       KernelUsesAssert =
           (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(
-              Handler.MKernelName.c_str());
+              Handler.MKernelName.data());
 
     auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
                             : finalizeHandlerOutOfOrder(Handler);
@@ -902,6 +840,7 @@ protected:
     }
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -921,6 +860,23 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
                     bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
+#endif
+
+  /// Performs command group submission to the queue.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a pointer to this queue.
+  /// \param SecondaryQueue is a pointer to the secondary queue.
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param Loc is the code location of the submit call (default argument)
+  /// \param SubmitInfo is additional optional information for the submission.
+  /// \return a SYCL event representing submitted command group.
+  event submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                    const std::shared_ptr<queue_impl> &Self,
+                    queue_impl *SecondaryQueue, bool CallerNeedsEvent,
+                    const detail::code_location &Loc, bool IsTopCodeLoc,
+                    const SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
@@ -994,19 +950,12 @@ protected:
   /// Events without data dependencies (such as USM) need an owner,
   /// additionally, USM operations are not added to the scheduler command graph,
   /// queue is the only owner on the runtime side.
-  std::vector<event> MEventsShared;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;
 
   /// List of queues created for FPGA device from a single SYCL queue.
-  std::vector<ur_queue_handle_t> MQueues;
-  /// Iterator through MQueues.
-  size_t MNextQueueIdx = 0;
-
-  /// Indicates that a native out-of-order queue could not be created and we
-  /// need to emulate it with multiple native in-order queues.
-  bool MEmulateOOO = false;
+  ur_queue_handle_t MQueue;
 
   // Access should be guarded with MMutex
   struct DependencyTrackingItems {
@@ -1024,6 +973,36 @@ protected:
       LastBarrier = nullptr;
     }
   } MDefaultGraphDeps, MExtGraphDeps;
+
+  // Implement check-lock-check pattern to not lock empty MData as the locks
+  // come with runtime overhead.
+  template <typename DataType> class CheckLockCheck {
+    DataType MData;
+    std::atomic_bool MIsSet = false;
+    mutable std::mutex MDataMtx;
+
+  public:
+    template <typename F> void set(F &&func) {
+      std::lock_guard<std::mutex> Lock(MDataMtx);
+      MIsSet.store(true, std::memory_order_release);
+      std::forward<F>(func)(MData);
+    }
+    template <typename F> void unset(F &&func) {
+      if (MIsSet.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> Lock(MDataMtx);
+        if (MIsSet.load(std::memory_order_acquire)) {
+          std::forward<F>(func)(MData);
+          MIsSet.store(false, std::memory_order_release);
+        }
+      }
+    }
+    DataType read() {
+      if (!MIsSet.load(std::memory_order_acquire))
+        return DataType{};
+      std::lock_guard<std::mutex> Lock(MDataMtx);
+      return MData;
+    }
+  };
 
   const bool MIsInorder;
 
@@ -1045,10 +1024,9 @@ protected:
 
   // This event can be optionally provided by users for in-order queues to add
   // an additional dependency for the subsequent submission in to the queue.
-  // Access to the event should be guarded with MInOrderExternalEventMtx.
+  // Access to the event should be guarded with mutex.
   // NOTE: std::optional must not be exposed in the ABI.
-  std::optional<event> MInOrderExternalEvent;
-  mutable std::mutex MInOrderExternalEventMtx;
+  CheckLockCheck<std::optional<event>> MInOrderExternalEvent;
 
 public:
   // Queue constructed with the discard_events property
@@ -1071,9 +1049,9 @@ protected:
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
 
-  std::deque<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>
-      MMissedCleanupRequests;
-  std::mutex MMissedCleanupRequestsMtx;
+  using MissedCleanupRequestsType = std::deque<
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>;
+  CheckLockCheck<MissedCleanupRequestsType> MMissedCleanupRequests;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 

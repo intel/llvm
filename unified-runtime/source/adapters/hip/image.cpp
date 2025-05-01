@@ -75,7 +75,7 @@ urToHipImageChannelFormat(ur_image_channel_type_t image_channel_type,
   size_t pixel_size_bytes = 0;
   unsigned int num_channels = 0;
   unsigned int normalized_dtype_flag = 0;
-  UR_CHECK_ERROR(urCalculateNumChannels(image_channel_order, &num_channels));
+  UR_CALL(urCalculateNumChannels(image_channel_order, &num_channels));
 
   switch (image_channel_type) {
 #define CASE(FROM, TO, SIZE, NORM)                                             \
@@ -250,17 +250,14 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
+    const ur_usm_desc_t * /*pUSMDesc*/, ur_usm_pool_handle_t /*pool*/,
     size_t widthInBytes, size_t height, size_t elementSizeBytes, void **ppMem,
     size_t *pResultPitch) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  std::ignore = pUSMDesc;
-  std::ignore = pool;
 
-  UR_ASSERT((widthInBytes > 0), UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT((height > 0), UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT((elementSizeBytes > 0), UR_RESULT_ERROR_INVALID_VALUE);
 
@@ -296,8 +293,15 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  UR_CHECK_ERROR(
-      hipDestroySurfaceObject(reinterpret_cast<hipSurfaceObject_t>(hImage)));
+  try {
+    UR_CHECK_ERROR(
+        hipDestroySurfaceObject(reinterpret_cast<hipSurfaceObject_t>(hImage)));
+  } catch (ur_result_t error) {
+    return error;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -309,9 +313,15 @@ urBindlessImagesSampledImageHandleDestroyExp(
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
+  try {
+    UR_CHECK_ERROR(
+        hipTexObjectDestroy(reinterpret_cast<hipTextureObject_t>(hImage)));
+  } catch (ur_result_t error) {
+    return error;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
 
-  UR_CHECK_ERROR(
-      hipTexObjectDestroy(reinterpret_cast<hipTextureObject_t>(hImage)));
   return UR_RESULT_SUCCESS;
 }
 
@@ -327,12 +337,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
   // Populate descriptor
   HIP_ARRAY3D_DESCRIPTOR array_desc = {};
 
-  UR_CHECK_ERROR(urCalculateNumChannels(pImageFormat->channelOrder,
-                                        &array_desc.NumChannels));
+  UR_CALL(urCalculateNumChannels(pImageFormat->channelOrder,
+                                 &array_desc.NumChannels));
 
-  UR_CHECK_ERROR(urToHipImageChannelFormat(
-      pImageFormat->channelType, pImageFormat->channelOrder, &array_desc.Format,
-      nullptr, nullptr));
+  UR_CALL(urToHipImageChannelFormat(pImageFormat->channelType,
+                                    pImageFormat->channelOrder,
+                                    &array_desc.Format, nullptr, nullptr));
 
   array_desc.Flags = 0; // No flags required
   array_desc.Width = pImageDesc->width;
@@ -380,12 +390,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
           reinterpret_cast<ur_exp_image_mem_native_handle_t>(ImageArray);
     } catch (ur_result_t Err) {
       if (ImageArray) {
-        UR_CHECK_ERROR(hipArrayDestroy(ImageArray));
+        (void)hipArrayDestroy(ImageArray);
       }
       return Err;
     } catch (...) {
       if (ImageArray) {
-        UR_CHECK_ERROR(hipArrayDestroy(ImageArray));
+        (void)hipArrayDestroy(ImageArray);
       }
       return UR_RESULT_ERROR_UNKNOWN;
     }
@@ -401,12 +411,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
           reinterpret_cast<ur_exp_image_mem_native_handle_t>(mip_array);
     } catch (ur_result_t Err) {
       if (mip_array) {
-        UR_CHECK_ERROR(hipMipmappedArrayDestroy(mip_array));
+        (void)hipMipmappedArrayDestroy(mip_array);
       }
       return Err;
     } catch (...) {
       if (mip_array) {
-        UR_CHECK_ERROR(hipMipmappedArrayDestroy(mip_array));
+        (void)hipMipmappedArrayDestroy(mip_array);
       }
       return UR_RESULT_ERROR_UNKNOWN;
     }
@@ -447,14 +457,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
   unsigned int NumChannels = 0;
-  UR_CHECK_ERROR(
-      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
+  UR_CALL(urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   hipArray_Format format;
   size_t PixelSizeBytes;
-  UR_CHECK_ERROR(urToHipImageChannelFormat(pImageFormat->channelType,
-                                           pImageFormat->channelOrder, &format,
-                                           &PixelSizeBytes, nullptr));
+  UR_CALL(urToHipImageChannelFormat(pImageFormat->channelType,
+                                    pImageFormat->channelOrder, &format,
+                                    &PixelSizeBytes, nullptr));
 
   try {
 
@@ -494,15 +503,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   ScopedDevice Active(hDevice);
 
   unsigned int NumChannels = 0;
-  UR_CHECK_ERROR(
-      urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
+  UR_CALL(urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   hipArray_Format format;
   size_t PixelSizeBytes;
   unsigned int normalized_dtype_flag;
-  UR_CHECK_ERROR(urToHipImageChannelFormat(
-      pImageFormat->channelType, pImageFormat->channelOrder, &format,
-      &PixelSizeBytes, &normalized_dtype_flag));
+  UR_CALL(urToHipImageChannelFormat(pImageFormat->channelType,
+                                    pImageFormat->channelOrder, &format,
+                                    &PixelSizeBytes, &normalized_dtype_flag));
 
   try {
     HIP_RESOURCE_DESC image_res_desc = {};
@@ -586,14 +594,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   unsigned int NumChannels = 0;
   size_t PixelSizeBytes = 0;
 
-  UR_CHECK_ERROR(
-      urCalculateNumChannels(pSrcImageFormat->channelOrder, &NumChannels));
+  UR_CALL(urCalculateNumChannels(pSrcImageFormat->channelOrder, &NumChannels));
 
   // We need to get this now in bytes for calculating the total image size
   // later.
-  UR_CHECK_ERROR(urToHipImageChannelFormat(pSrcImageFormat->channelType,
-                                           pSrcImageFormat->channelOrder,
-                                           nullptr, &PixelSizeBytes, nullptr));
+  UR_CALL(urToHipImageChannelFormat(pSrcImageFormat->channelType,
+                                    pSrcImageFormat->channelOrder, nullptr,
+                                    &PixelSizeBytes, nullptr));
 
   try {
     ScopedDevice Active(hQueue->getDevice());
@@ -923,27 +930,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     [[maybe_unused]] ur_context_handle_t hContext,
-    ur_exp_image_mem_native_handle_t hImageMem, ur_image_info_t propName,
-    void *pPropValue, size_t *pPropSizeRet) {
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
+    [[maybe_unused]] ur_image_info_t propName,
+    [[maybe_unused]] void *pPropValue, [[maybe_unused]] size_t *pPropSizeRet) {
   // hipArrayGetDescriptor and hipArray3DGetDescriptor are supported only since
   // ROCm 5.6.0, so we can't query image array information for older versions.
 #if HIP_VERSION >= 50600000
   unsigned int memType{};
-  UR_CHECK_ERROR(
+  hipError_t Err =
       hipPointerGetAttribute(&memType, HIP_POINTER_ATTRIBUTE_MEMORY_TYPE,
-                             reinterpret_cast<hipDeviceptr_t>(hImageMem)));
+                             reinterpret_cast<hipDeviceptr_t>(hImageMem));
+  if (Err != hipSuccess) {
+    return mapErrorUR(Err);
+  }
   UR_ASSERT(memType == hipMemoryTypeArray, UR_RESULT_ERROR_INVALID_VALUE);
 
   hipArray_t ImageArray;
   // If hipMipmappedArrayGetLevel failed, hImageMem is already hipArray_t.
-  if (hipError_t Err = hipMipmappedArrayGetLevel(
-          &ImageArray, reinterpret_cast<hipMipmappedArray_t>(hImageMem), 0);
-      Err != hipSuccess) {
+  Err = hipMipmappedArrayGetLevel(
+      &ImageArray, reinterpret_cast<hipMipmappedArray_t>(hImageMem), 0);
+  if (Err != hipSuccess) {
     ImageArray = reinterpret_cast<hipArray_t>(hImageMem);
   }
 
   HIP_ARRAY3D_DESCRIPTOR ArrayDesc;
-  UR_CHECK_ERROR(hipArray3DGetDescriptor(&ArrayDesc, ImageArray));
+  Err = hipArray3DGetDescriptor(&ArrayDesc, ImageArray);
+  if (Err != hipSuccess) {
+    return mapErrorUR(Err);
+  }
 
   switch (propName) {
   case UR_IMAGE_INFO_WIDTH:
@@ -973,7 +987,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   case UR_IMAGE_INFO_FORMAT: {
     ur_image_channel_type_t ChannelType{};
     ur_image_channel_order_t ChannelOrder{};
-    UR_CHECK_ERROR(hipToUrImageChannelFormat(ArrayDesc.Format, &ChannelType));
+    UR_CALL(hipToUrImageChannelFormat(ArrayDesc.Format, &ChannelType));
     // HIP does not have a notion of channel "order" in the same way that
     // SYCL 1.2.1 does.
     switch (ArrayDesc.NumChannels) {
@@ -987,7 +1001,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
       break;
     default:
-      die("Unexpected NumChannels returned by HIP");
+      setErrorMessage("Unexpected NumChannels returned by HIP",
+                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
     if (pPropValue) {
       (static_cast<ur_image_format_t *>(pPropValue))->channelType = ChannelType;
@@ -1003,10 +1019,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 #else
-  std::ignore = hImageMem;
-  std::ignore = propName;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
 }
@@ -1124,20 +1136,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
+    const ur_image_format_t * /*pImageFormat*/,
+    const ur_image_desc_t * /*pImageDesc*/,
     [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem,
-    ur_exp_image_mem_native_handle_t *phImageMem) {
+    ur_exp_image_mem_native_handle_t * /*phImageMem*/) {
   // hipExternalMemoryGetMappedMipmappedArray should be introduced from ROCm 6.
   // However, there is an issue at the moment with the required function symbol
   // missing from the libamdhip64.so library, despite being shown in the docs.
   // TODO: Update this with a link to a bug report filed on the ROCm github.
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = pImageFormat;
-  std::ignore = pImageDesc;
-  std::ignore = hExternalMem;
-  std::ignore = phImageMem;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

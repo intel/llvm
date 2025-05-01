@@ -40,12 +40,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 74df40b572b4821892fbff9414a4b7efde6d9ff7
-    # Author: Krzysztof Filipek <krzysztof.filipek@intel.com>
-    # Date:   Tue Apr 8 15:24:05 2025 +0200
-    # Merge pull request #1239 from PatKamin/v0.11.x
-    #   [0.11.x] Disable hwloc in case of missing autoreconf
-    set(UMF_TAG v0.11.0-rc2)
+    # commit a5c3d266641c479511dc6a984ea5b71257e8fee9
+    # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Thu Apr 17 14:13:05 2025 +0200
+    # 0.11.0 release
+    set(UMF_TAG v0.11.0)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -73,7 +72,6 @@ else()
   set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
-  set(UMF_BUILD_LIBUMF_POOL_DISJOINT ON CACHE INTERNAL "Build Disjoint Pool")
 
   FetchContent_MakeAvailable(unified-memory-framework)
   FetchContent_GetProperties(unified-memory-framework)

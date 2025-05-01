@@ -99,10 +99,6 @@ def err_drv_hipspv_no_hip_path : Error<
   "'--hip-path' must be specified when offloading to SPIR-V unless '-nogpuinc' "
   "is given">;
 
-// TODO: Remove when COV6 is fully supported by ROCm.
-def warn_drv_amdgpu_cov6: Warning<
-  "code object v6 is still in development and not ready for production use yet;"
-  " use at your own risk">;
 def err_drv_undetermined_gpu_arch : Error<
   "cannot determine %0 architecture: %1; consider passing it via '%2'; "
   "environment variable CLANG_TOOLCHAIN_PROGRAM_TIMEOUT specifies the tool "
@@ -427,6 +423,10 @@ def err_drv_fsycl_wrong_optimization_options : Error<
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
   "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT)">,
   InGroup<SyclTarget>;
+def warn_drv_fsycl_device_obj_asm_device_only : Warning<
+  "-fsycl-device-obj=asm flag has an effect only when compiling device code "
+  "and emitting assembly, make sure both -fsycl-device-only and -S flags are "
+  "present; will be ignored">, InGroup<UnusedCommandLineArgument>;
 def warn_drv_ftarget_register_alloc_mode_pvc : Warning<
   "using '%0' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:%1'">,
   InGroup<Deprecated>;
