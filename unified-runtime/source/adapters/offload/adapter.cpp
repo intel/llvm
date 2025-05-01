@@ -26,14 +26,11 @@ ur_result_t ur_adapter_handle_t_::init() {
   auto Res = olInit();
   (void)Res;
 
-  struct InitUserData {
-    std::unordered_map<ol_platform_handle_t, ur_platform_handle_t> TempMap;
-  } InitUserData{{}};
-
   // Discover every platform and device
   Res = olIterateDevices(
       [](ol_device_handle_t D, void *UserData) {
-        auto *Data = reinterpret_cast<decltype(InitUserData) *>(UserData);
+        auto *Platforms =
+            reinterpret_cast<decltype(Adapter.Platforms) *>(UserData);
 
         ol_platform_handle_t Platform;
         olGetDeviceInfo(D, OL_DEVICE_INFO_PLATFORM, sizeof(Platform),
@@ -44,20 +41,21 @@ ur_result_t ur_adapter_handle_t_::init() {
         if (Backend == OL_PLATFORM_BACKEND_HOST) {
           Adapter.HostDevice = D;
         } else if (Backend != OL_PLATFORM_BACKEND_UNKNOWN) {
-          ur_platform_handle_t UrPlatform;
-          if (!Data->TempMap.count(Platform)) {
-            Adapter.Platforms.push_back(ur_platform_handle_t_{Platform});
-            UrPlatform = &Adapter.Platforms.back();
-            Data->TempMap.insert({Platform, UrPlatform});
-          } else {
-            UrPlatform = Data->TempMap[Platform];
+          auto URPlatform =
+              std::find_if(Platforms->begin(), Platforms->end(), [&](auto &P) {
+                return P.OffloadPlatform == Platform;
+              });
+
+          if (URPlatform == Platforms->end()) {
+            URPlatform =
+                Platforms->insert(URPlatform, ur_platform_handle_t_(Platform));
           }
 
-          UrPlatform->Devices.push_back(ur_device_handle_t_{UrPlatform, D});
+          URPlatform->Devices.push_back(ur_device_handle_t_{&*URPlatform, D});
         }
         return false;
       },
-      &InitUserData);
+      &Adapter.Platforms);
 
   (void)Res;
 
