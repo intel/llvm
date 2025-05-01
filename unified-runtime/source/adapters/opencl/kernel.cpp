@@ -71,7 +71,6 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     auto URKernel = std::make_unique<ur_kernel_handle_t_>(Kernel, hProgram,
                                                           hProgram->Context);
     *phKernel = URKernel.release();
-    // todo update here
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
