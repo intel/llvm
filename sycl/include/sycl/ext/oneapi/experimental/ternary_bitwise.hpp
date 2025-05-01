@@ -553,12 +553,18 @@ sycl::detail::builtin_enable_integer_t<T> ternary_bitwise(T A, T B, T C) {
   } else {
 #if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__) && !defined(__AMDGCN__)
     // TODO: Implement __spirv_BitwiseFunctionINTEL for NVPTX and AMDGCN.
-    using AdjustedT = std::conditional_t<sycl::detail::is_vec_or_swizzle_v<T>,
-                                         sycl::detail::simplify_if_swizzle_t<T>,
-                                         std::make_unsigned<T>>;
-    return __spirv_BitwiseFunctionINTEL(
-        static_cast<AdjustedT>(A), static_cast<AdjustedT>(B),
-        static_cast<AdjustedT>(C), static_cast<uint32_t>(LUTIndex));
+    if constexpr (sycl::detail::is_vec_or_swizzle_v<T>) {
+      return __spirv_BitwiseFunctionINTEL(
+          sycl::detail::simplify_if_swizzle_t<T>{A},
+          sycl::detail::simplify_if_swizzle_t<T>{B},
+          sycl::detail::simplify_if_swizzle_t<T>{C},
+          static_cast<uint32_t>(LUTIndex));
+    } else {
+      using AdjustedT = std::make_unsigned_t<T>;
+      return __spirv_BitwiseFunctionINTEL(AdjustedT{A}, AdjustedT{B},
+                                          AdjustedT{C},
+                                          static_cast<uint32_t>(LUTIndex));
+    }
 #else
     return sycl::detail::applyTernaryBitwise<LUTIndex>(
         sycl::detail::simplify_if_swizzle_t<T>{A},
