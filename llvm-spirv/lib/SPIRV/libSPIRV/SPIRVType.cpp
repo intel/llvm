@@ -166,8 +166,15 @@ bool SPIRVType::isTypeComposite() const {
          isTypeJointMatrixINTEL() || isTypeCooperativeMatrixKHR();
 }
 
-bool SPIRVType::isTypeFloat(unsigned Bits) const {
-  return isType<SPIRVTypeFloat>(this, Bits);
+bool SPIRVType::isTypeFloat(unsigned Bits,
+                            unsigned FloatingPointEncoding) const {
+  if (!isType<SPIRVTypeFloat>(this))
+    return false;
+  if (Bits == 0)
+    return true;
+  const auto *ThisFloat = static_cast<const SPIRVTypeFloat *>(this);
+  return ThisFloat->getBitWidth() == Bits &&
+         ThisFloat->getFloatingPointEncoding() == FloatingPointEncoding;
 }
 
 bool SPIRVType::isTypeOCLImage() const {

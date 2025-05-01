@@ -235,6 +235,7 @@ public:
     return false;
   }
 
+  bool extOneapiCanBuild(ext::oneapi::experimental::source_language Language);
   bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
 
   // Returns all guarantees that are either equal to guarantee or weaker than
