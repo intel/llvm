@@ -1080,8 +1080,7 @@ struct get_device_info_impl<
 };
 
 template <>
-struct get_device_info_impl<
-  std::string, info::device::opencl_c_version> {
+struct get_device_info_impl<std::string, info::device::opencl_c_version> {
   static std::string get(const device_impl &) {
     throw sycl::exception(
         errc::feature_not_supported,
