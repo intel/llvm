@@ -394,6 +394,10 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     // HLSL Version
     Builder.defineMacro("__HLSL_VERSION",
                         Twine((unsigned)LangOpts.getHLSLVersion()));
+    Builder.defineMacro("__HLSL_202x",
+                        Twine((unsigned)LangOptions::HLSLLangStd::HLSL_202x));
+    Builder.defineMacro("__HLSL_202y",
+                        Twine((unsigned)LangOptions::HLSLLangStd::HLSL_202y));
 
     if (LangOpts.NativeHalfType)
       Builder.defineMacro("__HLSL_ENABLE_16_BIT", "1");
@@ -1535,17 +1539,24 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     if (LangOpts.GPURelocatableDeviceCode)
       Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
-    const llvm::Triple &DeviceTriple = TI.getTriple();
-    const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
-    if (DeviceTriple.isNVPTX() || DeviceTriple.isAMDGPU() ||
-        (DeviceTriple.isSPIR() &&
-         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga) ||
+    // This gets called twice, once with TI set to the host TargetInfo, once
+    // with TI set to the device TargetInfo.
+    const llvm::Triple &Triple = TI.getTriple();
+    const llvm::Triple::SubArchType SubArch = Triple.getSubArch();
+    if (Triple.isNVPTX() || Triple.isAMDGPU() ||
+        (Triple.isSPIR() && SubArch != llvm::Triple::SPIRSubArch_fpga) ||
         LangOpts.SYCLIsNativeCPU)
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
     // Enable generation of USM address spaces for FPGA.
-    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga) {
+    if (SubArch == llvm::Triple::SPIRSubArch_fpga) {
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
+    }
+
+    if (Triple.isWindowsMSVCEnvironment()) {
+      // MSVC inline definitions of stdio functions should not be used for SYCL
+      // device code.
+      Builder.defineMacro("_NO_CRT_STDIO_INLINE");
     }
   } else if (LangOpts.SYCLIsHost && LangOpts.SYCLESIMDBuildHostCode) {
     Builder.defineMacro("__ESIMD_BUILD_HOST_CODE");
@@ -1622,9 +1633,7 @@ void clang::InitializePreprocessor(Preprocessor &PP,
   if (InitOpts.UsePredefines) {
     // FIXME: This will create multiple definitions for most of the predefined
     // macros. This is not the right way to handle this.
-    if ((LangOpts.CUDA || LangOpts.OpenMPIsTargetDevice ||
-         LangOpts.SYCLIsDevice) &&
-        PP.getAuxTargetInfo())
+    if ((LangOpts.CUDA || LangOpts.isTargetDevice()) && PP.getAuxTargetInfo())
       InitializePredefinedMacros(*PP.getAuxTargetInfo(), LangOpts, FEOpts,
                                  PP.getPreprocessorOpts(), Builder);
 

@@ -35,6 +35,11 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
   auto Res = std::make_unique<PropertySetRegistry>();
   PropertySet *CurPropSet = nullptr;
 
+  // special case when there is no property data, i.e. the resulting property
+  // set registry should be empty
+  if (Buf->getBufferSize() == 0)
+    return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
+
   for (line_iterator LI(*Buf); !LI.is_at_end(); LI++) {
     // see if this line starts a new property set
     if (LI->starts_with("[")) {
@@ -94,8 +99,6 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
     }
     (*CurPropSet)[Parts.first] = std::move(Prop);
   }
-  if (!CurPropSet)
-    return makeError("invalid property set registry");
 
   return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
 }

@@ -318,9 +318,10 @@ ur_result_t UR_APICALL urAdapterGet(
 ///
 /// @details
 ///     - When the reference count of the adapter reaches zero, the adapter may
-///       perform adapter-specififc resource teardown. Resources must be left in
-///       a state where it safe for the adapter to be subsequently reinitialized
-///       with ::urAdapterGet
+///       perform adapter-specififc resource teardown. Any objects associated
+///       with the adapter should be considered invalid after this point.
+///     - Calling ::urAdapterGet after any adapter handle's reference count has
+///       reached zero will result in undefined behaviour.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -6789,6 +6790,9 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6838,6 +6842,9 @@ ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6888,6 +6895,9 @@ ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6935,6 +6945,9 @@ ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMFreeExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,

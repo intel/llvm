@@ -238,69 +238,53 @@ extern __DPCPP_SYCL_EXTERNAL
 
 // Atomic SPIR-V builtins
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(                        \
-      AS const Type *P, __spv::Scope::Flag S,                                  \
-      __spv::MemorySemanticsMask::Flag O);
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(AS Type *P, int S,      \
+                                                       int O) noexcept;
 #define __SPIRV_ATOMIC_STORE(AS, Type)                                         \
   extern __DPCPP_SYCL_EXTERNAL void __spirv_AtomicStore(                       \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_EXCHANGE(AS, Type)                                      \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicExchange(                    \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_CMP_EXCHANGE(AS, Type)                                  \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicCompareExchange(             \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag E,    \
-      __spv::MemorySemanticsMask::Flag U, Type V, Type C);
+      AS Type *P, int S, int E, int U, Type V, Type C) noexcept;
 #define __SPIRV_ATOMIC_IADD(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicIAdd(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_ISUB(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicISub(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_FADD(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFAddEXT(                     \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_SMIN(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMin(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_UMIN(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMin(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_FMIN(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMinEXT(                     \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_SMAX(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMax(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_UMAX(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMax(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_FMAX(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMaxEXT(                     \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_AND(AS, Type)                                           \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicAnd(                         \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicAnd(AS Type *P, int S,       \
+                                                      int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_OR(AS, Type)                                            \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicOr(                          \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicOr(AS Type *P, int S, int O, \
+                                                     Type V) noexcept;
 #define __SPIRV_ATOMIC_XOR(AS, Type)                                           \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicXor(                         \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicXor(AS Type *P, int S,       \
+                                                      int O, Type V) noexcept;
 
 #define __SPIRV_ATOMIC_FLOAT(AS, Type)                                         \
   __SPIRV_ATOMIC_FADD(AS, Type)                                                \
@@ -335,24 +319,21 @@ extern __DPCPP_SYCL_EXTERNAL
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && std::is_signed<T>::value, T>               \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics,                 \
+                         T Value) noexcept {                                   \
     return __spirv_AtomicS##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && !std::is_signed<T>::value, T>              \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics,                 \
+                         T Value) noexcept {                                   \
     return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if_t<std::is_floating_point<T>::value, T>               \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics,                 \
+                         T Value) noexcept {                                   \
     return __spirv_AtomicF##Op##EXT(Ptr, Memory, Semantics, Value);            \
   }
 

@@ -18,6 +18,9 @@ if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
     ze_trace_collector
   )
   add_dependencies(sycl-trace ze_trace_collector)
+  target_include_directories(ze_trace_collector PRIVATE
+    "${sycl_inc_dir}"
+  )
 endif()
 
 if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)

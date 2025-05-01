@@ -26,7 +26,7 @@ struct command_buffer_profiling_t {
   ze_kernel_timestamp_result_t *Timestamps;
 };
 
-struct ur_exp_command_buffer_handle_t_ : public _ur_object {
+struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_exp_command_buffer_handle_t_(
       ur_context_handle_t Context, ur_device_handle_t Device,
       ze_command_list_handle_t CommandList,
@@ -149,7 +149,7 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
       CommandHandles;
 };
 
-struct ur_exp_command_buffer_command_handle_t_ : public _ur_object {
+struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t CommandBuffer, uint64_t CommandId)
       : CommandBuffer(CommandBuffer), CommandId(CommandId) {}

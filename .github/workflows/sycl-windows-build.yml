@@ -86,9 +86,8 @@ jobs:
     - name:  Detect hung tests
       if: always()
       shell: powershell
-      continue-on-error: true
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
@@ -231,7 +230,7 @@ jobs:
       if: always()
       shell: powershell
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"      
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"

@@ -126,7 +126,7 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
 }
 
 void kernel_impl::enableUSMIndirectAccess() const {
-  if (!MContext->getPlatformImpl()->supports_usm())
+  if (!MContext->getPlatformImpl().supports_usm())
     return;
 
   // Some UR Adapters (like OpenCL) require this call to enable USM

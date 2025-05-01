@@ -32,7 +32,6 @@ const optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() const {
   return impl->MPostProcessorFunc;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 std::shared_ptr<detail::queue_impl> &SubmissionInfo::SecondaryQueue() {
   return impl->MSecondaryQueue;
 }
@@ -41,7 +40,6 @@ const std::shared_ptr<detail::queue_impl> &
 SubmissionInfo::SecondaryQueue() const {
   return impl->MSecondaryQueue;
 }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 ext::oneapi::experimental::event_mode_enum &SubmissionInfo::EventMode() {
   return impl->MEventMode;

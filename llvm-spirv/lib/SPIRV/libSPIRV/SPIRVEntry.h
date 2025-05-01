@@ -40,7 +40,6 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVENTRY_H
 #define SPIRV_LIBSPIRV_SPIRVENTRY_H
 
-#include "LLVMSPIRVOpts.h"
 #include "SPIRVEnum.h"
 #include "SPIRVError.h"
 #include "SPIRVIsValidEnum.h"

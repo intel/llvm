@@ -23,6 +23,11 @@ template <typename T = void> using bit_xor = std::bit_xor<T>;
 
 // std:logical_and/std::logical_or with a non-void type returns bool,
 // sycl requires returning T.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+template <typename T = void> struct logical_and : std::logical_and<T> {};
+template <typename T = void> struct logical_or : std::logical_or<T> {};
+
+#else
 template <typename T = void> struct logical_and {
   T operator()(const T &lhs, const T &rhs) const { return lhs && rhs; }
 };
@@ -34,6 +39,8 @@ template <typename T = void> struct logical_or {
 };
 
 template <> struct logical_or<void> : std::logical_or<void> {};
+
+#endif
 
 // sycl::minimum definition should be consistent with std::min
 template <typename T = void> struct minimum {

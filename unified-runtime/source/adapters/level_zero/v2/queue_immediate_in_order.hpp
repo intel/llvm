@@ -27,14 +27,13 @@ namespace v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
 
-struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_t_ {
+struct ur_queue_immediate_in_order_t : ur_object, public ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
   ur_queue_flags_t flags;
 
   lockable<ur_command_list_manager> commandListManager;
-  std::vector<ur_event_handle_t> deferredEvents;
   std::vector<ur_kernel_handle_t> submittedKernels;
 
   wait_list_view
@@ -45,8 +44,6 @@ private:
   ze_event_handle_t getSignalEvent(locked<ur_command_list_manager> &commandList,
                                    ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
-
-  void deferEventFree(ur_event_handle_t hEvent) override;
 
   ur_result_t enqueueGenericFillUnlocked(
       ur_mem_buffer_t *hBuffer, size_t offset, size_t patternSize,

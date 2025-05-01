@@ -778,6 +778,18 @@ protected:
       return VersionNumber::SPIRV_1_4;
     return VersionNumber::SPIRV_1_0;
   }
+  SPIRVCapVec getRequiredCapability() const override {
+    if (OpCode == OpDot) {
+      const SPIRVType *OpTy = getValueType(Ops[0]);
+      if (OpTy && OpTy->isTypeVector()) {
+        OpTy = OpTy->getVectorComponentType();
+        if (OpTy && OpTy->isTypeFloat(16, FPEncodingBFloat16KHR)) {
+          return getVec(CapabilityBFloat16DotProductKHR);
+        }
+      }
+    }
+    return SPIRVInstruction::getRequiredCapability();
+  }
 };
 
 template <Op OC>
@@ -4400,6 +4412,61 @@ public:
                             Op##x##INTEL, __VA_ARGS__>                         \
       SPIRV##x##INTEL;
 _SPIRV_OP(SubgroupMatrixMultiplyAccumulate, true, 7, true, 4)
+#undef _SPIRV_OP
+
+class SPIRVTernaryBitwiseFunctionINTELInst : public SPIRVInstTemplateBase {
+public:
+  void validate() const override {
+    SPIRVInstruction::validate();
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    std::string InstName = "BitwiseFunctionINTEL";
+
+    const SPIRVType *ResTy = this->getType();
+    SPVErrLog.checkError(
+        ResTy->isTypeInt() || (ResTy->isTypeVector() &&
+                               ResTy->getVectorComponentType()->isTypeInt()),
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nResult type must be an integer scalar or vector.\n");
+
+    auto CommonArgCheck = [this, ResTy, &InstName,
+                           &SPVErrLog](size_t ArgI, const char *ArgPlacement) {
+      SPIRVValue *Arg =
+          const_cast<SPIRVTernaryBitwiseFunctionINTELInst *>(this)->getOperand(
+              ArgI);
+      SPVErrLog.checkError(
+          Arg->getType() == ResTy, SPIRVEC_InvalidInstruction,
+          InstName + "\n" + ArgPlacement +
+              " argument must be the same as the result type.\n");
+    };
+
+    CommonArgCheck(0, "First");
+    CommonArgCheck(1, "Second");
+    CommonArgCheck(2, "Third");
+
+    SPIRVValue *LUTIndexArg =
+        const_cast<SPIRVTernaryBitwiseFunctionINTELInst *>(this)->getOperand(3);
+    const SPIRVType *LUTIndexArgTy = LUTIndexArg->getType();
+    SPVErrLog.checkError(
+        LUTIndexArgTy->isTypeInt(32), SPIRVEC_InvalidInstruction,
+        InstName + "\nFourth argument must be a 32-bit integer scalar.\n");
+    SPVErrLog.checkError(
+        isConstantOpCode(LUTIndexArg->getOpCode()), SPIRVEC_InvalidInstruction,
+        InstName + "\nFourth argument must be constant instruction.\n");
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_ternary_bitwise_function;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityTernaryBitwiseFunctionINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVTernaryBitwiseFunctionINTELInst,              \
+                            Op##x##INTEL, __VA_ARGS__>                         \
+      SPIRV##x##INTEL;
+_SPIRV_OP(BitwiseFunction, true, 7)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

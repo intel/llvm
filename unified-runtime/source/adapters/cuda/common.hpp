@@ -64,8 +64,6 @@ namespace ur {
 // Reports error messages
 void cuPrint(const char *Message);
 
-void assertion(bool Condition, const char *Message = nullptr);
-
 } // namespace ur
 } // namespace detail
 

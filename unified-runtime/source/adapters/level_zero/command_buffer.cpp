@@ -1179,8 +1179,8 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_sync_point_t *SyncPoint,
     ur_event_handle_t * /*Event*/,
     ur_exp_command_buffer_command_handle_t * /*Command*/) {
-  auto SrcBuffer = ur_cast<_ur_buffer *>(SrcMem);
-  auto DstBuffer = ur_cast<_ur_buffer *>(DstMem);
+  auto SrcBuffer = ur_cast<ur_buffer *>(SrcMem);
+  auto DstBuffer = ur_cast<ur_buffer *>(DstMem);
 
   std::shared_lock<ur_shared_mutex> SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex> LockAll(
@@ -1215,8 +1215,8 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_sync_point_t *SyncPoint,
     ur_event_handle_t * /*Event*/,
     ur_exp_command_buffer_command_handle_t * /*Command*/) {
-  auto SrcBuffer = ur_cast<_ur_buffer *>(SrcMem);
-  auto DstBuffer = ur_cast<_ur_buffer *>(DstMem);
+  auto SrcBuffer = ur_cast<ur_buffer *>(SrcMem);
+  auto DstBuffer = ur_cast<ur_buffer *>(DstMem);
 
   std::shared_lock<ur_shared_mutex> SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex> LockAll(
@@ -1462,7 +1462,7 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
-  _ur_buffer *UrBuffer = reinterpret_cast<_ur_buffer *>(Buffer);
+  ur_buffer *UrBuffer = reinterpret_cast<ur_buffer *>(Buffer);
   UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
                                 CommandBuffer->Device, nullptr, 0u));
 
@@ -1542,7 +1542,7 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
   const bool UseCopyEngine = false;
   bool MustSignalWaitEvent = true;
   if (NumEventsInWaitList) {
-    _ur_ze_event_list_t TmpWaitList;
+    ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
@@ -1636,7 +1636,7 @@ ur_result_t enqueueImmediateAppendPath(
   assert(CommandListHelper->second.IsImmediate);
   assert(Platform->ZeCommandListImmediateAppendExt.Supported);
 
-  _ur_ze_event_list_t UrZeEventList;
+  ur_ze_event_list_t UrZeEventList;
   if (NumEventsInWaitList) {
     UR_CALL(UrZeEventList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, false));

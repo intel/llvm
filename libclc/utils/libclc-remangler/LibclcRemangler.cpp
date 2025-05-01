@@ -332,7 +332,7 @@ private:
         *AST, AST->getTranslationUnitDecl(), SourceLocation{},
         DeclarationNameInfo(), VoidFuncType,
         AST->getTrivialTypeSourceInfo(AST->VoidTy), SC_None, false, false,
-        false, ConstexprSpecKind::Unspecified, nullptr);
+        false, ConstexprSpecKind::Unspecified,/*TrailingRequiresClause=*/{});
     FD->setImplicitlyInline(false);
 
     // Set the name.
@@ -378,7 +378,7 @@ private:
         *AST, AST->getTranslationUnitDecl(), SourceLocation{},
         DeclarationNameInfo(), VoidFuncType,
         AST->getTrivialTypeSourceInfo(AST->VoidTy), SC_None, false, false,
-        false, ConstexprSpecKind::Unspecified, nullptr);
+        false, ConstexprSpecKind::Unspecified,/*TrailingRequiresClause=*/{});
     FDSpecialization->setImplicitlyInline(false);
 
     FDSpecialization->setDeclName(&AST->Idents.get(KernelName));
@@ -607,8 +607,7 @@ private:
         RD = RecordDecl::Create(*AST, TagTypeKind::Struct, SpvNamespace, SL, SL, II);
         auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
         auto RecordQT = AST->getRecordType(RD);
-        NNS = NestedNameSpecifier::Create(*AST, NNS, false,
-                                          RecordQT.getTypePtr());
+        NNS = NestedNameSpecifier::Create(*AST, NNS, RecordQT.getTypePtr());
         auto &EnumName =
             AST->Idents.get(Res.getBaseTypeIdentifier()->getName());
         // We need to recreate the enum, now that we have access to all the
@@ -756,6 +755,8 @@ public:
     } else {
       CloneTypeReplacements["char"] = "unsigned char";
     }
+
+    ParameterTypeReplacements["half"] = "_Float16";
 
     createRemangledTypeReplacements();
   }

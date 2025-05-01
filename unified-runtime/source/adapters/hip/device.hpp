@@ -62,7 +62,7 @@ public:
     int Ret{};
     UR_CHECK_ERROR(
         hipDeviceGetAttribute(&Ret, hipDeviceAttributeImageSupport, HIPDevice));
-    detail::ur::assertion(Ret == 0 || Ret == 1);
+    assert(Ret == 0 || Ret == 1);
     HardwareImageSupport = Ret == 1;
   }
 

@@ -446,15 +446,15 @@ _CLC_DEFINE_IMAGE3D_WRITE_BUILTIN(uint, j, 32, int, Dv4_j)
 #endif
 
 #ifdef cl_khr_fp16
-_CLC_DEFINE_IMAGE1D_READ_BUILTIN(half, DF16_, 16)
-_CLC_DEFINE_IMAGE2D_READ_BUILTIN(half, DF16_, 16)
-_CLC_DEFINE_IMAGE3D_READ_BUILTIN(half, DF16_, 16, Dv4_i)
-_CLC_DEFINE_IMAGE1D_WRITE_BUILTIN(half, DF16_, 16, short)
-_CLC_DEFINE_IMAGE2D_WRITE_BUILTIN(half, DF16_, 16, short)
+_CLC_DEFINE_IMAGE1D_READ_BUILTIN(half, Dh, 16)
+_CLC_DEFINE_IMAGE2D_READ_BUILTIN(half, Dh, 16)
+_CLC_DEFINE_IMAGE3D_READ_BUILTIN(half, Dh, 16, Dv4_i)
+_CLC_DEFINE_IMAGE1D_WRITE_BUILTIN(half, Dh, 16, short)
+_CLC_DEFINE_IMAGE2D_WRITE_BUILTIN(half, Dh, 16, short)
 #endif
 
 #if defined(cl_khr_3d_image_writes) && defined(cl_khr_fp16)
-_CLC_DEFINE_IMAGE3D_WRITE_BUILTIN(half, DF16_, 16, short, Dv4_DF16_)
+_CLC_DEFINE_IMAGE3D_WRITE_BUILTIN(half, Dh, 16, short, Dv4_Dh)
 #endif
 
 // Sampled images
@@ -1001,12 +1001,12 @@ _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 2, int2, Dv2_i, float2)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 3, int4, Dv4_i, float4)
 
 #ifdef cl_khr_fp16
-_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 1, float, f, float)
-_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 2, float2, Dv2_f, float2)
-_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 3, float4, Dv4_f, float4)
-_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 1, int, i, float)
-_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 2, int2, Dv2_i, float2)
-_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 3, int4, Dv4_i, float4)
+_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, Dh, 1, float, f, float)
+_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, Dh, 2, float2, Dv2_f, float2)
+_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, Dh, 3, float4, Dv4_f, float4)
+_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, Dh, 1, int, i, float)
+_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, Dh, 2, int2, Dv2_i, float2)
+_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, Dh, 3, int4, Dv4_i, float4)
 #endif
 
 #undef _CLC_DEFINE_IMAGE1D_READ_BUILTIN
@@ -1764,15 +1764,15 @@ _CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_i, int2 co
 _CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(float4, 3, Dv4_f, v4f32, Dv3_i, int3 coord, coord.x * sizeof(float4), coord.y, coord.z)
 
 // Half
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half, 1, DF16_, f16, i, int x, x * sizeof(half))
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half, 2, DF16_, f16, Dv2_i, int2 coord, coord.x * sizeof(half), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half, 3, DF16_, f16, Dv3_i, int3 coord, coord.x * sizeof(half), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half2, 1, Dv2_DF16_, v2f16, i, int x, x * sizeof(half2))
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_i, int2 coord, coord.x * sizeof(half2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv3_i, int3 coord, coord.x * sizeof(half2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half4, 1, Dv4_DF16_, v4f16, i, int x, x * sizeof(half4))
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_i, int2 coord, coord.x * sizeof(half4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_i, int3 coord, coord.x * sizeof(half4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half, 1, Dh, f16, i, int x, x * sizeof(half))
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half, 2, Dh, f16, Dv2_i, int2 coord, coord.x * sizeof(half), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half, 3, Dh, f16, Dv3_i, int3 coord, coord.x * sizeof(half), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half2, 1, Dv2_Dh, v2f16, i, int x, x * sizeof(half2))
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half2, 2, Dv2_Dh, v2f16, Dv2_i, int2 coord, coord.x * sizeof(half2), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half2, 3, Dv2_Dh, v2f16, Dv3_i, int3 coord, coord.x * sizeof(half2), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half4, 1, Dv4_Dh, v4f16, i, int x, x * sizeof(half4))
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half4, 2, Dv4_Dh, v4f16, Dv2_i, int2 coord, coord.x * sizeof(half4), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(half4, 3, Dv4_Dh, v4f16, Dv3_i, int3 coord, coord.x * sizeof(half4), coord.y, coord.z)
 
 // WRITES
 // Int
@@ -1955,27 +1955,27 @@ _CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float4, 3, Dv3_i, Dv4_f, v4f32,
                                          coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Half
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 1, i, DF16_, f16, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 1, i, Dh, f16, int x,
                                          x * sizeof(half), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 2, Dv2_i, DF16_, f16, int2 coord,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 2, Dv2_i, Dh, f16, int2 coord,
                                          coord.x * sizeof(half), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 3, Dv3_i, DF16_, f16, int3 coord,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 3, Dv3_i, Dh, f16, int3 coord,
                                          coord.x * sizeof(half), coord.y,
                                          coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 1, i, Dv2_DF16_, v2f16, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 1, i, Dv2_Dh, v2f16, int x,
                                          x * sizeof(half2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 2, Dv2_i, Dv2_DF16_, v2f16,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 2, Dv2_i, Dv2_Dh, v2f16,
                                          int2 coord, coord.x * sizeof(half2),
                                          coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 3, Dv3_i, Dv2_DF16_, v2f16,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 3, Dv3_i, Dv2_Dh, v2f16,
                                          int3 coord, coord.x * sizeof(half2),
                                          coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 1, i, Dv4_DF16_, v4f16, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 1, i, Dv4_Dh, v4f16, int x,
                                          x * sizeof(half4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 2, Dv2_i, Dv4_DF16_, v4f16,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 2, Dv2_i, Dv4_Dh, v4f16,
                                          int2 coord, coord.x * sizeof(half4),
                                          coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 3, Dv3_i, Dv4_DF16_, v4f16,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 3, Dv3_i, Dv4_Dh, v4f16,
                                          int3 coord, coord.x * sizeof(half4),
                                          coord.y, coord.z, c.x, c.y, c.z, c.w)
 
@@ -2483,27 +2483,27 @@ _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float4, 3, Dv4_f, v4f32, Dv3_f,
                                                coord.z)
 
 // Half
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 1, DF16_, f16, f, float x,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 1, Dh, f16, f, float x,
                                                x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 2, DF16_, f16, Dv2_f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 2, Dh, f16, Dv2_f,
                                                float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 3, DF16_, f16, Dv3_f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 3, Dh, f16, Dv3_f,
                                                float3 coord, coord.x, coord.y,
                                                coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 1, Dv2_DF16_, v2f16, f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 1, Dv2_Dh, v2f16, f,
                                                float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 2, Dv2_DF16_, v2f16,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 2, Dv2_Dh, v2f16,
                                                Dv2_f, float2 coord, coord.x,
                                                coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 3, Dv2_DF16_, v2f16,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 3, Dv2_Dh, v2f16,
                                                Dv3_f, float3 coord, coord.x,
                                                coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 1, Dv4_Dh, v4f16, f,
                                                float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 2, Dv4_DF16_, v4f16,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 2, Dv4_Dh, v4f16,
                                                Dv2_f, float2 coord, coord.x,
                                                coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 3, Dv4_DF16_, v4f16,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 3, Dv4_Dh, v4f16,
                                                Dv3_f, float3 coord, coord.x,
                                                coord.y, coord.z)
 
@@ -2717,15 +2717,15 @@ _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_i, 
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float4, 3, Dv4_f, v4f32, Dv3_i, uint4 coord, coord.x, coord.y, coord.z)
 
 // Half
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 1, DF16_, f16, i, int x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 2, DF16_, f16, Dv2_i, int2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 3, DF16_, f16, Dv3_i, int4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 1, Dv2_DF16_, v2f16, i, int x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_i, int2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv3_i, int4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 1, Dv4_DF16_, v4f16, i, int x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_i, int2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 1, Dh, f16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 2, Dh, f16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 3, Dh, f16, Dv3_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 1, Dv2_Dh, v2f16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 2, Dv2_Dh, v2f16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 3, Dv2_Dh, v2f16, Dv3_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 1, Dv4_Dh, v4f16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 2, Dv4_Dh, v4f16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 3, Dv4_Dh, v4f16, Dv3_i, int4 coord, coord.x, coord.y, coord.z)
 
 float4
 __nvvm_tld4_r_2d_v4f32_f32(long, float,
@@ -3414,32 +3414,42 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 3, Dv4_h, v4j8, Dv3_f,
                                           3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Half
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 1, DF16_, f16, f, float coord,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 1, Dh, f16, f, float coord,
                                           COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 2, DF16_, f16, Dv2_f,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 2, Dh, f16, Dv2_f,
                                           float2 coord, COORD_PARAMS_2D, S3_S3_,
                                           2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 3, DF16_, f16, Dv3_f,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 3, Dh, f16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S3_S3_,
                                           3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 1, Dv2_DF16_, v2f16, f,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 1, Dv2_Dh, v2f16, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_f,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 2, Dv2_Dh, v2f16, Dv2_f,
                                           float2 coord, COORD_PARAMS_2D, S4_S4_,
                                           2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv3_f,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 3, Dv2_Dh, v2f16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
                                           3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 1, Dv4_Dh, v4f16, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_f,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 2, Dv4_Dh, v4f16, Dv2_f,
                                           float2 coord, COORD_PARAMS_2D, S4_S4_,
                                           2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_f,
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_Dh, v4f16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
                                           3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+
+// FIXME: The remangler can't correctly re-mangle the builtin above, so we
+// provide it explicitly here. When the image builtins are no longer incorrectly
+// being declared as templated this problem will go away.
+_CLC_DEF half4
+_Z30__spirv_ImageSampleExplicitLodImDv4_DF16_Dv3_fET0_T_T1_iS4_S4_(
+    ulong imageHandle, float3 coord, int type, float3 dX, float3 dY) {
+  return __nvvm_tex_3d_grad_v4f16_f32(imageHandle, COORD_PARAMS_3D, dX.x, dX.y,
+                                      dX.z, dY.x, dY.y, dY.z);
+}
 
 #undef COORD_PARAMS_1D
 #undef COORD_PARAMS_2D
@@ -3883,7 +3893,7 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(ushort, t, t, 16)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, a, i, 8)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uchar, h, h, 8)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(float, f, f, 32)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, DF16_, f, 16)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, Dh, f, 16)
 
 #undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN
 #undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN
@@ -3945,7 +3955,7 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(ushort, t, t, 16)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, a, i, 8)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uchar, h, h, 8)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(float, f, f, 32)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, DF16_, f, 16)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, Dh, f, 16)
 
 #undef _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_READ_BUILTIN
 #undef _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_FETCH_BUILTIN
@@ -4073,9 +4083,9 @@ _CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uchar, h, h8, Dv3_f, float3 coord, CO
 _CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uchar2, Dv2_h, v2h8, Dv3_f, float3 coord, COORD_PARAMS)
 _CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uchar4, Dv4_h, v4h8, Dv3_f, float3 coord, COORD_PARAMS)
 // Half
-_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half, DF16_, f16, Dv3_f, float3 coord, COORD_PARAMS)
-_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half2, Dv2_DF16_, v2f16, Dv3_f, float3 coord, COORD_PARAMS)
-_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half4, Dv4_DF16_, v4f16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half, Dh, f16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half2, Dv2_Dh, v2f16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half4, Dv4_Dh, v4f16, Dv3_f, float3 coord, COORD_PARAMS)
 
 
 #undef _CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN

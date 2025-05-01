@@ -52,6 +52,11 @@ cl::opt<IRSplitMode> SplitMode(
                           "Choose split mode automatically")),
     cl::cat(SplitCategory));
 
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"),
+    cl::cat(SplitCategory), cl::init(false)};
+
 void writeStringToFile(const std::string &Content, StringRef Path) {
   std::error_code EC;
   raw_fd_ostream OS(Path, EC);
@@ -120,6 +125,7 @@ int main(int argc, char *argv[]) {
   Settings.Mode = SplitMode;
   Settings.OutputAssembly = OutputAssembly;
   Settings.OutputPrefix = OutputFilenamePrefix;
+  Settings.AllowDeviceImageDependencies = AllowDeviceImageDependencies;
   auto SplitModulesOrErr = splitSYCLModule(std::move(M), Settings);
   if (!SplitModulesOrErr) {
     Err.print(argv[0], errs());

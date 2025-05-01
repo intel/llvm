@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: sg-32
 
 #include "attributes_helper.hpp"
 

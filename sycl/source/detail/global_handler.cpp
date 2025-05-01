@@ -37,9 +37,11 @@ using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // forward decl
-void shutdown_win(); // TODO: win variant will go away soon
 void shutdown_early();
 void shutdown_late();
+#ifdef _WIN32
+BOOL isLinkedStatically();
+#endif
 
 // Utility class to track references on object.
 // Used for GlobalHandler now and created as thread_local object on the first
@@ -60,10 +62,6 @@ public:
 
       LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
       MCounter--;
-      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler) {
-        RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
-      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ObjectUsageCounter", e);
     }
@@ -186,7 +184,7 @@ ProgramManager &GlobalHandler::getProgramManager() {
   return PM;
 }
 
-std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+std::unordered_map<platform_impl *, ContextImplPtr> &
 GlobalHandler::getPlatformToDefaultContextCache() {
   // The optimization with static reference is not done because
   // there are public methods of the GlobalHandler
@@ -207,10 +205,18 @@ Sync &GlobalHandler::getSync() {
   return sync;
 }
 
-std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
-  static std::vector<PlatformImplPtr> &PlatformCache =
+std::vector<std::shared_ptr<platform_impl>> &GlobalHandler::getPlatformCache() {
+  static std::vector<std::shared_ptr<platform_impl>> &PlatformCache =
       getOrCreate(MPlatformCache);
   return PlatformCache;
+}
+
+void GlobalHandler::clearPlatforms() {
+  if (!MPlatformCache.Inst)
+    return;
+  for (auto &PltSmartPtr : *MPlatformCache.Inst)
+    PltSmartPtr->MDevices.clear();
+  MPlatformCache.Inst->clear();
 }
 
 std::mutex &GlobalHandler::getPlatformMapMutex() {
@@ -254,24 +260,37 @@ void GlobalHandler::releaseDefaultContexts() {
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
 
-struct EarlyShutdownHandler {
-  ~EarlyShutdownHandler() {
+// Shutdown is split into two parts. shutdown_early() stops any more
+// objects from being deferred and takes an initial pass at freeing them.
+// shutdown_late() finishes and releases the adapters and the GlobalHandler.
+// For Windows, early shutdown is typically called from DllMain,
+// and late shutdown is here.
+// For Linux, early shutdown is here, and late shutdown is called from
+// a low priority destructor.
+struct StaticVarShutdownHandler {
+
+  ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
-      // on Windows we keep to the existing shutdown procedure
-      GlobalHandler::instance().releaseDefaultContexts();
+      // If statically linked, DllMain will not be called. So we do its work
+      // here.
+      if (isLinkedStatically()) {
+        shutdown_early();
+      }
+
+      shutdown_late();
 #else
       shutdown_early();
 #endif
     } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~EarlyShutdownHandler",
-                                        e);
+      __SYCL_REPORT_EXCEPTION_TO_STREAM(
+          "exception in ~StaticVarShutdownHandler", e);
     }
   }
 };
 
-void GlobalHandler::registerEarlyShutdownHandler() {
-  static EarlyShutdownHandler handler{};
+void GlobalHandler::registerStaticVarShutdownHandler() {
+  static StaticVarShutdownHandler handler{};
 }
 
 bool GlobalHandler::isOkToDefer() const { return OkToDefer; }
@@ -304,10 +323,10 @@ void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
 #ifndef _WIN32
   if (Blocking)
     drainThreadPool();
+#endif
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
                                                : BlockingT::NON_BLOCKING);
-#endif
 }
 
 void GlobalHandler::drainThreadPool() {
@@ -315,23 +334,17 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-#ifdef _WIN32
-// because of something not-yet-understood on Windows
-// threads may be shutdown once the end of main() is reached
-// making an orderly shutdown difficult. Fortunately, Windows
-// itself is very aggressive about reclaiming memory. Thus,
-// we focus solely on unloading the adapters, so as to not
-// accidentally retain device handles. etc
-void shutdown_win() {
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  Handler->unloadAdapters();
-}
-#else
 void shutdown_early() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
+
+#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
+  if (xptiTraceEnabled())
+    return; // When doing xpti tracing, we can't safely shutdown on Win.
+            // TODO: figure out why XPTI prevents release.
+#endif
 
   // Now that we are shutting down, we will no longer defer MemObj releases.
   Handler->endDeferredRelease();
@@ -354,7 +367,14 @@ void shutdown_late() {
   if (!Handler)
     return;
 
+#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
+  if (xptiTraceEnabled())
+    return; // When doing xpti tracing, we can't safely shutdown on Win.
+            // TODO: figure out why XPTI prevents release.
+#endif
+
   // First, release resources, that may access adapters.
+  Handler->clearPlatforms(); // includes dropping platforms' devices ownership.
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
@@ -370,7 +390,6 @@ void shutdown_late() {
   delete Handler;
   Handler = nullptr;
 }
-#endif
 
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
@@ -391,23 +410,18 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    if (xptiTraceEnabled())
-      return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                   // TODO: figure out what XPTI is doing that prevents
-                   // release.
-#endif
-
     try {
-      shutdown_win();
+      shutdown_early();
     } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in shutdown_win", e);
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DLL_PROCESS_DETACH", e);
       return FALSE;
     }
+
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+
     break;
   case DLL_THREAD_ATTACH:
     break;
@@ -415,6 +429,28 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     break;
   }
   return TRUE; // Successful DLL_PROCESS_ATTACH.
+}
+BOOL isLinkedStatically() {
+  // If the exePath is the same as the dllPath,
+  // or if the module handle for DllMain is not retrievable,
+  // then we are linked statically
+  // Otherwise we are dynamically linked or loaded.
+  HMODULE hModule = nullptr;
+  auto LpModuleAddr = reinterpret_cast<LPCSTR>(&DllMain);
+  if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, LpModuleAddr,
+                          &hModule)) {
+    return true; // not retrievable, therefore statically linked
+  }
+  char dllPath[MAX_PATH];
+  if (GetModuleFileNameA(hModule, dllPath, MAX_PATH)) {
+    char exePath[MAX_PATH];
+    if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
+      if (std::string(dllPath) == std::string(exePath)) {
+        return true; // paths identical, therefore statically linked
+      }
+    }
+  }
+  return false; // Otherwise dynamically linked or loaded
 }
 #else
 // Setting low priority on destructor ensures it runs after all other global

@@ -18,7 +18,7 @@
 
 6 Decorate 4 LinkageAttributes "_Z1f" Export
 4 Decorate 8 Alignment 4
-4 TypeFloat 10 16
+3 TypeFloat 10 16
 2 TypeVoid 2
 3 TypeFunction 3 2
 3 TypeFloat 6 32

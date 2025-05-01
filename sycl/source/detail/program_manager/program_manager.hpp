@@ -63,7 +63,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                   const NDRDescT &NDRDesc = {});
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
-                                const device &Dev);
+                                const device_impl *DevImpl);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -136,11 +136,11 @@ public:
 
   RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
                                       const ContextImplPtr &ContextImpl,
-                                      const device &Device);
+                                      const device_impl *DeviceImpl);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const ContextImplPtr &ContextImpl, const device &Device);
+      const ContextImplPtr &ContextImpl, const device_impl *DeviceImpl);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       const ContextImplPtr &ContextImpl,
@@ -216,7 +216,7 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr &Context);
 
-  void addImage(sycl_device_binary RawImg,
+  void addImage(sycl_device_binary RawImg, bool RegisterImgExports = true,
                 RTDeviceBinaryImage **OutImage = nullptr,
                 std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);
@@ -341,9 +341,9 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain> link(const DevImgPlainWithDeps &ImgWithDeps,
-                                       const std::vector<device> &Devs,
-                                       const property_list &PropList);
+  std::vector<device_image_plain>
+  link(const std::vector<device_image_plain> &Imgs,
+       const std::vector<device> &Devs, const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
@@ -372,10 +372,12 @@ public:
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
   std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev,
+                         bool ErrorOnUnresolvableImport = true);
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev);
+                                           const device &Dev,
+                                           bool ErrorOnUnresolvableImport);
 
 private:
   ProgramManager(ProgramManager const &) = delete;
@@ -459,6 +461,7 @@ protected:
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       m_DeviceImages;
 
@@ -468,6 +471,7 @@ protected:
 
   /// Caches list of device images that use or provide virtual functions from
   /// the same set. Used to simplify access.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
       m_VFSet2BinImage;
 
@@ -541,7 +545,7 @@ protected:
   // version and 2nd is for native version. These bfloat16 device library
   // images are provided by compiler long time ago, we expect no further
   // update, so keeping 1 copy should be OK.
-  std::array<DynRTDeviceBinaryImageUPtr, 2> m_Bfloat16DeviceLibImages;
+  std::array<RTDeviceBinaryImageUPtr, 2> m_Bfloat16DeviceLibImages;
 
   friend class ::ProgramManagerTest;
 };

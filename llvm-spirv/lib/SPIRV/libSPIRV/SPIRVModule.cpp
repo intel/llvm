@@ -253,7 +253,8 @@ public:
   template <class T> T *addType(T *Ty);
   SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) override;
   SPIRVTypeBool *addBoolType() override;
-  SPIRVTypeFloat *addFloatType(unsigned BitWidth) override;
+  SPIRVTypeFloat *addFloatType(unsigned BitWidth,
+                               unsigned FloatingPointEncoding) override;
   SPIRVTypeFunction *addFunctionType(SPIRVType *,
                                      const std::vector<SPIRVType *> &) override;
   SPIRVTypeInt *addIntegerType(unsigned BitWidth) override;
@@ -577,7 +578,8 @@ private:
   SmallDenseMap<SPIRVStorageClassKind, SPIRVTypeUntypedPointerKHR *>
       UntypedPtrTyMap;
   SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
-  SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
+  SmallDenseMap<std::pair<unsigned, unsigned>, SPIRVTypeFloat *, 4>
+      FloatTypeMap;
   SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
       PointerTypeMap;
   std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
@@ -1007,12 +1009,14 @@ SPIRVTypeInt *SPIRVModuleImpl::addIntegerType(unsigned BitWidth) {
   return addType(Ty);
 }
 
-SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth) {
-  auto Loc = FloatTypeMap.find(BitWidth);
+SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth,
+                                              unsigned FloatingPointEncoding) {
+  auto Desc = std::make_pair(BitWidth, FloatingPointEncoding);
+  auto Loc = FloatTypeMap.find(Desc);
   if (Loc != FloatTypeMap.end())
     return Loc->second;
-  auto *Ty = new SPIRVTypeFloat(this, getId(), BitWidth);
-  FloatTypeMap[BitWidth] = Ty;
+  auto *Ty = new SPIRVTypeFloat(this, getId(), BitWidth, FloatingPointEncoding);
+  FloatTypeMap[Desc] = Ty;
   return addType(Ty);
 }
 

@@ -166,6 +166,16 @@ ur_result_t MsanShadowMemoryGPU::Destory() {
   static ur_result_t Result = [this]() {
     auto Result = getContext()->urDdiTable.VirtualMem.pfnFree(
         Context, (const void *)ShadowBegin, GetShadowSize());
+    if (PrivateShadowOffset != 0) {
+      UR_CALL(getContext()->urDdiTable.USM.pfnFree(
+          Context, (void *)PrivateShadowOffset));
+      PrivateShadowOffset = 0;
+    }
+    if (LocalShadowOffset != 0) {
+      UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                   (void *)LocalShadowOffset));
+      LocalShadowOffset = 0;
+    }
     getContext()->urDdiTable.Context.pfnRelease(Context);
     return Result;
   }();

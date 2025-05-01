@@ -59,7 +59,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeInterleavedLoadCombinePass(Registry);
   initializeInterleavedAccessPass(Registry);
   initializeJMCInstrumenterPass(Registry);
-  initializeLiveDebugValuesPass(Registry);
+  initializeLiveDebugValuesLegacyPass(Registry);
   initializeLiveDebugVariablesWrapperLegacyPass(Registry);
   initializeLiveIntervalsWrapperPassPass(Registry);
   initializeLiveRangeShrinkPass(Registry);
@@ -133,6 +133,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeStackProtectorPass(Registry);
   initializeStackSlotColoringLegacyPass(Registry);
   initializeStaticDataSplitterPass(Registry);
+  initializeStaticDataAnnotatorPass(Registry);
   initializeStripDebugMachineModulePass(Registry);
   initializeTailDuplicateLegacyPass(Registry);
   initializeTargetPassConfigPass(Registry);
@@ -145,5 +146,5 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeVirtRegRewriterPass(Registry);
   initializeWasmEHPreparePass(Registry);
   initializeWinEHPreparePass(Registry);
-  initializeXRayInstrumentationPass(Registry);
+  initializeXRayInstrumentationLegacyPass(Registry);
 }

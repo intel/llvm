@@ -66,7 +66,17 @@ print(
    ===----------------------------------------------------------------------===
 */
 
-#include <core/clc_core.h>
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
+
+#include <clc/clcfunc.h>
+#include <clc/clctypes.h>
+#include <core/convert.h>
 #include <libspirv/spirv.h>
 
 #ifdef cl_khr_fp16

@@ -156,11 +156,6 @@ hipError_t getHipVersionString(std::string &Version) {
   return Result;
 }
 
-void detail::ur::assertion(bool Condition, const char *pMessage) {
-  if (!Condition)
-    die(pMessage);
-}
-
 // Global variables for UR_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
 thread_local char ErrorMessage[MaxMessageSize]{};

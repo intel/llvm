@@ -195,12 +195,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
 
   ur_queue_flags_t Flags = 0;
-  if (CuFlags == CU_STREAM_DEFAULT)
+  if (CuFlags == CU_STREAM_DEFAULT) {
     Flags = UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
-  else if (CuFlags == CU_STREAM_NON_BLOCKING)
+  } else if (CuFlags == CU_STREAM_NON_BLOCKING) {
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
-  else
-    die("Unknown cuda stream");
+  } else {
+    setErrorMessage("Incorrect native stream flags, expecting "
+                    "CU_STREAM_DEFAULT or CU_STREAM_NON_BLOCKING",
+                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
 
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;

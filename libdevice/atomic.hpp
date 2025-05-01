@@ -57,32 +57,23 @@ struct MemorySemanticsMask {
 };
 } // namespace __spv
 
-extern DEVICE_EXTERNAL int
-__spirv_AtomicCompareExchange(int SPIR_GLOBAL *, __spv::Scope::Flag,
-                              __spv::MemorySemanticsMask::Flag,
-                              __spv::MemorySemanticsMask::Flag, int, int);
+extern DEVICE_EXTERNAL int __spirv_AtomicCompareExchange(int SPIR_GLOBAL *, int,
+                                                         int, int, int,
+                                                         int) noexcept;
 
-extern DEVICE_EXTERNAL int
-__spirv_AtomicCompareExchange(int *, __spv::Scope::Flag,
-                              __spv::MemorySemanticsMask::Flag,
-                              __spv::MemorySemanticsMask::Flag, int, int);
+extern DEVICE_EXTERNAL int __spirv_AtomicCompareExchange(int *, int, int, int,
+                                                         int, int) noexcept;
 
-extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int SPIR_GLOBAL *,
-                                              __spv::Scope::Flag,
-                                              __spv::MemorySemanticsMask::Flag);
+extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int SPIR_GLOBAL *, int,
+                                              int) noexcept;
 
-extern DEVICE_EXTERNAL void
-__spirv_AtomicStore(int SPIR_GLOBAL *, __spv::Scope::Flag,
-                    __spv::MemorySemanticsMask::Flag, int);
+extern DEVICE_EXTERNAL void __spirv_AtomicStore(int SPIR_GLOBAL *, int, int,
+                                                int) noexcept;
 
-extern DEVICE_EXTERNAL void
-__spirv_AtomicStore(int *, __spv::Scope::Flag, __spv::MemorySemanticsMask::Flag,
-                    int);
+extern DEVICE_EXTERNAL void __spirv_AtomicStore(int *, int, int, int) noexcept;
 
-extern DEVICE_EXTERNAL int __spirv_AtomicIAdd(SPIR_GLOBAL int *,
-                                              __spv::Scope::Flag,
-                                              __spv::MemorySemanticsMask::Flag,
-                                              int);
+extern DEVICE_EXTERNAL int __spirv_AtomicIAdd(SPIR_GLOBAL int *, int, int,
+                                              int) noexcept;
 
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the value which already was in *Ptr

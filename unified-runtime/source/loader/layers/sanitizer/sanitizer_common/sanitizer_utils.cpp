@@ -256,34 +256,38 @@ ur_result_t EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr,
       Queue, Ptr, 1, &Value, Size, NumEvents, EventWaitList, OutEvent);
 }
 
-void PrintUrBuildLog(ur_program_handle_t hProgram,
-                     ur_device_handle_t *phDevices, size_t numDevices) {
+void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,
+                            ur_device_handle_t *Devices, size_t NumDevices) {
+  if (Result == UR_RESULT_SUCCESS ||
+      Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+    return;
+
   getContext()->logger.error("Printing build log for program {}",
-                             (void *)hProgram);
-  for (size_t i = 0; i < numDevices; i++) {
+                             (void *)Program);
+  for (size_t I = 0; I < NumDevices; I++) {
     std::vector<char> LogBuf;
     size_t LogSize = 0;
-    auto hDevice = phDevices[i];
+    auto Device = Devices[I];
 
     auto UrRes = getContext()->urDdiTable.Program.pfnGetBuildInfo(
-        hProgram, hDevice, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr, &LogSize);
+        Program, Device, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr, &LogSize);
     if (UrRes != UR_RESULT_SUCCESS) {
       getContext()->logger.error("For device {}: failed to get build log size.",
-                                 (void *)hDevice);
+                                 (void *)Device);
       continue;
     }
 
     LogBuf.resize(LogSize);
     UrRes = getContext()->urDdiTable.Program.pfnGetBuildInfo(
-        hProgram, hDevice, UR_PROGRAM_BUILD_INFO_LOG, LogSize, LogBuf.data(),
+        Program, Device, UR_PROGRAM_BUILD_INFO_LOG, LogSize, LogBuf.data(),
         nullptr);
     if (UrRes != UR_RESULT_SUCCESS) {
       getContext()->logger.error("For device {}: failed to get build log.",
-                                 (void *)hDevice);
+                                 (void *)Device);
       continue;
     }
 
-    getContext()->logger.error("For device {}:\n{}", (void *)hDevice,
+    getContext()->logger.error("For device {}:\n{}", (void *)Device,
                                LogBuf.data());
   }
 }

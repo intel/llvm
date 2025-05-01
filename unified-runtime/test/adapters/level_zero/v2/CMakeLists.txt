@@ -63,7 +63,7 @@ add_adapter_test(level_zero_memory_residency
 )
 
 if(NOT WIN32)
-    if (NOT UR_DPCXX)
+    if (NOT UR_FOUND_DPCXX)
         # Tests that require kernels can't be used if we aren't generating
         # device binaries
         message(WARNING

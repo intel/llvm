@@ -120,8 +120,6 @@ namespace ur {
 // Reports error messages
 void hipPrint(const char *pMessage);
 
-void assertion(bool Condition, const char *pMessage = nullptr);
-
 } // namespace ur
 } // namespace detail
 

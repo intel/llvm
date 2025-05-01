@@ -217,6 +217,9 @@ public:
   /// Cleans dependencies of this event's dependencies.
   void cleanDepEventsThroughOneLevel();
 
+  /// Cleans dependencies of this event's dependencies w/o locking MMutex.
+  void cleanDepEventsThroughOneLevelUnlocked();
+
   /// Checks if this event is discarded by SYCL implementation.
   ///
   /// \return true if this event is discarded.

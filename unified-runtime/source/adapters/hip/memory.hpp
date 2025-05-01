@@ -249,7 +249,7 @@ public:
       break;
     default:
       // urMemImageCreate given unsupported image_channel_data_type
-      die("Bad image format given to ur_image_ constructor");
+      throw UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
   }
 

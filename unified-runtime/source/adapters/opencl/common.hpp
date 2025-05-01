@@ -201,6 +201,8 @@ CONSTFIX char CommandCopyBufferRectName[] = "clCommandCopyBufferRectKHR";
 CONSTFIX char CommandFillBufferName[] = "clCommandFillBufferKHR";
 CONSTFIX char CommandBarrierWithWaitListName[] =
     "clCommandBarrierWithWaitListKHR";
+CONSTFIX char CommandSVMMemcpyName[] = "clCommandSVMMemcpyKHR";
+CONSTFIX char CommandSVMMemFillName[] = "clCommandSVMMemFillKHR";
 CONSTFIX char EnqueueCommandBufferName[] = "clEnqueueCommandBufferKHR";
 CONSTFIX char GetCommandBufferInfoName[] = "clGetCommandBufferInfoKHR";
 CONSTFIX char UpdateMutableCommandsName[] = "clUpdateMutableCommandsKHR";
@@ -292,6 +294,21 @@ using clCommandFillBufferKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
 using clCommandBarrierWithWaitListKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
     const cl_command_properties_khr *properties,
+    cl_uint num_sync_points_in_wait_list,
+    const cl_sync_point_khr *sync_point_wait_list,
+    cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
+
+using clCommandSVMMemcpyKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
+    const cl_command_properties_khr *properties, void *dst_ptr,
+    const void *src_ptr, size_t size, cl_uint num_sync_points_in_wait_list,
+    const cl_sync_point_khr *sync_point_wait_list,
+    cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
+
+using clCommandSVMMemFillKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
+    const cl_command_properties_khr *properties, void *svm_ptr,
+    const void *pattern, size_t pattern_size, size_t size,
     cl_uint num_sync_points_in_wait_list,
     const cl_sync_point_khr *sync_point_wait_list,
     cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);

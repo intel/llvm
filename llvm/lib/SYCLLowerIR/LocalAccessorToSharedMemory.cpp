@@ -86,6 +86,9 @@ LocalAccessorToSharedMemoryPass::run(Module &M, ModuleAnalysisManager &) {
 
 Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
                                                          Function *F) {
+  if (F->isDeclaration())
+    return nullptr;
+
   // Check if this function is eligible by having an argument that uses shared
   // memory.
   const bool UsesLocalMemory =

@@ -31,6 +31,7 @@ struct SanitizerOptions {
   bool DetectKernelArguments = true;
   bool DetectLeaks = true;
   bool HaltOnError = true;
+  bool Recover = false;
 
   void Init(const std::string &EnvName, logger::Logger &Logger);
 };

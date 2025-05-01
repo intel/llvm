@@ -7,9 +7,6 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// Intended - USM fill command not supported for OpenCL
-// UNSUPPORTED: opencl
-
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/usm_fill_shared.cpp"

@@ -17,6 +17,7 @@
 #include "CGBlocks.h"
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
+#include "CGDebugInfo.h"
 #include "CGRecordLayout.h"
 #include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
@@ -1719,8 +1720,12 @@ CodeGenTypes::GetFunctionType(const CGFunctionInfo &FI) {
 
   // Add type for sret argument.
   if (IRFunctionArgs.hasSRetArg()) {
-    ArgTypes[IRFunctionArgs.getSRetArgNo()] = llvm::PointerType::get(
-        getLLVMContext(), FI.getReturnInfo().getIndirectAddrSpace());
+    QualType Ret = FI.getReturnType();
+    unsigned AddressSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
+                                ? FI.getReturnInfo().getIndirectAddrSpace()
+                                : CGM.getTypes().getTargetAddressSpace(Ret);
+    ArgTypes[IRFunctionArgs.getSRetArgNo()] =
+        llvm::PointerType::get(getLLVMContext(), AddressSpace);
   }
 
   // Add type for inalloca argument.
@@ -2688,6 +2693,15 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     };
     if (shouldDisableTailCalls())
       FuncAttrs.addAttribute("disable-tail-calls", "true");
+
+    // These functions require the returns_twice attribute for correct codegen,
+    // but the attribute may not be added if -fno-builtin is specified. We
+    // explicitly add that attribute here.
+    static const llvm::StringSet<> ReturnsTwiceFn{
+        "_setjmpex", "setjmp",      "_setjmp", "vfork",
+        "sigsetjmp", "__sigsetjmp", "savectx", "getcontext"};
+    if (ReturnsTwiceFn.contains(Name))
+      FuncAttrs.addAttribute(llvm::Attribute::ReturnsTwice);
 
     // CPU/feature overrides.  addDefaultFunctionDefinitionAttributes
     // handles these separately to set them based on the global defaults.
@@ -3749,7 +3763,7 @@ static llvm::StoreInst *findDominatingStoreToReturnValue(CodeGenFunction &CGF) {
     // Look at directly preceding instruction, skipping bitcasts, lifetime
     // markers, and fake uses and their operands.
     const llvm::Instruction *LoadIntoFakeUse = nullptr;
-    for (llvm::Instruction &I : make_range(IP->rbegin(), IP->rend())) {
+    for (llvm::Instruction &I : llvm::reverse(*IP)) {
       // Ignore instructions that are just loads for fake uses; the load should
       // immediately precede the fake use, so we only need to remember the
       // operand for the last fake use seen.
@@ -5309,6 +5323,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // If the call returns a temporary with struct return, create a temporary
   // alloca to hold the result, unless one is given to us.
   Address SRetPtr = Address::invalid();
+  RawAddress SRetAlloca = RawAddress::invalid();
   llvm::Value *UnusedReturnSizePtr = nullptr;
   if (RetAI.isIndirect() || RetAI.isInAlloca() || RetAI.isCoerceAndExpand()) {
     // For virtual function pointer thunks and musttail calls, we must always
@@ -5322,11 +5337,18 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     } else if (!ReturnValue.isNull()) {
       SRetPtr = ReturnValue.getAddress();
     } else {
-      SRetPtr = CreateMemTempWithoutCast(RetTy, "tmp");
+      SRetPtr = CGM.getCodeGenOpts().UseAllocaASForSrets
+                    ? CreateMemTempWithoutCast(RetTy, "tmp")
+                    : CreateMemTemp(RetTy, "tmp", &SRetAlloca);
       if (HaveInsertPoint() && ReturnValue.isUnused()) {
         llvm::TypeSize size =
             CGM.getDataLayout().getTypeAllocSize(ConvertTypeForMem(RetTy));
-        UnusedReturnSizePtr = EmitLifetimeStart(size, SRetPtr.getBasePointer());
+        if (CGM.getCodeGenOpts().UseAllocaASForSrets)
+          UnusedReturnSizePtr =
+              EmitLifetimeStart(size, SRetPtr.getBasePointer());
+        else
+          UnusedReturnSizePtr =
+              EmitLifetimeStart(size, SRetAlloca.getPointer());
       }
     }
     if (IRFunctionArgs.hasSRetArg()) {
@@ -5334,7 +5356,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       // chosen IndirectAS can happen e.g. when passing the this pointer through
       // a chain involving stores to / loads from the DefaultAS; we address this
       // here, symmetrically with the handling we have for normal pointer args.
-      if (SRetPtr.getAddressSpace() != RetAI.getIndirectAddrSpace()) {
+      if (CGM.getCodeGenOpts().UseAllocaASForSrets &&
+          (SRetPtr.getAddressSpace() != RetAI.getIndirectAddrSpace())) {
         llvm::Value *V = SRetPtr.getBasePointer();
         LangAS SAS = getLangASFromTargetAS(SRetPtr.getAddressSpace());
         LangAS DAS = getLangASFromTargetAS(RetAI.getIndirectAddrSpace());
@@ -5916,9 +5939,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // can't depend on being inside of an ExprWithCleanups, so we need to manually
   // pop this cleanup later on. Being eager about this is OK, since this
   // temporary is 'invisible' outside of the callee.
-  if (UnusedReturnSizePtr)
-    pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetPtr,
-                                         UnusedReturnSizePtr);
+  if (UnusedReturnSizePtr) {
+    if (CGM.getCodeGenOpts().UseAllocaASForSrets)
+      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetPtr,
+                                           UnusedReturnSizePtr);
+    else
+      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetAlloca,
+                                           UnusedReturnSizePtr);
+  }
 
   llvm::BasicBlock *InvokeDest = CannotThrow ? nullptr : getInvokeDest();
 

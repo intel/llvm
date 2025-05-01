@@ -1,6 +1,8 @@
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
 
 #include "common.hpp"
 

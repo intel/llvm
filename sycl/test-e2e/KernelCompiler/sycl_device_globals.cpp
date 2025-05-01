@@ -53,7 +53,7 @@ int test_device_global() {
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
 
-  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = d.ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source kernel "
                  "bundle extension: "
@@ -141,7 +141,7 @@ int test_error() {
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
 
-  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = d.ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     return 0;
   }

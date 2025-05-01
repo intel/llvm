@@ -19,7 +19,7 @@ int main() {
   sycl::queue q;
   sycl::device d = q.get_device();
 
-  assert(!d.ext_oneapi_can_compile(syclex::source_language::opencl) &&
+  assert(!d.ext_oneapi_can_build(syclex::source_language::opencl) &&
          "can_compile(opencl) unexpectedly true");
 
   assert(!d.ext_oneapi_supports_cl_c_version(syclex::opencl_c_1_0) &&

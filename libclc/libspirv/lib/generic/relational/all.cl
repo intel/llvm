@@ -22,8 +22,6 @@
 
 #define ALL_ID(TYPE) _CLC_OVERLOAD _CLC_DEF bool __spirv_All(TYPE v)
 
-bool __spirv_All(bool v) { return v; }
-
 #define ALL_VECTORIZE(TYPE)                                                    \
   ALL_ID(TYPE##2) { return _CLC_ALL2(v); }                                     \
   ALL_ID(TYPE##3) { return _CLC_ALL3(v); }                                     \

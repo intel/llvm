@@ -570,14 +570,18 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
-void event_impl::cleanDepEventsThroughOneLevel() {
-  std::lock_guard<std::mutex> Lock(MMutex);
+void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
   for (auto &Event : MPreparedDepsEvents) {
     Event->cleanupDependencyEvents();
   }
   for (auto &Event : MPreparedHostDepsEvents) {
     Event->cleanupDependencyEvents();
   }
+}
+
+void event_impl::cleanDepEventsThroughOneLevel() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  cleanDepEventsThroughOneLevelUnlocked();
 }
 
 void event_impl::setSubmissionTime() {
