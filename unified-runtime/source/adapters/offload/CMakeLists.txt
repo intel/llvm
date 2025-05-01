@@ -3,8 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-set(UR_OFFLOAD_ADAPTER_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Offload adapter directory") # TODO
-
 set(TARGET_NAME ur_adapter_offload)
 
 set(UR_OFFLOAD_INSTALL_DIR "" CACHE PATH "Path to the directory containing libomptarget.so etc")
@@ -17,7 +15,10 @@ if (UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     message(FATAL_ERROR "UR_OFFLOAD_INCLUDE_DIR must be defined for the Offload adapter")
 endif()
 
-# For the PTX workaround we need to link with CUDA.
+# When targetting CUDA devices, we need a workaround to avoid sending PTX to
+# liboffload as the CUDA plugin doesn't support it yet. The workaround is to
+# simply always link the incoming program so it ends up as CUBIN. Try to find
+# the cuda driver so we can enable this where possible.
 if (NOT TARGET cudadrv)
         find_package(CUDA 10.1)
         add_library(cudadrv SHARED IMPORTED GLOBAL)
