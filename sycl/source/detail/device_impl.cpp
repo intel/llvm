@@ -19,59 +19,30 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
-                         const AdapterPtr &Adapter)
-    : device_impl(InteropDeviceHandle, nullptr, nullptr, Adapter) {}
-
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
-device_impl::device_impl(ur_device_handle_t Device, PlatformImplPtr Platform)
-    : device_impl(0, Device, Platform, Platform->getAdapter()) {}
-
-/// Constructs a SYCL device instance using the provided
-/// UR device instance.
-device_impl::device_impl(ur_device_handle_t Device, const AdapterPtr &Adapter)
-    : device_impl(0, Device, nullptr, Adapter) {}
-
-device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
-                         ur_device_handle_t Device, PlatformImplPtr Platform,
-                         const AdapterPtr &Adapter)
-    : MDevice(Device), MDeviceHostBaseTime(std::make_pair(0, 0)) {
-  bool InteroperabilityConstructor = false;
-  if (Device == nullptr) {
-    assert(InteropDeviceHandle);
-    // Get UR device from the raw device handle.
-    // NOTE: this is for OpenCL interop only (and should go away).
-    // With SYCL-2020 BE generalization "make" functions are used instead.
-    Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
-        InteropDeviceHandle, Adapter->getUrAdapter(), nullptr, &MDevice);
-    InteroperabilityConstructor = true;
-  }
+device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
+                         device_impl::private_tag)
+    : MDevice(Device), MPlatform(Platform.shared_from_this()),
+      MDeviceHostBaseTime(std::make_pair(0, 0)) {
+  const AdapterPtr &Adapter = Platform.getAdapter();
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Adapter->call<UrApiKind::urDeviceGetInfo>(
       MDevice, UR_DEVICE_INFO_TYPE, sizeof(ur_device_type_t), &MType, nullptr);
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
-  if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
+  if (!Platform.MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     Adapter->call<UrApiKind::urDeviceGetInfo>(
         MDevice, UR_DEVICE_INFO_PARENT_DEVICE, sizeof(ur_device_handle_t),
         &MRootDevice, nullptr);
   }
 
-  if (!InteroperabilityConstructor) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    // Interoperability Constructor already calls DeviceRetain in
-    // urDeviceCreateWithNativeHandle.
-    Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
-  }
-
-  // set MPlatform
-  if (!Platform) {
-    Platform = platform_impl::getPlatformFromUrDevice(MDevice, Adapter);
-  }
-  MPlatform = Platform;
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  // Interoperability Constructor already calls DeviceRetain in
+  // urDeviceCreateWithNativeHandle.
+  Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
 
   Adapter->call<UrApiKind::urDeviceGetInfo>(
       MDevice, UR_DEVICE_INFO_USE_NATIVE_ASSERT, sizeof(ur_bool_t),
@@ -207,7 +178,7 @@ std::vector<device> device_impl::create_sub_devices(
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_ur_device, MPlatform));
+                      MPlatform->getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -921,8 +892,12 @@ bool device_impl::isGetDeviceAndHostTimerSupported() {
 bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
+    // Get the shared_ptr to this object from the platform that owns it.
+    std::shared_ptr<device_impl> Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return sycl::ext::oneapi::experimental::detail::
-        is_source_kernel_bundle_supported(getBackend(), Language);
+        is_source_kernel_bundle_supported(Language,
+                                          std::vector<DeviceImplPtr>{Self});
+
   } catch (sycl::exception &) {
     return false;
   }

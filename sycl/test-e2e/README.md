@@ -296,6 +296,9 @@ configure specific single test execution in the command line:
 * **extra_environment** - comma-separated list of variables with values to be
   added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
   in CMake.
+* **extra_system_environment** - comma-separated list of variables to be
+  propagated from the host environment to test environment. Can be also set by
+  LIT_EXTRA_SYSTEM_ENVIRONMENT variable in CMake.
 * **level_zero_include** - directory containing Level_Zero native headers, can
   be also set by CMake variable LEVEL_ZERO_INCLUDE.
 * **level_zero_libs_dir** - directory containing Level_Zero native libraries,

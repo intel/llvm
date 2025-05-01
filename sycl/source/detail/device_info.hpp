@@ -35,7 +35,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
 inline std::vector<memory_order>
 readMemoryOrderBitfield(ur_memory_order_capability_flags_t bits) {
   std::vector<memory_order> result;
@@ -1171,9 +1170,8 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
       throw exception(make_error_code(errc::invalid),
                       "No parent for device because it is not a subdevice");
 
-    const auto &Platform = Dev.getPlatformImpl();
     return createSyclObjFromImpl<device>(
-        Platform->getOrMakeDeviceImpl(result, Platform));
+        Dev.getPlatformImpl().getOrMakeDeviceImpl(result));
   }
 };
 
@@ -1337,10 +1335,10 @@ struct get_device_info_impl<
             ext::oneapi::experimental::info::device::component_devices>::value,
         ResultSize, Devs.data(), nullptr);
     std::vector<sycl::device> Result;
-    const auto &Platform = Dev.getPlatformImpl();
+    platform_impl &Platform = Dev.getPlatformImpl();
     for (const auto &d : Devs)
-      Result.push_back(createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(d, Platform)));
+      Result.push_back(
+          createSyclObjFromImpl<device>(Platform.getOrMakeDeviceImpl(d)));
 
     return Result;
   }
@@ -1363,9 +1361,8 @@ struct get_device_info_impl<
         sizeof(Result), &Result, nullptr);
 
     if (Result) {
-      const auto &Platform = Dev.getPlatformImpl();
       return createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(Result, Platform));
+          Dev.getPlatformImpl().getOrMakeDeviceImpl(Result));
     }
     throw sycl::exception(make_error_code(errc::invalid),
                           "A component with aspect::ext_oneapi_is_component "
