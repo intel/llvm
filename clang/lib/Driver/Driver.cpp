@@ -1221,7 +1221,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // We need to generate a SYCL toolchain if the user specified -fsycl.
   // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
-  // Use of -fsyclbin also enables SYCL offloading compialtion.
+  // Use of -fsyclbin enables SYCL device compilation.
   bool IsSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                          options::OPT_fno_sycl, false) ||
                 C.getInputArgs().hasArgNoClaim(options::OPT_fsycl_device_only,
