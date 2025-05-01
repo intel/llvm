@@ -99,7 +99,7 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
     }
     return true;
   };
-  for (const std::string_view result : OclocPaths) {
+  for (const std::string_view &result : OclocPaths) {
     if (attemptLoad(result))
       return; // exit on successful attempt
   }
