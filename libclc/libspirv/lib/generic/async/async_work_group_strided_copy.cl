@@ -11,4 +11,4 @@
 
 #define __CLC_BODY <async_work_group_strided_copy.inc>
 #define __CLC_GEN_VEC3
-#include <clc/async/gentype.inc>
+#include <libspirv/async/gentype.inc>
