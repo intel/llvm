@@ -1,4 +1,4 @@
-// REQUIRES: windows && debug_sycl_library
+// REQUIRES: windows && debug_sycl_library && build-mode && run-mode
 
 // RUN: %clangxx --driver-mode=cl -fsycl /MDd -c %s -o %t.obj
 // RUN: %clangxx --driver-mode=cl -fsycl %t.obj -Wno-unused-command-line-argument -o %t.out
@@ -9,6 +9,8 @@
 // The failure happens if perform separate compile and link, and pass /MDd to
 // the compile line. In that case, user application will crash during launching
 // with abort() message.
+// Note that building requires the Windows debug library to be present, so it is
+// only run in full testing mode.
 
 #include <sycl/queue.hpp>
 
