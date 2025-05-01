@@ -216,7 +216,7 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr &Context);
 
-  void addImage(sycl_device_binary RawImg,
+  void addImage(sycl_device_binary RawImg, bool RegisterImgExports = true,
                 RTDeviceBinaryImage **OutImage = nullptr,
                 std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);
@@ -341,9 +341,9 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain> link(const DevImgPlainWithDeps &ImgWithDeps,
-                                       const std::vector<device> &Devs,
-                                       const property_list &PropList);
+  std::vector<device_image_plain>
+  link(const std::vector<device_image_plain> &Imgs,
+       const std::vector<device> &Devs, const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
@@ -372,10 +372,12 @@ public:
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
   std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev,
+                         bool ErrorOnUnresolvableImport = true);
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev);
+                                           const device &Dev,
+                                           bool ErrorOnUnresolvableImport);
 
 private:
   ProgramManager(ProgramManager const &) = delete;
