@@ -14,40 +14,56 @@
 #include "esimd_test_utils.hpp"
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/kernel_bundle.hpp>
+
+namespace syclex = sycl::ext::oneapi::experimental;
 
 static constexpr int WorkGroupSize = 16;
 
 static constexpr int VL = 16;
+
+template <int Val> class MyKernel;
+
 template <bool UseThisWorkItemAPI> bool test(sycl::queue &q) {
   bool Pass = true;
-  const auto MaxWGs = 8;
-  size_t WorkItemCount = MaxWGs * WorkGroupSize * VL;
   std::cout << "Test case UseThisWorkItemAPI="
             << std::to_string(UseThisWorkItemAPI) << std::endl;
   const auto Props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
-  sycl::buffer<int> DataBuf{sycl::range{WorkItemCount}};
-  const auto Range = sycl::nd_range<1>{MaxWGs * WorkGroupSize, WorkGroupSize};
+  auto Bundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
+  auto Kernel = Bundle.template get_kernel<MyKernel<UseThisWorkItemAPI>>();
+  sycl::range<1> LocalRange{WorkGroupSize};
+  auto MaxWGs = Kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_groups>(q, LocalRange,
+                                                                0);
+  auto GlobalRange = LocalRange;
+  GlobalRange[0] *= MaxWGs / VL;
+  size_t WorkItemCount = GlobalRange.size() * VL;
+  sycl::buffer<int> DataBuf{WorkItemCount};
+  const auto Range = sycl::nd_range<1>{GlobalRange, LocalRange};
+
   q.submit([&](sycl::handler &h) {
      sycl::accessor Data{DataBuf, h};
-     h.parallel_for(Range, Props, [=](sycl::nd_item<1> it) SYCL_ESIMD_KERNEL {
-       int ID = it.get_global_linear_id();
-       __ESIMD_NS::simd<int, VL> V(ID, 1);
-       // Write data to another kernel's data to verify the barrier works.
-       __ESIMD_NS::block_store(
-           Data, (WorkItemCount * sizeof(int)) - (ID * sizeof(int) * VL), V);
-       if constexpr (UseThisWorkItemAPI) {
-         auto Root =
-             sycl::ext::oneapi::experimental::this_work_item::get_root_group<
-                 1>();
-         sycl::group_barrier(Root);
-       } else {
-         auto Root = it.ext_oneapi_get_root_group();
-         sycl::group_barrier(Root);
-       }
-       __ESIMD_NS::simd<int, VL> VOther(ID * VL, 1);
-       __ESIMD_NS::block_store(Data, ID * sizeof(int) * VL, VOther);
-     });
+     h.parallel_for<MyKernel<UseThisWorkItemAPI>>(
+         Range, Props, [=](sycl::nd_item<1> it) SYCL_ESIMD_KERNEL {
+           int ID = it.get_global_linear_id();
+           __ESIMD_NS::simd<int, VL> V(ID, 1);
+           // Write data to another kernel's data to verify the barrier works.
+           __ESIMD_NS::block_store(
+               Data, (WorkItemCount * sizeof(int)) - (ID * sizeof(int) * VL),
+               V);
+           if constexpr (UseThisWorkItemAPI) {
+             auto Root = sycl::ext::oneapi::experimental::this_work_item::
+                 get_root_group<1>();
+             sycl::group_barrier(Root);
+           } else {
+             auto Root = it.ext_oneapi_get_root_group();
+             sycl::group_barrier(Root);
+           }
+           __ESIMD_NS::simd<int, VL> VOther(ID * VL, 1);
+           __ESIMD_NS::block_store(Data, ID * sizeof(int) * VL, VOther);
+         });
    }).wait();
   sycl::host_accessor Data{DataBuf};
   int ErrCnt = 0;
