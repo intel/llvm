@@ -7,11 +7,11 @@ import tempfile
 import subprocess
 from urllib import request
 from pathlib import Path
+import argparse
 
 if __name__ == "__main__":
 	sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from options import options
-from utils.validate import Validate
 
 class DetectVersion:
 	_instance = None
@@ -86,7 +86,7 @@ class DetectVersion:
 	def get_dpcpp_git_info(self) -> [str, str]:
 		# clang++ formats are in <clang ver> (<git url> <commit>): if this
 		# regex does not match, it is likely this is not upstream clang.
-		git_info_match = re.search(r'(http.+ [0-9a-f]+)', self.dpcpp_ver)
+		git_info_match = re.search(r'\(http.+ [0-9a-f]+\)', self.dpcpp_ver)
 		if git_info_match is None:
 			return None
 		git_info = git_info_match.group(0)
@@ -176,25 +176,20 @@ def main(components: [str]):
 
 	def remove_undefined_components(component: str) -> bool:
 		if component not in str2fn:
-			print(f"# Warning: unknown component {component}", file=sys.stderr)
+			print(f"# Warn: unknown component: {component}", file=sys.stderr)
 			return False
 		return True
 
 	components_clean = filter(remove_undefined_components, components)
 
-	output = map(lambda c: f"{c.upper()}={str2fn[c]()}", components_clean)
-    for s in output:
+	for s in map(lambda c: f"{c.upper()}={str2fn[c]()}", components_clean):
 		print(s)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Get version information for specified components.")
     parser.add_argument(
-		"components",
-		type=lambda components: Validate.on_re(
-			components,
-			r'[a-z_,]+',
-            throw=argparse.ArgumentTypeError("Specified --components is not a comma-separated list")
-		),
+		"components", type=str,
 		help="""
 		Comma-separated list of components to get version information for.
 		Valid options: dpcpp_repo,dpcpp_commit,l0_ver,compute_runtime_ver
