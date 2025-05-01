@@ -2708,7 +2708,11 @@ int Driver::ExecuteCompilation(
     // Remove result files if we're not saving temps.
     if (!isSaveTempsEnabled()) {
       const JobAction *JA = cast<JobAction>(&FailingCommand->getSource());
-      C.CleanupFileMap(C.getResultFiles(), JA, true);
+      // When performing offload compilations, the result files may not match
+      // the JobAction that fails.  In that case, do not pass in the JobAction
+      // to allow for the proper resulting file to be removed upon failure.
+      C.CleanupFileMap(C.getResultFiles(),
+                       C.getActiveOffloadKinds() ? nullptr : JA, true);
 
       // Failure result files are valid unless we crashed.
       if (CommandRes < 0)
@@ -4710,9 +4714,12 @@ class OffloadingActionBuilder final {
             // compiler phases, including backend and assemble phases.
             ActionList AL;
             Action *BackendAction = nullptr;
-            if (ToolChains.front()->getTriple().isSPIROrSPIRV()) {
+            if (ToolChains.front()->getTriple().isSPIRV() ||
+                (ToolChains.front()->getTriple().isAMDGCN() &&
+                 GpuArchList[I] == StringRef("amdgcnspirv"))) {
               // Emit LLVM bitcode for SPIR-V targets. SPIR-V device tool chain
-              // (HIPSPVToolChain) runs post-link LLVM IR passes.
+              // (HIPSPVToolChain or HIPAMDToolChain) runs post-link LLVM IR
+              // passes.
               types::ID Output = Args.hasArg(options::OPT_S)
                                      ? types::TY_LLVM_IR
                                      : types::TY_LLVM_BC;
@@ -5159,19 +5166,6 @@ class OffloadingActionBuilder final {
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
           SYCLInstallation(C.getDriver()) {}
 
-    void withBoundArchForToolChain(const ToolChain *TC,
-                                   llvm::function_ref<void(const char *)> Op) {
-      for (auto &A : GpuArchList) {
-        if (TC->getTriple() == A.first) {
-          Op(A.second ? Args.MakeArgString(A.second) : nullptr);
-          return;
-        }
-      }
-
-      // no bound arch for this toolchain
-      Op(nullptr);
-    }
-
     void pushForeignAction(Action *A) override {
       // Accept a foreign action from the CudaActionBuilder for compiling CUDA
       // sources
@@ -5454,10 +5448,13 @@ class OffloadingActionBuilder final {
         return;
 
       OffloadAction::DeviceDependences Dep;
-      withBoundArchForToolChain(ToolChains.front(), [&](const char *BoundArch) {
-        Dep.add(*SYCLLinkBinary, *ToolChains.front(), BoundArch,
-                Action::OFK_SYCL);
-      });
+      for (auto &TripleAndArchPair : GpuArchList) {
+        if (ToolChains.front()->getTriple() == TripleAndArchPair.first) {
+          Dep.add(*SYCLLinkBinary, *ToolChains.front(),
+                  TripleAndArchPair.second, Action::OFK_SYCL);
+        }
+      }
+
       AL.push_back(C.MakeAction<OffloadAction>(Dep, SYCLLinkBinary->getType()));
       SYCLLinkBinary = nullptr;
     }
@@ -5901,9 +5898,7 @@ class OffloadingActionBuilder final {
           }
           if (SkipWrapper) {
             // Wrapper step not requested.
-            withBoundArchForToolChain(TC, [&](const char *BoundArch) {
-              addDeps(WrapperInputs.front(), TC, BoundArch);
-            });
+            addDeps(WrapperInputs.front(), TC, BoundArch);
             continue;
           }
 
@@ -5917,9 +5912,7 @@ class OffloadingActionBuilder final {
                  BoundArch != nullptr);
             addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
           } else {
-            withBoundArchForToolChain(TC, [&](const char *BoundArch) {
-              addDeps(DeviceWrappingAction, TC, BoundArch);
-            });
+            addDeps(DeviceWrappingAction, TC, BoundArch);
           }
         }
       }
@@ -6440,14 +6433,20 @@ class OffloadingActionBuilder final {
               SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
             } else {
               const char *OffloadArch = nullptr;
-              for (auto &A : GpuArchList) {
-                if (TT == A.first) {
-                  OffloadArch = A.second;
-                  break;
+              for (auto &TargetTripleArchPair : GpuArchList) {
+                if (TT == TargetTripleArchPair.first) {
+                  OffloadArch = TargetTripleArchPair.second;
+                  // Add an arch to the SYCLTargetInfoList
+                  // only if it is not already present in the list.
+                  auto Arch = llvm::find_if(
+                      SYCLTargetInfoList, [&](auto &DeviceTargetInfo) {
+                        return OffloadArch == DeviceTargetInfo.BoundArch;
+                      });
+
+                  if (Arch == SYCLTargetInfoList.end())
+                    SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
                 }
               }
-              assert(OffloadArch && "Failed to find matching arch.");
-              SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
             }
           }
         }
