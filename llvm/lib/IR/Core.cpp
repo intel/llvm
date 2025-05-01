@@ -3953,6 +3953,10 @@ static AtomicRMWInst::BinOp mapFromLLVMRMWBinOp(LLVMAtomicRMWBinOp BinOp) {
     case LLVMAtomicRMWBinOpFSub: return AtomicRMWInst::FSub;
     case LLVMAtomicRMWBinOpFMax: return AtomicRMWInst::FMax;
     case LLVMAtomicRMWBinOpFMin: return AtomicRMWInst::FMin;
+    case LLVMAtomicRMWBinOpFMaximum:
+      return AtomicRMWInst::FMaximum;
+    case LLVMAtomicRMWBinOpFMinimum:
+      return AtomicRMWInst::FMinimum;
     case LLVMAtomicRMWBinOpUIncWrap:
       return AtomicRMWInst::UIncWrap;
     case LLVMAtomicRMWBinOpUDecWrap:
@@ -3983,6 +3987,10 @@ static LLVMAtomicRMWBinOp mapToLLVMRMWBinOp(AtomicRMWInst::BinOp BinOp) {
     case AtomicRMWInst::FSub: return LLVMAtomicRMWBinOpFSub;
     case AtomicRMWInst::FMax: return LLVMAtomicRMWBinOpFMax;
     case AtomicRMWInst::FMin: return LLVMAtomicRMWBinOpFMin;
+    case AtomicRMWInst::FMaximum:
+      return LLVMAtomicRMWBinOpFMaximum;
+    case AtomicRMWInst::FMinimum:
+      return LLVMAtomicRMWBinOpFMinimum;
     case AtomicRMWInst::UIncWrap:
       return LLVMAtomicRMWBinOpUIncWrap;
     case AtomicRMWInst::UDecWrap:

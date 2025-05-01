@@ -73,6 +73,7 @@ add_llvm_unittest(SupportTests
   ProcessTest.cpp
   ProgramTest.cpp
   PropertySetIOTest.cpp
+  ProgramStackTest.cpp
   RecyclerTest.cpp
   RegexTest.cpp
   ReverseIterationTest.cpp
