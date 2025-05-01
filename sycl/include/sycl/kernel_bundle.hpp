@@ -1202,6 +1202,7 @@ compile_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
     Options.push_back(sycl::detail::string_view{opt});
 
   std::vector<sycl::detail::string_view> KernelNames;
+  KernelNames.reserve(RegisteredKernelNames);
   for (const std::string &name : RegisteredKernelNames)
     KernelNames.push_back(sycl::detail::string_view{name});
 
