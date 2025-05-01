@@ -264,7 +264,10 @@ struct known_identity_impl<BinaryOperation, AccumulatorT,
   // performance, but does not affect ::has_infinity (which is correct behavior,
   // if unexpected). Use ::max() instead of ::infinity().
   // Note that if someone uses -fno-honor-infinities WITHOUT -fno-honor-nans
-  // they'll end up using ::infinity(). This is a very unlikely occurence
+  // they'll end up using ::infinity(). There is no reasonable case where one of
+  // the flags would be used without the other and therefore
+  // __FINITE_MATH_ONLY__ is sufficient for this problem ( and superior to the
+  // __FAST_MATH__ macro we were using before).
   static constexpr AccumulatorT value =
       (std::numeric_limits<AccumulatorT>::max)();
 #else
