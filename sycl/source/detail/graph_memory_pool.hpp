@@ -140,8 +140,8 @@ public:
                                            : address_access_mode::read_write;
 
       // Create physical memory
-      auto PhysicalMem = std::make_shared<physical_mem_impl>(MDevice, MContext,
-                                                             AllocInfo.Size);
+      auto PhysicalMem = std::make_shared<physical_mem_impl>(
+          *getSyclObjImpl(MDevice), MContext, AllocInfo.Size);
       // Map the virtual reservation to it
       PhysicalMem->map(reinterpret_cast<uintptr_t>(Ptr), AllocInfo.Size,
                        AccessMode, 0);

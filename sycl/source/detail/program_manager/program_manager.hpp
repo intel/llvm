@@ -72,7 +72,6 @@ static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class device_impl;
-using DeviceImplPtr = std::shared_ptr<device_impl>;
 class queue_impl;
 class event_impl;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
@@ -177,7 +176,7 @@ public:
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
   ur_program_handle_t getBuiltURProgram(const ContextImplPtr &ContextImpl,
-                                        const DeviceImplPtr &DeviceImpl,
+                                        device_impl &DeviceImpl,
                                         KernelNameStrRefT KernelName,
                                         const NDRDescT &NDRDesc = {});
 
@@ -200,8 +199,7 @@ public:
 
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
              ur_program_handle_t>
-  getOrCreateKernel(const ContextImplPtr &ContextImpl,
-                    const DeviceImplPtr &DeviceImpl,
+  getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(

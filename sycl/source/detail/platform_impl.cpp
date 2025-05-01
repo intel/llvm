@@ -289,26 +289,22 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   return original_indices;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl *platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   return getDeviceImplHelper(UrDevice);
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
-  std::shared_ptr<device_impl> Result = getDeviceImplHelper(UrDevice);
-  if (Result)
-    return Result;
+  if (device_impl *Result = getDeviceImplHelper(UrDevice))
+    return *Result;
 
   // Otherwise make the impl
-  Result = std::make_shared<device_impl>(UrDevice, *this,
-                                         device_impl::private_tag{});
-  MDevices.emplace_back(Result);
+  MDevices.emplace_back(std::make_shared<device_impl>(
+      UrDevice, *this, device_impl::private_tag{}));
 
-  return Result;
+  return *MDevices.back();
 }
 
 static bool supportsAffinityDomain(const device &dev,
@@ -635,11 +631,10 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
+device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
   for (const std::shared_ptr<device_impl> &Device : MDevices) {
     if (Device->getHandleRef() == UrDevice)
-      return Device;
+      return Device.get();
   }
   return nullptr;
 }
