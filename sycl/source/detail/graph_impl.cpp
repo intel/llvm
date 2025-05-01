@@ -1717,12 +1717,12 @@ void exec_graph_impl::updateURImpl(
   for (auto &BundleObjs : KernelBundleObjList) {
     // We retained these objects by inside populateUpdateStruct() by calling
     // getOrCreateKernel()
-    if (auto &UrKernel = BundleObjs.second; nullptr != UrKernel) {
-      Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(UrKernel);
-    }
-    if (auto &UrProgram = BundleObjs.first; nullptr != UrProgram) {
-      Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
-    }
+    // if (auto &UrKernel = BundleObjs.second; nullptr != UrKernel) {
+    //   Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(UrKernel);
+    // }
+    // if (auto &UrProgram = BundleObjs.first; nullptr != UrProgram) {
+    //   Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
+    // }
   }
 }
 

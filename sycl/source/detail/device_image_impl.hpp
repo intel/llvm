@@ -585,6 +585,8 @@ public:
 
   ~device_image_impl() {
     try {
+      // Destroy the program associated with this device image, used
+      // with kernel bundle.
       if (MProgram) {
         const AdapterPtr &Adapter = getSyclObjImpl(MContext)->getAdapter();
         Adapter->call<UrApiKind::urProgramRelease>(MProgram);

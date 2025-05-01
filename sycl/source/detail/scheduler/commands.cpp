@@ -2640,12 +2640,12 @@ ur_result_t enqueueImpCommandBufferKernel(
           nullptr, OutSyncPoint, nullptr,
           CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
 
-  for (auto &Kernel : UrKernelsToRelease) {
-    Adapter->call<UrApiKind::urKernelRelease>(Kernel);
-  }
-  for (auto &Program : UrProgramsToRelease) {
-    Adapter->call<UrApiKind::urProgramRelease>(Program);
-  }
+  // for (auto &Kernel : UrKernelsToRelease) {
+  //   Adapter->call<UrApiKind::urKernelRelease>(Kernel);
+  // }
+  // for (auto &Program : UrProgramsToRelease) {
+  //   Adapter->call<UrApiKind::urProgramRelease>(Program);
+  // }
 
   if (Res != UR_RESULT_SUCCESS) {
     const device_impl &DeviceImplem = *(DeviceImpl);
@@ -2751,11 +2751,11 @@ void enqueueImpKernel(
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, KernelName);
 
-    const AdapterPtr &Adapter = Queue->getAdapter();
-    if (!SyclKernelImpl && !MSyclKernel) {
-      Adapter->call<UrApiKind::urKernelRelease>(Kernel);
-      Adapter->call<UrApiKind::urProgramRelease>(Program);
-    }
+    // const AdapterPtr &Adapter = Queue->getAdapter();
+    // if (!SyclKernelImpl && !MSyclKernel) {
+    //   Adapter->call<UrApiKind::urKernelRelease>(Kernel);
+    //   Adapter->call<UrApiKind::urProgramRelease>(Program);
+    // }
   }
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice

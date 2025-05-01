@@ -1029,8 +1029,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
   };
 
-  auto BuildResult =
-      Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF, EvictFunc);
+  auto BuildResult = Cache.getOrBuild<errc::build, UrApiKind::urProgramRetain>(
+      GetCachedBuildF, BuildF, EvictFunc);
 
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
@@ -1100,7 +1100,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // program.
-  Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
+  // Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
   return ResProgram;
 }
 // When caching is enabled, the returned UrProgram and UrKernel will
@@ -1124,15 +1124,14 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   auto key = std::make_pair(UrDevice, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(key);
-    constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
-    constexpr size_t Program = 3; // see KernelFastCacheValT tuple
+    constexpr size_t Kernel = 0; // see KernelFastCacheValT tuple
     if (std::get<Kernel>(ret_tuple)) {
       // Pulling a copy of a kernel and program from the cache,
       // so we need to retain those resources.
-      ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-          std::get<Kernel>(ret_tuple));
-      ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
-          std::get<Program>(ret_tuple));
+      // ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
+      //     std::get<Kernel>(ret_tuple));
+      // ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
+      //     std::get<Program>(ret_tuple));
       return ret_tuple;
     }
   }
@@ -1175,7 +1174,8 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return make_tuple(Kernel, nullptr, ArgMask, Program);
   }
 
-  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::invalid, UrApiKind::urKernelRetain>(
+      GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
@@ -1186,8 +1186,8 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // kernel.
-  ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-      KernelArgMaskPair.first);
+  // ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
+  //     KernelArgMaskPair.first);
   Cache.saveKernel(key, ret_val);
   return ret_val;
 }
@@ -3223,14 +3223,15 @@ ProgramManager::getOrCreateKernel(const context &Context,
     return make_tuple(Kernel, nullptr, ArgMask);
   }
 
-  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
+  auto BuildResult = Cache.getOrBuild<errc::invalid, UrApiKind::urKernelRetain>(
+      GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   // If caching is enabled, one copy of the kernel handle will be
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // kernel.
-  Ctx->getAdapter()->call<UrApiKind::urKernelRetain>(BuildResult->Val.first);
+  // Ctx->getAdapter()->call<UrApiKind::urKernelRetain>(BuildResult->Val.first);
   return std::make_tuple(BuildResult->Val.first,
                          &(BuildResult->MBuildResultMutex),
                          BuildResult->Val.second);

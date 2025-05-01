@@ -669,8 +669,8 @@ public:
   ///
   /// \return a pointer to cached build result, return value must not be
   /// nullptr.
-  template <errc Errc, typename GetCachedBuildFT, typename BuildFT,
-            typename EvictFT = void *>
+  template <errc Errc, UrApiKind RetainAPI, typename GetCachedBuildFT,
+            typename BuildFT, typename EvictFT = void *>
   auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
                   EvictFT &&EvictFunc = nullptr) {
     using BuildState = KernelProgramCache::BuildState;
@@ -718,6 +718,13 @@ public:
           EvictFunc(BuildResult->Val, /*IsBuilt=*/true);
 
         BuildResult->updateAndNotify(BuildState::BS_Done);
+
+        // if constexpr (RetainAPI == UrApiKind::urProgramRetain)
+        //   getAdapter()->call<RetainAPI>(BuildResult->Val);
+
+        // if constexpr (RetainAPI == UrApiKind::urKernelRetain)
+        //   getAdapter()->call<RetainAPI>(BuildResult->Val.first);
+
         return BuildResult;
       } catch (const exception &Ex) {
         BuildResult->Error.Msg = Ex.what();

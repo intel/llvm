@@ -58,7 +58,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
 kernel_impl::~kernel_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getAdapter()->call<UrApiKind::urKernelRelease>(MKernel);
+    // getAdapter()->call<UrApiKind::urKernelRelease>(MKernel);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
