@@ -21,14 +21,14 @@ class DetectVersionsOptions:
     """
     Options for automatic version detection
     """
-    # Software to detect versions for:
+    # Components to detect versions for:
     sycl: bool = False
     compute_runtime: bool = False
     # umf: bool = False
     # level_zero: bool = False
 
     # Placeholder text, should automatic version detection fail: This text will
-    # only be used if automatic version detection for x software is explicitly
+    # only be used if automatic version detection for x component is explicitly
     # specified.
     not_found_placeholder = "unknown" # None
 

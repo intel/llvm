@@ -11,6 +11,7 @@ from pathlib import Path
 if __name__ == "__main__":
 	sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from options import options
+from utils.validate import Validate
 
 class DetectVersion:
 	_instance = None
@@ -163,11 +164,42 @@ class DetectVersion:
 		return options.detect_versions.not_found_placeholder
 
 
-def main():
+def main(components: [str]):
 	detect_res = DetectVersion.init(f"{os.path.dirname(__file__)}/detect_versions.cpp")
-	# print(query_res.get_compute_runtime_ver())
-	print(detect_res.get_dpcpp_commit())
-	# print(query_res.get_l0_ver(), query_res.get_dpcpp_ver())
+
+	str2fn = {
+		"dpcpp_repo": detect_res.get_dpcpp_repo,
+		"dpcpp_commit": detect_res.get_dpcpp_commit,
+		"l0_ver": detect_res.get_l0_ver,
+		"compute_runtime_ver": detect_res.get_compute_runtime_ver
+	}
+
+	def remove_undefined_components(component: str) -> bool:
+		if component not in str2fn:
+			print(f"# Warning: unknown component {component}", file=sys.stderr)
+			return False
+		return True
+
+	components_clean = filter(remove_undefined_components, components)
+
+	output = map(lambda c: f"{c.upper()}={str2fn[c]()}", components_clean)
+    for s in output:
+		print(s)
 
 if __name__ == "__main__":
-	main()
+    parser = argparse.ArgumentParser(description="Get version information for specified components.")
+    parser.add_argument(
+		"components",
+		type=lambda components: Validate.on_re(
+			components,
+			r'[a-z_,]+',
+            throw=argparse.ArgumentTypeError("Specified --components is not a comma-separated list")
+		),
+		help="""
+		Comma-separated list of components to get version information for.
+		Valid options: dpcpp_repo,dpcpp_commit,l0_ver,compute_runtime_ver
+		"""
+	)
+    args = parser.parse_args()
+
+    main(map(lambda c: c.strip(), args.components.split(',')))

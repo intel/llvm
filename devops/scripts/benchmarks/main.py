@@ -534,12 +534,12 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--detect-version",
-        type=lambda comma_separated_str: Validate.on_re(
-            comma_separated_str,
+        type=lambda components: Validate.on_re(
+            components,
             r'[a-z_,]+',
             throw=argparse.ArgumentTypeError("Specified --detect-version is not a comma-separated list")
         ),
-        help="Detect versions of software used: comma-separated list with choices from dpcpp,compute_runtime",
+        help="Detect versions of components used: comma-separated list with choices from dpcpp,compute_runtime",
         default=None
     )
     parser.add_argument(
@@ -610,9 +610,9 @@ if __name__ == "__main__":
         elif not detect_ver_path.is_file():
             parser.error(f"Specified --detect-version-cpp-path is not a valid file")
 
-        enabled_software = args.detect_version.split(',')
-        options.detect_versions.sycl = "sycl" in enabled_software
-        options.detect_versions.compute_runtime = "compute_runtime" in enabled_software
+        enabled_components = args.detect_version.split(',')
+        options.detect_versions.sycl = "sycl" in enabled_components
+        options.detect_versions.compute_runtime = "compute_runtime" in enabled_components
         
         DetectVersion.init(detect_ver_path)
 
