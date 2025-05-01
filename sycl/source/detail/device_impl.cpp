@@ -82,13 +82,6 @@ template <typename Param>
 typename Param::return_type device_impl::get_info() const {
   return get_device_info<Param>(*this);
 }
-template <>
-info::device::opencl_c_version::return_type
-device_impl::get_info<info::device::opencl_c_version>() const {
-  throw sycl::exception(
-      errc::feature_not_supported,
-      "Deprecated interface that hasn't been working for some time already");
-}
 // Explicitly instantiate all device info traits
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template ReturnT device_impl::get_info<info::device::Desc>() const;
