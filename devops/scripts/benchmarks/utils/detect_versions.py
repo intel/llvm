@@ -1,11 +1,16 @@
 import os
 import re
+import sys
 import json
 import urllib
 import tempfile
 import subprocess
 from urllib import request
 from pathlib import Path
+
+if __name__ == "__main__":
+	sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from options import options
 
 class DetectVersion:
 	_instance = None
@@ -77,14 +82,26 @@ class DetectVersion:
 		"""
 		return self.dpcpp_ver
 
-	def get_dpcpp_commit(self) -> str:
+	def get_dpcpp_git_info(self) -> [str, str]:
 		# clang++ formats are in <clang ver> (<git url> <commit>): if this
 		# regex does not match, it is likely this is not upstream clang.
 		git_info_match = re.search(r'(http.+ [0-9a-f]+)', self.dpcpp_ver)
 		if git_info_match is None:
 			return None
 		git_info = git_info_match.group(0)
-		return git_info[1:-1].split(' ')[1]
+		return git_info[1:-1].split(' ')
+
+	def get_dpcpp_commit(self) -> str:
+		git_info = self.get_dpcpp_git_info()
+		if git_info is None:
+			return options.detect_versions.not_found_placeholder
+		return git_info[1]
+
+	def get_dpcpp_repo(self) -> str:
+		git_info = self.get_dpcpp_git_info()
+		if git_info is None:
+			return options.detect_versions.not_found_placeholder
+		return git_info[0]
 
 	def get_compute_runtime_ver(self) -> str:
 		"""
@@ -100,11 +117,10 @@ class DetectVersion:
 
 		# TODO unauthenticated users only get 60 API calls per hour: this will
 		# not work if we enable benchmark CI in precommit.
-		url = "https://api.github.com/repos/intel/compute-runtime/tags"
-		MAX_PAGINATION_CALLS = 2
+		url = options.detect_versions.compute_runtime_tag_api
 
 		try:
-			for _ in range(MAX_PAGINATION_CALLS):
+			for _ in range(options.detect_versions.max_api_calls):
 				res = request.urlopen(url)
 				tags = [ tag["name"] for tag in json.loads(res.read()) ]
 
@@ -144,7 +160,7 @@ class DetectVersion:
 		except urllib.error.URLError as e:
 			print(f"URL error: {e.reason}")
 
-		return "Unknown"
+		return options.detect_versions.not_found_placeholder
 
 
 def main():

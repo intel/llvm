@@ -503,7 +503,7 @@ if __name__ == "__main__":
         type=lambda ts: Validate.timestamp(
             ts,
             throw=argparse.ArgumentTypeError(
-                "Specified timestamp not in YYYYMMDD_HHMMSS format."
+                "Specified timestamp not in YYYYMMDD_HHMMSS format"
             ),
         ),
         help="Manually specify timestamp used in metadata",
@@ -514,7 +514,7 @@ if __name__ == "__main__":
         type=lambda gh_repo: Validate.github_repo(
             gh_repo,
             throw=argparse.ArgumentTypeError(
-                "Specified github repo not in <owner>/<repo> format."
+                "Specified github repo not in <owner>/<repo> format"
             ),
         ),
         help="Manually specify github repo metadata of component tested (e.g. SYCL, UMF)",
@@ -525,7 +525,7 @@ if __name__ == "__main__":
         type=lambda commit: Validate.commit_hash(
             commit,
             throw=argparse.ArgumentTypeError(
-                "Specified commit is not a valid commit hash."
+                "Specified commit is not a valid commit hash"
             ),
         ),
         help="Manually specify commit hash metadata of component tested (e.g. SYCL, UMF)",
@@ -534,15 +534,19 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--detect-version",
-        type=str,
-        help="Detect versions of software used: comma-separated list with choices from [dpcpp, compute-runtime]",
+        type=lambda comma_separated_str: Validate.on_re(
+            comma_separated_str,
+            r'[a-z_,]+',
+            throw=argparse.ArgumentTypeError("Specified --detect-version is not a comma-separated list")
+        ),
+        help="Detect versions of software used: comma-separated list with choices from dpcpp,compute_runtime",
         default=None
     )
     parser.add_argument(
         "--detect-version-cpp-path",
         type=Path,
         help="Location of detect_version.cpp used to query e.g. DPC++, L0",
-        default=Path(f"{os.path.dirname(__file__)}/utils/detect_version.cpp")
+        default=None
     )
 
     args = parser.parse_args()
@@ -598,9 +602,19 @@ if __name__ == "__main__":
 
     # Automatically detect versions:
     if args.detect_version is not None:
-        DetectVersion.init(
-            args.detect_version_cpp_path
-        )
+        detect_ver_path = args.detect_version_cpp_path
+        if detect_ver_path is None:
+            detect_ver_path = Path(f"{os.path.dirname(__file__)}/utils/detect_version.cpp")
+            if not detect_ver_path.is_file():
+                parser.error(f"Unable to find detect_version.cpp at {detect_ver_path}, please specify --detect-version-cpp-path")
+        elif not detect_ver_path.is_file():
+            parser.error(f"Specified --detect-version-cpp-path is not a valid file")
+
+        enabled_software = args.detect_version.split(',')
+        options.detect_versions.sycl = "sycl" in enabled_software
+        options.detect_versions.compute_runtime = "compute_runtime" in enabled_software
+        
+        DetectVersion.init(detect_ver_path)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

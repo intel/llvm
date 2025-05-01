@@ -17,6 +17,27 @@ class MarkdownSize(Enum):
 
 
 @dataclass
+class DetectVersionsOptions:
+    """
+    Options for automatic version detection
+    """
+    # Software to detect versions for:
+    sycl: bool = False
+    compute_runtime: bool = False
+    # umf: bool = False
+    # level_zero: bool = False
+
+    # Placeholder text, should automatic version detection fail: This text will
+    # only be used if automatic version detection for x software is explicitly
+    # specified.
+    not_found_placeholder = "unknown" # None
+
+    # TODO unauthenticated users only get 60 API calls per hour: this will not
+    # work if we enable benchmark CI in precommit.
+    compute_runtime_tag_api: str = "https://api.github.com/repos/intel/compute-runtime/tags"
+    max_api_calls = 2
+
+@dataclass
 class Options:
     workdir: str = None
     sycl: str = None
@@ -63,6 +84,8 @@ class Options:
     # CI scripts vs SYCl build source.
     github_repo_override: str = None
     git_commit_override: str = None
+
+    detect_versions: DetectVersionsOptions = field(default_factory=DetectVersionsOptions)
 
 
 options = Options()
