@@ -43,13 +43,13 @@ inline namespace _V1 {
 
 namespace detail {
 
-const DeviceImplPtr &getDeviceImplFromHandler(handler &CGH) {
+device_impl &getDeviceImplFromHandler(handler &CGH) {
   assert((CGH.MQueue || getSyclObjImpl(CGH)->MGraph) &&
          "One of MQueue or MGraph should be nonnull!");
   if (CGH.MQueue)
-    return CGH.MQueue->getDeviceImplPtr();
+    return CGH.MQueue->getDeviceImpl();
 
-  return getSyclObjImpl(CGH)->MGraph->getDeviceImplPtr();
+  return getSyclObjImpl(CGH)->MGraph->getDeviceImpl();
 }
 
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
@@ -314,26 +314,24 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
-                                                  CallerNeedsEvent)),
+    : impl(std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: This function is not used anymore, remove it in the next
 // ABI-breaking window.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(
-          PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent)),
+handler::handler(
+    std::shared_ptr<detail::queue_impl> Queue,
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
+    std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue.get(),
+                                                  CallerNeedsEvent)),
       MQueue(Queue) {}
 #endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 detail::queue_impl *PrimaryQueue,
                  detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue, SecondaryQueue,
+    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue,
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
@@ -572,8 +570,11 @@ event handler::finalize() {
         LastEventImpl->setEnqueued();
         // connect returned event with dependent events
         if (!MQueue->isInOrder()) {
-          LastEventImpl->getPreparedDepsEvents() = impl->CGData.MEvents;
-          LastEventImpl->cleanDepEventsThroughOneLevel();
+          // MEvents is not used anymore, so can move.
+          LastEventImpl->getPreparedDepsEvents() =
+              std::move(impl->CGData.MEvents);
+          // LastEventImpl is local for current thread, no need to lock.
+          LastEventImpl->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
       return MLastEvent;
@@ -1766,8 +1767,7 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  if ((!impl->MGraph && (impl->MSubmissionPrimaryQueue->get_context() !=
-                         ExecBundle.get_context())) ||
+  if ((!impl->MGraph && (MQueue->get_context() != ExecBundle.get_context())) ||
       (impl->MGraph &&
        (impl->MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(
@@ -1887,8 +1887,8 @@ void handler::verifyDeviceHasProgressGuarantee(
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
   using forward_progress =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
-  auto deviceImplPtr = MQueue->getDeviceImplPtr();
-  const bool supported = deviceImplPtr->supportsForwardProgress(
+  device_impl &deviceImpl = MQueue->getDeviceImpl();
+  const bool supported = deviceImpl.supportsForwardProgress(
       guarantee, threadScope, coordinationScope);
   if (threadScope == execution_scope::work_group) {
     if (!supported) {
@@ -1928,23 +1928,21 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  auto &PrimQueue = impl->MSubmissionPrimaryQueue;
-  if (PrimQueue)
-    return checkContextSupports(PrimQueue->getContextImplPtr(),
-                                UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  else
-    // Return true when handler_impl is constructed with a graph.
+  // Return true when handler_impl is constructed with a graph.
+  if (!MQueue)
     return true;
+
+  return checkContextSupports(MQueue->getContextImplPtr(),
+                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
 }
 
 bool handler::supportsUSMFill2D() {
-  auto &PrimQueue = impl->MSubmissionPrimaryQueue;
-  if (PrimQueue)
-    return checkContextSupports(PrimQueue->getContextImplPtr(),
-                                UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  else
-    // Return true when handler_impl is constructed with a graph.
+  // Return true when handler_impl is constructed with a graph.
+  if (!MQueue)
     return true;
+
+  return checkContextSupports(MQueue->getContextImplPtr(),
+                              UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
 }
 
 bool handler::supportsUSMMemset2D() {
@@ -1963,7 +1961,7 @@ backend handler::getDeviceBackend() const {
   if (impl->MGraph)
     return impl->MGraph->getDevice().get_backend();
   else
-    return MQueue->getDeviceImplPtr()->getBackend();
+    return MQueue->getDeviceImpl().getBackend();
 }
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
@@ -2017,18 +2015,17 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
                                            size_t NumBytes, size_t Offset) {
   std::weak_ptr<detail::context_impl> WeakContextImpl =
       MQueue->getContextImplPtr();
-  std::weak_ptr<detail::device_impl> WeakDeviceImpl =
-      MQueue->getDeviceImplPtr();
-  host_task([=] {
-    // Capture context and device as weak to avoid keeping them alive for too
-    // long. If they are dead by the time this executes, the operation would not
-    // have been visible anyway.
+  detail::device_impl &Dev = MQueue->getDeviceImpl();
+  host_task([=, &Dev] {
+    // Capture context as weak to avoid keeping it alive for too long. If it is
+    // dead by the time this executes, the operation would not have been visible
+    // anyway. Devices are alive till library shutdown so capturing a reference
+    // to one is fine.
     std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
-    std::shared_ptr<detail::device_impl> DeviceImpl = WeakDeviceImpl.lock();
-    if (ContextImpl && DeviceImpl)
+    if (ContextImpl)
       ContextImpl->memcpyToHostOnlyDeviceGlobal(
-          DeviceImpl, DeviceGlobalPtr, Src, DeviceGlobalTSize,
-          IsDeviceImageScoped, NumBytes, Offset);
+          Dev, DeviceGlobalPtr, Src, DeviceGlobalTSize, IsDeviceImageScoped,
+          NumBytes, Offset);
   });
 }
 
@@ -2038,12 +2035,13 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
                                              size_t NumBytes, size_t Offset) {
   const std::shared_ptr<detail::context_impl> &ContextImpl =
       MQueue->getContextImplPtr();
-  const std::shared_ptr<detail::device_impl> &DeviceImpl =
-      MQueue->getDeviceImplPtr();
-  host_task([=] {
-    // Unlike memcpy to device_global, we need to keep the context and device
-    // alive in the capture of this operation as we must be able to correctly
-    // copy the value to the user-specified pointer.
+  detail::device_impl &DeviceImpl = MQueue->getDeviceImpl();
+  host_task([=, &DeviceImpl] {
+    // Unlike memcpy to device_global, we need to keep the context alive in the
+    // capture of this operation as we must be able to correctly copy the value
+    // to the user-specified pointer. Device is guaranteed to live until SYCL RT
+    // library shutdown (but even if it wasn't, alive conext has to guarantee
+    // alive device).
     ContextImpl->memcpyFromHostOnlyDeviceGlobal(
         DeviceImpl, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes,
         Offset);
@@ -2052,6 +2050,9 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
 
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
+  if (impl->MGraph) {
+    return impl->MGraph->getContextImplPtr();
+  }
   return MQueue->getContextImplPtr();
 }
 
@@ -2113,10 +2114,10 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  const auto &DeviceImpl = detail::getDeviceImplFromHandler(*this);
+  device_impl &DeviceImpl = detail::getDeviceImplFromHandler(*this);
   std::array<size_t, 3> UrResult = {};
-  auto Ret = DeviceImpl->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-      DeviceImpl->getHandleRef(),
+  auto Ret = DeviceImpl.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl.getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);

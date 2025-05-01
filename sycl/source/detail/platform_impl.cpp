@@ -31,23 +31,21 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
-
-PlatformImplPtr
+platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
                                      const AdapterPtr &Adapter) {
-  PlatformImplPtr Result;
+  std::shared_ptr<platform_impl> Result;
   {
     const std::lock_guard<std::mutex> Guard(
         GlobalHandler::instance().getPlatformMapMutex());
 
-    std::vector<PlatformImplPtr> &PlatformCache =
+    std::vector<std::shared_ptr<platform_impl>> &PlatformCache =
         GlobalHandler::instance().getPlatformCache();
 
     // If we've already seen this platform, return the impl
     for (const auto &PlatImpl : PlatformCache) {
       if (PlatImpl->getHandleRef() == UrPlatform)
-        return PlatImpl;
+        return *PlatImpl;
     }
 
     // Otherwise make the impl. Our ctor/dtor are private, so std::make_shared
@@ -60,10 +58,10 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
     PlatformCache.emplace_back(Result);
   }
 
-  return Result;
+  return *Result;
 }
 
-PlatformImplPtr
+platform_impl &
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
                                        const AdapterPtr &Adapter) {
   ur_platform_handle_t Plt =
@@ -291,26 +289,22 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   return original_indices;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl *platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   return getDeviceImplHelper(UrDevice);
 }
 
-std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
-    ur_device_handle_t UrDevice,
-    const std::shared_ptr<platform_impl> &PlatformImpl) {
+device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
-  std::shared_ptr<device_impl> Result = getDeviceImplHelper(UrDevice);
-  if (Result)
-    return Result;
+  if (device_impl *Result = getDeviceImplHelper(UrDevice))
+    return *Result;
 
   // Otherwise make the impl
-  Result = std::make_shared<device_impl>(UrDevice, PlatformImpl);
-  MDeviceCache.emplace_back(Result);
+  MDevices.emplace_back(std::make_shared<device_impl>(
+      UrDevice, *this, device_impl::private_tag{}));
 
-  return Result;
+  return *MDevices.back();
 }
 
 static bool supportsAffinityDomain(const device &dev,
@@ -335,7 +329,7 @@ static bool supportsPartitionProperty(const device &dev,
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
     ods_target_list *OdsTargetList, const std::vector<int> &original_indices,
-    PlatformImplPtr PlatformImpl) {
+    platform_impl &PlatformImpl) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
   constexpr info::partition_affinity_domain affinityDomain =
@@ -344,7 +338,7 @@ static std::vector<device> amendDeviceAndSubDevices(
   std::vector<device> FinalResult;
   // (Only) when amending sub-devices for ONEAPI_DEVICE_SELECTOR, all
   // sub-devices are treated as root.
-  TempAssignGuard<bool> TAG(PlatformImpl->MAlwaysRootDevice, true);
+  TempAssignGuard<bool> TAG(PlatformImpl.MAlwaysRootDevice, true);
 
   for (unsigned i = 0; i < DeviceList.size(); i++) {
     // device has already been screened. The question is whether it should be a
@@ -528,13 +522,12 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
-  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, MAdapter);
-  std::transform(
-      UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
-      [PlatformImpl](const ur_device_handle_t UrDevice) -> device {
-        return detail::createSyclObjFromImpl<device>(
-            PlatformImpl->getOrMakeDeviceImpl(UrDevice, PlatformImpl));
-      });
+  platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, MAdapter);
+  std::transform(UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
+                 [&PlatformImpl](const ur_device_handle_t UrDevice) -> device {
+                   return detail::createSyclObjFromImpl<device>(
+                       PlatformImpl.getOrMakeDeviceImpl(UrDevice));
+                 });
 
   // The reference counter for handles, that we used to create sycl objects, is
   // incremented, so we need to call release here.
@@ -638,13 +631,10 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == UrDevice)
-        return Device;
-    }
+device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
+  for (const std::shared_ptr<device_impl> &Device : MDevices) {
+    if (Device->getHandleRef() == UrDevice)
+      return Device.get();
   }
   return nullptr;
 }

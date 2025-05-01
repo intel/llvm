@@ -53,7 +53,6 @@ class graph_impl;
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
@@ -79,13 +78,13 @@ class queue_impl {
 public:
   // \return a default context for the platform if it includes the device
   // passed and default contexts are enabled, a new context otherwise.
-  static ContextImplPtr getDefaultOrNew(const DeviceImplPtr &Device) {
+  static ContextImplPtr getDefaultOrNew(device_impl &Device) {
     if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
       return detail::getSyclObjImpl(
           context{createSyclObjFromImpl<device>(Device), {}, {}});
 
-    ContextImplPtr DefaultContext = detail::getSyclObjImpl(
-        Device->get_platform().khr_get_default_context());
+    ContextImplPtr DefaultContext =
+        detail::getSyclObjImpl(Device.get_platform().khr_get_default_context());
     if (DefaultContext->isDeviceValid(Device))
       return DefaultContext;
     return detail::getSyclObjImpl(
@@ -98,7 +97,7 @@ public:
   /// to the queue.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
-  queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
+  queue_impl(device_impl &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
       : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList) {};
 
@@ -111,7 +110,7 @@ public:
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
-  queue_impl(const DeviceImplPtr &Device, const ContextImplPtr &Context,
+  queue_impl(device_impl &Device, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList),
@@ -128,10 +127,10 @@ public:
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
       // fallback profiling support. See MFallbackProfiling
-      if (MDevice->has(aspect::queue_profiling)) {
+      if (MDevice.has(aspect::queue_profiling)) {
         // When urDeviceGetGlobalTimestamps is not supported, compute the
         // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
+        if (!getDeviceImpl().isGetDeviceAndHostTimerSupported())
           MFallbackProfiling = true;
       } else {
         throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -182,40 +181,6 @@ public:
 
   sycl::detail::optional<event> getLastEvent();
 
-private:
-  void queue_impl_interop(ur_queue_handle_t UrQueue) {
-    if (has_property<ext::oneapi::property::queue::discard_events>() &&
-        has_property<property::queue::enable_profiling>()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Queue cannot be constructed with both of "
-                            "discard_events and enable_profiling.");
-    }
-
-    MQueue = UrQueue;
-
-    ur_device_handle_t DeviceUr{};
-    const AdapterPtr &Adapter = getAdapter();
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Adapter->call<UrApiKind::urQueueGetInfo>(
-        MQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
-    MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
-    if (MDevice == nullptr) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Device provided by native Queue not found in Context.");
-    }
-    // The following commented section provides a guideline on how to use the
-    // TLS enabled mechanism to create a tracepoint and notify using XPTI. This
-    // is the prolog section and the epilog section will initiate the
-    // notification.
-#if XPTI_ENABLE_INSTRUMENTATION
-    // Emit a trace event for queue creation; we currently do not get code
-    // location information, so all queueus will have the same UID with a
-    // different instance ID until this gets added.
-    constructorNotification();
-#endif
-  }
-
 public:
   /// Constructs a SYCL queue from adapter interoperability handle.
   ///
@@ -225,15 +190,7 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(ur_queue_handle_t UrQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler),
-        MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
-        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MQueueID{
-            MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
-    queue_impl_interop(UrQueue);
-  }
+      : queue_impl(UrQueue, Context, AsyncHandler, {}) {}
 
   /// Constructs a SYCL queue from adapter interoperability handle.
   ///
@@ -244,15 +201,47 @@ public:
   /// \param PropList is the queue properties.
   queue_impl(ur_queue_handle_t UrQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MIsInorder(has_property<property::queue::in_order>()),
+      : MDevice([&]() -> device_impl & {
+          ur_device_handle_t DeviceUr{};
+          const AdapterPtr &Adapter = Context->getAdapter();
+          // TODO catch an exception and put it to list of asynchronous
+          // exceptions
+          Adapter->call<UrApiKind::urQueueGetInfo>(
+              UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
+              nullptr);
+          device_impl *Device = Context->findMatchingDeviceImpl(DeviceUr);
+          if (Device == nullptr) {
+            throw sycl::exception(
+                make_error_code(errc::invalid),
+                "Device provided by native Queue not found in Context.");
+          }
+          return *Device;
+        }()),
+        MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
+        MQueue(UrQueue), MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     verifyProps(PropList);
-    queue_impl_interop(UrQueue);
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
+
+    // The following commented section provides a guideline on how to use the
+    // TLS enabled mechanism to create a tracepoint and notify using XPTI. This
+    // is the prolog section and the epilog section will initiate the
+    // notification.
+#if XPTI_ENABLE_INSTRUMENTATION
+    // Emit a trace event for queue creation; we currently do not get code
+    // location information, so all queueus will have the same UID with a
+    // different instance ID until this gets added.
+    constructorNotification();
+#endif
   }
 
   ~queue_impl() {
@@ -299,7 +288,7 @@ public:
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
-  const DeviceImplPtr &getDeviceImplPtr() const { return MDevice; }
+  device_impl &getDeviceImpl() const { return MDevice; }
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
@@ -376,7 +365,7 @@ public:
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
     event ResEvent =
-        submit_impl(CGF, Self, Self, SubmitInfo.SecondaryQueue(),
+        submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
   }
@@ -386,7 +375,7 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    submit_impl(CGF, Self, Self, SubmitInfo.SecondaryQueue(),
+    submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
@@ -504,7 +493,7 @@ public:
   ur_queue_handle_t createQueue(QueueOrder Order) {
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
-    ur_device_handle_t Device = MDevice->getHandleRef();
+    ur_device_handle_t Device = MDevice.getHandleRef();
     const AdapterPtr &Adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
@@ -840,6 +829,7 @@ protected:
     }
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -859,6 +849,23 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
                     bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
+#endif
+
+  /// Performs command group submission to the queue.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a pointer to this queue.
+  /// \param SecondaryQueue is a pointer to the secondary queue.
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param Loc is the code location of the submit call (default argument)
+  /// \param SubmitInfo is additional optional information for the submission.
+  /// \return a SYCL event representing submitted command group.
+  event submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                    const std::shared_ptr<queue_impl> &Self,
+                    queue_impl *SecondaryQueue, bool CallerNeedsEvent,
+                    const detail::code_location &Loc, bool IsTopCodeLoc,
+                    const SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
@@ -923,7 +930,7 @@ protected:
   /// Protects all the fields that can be changed by class' methods.
   mutable std::mutex MMutex;
 
-  DeviceImplPtr MDevice;
+  device_impl &MDevice;
   const ContextImplPtr MContext;
 
   /// These events are tracked, but not owned, by the queue.
