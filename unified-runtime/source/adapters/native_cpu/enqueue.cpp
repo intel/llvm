@@ -413,7 +413,7 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
       command_t, hQueue, NumEventsInWaitList, phEventWaitList, phEvent,
       [BufferRowPitch, region, BufferSlicePitch, HostRowPitch, HostSlicePitch,
        BufferOffset, HostOffset, Buff, DstMem]() mutable {
-        // TODO: blocking, check other constraints, performance optimizations
+        // TODO: check other constraints, performance optimizations
         //       More sharing with level_zero where possible
 
         if (BufferRowPitch == 0)
@@ -526,7 +526,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   void *DstPtr = hBufferDst->_mem + dstOffset;
   return doCopy_impl(hQueue, DstPtr, SrcPtr, size, numEventsInWaitList,
                      phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_COPY,
-                     true /*TODO: check blocking*/);
+                     true /*TODO: check false for non-blocking*/);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
@@ -537,7 +537,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   return enqueueMemBufferReadWriteRect_impl<true /*read*/>(
-      hQueue, hBufferSrc, true /*todo: check blocking*/, srcOrigin,
+      hQueue, hBufferSrc, true /*todo: check false for non-blocking*/,
+      srcOrigin,
       /*HostOffset*/ dstOrigin, region, srcRowPitch, srcSlicePitch, dstRowPitch,
       dstSlicePitch, hBufferDst->_mem, numEventsInWaitList, phEventWaitList,
       phEvent);
