@@ -71,17 +71,7 @@ public:
       int32_t adapter_error = 0;
       ur_result = call_nocheck<UrApiKind::urAdapterGetLastError>(
           MAdapter, &message, &adapter_error);
-
-      // If the warning level is greater then 2 emit the message
-      if (message != nullptr &&
-          detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
-        std::clog << message << std::endl;
-      }
-
-      // If it is a warning do not throw code
-      if (ur_result == UR_RESULT_SUCCESS) {
-        return;
-      }
+      std::cerr << message << " (error code " << adapter_error << ")\n";
     }
     if (ur_result != UR_RESULT_SUCCESS) {
       throw sycl::detail::set_ur_error(
