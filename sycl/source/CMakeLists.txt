@@ -187,9 +187,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Link with LLVMSupport for shared utilities.
   add_dependencies(${LIB_NAME} LLVMSupport)
-  target_include_directories(${LIB_NAME} SYSTEM PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
   target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
-  target_compile_definitions(${LIB_NAME} PRIVATE LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING=1)
+  target_include_directories(${LIB_OBJ_NAME} SYSTEM PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
+  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING=1)
   
   if (NOT MSVC)
     # LLVM library increases the size of the SYCL library quite significantly
