@@ -125,6 +125,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(PR);
   initializeLocalAccessorToSharedMemoryLegacyPass(PR);
+  initializeNVPTXTagInvariantLoadLegacyPassPass(PR);
 }
 
 static std::string computeDataLayout(bool is64Bit, bool UseShortPointers) {
@@ -415,6 +416,7 @@ void NVPTXPassConfig::addIRPasses() {
     if (!DisableLoadStoreVectorizer)
       addPass(createLoadStoreVectorizerPass());
     addPass(createSROAPass());
+    addPass(createNVPTXTagInvariantLoadsPass());
   }
 
   if (ST.hasPTXASUnreachableBug()) {
