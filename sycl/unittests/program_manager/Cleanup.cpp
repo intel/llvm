@@ -186,7 +186,7 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId) {
                  std::move(ImgKPOI));
 
   PropSet.insert(
-    llvm::util::PropertySetRegistry::SYCL_DEVICE_GLOBALS,
+      llvm::util::PropertySetRegistry::SYCL_DEVICE_GLOBALS,
       std::vector<sycl::unittest::MockProperty>{
           sycl::unittest::makeDeviceGlobalInfo(
               generateRefName(ImageId, "DeviceGlobal"), sizeof(int), 0)});

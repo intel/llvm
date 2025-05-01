@@ -193,7 +193,8 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
       Bin, llvm::util::PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES);
   DeviceLibReqMask.init(
       Bin, llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK);
-      DeviceLibMetadata.init(Bin, llvm::util::PropertySetRegistry::SYCL_DEVICELIB_METADATA);
+  DeviceLibMetadata.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_DEVICELIB_METADATA);
   KernelParamOptInfo.init(
       Bin, llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO);
   AssertUsed.init(Bin, llvm::util::PropertySetRegistry::SYCL_ASSERT_USED);
