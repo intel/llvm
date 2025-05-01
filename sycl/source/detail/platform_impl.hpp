@@ -9,6 +9,7 @@
 #pragma once
 
 #include <detail/adapter.hpp>
+#include <detail/split_string.hpp>
 #include <detail/ur.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
@@ -79,7 +80,15 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <typename Param> typename Param::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info() const {
+    std::string InfoStr = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+        *this, detail::UrInfoCode<Param>::value);
+    if constexpr (std::is_same_v<Param, info::platform::extensions>) {
+      return split_string(InfoStr, ' ');
+    } else {
+      return InfoStr;
+    }
+  }
 
   /// Queries this SYCL platform for SYCL backend-specific information.
   ///
