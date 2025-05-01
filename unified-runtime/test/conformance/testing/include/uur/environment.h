@@ -68,6 +68,8 @@ struct KernelsEnvironment : DevicesEnvironment {
   virtual void SetUp() override;
   virtual void TearDown() override;
 
+  static bool HaveSourcesForTarget(const std::string &target_name);
+
   void LoadSource(const std::string &kernel_name, ur_platform_handle_t platform,
                   std::shared_ptr<std::vector<char>> &binary_out);
 

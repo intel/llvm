@@ -20,6 +20,7 @@
 
 #include <ur_util.hpp>
 #include <uur/environment.h>
+#include <uur/targets.h>
 #include <uur/utils.h>
 
 namespace uur {
@@ -238,6 +239,14 @@ KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
   path << "/" << target_name << ".bin.0";
 
   return path.str();
+}
+
+bool KernelsEnvironment::HaveSourcesForTarget(const std::string &target_name) {
+  auto it = std::find_if(
+      std::begin(uur::UR_CONFORMANCE_TARGET_TRIPLES),
+      std::end(uur::UR_CONFORMANCE_TARGET_TRIPLES),
+      [&target_name](const char *triple) { return target_name == triple; });
+  return it != std::end(uur::UR_CONFORMANCE_TARGET_TRIPLES);
 }
 
 void KernelsEnvironment::LoadSource(

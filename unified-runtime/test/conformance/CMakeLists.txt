@@ -91,6 +91,28 @@ function(add_conformance_test_with_platform_environment name)
     target_compile_definitions("test-${name}" PRIVATE PLATFORM_ENVIRONMENT)
 endfunction()
 
+if(UR_FOUND_DPCXX)
+    add_custom_target(generate_device_binaries)
+
+    set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
+        "${CMAKE_CURRENT_BINARY_DIR}/device_binaries" CACHE INTERNAL UR_CONFORMANCE_DEVICE_BINARIES_DIR)
+    file(MAKE_DIRECTORY ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
+
+    if("${UR_CONFORMANCE_TARGET_TRIPLES}" STREQUAL "")
+        if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
+            list(APPEND TARGET_TRIPLES "spir64")
+        endif()
+        if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
+            list(APPEND TARGET_TRIPLES "nvptx64-nvidia-cuda")
+        endif()
+        if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
+            list(APPEND TARGET_TRIPLES "amdgcn-amd-amdhsa")
+        endif()
+    else()
+        string(REPLACE "," ";" TARGET_TRIPLES ${UR_CONFORMANCE_TARGET_TRIPLES})
+    endif()
+endif()
+
 add_subdirectory(testing)
 
 add_subdirectory(adapter)
@@ -118,26 +140,6 @@ set(TEST_SUBDIRECTORIES_DPCXX
 )
 
 if(UR_FOUND_DPCXX)
-    add_custom_target(generate_device_binaries)
-
-    set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
-        "${CMAKE_CURRENT_BINARY_DIR}/device_binaries" CACHE INTERNAL UR_CONFORMANCE_DEVICE_BINARIES_DIR)
-    file(MAKE_DIRECTORY ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
-
-    if("${UR_CONFORMANCE_TARGET_TRIPLES}" STREQUAL "")
-        if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
-            list(APPEND TARGET_TRIPLES "spir64")
-        endif()
-        if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
-            list(APPEND TARGET_TRIPLES "nvptx64-nvidia-cuda")
-        endif()
-        if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
-            list(APPEND TARGET_TRIPLES "amdgcn-amd-amdhsa")
-        endif()
-    else()
-        string(REPLACE "," ";" TARGET_TRIPLES ${UR_CONFORMANCE_TARGET_TRIPLES})
-    endif()
-
     foreach(dir ${TEST_SUBDIRECTORIES_DPCXX})
         add_subdirectory(${dir})
     endforeach()

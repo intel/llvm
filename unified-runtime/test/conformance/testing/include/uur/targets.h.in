@@ -1,0 +1,20 @@
+// Copyright (C) 2025 Intel Corporation
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+//
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+#ifndef UR_CONFORMANCE_INCLUDE_TARGETS_H_INCLUDED
+#define UR_CONFORMANCE_INCLUDE_TARGETS_H_INCLUDED
+
+#include <array>
+
+namespace uur {
+// clang-format off
+constexpr std::array<const char *, @UR_CONFORMANCE_TARGET_TRIPLES_NUM@> UR_CONFORMANCE_TARGET_TRIPLES = {
+@UR_CONFORMANCE_TARGET_TRIPLES_INITIALIZER@
+};
+// clang-format on
+} // namespace uur
+
+#endif // UR_CONFORMANCE_INCLUDE_TARGETS_H_INCLUDED
