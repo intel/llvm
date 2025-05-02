@@ -78,6 +78,7 @@ on:
         type: choice
         options:
           - '["PVC_PERF"]'
+          - '["BMG_PERF"]'
       backend:
         description: Backend to use
         type: choice

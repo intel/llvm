@@ -285,8 +285,8 @@ jobs:
         include:
           - ref: ${{ github.sha }}
             save_name: Baseline
-            runner: '["PVC_PERF"]'
-            backend: 'level_zero:gpu'
+            runner: ['["PVC_PERF"]', '["BMG_PERF"]']
+            backend: ['level_zero:gpu', 'level_zero_v2:gpu']
             preset: Minimal
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
