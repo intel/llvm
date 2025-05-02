@@ -501,8 +501,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              QueueImplPtr TgtQueue, unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<ur_event_handle_t> DepEvents,
-             ur_event_handle_t &OutEvent,
-             const detail::EventImplPtr &OutEventImpl) {
+             ur_event_handle_t &OutEvent) {
   (void)SrcAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   assert(TgtQueue && "Destination mem object queue must be not nullptr");
@@ -572,8 +571,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<ur_event_handle_t> DepEvents,
-             ur_event_handle_t &OutEvent,
-             const detail::EventImplPtr &OutEventImpl) {
+             ur_event_handle_t &OutEvent) {
   (void)DstAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   assert(SrcQueue && "Source mem object queue is expected to be not nullptr");
@@ -648,8 +646,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
              unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3>,
              sycl::id<3> DstOffset, unsigned int DstElemSize,
              std::vector<ur_event_handle_t> DepEvents,
-             ur_event_handle_t &OutEvent,
-             const detail::EventImplPtr &OutEventImpl) {
+             ur_event_handle_t &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   assert(SrcQueue && "Source mem object and target mem object queues are "
                      "expected to be not nullptr");
@@ -720,7 +717,7 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
                     unsigned int DimDst, sycl::range<3> DstSize,
                     sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
                     unsigned int DstElemSize, std::vector<ur_event_handle_t>,
-                    ur_event_handle_t &, const detail::EventImplPtr &) {
+                    ur_event_handle_t &) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -748,33 +745,33 @@ void MemoryManager::copy(
     QueueImplPtr TgtQueue, unsigned int DimDst, sycl::range<3> DstSize,
     sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
     unsigned int DstElemSize, std::vector<ur_event_handle_t> DepEvents,
-    ur_event_handle_t &OutEvent, const detail::EventImplPtr &OutEventImpl) {
+    ur_event_handle_t &OutEvent) {
 
   if (!SrcQueue) {
     if (!TgtQueue)
       copyH2H(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem, nullptr,
               DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
-              std::move(DepEvents), OutEvent, OutEventImpl);
+              std::move(DepEvents), OutEvent);
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
               ur::cast<ur_mem_handle_t>(DstMem), std::move(TgtQueue), DimDst,
               DstSize, DstAccessRange, DstOffset, DstElemSize,
-              std::move(DepEvents), OutEvent, OutEventImpl);
+              std::move(DepEvents), OutEvent);
   } else {
     if (!TgtQueue)
       copyD2H(SYCLMemObj, ur::cast<ur_mem_handle_t>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, (char *)DstMem, nullptr, DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
-              OutEvent, OutEventImpl);
+              OutEvent);
     else
       copyD2D(SYCLMemObj, ur::cast<ur_mem_handle_t>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, ur::cast<ur_mem_handle_t>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
-              DstElemSize, std::move(DepEvents), OutEvent, OutEventImpl);
+              DstElemSize, std::move(DepEvents), OutEvent);
   }
 }
 
@@ -784,8 +781,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          sycl::range<3> AccRange, sycl::id<3> Offset,
                          unsigned int ElementSize,
                          std::vector<ur_event_handle_t> DepEvents,
-                         ur_event_handle_t &OutEvent,
-                         const detail::EventImplPtr &OutEventImpl) {
+                         ur_event_handle_t &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   assert(Queue && "Fill should be called only with a valid device queue");
 
@@ -888,8 +884,7 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<ur_event_handle_t> DepEvents,
-                             ur_event_handle_t *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
+                             ur_event_handle_t *OutEvent) {
   assert(SrcQueue && "USM copy must be called with a valid device queue");
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -914,8 +909,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              const std::vector<unsigned char> &Pattern,
                              std::vector<ur_event_handle_t> DepEvents,
-                             ur_event_handle_t *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
+                             ur_event_handle_t *OutEvent) {
   assert(Queue && "USM fill must be called with a valid device queue");
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
@@ -936,8 +930,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 
 void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                                  std::vector<ur_event_handle_t> DepEvents,
-                                 ur_event_handle_t *OutEvent,
-                                 const detail::EventImplPtr &OutEventImpl) {
+                                 ur_event_handle_t *OutEvent) {
   assert(Queue && "USM prefetch must be called with a valid device queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
   Adapter->call<UrApiKind::urEnqueueUSMPrefetch>(Queue->getHandleRef(), Mem,
@@ -948,8 +941,7 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                size_t Length, ur_usm_advice_flags_t Advice,
                                std::vector<ur_event_handle_t> /*DepEvents*/,
-                               ur_event_handle_t *OutEvent,
-                               const detail::EventImplPtr &OutEventImpl) {
+                               ur_event_handle_t *OutEvent) {
   assert(Queue && "USM advise must be called with a valid device queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
   Adapter->call<UrApiKind::urEnqueueUSMAdvise>(Queue->getHandleRef(), Mem,
@@ -960,8 +952,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
                                 QueueImplPtr Queue, void *DstMem,
                                 size_t DstPitch, size_t Width, size_t Height,
                                 std::vector<ur_event_handle_t> DepEvents,
-                                ur_event_handle_t *OutEvent,
-                                const detail::EventImplPtr &OutEventImpl) {
+                                ur_event_handle_t *OutEvent) {
   assert(Queue && "USM copy 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
@@ -1031,8 +1022,7 @@ void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                                 size_t Width, size_t Height,
                                 const std::vector<unsigned char> &Pattern,
                                 std::vector<ur_event_handle_t> DepEvents,
-                                ur_event_handle_t *OutEvent,
-                                const detail::EventImplPtr &OutEventImpl) {
+                                ur_event_handle_t *OutEvent) {
   assert(Queue && "USM fill 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
@@ -1056,8 +1046,7 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
                                   size_t Pitch, size_t Width, size_t Height,
                                   char Value,
                                   std::vector<ur_event_handle_t> DepEvents,
-                                  ur_event_handle_t *OutEvent,
-                                  const detail::EventImplPtr &OutEventImpl) {
+                                  ur_event_handle_t *OutEvent) {
   assert(Queue && "USM memset 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
@@ -1074,14 +1063,14 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
         "NULL pointer argument in 2D memory memset operation.");
   MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height,
                              {static_cast<unsigned char>(Value)}, DepEvents,
-                             OutEvent, nullptr);
+                             OutEvent);
 }
 
 static void memcpyToDeviceGlobalUSM(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, const void *Src,
     const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+    ur_event_handle_t *OutEvent) {
   assert(Queue &&
          "Copy to device global USM must be called with a valid device queue");
   // Get or allocate USM memory for the device_global.
@@ -1108,14 +1097,14 @@ static void memcpyToDeviceGlobalUSM(
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
                           reinterpret_cast<char *>(Dest) + Offset,
-                          ActualDepEvents, OutEvent, OutEventImpl);
+                          ActualDepEvents, OutEvent);
 }
 
 static void memcpyFromDeviceGlobalUSM(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+    ur_event_handle_t *OutEvent) {
   assert(Queue && "Copying from device global USM must be called with a valid "
                   "device queue");
   // Get or allocate USM memory for the device_global. Since we are reading from
@@ -1142,8 +1131,7 @@ static void memcpyFromDeviceGlobalUSM(
   }
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
-                          NumBytes, Dest, ActualDepEvents, OutEvent,
-                          OutEventImpl);
+                          NumBytes, Dest, ActualDepEvents, OutEvent);
 }
 
 static ur_program_handle_t
@@ -1221,7 +1209,7 @@ void MemoryManager::copy_to_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, const void *SrcMem,
     const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+    ur_event_handle_t *OutEvent) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
@@ -1236,14 +1224,14 @@ void MemoryManager::copy_to_device_global(
                                DepEvents, OutEvent);
   else
     memcpyToDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, SrcMem, DepEvents,
-                            OutEvent, OutEventImpl);
+                            OutEvent);
 }
 
 void MemoryManager::copy_from_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, void *DstMem,
     const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+    ur_event_handle_t *OutEvent) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
@@ -1258,7 +1246,7 @@ void MemoryManager::copy_from_device_global(
                                  DepEvents, OutEvent);
   else
     memcpyFromDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, DstMem,
-                              DepEvents, OutEvent, OutEventImpl);
+                              DepEvents, OutEvent);
 }
 
 // Command buffer methods

@@ -1583,8 +1583,7 @@ ur_result_t MemCpyCommand::enqueueImp() {
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
           MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(), MQueue,
           MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-          MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), UREvent,
-          MEvent);
+          MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1745,7 +1744,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
           MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
           MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-          MDstReq.MElemSize, std::move(RawEvents), UREvent, MEvent);
+          MDstReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -3152,7 +3151,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
             Copy->getDst(), nullptr, Req->MDims, Req->MAccessRange,
             Req->MAccessRange, /*DstOffset=*/sycl::id<3>{0, 0, 0},
-            Req->MElemSize, std::move(RawEvents), UREvent, MEvent);
+            Req->MElemSize, std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3171,7 +3170,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             /*SrcOffset*/ sycl::id<3>{0, 0, 0}, Req->MElemSize,
             AllocaCmd->getMemAllocation(), MQueue, Req->MDims,
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-            std::move(RawEvents), UREvent, MEvent);
+            std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3192,8 +3191,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             ReqSrc->MMemoryRange, ReqSrc->MAccessRange, ReqSrc->MOffset,
             ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(), MQueue,
             ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
-            ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), UREvent,
-            MEvent);
+            ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3210,7 +3208,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             AllocaCmd->getMemAllocation(), MQueue, Fill->MPattern.size(),
             Fill->MPattern.data(), Req->MDims, Req->MMemoryRange,
             Req->MAccessRange, Req->MOffset, Req->MElemSize,
-            std::move(RawEvents), UREvent, MEvent);
+            std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3264,7 +3262,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(MemoryManager::copy_usm, Copy->getSrc(),
                                       MQueue, Copy->getLength(), Copy->getDst(),
-                                      std::move(RawEvents), Event, MEvent);
+                                      std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3275,7 +3273,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::fill_usm, Fill->getDst(), MQueue, Fill->getLength(),
-            Fill->getPattern(), std::move(RawEvents), Event, MEvent);
+            Fill->getPattern(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3286,7 +3284,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), MQueue,
-            Prefetch->getLength(), std::move(RawEvents), Event, MEvent);
+            Prefetch->getLength(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3298,7 +3296,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result =
             callMemOpHelper(MemoryManager::advise_usm, Advise->getDst(), MQueue,
                             Advise->getLength(), Advise->getAdvice(),
-                            std::move(RawEvents), Event, MEvent);
+                            std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3310,7 +3308,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_2d_usm, Copy->getSrc(), Copy->getSrcPitch(),
             MQueue, Copy->getDst(), Copy->getDstPitch(), Copy->getWidth(),
-            Copy->getHeight(), std::move(RawEvents), Event, MEvent);
+            Copy->getHeight(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3322,7 +3320,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::fill_2d_usm, Fill->getDst(), MQueue,
             Fill->getPitch(), Fill->getWidth(), Fill->getHeight(),
-            Fill->getPattern(), std::move(RawEvents), Event, MEvent);
+            Fill->getPattern(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3334,7 +3332,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::memset_2d_usm, Memset->getDst(), MQueue,
             Memset->getPitch(), Memset->getWidth(), Memset->getHeight(),
-            Memset->getValue(), std::move(RawEvents), Event, MEvent);
+            Memset->getValue(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3619,8 +3617,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_to_device_global, Copy->getDeviceGlobalPtr(),
             Copy->isDeviceImageScoped(), MQueue, Copy->getNumBytes(),
-            Copy->getOffset(), Copy->getSrc(), std::move(RawEvents), Event,
-            MEvent);
+            Copy->getOffset(), Copy->getSrc(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3633,8 +3630,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_from_device_global, Copy->getDeviceGlobalPtr(),
             Copy->isDeviceImageScoped(), MQueue, Copy->getNumBytes(),
-            Copy->getOffset(), Copy->getDest(), std::move(RawEvents), Event,
-            MEvent);
+            Copy->getOffset(), Copy->getDest(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 

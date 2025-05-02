@@ -346,15 +346,3 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
   EXPECT_TRUE(DeviceTimerCalled);
 }
 
-ur_result_t redefinedFailedUrGetGlobalTimestamps(void *) {
-  return UR_RESULT_ERROR_INVALID_OPERATION;
-}
-
-static ur_result_t redefinedDeviceGetInfoAcc(void *pParams) {
-  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
-  if (*params.ppropName == UR_DEVICE_INFO_TYPE) {
-    auto *Result = reinterpret_cast<ur_device_type_t *>(*params.ppPropValue);
-    *Result = UR_DEVICE_TYPE_FPGA;
-  }
-  return UR_RESULT_SUCCESS;
-}
