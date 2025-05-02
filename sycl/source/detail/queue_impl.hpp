@@ -466,22 +466,21 @@ public:
       }
       CreationFlags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
     }
-    // Track that submission modes do not conflict.
-    bool SubmissionSeen = false;
-    if (PropList.has_property<
-            ext::intel::property::queue::no_immediate_command_list>()) {
-      SubmissionSeen = true;
-      CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
-    }
-    if (PropList.has_property<
-            ext::intel::property::queue::immediate_command_list>()) {
-      if (SubmissionSeen) {
+    {
+      // Track that submission modes do not conflict.
+      bool no_imm_cmdlist = PropList.has_property<
+          ext::intel::property::queue::no_immediate_command_list>();
+      bool imm_cmdlist = PropList.has_property<
+          ext::intel::property::queue::immediate_command_list>();
+      if (no_imm_cmdlist && imm_cmdlist) {
         throw sycl::exception(
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different submission modes.");
       }
-      SubmissionSeen = true;
-      CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+      if (no_imm_cmdlist)
+        CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+      if (imm_cmdlist)
+        CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     }
     return CreationFlags;
   }
