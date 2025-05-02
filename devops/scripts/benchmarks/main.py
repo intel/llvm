@@ -539,7 +539,7 @@ if __name__ == "__main__":
             r'[a-z_,]+',
             throw=argparse.ArgumentTypeError("Specified --detect-version is not a comma-separated list")
         ),
-        help="Detect versions of components used: comma-separated list with choices from dpcpp,compute_runtime",
+        help="Detect versions of components used: comma-separated list with choices from sycl,compute_runtime",
         default=None
     )
     parser.add_argument(
