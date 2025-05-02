@@ -142,7 +142,7 @@ runs:
         --output-dir "./llvm-ci-perf-results/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
-        --detect-version dpcpp,compute_runtime
+        --detect-version sycl,compute_runtime
         # --github-repo "$sycl_git_repo" \
         # --git-commit "$sycl_git_commit"
       echo "-----"
