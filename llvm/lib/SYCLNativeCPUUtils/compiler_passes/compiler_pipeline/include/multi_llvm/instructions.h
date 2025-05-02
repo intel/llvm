@@ -24,36 +24,33 @@ namespace multi_llvm {
 
 namespace detail {
 
-template <typename Base = llvm::AtomicRMWInst, typename = void>
-struct AtomicRMWInst : Base {};
+template <typename T = llvm::AtomicRMWInst::BinOp, typename = void>
+struct BinOpHelper;
 
-#if LLVM_VERSION_LESS(20, 0)
-template <typename Base>
-struct AtomicRMWInst<
-    Base, std::enable_if_t<Base::LAST_BINOP - Base::FIRST_BINOP == 16>>
-    : llvm::AtomicRMWInst {
-  static constexpr BinOp USubCond = static_cast<BinOp>(BAD_BINOP + 1);
-  static constexpr BinOp USubSat = static_cast<BinOp>(BAD_BINOP + 2);
-  static constexpr BinOp FMaximum = static_cast<BinOp>(BAD_BINOP + 3);
-  static constexpr BinOp FMinimum = static_cast<BinOp>(BAD_BINOP + 4);
-};
-#endif
-
-// #if LLVM_VERSION_LESS(21, 0)
-// This is enabled for now on LLVM 21 as well to allow building against older
-// LLVM 21 snapshots.
-template <typename Base>
-struct AtomicRMWInst<
-    Base, std::enable_if_t<Base::LAST_BINOP - Base::FIRST_BINOP == 18>>
-    : llvm::AtomicRMWInst {
-  static constexpr BinOp FMaximum = static_cast<BinOp>(BAD_BINOP + 1);
-  static constexpr BinOp FMinimum = static_cast<BinOp>(BAD_BINOP + 2);
-};
-// #endif
+// TODO Make this entirely version-based once we no longer have to account for
+// older LLVM 21 snapshots that use the LLVM 20 definition of
+// llvm::AtomicRMWInst::BinOp.
+#define LLVM 21
+#include <multi_llvm/instructions.inc>
+#undef LLVM
+#define LLVM 20
+#include <multi_llvm/instructions.inc>
+#undef LLVM
+#define LLVM 19
+#include <multi_llvm/instructions.inc>
+#undef LLVM
 
 }  // namespace detail
 
-struct AtomicRMWInst : detail::AtomicRMWInst<> {};
+static std::optional<llvm::AtomicRMWInst::BinOp> consume_binop_with_underscore(
+    llvm::StringRef &String) {
+  return multi_llvm::detail::BinOpHelper<>::consume_front_with_underscore(
+      String);
+}
+
+static llvm::StringRef to_string(llvm::AtomicRMWInst::BinOp BinOp) {
+  return multi_llvm::detail::BinOpHelper<>::to_string(BinOp);
+}
 
 }  // namespace multi_llvm
 
