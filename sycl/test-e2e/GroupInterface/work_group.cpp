@@ -1,12 +1,16 @@
 // RUN: %{build} %cxx_std_optionc++23 -o %t.out
 // RUN: %{run} %t.out
 
+#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 #include <sycl/detail/core.hpp>
 #include <sycl/khr/group_interface.hpp>
 
 #include <sycl/builtins.hpp>
 
 #include <type_traits>
+
+namespace {
 
 using namespace sycl;
 
@@ -43,10 +47,9 @@ static_assert(std::is_same_v<khr::work_group<3>::size_type, size_t>);
 static_assert(khr::work_group<3>::dimensions == 3);
 static_assert(khr::work_group<3>::fence_scope == memory_scope::work_group);
 
-int main() {
+void test_work_group_1d() {
   queue q;
   sycl::buffer<bool, 1> result(1);
-
   {
     sycl::host_accessor<bool, 0> acc{result};
     acc = true;
@@ -79,6 +82,21 @@ int main() {
       acc &= (wi.size() == 1);
     });
   });
+
+  q.wait();
+  sycl::host_accessor<bool, 0> acc{result};
+  assert(static_cast<bool>(acc));
+}
+
+void test_work_group_2d() {
+  queue q;
+  sycl::buffer<bool, 1> result(1);
+  {
+    sycl::host_accessor<bool, 0> acc{result};
+    acc = true;
+  }
+
+  const int sz = 2;
   q.submit([&](handler &h) {
     sycl::accessor<bool, 0> acc{result, h};
     h.parallel_for(nd_range<2>{range<2>{sz, sz}, range<2>{sz, sz}},
@@ -108,6 +126,21 @@ int main() {
                      acc &= (wi.size() == 1);
                    });
   });
+
+  q.wait();
+  sycl::host_accessor<bool, 0> acc{result};
+  assert(static_cast<bool>(acc));
+}
+
+void test_work_group_3d() {
+  queue q;
+  sycl::buffer<bool, 1> result(1);
+  {
+    sycl::host_accessor<bool, 0> acc{result};
+    acc = true;
+  }
+
+  const int sz = 2;
   q.submit([&](handler &h) {
     sycl::accessor<bool, 0> acc{result, h};
     h.parallel_for(nd_range<3>{range<3>{sz, sz, sz}, range<3>{sz, sz, sz}},
@@ -139,8 +172,16 @@ int main() {
                      acc &= (wi.size() == 1);
                    });
   });
-  q.wait();
 
+  q.wait();
   sycl::host_accessor<bool, 0> acc{result};
   assert(static_cast<bool>(acc));
+}
+
+} // namespace
+
+int main() {
+  test_work_group_1d();
+  test_work_group_2d();
+  test_work_group_3d();
 }

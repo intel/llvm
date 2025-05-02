@@ -11,7 +11,9 @@
 #include <sycl/id.hpp>
 #include <sycl/range.hpp>
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #define SYCL_KHR_GROUP_INTERFACE 1
+#endif
 
 #if __cplusplus >= 202302L && defined(__has_include)
 #if __has_include(<mdspan>)
@@ -21,7 +23,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr {
 
 // Forward declarations for traits.
@@ -63,7 +65,7 @@ namespace khr {
 template <typename ParentGroup>
 std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
                  member_item<ParentGroup>>
-get_member_item(ParentGroup g);
+get_member_item(ParentGroup g) noexcept;
 
 template <int Dimensions = 1> class work_group {
 public:
@@ -247,13 +249,14 @@ private:
 protected:
   member_item() {}
 
-  friend member_item<ParentGroup> get_member_item<ParentGroup>(ParentGroup);
+  friend member_item<ParentGroup>
+      get_member_item<ParentGroup>(ParentGroup) noexcept;
 };
 
 template <typename ParentGroup>
 std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
                  member_item<ParentGroup>>
-get_member_item(ParentGroup) {
+get_member_item(ParentGroup) noexcept {
   return member_item<ParentGroup>{};
 }
 
@@ -262,5 +265,6 @@ template <typename Group> bool leader_of(Group g) {
 }
 
 } // namespace khr
+#endif
 } // namespace _V1
 } // namespace sycl

@@ -1,8 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 #include <cassert>
-#include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/khr/group_interface.hpp>
