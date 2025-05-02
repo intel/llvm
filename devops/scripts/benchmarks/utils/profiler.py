@@ -13,10 +13,10 @@ class Profiler(ABC):
         pass
 
     @abstractmethod
-    def command_prefix(self, *args, **kwargs) -> str:
+    def wrap_cmd(self, cmd: str, *args, **kwargs) -> str:
         """
-        CLI prefix to append to benchmark command, in order to run the benchmark
-        using the given performance analyzer.
+        Wrap a cli command provided by cmd with cli arguments in order to run
+        cmd using the given performance analyzer.
         
         The intention is to output performance data into a file (in e.g. /tmp),
         and then read the data in said file later via parse_output: Many
@@ -45,8 +45,8 @@ class Perf(Profiler):
     def name(self) -> str:
         return "perf"
 
-    def command_prefix(self) -> str:
-        return f"perf stat -e {",".join(self.events)} -o {self.output_file} "
+    def wrap_cmd(self, cmd: str) -> str:
+        return f"perf stat -e {",".join(self.events)} -o {self.output_file} {cmd}"
 
     def parse_output(self) -> dict:
         return {
