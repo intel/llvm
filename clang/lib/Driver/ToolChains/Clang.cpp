@@ -5346,11 +5346,6 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
       CmdArgs.push_back("-D_MT");
     if (Defines & addDLL && !isSPIROrSPIRV)
       CmdArgs.push_back("-D_DLL");
-    // for /MDd with spir targets
-    if ((Defines & addDLL) && (Defines & addDEBUG) && isSPIROrSPIRV) {
-      CmdArgs.push_back("-D_CONTAINER_DEBUG_LEVEL=0");
-      CmdArgs.push_back("-D_ITERATOR_DEBUG_LEVEL=0");
-    }
   };
   StringRef FlagForCRT;
   switch (RTOptionID) {
