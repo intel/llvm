@@ -46,7 +46,7 @@ ur_code_location_t codeLocationCallback(void *) {
 tls_code_loc_t::tls_code_loc_t(const detail::code_location &CodeLoc)
     : // Check TLS to see if a previously stashed code_location object is
       // available; if so, then don't overwrite the previous information as we
-      // are still in scope of the instrumented function
+      // are still in scope of the instrumented function.
       MLocalScope(GCodeLocTLS.fileName() && GCodeLocTLS.functionName()) {
   if (!MLocalScope)
     // Update the TLS information with the code_location information

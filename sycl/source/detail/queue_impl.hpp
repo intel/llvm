@@ -475,7 +475,7 @@ public:
       if (no_imm_cmdlist && imm_cmdlist) {
         throw sycl::exception(
             make_error_code(errc::invalid),
-            "Queue cannot be constructed with different submission modes.");
+            "Queue cannot be constructed with conflicting submission modes.");
       }
       if (no_imm_cmdlist)
         CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
