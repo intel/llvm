@@ -95,26 +95,18 @@ inline bool hasNonZeroOffset(const sycl::nd_range<Dims> &V) {
 #endif //__SYCL_ID_QUERIES_FIT_IN_INT__
 
 template <int Dims>
-void checkValueRange([[maybe_unused]] const sycl::range<1> &V) {
+void checkValueRange([[maybe_unused]] const sycl::range<Dims> &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
-  // For 1D range, just check the value against MAX_INT.
-  checkValueRangeImpl(V[0]);
-#endif
-}
-
-template <int Dims>
-void checkValueRange([[maybe_unused]] const sycl::range<2> &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  // For 2D range, check if computing the linear range overflows.
-  checkMulOverflow(V[0], V[1]);
-#endif
-}
-
-template <int Dims>
-void checkValueRange([[maybe_unused]] const sycl::range<3> &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  // For 3D range, check if computing the linear range overflows.
-  checkMulOverflow(V[0], V[1], V[2]);
+  if constexpr (Dims == 1) {
+    // For 1D range, just check the value against MAX_INT.
+    checkValueRangeImpl(V[0]);
+  } else if constexpr (Dims == 2) {
+    // For 2D range, check if computing the linear range overflows.
+    checkMulOverflow(V[0], V[1]);
+  } else if constexpr (Dims == 3) {
+    // For 3D range, check if computing the linear range overflows.
+    checkMulOverflow(V[0], V[1], V[2]);
+  }
 #endif
 }
 
