@@ -159,8 +159,8 @@ public:
   ///
   /// \param UrDevice is the UrDevice whose impl is requested
   ///
-  /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl> getDeviceImpl(ur_device_handle_t UrDevice);
+  /// \return a device_impl* corresponding to the device
+  device_impl *getDeviceImpl(ur_device_handle_t UrDevice);
 
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the UrDevice or add
@@ -170,8 +170,8 @@ public:
   ///
   /// \param PlatormImpl is the Platform for that Device
   ///
-  /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl> getOrMakeDeviceImpl(ur_device_handle_t UrDevice);
+  /// \return a device_impl* corresponding to the device
+  device_impl &getOrMakeDeviceImpl(ur_device_handle_t UrDevice);
 
   /// Queries the cache to see if the specified UR platform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
@@ -200,7 +200,7 @@ public:
   bool MAlwaysRootDevice = false;
 
 private:
-  std::shared_ptr<device_impl> getDeviceImplHelper(ur_device_handle_t UrDevice);
+  device_impl *getDeviceImplHelper(ur_device_handle_t UrDevice);
 
   // Helper to get the vector of platforms supported by a given UR adapter
   static std::vector<platform> getAdapterPlatforms(AdapterPtr &Adapter,
@@ -217,7 +217,8 @@ private:
 
   AdapterPtr MAdapter;
 
-  std::vector<std::weak_ptr<device_impl>> MDeviceCache;
+  std::vector<std::shared_ptr<device_impl>> MDevices;
+  friend class GlobalHandler;
   std::mutex MDeviceMapMutex;
 };
 

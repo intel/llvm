@@ -164,7 +164,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                           SYCL_STREAM_NAME, "memory_transfer_node::memset");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(MDevice->getHandleRef()));
+                      reinterpret_cast<size_t>(MDevice.getHandleRef()));
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
@@ -212,7 +212,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                           SYCL_STREAM_NAME, "memory_transfer_node::memcpy");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(MDevice->getHandleRef()));
+                      reinterpret_cast<size_t>(MDevice.getHandleRef()));
     xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
@@ -691,11 +691,9 @@ void queue_impl::constructorNotification() {
 
       xpti::addMetadata(TEvent, "sycl_context",
                         reinterpret_cast<size_t>(MContext->getHandleRef()));
-      if (MDevice) {
-        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
-        xpti::addMetadata(TEvent, "sycl_device",
-                          reinterpret_cast<size_t>(MDevice->getHandleRef()));
-      }
+      xpti::addMetadata(TEvent, "sycl_device_name", MDevice.getDeviceName());
+      xpti::addMetadata(TEvent, "sycl_device",
+                        reinterpret_cast<size_t>(MDevice.getHandleRef()));
       xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
       xpti::addMetadata(TEvent, "queue_id", MQueueID);
       xpti::addMetadata(TEvent, "queue_handle",
