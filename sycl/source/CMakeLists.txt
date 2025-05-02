@@ -3,6 +3,7 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
+include(CheckLinkerFlag)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -185,6 +186,13 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     if (SYCL_ENABLE_XPTI_TRACING)
       target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
+  endif()
+
+  check_linker_flag(CXX "-Wl,--gc-sections" LINKER_SUPPORTS_WL_GC_SECTIONS)
+  if(LINKER_SUPPORTS_WL_GC_SECTIONS)
+    # Reduces the size of the resulting library by having the linker perform
+    # garbage collection.
+    target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
   endif()
 
   if(SYCL_ENABLE_EXTENSION_JIT)
