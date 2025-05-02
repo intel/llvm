@@ -28,6 +28,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/AtomicOrdering.h>
 #include <llvm/Target/TargetMachine.h>
+#include <multi_llvm/instructions.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
@@ -415,53 +416,53 @@ VectorizationContext::isMaskedAtomicFunction(const Function &F) const {
   }
   AtomicInfo.IsVolatile = FnName.consume_front("volatile_");
 
-  if (IsCmpXchg) {
-    AtomicInfo.BinOp = AtomicRMWInst::BinOp::BAD_BINOP;
-  } else {
-    if (FnName.consume_front("xchg")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::Xchg;
-    } else if (FnName.consume_front("add")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::Add;
-    } else if (FnName.consume_front("sub")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::Sub;
-    } else if (FnName.consume_front("and")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::And;
-    } else if (FnName.consume_front("nand")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::Nand;
-    } else if (FnName.consume_front("or")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::Or;
-    } else if (FnName.consume_front("xor")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::Xor;
-    } else if (FnName.consume_front("max")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::Max;
-    } else if (FnName.consume_front("min")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::Min;
-    } else if (FnName.consume_front("umax")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::UMax;
-    } else if (FnName.consume_front("umin")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::UMin;
-    } else if (FnName.consume_front("fadd")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::FAdd;
-    } else if (FnName.consume_front("fsub")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::FSub;
-    } else if (FnName.consume_front("fmax")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::FMax;
-    } else if (FnName.consume_front("fmin")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::FMin;
-    } else if (FnName.consume_front("uincwrap")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::UIncWrap;
-    } else if (FnName.consume_front("udecwrap")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::UDecWrap;
-#if LLVM_VERSION_GREATER_EQUAL(20, 0)
-    } else if (FnName.consume_front("usubcond")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::USubCond;
-    } else if (FnName.consume_front("usubsat")) {
-      AtomicInfo.BinOp = AtomicRMWInst::BinOp::USubSat;
-#endif
-    } else {
-      return std::nullopt;
+  AtomicInfo.BinOp = AtomicRMWInst::BinOp::BAD_BINOP;
+
+  if (!IsCmpXchg) {
+    if (FnName.consume_front("xchg_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Xchg;
+    } else if (FnName.consume_front("add_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Add;
+    } else if (FnName.consume_front("sub_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Sub;
+    } else if (FnName.consume_front("and_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::And;
+    } else if (FnName.consume_front("nand_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Nand;
+    } else if (FnName.consume_front("or_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Or;
+    } else if (FnName.consume_front("xor_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Xor;
+    } else if (FnName.consume_front("max_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Max;
+    } else if (FnName.consume_front("min_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Min;
+    } else if (FnName.consume_front("umax_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::UMax;
+    } else if (FnName.consume_front("umin_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::UMin;
+    } else if (FnName.consume_front("fadd_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FAdd;
+    } else if (FnName.consume_front("fsub_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FSub;
+    } else if (FnName.consume_front("fmax_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FMax;
+    } else if (FnName.consume_front("fmin_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FMin;
+    } else if (FnName.consume_front("fmaximum_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FMaximum;
+    } else if (FnName.consume_front("fminimum_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FMinimum;
+    } else if (FnName.consume_front("uincwrap_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::UIncWrap;
+    } else if (FnName.consume_front("udecwrap_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::UDecWrap;
+    } else if (FnName.consume_front("usubcond_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::USubCond;
+    } else if (FnName.consume_front("usubsat_")) {
+      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::USubSat;
     }
-    if (!FnName.consume_front("_")) {
+    if (AtomicInfo.BinOp >= multi_llvm::AtomicRMWInst::BAD_BINOP) {
       return std::nullopt;
     }
   }
@@ -574,10 +575,20 @@ Function *VectorizationContext::getOrCreateMaskedAtomicFunction(
   }
 
   if (!isCmpXchg) {
-#define BINOP_CASE(BINOP, STR) \
-  case AtomicRMWInst::BINOP:   \
-    O << (STR);                \
+#define BINOP_CASE(BINOP, STR)           \
+  case multi_llvm::AtomicRMWInst::BINOP: \
+    O << (STR);                          \
     break
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch"
+#endif
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4063)
+#endif
 
     switch (I.BinOp) {
       BINOP_CASE(Xchg, "xchg");
@@ -595,15 +606,23 @@ Function *VectorizationContext::getOrCreateMaskedAtomicFunction(
       BINOP_CASE(FSub, "fsub");
       BINOP_CASE(FMax, "fmax");
       BINOP_CASE(FMin, "fmin");
+      BINOP_CASE(FMaximum, "fmaximum");
+      BINOP_CASE(FMinimum, "fminumum");
       BINOP_CASE(UIncWrap, "uincwrap");
       BINOP_CASE(UDecWrap, "udecwrap");
-#if LLVM_VERSION_GREATER_EQUAL(20, 0)
       BINOP_CASE(USubCond, "usubcond");
       BINOP_CASE(USubSat, "usubsat");
-#endif
-      case llvm::AtomicRMWInst::BAD_BINOP:
+      case multi_llvm::AtomicRMWInst::BAD_BINOP:
         return nullptr;
     }
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 #undef BINOP_CASE
     O << "_";
