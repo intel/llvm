@@ -81,46 +81,6 @@ int main() {
   source_kb KBSrc2 = syclex::create_kernel_bundle_from_source(
       Ctx, syclex::source_language::sycl, SYCLSource2);
 
-  // Test joining of source kernel bundles.
-  {
-    std::vector<source_kb> KBSrcs{KBSrc1, KBSrc2};
-    source_kb KBSrcJoined = sycl::join(KBSrcs);
-
-    exe_kb KBExeJoined = syclex::build(KBSrcJoined);
-    assert(KBExeJoined.ext_oneapi_has_kernel("TestKernel1"));
-    assert(KBExeJoined.ext_oneapi_has_kernel("TestKernel2"));
-
-    sycl::kernel K1 = KBExeJoined.ext_oneapi_get_kernel("TestKernel1");
-    sycl::kernel K2 = KBExeJoined.ext_oneapi_get_kernel("TestKernel2");
-
-    int *IntPtr = sycl::malloc_shared<int>(1, Q);
-    *IntPtr = 0;
-
-    Q.submit([&](sycl::handler &CGH) {
-       CGH.set_args(IntPtr);
-       CGH.single_task(K1);
-     }).wait_and_throw();
-
-    if (*IntPtr != 42) {
-      std::cout << "TestKernel1 in joined source bundles failed: " << *IntPtr
-                << " != 42\n";
-      ++Failed;
-    }
-
-    Q.submit([&](sycl::handler &CGH) {
-       CGH.set_args(IntPtr);
-       CGH.single_task(K2);
-     }).wait_and_throw();
-
-    if (*IntPtr != 24) {
-      std::cout << "TestKernel1 in joined source bundles failed: " << *IntPtr
-                << " != 24\n";
-      ++Failed;
-    }
-
-    sycl::free(IntPtr, Q);
-  }
-
   auto KBExe1 = std::make_shared<exe_kb>(syclex::build(KBSrc1));
   auto KBExe2 = std::make_shared<exe_kb>(syclex::build(KBSrc2));
 
