@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from utils.utils import run
 from utils.validate import Validate
 
+from utils.detect_versions import DetectVersion
+
 
 class BenchmarkHistory:
     runs = []
