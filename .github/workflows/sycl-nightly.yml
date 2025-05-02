@@ -282,12 +282,11 @@ jobs:
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       matrix:
-        include:
-          - ref: ${{ github.sha }}
-            save_name: Baseline
-            runner: ['["PVC_PERF"]', '["BMG_PERF"]']
-            backend: ['level_zero:gpu', 'level_zero_v2:gpu']
-            preset: Minimal
+        ref: ${{ github.sha }}
+        save_name: Baseline
+        runner: ['["PVC_PERF"]', '["BMG_PERF"]']
+        backend: ['level_zero:gpu', 'level_zero_v2:gpu']
+        preset: Minimal
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
