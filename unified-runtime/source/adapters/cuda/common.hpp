@@ -57,16 +57,6 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 
 void setPluginSpecificMessage(CUresult cu_res);
 
-/// ------ Error handling, matching OpenCL plugin semantics.
-namespace detail {
-namespace ur {
-
-// Reports error messages
-void cuPrint(const char *Message);
-
-} // namespace ur
-} // namespace detail
-
 namespace umf {
 
 inline umf_result_t setCUMemoryProviderParams(
