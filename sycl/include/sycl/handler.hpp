@@ -436,7 +436,8 @@ private:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from the pre-constructed handler_impl and the
-  /// associated queue.
+  /// associated queue. Inside of Graph implementation, the Queue value is not
+  // used, for those cases it can be initialized with an empty shared_ptr.
   ///
   /// \param HandlerImpl is a pre-constructed handler_impl.
   /// \param Queue is a SYCL queue.
@@ -466,15 +467,7 @@ private:
                            bool CallerNeedsEvent);
 #endif
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Constructs SYCL handler for Graph.
-  ///
-  /// The handler will add the command-group as a node to the graph rather than
-  /// enqueueing it straight away.
-  ///
-  /// \param HandlerImpl is a pre-constructed handler_impl.
-  handler(detail::handler_impl *HandlerImpl);
-#else
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   /// Constructs SYCL handler from Graph.
   ///
   /// The handler will add the command-group as a node to the graph rather than

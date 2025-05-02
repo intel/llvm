@@ -324,11 +324,6 @@ handler::handler(detail::handler_impl *HandlerImpl,
                  const std::shared_ptr<detail::queue_impl> &Queue)
     : impl(HandlerImpl), MQueue(Queue) {}
 
-static std::shared_ptr<detail::queue_impl> DummyQueue;
-
-handler::handler(detail::handler_impl *HandlerImpl)
-    : impl(HandlerImpl), MQueue(DummyQueue) {}
-
 #else
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
