@@ -7,6 +7,9 @@
 		urAdapterRetain;
 		urAdapterSetLoggerCallback;
 		urAdapterSetLoggerCallbackLevel;
+		urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+		urBindlessImagesGetImageSampledHandleSupportExp;
+		urBindlessImagesGetImageUnsampledHandleSupportExp;
 		urBindlessImagesImageAllocateExp;
 		urBindlessImagesImageCopyExp;
 		urBindlessImagesImageFreeExp;
@@ -187,6 +190,9 @@
 		urPrintApiVersion;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
+		urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams;
+		urPrintBindlessImagesGetImageSampledHandleSupportExpParams;
+		urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams;
 		urPrintBindlessImagesImageAllocateExpParams;
 		urPrintBindlessImagesImageCopyExpParams;
 		urPrintBindlessImagesImageFreeExpParams;
@@ -339,6 +345,7 @@
 		urPrintExpFileDescriptor;
 		urPrintExpImageCopyFlags;
 		urPrintExpImageCopyRegion;
+		urPrintExpImageMemType;
 		urPrintExpLaunchProperty;
 		urPrintExpLaunchPropertyId;
 		urPrintExpPeerInfo;

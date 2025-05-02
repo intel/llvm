@@ -11,7 +11,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/platform_info.hpp>
+#include <detail/split_string.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
@@ -289,25 +289,22 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   return original_indices;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl *platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   return getDeviceImplHelper(UrDevice);
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
-  std::shared_ptr<device_impl> Result = getDeviceImplHelper(UrDevice);
-  if (Result)
-    return Result;
+  if (device_impl *Result = getDeviceImplHelper(UrDevice))
+    return *Result;
 
   // Otherwise make the impl
-  Result = std::make_shared<device_impl>(UrDevice, *this);
-  MDeviceCache.emplace_back(Result);
+  MDevices.emplace_back(std::make_shared<device_impl>(
+      UrDevice, *this, device_impl::private_tag{}));
 
-  return Result;
+  return *MDevices.back();
 }
 
 static bool supportsAffinityDomain(const device &dev,
@@ -550,9 +547,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_platform_info_string_impl(
-      MPlatform, getAdapter(),
-      detail::UrInfoCode<info::platform::extensions>::value);
+
+  std::string AllExtensionNames = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+      *this, detail::UrInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -570,7 +567,13 @@ ur_native_handle_t platform_impl::getNative() const {
 
 template <typename Param>
 typename Param::return_type platform_impl::get_info() const {
-  return get_platform_info<Param>(this->getHandleRef(), getAdapter());
+  std::string InfoStr = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+      *this, detail::UrInfoCode<Param>::value);
+  if constexpr (std::is_same_v<Param, info::platform::extensions>) {
+    return split_string(InfoStr, ' ');
+  } else {
+    return InfoStr;
+  }
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -634,13 +637,10 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == UrDevice)
-        return Device;
-    }
+device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
+  for (const std::shared_ptr<device_impl> &Device : MDevices) {
+    if (Device->getHandleRef() == UrDevice)
+      return Device.get();
   }
   return nullptr;
 }
