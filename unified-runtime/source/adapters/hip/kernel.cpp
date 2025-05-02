@@ -169,15 +169,9 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
-    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
-    uint32_t *pGroupCountRet) {
-  std::ignore = hKernel;
-  std::ignore = hDevice;
-  std::ignore = workDim;
-  std::ignore = pLocalWorkSize;
-  std::ignore = dynamicSharedMemorySize;
-  std::ignore = pGroupCountRet;
+    ur_kernel_handle_t /*hKernel*/, ur_device_handle_t /*hDevice*/,
+    uint32_t /*workDim*/, const size_t * /*pLocalWorkSize*/,
+    size_t /*dynamicSharedMemorySize*/, uint32_t * /*pGroupCountRet*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -195,8 +189,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  std::ignore = pProperties;
+    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -274,10 +267,15 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL: {
-    // Return value of 0 => unspecified or "auto" sub-group size
-    // Correct for now, since warp size may be read from special register
-    // TODO: Return warp size once default is primary sub-group size
-    // TODO: Revisit if we can recover [[sub_group_size]] attribute from PTX
+    const auto &KernelReqdSubGroupSizeMap =
+        hKernel->getProgram()->KernelReqdSubGroupSizeMD;
+    // If present, return the value of intel_reqd_sub_group_size metadata, if
+    // not: 0, which stands for unspecified or auto sub-group size.
+    if (auto KernelReqdSubGroupSize =
+            KernelReqdSubGroupSizeMap.find(hKernel->getName());
+        KernelReqdSubGroupSize != KernelReqdSubGroupSizeMap.end())
+      return ReturnValue(KernelReqdSubGroupSize->second);
+
     return ReturnValue(0);
   }
   default:
@@ -290,8 +288,12 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  // setKernelArg is expecting a pointer to our argument
-  hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
+  try {
+    // setKernelArg is expecting a pointer to our argument
+    hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
+  } catch (ur_result_t Err) {
+    return Err;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -299,15 +301,15 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *Properties,
                      ur_mem_handle_t hArgValue) {
-  // Below sets kernel arg when zero-sized buffers are handled.
-  // In such case the corresponding memory is null.
-  if (hArgValue == nullptr) {
-    hKernel->setKernelArg(argIndex, 0, nullptr);
-    return UR_RESULT_SUCCESS;
-  }
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
+    // Below sets kernel arg when zero-sized buffers are handled.
+    // In such case the corresponding memory is null.
+    if (hArgValue == nullptr) {
+      hKernel->setKernelArg(argIndex, 0, nullptr);
+      return UR_RESULT_SUCCESS;
+    }
+
     auto Device = hKernel->getProgram()->getDevice();
     hKernel->Args.addMemObjArg(argIndex, hArgValue,
                                Properties ? Properties->memoryAccess : 0);
@@ -319,9 +321,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
       if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
           Format != HIP_AD_FORMAT_SIGNED_INT32 &&
           Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        detail::ur::die(
-            "UR HIP kernels only support images with channel types int32, "
-            "uint32, float, and half.");
+        return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
       }
       hipSurfaceObject_t hipSurf =
           std::get<SurfaceMem>(hArgValue->Mem).getSurface(Device);
@@ -377,8 +377,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
             UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
-            UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   size_t MaxThreadsPerBlock[3];
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};

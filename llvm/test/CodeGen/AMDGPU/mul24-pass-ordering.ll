@@ -44,8 +44,8 @@ bb23:                                             ; preds = %bb23, %bb
   %tmp30 = sub i32 %tmp24, %tmp29
   %tmp31 = add i32 %tmp30, %arg16
   %tmp37 = icmp ult i32 %tmp31, %arg13
-  %tmp44 = load float, ptr addrspace(1) undef, align 4
-  store float %tmp44, ptr addrspace(3) undef, align 4
+  %tmp44 = load float, ptr addrspace(1) poison, align 4
+  store float %tmp44, ptr addrspace(3) poison, align 4
   %tmp47 = add i32 %tmp24, %arg2
   br i1 %tmp37, label %bb23, label %.loopexit
 }
@@ -170,17 +170,17 @@ define void @slsr1_0(i32 %b.arg, i32 %s.arg) #0 {
   %mul0 = mul i32 %b, %s
 ; CHECK: mul i32
 ; CHECK-NOT: mul i32
-  store volatile i32 %mul0, ptr addrspace(1) undef
+  store volatile i32 %mul0, ptr addrspace(1) poison
 
   ; foo((b + 1) * s);
   %b1 = add i32 %b, 1
   %mul1 = mul i32 %b1, %s
-  store volatile i32 %mul1, ptr addrspace(1) undef
+  store volatile i32 %mul1, ptr addrspace(1) poison
 
   ; foo((b + 2) * s);
   %b2 = add i32 %b, 2
   %mul2 = mul i32 %b2, %s
-  store volatile i32 %mul2, ptr addrspace(1) undef
+  store volatile i32 %mul2, ptr addrspace(1) poison
   ret void
 }
 
@@ -229,11 +229,11 @@ define void @slsr1_1(i32 %b.arg, i32 %s.arg) #0 {
 ; GFX9-NEXT:    v_readlane_b32 s34, v43, 2
 ; GFX9-NEXT:    v_readlane_b32 s31, v43, 1
 ; GFX9-NEXT:    v_readlane_b32 s30, v43, 0
+; GFX9-NEXT:    s_mov_b32 s32, s33
 ; GFX9-NEXT:    v_readlane_b32 s4, v43, 5
 ; GFX9-NEXT:    s_or_saveexec_b64 s[6:7], -1
 ; GFX9-NEXT:    buffer_load_dword v43, off, s[0:3], s33 offset:12 ; 4-byte Folded Reload
 ; GFX9-NEXT:    s_mov_b64 exec, s[6:7]
-; GFX9-NEXT:    s_addk_i32 s32, 0xf800
 ; GFX9-NEXT:    s_mov_b32 s33, s4
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]

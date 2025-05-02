@@ -34,6 +34,10 @@ TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
   moduleDesc.pBuildFlags = "";
   ze_module_handle_t module;
 
+  // Initialize Level Zero driver is required if this test is linked statically
+  // with Level Zero loader, the driver will not be init otherwise.
+  zeInit(ZE_INIT_FLAG_GPU_ONLY);
+
   ASSERT_EQ(
       zeModuleCreate(native_context, native_device, &moduleDesc, &module, NULL),
       ZE_RESULT_SUCCESS);

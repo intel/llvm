@@ -5,8 +5,7 @@
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="opencl:*" %t-nvptx64-spir64.out
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="cuda:*"   %t-nvptx64-spir64.out
 
-// REQUIRES: opencl, cuda
-// REQUIRES: build-and-run-mode
+// REQUIRES: opencl, target-spir, any-target-is-nvidia
 
 //==------- sycl-targets-order.cpp - SYCL -fsycl-targets order test --------==//
 //
@@ -36,7 +35,7 @@ int main(int argc, char **argv) {
   sycl::buffer<unsigned int, 1> buffer(4);
 
   // size of the index space for the kernel
-  sycl::range<1> NumOfWorkItems{buffer.get_count()};
+  sycl::range<1> NumOfWorkItems{buffer.size()};
 
   // submit a command group(work) to the queue
   queue.submit([&](sycl::handler &cgh) {
@@ -55,7 +54,7 @@ int main(int argc, char **argv) {
 
   // check the results
   bool mismatch = false;
-  for (unsigned int i = 0; i < buffer.get_count(); ++i) {
+  for (unsigned int i = 0; i < buffer.size(); ++i) {
     if (host_accessor[i] != i) {
       std::cout << "The result is incorrect for element: " << i
                 << " , expected: " << i << " , got: " << host_accessor[i]

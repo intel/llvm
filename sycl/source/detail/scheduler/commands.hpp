@@ -37,9 +37,6 @@ void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr);
 #endif
-RTDeviceBinaryImage *
-retrieveAMDGCNOrNVPTXKernelBinary(const DeviceImplPtr DeviceImpl,
-                                  const std::string &KernelName);
 
 class queue_impl;
 class event_impl;
@@ -624,7 +621,7 @@ void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, std::vector<ur_event_handle_t> &RawEvents,
+    KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
@@ -686,7 +683,7 @@ private:
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    std::string_view SyclKernelName, const QueueImplPtr &Queue,
     const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
@@ -731,7 +728,7 @@ private:
 
 // Enqueues a given kernel to a ur_exp_command_buffer_handle_t
 ur_result_t enqueueImpCommandBufferKernel(
-    context Ctx, DeviceImplPtr DeviceImpl,
+    context Ctx, device_impl &DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const CGExecKernel &CommandGroup,
     std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints,
@@ -746,11 +743,42 @@ void SetArgBasedOnType(
     const detail::AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex);
+    const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
+    size_t NextTrueIndex);
 
-void applyFuncOnFilteredArgs(
-    const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
-    std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func);
+template <typename FuncT>
+void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,
+                             std::vector<ArgDesc> &Args, FuncT Func) {
+  if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
+    for (ArgDesc &Arg : Args) {
+      Func(Arg, Arg.MIndex);
+    }
+  } else {
+    // TODO this is not necessary as long as we can guarantee that the
+    // arguments are already sorted (e. g. handle the sorting in handler
+    // if necessary due to set_arg(...) usage).
+    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
+      return A.MIndex < B.MIndex;
+    });
+    int LastIndex = -1;
+    size_t NextTrueIndex = 0;
+
+    for (ArgDesc &Arg : Args) {
+      // Handle potential gaps in set arguments (e. g. if some of them are
+      // set on the user side).
+      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+        if (!(*EliminatedArgMask)[Idx])
+          ++NextTrueIndex;
+      LastIndex = Arg.MIndex;
+
+      if ((*EliminatedArgMask)[Arg.MIndex])
+        continue;
+
+      Func(Arg, NextTrueIndex);
+      ++NextTrueIndex;
+    }
+  }
+}
 
 void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
 

@@ -144,5 +144,13 @@ int main() {
 
   res = res && matrix_compare(M, N, C, Dt);
   std::cout << (res ? "passed" : "failed") << std::endl;
+
+  free(A, q);
+  free(B, q);
+  free(vnniB, q);
+  free(C, q);
+  free(D, q);
+  free(Dt, q);
+
   return !res;
 }

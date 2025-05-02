@@ -12,7 +12,6 @@
 #ifndef UR_SINGLETON_H
 #define UR_SINGLETON_H 1
 
-#include <cassert>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -77,8 +76,9 @@ public:
   void retain(key_tn key) {
     std::lock_guard<std::mutex> lk(mut);
     auto iter = map.find(getKey(key));
-    assert(iter != map.end());
-    iter->second.ref_count++;
+    if (iter != map.end()) {
+      iter->second.ref_count++;
+    }
   }
 
   //////////////////////////////////////////////////////////////////////////
@@ -86,11 +86,12 @@ public:
   void release(key_tn key) {
     std::lock_guard<std::mutex> lk(mut);
     auto iter = map.find(getKey(key));
-    assert(iter != map.end());
-    if (iter->second.ref_count == 0) {
-      map.erase(iter);
-    } else {
-      iter->second.ref_count--;
+    if (iter != map.end()) {
+      if (iter->second.ref_count == 0) {
+        map.erase(iter);
+      } else {
+        iter->second.ref_count--;
+      }
     }
   }
 

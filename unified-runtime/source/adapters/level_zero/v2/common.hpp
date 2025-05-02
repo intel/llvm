@@ -27,12 +27,12 @@ namespace {
 
 namespace v2 {
 
-DECLARE_DESTROY_FUNCTION(zeKernelDestroy);
-DECLARE_DESTROY_FUNCTION(zeEventDestroy);
-DECLARE_DESTROY_FUNCTION(zeEventPoolDestroy);
-DECLARE_DESTROY_FUNCTION(zeContextDestroy);
-DECLARE_DESTROY_FUNCTION(zeCommandListDestroy);
-DECLARE_DESTROY_FUNCTION(zeImageDestroy);
+DECLARE_DESTROY_FUNCTION(zeKernelDestroy)
+DECLARE_DESTROY_FUNCTION(zeEventDestroy)
+DECLARE_DESTROY_FUNCTION(zeEventPoolDestroy)
+DECLARE_DESTROY_FUNCTION(zeContextDestroy)
+DECLARE_DESTROY_FUNCTION(zeCommandListDestroy)
+DECLARE_DESTROY_FUNCTION(zeImageDestroy)
 namespace raii {
 
 template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT)>
@@ -79,11 +79,15 @@ struct ze_handle_wrapper {
       return;
     }
 
-    if (ownZeHandle) {
+    if (ownZeHandle && checkL0LoaderTeardown()) {
       auto zeResult = destroy(handle);
       // Gracefully handle the case that L0 was already unloaded.
-      if (zeResult && zeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+      if (zeResult && (zeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                       zeResult != ZE_RESULT_ERROR_UNKNOWN))
         throw ze2urResult(zeResult);
+      if (zeResult == ZE_RESULT_ERROR_UNKNOWN) {
+        zeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+      }
     }
 
     handle = nullptr;

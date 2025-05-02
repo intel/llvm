@@ -3,6 +3,12 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+if(NOT UR_FOUND_DPCXX)
+    message(WARNING
+        "UR_DPCXX is not defined, skipping adapter-specific tests for Cuda")
+    return()
+endif()
+
 add_adapter_test(cuda
     FIXTURE DEVICES
     SOURCES
@@ -29,4 +35,6 @@ target_include_directories(test-adapter-cuda PRIVATE
     ${PROJECT_SOURCE_DIR}/source/adapters/cuda
 )
 
-target_link_libraries(test-adapter-cuda PRIVATE cudadrv ${PROJECT_NAME}::umf)
+find_package(CUDAToolkit 10.1 REQUIRED)
+
+target_link_libraries(test-adapter-cuda PRIVATE cudadrv CUDA::nvml ${PROJECT_NAME}::umf)

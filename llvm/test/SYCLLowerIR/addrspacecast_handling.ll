@@ -14,20 +14,20 @@ define linkonce_odr dso_local spir_func void @foo(ptr addrspace(4) dereferenceab
 ; CHECK-NEXT:  bb:
 ; CHECK-NEXT:    [[TMP0:%.*]] = alloca ptr addrspace(4), align 8
 ; CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0:[0-9]+]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0:[0-9]+]]
 ; CHECK-NEXT:    [[CMPZ3:%.*]] = icmp eq i64 [[TMP1]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ3]], label [[LEADER:%.*]], label [[MERGE:%.*]]
 ; CHECK:       leader:
 ; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 8 @ArgShadow, ptr align 8 [[ARG1:%.*]], i64 8, i1 false)
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 8 [[ARG1]], ptr addrspace(3) align 8 @ArgShadow, i64 8, i1 false)
 ; CHECK-NEXT:    [[TMP4:%.*]] = addrspacecast ptr [[TMP0]] to ptr addrspace(4)
 ; CHECK-NEXT:    [[TMP5:%.*]] = alloca [[STRUCT_SPAM:%.*]], align 8
 ; CHECK-NEXT:    [[TMP6:%.*]] = addrspacecast ptr [[TMP5]] to ptr addrspace(4)
 ; CHECK-NEXT:    [[TMP7:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[CMPZ:%.*]] = icmp eq i64 [[TMP7]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ]], label [[WG_LEADER:%.*]], label [[WG_CF:%.*]]
 ; CHECK:       wg_leader:
@@ -35,7 +35,7 @@ define linkonce_odr dso_local spir_func void @foo(ptr addrspace(4) dereferenceab
 ; CHECK-NEXT:    br label [[WG_CF]]
 ; CHECK:       wg_cf:
 ; CHECK-NEXT:    [[TMP8:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[CMPZ2:%.*]] = icmp eq i64 [[TMP8]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ2]], label [[TESTMAT:%.*]], label [[LEADERMAT:%.*]]
 ; CHECK:       TestMat:
@@ -44,11 +44,11 @@ define linkonce_odr dso_local spir_func void @foo(ptr addrspace(4) dereferenceab
 ; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD]], ptr addrspace(3) @WGCopy, align 8
 ; CHECK-NEXT:    br label [[LEADERMAT]]
 ; CHECK:       LeaderMat:
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[MAT_LD1:%.*]] = load ptr addrspace(4), ptr addrspace(3) @WGCopy, align 8
 ; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD1]], ptr [[TMP0]], align 8
 ; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 8 [[TMP5]], ptr addrspace(3) align 16 @WGCopy.1, i64 36, i1 false)
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[TMP11:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
 ; CHECK-NEXT:    [[TMP12:%.*]] = addrspacecast ptr addrspace(4) [[TMP6]] to ptr
 ; CHECK-NEXT:    call spir_func void @widget(ptr addrspace(4) dereferenceable_or_null(32) [[TMP11]], ptr byval([[STRUCT_SPAM]]) align 8 [[TMP12]])

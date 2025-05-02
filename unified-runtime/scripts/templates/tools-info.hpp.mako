@@ -32,7 +32,7 @@ namespace urinfo {
 %for obj in th.extract_objs(specs, r"enum"):
 %if obj["name"] == '$x_loader_config_info_t':
 inline void printLoaderConfigInfos(${x}_loader_config_handle_t hLoaderConfig, std::string_view prefix = "  ") {
-%for etor in obj['etors']:
+%for etor in th.get_etors(obj):
 %if 'REFERENCE_COUNT' not in etor['name']:
     <%etype = th.etor_get_associated_type(n, tags, etor)
     %>std::cout << prefix;
@@ -43,7 +43,7 @@ inline void printLoaderConfigInfos(${x}_loader_config_handle_t hLoaderConfig, st
 %endif
 %if obj["name"] == '$x_adapter_info_t':
 inline void printAdapterInfos(${x}_adapter_handle_t hAdapter, std::string_view prefix = "  ") {
-%for etor in obj['etors']:
+%for etor in th.get_etors(obj):
 %if 'REFERENCE_COUNT' not in etor['name']:
     <%etype = th.etor_get_associated_type(n, tags, etor)
     %>std::cout << prefix;
@@ -55,7 +55,7 @@ inline void printAdapterInfos(${x}_adapter_handle_t hAdapter, std::string_view p
 %endif
 %if obj["name"] == '$x_platform_info_t':
 inline void printPlatformInfos(${x}_platform_handle_t hPlatform, std::string_view prefix = "    ") {
-%for etor in obj['etors']:
+%for etor in th.get_etors(obj):
     <%etype = th.etor_get_associated_type(n, tags, etor)
     %>std::cout << prefix;
     printPlatformInfo<${etype}>(hPlatform, ${etor['name'].replace('$X', X)});
@@ -65,7 +65,7 @@ inline void printPlatformInfos(${x}_platform_handle_t hPlatform, std::string_vie
 %endif
 %if obj['name'] == '$x_device_info_t':
 inline void printDeviceInfos(${x}_device_handle_t hDevice, std::string_view prefix = "      ") {
-%for etor in obj['etors']:
+%for etor in th.get_etors(obj):
     <%etype = th.etor_get_associated_type(n, tags, etor)
     %>std::cout << prefix;
 %if etor['name'] == '$X_DEVICE_INFO_UUID':

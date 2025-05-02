@@ -30,7 +30,7 @@ permission by Khronos.
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -181,6 +181,7 @@ enum class image_type : /* unspecified */ {
   mipmap,
   array,
   cubemap,
+  gather,
 };
 
 struct image_descriptor {
@@ -1231,16 +1232,14 @@ public:
 }
 ```
 
-To enable the copying of images an `ext_oneapi_copy` function is proposed as a 
-method of the queue and handler. It can be used to copy image memory, whether 
-allocated through USM or using an `image_mem_handle`, from host to 
-device, or device to host. Device to device copies are currently supported only 
-through `image_mem_handle` allocations. 
-For the `ext_oneapi_copy` variants that do not take 
-offsets and extents, the image descriptor passed to the `ext_oneapi_copy` API 
-is used to determine the pixel size, dimensions, and extent in memory of the 
-image to copy. If performing sub-region copy, the size of the memory region is 
-also determined by the offsets and extent passed.
+To enable the copying of images an `ext_oneapi_copy` function is proposed as a
+method of the queue and handler. It can be used to copy image memory, whether
+allocated through USM or using an `image_mem_handle`, from host to device,
+device to host, device to device or host to host. For the `ext_oneapi_copy`
+variants that do not take offsets and extents, the image descriptor passed to
+the `ext_oneapi_copy` API is used to determine the pixel size, dimensions, and
+extent in memory of the image to copy. If performing sub-region copy, the size
+of the memory region is also determined by the offsets and extent passed.
 
 For images allocated using USM, existing SYCL functionality can be used to 
 copy their memory, but we also provide `ext_oneapi_copy` functions that take 
@@ -1329,9 +1328,14 @@ DataT fetch_image(const unsampled_image_handle &ImageHandle,
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image(const sampled_image_handle &ImageHandle,
                   const CoordT &Coords);
+
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT sample_image(const sampled_image_handle &ImageHandle, 
+DataT sample_image(const sampled_image_handle &ImageHandle,
                    const CoordT &Coords);
+
+template <typename DataT>
+DataT gather_image(const sampled_image_handle &ImageHandle,
+                   const sycl::float2 &Coords, const unsigned Component);
 
 template <typename DataT, typename CoordT>
 void write_image(unsampled_image_handle ImageHandle,
@@ -1342,9 +1346,10 @@ void write_image(unsampled_image_handle ImageHandle,
 Inside a kernel, it's possible to retrieve data from an image via `fetch_image` 
 or `sample_image`, passing the appropriate image handle. The `fetch_image` API 
 is applicable to sampled and unsampled images, and the data will be fetched 
-exactly as is in device memory. The `sample_image` API is only applicable to 
-sampled images, the image data will be sampled according to the 
-`bindless_image_sampler` that was passed to the image upon construction.
+exactly as is in device memory. The `sample_image` and `gather_image` APIs are
+only applicable to sampled images. For both APIs the image data will be sampled
+according to the `bindless_image_sampler` that was passed to the image upon
+construction.
 
 When fetching from a sampled image handle, data exactly as is in memory, no 
 sampling operations will be performed, and the `bindless_image_sampler` passed 
@@ -1406,6 +1411,58 @@ Attempting to sample a standard sampled image with `sample_mipmap` or any other
 defined sampling function will result in undefined behaviour.
 ====
 
+==== `gather_image`
+
+We provide the following device aspect to retrieve support information for
+`gather_image`.
+
+The device aspect descriptor for this query is:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_bindless_images_gather` | Indicates if the device supports
+`gather_image`.
+|======================
+
+`DataT` is a vector type with four components. DataT can only be `sycl::float4`
+, `sycl::int4`, or `sycl::uint4`. `ImageHandle` must be a two dimensional image
+instantiated using an `image_descriptor` with non-zero `width` and `height`
+members. The `image_descriptor::depth` member must be zero. If these conditions
+are not satisfied then a `sycl::exception` is thrown with error code
+`sycl::errc::invalid`. The return values, `DataT`, consist of the four texture,
+`T`, coordinates that would be used for linear filtering of `ImageHandle` at
+the coordinate specified by `Coords`, and for channel component `Component`.
+
+These coordinates are returned as follows:
+
+- `DataT.x = T[i, j + 1]`
+- `DataT.y = T[i + 1, j + 1]`
+- `DataT.z = T[i + 1, j]`
+- `DataT.w = T[i, j]`
+
+where `i` and `j` are calculated depending on the
+`sycl::coordinate_normalization_mode` used to constuct `ImageHandle` via a
+`bindless_image_sampler`. For
+`sycl::coordinate_normalization_mode::unnormalized` (in units of the image
+discretization) they are calculated as:
+
+- `i = floor(Coords.x - 0.5)`
+- `j = floor(Coords.y - 0.5)`
+
+[NOTE]
+=====
+In the CUDA backend there are different restrictions on the sizes of an image
+that can be created for a given device when `gather_image` is being used.
+=====
+
+For guaranteed correctness and portability across backends, it is necessary to
+construct `ImageHandle` using an `image_descriptor` with member
+`image_type::gather`. Calling `gather_image` on an `ImageHandle` constructed
+with `image_descriptor::num_channels < 4` will result in undefined behavior.
+
+====
+
 === Recognized standard types [[recognized_standard_types]]
 
 For the purposes of this extension, the following are classified as recognized 
@@ -1417,6 +1474,8 @@ standard types.
   `2`, or `3`
 
 Any other types are classified as user-defined types.
+
+===
 
 ==== User-defined types
 
@@ -2083,6 +2142,8 @@ enum class external_semaphore_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,
   win32_nt_dx12_fence = 2,
+  timeline_fd = 3,
+  timeline_win32_nt_handle = 4,
 };
 
 // Descriptor templated on specific resource type
@@ -2134,8 +2195,9 @@ The resulting `external_semaphore` can then be used in a SYCL command
 group, to either wait until the semaphore signalled, or signal the semaphore.
 
 If the type of semaphore imported supports setting the state of discrete 
-semaphore value (the semaphore type is `win32_nt_dx12_fence`), then the user 
-can specify which value the semaphore operation should wait on, or signal.
+semaphore value (the semaphore type is `win32_nt_dx12_fence`, `timeline_fd` or
+`timeline_win32_nt_handle`), then the user can specify which value the semaphore
+operation should wait on, or signal.
 
 We propose to extend the SYCL queue and handler classes with semaphore waiting 
 and signalling operations.
@@ -2226,17 +2288,19 @@ public:
 The behaviour of waiting on a semaphore will depend on the type of the 
 semaphore which was imported.
 
-If the semaphore does not support setting of a discrete state value (the 
-semaphore type is not `win32_nt_dx12_fence`), then any operations submitted to 
-the queue after a `ext_oneapi_wait_external_semaphore` call will not begin 
-until the imported semaphore is in a signalled state. After this, the semaphore 
-will be reset to a non-signalled state.
+If the semaphore does not support setting of a discrete state value (the
+semaphore type is not `win32_nt_dx12_fence`, `timeline_fd` or
+`timeline_win32_nt_handle`), then any operations submitted to the queue after a
+`ext_oneapi_wait_external_semaphore` call will not begin until the imported
+semaphore is in a signalled state. After this, the semaphore will be reset to a
+non-signalled state.
 
-If the semaphore does support setting of a discrete state value (the semaphore 
-type is `win32_nt_dx12_fence`), then any operations submitted to the queue 
-after a `ext_oneapi_wait_external_semaphore` call will not begin until the 
-imported semaphore is in a state greater than or equal to the `wait_value`. The 
-state of this type of semaphore will not be altered by the call to 
+If the semaphore does support setting of a discrete state value (the semaphore
+type is `win32_nt_dx12_fence`, `timeline_fd` or `timeline_win32_nt_handle`),
+then any operations submitted to the queue after a
+`ext_oneapi_wait_external_semaphore` call will not begin until the imported
+semaphore is in a state greater than or equal to the `wait_value`. The state of
+this type of semaphore will not be altered by the call to
 `ext_oneapi_wait_external_semaphore`.
 
 When `ext_oneapi_signal_external_semaphore` is called, the external semaphore 
@@ -2570,4 +2634,6 @@ These features still need to be handled:
                    sub-copies.
                  - Add support for USM to USM copies and sub-copies.
                  - Add support for host to host copies and sub-copies.
-|======================
+|6.8|2025-03-13| - Add support for importing timeline semaphores.
+|6.9|2025-03-18| - Add new `gather` image type and the accompanying
+                   `gather_image` function.

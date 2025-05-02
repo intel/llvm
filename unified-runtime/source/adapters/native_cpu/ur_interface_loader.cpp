@@ -286,11 +286,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       urCommandBufferAppendMemBufferWriteExp;
   pDdiTable->pfnAppendMemBufferWriteRectExp =
       urCommandBufferAppendMemBufferWriteRectExp;
-  pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
   pDdiTable->pfnUpdateKernelLaunchExp = urCommandBufferUpdateKernelLaunchExp;
   pDdiTable->pfnGetInfoExp = urCommandBufferGetInfoExp;
   pDdiTable->pfnUpdateWaitEventsExp = urCommandBufferUpdateWaitEventsExp;
   pDdiTable->pfnUpdateSignalEventExp = urCommandBufferUpdateSignalEventExp;
+  pDdiTable->pfnAppendNativeCommandExp = urCommandBufferAppendNativeCommandExp;
+  pDdiTable->pfnGetNativeHandleExp = urCommandBufferGetNativeHandleExp;
 
   return retVal;
 }
@@ -401,6 +402,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnCooperativeKernelLaunchExp = nullptr;
   pDdiTable->pfnTimestampRecordingExp = urEnqueueTimestampRecordingExp;
   pDdiTable->pfnNativeCommandExp = urEnqueueNativeCommandExp;
+  pDdiTable->pfnCommandBufferExp = urEnqueueCommandBufferExp;
 
   return UR_RESULT_SUCCESS;
 }
@@ -430,4 +432,17 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnSetLoggerCallback = urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel = urAdapterSetLoggerCallbackLevel;
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // extern "C"

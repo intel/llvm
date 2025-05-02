@@ -5,6 +5,8 @@ target triple = "spir64-unknown-unknown"
 @.str = external addrspace(1) constant [59 x i8]
 @__spirv_BuiltInGlobalInvocationId = external addrspace(1) constant <3 x i64>
 @dev_global_no_users = dso_local addrspace(1) global { [4 x i32] } zeroinitializer
+@0 = internal global i32 0, align 4 ;nameless global
+@1 = internal global i32 0, align 4 ;nameless global
 
 define spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv() {
 entry:
@@ -12,6 +14,8 @@ entry:
   ret void
 }
 
+; CHECK: @nameless_global 
+; CHECK: @nameless_global.1
 ; CHECK: @__MsanDeviceGlobalMetadata
 ; CHECK-NOT: @__spirv_BuiltInGlobalInvocationId
 ; CHECK-NOT: @dev_global_no_users

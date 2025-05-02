@@ -98,6 +98,9 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
     } else if (Tag ==
                __SYCL_UR_PROGRAM_METADATA_TAG_MAX_LINEAR_WORK_GROUP_SIZE) {
       KernelMaxLinearWorkGroupSizeMD[Prefix] = MetadataElement.value.data64;
+    } else if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_SUB_GROUP_SIZE) {
+      assert(MetadataElement.type == UR_PROGRAM_METADATA_TYPE_UINT32);
+      KernelReqdSubGroupSizeMD[Prefix] = MetadataElement.value.data32;
     }
   }
   return UR_RESULT_SUCCESS;
@@ -257,10 +260,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
 /// Loads the images from a UR program into a CUmodule that can be
 /// used later on to extract functions (kernels).
 /// See \ref ur_program_handle_t for implementation details.
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
-                                                   ur_program_handle_t hProgram,
-                                                   const char *pOptions) {
-  std::ignore = hContext;
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramBuild(ur_context_handle_t /*hContext*/, ur_program_handle_t hProgram,
+               const char *pOptions) {
 
   ur_result_t Result = UR_RESULT_SUCCESS;
 
@@ -358,11 +360,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
-                      ur_program_build_info_t propName, size_t propSize,
-                      void *pPropValue, size_t *pPropSizeRet) {
-  std::ignore = hDevice;
+UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
+    ur_program_handle_t hProgram, ur_device_handle_t /*hDevice*/,
+    ur_program_build_info_t propName, size_t propSize, void *pPropValue,
+    size_t *pPropSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 

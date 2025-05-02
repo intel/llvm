@@ -191,7 +191,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
     %else:
     inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value) {
         switch (value) {
-            %for n, item in enumerate(obj['etors']):
+            %for n, item in enumerate(th.get_etors(obj)):
                 <%
                 ename = th.make_etor_name(n, tags, obj['name'], item['name'])
                 %>case ${ename}:
@@ -216,7 +216,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         }
 
         switch (value) {
-            %for n, item in enumerate(obj['etors']):
+            %for n, item in enumerate(th.get_etors(obj)):
                 <%
                 ename = th.make_etor_name(n, tags, obj['name'], item['name'])
                 vtype = th.etor_get_associated_type(n, tags, item)
@@ -281,7 +281,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         ## structure type enum value must be first
         const enum ${th.make_enum_name(n, tags, obj)} *value = (const enum ${th.make_enum_name(n, tags, obj)} *)ptr;
         switch (*value) {
-            %for n, item in enumerate(obj['etors']):
+            %for n, item in enumerate(th.get_etors(obj)):
                 <%
                 ename = th.make_etor_name(n, tags, obj['name'], item['name'])
                 %>
@@ -307,7 +307,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
     inline ${x}_result_t printFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag) {
         uint32_t val = flag;
         bool first = true;
-        %for n, item in enumerate(obj['etors']):
+        %for n, item in enumerate(th.get_etors(obj)):
             <%
             ename = th.make_etor_name(n, tags, obj['name'], item['name'])
             %>

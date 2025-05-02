@@ -16,10 +16,10 @@
 #include "asan_allocator.hpp"
 #include "asan_buffer.hpp"
 #include "asan_libdevice.hpp"
-#include "asan_options.hpp"
 #include "asan_shadow.hpp"
 #include "asan_statistics.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
+#include "sanitizer_common/sanitizer_options.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -342,8 +342,6 @@ public:
   KernelInfo &getOrCreateKernelInfo(ur_kernel_handle_t Kernel);
   ur_result_t eraseKernelInfo(ur_kernel_handle_t Kernel);
 
-  const AsanOptions &getOptions() { return m_Options; }
-
   void exitWithErrors() {
     m_NormalExit = false;
     exit(1);
@@ -375,8 +373,6 @@ private:
   ur_result_t registerSpirKernels(ur_program_handle_t Program);
 
 private:
-  // m_Options may be used in other places, place it at the top
-  AsanOptions m_Options;
   std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
       m_ContextMap;
   ur_shared_mutex m_ContextMapMutex;

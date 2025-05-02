@@ -12,7 +12,7 @@ std::string deviceTestWithParamPrinter<BoolTestParam>(
     const ::testing::TestParamInfo<std::tuple<DeviceTuple, BoolTestParam>>
         &info) {
   auto device = std::get<0>(info.param).device;
-  auto param = std::get<1>(info.param);
+  auto &param = std::get<1>(info.param);
 
   std::stringstream ss;
   ss << param.name << (param.value ? "Enabled" : "Disabled");
@@ -24,7 +24,7 @@ std::string platformTestWithParamPrinter<BoolTestParam>(
     const ::testing::TestParamInfo<
         std::tuple<ur_platform_handle_t, BoolTestParam>> &info) {
   auto platform = std::get<0>(info.param);
-  auto param = std::get<1>(info.param);
+  auto &param = std::get<1>(info.param);
 
   std::stringstream ss;
   ss << param.name << (param.value ? "Enabled" : "Disabled");
@@ -36,7 +36,7 @@ std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
     const ::testing::TestParamInfo<
         std::tuple<DeviceTuple, uur::SamplerCreateParamT>> &info) {
   auto device = std::get<0>(info.param).device;
-  auto param = std::get<1>(info.param);
+  auto &param = std::get<1>(info.param);
 
   const auto normalized = std::get<0>(param);
   const auto addr_mode = std::get<1>(param);
@@ -58,7 +58,7 @@ std::string deviceTestWithParamPrinter<ur_image_format_t>(
     const ::testing::TestParamInfo<std::tuple<DeviceTuple, ur_image_format_t>>
         &info) {
   auto device = std::get<0>(info.param).device;
-  auto param = std::get<1>(info.param);
+  auto &param = std::get<1>(info.param);
   auto ChannelOrder = param.channelOrder;
   auto ChannelType = param.channelType;
 

@@ -129,7 +129,7 @@ public:
           std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(impl->MKernelBundle),
           std::move(impl->CGData), std::move(impl->MArgs),
-          CGH->MKernelName.c_str(), std::move(CGH->MStreamStorage),
+          CGH->MKernelName.data(), std::move(CGH->MStreamStorage),
           std::move(impl->MAuxiliaryResources), impl->MCGType, {},
           impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
           impl->MKernelWorkGroupMemorySize, CGH->MCodeLoc));
@@ -163,11 +163,9 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   EXPECT_TRUE(KernelBundleImplPtr)
       << "Expect command group to contain kernel bundle";
 
-  auto KernelID = sycl::detail::ProgramManager::getInstance().getSYCLKernelID(
-      ExecKernel->MKernelName);
-  sycl::kernel SyclKernel =
-      KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-  auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
+  auto SyclKernelImpl = KernelBundleImplPtr->tryGetKernel(
+      ExecKernel->MKernelName, KernelBundleImplPtr);
+  EXPECT_TRUE(SyclKernelImpl != nullptr);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
   ur_program_handle_t Program = DeviceImageImpl->get_ur_program_ref();
@@ -287,7 +285,7 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgBefore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                      sycl::detail::getSyclObjImpl(Dev), Name);
+                                      *sycl::detail::getSyclObjImpl(Dev), Name);
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 1);
@@ -312,7 +310,7 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgAfter = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                     sycl::detail::getSyclObjImpl(Dev), Name);
+                                     *sycl::detail::getSyclObjImpl(Dev), Name);
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 0);

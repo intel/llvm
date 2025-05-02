@@ -56,7 +56,7 @@ struct urEnqueueEventsWaitWithBarrierTest
     if (barrier == BarrierType::ExtLowPower) {
       struct ur_exp_enqueue_ext_properties_t props = {
           UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr,
-          UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS};
+          UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT};
       return urEnqueueEventsWaitWithBarrierExt(queue, &props, num_events,
                                                event_list, wait_event);
     }

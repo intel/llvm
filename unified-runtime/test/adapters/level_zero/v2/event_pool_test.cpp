@@ -109,6 +109,10 @@ struct EventPoolTest : public uur::urQueueTestWithParam<ProviderParams> {
 
     auto params = getParam();
 
+    // Initialize Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, the driver will not be init otherwise.
+    zeInit(ZE_INIT_FLAG_GPU_ONLY);
+
     mockVec.push_back(device);
 
     cache = std::unique_ptr<event_pool_cache>(new event_pool_cache(
@@ -268,39 +272,18 @@ TEST_P(EventPoolTestWithQueue, WithTimestamp) {
                                 &hDevice, nullptr));
 
   ur_event_handle_t first;
-  ze_event_handle_t zeFirst;
   {
     ASSERT_SUCCESS(
         urEnqueueTimestampRecordingExp(queue, false, 1, &hEvent, &first));
-    zeFirst = first->getZeEvent();
-
     urEventRelease(first); // should not actually release the event until
                            // recording is completed
   }
   ur_event_handle_t second;
-  ze_event_handle_t zeSecond;
-  {
-    ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &second));
-    zeSecond = second->getZeEvent();
-    ASSERT_SUCCESS(urEventRelease(second));
-  }
-  ASSERT_NE(first, second);
-  ASSERT_NE(zeFirst, zeSecond);
+  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &second));
+  // even if the event is reused, it should not be timestamped anymore
+  ASSERT_FALSE(second->isTimestamped());
+  ASSERT_SUCCESS(urEventRelease(second));
 
   ASSERT_EQ(zeEventHostSignal(zeEvent.get()), ZE_RESULT_SUCCESS);
-
   ASSERT_SUCCESS(urQueueFinish(queue));
-
-  // Now, the first event should be avilable for reuse
-  ur_event_handle_t third;
-  ze_event_handle_t zeThird;
-  {
-    ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &third));
-    zeThird = third->getZeEvent();
-    ASSERT_SUCCESS(urEventRelease(third));
-
-    ASSERT_FALSE(third->isTimestamped());
-  }
-  ASSERT_EQ(first, third);
-  ASSERT_EQ(zeFirst, zeThird);
 }

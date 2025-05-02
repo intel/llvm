@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:cpp: pass:[C++]
 :endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
@@ -45,15 +46,17 @@ This extension also depends on the following other SYCL extensions:
 
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
+* link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[
+  sycl_ext_oneapi_free_function_kernels]
 
 
 == Status
 
-This is an experimental extension specification, intended to provide early 
-access to features and gather community feedback. Interfaces defined in 
-this specification are implemented in DPC++, but they are not finalized 
-and may change incompatibly in future versions of DPC++ without prior notice. 
-*Shipping software products should not rely on APIs defined in 
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in
+this specification are implemented in {dpcpp}, but they are not finalized
+and may change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in
 this specification.*
 
 
@@ -61,11 +64,12 @@ this specification.*
 
 This extension adds APIs that allow the application to dynamically generate the
 source code for a kernel, which it can then compile and enqueue to a device.
-The APIs allow a kernel to be written in any of several possible languages,
-where support for each of these languages is defined by a separate extension.
-As a result, this extension provides a framework of APIs for online compilation
-of kernels, but it does not define the details for any specific kernel language.
-These details are provided by other extensions.
+This extension provides support for kernels written in SYCL according to the
+"free function kernel" syntax defined in
+link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[
+sycl_ext_oneapi_free_function_kernels].
+However, other extensions could provide support for writing kernels in other
+languages.
 
 The new APIs added by this extension are an expansion of the existing
 `kernel_bundle` capabilities.
@@ -105,7 +109,8 @@ supports.
 This extension adds the `ext_oneapi_source` enumerator to `sycl::bundle_state`
 to identify a kernel bundle that is represented as a source code string.
 
-```
+[source,c++]
+----
 namespace sycl {
 
 enum class bundle_state : /*unspecified*/ {
@@ -114,26 +119,30 @@ enum class bundle_state : /*unspecified*/ {
 };
 
 } // namespace sycl
-```
+----
 
 === New enumerator of kernel source languages
 
 This extension adds the `source_language` enumeration, which identifies
 possible languages for a kernel bundle that is in `ext_oneapi_source` state:
 
-```
+[source,c++]
+----
 namespace sycl::ext::oneapi::experimental {
 
 enum class source_language : /*unspecified*/ {
-  // see below
+  sycl
 };
 
 } // namespace sycl::ext::oneapi::experimental
-```
+----
 
-However, there are no enumerators defined by this extension.
-Instead, this enumeration is an extension point for other extensions, which can
-specify the exact semantics of each possible kernel language.
+The only enumerator defined by this extension is `sycl`, which indicates that
+the kernel is written in SYCL using the "free function kernel" syntax defined
+in link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[
+sycl_ext_oneapi_free_function_kernels].
+Other extensions may provide other enumerators that correspond to other
+languages.
 
 === New member functions for the device class
 
@@ -144,7 +153,25 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
+----
+class device {
+
+bool ext_oneapi_can_build(ext::oneapi::experimental::source_language lang);
+
+};
+----
+!====
+
+_Returns:_ The value `true` only if the device supports the
+`ext::oneapi::experimental::build` function on kernel bundles written in the
+source language `lang`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
 ----
 class device {
 
@@ -154,8 +181,10 @@ bool ext_oneapi_can_compile(ext::oneapi::experimental::source_language lang);
 ----
 !====
 
-_Returns:_ The value `true` only if the device supports kernel bundles written
-in the source language `lang`.
+_Returns:_ The value `true` only if the device supports the
+`ext::oneapi::experimental::compile` function on kernel bundles written in the
+source language `lang`.
+
 |====
 
 === New free functions to create and build kernel bundles
@@ -168,30 +197,32 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template<typename PropertyListT = empty_properties_t>                             (1)
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   const context& ctxt,
   source_language lang,
-  const std::string& source)
+  const std::string& source,
+  PropertyListT props = {})
 
+template<typename PropertyListT = empty_properties_t>                             (2)
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   const context& ctxt,
   source_language lang,
-  const std::vector<std::byte>& bytes)
+  const std::vector<std::byte>& bytes,
+  PropertyListT props = {})
 
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
 
-_Preconditions:_ There are two overloads of this function: one that reads the
-source code of the kernel from a `std::string`, and one that reads the source
-code of the kernel from a `std::vector` of `std::byte`.
-Each source language `lang` specifies whether the language is text format or
-binary format, and the application must use the overload that corresponds to
-that format.
+_Constraints:_ Available only when `PropertyListT` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "New properties for the
+`create_kernel_bundle_from_source` function".
 
 _Effects:_ Creates a new kernel bundle that represents a kernel written in the
 source language `lang`, where the source code is contained either by `source`
@@ -202,30 +233,44 @@ may only be submitted to a queue that shares the same context.
 The bundle's set of associated devices is the set of devices contained in
 `ctxt`.
 
+Each source language `lang` specifies whether the language is text format or
+binary format, and the application must use the overload that corresponds to
+that format.
+Applications must use overload (1) when the source language is text format and
+must use overload (2) when the source language is binary format.
+The `sycl` language is text format, so application must use overload (1) when
+creating a kernel bundle from this language.
+
 _Returns:_ The newly created kernel bundle, which has `ext_oneapi_source`
 state.
 
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if the source language
-  `lang` is not supported by any device contained by the context `ctxt`.
+  `lang` does not support one of the properties in `PropertyListT`.
+* Overload (1) throws an `exception` with the `errc::invalid` error code if the
+  source language `lang` is binary format.
+* Overload (2) throws an `exception` with the `errc::invalid` error code if the
+  source language `lang` is text format.
 
 [_Note:_ Calling this function does not attempt to compile the source code.
-As a result, syntactic errors in the source code string are not diagnosed by
-this function.
+As a result, syntax errors in `source` or `bytes` are not diagnosed by this
+function.
 
 This function succeeds even if some devices in `ctxt` do not support the source
 language `lang`.
-However, the `build` function fails unless _all_ of its devices support `lang`.
-Therefore, applications should take care to omit devices that do not support
-`lang` when calling `build`.
+However, the `build` and `compile` functions will fail if any of its devices
+return `false` for `ext_oneapi_can_build(lang)` and
+`ext_oneapi_can_compile(lang)` respectively. Therefore, applications should take
+care to omit devices that do not support `lang` for the functions they intend on
+calling.
 _{endnote}_]
 
 a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
@@ -246,7 +291,8 @@ kernel_bundle<bundle_state::executable> build(
 
 _Constraints:_ Available only when `PropertyListT` is an instance of
 `sycl::ext::oneapi::experimental::properties` which contains no properties
-other than those listed below in the section "New properties".
+other than those listed below in the section "New properties for the `build` and
+`compile` functions".
 
 _Effects (1):_ The source code from `sourceBundle` is translated into one or more
 device images of state `bundle_state::executable`, and a new kernel bundle is
@@ -259,21 +305,24 @@ Any remaining kernels (those that are not compatible with any of the devices in
 The new bundle has the same associated context as `sourceBundle`, and the new
 bundle's set of associated devices is `devs` (with duplicate devices removed).
 
-_Effects (2)_: Equivalent to `build(sourceBundle, ctxt.get_devices(), props)`.
+_Effects (2)_: Equivalent to
+`build(sourceBundle, sourceBundle.get_devices(), props)`.
 
 _Returns:_ The newly created kernel bundle, which has `executable` state.
 
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if any of the devices in
-  `devs` is not contained by the context associated with `sourceBundle`.
-
-* An `exception` with the `errc::invalid` error code if any of the devices in
-  `devs` does not support compilation of kernels in the source language of
+  `devs` return `false` for `ext_oneapi_can_build` with the source language of
   `sourceBundle`.
 
-* An `exception` with the `errc::invalid` error code if `props` contains an
-  `options` property that specifies an invalid option.
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` is not contained by the context associated with `sourceBundle`.
+
+* An `exception` with the `errc::invalid` error code if the source language
+  `lang` does not support one of the properties in `PropertyListT` or if
+  `props` contains a `build_options` property that contains an option that is
+  not supported when building `lang`.
 
 * An `exception` with the `errc::build` error code if the compilation or
   linking operations fail.
@@ -288,14 +337,7 @@ source code used to create the kernel bundle being printed to the terminal.
 In situations where this is undesirable, developers must ensure that the
 exception is caught and handled appropriately.
 _{endnote}_]
-|====
 
-=== New properties
-
-This extension adds the following properties, which can be used in conjunction
-with the `build` function that is defined above:
-
-|====
 a|
 [frame=all,grid=none]
 !====
@@ -304,10 +346,155 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template<typename PropertyListT = empty_properties_t>                 (1)
+kernel_bundle<bundle_state::object> compile(
+    const kernel_bundle<bundle_state::ext_oneapi_source>& sourceBundle,
+    const std::vector<device>& devs, PropertyListT props={})
+
+template<typename PropertyListT = empty_properties_t>                 (2)
+kernel_bundle<bundle_state::object> compile(
+  const kernel_bundle<bundle_state::ext_oneapi_source>& sourceBundle,
+  PropertyListT props = {})
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+
+_Constraints:_ Available only when `PropertyListT` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "New properties for the `build` and
+`compile` functions".
+
+_Effects (1):_ The source code from `sourceBundle` is translated into one or
+more device images of state `bundle_state::object`, and a new kernel bundle is
+created to contain these device images.
+The new bundle represents all of the kernels in `sourceBundle` that are
+compatible with at least one of the devices in `devs`.
+Any remaining kernels (those that are not compatible with any of the devices in
+`devs`) are not represented in the new kernel bundle.
+
+The new bundle has the same associated context as `sourceBundle`, and the new
+bundle's set of associated devices is `devs` (with duplicate devices removed).
+
+_Effects (2)_: Equivalent to
+`compile(sourceBundle, sourceBundle.get_devices(), props)`.
+
+_Returns:_ The newly created kernel bundle, which has `object` state.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` return `false` for `ext_oneapi_can_compile` with the source language of
+  `sourceBundle`.
+
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` is not contained by the context associated with `sourceBundle`.
+
+* An `exception` with the `errc::invalid` error code if the source language
+  `lang` does not support one of the properties in `PropertyListT` or if
+  `props` contains a `build_options` property that contains an option that is
+  not supported when compiling `lang`.
+
+* An `exception` with the `errc::build` error code if the compilation operation
+  fails.  In this case, the exception `what` string provides a full build log,
+  including descriptions of any errors, warning messages, and other
+  diagnostics.
+  This string is intended for human consumption, and the format may not be
+  stable across implementations of this extension.
+
+[_Note:_ An uncaught `errc::build` exception may result in some or all of the
+source code used to create the kernel bundle being printed to the terminal.
+In situations where this is undesirable, developers must ensure that the
+exception is caught and handled appropriately.
+_{endnote}_]
+
+|====
+
+=== New properties for the `create_kernel_bundle_from_source` function
+
+This extension adds the following properties, which can be used in conjunction
+with the `create_kernel_bundle_from_source` function that is defined above:
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct include_files {
+  include_files();                                                     (1)
+  include_files(const std::string &name, const std::string &content);  (2)
+  void add(const std::string &name, const std::string &content);       (3)
+};
+using include_files_key = include_files;
+
+template<>
+struct is_property_key<include_files_key> : std::true_type {};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+This property provides the name and content of include files that can be
+referenced from the source code in the `source` parameter to
+`create_kernel_bundle_from_source`.
+The property conceptually contains a collection of (_Name_, _Content_) pairs,
+where both _Name_ and _Content_ are strings.
+The _Name_ is the name of an include file and the _Content_ is the content of
+that include file.
+
+When the source language is `source_language::sycl`, the source code can have
+`#include` statements where the name and content of the include file is
+defined by this property.
+For example, if the source code has `#include "foo/bar.h"`, the compilation
+process will look at the `include_files` property to see if there is an entry
+whose _Name_ is `foo/bar.h`.
+If such an entry is found, the compiler uses the associated _Content_ as the
+content of the include file.
+
+[_Note_: This property is only required if an `#include` statement references a
+file that is not already implicitly available.
+For more information about implicitly available headers, see the section
+"Including files when the language is ``sycl``".
+_{endnote}_]
+
+_Effects (1):_ Creates a new `include_files` property with no (_Name_,
+_Content_) pairs.
+
+_Effects (2):_ Creates a new `include_files` property with a single (_Name_,
+_Content_) pair.
+
+_Effects (3):_ Adds a (_Name_, _Content_) pair to the property.
+
+_Throws (3):_
+
+* An `exception` with the `errc::invalid` error code if there is already an
+  entry with `name` in this property.
+|====
+
+=== New properties for the `build` and `compile` functions
+
+This extension adds the following properties, which can be used in conjunction
+with the `build` and `compile` function that is defined above:
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 struct build_options {
-  std::vector<std::string> opts;
-  build_options(const std::string &opt);                (1)
-  build_options(const std::vector<std::string> &opts);  (2)
+  build_options();                                      (1)
+  build_options(const std::string &opt);                (2)
+  build_options(const std::vector<std::string> &opts);  (3)
+  void add(const std::string &opt);                     (4)
 };
 using build_options_key = build_options;
 
@@ -317,27 +504,30 @@ using build_options_key = build_options;
 
 This property provides build options that may affect the compilation or linking
 of the kernel, where each build option is a string.
-There are no standard build options that are common across all source
-languages.
-Instead, each source language specification defines its own set of build
-options.
+All source languages support the `build_options` property, but each source
+language defines the specific options that it supports.
+The `source_language::sycl` language does not define any standard build
+options, but an implementation may support implementation-defined options.
 
-_Effects (1):_ Constructs a `build_options` property with a single build
+_Effects (1):_ Constructs a `build_options` property with no build options.
+
+_Effects (2):_ Constructs a `build_options` property with a single build
 option.
 
-_Effects (2):_ Constructs a `build_options` property from a vector of build
+_Effects (3):_ Constructs a `build_options` property from a vector of build
 options.
+
+_Effects (4):_ Adds `opt` to the end of the property's list of build options.
 
 a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
 struct save_log {
-  std::string *log;
   save_log(std::string *to);  (1)
 };
 using save_log_key = save_log;
@@ -356,15 +546,76 @@ provides a description of the error.
 Instead, the `save_log` property provides information about a build operation
 that succeeds.
 This might include warning messages or other diagnostics.
-Each source language specification can define specific information that is
-provided in the log.
+All source languages support the `save_log` property, but each source language
+defines the specific information that is provided in the log.
+The `source_language::sycl` language does not define any specific information
+that is provided in the log, so implementations are free to provide any
+information they choose here.
 In general, the log information is intended for human consumption, and the
 format may not be stable across implementations of this extension.
 
 _Effects (1):_ Constructs a `save_log` property with a pointer to a `std::string`.
-When the `build` function completes successfully, this string will contain the
-log.
+If the `to` pointer is not null, when the `build` function completes
+successfully, the string pointed at by `to` will contain the log.
 
+_Remarks (1):_ When `to` is not null, the string object it points to must
+remain valid for all calls to `build` taking this `save_log` property.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct registered_names {
+  registered_names();                                       (1)
+  registered_names(const std::string &name);                (2)
+  registered_names(const std::vector<std::string> &names);  (3)
+  void add(const std::string &name);                        (4)
+};
+using registered_names_key = registered_names;
+
+template<>
+struct is_property_key<registered_names_key> : std::true_type {};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+This property is useful when the source language represents names differently in
+the source code and the generated code.
+For example, {cpp} function names and the names of static variables at global
+scope are "mangled" in an implementation-defined way in the generated code.
+The precise meaning of this property is defined by each source language, but in
+general it allows the application to supply a list of names as they appear in
+the source code.
+The application can then get the corresponding raw (i.e. mangled) names after
+the code is compiled.
+See the section below "Obtaining a kernel when the language is ``sycl``" for a
+description of how this property is used with the `source_language::sycl`
+language.
+
+_Effects (1):_ Creates a new `registered_names` property with no registered
+names.
+
+_Effects (2):_ Creates a new `registered_names` property with a single
+registered name.
+
+_Effects (3):_ Creates a new `registered_names` property from a vector of names.
+
+_Effects (4):_ Adds `name` to the property's list of registered names.
+
+_Preconditions (2-4):_ Each source language defines its own requirements for the
+registered names.
+For the language `source_language::sycl`, each name must be a {cpp} expression
+for a pointer to a kernel function as defined below under "Obtaining a kernel
+when the language is ``sycl``".
+
+[_Note:_ It is not an error to have duplicate names in a `registered_names`
+property, but the duplicates have no effect.
+_{endnote}_]
 |====
 
 === New constraint for kernel bundle member functions
@@ -391,6 +642,14 @@ As a result, the only `kernel_bundle` member functions from the core SYCL
 specification that are available for bundles in `ext_oneapi_source` state are
 `get_backend`, `get_context`, and `get_devices`.
 
+=== New constraint for `join` function
+
+This extension adds the following constraint to the `join` functions from the
+core SYCL specification:
+
+> _Constraints:_ This function is not available when `State` is
+> `bundle_state::ext_oneapi_source`.
+
 === Interaction with existing kernel bundle member functions
 
 Kernels created from online compilation of source code do not have any
@@ -403,7 +662,8 @@ of `kernel_id` objects if the kernel bundle was created from a bundle of state
 
 This extensions adds the following new `kernel_bundle` member functions:
 
-```
+[source,c++]
+----
 namespace sycl {
 
 template <bundle_state State>
@@ -412,17 +672,18 @@ class kernel_bundle {
 
   bool ext_oneapi_has_kernel(const std::string &name);
   kernel ext_oneapi_get_kernel(const std::string &name);
+  std::string ext_oneapi_get_raw_kernel_name(const std::string &name);
 };
 
 } // namespace sycl
-```
+----
 
 |====
 a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 bool ext_oneapi_has_kernel(const std::string &name)
 ----
@@ -441,7 +702,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 kernel ext_oneapi_get_kernel(const std::string &name)
 ----
@@ -457,49 +718,458 @@ _Throws:_
 
 * An `exception` with the `errc::invalid` error code if
   `ext_oneapi_has_kernel(name)` returns `false`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+std::string ext_oneapi_get_raw_kernel_name(const std::string &name)
+----
+!====
+
+_Constraints:_ This function is not available when `State` is
+`bundle_state::ext_oneapi_source`.
+
+_Returns:_ If the kernel bundle was created from a bundle of state
+`bundle_state::ext_oneapi_source` and `name` was registered via
+`registered_names`, returns the compiler-generated (e.g. mangled) name for this
+kernel function.
+If the kernel bundle was created from a bundle of state
+`bundle_state::ext_oneapi_source` and `name` is the same as a
+compiler-generated name for a kernel defined in that bundle, that same
+`name` is returned.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if
+  `ext_oneapi_has_kernel(name)` returns `false`.
 |====
 
+=== Including files when the language is `sycl`
 
-== Example
+When the source language is `source_language::sycl`, the compiler searches
+multiple locations to find files referenced by `#include` statements.
+Any include files defined via the `include_files` property are searched first,
+followed by the directories below, in order:
+
+1. The current working directory.
+2. Any directory added explicitly to the search list via the `build_options`
+   property.
+
+Finally, the compiler searches a set of implicitly available header files, which
+do not need to be specified via the `include_files` property:
+
+* `<sycl/sycl.hpp>`;
+* The {cpp} standard library headers;
+* The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
+  that the implementation supports; and
+* Any SYCL extension headers in `"sycl/ext"` for extensions that the
+  implementation supports.
+
+=== Obtaining a kernel when the language is `sycl`
+
+When the kernel is defined in the language `source_language::sycl`, the host
+code may query for the kernel or obtain the `kernel` object using either the
+kernel's name as it is generated by the compiler (i.e. the {cpp} mangled name)
+or by using the `registered_names` property.
+
+==== Using the compiler-generated name
+
+If the kernel is declared as `extern "C"`, the compiler generates the kernel
+name exactly as it appears in the source code (i.e. there is no name mangling).
+Therefore, it is easy to query for the kernel by using the compiler-generated
+name.
+For example, if the kernel is defined like this in the source code string:
+
+[source,c++]
+----
+std::string source = R"""(
+  #include <sycl/sycl.hpp>
+  namespace syclexp = sycl::ext::oneapi::experimental;
+
+  extern "C"
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+  void foo(int *in, int *out) {/*...*/}
+)""";
+----
+
+Then the application's host code can query for the kernel like this:
+
+[source,c++]
+----
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
+sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
+----
+
+==== Using the `registered_names` property
+
+When the kernel is not declared as `extern "C"`, the compiler generates a
+mangled name, so it is more convenient to use the `registered_names` property.
+Each string in the property must be the {cpp} expression for a pointer to a
+kernel function.
+These expression strings are conceptually compiled at the bottom of source
+code.
+To illustrate, consider source code that defines a kernel like this:
+
+[source,c++]
+----
+std::string source = R"""(
+  #include <sycl/sycl.hpp>
+  namespace syclexp = sycl::ext::oneapi::experimental;
+
+  namespace mykernels {
+
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+  void bar(int *in, int *out) {/*...*/}
+
+  } // namespace mykernels
+)""";
+----
+
+The host code can compile this and get the kernel's `kernel` object like so:
+
+[source,c++]
+----
+sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
+
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
+  syclexp::properties{syclexp::registered_names{"mykernels::bar"}});
+
+sycl::kernel k = kb.ext_oneapi_get_kernel("mykernels::bar");
+----
+
+The {cpp} expression `"mykernels::bar"` computes the address of the kernel
+function `bar`.
+The host code then passes the same string (`"mykernels::bar"`) to
+`ext_oneapi_get_kernel` in order to get the `kernel` object.
+The string must have exactly the same content as the string that was used to
+construct the property, without even any whitespace differences.
+
+The application can also obtain the compiler-generated (i.e. mangled) name for
+the kernel by calling `ext_oneapi_get_raw_kernel_name` like this:
+
+[source,c++]
+----
+sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
+
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
+  syclexp::properties{syclexp::registered_names{"mykernels::bar"}});
+
+std::string mangled_name = kb.ext_oneapi_get_raw_kernel_name("mykernels::bar");
+----
+
+Again, the string passed to `ext_oneapi_get_raw_kernel_name` must have exactly
+the same content as the string that was used to construct the `registered_names`
+property.
+The application may also pass this compiler-generated (i.e. mangled) name to
+`ext_oneapi_get_kernel` in order to get the `kernel` object.
+
+==== Instantiating templated kernel functions
+
+The `registered_names` property can also be used to instantiate a kernel that is
+defined as a function template.
+For example, consider source code that defines a kernel function template like
+this:
+
+[source,c++]
+----
+std::string source = R"""(
+  #include <sycl/sycl.hpp>
+  namespace syclexp = sycl::ext::oneapi::experimental;
+
+  template<typename T>
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+  void bartmpl(T *in, T *out) {/*...*/}
+)""";
+----
+
+The application can use the `registered_names` property to instantiate the
+template for specific template arguments.
+For example, this host code instantiates the template twice and gets a `kernel`
+object for each instantiation:
+
+[source,c++]
+----
+sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
+
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
+  syclexp::properties{syclexp::registered_names{{"bartmpl<float>", "bartmpl<int>"}});
+
+sycl::kernel k_float = kb.ext_oneapi_get_kernel("bartmpl<float>");
+sycl::kernel k_int = kb.ext_oneapi_get_kernel("bartmpl<int>");
+----
+
+
+== Examples
+
+=== Simple example
 
 The following example demonstrates how a SYCL application can define a kernel
 as a string and then compile and launch it.
 
-```
+[source,c++]
+----
 #include <sycl/sycl.hpp>
-namespace syclex = sycl::ext::oneapi::experimental;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+static constexpr size_t NUM = 1024;
+static constexpr size_t WGSIZE = 16;
 
 int main() {
   sycl::queue q;
 
-  // The source code for one or more kernels, defined in one of
-  // the supported source languages.
+  // The source code for a kernel, defined as a SYCL "free function kernel".
   std::string source = R"""(
-    /* language specific kernel source code */
+    #include <sycl/sycl.hpp>
+    namespace syclext = sycl::ext::oneapi;
+    namespace syclexp = sycl::ext::oneapi::experimental;
+
+    extern "C"
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+    void iota(float start, float *ptr) {
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+      ptr[id] = start + static_cast<float>(id);
+    }
   )""";
 
-  // Create a kernel bundle in "source" state.  The "some-language" is
-  // a stand-in for the enumerator telling which source language is used.
+  // Create a kernel bundle in "source" state.
   sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
-    syclex::create_kernel_bundle_from_source(
+    syclexp::create_kernel_bundle_from_source(
       q.get_context(),
-      syclex::source_language::/*some-language*/,
+      syclexp::source_language::sycl,
       source);
 
+  // Compile the kernel.  There is no need to use the "registered_names"
+  // property because the kernel is declared extern "C".
   sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
-    syclex::build(kb_src);
+    syclexp::build(kb_src);
 
-  // Get the kernel via its name.  The "kernel-name" is a stand-in for the
-  // actual kernel name in the source string.
-  sycl::kernel k = kb_exe.ext_oneapi_get_kernel("kernel-name");
+  // Get the kernel via its compiler-generated name.
+  sycl::kernel iota = kb_exe.ext_oneapi_get_kernel("iota");
 
+  float *ptr = sycl::malloc_shared<float>(NUM, q);
   q.submit([&](sycl::handler &cgh) {
-    // Any arguments for the kernel must be set manually.
-    cgh.set_args(/*...*/);
+    // Set the values of the kernel arguments.
+    cgh.set_args(3.14f, ptr);
 
-    // Launch the kernel according to its type.
-    // This assumes a simple "range" kernel.
-    cgh.parallel_for(sycl::range{1024}, k);
-  });
+    // Launch the kernel according to its type, in this case an nd-range kernel.
+    sycl::nd_range ndr{{NUM}, {WGSIZE}};
+    cgh.parallel_for(ndr, iota);
+  }).wait();
+  sycl::free(ptr, q);
 }
-```
+----
+
+=== Disambiguating overloaded kernel functions
+
+This example demonstrates how to use the `registered_names` property to
+disambiguate a kernel function that has several overloads.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+static constexpr size_t NUM = 1024;
+static constexpr size_t WGSIZE = 16;
+
+int main() {
+  sycl::queue q;
+
+  // The source code for two kernels defined as overloaded functions.
+  std::string source = R"""(
+    #include <sycl/sycl.hpp>
+    namespace syclext = sycl::ext::oneapi;
+    namespace syclexp = sycl::ext::oneapi::experimental;
+
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+    void iota(float start, float *ptr) {
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+      ptr[id] = start + static_cast<float>(id);
+    }
+
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+    void iota(int start, int *ptr) {
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+      ptr[id] = start + static_cast<int>(id);
+    }
+  )""";
+
+  // Create a kernel bundle in "source" state.
+  sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
+    syclexp::create_kernel_bundle_from_source(
+      q.get_context(),
+      syclexp::source_language::sycl,
+      source);
+
+  // Compile the kernel.  Because there are two overloads of "iota", we need to
+  // use a C++ cast to disambiguate between them.  Here, we are selecting the
+  // "int" overload.
+  std::string iota_name{"(void(*)(int, int*))iota"};
+  sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
+    syclexp::build(kb_src, syclexp::properties{syclexp::registered_names{iota_name}});
+
+  // Get the kernel by passing the same string we used to construct the
+  // "registered_names" property.
+  sycl::kernel iota = kb_exe.ext_oneapi_get_kernel(iota_name);
+
+  int *ptr = sycl::malloc_shared<int>(NUM, q);
+  q.submit([&](sycl::handler &cgh) {
+    // Set the values of the kernel arguments.
+    cgh.set_args(3, ptr);
+
+    // Launch the kernel according to its type, in this case an nd-range kernel.
+    sycl::nd_range ndr{{NUM}, {WGSIZE}};
+    cgh.parallel_for(ndr, iota);
+  }).wait();
+  sycl::free(ptr, q);
+}
+----
+
+
+== Issues
+
+* Do we want to add an API similar to `nvrtcGetTypeName`?
+  This does seem useful in some advanced cases, and it is not specific to CUDA.
+  The implementation is fairly straightforward.
+  You use `typeid` to get a `std::type_info`.
+  You can then call `type_info::name` to get an implementation-defined name for
+  the type.
+  For clang on Linux, this returns the type's mangled name.
+  You can then call `+abi::__cxa_demangle+` to get an unmangled name for the
+  type.
+  I'm not sure about the details on Windows hosts, though.
+  If `type_info::name` returns a mangled name on Windows too, then maybe we can
+  still use `+abi::__cxa_demangle+` to get an unmangled name, but this needs to
+  be checked.
++
+Another option might be to provide this functionality as a utility library.
+There is no inherent reason why this functionality needs to be built into
+{dpcpp}.
+However, we don't yet have a utility library where this would go, and it may be
+hard for customers to discover this functionality if it is defined outside of
+this extension.
+
+== Non-normative implementation notes for {dpcpp}
+
+=== Supported `build_options` when the language is `sycl`
+
+The SYCL runtime compiler supports the following {dpcpp} options to be passed in
+the `build_options` property.
+
+Some options have equivalent long (starting with `--`) and short (starting with
+`-`) option names. When using the long option name, an argument can be either
+separated by `=` in the same element of the `build_options` property, or given
+as a separate element. When using the short option name, an argument is either
+appended directly after the option name, or given as a separate element in the
+`build_options` property. The following example shows how to construct the
+`build_options` property with each of the forms.
+
+[source,c++]
+----
+build_options{{
+  {"--include-directory=dir1"},
+  {"--include-directory"}, {"dir2"},
+  {"-Idir3"},
+  {"-I"}, {"dir4"}
+}};
+----
+
+==== Preprocessor options
+
+===== `--include-directory=<dir>` (`-I<dir>`)
+
+Add `<dir>` to to the search list for include files (see section "Including
+files when the language is ``sycl``"). This is useful, for example, to compile
+kernels using external libraries.
+
+===== `--define-macro=<name>[=<value>]` (`-D<name>[=<value>]`)
+
+Define macro `<name>`, optionally to the given `<value>`.
+
+===== `--undefine-macro=<name>` (`-U<name>`)
+
+Undefine macro `<name>`.
+
+==== Diagnostic options
+
+The `build_options` property accepts warning (`-W`) and remark (`-R`) emission
+options supported by the `clang` compiler. For an overview of these options, see
+https://clang.llvm.org/docs/DiagnosticsReference.html. The specific options
+available for SYCL runtime compilation depend on the version of the {dpcpp}
+compiler distributed with the SYCL runtime used by the application.
+
+Note: Use the `save_log` property to obtain detailed output from the compilation
+process.
+
+==== SYCL-specific options
+
+===== `-Xs<arg>`
+
+Pass `<arg>` to the backend of the device compiler. When using `-Xs<arg>`, a `-`
+is prepended to `<arg>` before handing it to the backend. Otherwise, `<arg>` is
+passed on unmodified.
+
+For example, the following forms are equivalent:
+
+[source,c++]
+----
+build_options{{
+  {"-XsDFOO=bar"},
+  {"-Xs"}, {"-DFOO=bar"}
+}};
+----
+
+===== `-fsycl-rtc-mode`
+
+Relax the requirement that parameter types for free-function kernels must be
+forward-declarable.
+
+=== Known issues and limitations when the language is `sycl`
+
+==== Changing the compiler action or output
+
+As the {dpcpp} frontend is integrated tightly in the runtime compilation
+pipeline, the application cannot change the runtime compiler's action (e.g.
+`-c`, `-S`) or output file (`-o`). Similarly, options related to linking (e.g.
+`-L`) are incompatible, including the SYCL-specific `-fsycl-link` action. The
+implementation throws an `exception` with the `errc::invalid` error code when it
+detects an option that conflicts with the runtime compilation pipeline.
+
+==== Ahead-of-time compilation
+
+The kernels in a SYCL source string are compiled automatically to native code
+for all devices passed to the `build` function (see section "New free functions
+to create and build kernel bundles"). The implementation rejects the use of the
+`-fsycl-targets=` options to request ahead-of-time (AOT) compilation, and throws
+an `exception` with the `errc::invalid` error code when this option is detected.
+The application can use the `-Xs` option described above to pass options to the
+backend of the device compiler, but all other options to control AOT compilation
+are ignored.
+
+==== `invoke_simd`
+
+The SYCL runtime compiler currently does not implement the logic required to
+support the `-fno-sycl-device-code-split-esimd` option, and throws an
+`exception` with the `errc::invalid` error code when this option is detected. As
+a consequence, the `invoke_simd` functionality is unavailable. However, the SYCL
+runtime compiler supports ESIMD kernels and source strings containing a mix of
+SYCL and ESIMD kernels.
+
+==== Sanitizers
+
+The implementation currently lacks the necessary linking of device libraries to
+support device, memory and thread sanitizers for runtime-compiled code. If the
+`-fsanitize=` option is detected, an `exception` with the `errc::invalid` error
+code is thrown. Other means of activating the sanitizer (e.g. via
+`-Xsycl-device-frontend`) may cause the runtime compilation to fail.
+
+=== Caching
+
+The `kernel_compiler` implementation in {dpcpp} supports persistent caching. To
+enable it, set the the environment variable `SYCL_CACHE_PERSISTENT=1`. The
+location of the cache can be changed by setting `SYCL_CACHE_DIR`. Refer to
+https://intel.github.io/llvm/design/KernelProgramCache.html#persistent-cache for
+more details on how to control the cache.

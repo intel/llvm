@@ -9,7 +9,7 @@ This document describes the YaML format used by the scripts for the API specific
 
 ## YML Syntax
 * Each document in the yml file represents an entry in the specification.
-* Every document must have a `type` scalar: {`header`, `macro`, `typedef`, `const`, `enum`, `struct`, `handle`, `function`, `class`}
+* Every document must have a `type` scalar: {`header`, `macro`, `typedef`, `const`, `enum`, `struct`, `handle`, `function`, `class`, `manifest`}
 * All scalars must be strings. The document writer is responsible for using explicit string notification where the yml parser may perform implicit conversion.
 * Custom names must be tagged using `$` followed by the tag name. The tag names are defined in the `config.ini` section. There are two tag variations for replacement:
     - `$x` : lower_case
@@ -337,6 +337,7 @@ plural form *enumerators* is abbreviated to `etors`.
     + `desc` will be used as the etors's description comment
     + If the enum has `typed_etors`, `desc` must begin with type identifier: {`"[type]"`}
     + `desc` may contain the [optional-query] annotation. This denotes the etor as an info query which is optional for adapters to implement, and may legally result in a non-success error code.
+    + `desc` may contain the [deprecated-value] annotation. This marks the etor with the `[[deprecated]]` attribute specifier.
     + `name` must be a unique ISO-C standard identifier, and be all caps
   - An etor may take the following optional scalar field: {`value`, `version`}
     + `value` must be an ISO-C standard identifier
@@ -830,6 +831,17 @@ namespace ur {
 ```
 </td></tr>
 </table>
+
+#### type: manifest
+* A manifest encodes meta information about an adapter library.
+* These don't cause anything to be added to the spec or headers, they're intended to generate code for the loader.
+* A manifest requires the following scalar fields: {`name`, `backend`}
+  - `name` must be a string unique to the adapter.
+  - `name` should be identical to how the name appears in the adapter's library name. E.g. `libur_adapter_my_adapter` should have the name string `my_adapter`.
+  - `backend` must be an etor of `$x_adapter_backend_t`.
+  - `backend` must not be `$X_ADAPTER_BACKEND_UNKNOWN`.
+* a manifest requires the following sequence of scalars: {`device_types`}
+  - `device_types` must be an etor of `$x_device_type_t`
 
 ## Extensions
 * Each extensions must be defined in a unique `.yml` file

@@ -2,6 +2,7 @@
 #define CLC_SPIRV_IMAGE_COMMON
 
 #include <clc/clc.h>
+#include <clc/clc_as_type.h>
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
@@ -32,7 +33,7 @@ extern _CLC_CONST_AS const unsigned int SAMPLER_OBJECT_OFFSET_DWORD;
 
 // Helpers for casting between two builtin vector types and/or scalar types.
 
-// Using the builtin as_type() and as_typen() functions to reinterpret types.
+// Using __clc_as_type() and __clc_as_typen() functions to reinterpret types.
 // The restriction being is that element "type"s need to be of the same size.
 #define _CLC_DECLARE_BUILTIN_CAST_VEC4_TO_VEC3(vec4_elem_t, to_t)              \
   _CLC_DECL to_t##3 __clc_cast_from_##vec4_elem_t##4_to_##to_t##3(             \

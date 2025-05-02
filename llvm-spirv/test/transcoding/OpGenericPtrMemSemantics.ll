@@ -48,7 +48,7 @@ entry:
 declare spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4)) #2
 
 ; Function Attrs: nounwind
-define spir_kernel void @testKernel(ptr addrspace(1) nocapture %results) #1 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @testKernel(ptr addrspace(1) captures(none) %results) #1 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
   %call = tail call spir_func i32 @_Z13get_global_idj(i32 0) #3
   %0 = load i32, ptr addrspace(1) @gint, align 4

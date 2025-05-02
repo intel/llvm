@@ -1,13 +1,15 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
-// RUN: %if any-device-is-cpu && opencl-aot %{ %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -o %t.x86.out %s %}
+// CPU AOT targets host isa, so we compile on the run system instead.
+// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -o %t.x86.out %s %}
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
-// REQUIRES: build-and-run-mode
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_fixed_size_group
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: fixed_size_group aspect not available on amd
 
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64702

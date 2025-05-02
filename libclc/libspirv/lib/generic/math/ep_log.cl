@@ -11,8 +11,8 @@
 #include <libspirv/spirv.h>
 
 #include "ep_log.h"
-#include <libspirv/math/tables.h>
-#include <math/math.h>
+#include <clc/math/tables.h>
+#include <clc/math/math.h>
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
@@ -34,15 +34,15 @@ _CLC_DEF void __clc_ep_log(double x, int *xexp, double *r1, double *r2) {
   // Volume 16, Issue 4 (December 1990)
   int near_one = x >= 0x1.e0faap-1 & x <= 0x1.1082cp+0;
 
-  ulong ux = as_ulong(x);
-  ulong uxs = as_ulong(as_double(0x03d0000000000000UL | ux) - 0x1.0p-962);
+  ulong ux = __clc_as_ulong(x);
+  ulong uxs = __clc_as_ulong(__clc_as_double(0x03d0000000000000UL | ux) - 0x1.0p-962);
   int c = ux < IMPBIT_DP64;
   ux = c ? uxs : ux;
   int expadjust = c ? 60 : 0;
 
   // Store the exponent of x in xexp and put f into the range [0.5,1)
-  int xexp1 = ((as_int2(ux).hi >> 20) & 0x7ff) - EXPBIAS_DP64 - expadjust;
-  double f = as_double(HALFEXPBITS_DP64 | (ux & MANTBITS_DP64));
+  int xexp1 = ((__clc_as_int2(ux).hi >> 20) & 0x7ff) - EXPBIAS_DP64 - expadjust;
+  double f = __clc_as_double(HALFEXPBITS_DP64 | (ux & MANTBITS_DP64));
   *xexp = near_one ? 0 : xexp1;
 
   double r = x - 1.0;
@@ -50,16 +50,15 @@ _CLC_DEF void __clc_ep_log(double x, int *xexp, double *r1, double *r2) {
   double ru1 = -r * u1;
   u1 = u1 + u1;
 
-  int index = as_int2(ux).hi >> 13;
+  int index = __clc_as_int2(ux).hi >> 13;
   index = ((0x80 | (index & 0x7e)) >> 1) + (index & 0x1);
 
   double f1 = index * 0x1.0p-7;
   double f2 = f - f1;
   double u2 = MATH_DIVIDE(f2, __spirv_ocl_fma(0.5, f2, f1));
 
-  double2 tv = USE_TABLE(ln_tbl, (index - 64));
-  double z1 = tv.s0;
-  double q = tv.s1;
+  double z1 = USE_TABLE(ln_tbl_lo, (index - 64));;
+  double q = USE_TABLE(ln_tbl_hi, (index - 64));
 
   z1 = near_one ? r : z1;
   q = near_one ? 0.0 : q;

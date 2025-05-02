@@ -119,6 +119,9 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
       KernelReqdWorkGroupSizeMD[Prefix] =
           std::make_tuple(ReqdWorkGroupElements[0], ReqdWorkGroupElements[1],
                           ReqdWorkGroupElements[2]);
+    } else if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_SUB_GROUP_SIZE) {
+      assert(MetadataElement.type == UR_PROGRAM_METADATA_TYPE_UINT32);
+      KernelReqdSubGroupSizeMD[Prefix] = MetadataElement.value.data32;
     }
   }
 
@@ -162,8 +165,7 @@ ur_result_t ur_program_handle_t_::finalizeRelocatable() {
 
   std::string ISA = "amdgcn-amd-amdhsa--";
   hipDeviceProp_t Props;
-  detail::ur::assertion(hipGetDeviceProperties(&Props, getDevice()->get()) ==
-                        hipSuccess);
+  UR_CHECK_ERROR(hipGetDeviceProperties(&Props, getDevice()->get()));
   ISA += Props.gcnArchName;
   UR_CHECK_ERROR(amd_comgr_action_info_set_isa_name(Action, ISA.data()));
 
@@ -263,8 +265,6 @@ ur_result_t ur_program_handle_t_::getGlobalVariablePointer(
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
                       const ur_program_properties_t *, ur_program_handle_t *) {
-  detail::ur::die("urProgramCreateWithIL not implemented for HIP adapter"
-                  " please use urProgramCreateWithBinary instead");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -527,10 +527,12 @@ struct urEnqueueKernelLaunchMultiDeviceTest
     auto kernelName =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
-    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+    UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+        "foo", platform, il_binary));
 
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, devices[0], *il_binary, nullptr, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, devices[0], *il_binary, nullptr, &program));
 
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
     ASSERT_SUCCESS(urKernelCreate(program, kernelName.data(), &kernel));
@@ -565,7 +567,7 @@ UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueKernelLaunchMultiDeviceTest);
 // TODO: rewrite this test, right now it only works for a single queue
 // (the context is only created for one device)
 TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::LevelZero{}, uur::LevelZeroV2{});
 
   uur::KernelLaunchHelper helper =
       uur::KernelLaunchHelper{platform, context, kernel, queues[0]};

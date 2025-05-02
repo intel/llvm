@@ -119,7 +119,7 @@ entry:
 declare ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1)) #1
 
 ; Function Attrs: argmemonly nofree nounwind willreturn
-declare void @llvm.memcpy.p4.p0(ptr addrspace(4) noalias nocapture writeonly, ptr noalias nocapture readonly, i64, i1 immarg) #2
+declare void @llvm.memcpy.p4.p0(ptr addrspace(4) noalias captures(none) writeonly, ptr noalias captures(none) readonly, i64, i1 immarg) #2
 
 !opencl.enable.FP_CONTRACT = !{}
 !opencl.ocl.version = !{!0}

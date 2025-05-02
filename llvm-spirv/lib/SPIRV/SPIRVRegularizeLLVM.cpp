@@ -101,7 +101,7 @@ void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
     Intrinsic->setCalledFunction(F);
     return;
   }
-  // TODO copy arguments attributes: nocapture writeonly.
+  // TODO copy arguments attributes: captures(none) writeonly.
   FunctionCallee FC =
       M->getOrInsertFunction(FuncName, Intrinsic->getFunctionType());
   auto IntrinsicID = Intrinsic->getIntrinsicID();

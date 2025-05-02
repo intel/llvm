@@ -59,15 +59,23 @@ int ur_duplicate_fd(int pid, int fd_in);
     defined(SANITIZER_THREAD)
 #define SANITIZER_ANY
 #endif
+
 ///////////////////////////////////////////////////////////////////////////////
+#if UR_USE_DEBUG_POSTFIX
+#define LIBRARY_NAME(NAME) NAME "d"
+#else
+#define LIBRARY_NAME(NAME) NAME
+#endif
+
 #if defined(_WIN32)
-#define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
+#define MAKE_LIBRARY_NAME(NAME, VERSION) LIBRARY_NAME(NAME) ".dll"
 #define STATIC_LIBRARY_EXTENSION ".lib"
 #else
 #if defined(__APPLE__)
-#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME "." VERSION ".dylib"
+#define MAKE_LIBRARY_NAME(NAME, VERSION)                                       \
+  "lib" LIBRARY_NAME(NAME) "." VERSION ".dylib"
 #else
-#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
+#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" LIBRARY_NAME(NAME) ".so." VERSION
 #endif
 #define STATIC_LIBRARY_EXTENSION ".a"
 #endif
@@ -207,6 +215,9 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 ///             map[param_1] = [value_1, value_2]
 ///             map[param_2] = [value_1]
 /// @param env_var_name name of an environment variable to be parsed
+/// @param reject_empy whether to throw an error on discovering an empty value
+/// @param allow_duplicate whether to allow multiple pairs with the same key
+/// @param lower convert keys to lowercase
 /// @return std::optional with a possible map with parsed parameters as keys and
 ///         vectors of strings containing parsed values as keys.
 ///         Otherwise, optional is set to std::nullopt when the environment
@@ -214,7 +225,9 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 /// @throws std::invalid_argument() when the parsed environment variable has
 /// wrong format
 inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
-                                              bool reject_empty = true) {
+                                              bool reject_empty = true,
+                                              bool allow_duplicate = false,
+                                              bool lower = false) {
   char main_delim = ';';
   char key_value_delim = ':';
   char values_delim = ',';
@@ -247,8 +260,12 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
     std::getline(kv_ss, key, key_value_delim);
     std::getline(kv_ss, values);
     if (key.empty() || (reject_empty && values.empty()) ||
-        map.find(key) != map.end()) {
+        (map.find(key) != map.end() && !allow_duplicate)) {
       throw_wrong_format_map(env_var_name, *env_var);
+    }
+
+    if (lower) {
+      std::transform(key.begin(), key.end(), key.begin(), tolower);
     }
 
     std::vector<std::string> values_vec;
@@ -264,7 +281,11 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
       }
       values_vec.push_back(value);
     }
-    map[key] = values_vec;
+    if (map.find(key) != map.end()) {
+      map[key].insert(map[key].end(), values_vec.begin(), values_vec.end());
+    } else {
+      map[key] = std::move(values_vec);
+    }
   }
   return map;
 }

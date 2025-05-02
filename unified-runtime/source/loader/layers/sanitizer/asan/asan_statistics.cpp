@@ -68,7 +68,7 @@ void AsanStats::UpdateUSMFreed(uptr FreedSize) {
 void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
   UsmMalloced -= FreedSize;
   UsmMallocedRedzones -= RedzoneSize;
-  if (getAsanInterceptor()->getOptions().MaxQuarantineSizeMB) {
+  if (getContext()->Options.MaxQuarantineSizeMB) {
     UsmFreed -= FreedSize;
   }
   getContext()->logger.debug(
@@ -92,11 +92,13 @@ void AsanStats::UpdateShadowFreed(uptr ShadowSize) {
 }
 
 void AsanStats::UpdateOverhead() {
-  auto TotalSize = UsmMalloced + ShadowMalloced;
-  if (TotalSize == 0) {
+  assert(UsmMalloced >= UsmMallocedRedzones);
+  auto UserSize = UsmMalloced - UsmMallocedRedzones;
+  if (UserSize == 0) {
     return;
   }
-  auto NewOverhead = (ShadowMalloced + UsmMallocedRedzones) / (double)TotalSize;
+  // Overhead = (Shadow + Redzone) / User
+  auto NewOverhead = (ShadowMalloced + UsmMallocedRedzones) / (double)UserSize;
   Overhead = std::max(Overhead, NewOverhead);
 }
 
@@ -137,7 +139,7 @@ void AsanStatsWrapper::Print(ur_context_handle_t Context) {
 }
 
 AsanStatsWrapper::AsanStatsWrapper() : Stat(nullptr) {
-  if (getAsanInterceptor()->getOptions().PrintStats) {
+  if (getContext()->Options.PrintStats) {
     Stat = new AsanStats;
   }
 }

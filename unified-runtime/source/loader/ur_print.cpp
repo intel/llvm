@@ -130,6 +130,13 @@ ur_result_t urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintLoggerLevel(enum ur_logger_level_t value, char *buffer,
+                               const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintPlatformInfo(enum ur_platform_info_t value, char *buffer,
                                 const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -279,6 +286,15 @@ urPrintMemoryScopeCapabilityFlags(enum ur_memory_scope_capability_flag_t value,
 ur_result_t urPrintDeviceUsmAccessCapabilityFlags(
     enum ur_device_usm_access_capability_flag_t value, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintDeviceThrottleReasonsFlags(enum ur_device_throttle_reasons_flag_t value,
+                                  char *buffer, const size_t buff_size,
+                                  size_t *out_size) {
   std::stringstream ss;
   ss << value;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -897,6 +913,32 @@ ur_result_t urPrintExpDevice_2dBlockArrayCapabilityFlags(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintExpAsyncUsmAllocFlags(enum ur_exp_async_usm_alloc_flag_t value,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpAsyncUsmAllocProperties(
+    const struct ur_exp_async_usm_alloc_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintUsmPoolBufferDesc(const struct ur_usm_pool_buffer_desc_t params,
+                         char *buffer, const size_t buff_size,
+                         size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpImageCopyFlags(enum ur_exp_image_copy_flag_t value,
                                      char *buffer, const size_t buff_size,
                                      size_t *out_size) {
@@ -1158,6 +1200,22 @@ ur_result_t
 urPrintAdapterGetInfoParams(const struct ur_adapter_get_info_params_t *params,
                             char *buffer, const size_t buff_size,
                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintAdapterSetLoggerCallbackParams(
+    const struct ur_adapter_set_logger_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintAdapterSetLoggerCallbackLevelParams(
+    const struct ur_adapter_set_logger_callback_level_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -1446,9 +1504,9 @@ ur_result_t urPrintCommandBufferAppendUsmAdviseExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintCommandBufferEnqueueExpParams(
-    const struct ur_command_buffer_enqueue_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
+ur_result_t urPrintCommandBufferAppendNativeCommandExpParams(
+    const struct ur_command_buffer_append_native_command_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -1481,6 +1539,14 @@ ur_result_t urPrintCommandBufferUpdateWaitEventsExpParams(
 ur_result_t urPrintCommandBufferGetInfoExpParams(
     const struct ur_command_buffer_get_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintCommandBufferGetNativeHandleExpParams(
+    const struct ur_command_buffer_get_native_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -1759,6 +1825,46 @@ ur_result_t urPrintEnqueueKernelLaunchCustomExpParams(
 ur_result_t urPrintEnqueueEventsWaitWithBarrierExtParams(
     const struct ur_enqueue_events_wait_with_barrier_ext_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueUsmDeviceAllocExpParams(
+    const struct ur_enqueue_usm_device_alloc_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueUsmSharedAllocExpParams(
+    const struct ur_enqueue_usm_shared_alloc_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueUsmHostAllocExpParams(
+    const struct ur_enqueue_usm_host_alloc_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueUsmFreeExpParams(
+    const struct ur_enqueue_usm_free_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueCommandBufferExpParams(
+    const struct ur_enqueue_command_buffer_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -2576,6 +2682,70 @@ ur_result_t
 urPrintUsmPoolGetInfoParams(const struct ur_usm_pool_get_info_params_t *params,
                             char *buffer, const size_t buff_size,
                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolCreateExpParams(
+    const struct ur_usm_pool_create_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolDestroyExpParams(
+    const struct ur_usm_pool_destroy_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolGetDefaultDevicePoolExpParams(
+    const struct ur_usm_pool_get_default_device_pool_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolGetInfoExpParams(
+    const struct ur_usm_pool_get_info_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolSetInfoExpParams(
+    const struct ur_usm_pool_set_info_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolSetDevicePoolExpParams(
+    const struct ur_usm_pool_set_device_pool_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolGetDevicePoolExpParams(
+    const struct ur_usm_pool_get_device_pool_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolTrimToExpParams(
+    const struct ur_usm_pool_trim_to_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

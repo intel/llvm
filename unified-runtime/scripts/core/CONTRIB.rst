@@ -357,3 +357,16 @@ to easily differentiate experimental feature symbols, the following conventions
 *   All structures, enumerations, and other types must follow
     ``${x}_exp_name_t`` name case convention.
 ## --validate=on
+
+New Adapters
+============
+
+The UR loader will only load UR adapter libraries made known to it via entries
+in `scripts/core/manifests.yml`_. New adapters must have their own entry in that
+file before the loader will recognize them. See `YaML.md`_ for details about
+manifest semantics.
+
+.. _scripts/core/manifests.yml:
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/core/manifests.yml
+.. _YaML.md:
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/YaML.md

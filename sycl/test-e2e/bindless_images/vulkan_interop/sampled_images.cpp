@@ -413,7 +413,11 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
     VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
                                 &submission, VK_NULL_HANDLE /*fence*/));
+// Do not wait when using semaphores as they can handle the kernel execution
+// order.
+#ifndef TEST_SEMAPHORE_IMPORT
     VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+#endif
   }
 
   printString("Getting memory file descriptors\n");

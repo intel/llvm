@@ -107,8 +107,7 @@ ur_result_t ur_event_handle_t_::record() {
   try {
     EventId = Queue->getNextEventId();
     if (EventId == 0) {
-      detail::ur::die(
-          "Unrecoverable program state reached in event identifier overflow");
+      die("Unrecoverable program state reached in event identifier overflow");
     }
     UR_CHECK_ERROR(hipEventRecord(EvEnd, Stream));
     Result = UR_RESULT_SUCCESS;
@@ -252,8 +251,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
   const auto RefCount = hEvent->incrementReferenceCount();
 
-  detail::ur::assertion(RefCount != 0,
-                        "Reference count overflow detected in urEventRetain.");
+  if (RefCount == 0) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -261,8 +261,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  detail::ur::assertion(hEvent->getReferenceCount() != 0,
-                        "Reference count overflow detected in urEventRelease.");
+  if (hEvent->getReferenceCount() == 0) {
+    return UR_RESULT_ERROR_INVALID_EVENT;
+  }
 
   // decrement ref count. If it is 0, delete the event.
   if (hEvent->decrementReferenceCount() == 0) {
@@ -299,9 +300,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
 /// \param[out] phEvent Set to the UR event object created from native handle.
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
-    const ur_event_native_properties_t *pProperties,
+    const ur_event_native_properties_t * /*pProperties*/,
     ur_event_handle_t *phEvent) {
-  std::ignore = pProperties;
 
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 

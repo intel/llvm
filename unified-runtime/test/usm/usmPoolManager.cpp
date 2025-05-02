@@ -4,6 +4,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %use-mock usmPoolManager-test
+
+#include "umf_helpers.hpp"
+
 #include "umf_pools/disjoint_pool_config_parser.hpp"
 #include "ur_pool_manager.hpp"
 
@@ -39,12 +43,22 @@ bool compareConfigs(const usm::DisjointPoolAllConfigs &left,
                        right.Configs[usm::DisjointPoolMemType::SharedReadOnly]);
 }
 
-TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
-  auto &devices = uur::DevicesEnvironment::instance->devices;
+static std::vector<ur_device_handle_t>
+collectDeviceHandles(const std::vector<uur::DeviceTuple> &testDevices) {
+  std::vector<ur_device_handle_t> devices(testDevices.size());
+  std::for_each(
+      testDevices.begin(), testDevices.end(),
+      [&devices](uur::DeviceTuple tuple) { devices.push_back(tuple.device); });
 
-  auto [ret, pool_descriptors] =
-      usm::pool_descriptor::create(nullptr, this->context);
-  ASSERT_EQ(ret, UR_RESULT_SUCCESS);
+  return devices;
+}
+
+TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
+  auto &testDevices = uur::DevicesEnvironment::instance->devices;
+
+  auto devices = collectDeviceHandles(testDevices);
+  auto pool_descriptors =
+      usm::pool_descriptor::createFromDevices(nullptr, this->context, devices);
 
   size_t hostPools = 0;
   size_t devicePools = 0;
@@ -77,16 +91,18 @@ TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
 struct urUsmPoolManagerTest : public uur::urContextTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-    auto [ret, descs] = usm::pool_descriptor::create(nullptr, context);
-    ASSERT_EQ(ret, UR_RESULT_SUCCESS);
-    poolDescriptors = std::move(descs);
+    auto &testDevices = uur::DevicesEnvironment::instance->devices;
+    auto devices = collectDeviceHandles(testDevices);
+    poolDescriptors = usm::pool_descriptor::createFromDevices(
+        nullptr, this->context, devices);
   }
 
   std::vector<usm::pool_descriptor> poolDescriptors;
 };
 
 TEST_P(urUsmPoolManagerTest, poolManagerPopulate) {
-  auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+  auto [ret, manager] =
+      usm::pool_manager<usm::pool_descriptor, umf_memory_pool_t>::create();
   ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
   for (auto &desc : poolDescriptors) {
@@ -106,7 +122,8 @@ TEST_P(urUsmPoolManagerTest, poolManagerPopulate) {
 }
 
 TEST_P(urUsmPoolManagerTest, poolManagerInsertExisting) {
-  auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+  auto [ret, manager] =
+      usm::pool_manager<usm::pool_descriptor, umf_memory_pool_t>::create();
   ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
   const auto &desc = poolDescriptors[0];
@@ -123,7 +140,8 @@ TEST_P(urUsmPoolManagerTest, poolManagerInsertExisting) {
 }
 
 TEST_P(urUsmPoolManagerTest, poolManagerGetNonexistant) {
-  auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+  auto [ret, manager] =
+      usm::pool_manager<usm::pool_descriptor, umf_memory_pool_t>::create();
   ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
   for (auto &desc : poolDescriptors) {

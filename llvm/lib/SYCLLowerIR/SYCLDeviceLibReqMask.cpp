@@ -15,6 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/TargetParser/Triple.h"
 
@@ -24,7 +26,10 @@
 static constexpr char DEVICELIB_FUNC_PREFIX[] = "__devicelib_";
 
 using namespace llvm;
-
+// We will gradually remove devicelib spv online linking path but keep
+// bfloat16 devicelib spv as an exception for a short-term solution.
+// For bfloat16 devicelib spv link, we won't rely on ReqMask but to embed
+// the bits into executable if necessary
 namespace {
 
 using SYCLDeviceLibFuncMap = std::unordered_map<std::string, DeviceLibExt>;
@@ -702,34 +707,6 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_floorbf16", DeviceLibExt::cl_intel_devicelib_imf_bf16},
     {"__devicelib_imf_ceilbf16", DeviceLibExt::cl_intel_devicelib_imf_bf16},
     {"__devicelib_imf_truncbf16", DeviceLibExt::cl_intel_devicelib_imf_bf16},
-    {"__devicelib_ConvertFToBF16INTEL",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertBF16ToFINTEL",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertFToBF16INTELVec1",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertBF16ToFINTELVec1",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertFToBF16INTELVec2",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertBF16ToFINTELVec2",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertFToBF16INTELVec3",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertBF16ToFINTELVec3",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertFToBF16INTELVec4",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertBF16ToFINTELVec4",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertFToBF16INTELVec8",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertBF16ToFINTELVec8",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertFToBF16INTELVec16",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
-    {"__devicelib_ConvertBF16ToFINTELVec16",
-     DeviceLibExt::cl_intel_devicelib_bfloat16},
 };
 
 // Each fallback device library corresponds to one bit in "require mask" which
@@ -774,4 +751,45 @@ uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
     }
   }
   return ReqMask;
+}
+
+static llvm::SmallVector<StringRef, 14> BF16DeviceLibFuncs = {
+    "__devicelib_ConvertFToBF16INTEL",
+    "__devicelib_ConvertBF16ToFINTEL",
+    "__devicelib_ConvertFToBF16INTELVec1",
+    "__devicelib_ConvertBF16ToFINTELVec1",
+    "__devicelib_ConvertFToBF16INTELVec2",
+    "__devicelib_ConvertBF16ToFINTELVec2",
+    "__devicelib_ConvertFToBF16INTELVec3",
+    "__devicelib_ConvertBF16ToFINTELVec3",
+    "__devicelib_ConvertFToBF16INTELVec4",
+    "__devicelib_ConvertBF16ToFINTELVec4",
+    "__devicelib_ConvertFToBF16INTELVec8",
+    "__devicelib_ConvertBF16ToFINTELVec8",
+    "__devicelib_ConvertFToBF16INTELVec16",
+    "__devicelib_ConvertBF16ToFINTELVec16",
+};
+
+bool llvm::isSYCLDeviceLibBF16Used(const Module &M) {
+  if (!Triple(M.getTargetTriple()).isSPIROrSPIRV())
+    return false;
+
+  for (auto Fn : BF16DeviceLibFuncs) {
+    Function *BF16Func = M.getFunction(Fn);
+    if (BF16Func && BF16Func->isDeclaration())
+      return true;
+  }
+
+  return false;
+}
+
+bool llvm::isBF16DeviceLibFuncDecl(const Function &F) {
+  if (!F.isDeclaration() || !F.getName().starts_with(DEVICELIB_FUNC_PREFIX))
+    return false;
+  for (auto BFunc : BF16DeviceLibFuncs) {
+    if (!F.getName().compare(BFunc))
+      return true;
+  }
+
+  return false;
 }

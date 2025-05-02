@@ -179,7 +179,7 @@ public:
                             const std::string &SourceString);
 
   /* Get directory name when storing runtime compiled device code IR (via
-   * kernel_compiler, sycl_jit language). The key is computed in the sycl-jit
+   * kernel_compiler, sycl language). The key is computed in the sycl-jit
    * library, and encompasses the preprocesses source code, build options and
    * compiler location. The frontend invocation (whose output we cache here) is
    * device-agnostic, hence the device (list) is not part of the lookup.

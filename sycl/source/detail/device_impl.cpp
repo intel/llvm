@@ -19,62 +19,34 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
-                         const AdapterPtr &Adapter)
-    : device_impl(InteropDeviceHandle, nullptr, nullptr, Adapter) {}
-
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
-device_impl::device_impl(ur_device_handle_t Device, PlatformImplPtr Platform)
-    : device_impl(0, Device, Platform, Platform->getAdapter()) {}
-
-/// Constructs a SYCL device instance using the provided
-/// UR device instance.
-device_impl::device_impl(ur_device_handle_t Device, const AdapterPtr &Adapter)
-    : device_impl(0, Device, nullptr, Adapter) {}
-
-device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
-                         ur_device_handle_t Device, PlatformImplPtr Platform,
-                         const AdapterPtr &Adapter)
-    : MDevice(Device), MDeviceHostBaseTime(std::make_pair(0, 0)) {
-  bool InteroperabilityConstructor = false;
-  if (Device == nullptr) {
-    assert(InteropDeviceHandle);
-    // Get UR device from the raw device handle.
-    // NOTE: this is for OpenCL interop only (and should go away).
-    // With SYCL-2020 BE generalization "make" functions are used instead.
-    Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
-        InteropDeviceHandle, Adapter->getUrAdapter(), nullptr, &MDevice);
-    InteroperabilityConstructor = true;
-  }
+device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
+                         device_impl::private_tag)
+    : MDevice(Device), MPlatform(Platform.shared_from_this()),
+      MDeviceHostBaseTime(std::make_pair(0, 0)) {
+  const AdapterPtr &Adapter = Platform.getAdapter();
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Adapter->call<UrApiKind::urDeviceGetInfo>(
       MDevice, UR_DEVICE_INFO_TYPE, sizeof(ur_device_type_t), &MType, nullptr);
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
-  if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
+  if (!Platform.MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     Adapter->call<UrApiKind::urDeviceGetInfo>(
         MDevice, UR_DEVICE_INFO_PARENT_DEVICE, sizeof(ur_device_handle_t),
         &MRootDevice, nullptr);
   }
 
-  if (!InteroperabilityConstructor) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    // Interoperability Constructor already calls DeviceRetain in
-    // urDeviceCreateWithNativeHandle.
-    Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
-  }
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  // Interoperability Constructor already calls DeviceRetain in
+  // urDeviceCreateWithNativeHandle.
+  Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
 
-  // set MPlatform
-  if (!Platform) {
-    Platform = platform_impl::getPlatformFromUrDevice(MDevice, Adapter);
-  }
-  MPlatform = Platform;
-
-  MIsAssertFailSupported =
-      has_extension(UR_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
+  Adapter->call<UrApiKind::urDeviceGetInfo>(
+      MDevice, UR_DEVICE_INFO_USE_NATIVE_ASSERT, sizeof(ur_bool_t),
+      &MUseNativeAssert, nullptr);
 }
 
 device_impl::~device_impl() {
@@ -98,7 +70,7 @@ bool device_impl::is_affinity_supported(
 
 cl_device_id device_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
+  __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(getNative()));
   return ur::cast<cl_device_id>(getNative());
 }
 
@@ -108,8 +80,7 @@ platform device_impl::get_platform() const {
 
 template <typename Param>
 typename Param::return_type device_impl::get_info() const {
-  return get_device_info<Param>(
-      MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
+  return get_device_info<Param>(*this);
 }
 // Explicitly instantiate all device info traits
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
@@ -207,7 +178,7 @@ std::vector<device> device_impl::create_sub_devices(
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_ur_device, MPlatform));
+                      MPlatform->getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -345,10 +316,11 @@ std::vector<device> device_impl::create_sub_devices() const {
 
 ur_native_handle_t device_impl::getNative() const {
   auto Adapter = getAdapter();
-  if (getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urDeviceRetain>(getHandleRef());
   ur_native_handle_t Handle;
   Adapter->call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  if (getBackend() == backend::opencl) {
+    __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
+  }
   return Handle;
 }
 
@@ -399,17 +371,17 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_cuda_cluster_group:
     return get_info<info::device::ext_oneapi_cuda_cluster_group>();
   case aspect::usm_atomic_host_allocations:
-    return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
-                                 info::device::usm_host_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    return (
+        get_device_info_impl<ur_device_usm_access_capability_flags_t,
+                             info::device::usm_host_allocations>::get(*this) &
+        UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return (get_device_info_impl<ur_device_usm_access_capability_flags_t,
-                                 info::device::usm_shared_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    return (
+        get_device_info_impl<ur_device_usm_access_capability_flags_t,
+                             info::device::usm_shared_allocations>::get(*this) &
+        UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
@@ -475,10 +447,25 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
+  case aspect::ext_intel_current_clock_throttle_reasons:
+    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS, 0,
+               nullptr, &return_size) == UR_RESULT_SUCCESS;
+  case aspect::ext_intel_fan_speed:
+    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, UR_DEVICE_INFO_FAN_SPEED, 0, nullptr, &return_size) ==
+           UR_RESULT_SUCCESS;
+  case aspect::ext_intel_power_limits:
+    return (getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+                MDevice, UR_DEVICE_INFO_MIN_POWER_LIMIT, 0, nullptr,
+                &return_size) == UR_RESULT_SUCCESS) &&
+           (getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+                MDevice, UR_DEVICE_INFO_MAX_POWER_LIMIT, 0, nullptr,
+                &return_size) == UR_RESULT_SUCCESS);
   case aspect::ext_oneapi_srgb:
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
-    return isAssertFailSupported();
+    return useNativeAssert();
   case aspect::ext_oneapi_cuda_async_barrier: {
     int async_barrier_supported;
     bool call_successful =
@@ -491,7 +478,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t legacy_image_support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_IMAGE_SUPPORTED, sizeof(ur_bool_t),
+            MDevice, UR_DEVICE_INFO_IMAGE_SUPPORT, sizeof(ur_bool_t),
             &legacy_image_support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && legacy_image_support;
   }
@@ -571,7 +558,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -579,7 +567,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -587,7 +575,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -595,7 +584,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -603,7 +592,15 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_gather: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            MDevice, UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -635,7 +632,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -643,7 +641,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -651,7 +649,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -786,14 +784,25 @@ bool device_impl::has(aspect Aspect) const {
                           BE == sycl::backend::opencl;
     return (is_cpu() || is_gpu()) && isCompatibleBE;
   }
+  case aspect::ext_intel_spill_memory_size: {
+    backend BE = getBackend();
+    bool isCompatibleBE = BE == sycl::backend::ext_oneapi_level_zero;
+    return is_gpu() && isCompatibleBE;
+  }
+  case aspect::ext_oneapi_async_memory_alloc: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            MDevice, UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
+  }
   }
 
   return false; // This device aspect has not been implemented yet.
 }
 
-bool device_impl::isAssertFailSupported() const {
-  return MIsAssertFailSupported;
-}
+bool device_impl::useNativeAssert() const { return MUseNativeAssert; }
 
 std::string device_impl::getDeviceName() const {
   std::call_once(MDeviceNameFlag,
@@ -880,11 +889,29 @@ bool device_impl::isGetDeviceAndHostTimerSupported() {
   return Result != UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
+bool device_impl::extOneapiCanBuild(
+    ext::oneapi::experimental::source_language Language) {
+  try {
+    // Get the shared_ptr to this object from the platform that owns it.
+    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
+    return sycl::ext::oneapi::experimental::detail::
+        is_source_kernel_bundle_supported(Language,
+                                          std::vector<device_impl *>{&Self});
+
+  } catch (sycl::exception &) {
+    return false;
+  }
+}
+
 bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
-    return sycl::ext::oneapi::experimental::detail::
-        is_source_kernel_bundle_supported(getBackend(), Language);
+    // Currently only SYCL language is supported for compiling.
+    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
+    return Language == ext::oneapi::experimental::source_language::sycl &&
+           sycl::ext::oneapi::experimental::detail::
+               is_source_kernel_bundle_supported(
+                   Language, std::vector<device_impl *>{&Self});
   } catch (sycl::exception &) {
     return false;
   }

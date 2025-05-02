@@ -326,7 +326,7 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Enqueue) {
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
     // Verify execution succeeds
-    ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+    ASSERT_SUCCESS(urEnqueueCommandBufferExp(queues[i], cmd_buf_handle, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }
@@ -358,7 +358,7 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Update) {
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
     // Verify execution succeeds
-    ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+    ASSERT_SUCCESS(urEnqueueCommandBufferExp(queues[i], cmd_buf_handle, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
 
@@ -366,6 +366,7 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Update) {
     ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
+        command,      // hCommand
         kernel,       // hNewKernel
         0,            // numNewMemObjArgs
         0,            // numNewPointerArgs
@@ -378,8 +379,9 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Update) {
         nullptr,      // pNewGlobalWorkSize
         nullptr,      // pNewLocalWorkSize
     };
-    ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(command, &update_desc));
-    ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+    ASSERT_SUCCESS(
+        urCommandBufferUpdateKernelLaunchExp(cmd_buf_handle, 1, &update_desc));
+    ASSERT_SUCCESS(urEnqueueCommandBufferExp(queues[i], cmd_buf_handle, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }

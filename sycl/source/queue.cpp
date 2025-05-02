@@ -62,21 +62,21 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
   const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+      *detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+      *detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       AsyncHandler, PropList);
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
+      *detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
@@ -107,7 +107,7 @@ context queue::get_context() const { return impl->get_context(); }
 device queue::get_device() const { return impl->get_device(); }
 
 ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
-  return impl->getCommandGraph()
+  return impl->hasCommandGraph()
              ? ext::oneapi::experimental::queue_state::recording
              : ext::oneapi::experimental::queue_state::executing;
 }
@@ -299,7 +299,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
   // as a graph can record from multiple queues and we cannot guarantee the
   // last node added by an in-order queue will be the last node added to the
   // graph.
-  assert(!QueueImpl->getCommandGraph() &&
+  assert(!QueueImpl->hasCommandGraph() &&
          "Should not be called in on graph recording.");
 
   sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent();
@@ -319,7 +319,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
+  if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
       !impl->MIsProfilingEnabled) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
@@ -345,9 +345,9 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
         auto EventImpl = detail::getSyclObjImpl(Event);
         return (EventImpl->isDefaultConstructed() || EventImpl->isNOP()) &&
-               !EventImpl->getCommandGraph();
+               !EventImpl->hasCommandGraph();
       });
-  if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
+  if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
       !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
@@ -420,7 +420,7 @@ event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
 
 bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
-  return impl->getDeviceImplPtr()->has(Aspect);
+  return impl->getDeviceImpl().has(Aspect);
 }
 
 // TODO(#15184) Remove this function in the next ABI-breaking window.

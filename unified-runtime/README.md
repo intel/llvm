@@ -140,7 +140,7 @@ List of options provided by CMake:
 | UR_STATIC_ADAPTER_L0    | Build the Level-Zero adapter as static and embed in the loader | ON/OFF   | OFF |
 | UR_HIP_PLATFORM         | Build HIP adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
-| UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
+| UR_DPCXX | Path of the DPC++ compiler executable to build device binaries for testing | File path | `""` |
 | UR_DEVICE_CODE_EXTRACTOR | Path of the `clang-offload-extract` executable from the DPC++ package, required for CTS device binaries | File path | `"${dirname(UR_DPCXX)}/clang-offload-extract"` |
 | UR_DPCXX_BUILD_FLAGS | Build flags to pass to DPC++ when compiling device programs | Space-separated options list | `""` |
 | UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
@@ -149,14 +149,28 @@ List of options provided by CMake:
 | UR_HIP_HSA_INCLUDE_DIRS | Path of the ROCm HSA include directory | Directory path | `${UR_HIP_ROCM_DIR}/hsa/include;${UR_HIP_ROCM_DIR}/include` |
 | UR_HIP_LIB_DIR | Path of the ROCm HIP library directory | Directory path | `${UR_HIP_ROCM_DIR}/lib` |
 
-### Additional make targets
+### Testing
 
-To run tests, do the following:
+Unified Runtime uses `lit` and `FileCheck` as part of its test suite. When built as
+part of an LLVM build, the binaries provided by LLVM will be used. When built standalone,
+both `lit` and `FileCheck` (or `filecheck`) must be visible on `$PATH`. The easiest way
+to do this is to install the Python packages for `lit` and `filecheck`.
+
+```bash
+$ source .venv/bin/activate
+$ pip install -r third_party/requirements_testing.txt
+```
+
+> Note: `filecheck` requires Python >= 3.10; if you get errors claiming that `filecheck` is not available, update your Python version or disable testing.
+
+Once installed, tests can be executed using:
 
 ```bash
 $ make
 $ make test
 ```
+
+### Additional make targets
 
 To run automated code formatting, configure CMake with `UR_FORMAT_CPP_STYLE` option
 and then run a custom `cppformat` target:

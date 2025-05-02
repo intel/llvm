@@ -34,6 +34,7 @@ runs:
         git pull --prune
       else
         git clone https://github.com/${{ inputs.repository }}.git .
+        git gc
       fi
   - name: Checkout
     env:

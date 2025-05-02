@@ -90,15 +90,16 @@ Enums
     * ${X}_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP
     * ${X}_DEVICE_INFO_CUBEMAP_SUPPORT_EXP
     * ${X}_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP
     * ${X}_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP
 
 * ${x}_command_t
     * ${X}_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP
@@ -123,6 +124,8 @@ Enums
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE
+    * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD
+    * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT
 
 * ${x}_function_t
     * ${X}_FUNCTION_USM_PITCHED_ALLOC_EXP
@@ -146,6 +149,7 @@ Enums
 
 * ${x}_mem_type_t
     * ${X}_MEM_TYPE_IMAGE_CUBEMAP_EXP
+    * ${X}_MEM_TYPE_IMAGE_GATHER_EXP
 
 Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -258,6 +262,13 @@ Changelog
 |          || Added support for DtoD usm pitch copies                    |
 |          || Added support for HtoH copies                              |
 +----------+-------------------------------------------------------------+
+| 20.0     | Added timeline semaphores for CUDA and L0 backends          |
++----------+--------------------------------------------------------------------+
+| 21.0     || Renamed image fetch 1D/2D/3D enums from                           |
+|          || DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP               |
+|          || to DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP    |
+|          || to be more consistent with other UR enums                         |
++----------+--------------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------

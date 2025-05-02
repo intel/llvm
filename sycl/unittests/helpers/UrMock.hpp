@@ -156,7 +156,7 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   auto params = reinterpret_cast<ur_device_get_info_params_t *>(pParams);
   constexpr char MockDeviceName[] = "Mock device";
   constexpr char MockSupportedExtensions[] =
-      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program ur_exp_command_buffer";
+      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program";
   switch (*params->ppropName) {
   case UR_DEVICE_INFO_TYPE: {
     // Act like any device is a GPU.
@@ -531,6 +531,9 @@ inline ur_result_t mock_urCommandBufferAppendKernelLaunchExp(void *pParams) {
 
 } // namespace MockAdapter
 
+// Will be linked from the mock OpenCL.dll/OpenCL.so
+void loadMockOpenCL();
+
 /// The UrMock<> class sets up UR for adapter mocking with the set of default
 /// overrides above, and ensures the appropriate parts of the sycl runtime and
 /// UR mocking code are reset/torn down in between tests.
@@ -544,6 +547,12 @@ public:
   /// This ensures UR is setup for adapter mocking and also injects our default
   /// entry-point overrides into the mock adapter.
   UrMock() {
+    if constexpr (Backend == backend::opencl) {
+      // Some tests use the interop handles, so we need to ensure the mock
+      // OpenCL library is loaded.
+      loadMockOpenCL();
+    }
+
 #define ADD_DEFAULT_OVERRIDE(func_name, func_override)                         \
   mock::getCallbacks().set_replace_callback(#func_name,                        \
                                             &MockAdapter::func_override);
@@ -603,7 +612,11 @@ public:
     // clear platform cache in case subsequent tests want a different backend,
     // this forces platforms to be reconstructed (and thus queries about UR
     // backend info to be called again)
-    detail::GlobalHandler::instance().getPlatformCache().clear();
+    //
+    // This also erases each platform's devices (normally done in the library
+    // shutdown) so that platforms/devices' lifetimes could work in unittests
+    // scenario.
+    detail::GlobalHandler::instance().clearPlatforms();
     mock::getCallbacks().resetCallbacks();
   }
 
