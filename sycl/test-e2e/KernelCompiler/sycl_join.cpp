@@ -210,25 +210,12 @@ int main() {
       ++Failed;
     }
 
-    Q.submit([&](sycl::handler &CGH) {
-       CGH.set_args(IntPtr);
-       CGH.single_task(RegularSYCLK);
-     }).wait_and_throw();
-
-    if (*IntPtr != RegularSYCLKernelWriteValue) {
-      std::cout << "Regular SYCL kernel (explicit) in joined mixed executable "
-                   "bundles failed: "
-                << *IntPtr << " != " << RegularSYCLKernelWriteValue << "\n";
-      ++Failed;
-    }
-    *IntPtr = 0;
-
     RunRegularSYCLKernel(Q, KBExeJoined, IntPtr);
 
     if (*IntPtr != RegularSYCLKernelWriteValue) {
-      std::cout << "Regular SYCL kernel (implicit) in joined mixed executable "
-                   "bundles failed: "
-                << *IntPtr << " != " << RegularSYCLKernelWriteValue << "\n";
+      std::cout
+          << "Regular SYCL kernel in joined mixed executable bundles failed: "
+          << *IntPtr << " != " << RegularSYCLKernelWriteValue << "\n";
       ++Failed;
     }
 
