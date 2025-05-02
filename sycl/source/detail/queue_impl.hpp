@@ -126,13 +126,9 @@ public:
         throw sycl::exception(make_error_code(errc::invalid),
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
-      // fallback profiling support. See MFallbackProfiling
-      if (MDevice.has(aspect::queue_profiling)) {
-        // When urDeviceGetGlobalTimestamps is not supported, compute the
-        // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImpl().isGetDeviceAndHostTimerSupported())
-          MFallbackProfiling = true;
-      } else {
+
+      if (!MDevice.has(aspect::queue_profiling)) {
+
         throw sycl::exception(make_error_code(errc::feature_not_supported),
                               "Cannot enable profiling, the associated device "
                               "does not have the queue_profiling aspect");
@@ -612,8 +608,6 @@ public:
                                const std::vector<event> &DepEvents,
                                bool CallerNeedsEvent);
 
-  bool isProfilingFallback() { return MFallbackProfiling; }
-
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
@@ -1007,9 +1001,6 @@ protected:
   uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
-
-  // the fallback implementation of profiling info
-  bool MFallbackProfiling = false;
 
   // This event can be optionally provided by users for in-order queues to add
   // an additional dependency for the subsequent submission in to the queue.

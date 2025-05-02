@@ -1043,7 +1043,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // enqueue it directly
       if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
         NewEvent->setSubmissionTime();
-        NewEvent->setHostEnqueueTime();
         ur_result_t Res =
             Queue->getAdapter()
                 ->call_nocheck<

@@ -545,8 +545,6 @@ void Command::waitForEvents(QueueImplPtr Queue,
       flushCrossQueueDeps(EventImpls, MWorkerQueue);
       const AdapterPtr &Adapter = Queue->getAdapter();
 
-      if (MEvent != nullptr)
-        MEvent->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
@@ -2447,8 +2445,6 @@ static ur_result_t SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
@@ -2801,8 +2797,6 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
 
   ur_event_handle_t UREvent = nullptr;
   auto OutEvent = OutEventImpl ? &UREvent : nullptr;
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   if (read) {
     Error = Adapter->call_nocheck<UrApiKind::urEnqueueReadHostPipe>(
         ur_q, Program, PipeName.c_str(), blocking, ptr, size, RawEvents.size(),
@@ -3509,8 +3503,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. We wait
     // them explicitly since barrier w/o wait list waits for all commands
@@ -3555,8 +3547,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. Adding
     // them to the barrier wait list since barrier w/ wait list waits only for
@@ -3671,8 +3661,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
            "Command buffer submissions should have an associated queue");
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
     if (auto Result =
             MQueue->getAdapter()
                 ->call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(
