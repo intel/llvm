@@ -63,10 +63,9 @@ struct WaitInfo {
 inline static std::unique_ptr<WaitInfo>
 getWaitInfo(uint32_t numEventsInWaitList,
             const ur_event_handle_t *phEventWaitList) {
-  return (numEventsInWaitList && phEventWaitList)
-             ? std::make_unique<native_cpu::WaitInfo>(numEventsInWaitList,
-                                                      phEventWaitList)
-             : nullptr;
+  return (numEventsInWaitList) ? std::make_unique<native_cpu::WaitInfo>(
+                                     numEventsInWaitList, phEventWaitList)
+                               : nullptr;
 }
 
 } // namespace
