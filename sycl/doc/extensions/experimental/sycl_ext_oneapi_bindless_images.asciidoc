@@ -2166,13 +2166,25 @@ and `mipmap`. Attempting to import other image types will result in undefined
 behaviour.
 
 Once a user has finished operating on imported memory, they must ensure that 
-they destroy the imported memory handle through `release_external_memory`.
+they free the mapped memory and release the external memory handle.
 
-`release_external_memory` can only accept `external_mem` objects that were
-created through `import_external_memory`.
+Memory mapped using `map_external_image_memory` should be freed using
+`free_image_mem`.
+
+Memory mapped using `map_external_linear_memory` should be freed using
+`free_mapped_linear_memory`.
+
+Imported external memory handle should be released using
+`release_external_memory`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
+
+void free_mapped_linear_memory(void *mappedLinearRegion,
+                               const sycl::device &syclDevice,
+                               const sycl::context &syclContext);
+void free_mapped_linear_memory(void *mappedLinearRegion,
+                               const sycl::queue &syclQueue);
 
 void release_external_memory(external_mem externalMem,
                              const sycl::device &syclDevice,
@@ -2181,9 +2193,6 @@ void release_external_memory(external_mem externalMem,
                              const sycl::queue &syclQueue);
 }
 ```
-
-Destroying or freeing any imported memory through `image_mem_free` or 
-`sycl::free` will result in undefined behavior.
 
 === Importing external semaphores [[importing_external_semaphores]]
 
