@@ -319,9 +319,7 @@ ExprResult SemaSYCL::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
 
 /// Returns true if the target requires a new type.
 /// This happens if a pointer to generic cannot be passed
-static bool targetRequiresNewType(ASTContext &Context) {
-  return false;
-}
+static bool targetRequiresNewType(ASTContext &Context) { return false; }
 
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
