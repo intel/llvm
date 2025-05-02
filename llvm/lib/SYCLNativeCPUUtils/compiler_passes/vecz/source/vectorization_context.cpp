@@ -419,50 +419,9 @@ VectorizationContext::isMaskedAtomicFunction(const Function &F) const {
   AtomicInfo.BinOp = AtomicRMWInst::BinOp::BAD_BINOP;
 
   if (!IsCmpXchg) {
-    if (FnName.consume_front("xchg_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Xchg;
-    } else if (FnName.consume_front("add_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Add;
-    } else if (FnName.consume_front("sub_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Sub;
-    } else if (FnName.consume_front("and_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::And;
-    } else if (FnName.consume_front("nand_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Nand;
-    } else if (FnName.consume_front("or_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Or;
-    } else if (FnName.consume_front("xor_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Xor;
-    } else if (FnName.consume_front("max_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Max;
-    } else if (FnName.consume_front("min_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::Min;
-    } else if (FnName.consume_front("umax_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::UMax;
-    } else if (FnName.consume_front("umin_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::UMin;
-    } else if (FnName.consume_front("fadd_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FAdd;
-    } else if (FnName.consume_front("fsub_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FSub;
-    } else if (FnName.consume_front("fmax_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FMax;
-    } else if (FnName.consume_front("fmin_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FMin;
-    } else if (FnName.consume_front("fmaximum_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FMaximum;
-    } else if (FnName.consume_front("fminimum_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::FMinimum;
-    } else if (FnName.consume_front("uincwrap_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::UIncWrap;
-    } else if (FnName.consume_front("udecwrap_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::UDecWrap;
-    } else if (FnName.consume_front("usubcond_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::USubCond;
-    } else if (FnName.consume_front("usubsat_")) {
-      AtomicInfo.BinOp = multi_llvm::AtomicRMWInst::USubSat;
-    }
-    if (AtomicInfo.BinOp >= multi_llvm::AtomicRMWInst::BAD_BINOP) {
+    if (auto BinOp = multi_llvm::consume_binop_with_underscore(FnName)) {
+      AtomicInfo.BinOp = *BinOp;
+    } else {
       return std::nullopt;
     }
   }
@@ -575,57 +534,7 @@ Function *VectorizationContext::getOrCreateMaskedAtomicFunction(
   }
 
   if (!isCmpXchg) {
-#define BINOP_CASE(BINOP, STR)           \
-  case multi_llvm::AtomicRMWInst::BINOP: \
-    O << (STR);                          \
-    break
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wswitch"
-#endif
-
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable : 4063)
-#endif
-
-    switch (I.BinOp) {
-      BINOP_CASE(Xchg, "xchg");
-      BINOP_CASE(Add, "add");
-      BINOP_CASE(Sub, "sub");
-      BINOP_CASE(And, "and");
-      BINOP_CASE(Nand, "nand");
-      BINOP_CASE(Or, "or");
-      BINOP_CASE(Xor, "xor");
-      BINOP_CASE(Max, "max");
-      BINOP_CASE(Min, "min");
-      BINOP_CASE(UMax, "umax");
-      BINOP_CASE(UMin, "umin");
-      BINOP_CASE(FAdd, "fadd");
-      BINOP_CASE(FSub, "fsub");
-      BINOP_CASE(FMax, "fmax");
-      BINOP_CASE(FMin, "fmin");
-      BINOP_CASE(FMaximum, "fmaximum");
-      BINOP_CASE(FMinimum, "fminumum");
-      BINOP_CASE(UIncWrap, "uincwrap");
-      BINOP_CASE(UDecWrap, "udecwrap");
-      BINOP_CASE(USubCond, "usubcond");
-      BINOP_CASE(USubSat, "usubsat");
-      case multi_llvm::AtomicRMWInst::BAD_BINOP:
-        return nullptr;
-    }
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
-
-#undef BINOP_CASE
-    O << "_";
+    O << multi_llvm::to_string(I.BinOp) << "_";
   }
 
   O << "align" << I.Align.value() << "_";
