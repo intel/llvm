@@ -1058,6 +1058,15 @@ struct get_device_info_impl<
 };
 
 template <>
+struct get_device_info_impl<std::string, info::device::opencl_c_version> {
+  static std::string get(const device_impl &) {
+    throw sycl::exception(
+        errc::feature_not_supported,
+        "Deprecated interface that hasn't been working for some time already");
+  }
+};
+
+template <>
 struct get_device_info_impl<
     size_t, ext::oneapi::experimental::info::device::max_global_work_groups> {
   static size_t get(const device_impl &) {
