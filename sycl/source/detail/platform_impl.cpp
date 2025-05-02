@@ -11,7 +11,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/platform_info.hpp>
+#include <detail/split_string.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
@@ -547,9 +547,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_platform_info_string_impl(
-      MPlatform, getAdapter(),
-      detail::UrInfoCode<info::platform::extensions>::value);
+
+  std::string AllExtensionNames = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+      *this, detail::UrInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -567,7 +567,13 @@ ur_native_handle_t platform_impl::getNative() const {
 
 template <typename Param>
 typename Param::return_type platform_impl::get_info() const {
-  return get_platform_info<Param>(this->getHandleRef(), getAdapter());
+  std::string InfoStr = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+      *this, detail::UrInfoCode<Param>::value);
+  if constexpr (std::is_same_v<Param, info::platform::extensions>) {
+    return split_string(InfoStr, ' ');
+  } else {
+    return InfoStr;
+  }
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
