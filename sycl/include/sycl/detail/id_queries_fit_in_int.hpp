@@ -92,7 +92,7 @@ inline bool hasNonZeroOffset(const sycl::nd_range<Dims> &V) {
   }
   return (Product != 0);
 }
-#endif
+#endif //__SYCL_ID_QUERIES_FIT_IN_INT__
 
 template <int Dims>
 void checkValueRange([[maybe_unused]] const sycl::range<1> &V) {
