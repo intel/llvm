@@ -162,7 +162,7 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
-void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
+RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
   ImageId = ImageCounter++;
 
   // If there was no binary, we let the owner handle initialization as they see
@@ -227,12 +227,11 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage() : RTDeviceBinaryImage() {
   Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
 }
 
-DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
-    std::unique_ptr<char[], std::function<void(void *)>> &&DataPtr,
-    size_t DataSize)
-    : DynRTDeviceBinaryImage() {
-  Data = std::move(DataPtr);
-  Bin->BinaryStart = reinterpret_cast<unsigned char *>(Data.get());
+std::unique_ptr<sycl_device_binary_struct> CreateDefaultDynBinary(
+    const std::unique_ptr<char[], std::function<void(void *)>> &DataPtr,
+    size_t DataSize) {
+  auto Bin = std::make_unique<sycl_device_binary_struct>();
+  Bin->BinaryStart = reinterpret_cast<unsigned char *>(DataPtr.get());
   Bin->BinaryEnd = Bin->BinaryStart + DataSize;
   Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
@@ -242,8 +241,14 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   default:
     Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
   }
-  init(Bin);
+  return Bin;
 }
+
+DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
+    std::unique_ptr<char[], std::function<void(void *)>> &&DataPtr,
+    size_t DataSize)
+    : RTDeviceBinaryImage(CreateDefaultDynBinary(DataPtr, DataSize).release()),
+      Data{std::move(DataPtr)} {}
 
 DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   delete Bin;
@@ -479,8 +484,6 @@ static void copyProperty(sycl_device_binary_property &NextFreeProperty,
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     const std::vector<const RTDeviceBinaryImage *> &Imgs)
     : DynRTDeviceBinaryImage() {
-  init(nullptr);
-
   // Naive merges.
   auto MergedSpecConstants =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
@@ -675,18 +678,11 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
 CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
-    : RTDeviceBinaryImage() {
-
-  // 'CompressedBin' is part of the executable image loaded into memory
-  // which can't be modified easily. So, we need to make a copy of it.
-  Bin = new sycl_device_binary_struct(*CompressedBin);
-
+    : RTDeviceBinaryImage(new sycl_device_binary_struct(*CompressedBin)) {
   // Get the decompressed size of the binary image.
   m_ImageSize = ZSTDCompressor::GetDecompressedSize(
       reinterpret_cast<const char *>(Bin->BinaryStart),
       static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
-
-  init(Bin);
 }
 
 void CompressedRTDeviceBinaryImage::Decompress() {

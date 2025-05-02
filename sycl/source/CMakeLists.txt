@@ -300,6 +300,7 @@ set(SYCL_COMMON_SOURCES
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
+    "detail/syclbin.cpp"
     "detail/scheduler/commands.cpp"
     "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"

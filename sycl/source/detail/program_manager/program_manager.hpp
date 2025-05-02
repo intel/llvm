@@ -388,6 +388,12 @@ public:
                                            const device &Dev,
                                            bool ErrorOnUnresolvableImport);
 
+  static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage);
+
+  static std::vector<std::string>
+  getKernelNamesFromURProgram(const AdapterPtr &Adapter,
+                              ur_program_handle_t UrProgram);
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;

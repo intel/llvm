@@ -13,6 +13,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/link_graph.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/syclbin.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
@@ -148,6 +149,10 @@ public:
           "Not all devices are in the set of associated "
           "devices for input bundle or vector of devices is empty");
 
+    // Copy SYCLBINs to ensure lifetime is preserved by the executable bundle.
+    MSYCLBINs.insert(MSYCLBINs.end(), InputBundleImpl->MSYCLBINs.begin(),
+                     InputBundleImpl->MSYCLBINs.end());
+
     for (const DevImgPlainWithDeps &DevImgWithDeps :
          InputBundleImpl->MDeviceImages) {
       // Skip images which are not compatible with devices provided
@@ -275,17 +280,13 @@ public:
       std::set<std::string_view, std::less<>> SeenKernelNames;
       std::set<std::string_view, std::less<>> Conflicts;
       for (const device_image_plain &DevImage : DevImages) {
-        const std::optional<KernelCompilerBinaryInfo> &RTCInfo =
-            getSyclObjImpl(DevImage)->getRTCInfo();
-        if (!RTCInfo.has_value())
-          continue;
+        const KernelNameSetT &KernelNames =
+            getSyclObjImpl(DevImage)->getKernelNames();
         std::vector<std::string_view> Intersect;
         std::set_intersection(SeenKernelNames.begin(), SeenKernelNames.end(),
-                              RTCInfo->MKernelNames.begin(),
-                              RTCInfo->MKernelNames.end(),
+                              KernelNames.begin(), KernelNames.end(),
                               std::inserter(Conflicts, Conflicts.begin()));
-        SeenKernelNames.insert(RTCInfo->MKernelNames.begin(),
-                               RTCInfo->MKernelNames.end());
+        SeenKernelNames.insert(KernelNames.begin(), KernelNames.end());
       }
 
       if (!Conflicts.empty()) {
@@ -455,12 +456,27 @@ public:
             "Not all input bundles have the same set of associated devices.");
     }
 
+    // Pre-count and reserve space in vectors.
+    {
+      size_t NumDevImgs = 0, NumSharedDevBins = 0, NumSYCLBINs = 0;
+      for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
+        NumDevImgs += Bundle->MDeviceImages.size();
+        NumSharedDevBins += Bundle->MSharedDeviceBinaries.size();
+        NumSYCLBINs += Bundle->MSYCLBINs.size();
+      }
+      MDeviceImages.reserve(NumDevImgs);
+      MSharedDeviceBinaries.reserve(NumSharedDevBins);
+      MSYCLBINs.reserve(NumSYCLBINs);
+    }
+
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
       MDeviceImages.insert(MDeviceImages.end(), Bundle->MDeviceImages.begin(),
                            Bundle->MDeviceImages.end());
       MSharedDeviceBinaries.insert(MSharedDeviceBinaries.end(),
                                    Bundle->MSharedDeviceBinaries.begin(),
                                    Bundle->MSharedDeviceBinaries.end());
+      MSYCLBINs.insert(MSYCLBINs.end(), Bundle->MSYCLBINs.begin(),
+                       Bundle->MSYCLBINs.end());
     }
 
     fillUniqueDeviceImages();
@@ -540,6 +556,32 @@ public:
       MDeviceImages.emplace_back(DevImg);
   }
 
+  // SYCLBIN constructor
+  kernel_bundle_impl(const context &Context, const std::vector<device> &Devs,
+                     const sycl::span<char> &Bytes, bundle_state State)
+      : MContext(Context), MDevices(Devs), MState(State) {
+    common_ctor_checks();
+
+    auto &SYCLBIN = MSYCLBINs.emplace_back(
+        std::make_shared<SYCLBINBinaries>(Bytes.data(), Bytes.size()));
+
+    if (SYCLBIN->getState() != static_cast<uint8_t>(State))
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "kernel_bundle state does not match the state of the SYCLBIN file.");
+
+    std::vector<const detail::RTDeviceBinaryImage *> BestImages =
+        SYCLBIN->getBestCompatibleImages(Devs);
+    MDeviceImages.reserve(BestImages.size());
+    for (const detail::RTDeviceBinaryImage *Image : BestImages)
+      MDeviceImages.emplace_back(std::make_shared<detail::device_image_impl>(
+          Image, Context, Devs, ProgramManager::getBinImageState(Image),
+          /*KernelIDs=*/nullptr, /*URProgram=*/nullptr, ImageOriginSYCLBIN));
+    ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
+                                                               State);
+    fillUniqueDeviceImages();
+  }
+
   std::shared_ptr<kernel_bundle_impl> build_from_source(
       const std::vector<device> Devices,
       const std::vector<sycl::detail::string_view> &BuildOptions,
@@ -600,9 +642,10 @@ public:
   kernel
   ext_oneapi_get_kernel(const std::string &Name,
                         const std::shared_ptr<kernel_bundle_impl> &Self) const {
-    if (!hasSourceBasedImages())
+    if (!hasSourceBasedImages() && !hasSYCLBINImages())
       throw sycl::exception(make_error_code(errc::invalid),
                             "'ext_oneapi_get_kernel' is only available in "
+                            "kernel_bundles created from SYCLBIN files and "
                             "kernel_bundles successfully built from "
                             "kernel_bundle<bundle_state::ext_oneapi_source>.");
 
@@ -615,8 +658,8 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> PotentialKernelImpl =
-              DevImgImpl->tryGetSourceBasedKernel(Name, MContext, Self,
-                                                  DevImgImpl))
+              DevImgImpl->tryGetExtensionKernel(Name, MContext, Self,
+                                                DevImgImpl))
         return detail::createSyclObjFromImpl<kernel>(
             std::move(PotentialKernelImpl));
     }
@@ -625,12 +668,12 @@ public:
   }
 
   std::string ext_oneapi_get_raw_kernel_name(const std::string &Name) {
-    if (!hasSourceBasedImages())
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "'ext_oneapi_get_raw_kernel_name' is only available in "
-          "kernel_bundles successfully built from "
-          "kernel_bundle<bundle_state::ext_oneapi_source>.");
+    if (!hasSourceBasedImages() && !hasSYCLBINImages())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "'ext_oneapi_get_raw_kernel_name' is only "
+                            "available in kernel_bundles created from SYCLBIN "
+                            "files and kernel_bundles successfully built from "
+                            "kernel_bundle<bundle_state::ext_oneapi_source>.");
 
     auto It =
         std::find_if(begin(), end(), [&Name](const device_image_plain &DevImg) {
@@ -865,6 +908,12 @@ public:
     });
   }
 
+  bool hasSYCLBINImages() const noexcept {
+    return std::any_of(begin(), end(), [](const device_image_plain &DevImg) {
+      return getSyclObjImpl(DevImg)->getOriginMask() & ImageOriginSYCLBIN;
+    });
+  }
+
   bool hasSYCLOfflineImages() const noexcept {
     return std::any_of(begin(), end(), [](const device_image_plain &DevImg) {
       return getSyclObjImpl(DevImg)->getOriginMask() & ImageOriginSYCLOffline;
@@ -954,8 +1003,8 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> SourceBasedKernel =
-              DevImgImpl->tryGetSourceBasedKernel(Name, MContext, Self,
-                                                  DevImgImpl))
+              DevImgImpl->tryGetExtensionKernel(Name, MContext, Self,
+                                                DevImgImpl))
         return SourceBasedKernel;
     }
 
@@ -1014,6 +1063,11 @@ private:
   // NOTE: This must appear before device images to enforce their freeing of
   //       device globals prior to unregistering the binaries.
   std::vector<std::shared_ptr<ManagedDeviceBinaries>> MSharedDeviceBinaries;
+
+  // SYCLBINs manage their own binary information, so if we have any we store
+  // them. These are stored as shared_ptr to ensure they stay alive across
+  // kernel_bundles that use them.
+  std::vector<std::shared_ptr<SYCLBINBinaries>> MSYCLBINs;
 
   std::vector<DevImgPlainWithDeps> MDeviceImages;
   std::vector<device_image_plain> MUniqueDeviceImages;
