@@ -437,7 +437,7 @@ private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from the pre-constructed handler_impl and the
   /// associated queue. Inside of Graph implementation, the Queue value is not
-  // used, for those cases it can be initialized with an empty shared_ptr.
+  /// used, for those cases it can be initialized with an empty shared_ptr.
   ///
   /// \param HandlerImpl is a pre-constructed handler_impl.
   /// \param Queue is a SYCL queue.
