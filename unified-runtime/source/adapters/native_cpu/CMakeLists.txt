@@ -60,11 +60,11 @@ if(NATIVECPU_WITH_ONETBB)
   FetchContent_Declare(
     tbb
     GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
-#commit 9d4578723827f31defd79389819a5fbf659577f7 (HEAD -> master, origin/master, origin/HEAD)
-#Author: Konstantin Boyarinov <konstantin.boyarinov@intel.com>
-#Date:   Fri Jan 24 23:23:59 2025 +0200
-#    Add explicit deduction guides for blocked_nd_range (#1525)
-    GIT_TAG 9d4578723827f31defd79389819a5fbf659577f7
+#commit 7dfe7e744ac583bd1c202f6e0eff4f51269bc524 (HEAD -> master, origin/master, origin/HEAD)
+#Author: Olga Malysheva <olga.malysheva@intel.com>
+#Date:   Wed Apr 30 21:29:20 2025 +0200
+#    Update compiler and linker options (#1719)
+    GIT_TAG 7dfe7e744ac583bd1c202f6e0eff4f51269bc524
     CMAKE_ARGS "-DTBB_TEST:BOOL=OFF -DTBB_EXAMPLES:BOOL=OFF -DTBB_BENCH:BOOL=OFF"
     OVERRIDE_FIND_PACKAGE
   )
