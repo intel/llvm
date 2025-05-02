@@ -283,10 +283,10 @@ jobs:
     strategy:
       matrix:
         ref: ${{ github.sha }}
-        save_name: Baseline
+        save_name: 'Baseline'
         runner: ['["PVC_PERF"]', '["BMG_PERF"]']
         backend: ['level_zero:gpu', 'level_zero_v2:gpu']
-        preset: Minimal
+        preset: 'Minimal'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
