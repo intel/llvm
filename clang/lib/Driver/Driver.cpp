@@ -9351,8 +9351,10 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
-    // Output to destination for -fsycl-device-only and Windows -o
-    if (offloadDeviceOnly() && JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
+    // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
+    if ((offloadDeviceOnly() ||
+         C.getArgs().hasArgNoClaim(options::OPT_fsyclbin)) &&
+        JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
   }
@@ -9522,21 +9524,17 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     BaseName = llvm::sys::path::filename(BasePath);
 
   // When compiling with -fsyclbin, maintain a simple output file name for the
-  // resulting image.  A '.syclbin' extension is intended to be added during
-  // the linking step with the clang-linker-wrapper.
+  // resulting image.  A '.syclbin' extension is used to represent the resulting
+  // output file.
   if (JA.getOffloadingDeviceKind() == Action::OFK_SYCL &&
       C.getArgs().hasArgNoClaim(options::OPT_fsyclbin) &&
       JA.getType() == types::TY_Image) {
-    const char *SYCLBinOutput;
-    if (IsCLMode()) {
-      // clang-cl uses BaseName for the executable name.
-      SYCLBinOutput =
-          MakeCLOutputFilename(C.getArgs(), "", BaseName, types::TY_Image);
-    } else {
-      SmallString<128> Output(getDefaultImageName());
-      SYCLBinOutput = C.getArgs().MakeArgString(Output.c_str());
-    }
-    return C.addResultFile(SYCLBinOutput, &JA);
+    SmallString<128> SYCLBinOutput(getDefaultImageName());
+    if (IsCLMode())
+      // Use BaseName for the syclbin output name.
+      SYCLBinOutput = BaseName;
+    llvm::sys::path::replace_extension(SYCLBinOutput, ".syclbin");
+    return C.addResultFile(C.getArgs().MakeArgString(SYCLBinOutput), &JA);
   }
 
   // Determine what the derived output name should be.

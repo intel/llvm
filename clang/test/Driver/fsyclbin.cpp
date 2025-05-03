@@ -41,3 +41,27 @@
 // CHECK_PHASES: 5: clang-offload-packager, {4}, image, (device-sycl)
 // CHECK_PHASES: 6: clang-linker-wrapper, {5}, image, (device-sycl)
 // CHECK_PHASES: 7: offload, "device-sycl (x86_64-unknown-linux-gnu)" {6}, none
+
+/// Check the output file names (file.syclbin, or -o <file>)
+// RUN: %clangxx -fsyclbin --offload-new-driver -o file.syclbin %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_NAMED_OUTPUT
+// CHECK_NAMED_OUTPUT: clang-linker-wrapper
+// CHECK_NAMED_OUTPUT-SAME: "-o" "file.syclbin"
+
+// RUN: %clang_cl -fsyclbin --offload-new-driver -o file.syclbin %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_NAMED_OUTPUT_WIN
+// CHECK_NAMED_OUTPUT_WIN: clang-linker-wrapper
+// CHECK_NAMED_OUTPUT_WIN-SAME: "-out:file.syclbin"
+
+/// For Linux - the default is 'a.out' so the syclbin file is 'a.syclbin'
+// RUN: %clangxx -fsyclbin --offload-new-driver %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_LINUX_DEFAULT_OUTPUT
+// CHECK_LINUX_DEFAULT_OUTPUT: clang-linker-wrapper
+// CHECK_LINUX_DEFAULT_OUTPUT-SAME: "-o" "a.syclbin"
+
+/// For Windows - the default is based on the source file so the syclbin file
+/// is 'fsyclbin.syclbin'
+// RUN: %clang_cl -fsyclbin --offload-new-driver %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_WIN_DEFAULT_OUTPUT
+// CHECK_WIN_DEFAULT_OUTPUT: clang-linker-wrapper
+// CHECK_WIN_DEFAULT_OUTPUT-SAME: "-out:{{.*}}fsyclbin.syclbin"
