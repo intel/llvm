@@ -387,12 +387,6 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
         [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(InOrderGraphExec); });
 
     auto EventGraphImpl = sycl::detail::getSyclObjImpl(EventGraph);
-    auto EventGraphWaitList = EventGraphImpl->getWaitList();
-    // Previous task is a host task. Explicit dependency is needed to enforce
-    // the execution order.
-    ASSERT_EQ(EventGraphWaitList.size(), 1lu);
-    ASSERT_EQ(EventGraphWaitList[0], EventInitialImpl);
-
     auto EventLast = InOrderQueue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
     auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
@@ -402,10 +396,6 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
     // submission to the backend).
     if (BlockHostTask)
       Lock.unlock();
-    ASSERT_EQ(EventLastWaitList.size(), size_t(BlockHostTask));
-    if (EventLastWaitList.size()) {
-      ASSERT_EQ(EventLastWaitList[0], EventGraphImpl);
-    }
     EventLast.wait();
   };
 

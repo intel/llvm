@@ -477,6 +477,9 @@ public:
       const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
 
+  static bool CheckEventReadiness(const ContextImplPtr &Context,
+                                  const EventImplPtr &SyclEventImplPtr);
+
   static bool
   areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
                                   const ContextImplPtr &Context);
