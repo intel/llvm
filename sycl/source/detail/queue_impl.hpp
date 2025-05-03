@@ -450,11 +450,6 @@ public:
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
     }
-    if (PropList.has_property<ext::oneapi::property::queue::discard_events>()) {
-      // Pass this flag to the Level Zero adapter to be able to check it from
-      // queue property.
-      CreationFlags |= UR_QUEUE_FLAG_DISCARD_EVENTS;
-    }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
     if (PropList
