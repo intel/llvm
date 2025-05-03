@@ -718,7 +718,7 @@ protected:
   }
 
   bool trySwitchingToNoEventsMode() {
-    if (MNoEventMode)
+    if (MNoEventMode.load(std::memory_order_relaxed))
       return true;
 
     if (MGraph.expired() && isInOrder()) {
@@ -726,7 +726,7 @@ protected:
 
       if (Scheduler::CheckEventReadiness(MContext,
                                          MDefaultGraphDeps.LastEventPtr)) {
-        MNoEventMode = true;
+        MNoEventMode.store(true, std::memory_order_relaxed);
         MDefaultGraphDeps.LastEventPtr = nullptr;
         return true;
       }

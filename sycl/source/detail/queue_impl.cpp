@@ -345,12 +345,27 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
+  auto isHostTask = Type == CGType::CodeplayHostTask;
+
+  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
+  auto fastPath = !isHostTask && MNoEventMode.load(std::memory_order_relaxed) &&
+                  !requiresPostProcess;
+
+  if (fastPath) {
+    std::unique_lock<std::mutex> Lock(MMutex);
+
+    // Check if we are still in no event mode. There could
+    // have been a concurrent submit.
+    if (MNoEventMode.load(std::memory_order_relaxed)) {
+      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+    }
+  }
+
   event Event;
   if (!isInOrder()) {
     Event = finalizeHandlerOutOfOrder(Handler);
     addEvent(Event);
   } else {
-    auto isHostTask = Type == CGType::CodeplayHostTask;
     if (isHostTask) {
       std::unique_lock<std::mutex> Lock(MMutex);
       Event = finalizeHandlerInOrderHostTaskUnlocked(Handler);
@@ -364,6 +379,9 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
         Event = finalizeHandlerInOrderWithDepsUnlocked(Handler);
       }
     }
+
+    if (!requiresPostProcess)
+      return Event;
   }
 
   if (SubmitInfo.PostProcessorFunc())
