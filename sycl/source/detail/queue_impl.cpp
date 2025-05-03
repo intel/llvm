@@ -309,8 +309,7 @@ void queue_impl::addEvent(const event &Event) {
   const EventImplPtr &EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
-  if (Cmd != nullptr && EImpl->getHandle() == nullptr &&
-      !EImpl->isDiscarded()) {
+  if (Cmd != nullptr && EImpl->getHandle() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -346,26 +345,29 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto isInNoEventsMode =
-      isInOrder() && MNoEventMode.load(std::memory_order_relaxed);
-  auto needToStoreEvent = Type == CGType::CodeplayHostTask ||
-                          Streams.size() > 0 || SubmitInfo.PostProcessorFunc();
+  event Event;
+  if (!isInOrder()) {
+    Event = finalizeHandlerOutOfOrder(Handler);
+    addEvent(Event);
+  } else {
+    auto isHostTask = Type == CGType::CodeplayHostTask;
+    if (isHostTask) {
+      std::unique_lock<std::mutex> Lock(MMutex);
+      Event = finalizeHandlerInOrderHostTaskUnlocked(Handler);
+    } else {
+      std::unique_lock<std::mutex> Lock(MMutex);
+      auto noEventsMode = trySwitchingToNoEventsMode();
 
-  if (isInNoEventsMode && !needToStoreEvent) {
-    std::unique_lock<std::mutex> Lock(MMutex);
-
-    // Check the condition again, under the lock to ensure that the
-    // there was no concurrent submit that changed the state.
-    if (MNoEventMode.load(std::memory_order_relaxed))
-      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+      if (noEventsMode) {
+        Event = finalizeHandlerInOrderNoEventsUnlocked(Handler);
+      } else {
+        Event = finalizeHandlerInOrderWithDepsUnlocked(Handler);
+      }
+    }
   }
 
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
-  addEvent(Event);
-
-  // If we taken this path, it's because we need to store the last event.
-  if (isInOrder())
-    assert(!MNoEventMode);
+  if (SubmitInfo.PostProcessorFunc())
+    handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
 
   const auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
@@ -419,9 +421,18 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+  event Event;
 
-  addEvent(Event);
+  auto isHostTask = Type == CGType::CodeplayHostTask;
+  if (isHostTask) {
+    Event = finalizeHandlerInOrderHostTaskUnlocked(Handler);
+  } else {
+    std::unique_lock<std::mutex> Lock(MMutex);
+    Event = finalizeHandlerInOrderWithDepsUnlocked(Handler);
+  }
+
+  if (SubmitInfo.PostProcessorFunc())
+    handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
 
   const auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
@@ -486,7 +497,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
                                 ExpandedDepEvents, MContext)) {
-      if (!CallerNeedsEvent && MNoEventMode) {
+      auto isNoEventsMode = trySwitchingToNoEventsMode();
+      if (!CallerNeedsEvent && isNoEventsMode) {
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
@@ -517,7 +529,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         }
       }
 
-      if (isInOrder() && !MNoEventMode) {
+      if (isInOrder() && !isNoEventsMode) {
         auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                                 : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
@@ -641,9 +653,11 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
 
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
+  EventImplPtr LastEvent;
   {
     std::lock_guard<std::mutex> Lock(MMutex);
     WeakEvents.swap(MEventsWeak);
+    LastEvent = MDefaultGraphDeps.LastEventPtr;
 
     MMissedCleanupRequests.unset(
         [&](MissedCleanupRequestsType &MissedCleanupRequests) {
@@ -668,6 +682,11 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       }
     }
   }
+
+  if (LastEvent) {
+    LastEvent->wait(LastEvent);
+  }
+
   const AdapterPtr &Adapter = getAdapter();
   Adapter->call<UrApiKind::urQueueFinish>(getHandleRef());
 
@@ -758,15 +777,11 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 }
 
 bool queue_impl::ext_oneapi_empty() const {
-  // If we have in-order queue where events are not discarded then just check
-  // the status of the last event.
-  if (isInOrder() && !MDiscardEvents) {
+  // If we have in-order queue with non-empty last event, just check its status.
+  if (isInOrder()) {
     std::lock_guard<std::mutex> Lock(MMutex);
     assert((MDefaultGraphDeps.LastEventPtr == nullptr) == MNoEventMode);
-    // Note that we fall back to the backend query if the event was discarded,
-    // which may happend despite the queue not being a discard event queue.
-    if (MDefaultGraphDeps.LastEventPtr &&
-        !MDefaultGraphDeps.LastEventPtr->isDiscarded())
+    if (MDefaultGraphDeps.LastEventPtr)
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==
              info::event_command_status::complete;

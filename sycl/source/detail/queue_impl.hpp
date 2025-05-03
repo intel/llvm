@@ -632,7 +632,15 @@ public:
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
     MExtGraphDeps.reset();
-    MNoEventMode = false;
+
+    if (Graph) {
+      MNoEventMode = false;
+    } else if (isInOrder() && (!MDefaultGraphDeps.LastEventPtr ||
+                               Scheduler::CheckEventReadiness(
+                                   MContext, MDefaultGraphDeps.LastEventPtr))) {
+      MDefaultGraphDeps.LastEventPtr = nullptr;
+      MNoEventMode = true;
+    }
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -732,10 +740,29 @@ protected:
       Handler.depends_on(*ExternalEvent);
   }
 
+  bool trySwitchingToNoEventsMode() {
+    if (MNoEventMode)
+      return true;
+
+    if (MGraph.expired() && isInOrder()) {
+      assert(MDefaultGraphDeps.LastEventPtr != nullptr);
+
+      if (Scheduler::CheckEventReadiness(MContext,
+                                         MDefaultGraphDeps.LastEventPtr)) {
+        MNoEventMode = true;
+        MDefaultGraphDeps.LastEventPtr = nullptr;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   template <typename HandlerType = handler>
   event finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
     assert(MGraph.expired());
+    assert(MDefaultGraphDeps.LastEventPtr == nullptr);
     assert(MNoEventMode);
 
     MEmpty = false;
@@ -746,51 +773,56 @@ protected:
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrder(HandlerType &Handler) {
-    // Accessing and changing of an event isn't atomic operation.
-    // Hence, here is the lock for thread-safety.
-    std::lock_guard<std::mutex> Lock{MMutex};
+  event finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
+    assert(isInOrder());
+    assert(Handler.getType() == CGType::CodeplayHostTask);
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
 
-    if (!MEmpty && MNoEventMode &&
-        Handler.getType() == CGType::CodeplayHostTask) {
+    if (MNoEventMode) {
       assert(MGraph.expired());
-      assert(MDefaultGraphDeps.LastEventPtr == nullptr);
+      assert(EventToBuildDeps == nullptr);
       // There might be some operations submitted to the queue
       // but the LastEventPtr is not set. If we are to run a host_task,
       // we need to insert a barrier to ensure proper synchronization.
       Handler.depends_on(insertHelperBarrier(Handler));
-    }
-
-    // This dependency is needed for the following purposes:
-    //    - host tasks are handled by the runtime and cannot be implicitly
-    //    synchronized by the backend.
-    //    - to prevent the 2nd kernel enqueue when the 1st kernel is blocked
-    //    by a host task. This dependency allows to build the enqueue order in
-    //    the RT but will not be passed to the backend. See getPIEvents in
-    //    Command.
-    if (EventToBuildDeps) {
-      // If we have last event, this means we are no longer in no-event mode.
-      assert(!MNoEventMode);
-
-      // In the case where the last event was discarded and we are to run a
-      // host_task, we insert a barrier into the queue and use the resulting
-      // event as the dependency for the host_task.
-      // Note that host_task events can never be discarded, so this will not
-      // insert barriers between host_task enqueues.
-      if (EventToBuildDeps->isDiscarded() &&
-          Handler.getType() == CGType::CodeplayHostTask)
-        EventToBuildDeps = insertHelperBarrier(Handler);
-
+    } else if (Handler.getType() != CGType::AsyncAlloc) {
+      // We are not in no-event mode, so we can use the last event.
       // depends_on after an async alloc is explicitly disallowed. Async alloc
       // handles in order queue dependencies preemptively, so we skip them.
       // Note: This could be improved by moving the handling of dependencies
       // to before calling the CGF.
-      if (!EventToBuildDeps->isDiscarded() &&
-          !(Handler.getType() == CGType::AsyncAlloc))
-        Handler.depends_on(EventToBuildDeps);
+      assert(EventToBuildDeps != nullptr);
+      Handler.depends_on(EventToBuildDeps);
+    }
+
+    MEmpty = false;
+    MNoEventMode = false;
+
+    synchronizeWithExternalEvent(Handler);
+
+    auto Event = Handler.finalize();
+    EventToBuildDeps = getSyclObjImpl(Event);
+    return Event;
+  }
+
+  template <typename HandlerType = handler>
+  event finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
+    // this is handled by finalizeHandlerInOrderHostTask
+    assert(Handler.getType() != CGType::CodeplayHostTask);
+
+    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                              : MExtGraphDeps.LastEventPtr;
+
+    // depends_on after an async alloc is explicitly disallowed. Async alloc
+    // handles in order queue dependencies preemptively, so we skip them.
+    // Note: This could be improved by moving the handling of dependencies
+    // to before calling the CGF.
+    if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
+      // If we have last event, this means we are no longer in no-event mode.
+      assert(!MNoEventMode);
+      Handler.depends_on(EventToBuildDeps);
     }
 
     MEmpty = false;
@@ -800,7 +832,6 @@ protected:
 
     auto EventRet = Handler.finalize();
     EventToBuildDeps = getSyclObjImpl(EventRet);
-
     return EventRet;
   }
 
@@ -845,9 +876,9 @@ protected:
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerPostProcess(
-      HandlerType &Handler,
-      const optional<SubmitPostProcessF> &PostProcessorFunc) {
+  void handlerPostProcess(HandlerType &Handler,
+                          const optional<SubmitPostProcessF> &PostProcessorFunc,
+                          event &Event) {
     bool IsKernel = Handler.getType() == CGType::Kernel;
     bool KernelUsesAssert = false;
 
@@ -858,26 +889,8 @@ protected:
           ProgramManager::getInstance().kernelUsesAssert(
               Handler.MKernelName.data());
 
-    auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
-                            : finalizeHandlerOutOfOrder(Handler);
-
     auto &PostProcess = *PostProcessorFunc;
-
     PostProcess(IsKernel, KernelUsesAssert, Event);
-
-    return Event;
-  }
-
-  // template is needed for proper unit testing
-  template <typename HandlerType = handler>
-  event finalizeHandler(HandlerType &Handler,
-                        const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    if (PostProcessorFunc) {
-      return finalizeHandlerPostProcess(Handler, PostProcessorFunc);
-    } else {
-      return MIsInorder ? finalizeHandlerInOrder(Handler)
-                        : finalizeHandlerOutOfOrder(Handler);
-    }
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
