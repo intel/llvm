@@ -314,8 +314,13 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     : impl(std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
-      MQueue(std::move(Queue)) {}
+#else
+    : impl(std::make_shared<detail::handler_impl>(CallerNeedsEvent)),
+#endif
+      MQueue(std::move(Queue)) {
+}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: This function is not used anymore, remove it in the next
@@ -327,13 +332,13 @@ handler::handler(
     : impl(std::make_shared<detail::handler_impl>(SecondaryQueue.get(),
                                                   CallerNeedsEvent)),
       MQueue(Queue) {}
-#endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(SecondaryQueue,
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
+#endif
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -1775,6 +1780,7 @@ void handler::use_kernel_bundle(
         "Context associated with the primary queue is different from the "
         "context associated with the kernel bundle");
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   if (impl->MSubmissionSecondaryQueue &&
       impl->MSubmissionSecondaryQueue->get_context() !=
           ExecBundle.get_context())
@@ -1782,6 +1788,7 @@ void handler::use_kernel_bundle(
         make_error_code(errc::invalid),
         "Context associated with the secondary queue is different from the "
         "context associated with the kernel bundle");
+#endif
 
   setStateExplicitKernelBundle();
   setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));

@@ -312,11 +312,18 @@ void queue_impl::addEvent(const event &Event) {
 
 event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const std::shared_ptr<queue_impl> &Self,
-                              queue_impl *SecondaryQueue, bool CallerNeedsEvent,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                              queue_impl *SecondaryQueue,
+#endif
+                              bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   handler Handler(Self, SecondaryQueue, CallerNeedsEvent);
+#else
+  handler Handler(Self, CallerNeedsEvent);
+#endif
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -352,9 +359,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       Stream->generateFlushCommand(ServiceCGH);
     };
     detail::type_erased_cgfo_ty CGF{L};
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     event FlushEvent =
         submit_impl(CGF, Self, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
                     IsTopCodeLoc, {});
+#else
+    event FlushEvent = submit_impl(CGF, Self, /*CallerNeedsEvent*/ true, Loc,
+                                   IsTopCodeLoc, {});
+#endif
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }

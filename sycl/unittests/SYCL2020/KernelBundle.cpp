@@ -277,35 +277,33 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
   sycl::queue PrimaryQueue{PrimaryCtx, Dev};
   sycl::queue SecondaryQueue{SecondaryCtx, Dev};
 
-  class UnqiueException {};
-
+  size_t EnqueueCounter = 0;
   try {
     PrimaryQueue.submit(
         [&](sycl::handler &CGH) {
           try {
+            ++EnqueueCounter;
             CGH.use_kernel_bundle(KernelBundle);
-            FAIL() << "No exception was thrown.";
+            if (EnqueueCounter == 1)
+              FAIL() << "No exception was thrown.";
             CGH.single_task<TestKernel>([]() {});
           } catch (const sycl::exception &e) {
+            ASSERT_EQ(EnqueueCounter, size_t{1})
+                << "Only the primary queue was supposed to throw.";
             ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
                 << "sycl::exception code was not the expected "
                    "sycl::errc::invalid.";
-            // Throw uniquely identifiable exception to distinguish between that
-            // the sycl::exception originates from the correct level.
-            throw UnqiueException{};
+            throw;
           } catch (...) {
             FAIL() << "Unexpected exception was thrown in kernel invocation "
                       "function.";
           }
         },
         SecondaryQueue);
-  } catch (const UnqiueException &) {
-    // Expected path
-  } catch (const sycl::exception &) {
-    FAIL() << "sycl::exception thrown at the wrong level.";
   } catch (...) {
     FAIL() << "Unexpected exception was thrown in submit.";
   }
+  ASSERT_EQ(EnqueueCounter, size_t{2});
 }
 
 TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
@@ -323,32 +321,26 @@ TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
   sycl::queue PrimaryQueue{PrimaryCtx, Dev};
   sycl::queue SecondaryQueue{SecondaryCtx, Dev};
 
-  class UnqiueException {};
-
+  size_t EnqueueCounter = 0;
   try {
     PrimaryQueue.submit(
         [&](sycl::handler &CGH) {
-          try {
-            CGH.use_kernel_bundle(KernelBundle);
-            FAIL() << "No exception was thrown.";
-            CGH.single_task<TestKernel>([]() {});
-          } catch (const sycl::exception &e) {
-            ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
-                << "sycl::exception code was not the expected "
-                   "sycl::errc::invalid.";
-            // Throw uniquely identifiable exception to distinguish between that
-            // the sycl::exception originates from the correct level.
-            throw UnqiueException{};
-          } catch (...) {
-            FAIL() << "Unexpected exception was thrown in kernel invocation "
-                      "function.";
-          }
+          CGH.use_kernel_bundle(KernelBundle);
+          ++EnqueueCounter;
+          // Throw a non-sycl exception to force the secondary queue to try and
+          // enqueue. The secondary queue should never get beyond the
+          // use_kernel_bundle.
+          throw std::exception{};
+          CGH.single_task<TestKernel>([]() {});
         },
         SecondaryQueue);
-  } catch (const UnqiueException &) {
-    // Expected path
-  } catch (const sycl::exception &) {
-    FAIL() << "sycl::exception thrown at the wrong level.";
+    FAIL() << "Submit should always throw.";
+  } catch (const sycl::exception &e) {
+    ASSERT_EQ(EnqueueCounter, size_t{1})
+        << "Exception was thrown from primary queue.";
+    ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
+        << "sycl::exception code was not the expected "
+           "sycl::errc::invalid.";
   } catch (...) {
     FAIL() << "Unexpected exception was thrown in submit.";
   }
@@ -372,32 +364,22 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
   sycl::queue PrimaryQueue{PrimaryCtx, Dev};
   sycl::queue SecondaryQueue{SecondaryCtx, Dev};
 
-  class UnqiueException {};
-
+  size_t EnqueueCounter = 0;
   try {
     PrimaryQueue.submit(
         [&](sycl::handler &CGH) {
-          try {
             CGH.use_kernel_bundle(KernelBundle);
-            FAIL() << "No exception was thrown.";
+            ++EnqueueCounter;
             CGH.single_task<TestKernel>([]() {});
-          } catch (const sycl::exception &e) {
-            ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
-                << "sycl::exception code was not the expected "
-                   "sycl::errc::invalid.";
-            // Throw uniquely identifiable exception to distinguish between that
-            // the sycl::exception originates from the correct level.
-            throw UnqiueException{};
-          } catch (...) {
-            FAIL() << "Unexpected exception was thrown in kernel invocation "
-                      "function.";
-          }
         },
         SecondaryQueue);
-  } catch (const UnqiueException &) {
-    // Expected path
-  } catch (const sycl::exception &) {
-    FAIL() << "sycl::exception thrown at the wrong level.";
+    FAIL() << "Submit should always throw.";
+  } catch (const sycl::exception &e) {
+    ASSERT_EQ(EnqueueCounter, size_t{0})
+        << "Exception was not thrown from primary queue.";
+    ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
+        << "sycl::exception code was not the expected "
+           "sycl::errc::invalid.";
   } catch (...) {
     FAIL() << "Unexpected exception was thrown in submit.";
   }

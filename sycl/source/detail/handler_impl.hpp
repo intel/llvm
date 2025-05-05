@@ -31,9 +31,13 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   handler_impl(queue_impl *SubmissionSecondaryQueue, bool EventNeeded)
       : MSubmissionSecondaryQueue(SubmissionSecondaryQueue),
         MEventNeeded(EventNeeded) {};
+#else
+  handler_impl(bool EventNeeded) : MEventNeeded(EventNeeded) {};
+#endif
 
   handler_impl(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -67,9 +71,11 @@ public:
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Pointer to the secondary queue implementation. Nullptr if no
   /// secondary queue fallback was given in the associated submission.
   queue_impl *MSubmissionSecondaryQueue = nullptr;
+#endif
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.

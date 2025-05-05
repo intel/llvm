@@ -69,7 +69,9 @@ enum QueueOrder { Ordered, OOO };
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };
@@ -339,12 +341,16 @@ public:
   /// group is being enqueued on.
   event submit(const detail::type_erased_cgfo_ty &CGF,
                const std::shared_ptr<queue_impl> &Self,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
                const std::shared_ptr<queue_impl> &SecondQueue,
+#endif
                const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
     SubmissionInfo SI{};
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     SI.SecondaryQueue() = SecondQueue;
+#endif
     if (PostProcess)
       SI.PostProcessorFunc() = *PostProcess;
     return submit_with_event(CGF, Self, SI, Loc, IsTopCodeLoc);
@@ -363,10 +369,14 @@ public:
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     event ResEvent =
         submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+#else
+    event ResEvent = submit_impl(CGF, Self, /*CallerNeedsEvent=*/true, Loc,
+                                 IsTopCodeLoc, SubmitInfo);
+#endif
     return discard_or_return(ResEvent);
   }
 
@@ -375,8 +385,13 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
+#else
+    submit_impl(CGF, Self, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc,
+                SubmitInfo);
+#endif
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -863,9 +878,11 @@ protected:
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const detail::type_erased_cgfo_ty &CGF,
                     const std::shared_ptr<queue_impl> &Self,
-                    queue_impl *SecondaryQueue, bool CallerNeedsEvent,
-                    const detail::code_location &Loc, bool IsTopCodeLoc,
-                    const SubmissionInfo &SubmitInfo);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                    queue_impl *SecondaryQueue,
+#endif
+                    bool CallerNeedsEvent, const detail::code_location &Loc,
+                    bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.

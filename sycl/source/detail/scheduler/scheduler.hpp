@@ -588,14 +588,6 @@ protected:
 
     void cleanupCommand(Command *Cmd, bool AllowUnsubmitted = false);
 
-    /// Reschedules the command passed using Queue provided.
-    ///
-    /// This can lead to rescheduling of all dependent commands. This can be
-    /// used when the user provides a "secondary" queue to the submit method
-    /// which may be used when the command fails to enqueue/execute in the
-    /// primary queue.
-    void rescheduleCommand(Command *Cmd, const QueueImplPtr &Queue);
-
     /// \return a pointer to the corresponding memory object record for the
     /// SYCL memory object provided, or nullptr if it does not exist.
     MemObjRecord *getMemObjRecord(SYCLMemObjI *MemObject);
