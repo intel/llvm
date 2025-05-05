@@ -217,6 +217,7 @@ public:
         }()),
         MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
         MQueue(UrQueue), MIsInorder(has_property<property::queue::in_order>()),
+        MNoEventMode(trySwitchingToNoEventsMode()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
@@ -1041,7 +1042,7 @@ protected:
   // be true if the queue is in-order, the command graph is not
   // associated with the queue and there has never been any host
   // tasks submitted to the queue.
-  std::atomic<bool> MNoEventMode;
+  std::atomic<bool> MNoEventMode = false;
 
   bool MEmpty = true;
 
