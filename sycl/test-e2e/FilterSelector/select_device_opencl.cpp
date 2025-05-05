@@ -31,10 +31,6 @@ int main() {
   {
     device d(cpu_selector_v);
   }
-  {
-    // We no longer run tests on acc. Leaving this just in case.
-    // device d(accelerator_selector_v);
-  }
 
   return 0;
 }
