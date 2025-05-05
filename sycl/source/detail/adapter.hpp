@@ -71,7 +71,14 @@ public:
       int32_t adapter_error = 0;
       ur_result = call_nocheck<UrApiKind::urAdapterGetLastError>(
           MAdapter, &message, &adapter_error);
-      std::cerr << message << " (error code " << adapter_error << ")\n";
+      throw sycl::detail::set_ur_error(
+          sycl::exception(
+              sycl::make_error_code(errc),
+              __SYCL_UR_ERROR_REPORT + sycl::detail::codeToString(ur_result) +
+                  (message ? "\n" + std::string(message) + "(adapter error )" +
+                                 std::to_string(adapter_error) + "\n"
+                           : std::string{})),
+          ur_result);
     }
     if (ur_result != UR_RESULT_SUCCESS) {
       throw sycl::detail::set_ur_error(
