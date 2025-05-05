@@ -1,6 +1,4 @@
-
-//===--------- command_buffer_command.hpp - Level Zero Adapter
-//--------------------===//
+//===--------- command_buffer_command.hpp - Level Zero Adapter ------------===//
 //
 // Copyright (C) 2025 Intel Corporation
 //
