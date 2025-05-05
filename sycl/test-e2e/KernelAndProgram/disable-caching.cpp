@@ -29,14 +29,10 @@ int main() {
   // CHECK: <--- urEventWait
 
   // CHECK-CACHE: <--- urProgramCreate
-  // CHECK-CACHE: <--- urProgramRetain
   // CHECK-CACHE-NOT: <--- urProgramRetain
   // CHECK-CACHE: <--- urKernelCreate
-  // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
   // CHECK-CACHE: <--- urEnqueueKernelLaunch
-  // CHECK-CACHE: <--- urKernelRelease
-  // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
   q.single_task([] {}).wait();
 

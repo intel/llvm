@@ -175,10 +175,10 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  ur_program_handle_t getBuiltURProgram(const ContextImplPtr &ContextImpl,
-                                        device_impl &DeviceImpl,
-                                        KernelNameStrRefT KernelName,
-                                        const NDRDescT &NDRDesc = {});
+  ur_program_handle_t
+  getBuiltURProgram(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
+                    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {},
+                    const bool TransferOwnershipToCache = false);
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
@@ -195,14 +195,16 @@ public:
                     const ContextImplPtr &ContextImpl,
                     const std::vector<device> &Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
-                    const SerializedObj &SpecConsts = {});
+                    const SerializedObj &SpecConsts = {},
+                    const bool TransferOwnershipToCache = false);
 
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
              ur_program_handle_t>
   getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
                     KernelNameBasedCacheT *KernelNameBasedCachePtr,
-                    const NDRDescT &NDRDesc = {});
+                    const NDRDescT &NDRDesc = {},
+                    const bool TransferOwnershipToCache = false);
 
   ur_kernel_handle_t getCachedMaterializedKernel(
       KernelNameStrRefT KernelName,

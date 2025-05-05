@@ -851,7 +851,8 @@ CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 // its ref count incremented.
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
-    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc) {
+    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc,
+    const bool TransferOwnershipToCache) {
   device_impl *RootDevImpl;
   ur_bool_t MustBuildOnSubdevice = true;
 
@@ -898,13 +899,14 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
             std::back_inserter(AllImages));
 
   return getBuiltURProgram(std::move(AllImages), ContextImpl,
-                           {std::move(Device)});
+                           {std::move(Device)}, nullptr, {},
+                           TransferOwnershipToCache);
 }
 
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     const BinImgWithDeps &ImgWithDeps, const ContextImplPtr &ContextImpl,
     const std::vector<device> &Devs, const DevImgPlainWithDeps *DevImgWithDeps,
-    const SerializedObj &SpecConsts) {
+    const SerializedObj &SpecConsts, const bool TransferOwnershipToCache) {
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
@@ -1105,7 +1107,9 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // program.
-  Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
+  if (!TransferOwnershipToCache)
+    Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
+
   return ResProgram;
 }
 // When caching is enabled, the returned UrProgram and UrKernel will
@@ -1115,7 +1119,8 @@ std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
 ProgramManager::getOrCreateKernel(
     const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
     KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc) {
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc,
+    const bool TransferOwnershipToCache) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -1134,18 +1139,22 @@ ProgramManager::getOrCreateKernel(
     constexpr size_t Kernel = 0;  // see FastKernelCacheValT tuple
     constexpr size_t Program = 3; // see FastKernelCacheValT tuple
     if (std::get<Kernel>(ret_tuple)) {
-      // Pulling a copy of a kernel and program from the cache,
-      // so we need to retain those resources.
-      ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-          std::get<Kernel>(ret_tuple));
-      ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
-          std::get<Program>(ret_tuple));
+      // No need to retain if cache is the owner as we won't be
+      // releasing them elsewhere.
+      if (!TransferOwnershipToCache) {
+        // Pulling a copy of a kernel and program from the cache,
+        // so we need to retain those resources.
+        ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
+            std::get<Kernel>(ret_tuple));
+        ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
+            std::get<Program>(ret_tuple));
+      }
       return ret_tuple;
     }
   }
 
-  ur_program_handle_t Program =
-      getBuiltURProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc);
+  ur_program_handle_t Program = getBuiltURProgram(
+      ContextImpl, DeviceImpl, KernelName, NDRDesc, TransferOwnershipToCache);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     ur_kernel_handle_t Kernel = nullptr;
@@ -1189,12 +1198,13 @@ ProgramManager::getOrCreateKernel(
   auto ret_val = std::make_tuple(KernelArgMaskPair.first,
                                  &(BuildResult->MBuildResultMutex),
                                  KernelArgMaskPair.second, Program);
-  // If caching is enabled, one copy of the kernel handle will be
-  // stored in the cache, and one handle is returned to the
-  // caller. In that case, we need to increase the ref count of the
-  // kernel.
-  ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-      KernelArgMaskPair.first);
+
+  // If cache is the owner, we won't be releasing them elsewhere,
+  // so no need to retain.
+  if (!TransferOwnershipToCache)
+    ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
+        KernelArgMaskPair.first);
+
   Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);
   return ret_val;
 }

@@ -119,7 +119,7 @@ TEST(GetNative, GetNativeHandle) {
   EXPECT_EQ(mockOpenCLNumQueueRetains(), 0ul);
   EXPECT_EQ(mockOpenCLNumDeviceRetains(), 0ul);
   EXPECT_EQ(mockOpenCLNumEventRetains(), 0ul);
-  ASSERT_EQ(TestCounter, 2 + DeviceRetainCounter - 1)
+  ASSERT_EQ(TestCounter, DeviceRetainCounter)
       << "Not all the retain methods were called";
 
   get_native<backend::opencl>(Context);
@@ -135,6 +135,6 @@ TEST(GetNative, GetNativeHandle) {
 
   // get_native shouldn't retain the SYCL objects, but instead retains the
   // underlying handles
-  ASSERT_EQ(TestCounter, 2 + DeviceRetainCounter - 1)
+  ASSERT_EQ(TestCounter, DeviceRetainCounter)
       << "get_native retained SYCL objects";
 }
