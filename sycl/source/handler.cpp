@@ -538,7 +538,7 @@ event handler::finalize() {
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(MQueue, impl->MNDRDesc, impl->MArgs,
-                         KernelBundleImpPtr, MKernel, MKernelName.data(),
+                         KernelBundleImpPtr, MKernel.get(), MKernelName.data(),
                          RawEvents,
                          DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
                          impl->MKernelCacheConfig, impl->MKernelIsCooperative,
