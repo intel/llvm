@@ -339,7 +339,11 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+#else
+  auto Event = finalizeHandler(Handler);
+#endif
 
   addEvent(Event);
 
@@ -395,7 +399,11 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+#else
+  auto Event = finalizeHandler(Handler);
+#endif
 
   addEvent(Event);
 
