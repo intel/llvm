@@ -115,7 +115,7 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
-        MNoEventMode(MIsInorder),
+        MNoEventMode(trySwitchingToNoEventsMode()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
@@ -616,7 +616,7 @@ public:
                                Scheduler::CheckEventReadiness(
                                    MContext, MDefaultGraphDeps.LastEventPtr))) {
       MDefaultGraphDeps.LastEventPtr = nullptr;
-      MNoEventMode = true;
+      trySwitchingToNoEventsMode();
     }
   }
 
@@ -721,7 +721,9 @@ protected:
     if (MNoEventMode.load(std::memory_order_relaxed))
       return true;
 
-    if (MGraph.expired() && isInOrder()) {
+    if (MGraph.expired() && isInOrder() &&
+        MContext->getBackend() != backend::opencl) {
+      // opencl does not support UR_QUEUE_INFO_EMPTY query
       assert(MDefaultGraphDeps.LastEventPtr != nullptr);
 
       if (Scheduler::CheckEventReadiness(MContext,
@@ -764,13 +766,12 @@ protected:
       // but the LastEventPtr is not set. If we are to run a host_task,
       // we need to insert a barrier to ensure proper synchronization.
       Handler.depends_on(insertHelperBarrier(Handler));
-    } else if (Handler.getType() != CGType::AsyncAlloc) {
+    } else if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
       // We are not in no-event mode, so we can use the last event.
       // depends_on after an async alloc is explicitly disallowed. Async alloc
       // handles in order queue dependencies preemptively, so we skip them.
       // Note: This could be improved by moving the handling of dependencies
       // to before calling the CGF.
-      assert(EventToBuildDeps != nullptr);
       Handler.depends_on(EventToBuildDeps);
     }
 
