@@ -20,9 +20,7 @@
 
 #include "loader/ze_loader.h"
 
-namespace {
-
-} // namespace
+namespace {} // namespace
 
 namespace ur::level_zero {
 
