@@ -366,7 +366,6 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   event Event;
   if (!isInOrder()) {
     Event = finalizeHandlerOutOfOrder(Handler);
-    addEvent(Event);
   } else {
     if (isHostTask) {
       std::unique_lock<std::mutex> Lock(MMutex);
@@ -380,10 +379,9 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
         Event = finalizeHandlerInOrderWithDepsUnlocked(Handler);
       }
     }
-
-    if (!requiresPostProcess)
-      return Event;
   }
+
+  addEvent(Event);
 
   if (SubmitInfo.PostProcessorFunc())
     handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
