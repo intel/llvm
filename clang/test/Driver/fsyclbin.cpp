@@ -43,7 +43,8 @@
 // CHECK_PHASES: 7: offload, "device-sycl (x86_64-unknown-linux-gnu)" {6}, none
 
 /// Check the output file names (file.syclbin, or -o <file>)
-// RUN: %clangxx -fsyclbin --offload-new-driver -o file.syclbin %s -### 2>&1 \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsyclbin \
+// RUN:   --offload-new-driver -o file.syclbin %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_NAMED_OUTPUT
 // CHECK_NAMED_OUTPUT: clang-linker-wrapper
 // CHECK_NAMED_OUTPUT-SAME: "-o" "file.syclbin"
@@ -54,7 +55,8 @@
 // CHECK_NAMED_OUTPUT_WIN-SAME: "-out:file.syclbin"
 
 /// For Linux - the default is 'a.out' so the syclbin file is 'a.syclbin'
-// RUN: %clangxx -fsyclbin --offload-new-driver %s -### 2>&1 \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsyclbin \
+// RUN:   --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_LINUX_DEFAULT_OUTPUT
 // CHECK_LINUX_DEFAULT_OUTPUT: clang-linker-wrapper
 // CHECK_LINUX_DEFAULT_OUTPUT-SAME: "-o" "a.syclbin"
