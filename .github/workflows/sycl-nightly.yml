@@ -249,7 +249,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Build SYCL-CTS for Windows
-      runner: '["Windows", "build-e2e"]'
+      runner: '["Windows", "build"]'
       cts_testing_mode: 'build-only'
       tests_selector: cts
       repo_ref: ${{ github.sha }}

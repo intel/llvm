@@ -81,7 +81,7 @@ permissions: read-all
 jobs:
   build:
     name: Build + LIT
-    runs-on: [Windows, build-e2e]
+    runs-on: [Windows, build]
     environment: WindowsCILock
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
