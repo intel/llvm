@@ -94,15 +94,20 @@ static_assert(__cplusplus >= 201703L,
 // Helper macro to identify if fallback assert is needed
 #if defined(SYCL_FALLBACK_ASSERT)
 #define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
-#warning "SYCL_FALLBACK_ASSERT is deprecated."
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
 #endif
-#else // __INTEL_PREVIEW_BREAKING_CHANGES
-#if defined(SYCL_FALLBACK_ASSERT)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+// MSVC doesn't support #warning and we cannot use other methods to report a
+// warning from inside a system header (which SYCL is considered to be).
+#if defined(SYCL_FALLBACK_ASSERT) && (!defined(_MSC_VER) || defined(__clang__))
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#warning "SYCL_FALLBACK_ASSERT is deprecated."
+#else
 #warning "SYCL_FALLBACK_ASSERT has been removed and no longer has any effect."
 #endif
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#endif
 
 #if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
 // SYCL library is designed such a way that STL objects cross DLL boundary,
