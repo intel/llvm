@@ -11,7 +11,7 @@
 #include "common.hpp"
 
 // Global variables for UR_RESULT_ADAPTER_SPECIFIC_ERROR
-thread_local int32_t ErrorMessageCode;
+thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize]{};
 
 // Utility function for setting a message and warning
