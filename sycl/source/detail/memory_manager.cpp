@@ -738,14 +738,16 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
 
 // Copies memory between: host and device, host and host,
 // device and device if memory objects bound to the one context.
-void MemoryManager::copy(
-    SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
-    unsigned int DimSrc, sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-    sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
-    QueueImplPtr TgtQueue, unsigned int DimDst, sycl::range<3> DstSize,
-    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-    unsigned int DstElemSize, std::vector<ur_event_handle_t> DepEvents,
-    ur_event_handle_t &OutEvent) {
+void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
+                         QueueImplPtr SrcQueue, unsigned int DimSrc,
+                         sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
+                         sycl::id<3> SrcOffset, unsigned int SrcElemSize,
+                         void *DstMem, QueueImplPtr TgtQueue,
+                         unsigned int DimDst, sycl::range<3> DstSize,
+                         sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                         unsigned int DstElemSize,
+                         std::vector<ur_event_handle_t> DepEvents,
+                         ur_event_handle_t &OutEvent) {
 
   if (!SrcQueue) {
     if (!TgtQueue)
@@ -1066,11 +1068,12 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
                              OutEvent);
 }
 
-static void memcpyToDeviceGlobalUSM(
-    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
-    size_t NumBytes, size_t Offset, const void *Src,
-    const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent) {
+static void
+memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
+                        DeviceGlobalMapEntry *DeviceGlobalEntry,
+                        size_t NumBytes, size_t Offset, const void *Src,
+                        const std::vector<ur_event_handle_t> &DepEvents,
+                        ur_event_handle_t *OutEvent) {
   assert(Queue &&
          "Copy to device global USM must be called with a valid device queue");
   // Get or allocate USM memory for the device_global.
@@ -1100,11 +1103,12 @@ static void memcpyToDeviceGlobalUSM(
                           ActualDepEvents, OutEvent);
 }
 
-static void memcpyFromDeviceGlobalUSM(
-    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
-    size_t NumBytes, size_t Offset, void *Dest,
-    const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent) {
+static void
+memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
+                          DeviceGlobalMapEntry *DeviceGlobalEntry,
+                          size_t NumBytes, size_t Offset, void *Dest,
+                          const std::vector<ur_event_handle_t> &DepEvents,
+                          ur_event_handle_t *OutEvent) {
   assert(Queue && "Copying from device global USM must be called with a valid "
                   "device queue");
   // Get or allocate USM memory for the device_global. Since we are reading from
