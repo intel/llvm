@@ -84,7 +84,7 @@ jobs:
           - name: GEN 12 Integrated
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            target_devices: level_zero:gpu;level_zero_v2:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param gpu-intel-gen12=True
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
@@ -110,7 +110,7 @@ jobs:
           - name: E2E tests on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
             extra_lit_opts: -j 50
           - name: Dev IGC on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
@@ -122,7 +122,7 @@ jobs:
           - name: Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu
+            target_devices: level_zero:gpu;level_zero_v2:gpu
           - name: SPIR-V Backend / Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
