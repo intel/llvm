@@ -2136,7 +2136,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         SYCLBIN::SYCLBINModuleDesc MD;
         MD.ArchString = LinkerArgs.getLastArgValue(OPT_arch_EQ);
         MD.SplitModules = std::move(SplitModules);
-        std::scoped_lock Guard(SYCLBINModulesMtx);
+        std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
