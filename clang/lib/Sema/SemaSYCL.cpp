@@ -6635,7 +6635,7 @@ private:
       if (const auto *TemplateParam = dyn_cast<TemplateTypeParmDecl>(Param)) {
         TemplateParams +=
             TemplateParam->wasDeclaredWithTypename() ? "typename " : "class ";
-        if (TemplateParam->isParameterPack()
+        if (TemplateParam->isParameterPack())
           TemplateParams += "... ";
         TemplateParams += TemplateParam->getNameAsString();
       } else if (const auto *NonTypeParam =
