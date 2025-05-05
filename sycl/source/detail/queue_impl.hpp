@@ -115,7 +115,6 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
-        MNoEventMode(trySwitchingToNoEventsMode()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
@@ -174,6 +173,8 @@ public:
     // different instance ID until this gets added.
     constructorNotification();
 #endif
+
+    trySwitchingToNoEventsMode();
   }
 
   sycl::detail::optional<event>
@@ -217,7 +218,6 @@ public:
         }()),
         MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
         MQueue(UrQueue), MIsInorder(has_property<property::queue::in_order>()),
-        MNoEventMode(trySwitchingToNoEventsMode()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
@@ -241,6 +241,8 @@ public:
     // different instance ID until this gets added.
     constructorNotification();
 #endif
+
+    trySwitchingToNoEventsMode();
   }
 
   ~queue_impl() {
@@ -613,10 +615,7 @@ public:
 
     if (Graph) {
       MNoEventMode = false;
-    } else if (isInOrder() && (!MDefaultGraphDeps.LastEventPtr ||
-                               Scheduler::CheckEventReadiness(
-                                   MContext, MDefaultGraphDeps.LastEventPtr))) {
-      MDefaultGraphDeps.LastEventPtr = nullptr;
+    } else {
       trySwitchingToNoEventsMode();
     }
   }
@@ -722,20 +721,21 @@ protected:
     if (MNoEventMode.load(std::memory_order_relaxed))
       return true;
 
-    if (MGraph.expired() && isInOrder() &&
-        MContext->getBackend() != backend::opencl) {
-      // opencl does not support UR_QUEUE_INFO_EMPTY query
-      assert(MDefaultGraphDeps.LastEventPtr != nullptr);
+    // opencl does not support UR_QUEUE_INFO_EMPTY query
+    if (MContext->getBackend() == backend::opencl)
+      return false;
 
-      if (Scheduler::CheckEventReadiness(MContext,
-                                         MDefaultGraphDeps.LastEventPtr)) {
-        MNoEventMode.store(true, std::memory_order_relaxed);
-        MDefaultGraphDeps.LastEventPtr = nullptr;
-        return true;
-      }
-    }
+    if (!MGraph.expired() || !isInOrder())
+      return false;
 
-    return false;
+    if (MDefaultGraphDeps.LastEventPtr != nullptr &&
+        !Scheduler::CheckEventReadiness(MContext,
+                                        MDefaultGraphDeps.LastEventPtr))
+      return false;
+
+    MNoEventMode.store(true, std::memory_order_relaxed);
+    MDefaultGraphDeps.LastEventPtr = nullptr;
+    return true;
   }
 
   template <typename HandlerType = handler>

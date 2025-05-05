@@ -292,17 +292,12 @@ queue_impl::getLastEvent(const std::shared_ptr<queue_impl> &Self) {
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MEmpty)
     return std::nullopt;
-  if (MNoEventMode) {
-    assert(MGraph.expired());
-    assert(!MDefaultGraphDeps.LastEventPtr);
-
-    // We insert a marker to represent an event at end.
-    return detail::createSyclObjFromImpl<event>(insertMarkerEvent(Self));
-  }
-  if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
-    return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
-  assert(MDefaultGraphDeps.LastEventPtr);
-  return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
+  auto &LastEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                     : MExtGraphDeps.LastEventPtr;
+  if (LastEvent && !LastEvent->isNOP())
+    return detail::createSyclObjFromImpl<event>(LastEvent);
+  // We insert a marker to represent an event at end.
+  return detail::createSyclObjFromImpl<event>(insertMarkerEvent(Self));
 }
 
 void queue_impl::addEvent(const event &Event) {
@@ -798,7 +793,6 @@ bool queue_impl::ext_oneapi_empty() const {
   // If we have in-order queue with non-empty last event, just check its status.
   if (isInOrder()) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    assert((MDefaultGraphDeps.LastEventPtr == nullptr) == MNoEventMode);
     if (MDefaultGraphDeps.LastEventPtr)
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==

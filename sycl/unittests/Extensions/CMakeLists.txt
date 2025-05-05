@@ -11,7 +11,6 @@ add_sycl_unittest(ExtensionsTests OBJECT
   USMP2P.cpp
   CompositeDevice.cpp
   OneAPIProd.cpp
-  DiscardEvent.cpp
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp

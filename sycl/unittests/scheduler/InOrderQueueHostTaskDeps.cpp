@@ -44,7 +44,13 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([=] {}); })
       .wait();
 
-  EXPECT_EQ(GEventsWaitCounter, 1u);
+  size_t expectedCount = 1u;
+
+  // OpenCL needs to store all events so does not need a barrier
+  if (Ctx.get_platform().get_backend() == backend::opencl)
+    expectedCount = 0u;
+
+  EXPECT_EQ(GEventsWaitCounter, expectedCount);
 }
 
 enum class CommandType { KERNEL = 1, MEMSET = 2 };
