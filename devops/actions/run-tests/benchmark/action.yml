@@ -137,7 +137,7 @@ runs:
         # Best effort at matching
         *)
           MACHINE_TYPE="${RUNNER_TAG#[\"}"
-          MACHINE_TYPE="${MACHINE_TYPE%_PERF="]}"
+          MACHINE_TYPE="${MACHINE_TYPE%_PERF=\"]}"
           ;;
       esac
       SAVE_NAME="${SAVE_PREFIX}_${MACHINE_TYPE}_${SAVE_SUFFIX}"
