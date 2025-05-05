@@ -202,9 +202,9 @@ class Compare:
         for test in target.results:
             if test.name not in hist_avg:
                 continue
-            if hist_avg[test.name].command_args != set(test.command[1:]):
-                print(f"Warning: skipped {test.name} due to command args mismatch.")
-                continue
+            # TODO compare command args which have an impact on performance
+            # (i.e. ignore --save-name): if command results are incomparable,
+            # skip the result.
 
             delta = 1 - (
                 test.value / hist_avg[test.name].value
