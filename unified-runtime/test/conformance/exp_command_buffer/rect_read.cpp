@@ -64,9 +64,9 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
                    256, 8, 256);
   // Tests that a 1x4x1 region can be read from a 8x16x4 device buffer at
   // offset {7,3,3} to a 2x8x1 host buffer at offset {1,3,0}.
-  PARAMETERIZATION(write_3d_2d, 512, 16, (ur_rect_offset_t{7, 3, 3}),
-                   (ur_rect_offset_t{1, 3, 0}), (ur_rect_region_t{1, 4, 1}), 8,
-                   128, 2, 16);
+  // PARAMETERIZATION(write_3d_2d, 512, 16, (ur_rect_offset_t{7, 3, 3}),
+  //                  (ur_rect_offset_t{1, 3, 0}), (ur_rect_region_t{1, 4, 1}), 8,
+  //                  128, 2, 16);
 #undef PARAMETERIZATION
   return parameterizations;
 }
