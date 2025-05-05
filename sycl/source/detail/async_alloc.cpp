@@ -44,23 +44,25 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device backed asynchronous allocations are supported!");
 
-  h.throwIfGraphAssociated<
-      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_async_alloc>();
-
   auto &Adapter = h.getContextImplPtr()->getAdapter();
-  auto &Q = h.MQueue->getHandleRef();
 
   // Get events to wait on.
   auto depEvents = getUrEvents(h.impl->CGData.MEvents);
   uint32_t numEvents = h.impl->CGData.MEvents.size();
 
   void *alloc = nullptr;
-  ur_event_handle_t Event;
-  Adapter->call<sycl::errc::runtime,
-                sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-      Q, (ur_usm_pool_handle_t)0, size, nullptr, numEvents, depEvents.data(),
-      &alloc, &Event);
+
+  ur_event_handle_t Event = nullptr;
+  // If a graph is present do the allocation from the graph memory pool instead.
+  if (auto Graph = h.getCommandGraph(); Graph) {
+    alloc = Graph->getMemPool().malloc(size, kind);
+  } else {
+    auto &Q = h.MQueue->getHandleRef();
+    Adapter->call<sycl::errc::runtime,
+                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+        Q, (ur_usm_pool_handle_t)0, size, nullptr, numEvents, depEvents.data(),
+        &alloc, &Event);
+  }
 
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the
@@ -90,12 +92,7 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
 
-  h.throwIfGraphAssociated<
-      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_async_alloc>();
-
   auto &Adapter = h.getContextImplPtr()->getAdapter();
-  auto &Q = h.MQueue->getHandleRef();
   auto &memPoolImpl = sycl::detail::getSyclObjImpl(pool);
 
   // Get events to wait on.
@@ -103,12 +100,20 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
   uint32_t numEvents = h.impl->CGData.MEvents.size();
 
   void *alloc = nullptr;
-  ur_event_handle_t Event;
-  Adapter->call<sycl::errc::runtime,
-                sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-      Q, memPoolImpl.get()->get_handle(), size, nullptr, numEvents,
-      depEvents.data(), &alloc, &Event);
 
+  ur_event_handle_t Event = nullptr;
+  // If a graph is present do the allocation from the graph memory pool instead.
+  if (auto Graph = h.getCommandGraph(); Graph) {
+    // Memory pool is passed as the graph may use some properties of it.
+    alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(),
+                                       sycl::detail::getSyclObjImpl(pool));
+  } else {
+    auto &Q = h.MQueue->getHandleRef();
+    Adapter->call<sycl::errc::runtime,
+                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+        Q, memPoolImpl.get()->get_handle(), size, nullptr, numEvents,
+        depEvents.data(), &alloc, &Event);
+  }
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the event from the alloc.
   h.impl->MAsyncAllocEvent = Event;
@@ -135,9 +140,15 @@ async_malloc_from_pool(const sycl::queue &q, size_t size,
 }
 
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr) {
-  h.throwIfGraphAssociated<
-      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_async_alloc>();
+  if (auto Graph = h.getCommandGraph(); Graph) {
+    // Check if the pointer to be freed has an associated allocation node, and
+    // error if not
+    if (!Graph->getMemPool().hasAllocation(ptr)) {
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Cannot add a free node to a graph for which "
+                            "there is no associated allocation node!");
+    }
+  }
 
   h.impl->MFreePtr = ptr;
   h.setType(detail::CGType::AsyncFree);

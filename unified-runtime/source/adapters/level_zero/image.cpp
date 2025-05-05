@@ -15,21 +15,12 @@
 #include "logger/ur_logger.hpp"
 #include "memory.hpp"
 #include "sampler.hpp"
+#include "ur_api.h"
 #include "ur_interface_loader.hpp"
 
 #include "loader/ze_loader.h"
 
 namespace {
-
-bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
-  switch (ChannelOrder) {
-  case UR_IMAGE_CHANNEL_ORDER_RGB:
-  case UR_IMAGE_CHANNEL_ORDER_RGX:
-    return true;
-  default:
-    return false;
-  }
-}
 
 } // namespace
 
@@ -68,9 +59,9 @@ ur_result_t urBindlessImagesImageCopyExp(
   bool UseCopyEngine = hQueue->useCopyEngine(/*PreferCopyEngine*/ true);
   // Due to the limitation of the copy engine, disable usage of Copy Engine
   // Given 3 channel image
-  if (Is3ChannelOrder(
+  if (is3ChannelOrder(
           ur_cast<ur_image_channel_order_t>(pSrcImageFormat->channelOrder)) ||
-      Is3ChannelOrder(
+      is3ChannelOrder(
           ur_cast<ur_image_channel_order_t>(pDstImageFormat->channelOrder))) {
     UseCopyEngine = false;
   }

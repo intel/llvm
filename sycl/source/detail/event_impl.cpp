@@ -39,7 +39,7 @@ void event_impl::initContextIfNeeded() {
 
   const device SyclDevice;
   this->setContextImpl(
-      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice)));
+      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice)));
 }
 
 event_impl::~event_impl() {
@@ -442,8 +442,8 @@ event_impl::get_backend_info<info::platform::version>() const {
                           "only be queried with an OpenCL backend");
   }
   if (QueueImplPtr Queue = MQueue.lock()) {
-    return Queue->getDeviceImplPtr()
-        ->get_platform()
+    return Queue->getDeviceImpl()
+        .get_platform()
         .get_info<info::platform::version>();
   }
   // If the queue has been released, no platform will be associated
@@ -465,7 +465,7 @@ event_impl::get_backend_info<info::device::version>() const {
                           "be queried with an OpenCL backend");
   }
   if (QueueImplPtr Queue = MQueue.lock()) {
-    return Queue->getDeviceImplPtr()->get_info<info::device::version>();
+    return Queue->getDeviceImpl().get_info<info::device::version>();
   }
   return ""; // If the queue has been released, no device will be associated so
              // return empty string
@@ -570,8 +570,7 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
-void event_impl::cleanDepEventsThroughOneLevel() {
-  std::lock_guard<std::mutex> Lock(MMutex);
+void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
   for (auto &Event : MPreparedDepsEvents) {
     Event->cleanupDependencyEvents();
   }
@@ -580,13 +579,18 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   }
 }
 
+void event_impl::cleanDepEventsThroughOneLevel() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  cleanDepEventsThroughOneLevelUnlocked();
+}
+
 void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
   if (!MFallbackProfiling) {
     if (QueueImplPtr Queue = MQueue.lock()) {
       try {
-        MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+        MSubmitTime = Queue->getDeviceImpl().getCurrentDeviceTime();
       } catch (sycl::exception &e) {
         if (e.code() == sycl::errc::feature_not_supported)
           throw sycl::exception(
