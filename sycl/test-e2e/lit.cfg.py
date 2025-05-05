@@ -846,6 +846,10 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     config.available_features.add("any-device-is-" + dev)
     # Use short names for LIT rules.
     config.available_features.add("any-device-is-" + be)
+    # Unlike all other backends, OpenCL supports more than 1 device type.
+    # Therefore it's useful to distinguish the GPU device.
+    if be == "opencl" and dev == "gpu":
+        config.available_features.add("any-device-is-opencl-gpu")
 
     target = config.backend_to_target[be]
     config.sycl_build_targets.add(target)
