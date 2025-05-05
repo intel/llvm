@@ -614,7 +614,7 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
                                      const std::string &PipeName, bool blocking,
                                      void *ptr, size_t size,
                                      std::vector<ur_event_handle_t> &RawEvents,
-                                     const detail::EventImplPtr &OutEventImpl,
+                                     detail::event_impl *OutEventImpl,
                                      bool read);
 
 void enqueueImpKernel(
@@ -622,7 +622,7 @@ void enqueueImpKernel(
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
-    const detail::EventImplPtr &Event,
+    detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
