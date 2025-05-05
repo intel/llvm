@@ -74,3 +74,4 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       e2e_testing_mode: run-only
       e2e_binaries_artifact: sycl_windows_e2ebin
+      compiler: cl

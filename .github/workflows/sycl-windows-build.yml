@@ -244,6 +244,7 @@ jobs:
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
         extra_lit_opts: --param sycl_build_targets="spir"
+        compiler: cl
 
     - name:  Detect hung tests
       if: always()
