@@ -97,7 +97,6 @@ class BenchmarkHistory:
 
         if options.git_commit_override is None or options.github_repo_override is None:
             if options.detect_versions.sycl:
-                print("[TEST] Obtain data from detect_version")
                 github_repo, git_hash = DetectVersion.instance().get_dpcpp_git_info()
             else:
                 git_hash, github_repo = git_info_from_path(
