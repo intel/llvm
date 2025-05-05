@@ -545,8 +545,6 @@ void Command::waitForEvents(QueueImplPtr Queue,
       flushCrossQueueDeps(EventImpls, MWorkerQueue);
       const AdapterPtr &Adapter = Queue->getAdapter();
 
-      if (MEvent != nullptr)
-        MEvent->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
@@ -1585,8 +1583,7 @@ ur_result_t MemCpyCommand::enqueueImp() {
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
           MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(), MQueue,
           MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-          MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), UREvent,
-          MEvent);
+          MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1747,7 +1744,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
           MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
           MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-          MDstReq.MElemSize, std::move(RawEvents), UREvent, MEvent);
+          MDstReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -2445,8 +2442,6 @@ static ur_result_t SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
@@ -2799,8 +2794,6 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
 
   ur_event_handle_t UREvent = nullptr;
   auto OutEvent = OutEventImpl ? &UREvent : nullptr;
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   if (read) {
     Error = Adapter->call_nocheck<UrApiKind::urEnqueueReadHostPipe>(
         ur_q, Program, PipeName.c_str(), blocking, ptr, size, RawEvents.size(),
@@ -3156,7 +3149,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
             Copy->getDst(), nullptr, Req->MDims, Req->MAccessRange,
             Req->MAccessRange, /*DstOffset=*/sycl::id<3>{0, 0, 0},
-            Req->MElemSize, std::move(RawEvents), UREvent, MEvent);
+            Req->MElemSize, std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3175,7 +3168,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             /*SrcOffset*/ sycl::id<3>{0, 0, 0}, Req->MElemSize,
             AllocaCmd->getMemAllocation(), MQueue, Req->MDims,
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-            std::move(RawEvents), UREvent, MEvent);
+            std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3196,8 +3189,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             ReqSrc->MMemoryRange, ReqSrc->MAccessRange, ReqSrc->MOffset,
             ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(), MQueue,
             ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
-            ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), UREvent,
-            MEvent);
+            ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3214,7 +3206,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             AllocaCmd->getMemAllocation(), MQueue, Fill->MPattern.size(),
             Fill->MPattern.data(), Req->MDims, Req->MMemoryRange,
             Req->MAccessRange, Req->MOffset, Req->MElemSize,
-            std::move(RawEvents), UREvent, MEvent);
+            std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3268,7 +3260,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(MemoryManager::copy_usm, Copy->getSrc(),
                                       MQueue, Copy->getLength(), Copy->getDst(),
-                                      std::move(RawEvents), Event, MEvent);
+                                      std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3279,7 +3271,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::fill_usm, Fill->getDst(), MQueue, Fill->getLength(),
-            Fill->getPattern(), std::move(RawEvents), Event, MEvent);
+            Fill->getPattern(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3290,7 +3282,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), MQueue,
-            Prefetch->getLength(), std::move(RawEvents), Event, MEvent);
+            Prefetch->getLength(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3302,7 +3294,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result =
             callMemOpHelper(MemoryManager::advise_usm, Advise->getDst(), MQueue,
                             Advise->getLength(), Advise->getAdvice(),
-                            std::move(RawEvents), Event, MEvent);
+                            std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3314,7 +3306,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_2d_usm, Copy->getSrc(), Copy->getSrcPitch(),
             MQueue, Copy->getDst(), Copy->getDstPitch(), Copy->getWidth(),
-            Copy->getHeight(), std::move(RawEvents), Event, MEvent);
+            Copy->getHeight(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3326,7 +3318,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::fill_2d_usm, Fill->getDst(), MQueue,
             Fill->getPitch(), Fill->getWidth(), Fill->getHeight(),
-            Fill->getPattern(), std::move(RawEvents), Event, MEvent);
+            Fill->getPattern(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3338,7 +3330,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::memset_2d_usm, Memset->getDst(), MQueue,
             Memset->getPitch(), Memset->getWidth(), Memset->getHeight(),
-            Memset->getValue(), std::move(RawEvents), Event, MEvent);
+            Memset->getValue(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3507,8 +3499,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. We wait
     // them explicitly since barrier w/o wait list waits for all commands
@@ -3553,8 +3543,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. Adding
     // them to the barrier wait list since barrier w/ wait list waits only for
@@ -3627,8 +3615,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_to_device_global, Copy->getDeviceGlobalPtr(),
             Copy->isDeviceImageScoped(), MQueue, Copy->getNumBytes(),
-            Copy->getOffset(), Copy->getSrc(), std::move(RawEvents), Event,
-            MEvent);
+            Copy->getOffset(), Copy->getSrc(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3641,8 +3628,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_from_device_global, Copy->getDeviceGlobalPtr(),
             Copy->isDeviceImageScoped(), MQueue, Copy->getNumBytes(),
-            Copy->getOffset(), Copy->getDest(), std::move(RawEvents), Event,
-            MEvent);
+            Copy->getOffset(), Copy->getDest(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3669,8 +3655,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
            "Command buffer submissions should have an associated queue");
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
     if (auto Result =
             MQueue->getAdapter()
                 ->call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(
