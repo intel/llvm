@@ -6573,8 +6573,9 @@ public:
             PackArg.print(Policy, StringStream, true);
           }
           continue;
-        } else
+        } else {
           StringStream << ", ";
+        }
 
         X.print(Policy, StringStream, true);
       }
@@ -6628,16 +6629,14 @@ private:
     std::string TemplateParams{"template <"};
     bool FirstParam{true};
     for (NamedDecl *Param : *TPL) {
-      if (!FirstParam) {
+      if (!FirstParam)
         TemplateParams += ", ";
-      }
       FirstParam = false;
       if (const auto *TemplateParam = dyn_cast<TemplateTypeParmDecl>(Param)) {
         TemplateParams +=
             TemplateParam->wasDeclaredWithTypename() ? "typename " : "class ";
-        if (TemplateParam->isParameterPack()) {
+        if (TemplateParam->isParameterPack()
           TemplateParams += "... ";
-        }
         TemplateParams += TemplateParam->getNameAsString();
       } else if (const auto *NonTypeParam =
                      dyn_cast<NonTypeTemplateParmDecl>(Param)) {
