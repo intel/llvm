@@ -27,12 +27,16 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   check_cxx_compiler_flag(-Winstantiation-after-specialization
     HAS_INST_AFTER_SPEC)
+  check_cxx_compiler_flag(-ffunction-sections HAS_FUNCTION_SECTIONS_FLAG)
+  check_cxx_compiler_flag(-fdata-sections HAS_DATA_SECTIONS_FLAG)
 
   target_compile_options(
     ${LIB_OBJ_NAME}
     PRIVATE
       ${ARG_COMPILE_OPTIONS}
       $<$<BOOL:${HAS_INST_AFTER_SPEC}>:-Winstantiation-after-specialization>
+      $<$<BOOL:${HAS_FUNCTION_SECTIONS_FLAG}>:-ffunction-sections>
+      $<$<BOOL:${HAS_DATA_SECTIONS_FLAG}>:-fdata-sections>
     PUBLIC
       $<$<NOT:$<BOOL:${MSVC}>>:-fvisibility=hidden -fvisibility-inlines-hidden>
       # Sycl math built-in macros cause a GCC 4.6 'note' to be output
