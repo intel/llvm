@@ -2359,7 +2359,7 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
         continue;
       auto ArgMaskMapIt = MapIt->second.find(KernelName);
       if (ArgMaskMapIt != MapIt->second.end())
-        return &MapIt->second[KernelName];
+        return &ArgMaskMapIt->second;
     }
     if (Range.first != Range.second)
       return nullptr;
