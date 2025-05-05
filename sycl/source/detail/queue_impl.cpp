@@ -738,7 +738,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   return Handle;
 }
 
-bool queue_impl::ext_oneapi_empty() const {
+bool queue_impl::queue_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {

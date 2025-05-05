@@ -598,7 +598,7 @@ public:
     MStreamsServiceEvents.push_back(Event);
   }
 
-  bool ext_oneapi_empty() const;
+  bool queue_empty() const;
 
   event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                              void *DeviceGlobalPtr, const void *Src,

@@ -3492,6 +3492,12 @@ public:
   /// completed, otherwise returns false.
   bool ext_oneapi_empty() const;
 
+  /// Allows to check status of the queue (completed vs noncompleted).
+  ///
+  /// \return returns true if all enqueued commands in the queue have been
+  /// completed, otherwise returns false.
+  bool khr_empty() const;
+
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 
   std::optional<event> ext_oneapi_get_last_event() const {
