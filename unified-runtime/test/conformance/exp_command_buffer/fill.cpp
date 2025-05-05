@@ -53,7 +53,8 @@ struct urCommandBufferFillCommandsTest
             testParametersFill>::TearDown());
   }
 
-  void verifyData(std::vector<uint8_t> &output, size_t verify_size) {
+  void verifyData(const std::vector<uint8_t> &output,
+                  const size_t verify_size) {
     size_t pattern_index = 0;
     for (size_t i = 0; i < verify_size; ++i) {
       ASSERT_EQ(output[i], pattern[pattern_index])
@@ -109,6 +110,9 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     printFillTestString<urCommandBufferFillCommandsTest>);
 
 TEST_P(urCommandBufferFillCommandsTest, Buffer) {
+  // No buffer read command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
       0, nullptr, &sync_point, nullptr, nullptr));
@@ -128,6 +132,9 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
 }
 
 TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
+  // No buffer read command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
       0, nullptr, &sync_point, nullptr, nullptr));
@@ -149,6 +156,12 @@ TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
 }
 
 TEST_P(urCommandBufferFillCommandsTest, USM) {
+  if (pattern_size > 128) {
+    // clCommandSVMMemFillKHR returns an error according to the spec if pattern
+    // size is not one of {1, 2, 4, 8, 16, 32, 64, 128}
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  }
+
   ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
       cmd_buf_handle, device_ptr, pattern.data(), pattern_size, size, 0,
       nullptr, 0, nullptr, &sync_point, nullptr, nullptr));

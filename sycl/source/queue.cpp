@@ -32,7 +32,6 @@ const optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() const {
   return impl->MPostProcessorFunc;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 std::shared_ptr<detail::queue_impl> &SubmissionInfo::SecondaryQueue() {
   return impl->MSecondaryQueue;
 }
@@ -41,7 +40,6 @@ const std::shared_ptr<detail::queue_impl> &
 SubmissionInfo::SecondaryQueue() const {
   return impl->MSecondaryQueue;
 }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 ext::oneapi::experimental::event_mode_enum &SubmissionInfo::EventMode() {
   return impl->MEventMode;
@@ -64,21 +62,21 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
   const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+      *detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+      *detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       AsyncHandler, PropList);
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
+      *detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
@@ -422,7 +420,7 @@ event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
 
 bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
-  return impl->getDeviceImplPtr()->has(Aspect);
+  return impl->getDeviceImpl().has(Aspect);
 }
 
 // TODO(#15184) Remove this function in the next ABI-breaking window.
