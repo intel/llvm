@@ -16,7 +16,8 @@ void ndRangeKernelReference(int &Ref) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<3>)
-void ndRangeKernelVariadic(...) { // expected-error {{free function kernel cannot be a variadic function}}
+void ndRangeKernelVariadic(
+    ...) { // expected-error {{free function kernel cannot be a variadic function}}
 }
 
 // TODO: Add expected error when it will be implemented.
