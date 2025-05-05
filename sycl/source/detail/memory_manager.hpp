@@ -171,17 +171,19 @@ public:
                             std::vector<ur_event_handle_t> DepEvents,
                             ur_event_handle_t *OutEvent);
 
-  static void copy_to_device_global(
-      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
-      size_t NumBytes, size_t Offset, const void *SrcMem,
-      const std::vector<ur_event_handle_t> &DepEvents,
-      ur_event_handle_t *OutEvent);
+  static void
+  copy_to_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
+                        QueueImplPtr Queue, size_t NumBytes, size_t Offset,
+                        const void *SrcMem,
+                        const std::vector<ur_event_handle_t> &DepEvents,
+                        ur_event_handle_t *OutEvent);
 
-  static void copy_from_device_global(
-      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
-      size_t NumBytes, size_t Offset, void *DstMem,
-      const std::vector<ur_event_handle_t> &DepEvents,
-      ur_event_handle_t *OutEvent);
+  static void
+  copy_from_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
+                          QueueImplPtr Queue, size_t NumBytes, size_t Offset,
+                          void *DstMem,
+                          const std::vector<ur_event_handle_t> &DepEvents,
+                          ur_event_handle_t *OutEvent);
 
   // Command buffer extension methods
   static void ext_oneapi_copyD2D_cmd_buffer(

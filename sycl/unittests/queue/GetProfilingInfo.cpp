@@ -345,4 +345,3 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
 
   EXPECT_TRUE(DeviceTimerCalled);
 }
-
