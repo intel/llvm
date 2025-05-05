@@ -40,10 +40,10 @@ device::device(cl_device_id DeviceId) {
   Adapter->call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
       detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter->getUrAdapter(),
       nullptr, &Device);
-  auto Platform =
-      detail::platform_impl::getPlatformFromUrDevice(Device, Adapter);
-  impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  Adapter->call<detail::UrApiKind::urDeviceRetain>(impl->getHandleRef());
+  impl = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
+             .getOrMakeDeviceImpl(Device)
+             .shared_from_this();
+  __SYCL_OCL_CALL(clRetainDevice, DeviceId);
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -237,9 +237,9 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
   ur_exp_peer_info_t UrAttr = [&]() {
     switch (attr) {
     case ext::oneapi::peer_access::access_supported:
-      return UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED;
+      return UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT;
     case ext::oneapi::peer_access::atomics_supported:
-      return UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED;
+      return UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT;
     }
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unrecognized peer access attribute.");
@@ -263,6 +263,11 @@ bool device::ext_oneapi_architecture_is(
 }
 
 // kernel_compiler extension methods
+bool device::ext_oneapi_can_build(
+    ext::oneapi::experimental::source_language Language) {
+  return impl->extOneapiCanBuild(Language);
+}
+
 bool device::ext_oneapi_can_compile(
     ext::oneapi::experimental::source_language Language) {
   return impl->extOneapiCanCompile(Language);

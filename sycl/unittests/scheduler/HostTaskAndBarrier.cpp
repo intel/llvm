@@ -21,13 +21,12 @@ namespace {
 using namespace sycl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-using DeviceImplPtr = std::shared_ptr<sycl::detail::device_impl>;
 
 constexpr auto DisableCleanupName = "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
 class TestQueueImpl : public sycl::detail::queue_impl {
 public:
-  TestQueueImpl(ContextImplPtr SyclContext, DeviceImplPtr Dev)
+  TestQueueImpl(ContextImplPtr SyclContext, sycl::detail::device_impl &Dev)
       : sycl::detail::queue_impl(Dev, SyclContext,
                                  SyclContext->get_async_handler(), {}) {}
   using sycl::detail::queue_impl::MDefaultGraphDeps;
@@ -47,7 +46,7 @@ protected:
         sycl::detail::select_device(sycl::default_selector_v, SyclContext);
     QueueDevImpl.reset(
         new TestQueueImpl(sycl::detail::getSyclObjImpl(SyclContext),
-                          sycl::detail::getSyclObjImpl(SyclDev)));
+                          *sycl::detail::getSyclObjImpl(SyclDev)));
 
     MainLock.lock();
   }
@@ -59,28 +58,28 @@ protected:
 
   sycl::event AddTask(TestCGType Type, bool BlockHostTask = true) {
     if (Type == TestCGType::HOST_TASK) {
-      return QueueDevImpl->submit(
-          [&](handler &CGH) {
-            CGH.host_task(BlockHostTask ? CustomHostLambda : [] {});
-          },
-          QueueDevImpl, nullptr, {}, true);
+      auto L = [&](handler &CGH) {
+        CGH.host_task(BlockHostTask ? CustomHostLambda : [] {});
+      };
+      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L},
+                                  QueueDevImpl, nullptr, {}, true);
     } else if (Type == TestCGType::KERNEL_TASK) {
-      return QueueDevImpl->submit(
-          [&](handler &CGH) { CGH.single_task<TestKernel<>>([] {}); },
-          QueueDevImpl, nullptr, {}, true);
+      auto L = [&](handler &CGH) { CGH.single_task<TestKernel<>>([] {}); };
+      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L},
+                                  QueueDevImpl, nullptr, {}, true);
     } else // (Type == TestCGType::BARRIER)
     {
-      return QueueDevImpl->submit(
-          [&](handler &CGH) { CGH.ext_oneapi_barrier(); }, QueueDevImpl,
-          nullptr, {}, true);
+      auto L = [&](handler &CGH) { CGH.ext_oneapi_barrier(); };
+      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L},
+                                  QueueDevImpl, nullptr, {}, true);
     }
   }
 
   sycl::event
   InsertBarrierWithWaitList(const std::vector<sycl::event> &WaitList) {
-    return QueueDevImpl->submit(
-        [&](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); }, QueueDevImpl,
-        nullptr, {}, true);
+    auto L = [&](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); };
+    return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L},
+                                QueueDevImpl, nullptr, {}, true);
   }
 
   void BuildAndCheckInnerQueueState(std::vector<EventImplPtr> &Events) {

@@ -150,13 +150,20 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
             ,
             int = detail::emit_get_backend_info_error<platform, Param>()
 #endif
+#endif
             >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   /// Returns all available SYCL platforms in the system.
   ///
@@ -197,9 +204,15 @@ public:
   /// Return this platform's default context
   ///
   /// \return the default context
+  __SYCL_DEPRECATED("use khr_get_default_context() instead")
   context ext_oneapi_get_default_context() const;
 
   std::vector<device> ext_oneapi_get_composite_devices() const;
+
+  /// Returns a copy of the default context object for this platform.
+  ///
+  /// \return the default context
+  context khr_get_default_context() const;
 
 private:
   ur_native_handle_t getNative() const;
@@ -210,7 +223,11 @@ private:
   platform(const device &Device);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
   template <class Obj>
   friend const decltype(Obj::impl) &
   detail::getSyclObjImpl(const Obj &SyclObject);

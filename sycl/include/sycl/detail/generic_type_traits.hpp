@@ -137,17 +137,22 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     return reinterpret_cast<result_type>(x);
   } else if constexpr (is_vec_v<no_ref>) {
     using ElemTy = typename no_ref::element_type;
-    // sycl::half may convert to _Float16, and we would try to instantiate
-    // vec class with _Float16 DataType, which is not expected there. As
-    // such, leave vector<half, N> as-is.
-    using MatchingVec =
-        vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
-                               decltype(convertToOpenCLType(
-                                   std::declval<ElemTy>()))>,
-            no_ref::size()>;
+    using ConvertedElemTy =
+        decltype(convertToOpenCLType(std::declval<ElemTy>()));
+    static constexpr int NumElements = no_ref::size();
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
+    using vector_t =
+        std::conditional_t<NumElements == 1, ConvertedElemTy,
+                           ConvertedElemTy
+                           __attribute__((ext_vector_type(NumElements)))>;
+    return sycl::bit_cast<vector_t>(x);
 #else
+    // sycl::half may convert to _Float16, and we would try to
+    // instantiate vec class with _Float16 DataType, which is not
+    // expected there. As such, leave vector<half, N> as-is.
+    using MatchingVec = vec<std::conditional_t<std::is_same_v<ElemTy, half>,
+                                               ElemTy, ConvertedElemTy>,
+                            NumElements>;
     return x.template as<MatchingVec>();
 #endif
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -167,7 +172,7 @@ template <typename T> auto convertToOpenCLType(T &&x) {
   } else if constexpr (std::is_same_v<no_ref, ext::oneapi::bfloat16>) {
     // On host, don't interpret BF16 as uint16.
 #ifdef __SYCL_DEVICE_ONLY__
-    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+    using OpenCLType = sycl::ext::oneapi::bfloat16::Bfloat16StorageT;
     return sycl::bit_cast<OpenCLType>(x);
 #else
     return std::forward<T>(x);
@@ -203,7 +208,7 @@ template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {
     if constexpr (is_vec_v<To_noref> && is_vec_v<From_noref>)
       return x.template as<To_noref>();
     else if constexpr (is_vec_v<To_noref> && is_ext_vector_v<From_noref>)
-      return To_noref{bit_cast<typename To_noref::vector_t>(x)};
+      return bit_cast<To>(x);
     else
       return static_cast<To>(x);
   }

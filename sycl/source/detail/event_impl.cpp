@@ -39,7 +39,7 @@ void event_impl::initContextIfNeeded() {
 
   const device SyclDevice;
   this->setContextImpl(
-      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice)));
+      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice)));
 }
 
 event_impl::~event_impl() {
@@ -176,6 +176,17 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     return;
   }
   MState.store(HES_Complete);
+}
+
+void event_impl::setQueue(const QueueImplPtr &Queue) {
+  MQueue = Queue;
+  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
+  MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
+
+  // TODO After setting the queue, the event is no longer default
+  // constructed. Consider a design change which would allow
+  // for such a change regardless of the construction method.
+  MIsDefaultConstructed = false;
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -418,6 +429,7 @@ event_impl::get_info<info::event::command_execution_status>() {
              : info::event_command_status::complete;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 event_impl::get_backend_info<info::platform::version>() const {
@@ -430,15 +442,17 @@ event_impl::get_backend_info<info::platform::version>() const {
                           "only be queried with an OpenCL backend");
   }
   if (QueueImplPtr Queue = MQueue.lock()) {
-    return Queue->getDeviceImplPtr()
-        ->get_platform()
+    return Queue->getDeviceImpl()
+        .get_platform()
         .get_info<info::platform::version>();
   }
   // If the queue has been released, no platform will be associated
   // so return empty string.
   return "";
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 event_impl::get_backend_info<info::device::version>() const {
@@ -451,12 +465,14 @@ event_impl::get_backend_info<info::device::version>() const {
                           "be queried with an OpenCL backend");
   }
   if (QueueImplPtr Queue = MQueue.lock()) {
-    return Queue->getDeviceImplPtr()->get_info<info::device::version>();
+    return Queue->getDeviceImpl().get_info<info::device::version>();
   }
   return ""; // If the queue has been released, no device will be associated so
              // return empty string
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 event_impl::get_backend_info<info::device::backend_version>() const {
@@ -473,6 +489,7 @@ event_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
@@ -494,10 +511,10 @@ ur_native_handle_t event_impl::getNative() {
     this->setHandle(UREvent);
     Handle = UREvent;
   }
-  if (MContext->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urEventRetain>(Handle);
   ur_native_handle_t OutHandle;
   Adapter->call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
+  if (MContext->getBackend() == backend::opencl)
+    __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(OutHandle));
   return OutHandle;
 }
 
@@ -553,8 +570,7 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
-void event_impl::cleanDepEventsThroughOneLevel() {
-  std::lock_guard<std::mutex> Lock(MMutex);
+void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
   for (auto &Event : MPreparedDepsEvents) {
     Event->cleanupDependencyEvents();
   }
@@ -563,13 +579,18 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   }
 }
 
+void event_impl::cleanDepEventsThroughOneLevel() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  cleanDepEventsThroughOneLevelUnlocked();
+}
+
 void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
   if (!MFallbackProfiling) {
     if (QueueImplPtr Queue = MQueue.lock()) {
       try {
-        MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+        MSubmitTime = Queue->getDeviceImpl().getCurrentDeviceTime();
       } catch (sycl::exception &e) {
         if (e.code() == sycl::errc::feature_not_supported)
           throw sycl::exception(

@@ -35,7 +35,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
 inline std::vector<memory_order>
 readMemoryOrderBitfield(ur_memory_order_capability_flags_t bits) {
   std::vector<memory_order> result;
@@ -174,10 +173,10 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 // TODO: get rid of remaining uses of OpenCL directly
 
 template <typename ReturnT, typename Param> struct get_device_info_impl {
-  static ReturnT get(const DeviceImplPtr &Dev) {
+  static ReturnT get(const device_impl &Dev) {
     typename sycl_to_ur<ReturnT>::type result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
         nullptr);
     return ReturnT(result);
   }
@@ -185,16 +184,14 @@ template <typename ReturnT, typename Param> struct get_device_info_impl {
 
 // Specialization for platform
 template <typename Param> struct get_device_info_impl<platform, Param> {
-  static platform get(const DeviceImplPtr &Dev) {
-    typename sycl_to_ur<platform>::type result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
+  static platform get(const device_impl &Dev) {
     // TODO: Change UrDevice to device_impl.
     // Use the Adapter from the device_impl class after adapter details
     // are added to the class.
-    return createSyclObjFromImpl<platform>(
-        platform_impl::getOrMakePlatformImpl(result, Dev->getAdapter()));
+    return createSyclObjFromImpl<platform>(platform_impl::getOrMakePlatformImpl(
+        get_device_info_impl<typename sycl_to_ur<platform>::type, Param>::get(
+            Dev),
+        Dev.getAdapter()));
   }
 };
 
@@ -202,55 +199,28 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 // for string return type in other specializations.
 inline std::string
 device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
-  size_t resultSize = 0;
-  getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), InfoCode, 0,
-                                                 nullptr, &resultSize);
-  if (resultSize == 0) {
-    return std::string();
-  }
-  std::unique_ptr<char[]> result(new char[resultSize]);
-  getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-      getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
-
-  return std::string(result.get());
+  return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, InfoCode);
 }
 
 // Specialization for string return type, variable return size
 template <typename Param> struct get_device_info_impl<std::string, Param> {
-  static std::string get(const DeviceImplPtr &Dev) {
-    return Dev->get_device_info_string(UrInfoCode<Param>::value);
+  static std::string get(const device_impl &Dev) {
+    return Dev.get_device_info_string(UrInfoCode<Param>::value);
   }
-};
-
-// Specialization for parent device
-template <typename ReturnT>
-struct get_device_info_impl<ReturnT, info::device::parent_device> {
-  static ReturnT get(const DeviceImplPtr &Dev);
 };
 
 // Specialization for fp_config types, checks the corresponding fp type support
 template <typename Param>
 struct get_device_info_impl<std::vector<info::fp_config>, Param> {
-  static std::vector<info::fp_config> get(const DeviceImplPtr &Dev) {
+  static std::vector<info::fp_config> get(const device_impl &Dev) {
     // Check if fp type is supported
     if (!get_device_info_impl<
             typename check_fp_support<Param>::type::return_type,
             typename check_fp_support<Param>::type>::get(Dev)) {
       return {};
     }
-    ur_device_fp_capability_flags_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
-    return read_fp_bitfield(result);
-  }
-};
-
-// Specialization for device version
-template <> struct get_device_info_impl<std::string, info::device::version> {
-  static std::string get(const DeviceImplPtr &Dev) {
-    return Dev->get_device_info_string(
-        UrInfoCode<info::device::version>::value);
+    return read_fp_bitfield(
+        get_device_info_impl<ur_device_fp_capability_flags_t, Param>::get(Dev));
   }
 };
 
@@ -258,12 +228,10 @@ template <> struct get_device_info_impl<std::string, info::device::version> {
 template <>
 struct get_device_info_impl<std::vector<info::fp_config>,
                             info::device::single_fp_config> {
-  static std::vector<info::fp_config> get(const DeviceImplPtr &Dev) {
-    ur_device_fp_capability_flags_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<info::device::single_fp_config>::value,
-        sizeof(result), &result, nullptr);
-    return read_fp_bitfield(result);
+  static std::vector<info::fp_config> get(const device_impl &Dev) {
+    return read_fp_bitfield(
+        get_device_info_impl<ur_device_fp_capability_flags_t,
+                             info::device::single_fp_config>::get(Dev));
   }
 };
 
@@ -271,12 +239,10 @@ struct get_device_info_impl<std::vector<info::fp_config>,
 // urDeviceGetGlobalTimestamps is not supported, command_submit, command_start,
 // command_end will be calculated. See MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
-  static bool get(const DeviceImplPtr &Dev) {
-    ur_queue_flags_t Properties;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<info::device::queue_profiling>::value,
-        sizeof(Properties), &Properties, nullptr);
-    return Properties & UR_QUEUE_FLAG_PROFILING_ENABLE;
+  static bool get(const device_impl &Dev) {
+    return get_device_info_impl<ur_queue_flags_t,
+                                info::device::queue_profiling>::get(Dev) &
+           UR_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
 
@@ -284,13 +250,11 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
 template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
-  static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
-    ur_memory_order_capability_flag_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::atomic_memory_order_capabilities>::value,
-        sizeof(result), &result, nullptr);
-    return readMemoryOrderBitfield(result);
+  static std::vector<memory_order> get(const device_impl &Dev) {
+    return readMemoryOrderBitfield(
+        get_device_info_impl<
+            ur_memory_order_capability_flag_t,
+            info::device::atomic_memory_order_capabilities>::get(Dev));
   }
 };
 
@@ -298,13 +262,11 @@ struct get_device_info_impl<std::vector<memory_order>,
 template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_fence_order_capabilities> {
-  static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
-    ur_memory_order_capability_flag_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::atomic_fence_order_capabilities>::value,
-        sizeof(result), &result, nullptr);
-    return readMemoryOrderBitfield(result);
+  static std::vector<memory_order> get(const device_impl &Dev) {
+    return readMemoryOrderBitfield(
+        get_device_info_impl<
+            ur_memory_order_capability_flag_t,
+            info::device::atomic_fence_order_capabilities>::get(Dev));
   }
 };
 
@@ -312,13 +274,10 @@ struct get_device_info_impl<std::vector<memory_order>,
 template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
-  static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    size_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::atomic_memory_scope_capabilities>::value,
-        sizeof(result), &result, nullptr);
-    return readMemoryScopeBitfield(result);
+  static std::vector<memory_scope> get(const device_impl &Dev) {
+    return readMemoryScopeBitfield(
+        get_device_info_impl<
+            size_t, info::device::atomic_memory_scope_capabilities>::get(Dev));
   }
 };
 
@@ -326,24 +285,21 @@ struct get_device_info_impl<std::vector<memory_scope>,
 template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
-  static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    size_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::atomic_fence_scope_capabilities>::value,
-        sizeof(result), &result, nullptr);
-    return readMemoryScopeBitfield(result);
+  static std::vector<memory_scope> get(const device_impl &Dev) {
+    return readMemoryScopeBitfield(
+        get_device_info_impl<
+            size_t, info::device::atomic_fence_scope_capabilities>::get(Dev));
   }
 };
 
 // Specialization for cuda cluster group
 template <>
 struct get_device_info_impl<bool, info::device::ext_oneapi_cuda_cluster_group> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static bool get(const device_impl &Dev) {
     bool result = false;
-    if (Dev->getBackend() == backend::ext_oneapi_cuda) {
-      auto Err = Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-          Dev->getHandleRef(),
+    if (Dev.getBackend() == backend::ext_oneapi_cuda) {
+      auto Err = Dev.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          Dev.getHandleRef(),
           UrInfoCode<info::device::ext_oneapi_cuda_cluster_group>::value,
           sizeof(result), &result, nullptr);
       if (Err != UR_RESULT_SUCCESS) {
@@ -358,13 +314,15 @@ struct get_device_info_impl<bool, info::device::ext_oneapi_cuda_cluster_group> {
 template <>
 struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
-  static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
-    ur_device_exec_capability_flag_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::execution_capabilities>::value, sizeof(result),
-        &result, nullptr);
-    return read_execution_bitfield(result);
+  static std::vector<info::execution_capability> get(const device_impl &Dev) {
+    if (Dev.getBackend() != backend::opencl)
+      throw exception(make_error_code(errc::invalid),
+                      "info::device::execution_capabilities is available for "
+                      "backend::opencl only");
+
+    return read_execution_bitfield(
+        get_device_info_impl<ur_device_exec_capability_flag_t,
+                             info::device::execution_capabilities>::get(Dev));
   }
 };
 
@@ -372,8 +330,8 @@ struct get_device_info_impl<std::vector<info::execution_capability>,
 template <>
 struct get_device_info_impl<std::vector<kernel_id>,
                             info::device::built_in_kernel_ids> {
-  static std::vector<kernel_id> get(const DeviceImplPtr &Dev) {
-    std::string result = Dev->get_device_info_string(
+  static std::vector<kernel_id> get(const device_impl &Dev) {
+    std::string result = Dev.get_device_info_string(
         UrInfoCode<info::device::built_in_kernels>::value);
     auto names = split_string(result, ';');
 
@@ -390,8 +348,8 @@ struct get_device_info_impl<std::vector<kernel_id>,
 template <>
 struct get_device_info_impl<std::vector<std::string>,
                             info::device::built_in_kernels> {
-  static std::vector<std::string> get(const DeviceImplPtr &Dev) {
-    std::string result = Dev->get_device_info_string(
+  static std::vector<std::string> get(const device_impl &Dev) {
+    std::string result = Dev.get_device_info_string(
         UrInfoCode<info::device::built_in_kernels>::value);
     return split_string(result, ';');
   }
@@ -401,7 +359,7 @@ struct get_device_info_impl<std::vector<std::string>,
 template <>
 struct get_device_info_impl<std::vector<std::string>,
                             info::device::extensions> {
-  static std::vector<std::string> get(const DeviceImplPtr &Dev) {
+  static std::vector<std::string> get(const device_impl &Dev) {
     std::string result =
         get_device_info_impl<std::string, info::device::extensions>::get(Dev);
     return split_string(result, ' ');
@@ -424,13 +382,13 @@ static bool is_sycl_partition_property(info::partition_property PP) {
 template <>
 struct get_device_info_impl<std::vector<info::partition_property>,
                             info::device::partition_properties> {
-  static std::vector<info::partition_property> get(const DeviceImplPtr &Dev) {
+  static std::vector<info::partition_property> get(const device_impl &Dev) {
     auto info_partition = UrInfoCode<info::device::partition_properties>::value;
-    const auto &Adapter = Dev->getAdapter();
+    const auto &Adapter = Dev.getAdapter();
 
     size_t resultSize;
     Adapter->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), info_partition, 0, nullptr, &resultSize);
+        Dev.getHandleRef(), info_partition, 0, nullptr, &resultSize);
 
     size_t arrayLength = resultSize / sizeof(ur_device_partition_t);
     if (arrayLength == 0) {
@@ -438,7 +396,7 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     }
     std::unique_ptr<ur_device_partition_t[]> arrayResult(
         new ur_device_partition_t[arrayLength]);
-    Adapter->call<UrApiKind::urDeviceGetInfo>(Dev->getHandleRef(),
+    Adapter->call<UrApiKind::urDeviceGetInfo>(Dev.getHandleRef(),
                                               info_partition, resultSize,
                                               arrayResult.get(), nullptr);
 
@@ -460,13 +418,11 @@ template <>
 struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
                             info::device::partition_affinity_domains> {
   static std::vector<info::partition_affinity_domain>
-  get(const DeviceImplPtr &Dev) {
-    ur_device_affinity_domain_flags_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::partition_affinity_domains>::value,
-        sizeof(result), &result, nullptr);
-    return read_domain_bitfield(result);
+  get(const device_impl &Dev) {
+    return read_domain_bitfield(
+        get_device_info_impl<
+            ur_device_affinity_domain_flags_t,
+            info::device::partition_affinity_domains>::get(Dev));
   }
 };
 
@@ -475,11 +431,11 @@ struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
 template <>
 struct get_device_info_impl<info::partition_affinity_domain,
                             info::device::partition_type_affinity_domain> {
-  static info::partition_affinity_domain get(const DeviceImplPtr &Dev) {
+  static info::partition_affinity_domain get(const device_impl &Dev) {
     std::vector<ur_device_partition_property_t> PartitionProperties;
     size_t PropertiesSize = 0;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value, 0,
         nullptr, &PropertiesSize);
     if (PropertiesSize == 0)
@@ -488,8 +444,8 @@ struct get_device_info_impl<info::partition_affinity_domain,
     PartitionProperties.resize(PropertiesSize /
                                sizeof(ur_device_partition_property_t));
 
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value,
         PropertiesSize, PartitionProperties.data(), nullptr);
 
@@ -507,11 +463,11 @@ struct get_device_info_impl<info::partition_affinity_domain,
 template <>
 struct get_device_info_impl<info::partition_property,
                             info::device::partition_type_property> {
-  static info::partition_property get(const DeviceImplPtr &Dev) {
+  static info::partition_property get(const device_impl &Dev) {
     std::vector<ur_device_partition_property_t> PartitionProperties;
     size_t PropertiesSize = 0;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value, 0,
         nullptr, &PropertiesSize);
     if (PropertiesSize == 0)
@@ -520,8 +476,8 @@ struct get_device_info_impl<info::partition_property,
     PartitionProperties.resize(PropertiesSize /
                                sizeof(ur_device_partition_property_t));
 
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value,
         PropertiesSize, PartitionProperties.data(), nullptr);
     // The old UR implementation also just checked the first element, is that
@@ -534,15 +490,15 @@ struct get_device_info_impl<info::partition_property,
 template <>
 struct get_device_info_impl<std::vector<size_t>,
                             info::device::sub_group_sizes> {
-  static std::vector<size_t> get(const DeviceImplPtr &Dev) {
+  static std::vector<size_t> get(const device_impl &Dev) {
     size_t resultSize = 0;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<info::device::sub_group_sizes>::value,
-        0, nullptr, &resultSize);
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(), UrInfoCode<info::device::sub_group_sizes>::value, 0,
+        nullptr, &resultSize);
 
     std::vector<uint32_t> result32(resultSize / sizeof(uint32_t));
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<info::device::sub_group_sizes>::value,
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(), UrInfoCode<info::device::sub_group_sizes>::value,
         resultSize, result32.data(), nullptr);
 
     std::vector<size_t> result;
@@ -559,7 +515,7 @@ struct get_device_info_impl<std::vector<size_t>,
 // enum for global pipes feature.
 template <>
 struct get_device_info_impl<bool, info::device::kernel_kernel_pipe_support> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static bool get(const device_impl &Dev) {
     // We claim, that all Intel FPGA devices support kernel to kernel pipe
     // feature (at least at the scope of SYCL_INTEL_data_flow_pipes extension).
     platform plt =
@@ -595,10 +551,10 @@ template <> inline range<3> construct_range<3>(size_t *values) {
 template <int Dimensions>
 struct get_device_info_impl<range<Dimensions>,
                             info::device::max_work_item_sizes<Dimensions>> {
-  static range<Dimensions> get(const DeviceImplPtr &Dev) {
+  static range<Dimensions> get(const device_impl &Dev) {
     size_t result[3];
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<info::device::max_work_item_sizes<Dimensions>>::value,
         sizeof(result), &result, nullptr);
     return construct_range<Dimensions>(result);
@@ -722,20 +678,21 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
 constexpr std::pair<const int, oneapi_exp_arch> IntelCPUArchitectures[] = {
     {8, oneapi_exp_arch::intel_cpu_spr},
     {9, oneapi_exp_arch::intel_cpu_gnr},
+    {10, oneapi_exp_arch::intel_cpu_dmr},
 };
 
 template <>
 struct get_device_info_impl<
     ext::oneapi::experimental::architecture,
     ext::oneapi::experimental::info::device::architecture> {
-  static ext::oneapi::experimental::architecture get(const DeviceImplPtr &Dev) {
-    backend CurrentBackend = Dev->getBackend();
+  static ext::oneapi::experimental::architecture get(const device_impl &Dev) {
+    backend CurrentBackend = Dev.getBackend();
     auto LookupIPVersion = [&](auto &ArchList)
         -> std::optional<ext::oneapi::experimental::architecture> {
       uint32_t DeviceIp;
       ur_result_t Err =
-          Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              Dev->getHandleRef(),
+          Dev.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+              Dev.getHandleRef(),
               UrInfoCode<
                   ext::oneapi::experimental::info::device::architecture>::value,
               sizeof(DeviceIp), &DeviceIp, nullptr);
@@ -743,7 +700,7 @@ struct get_device_info_impl<
         // Not all devices support this device info query
         return std::nullopt;
       }
-      Dev->getAdapter()->checkUrResult(Err);
+      Dev.getAdapter()->checkUrResult(Err);
 
       for (const auto &Item : ArchList) {
         if (Item.first == static_cast<int>(DeviceIp))
@@ -752,12 +709,12 @@ struct get_device_info_impl<
       return std::nullopt;
     };
 
-    if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
-                          backend::opencl == CurrentBackend)) {
+    if (Dev.is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
+                         backend::opencl == CurrentBackend)) {
       return LookupIPVersion(IntelGPUArchitectures)
           .value_or(ext::oneapi::experimental::architecture::unknown);
-    } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
-                                 backend::ext_oneapi_hip == CurrentBackend)) {
+    } else if (Dev.is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
+                                backend::ext_oneapi_hip == CurrentBackend)) {
       auto MapArchIDToArchName = [](const char *arch) {
         for (const auto &Item : NvidiaAmdGPUArchitectures) {
           if (std::string_view(Item.first) == arch)
@@ -765,19 +722,12 @@ struct get_device_info_impl<
         }
         return ext::oneapi::experimental::architecture::unknown;
       };
-      size_t ResultSize = 0;
-      Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          Dev->getHandleRef(), UrInfoCode<info::device::version>::value, 0,
-          nullptr, &ResultSize);
-      std::unique_ptr<char[]> DeviceArch(new char[ResultSize]);
-      Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          Dev->getHandleRef(), UrInfoCode<info::device::version>::value,
-          ResultSize, DeviceArch.get(), nullptr);
-      std::string DeviceArchCopy(DeviceArch.get());
-      std::string DeviceArchSubstr =
-          DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
+      std::string DeviceArch = urGetInfoString<UrApiKind::urDeviceGetInfo>(
+          Dev, UrInfoCode<info::device::version>::value);
+      std::string_view DeviceArchSubstr =
+          std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
       return MapArchIDToArchName(DeviceArchSubstr.data());
-    } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
+    } else if (Dev.is_cpu() && backend::opencl == CurrentBackend) {
       return LookupIPVersion(IntelCPUArchitectures)
           .value_or(ext::oneapi::experimental::architecture::x86_64);
     } // else is not needed
@@ -791,10 +741,10 @@ struct get_device_info_impl<
     std::vector<ext::oneapi::experimental::matrix::combination>,
     ext::oneapi::experimental::info::device::matrix_combinations> {
   static std::vector<ext::oneapi::experimental::matrix::combination>
-  get(const DeviceImplPtr &Dev) {
+  get(const device_impl &Dev) {
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
-    backend CurrentBackend = Dev->getBackend();
+    backend CurrentBackend = Dev.getBackend();
     auto get_current_architecture = [&Dev]() -> std::optional<architecture> {
       // this helper lambda ignores all runtime-related exceptions from
       // quering the device architecture. For instance, if device architecture
@@ -843,9 +793,28 @@ struct get_device_info_impl<
           {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
       };
+    else if (architecture::intel_cpu_dmr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 16, 0, 0, 0, matrix_type::tf32, matrix_type::tf32,
+           matrix_type::fp32, matrix_type::fp32},
+      };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
-             (architecture::intel_gpu_lnl_m == DeviceArch)) {
+             (architecture::intel_gpu_lnl_m == DeviceArch) ||
+             (architecture::intel_gpu_ptl_h == DeviceArch) ||
+             (architecture::intel_gpu_ptl_u == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -1089,61 +1058,43 @@ struct get_device_info_impl<
 };
 
 template <>
+struct get_device_info_impl<std::string, info::device::opencl_c_version> {
+  static std::string get(const device_impl &) {
+    throw sycl::exception(
+        errc::feature_not_supported,
+        "Deprecated interface that hasn't been working for some time already");
+  }
+};
+
+template <>
 struct get_device_info_impl<
     size_t, ext::oneapi::experimental::info::device::max_global_work_groups> {
-  static size_t get(const DeviceImplPtr) {
+  static size_t get(const device_impl &) {
     return static_cast<size_t>((std::numeric_limits<int>::max)());
   }
 };
-template <>
+template <int Dims>
 struct get_device_info_impl<
-    id<1>, ext::oneapi::experimental::info::device::max_work_groups<1>> {
-  static id<1> get(const DeviceImplPtr &Dev) {
-    size_t result[3];
+    id<Dims>, ext::oneapi::experimental::info::device::max_work_groups<Dims>> {
+  static id<Dims> get(const device_impl &Dev) {
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
-    return id<1>(std::min(Limit, result[0]));
-  }
-};
 
-template <>
-struct get_device_info_impl<
-    id<2>, ext::oneapi::experimental::info::device::max_work_groups<2>> {
-  static id<2> get(const DeviceImplPtr &Dev) {
     size_t result[3];
-    size_t Limit =
-        get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
-                                         max_global_work_groups>::get(Dev);
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
-    return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
-  }
-};
-
-template <>
-struct get_device_info_impl<
-    id<3>, ext::oneapi::experimental::info::device::max_work_groups<3>> {
-  static id<3> get(const DeviceImplPtr &Dev) {
-    size_t result[3];
-    size_t Limit =
-        get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
-                                         max_global_work_groups>::get(Dev);
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
-    return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
-                 std::min(Limit, result[0]));
+    static_assert(1 <= Dims && Dims <= 3);
+    if constexpr (Dims == 1)
+      return id<1>(std::min(Limit, result[0]));
+    else if constexpr (Dims == 2)
+      return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
+    else
+      return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
+                   std::min(Limit, result[0]));
   }
 };
 
@@ -1152,7 +1103,7 @@ struct get_device_info_impl<
 template <>
 struct get_device_info_impl<size_t,
                             info::device::ext_oneapi_max_global_work_groups> {
-  static size_t get(const DeviceImplPtr &Dev) {
+  static size_t get(const device_impl &Dev) {
     return get_device_info_impl<size_t,
                                 ext::oneapi::experimental::info::device::
                                     max_global_work_groups>::get(Dev);
@@ -1164,7 +1115,7 @@ struct get_device_info_impl<size_t,
 template <>
 struct get_device_info_impl<id<1>,
                             info::device::ext_oneapi_max_work_groups_1d> {
-  static id<1> get(const DeviceImplPtr &Dev) {
+  static id<1> get(const device_impl &Dev) {
     return get_device_info_impl<
         id<1>,
         ext::oneapi::experimental::info::device::max_work_groups<1>>::get(Dev);
@@ -1176,7 +1127,7 @@ struct get_device_info_impl<id<1>,
 template <>
 struct get_device_info_impl<id<2>,
                             info::device::ext_oneapi_max_work_groups_2d> {
-  static id<2> get(const DeviceImplPtr &Dev) {
+  static id<2> get(const device_impl &Dev) {
     return get_device_info_impl<
         id<2>,
         ext::oneapi::experimental::info::device::max_work_groups<2>>::get(Dev);
@@ -1188,7 +1139,7 @@ struct get_device_info_impl<id<2>,
 template <>
 struct get_device_info_impl<id<3>,
                             info::device::ext_oneapi_max_work_groups_3d> {
-  static id<3> get(const DeviceImplPtr &Dev) {
+  static id<3> get(const device_impl &Dev) {
     return get_device_info_impl<
         id<3>,
         ext::oneapi::experimental::info::device::max_work_groups<3>>::get(Dev);
@@ -1197,24 +1148,23 @@ struct get_device_info_impl<id<3>,
 
 // Specialization for parent device
 template <> struct get_device_info_impl<device, info::device::parent_device> {
-  static device get(const DeviceImplPtr &Dev) {
+  static device get(const device_impl &Dev) {
     typename sycl_to_ur<device>::type result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<info::device::parent_device>::value,
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(), UrInfoCode<info::device::parent_device>::value,
         sizeof(result), &result, nullptr);
     if (result == nullptr)
       throw exception(make_error_code(errc::invalid),
                       "No parent for device because it is not a subdevice");
 
-    const auto &Platform = Dev->getPlatformImpl();
     return createSyclObjFromImpl<device>(
-        Platform->getOrMakeDeviceImpl(result, Platform));
+        Dev.getPlatformImpl().getOrMakeDeviceImpl(result));
   }
 };
 
 // Specialization for image_support
 template <> struct get_device_info_impl<bool, info::device::image_support> {
-  static bool get(const DeviceImplPtr &) {
+  static bool get(const device_impl &) {
     // No devices currently support SYCL 2020 images.
     return false;
   }
@@ -1226,11 +1176,11 @@ template <> struct get_device_info_impl<bool, info::device::image_support> {
 
 template <>
 struct get_device_info_impl<bool, info::device::usm_device_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static bool get(const device_impl &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err =
-        Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            Dev->getHandleRef(),
+        Dev.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev.getHandleRef(),
             UrInfoCode<info::device::usm_device_allocations>::value,
             sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
 
@@ -1244,11 +1194,11 @@ struct get_device_info_impl<bool, info::device::usm_device_allocations> {
 
 template <>
 struct get_device_info_impl<bool, info::device::usm_host_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static bool get(const device_impl &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err =
-        Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            Dev->getHandleRef(),
+        Dev.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev.getHandleRef(),
             UrInfoCode<info::device::usm_host_allocations>::value,
             sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
 
@@ -1261,11 +1211,11 @@ struct get_device_info_impl<bool, info::device::usm_host_allocations> {
 // Specialization for shared usm query.
 template <>
 struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static bool get(const device_impl &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err =
-        Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            Dev->getHandleRef(),
+        Dev.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev.getHandleRef(),
             UrInfoCode<info::device::usm_shared_allocations>::value,
             sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
     return (Err != UR_RESULT_SUCCESS)
@@ -1278,11 +1228,11 @@ struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
 template <>
 struct get_device_info_impl<bool,
                             info::device::usm_restricted_shared_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static bool get(const device_impl &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err =
-        Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            Dev->getHandleRef(),
+        Dev.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev.getHandleRef(),
             UrInfoCode<info::device::usm_restricted_shared_allocations>::value,
             sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
     // Check that we don't support any cross device sharing
@@ -1297,11 +1247,11 @@ struct get_device_info_impl<bool,
 // Specialization for system usm query
 template <>
 struct get_device_info_impl<bool, info::device::usm_system_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static bool get(const device_impl &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err =
-        Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            Dev->getHandleRef(),
+        Dev.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev.getHandleRef(),
             UrInfoCode<info::device::usm_system_allocations>::value,
             sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
     return (Err != UR_RESULT_SUCCESS)
@@ -1315,7 +1265,7 @@ struct get_device_info_impl<bool, info::device::usm_system_allocations> {
 template <>
 struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static bool get(const device_impl &Dev) {
     (void)Dev;
     return false;
   }
@@ -1326,10 +1276,10 @@ template <>
 struct get_device_info_impl<
     uint32_t,
     ext::codeplay::experimental::info::device::max_registers_per_work_group> {
-  static uint32_t get(const DeviceImplPtr &Dev) {
+  static uint32_t get(const device_impl &Dev) {
     uint32_t maxRegsPerWG;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<ext::codeplay::experimental::info::device::
                        max_registers_per_work_group>::value,
         sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
@@ -1342,12 +1292,12 @@ template <>
 struct get_device_info_impl<
     std::vector<sycl::device>,
     ext::oneapi::experimental::info::device::component_devices> {
-  static std::vector<sycl::device> get(const DeviceImplPtr &Dev) {
+  static std::vector<sycl::device> get(const device_impl &Dev) {
     size_t ResultSize = 0;
     // First call to get DevCount.
     ur_result_t Err =
-        Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            Dev->getHandleRef(),
+        Dev.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev.getHandleRef(),
             UrInfoCode<ext::oneapi::experimental::info::device::
                            component_devices>::value,
             0, nullptr, &ResultSize);
@@ -1360,22 +1310,22 @@ struct get_device_info_impl<
 
     // Otherwise, if there was an error from UR it is unexpected and we should
     // handle it accordingly.
-    Dev->getAdapter()->checkUrResult(Err);
+    Dev.getAdapter()->checkUrResult(Err);
 
     size_t DevCount = ResultSize / sizeof(ur_device_handle_t);
 
     // Second call to get the list.
     std::vector<ur_device_handle_t> Devs(DevCount);
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         ResultSize, Devs.data(), nullptr);
     std::vector<sycl::device> Result;
-    const auto &Platform = Dev->getPlatformImpl();
+    platform_impl &Platform = Dev.getPlatformImpl();
     for (const auto &d : Devs)
-      Result.push_back(createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(d, Platform)));
+      Result.push_back(
+          createSyclObjFromImpl<device>(Platform.getOrMakeDeviceImpl(d)));
 
     return Result;
   }
@@ -1384,23 +1334,22 @@ struct get_device_info_impl<
 template <>
 struct get_device_info_impl<
     sycl::device, ext::oneapi::experimental::info::device::composite_device> {
-  static sycl::device get(const DeviceImplPtr &Dev) {
-    if (!Dev->has(sycl::aspect::ext_oneapi_is_component))
+  static sycl::device get(const device_impl &Dev) {
+    if (!Dev.has(sycl::aspect::ext_oneapi_is_component))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Only devices with aspect::ext_oneapi_is_component "
                             "can call this function.");
 
     typename sycl_to_ur<device>::type Result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
+    Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Dev.getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::composite_device>::value,
         sizeof(Result), &Result, nullptr);
 
     if (Result) {
-      const auto &Platform = Dev->getPlatformImpl();
       return createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(Result, Platform));
+          Dev.getPlatformImpl().getOrMakeDeviceImpl(Result));
     }
     throw sycl::exception(make_error_code(errc::invalid),
                           "A component with aspect::ext_oneapi_is_component "
@@ -1409,7 +1358,7 @@ struct get_device_info_impl<
 };
 
 template <typename Param>
-typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
+typename Param::return_type get_device_info(const device_impl &Dev) {
   static_assert(is_device_info_desc<Param>::value,
                 "Invalid device information descriptor");
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
@@ -1418,8 +1367,8 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
 template <>
 inline typename info::device::preferred_interop_user_sync::return_type
 get_device_info<info::device::preferred_interop_user_sync>(
-    const DeviceImplPtr &Dev) {
-  if (Dev->getBackend() != backend::opencl) {
+    const device_impl &Dev) {
+  if (Dev.getBackend() != backend::opencl) {
     throw sycl::exception(
         errc::invalid,
         "the info::device::preferred_interop_user_sync info descriptor can "
@@ -1431,8 +1380,8 @@ get_device_info<info::device::preferred_interop_user_sync>(
 
 template <>
 inline typename info::device::profile::return_type
-get_device_info<info::device::profile>(const DeviceImplPtr &Dev) {
-  if (Dev->getBackend() != backend::opencl) {
+get_device_info<info::device::profile>(const device_impl &Dev) {
+  if (Dev.getBackend() != backend::opencl) {
     throw sycl::exception(errc::invalid,
                           "the info::device::profile info descriptor can "
                           "only be queried with an OpenCL backend");
@@ -1443,8 +1392,8 @@ get_device_info<info::device::profile>(const DeviceImplPtr &Dev) {
 
 template <>
 inline ext::intel::info::device::device_id::return_type
-get_device_info<ext::intel::info::device::device_id>(const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_device_id))
+get_device_info<ext::intel::info::device::device_id>(const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_device_id))
     throw exception(make_error_code(errc::feature_not_supported),
                     "The device does not have the ext_intel_device_id aspect");
   using Param = ext::intel::info::device::device_id;
@@ -1453,8 +1402,8 @@ get_device_info<ext::intel::info::device::device_id>(const DeviceImplPtr &Dev) {
 
 template <>
 inline ext::intel::info::device::uuid::return_type
-get_device_info<ext::intel::info::device::uuid>(const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_device_info_uuid))
+get_device_info<ext::intel::info::device::uuid>(const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_device_info_uuid))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_device_info_uuid aspect");
@@ -1464,9 +1413,8 @@ get_device_info<ext::intel::info::device::uuid>(const DeviceImplPtr &Dev) {
 
 template <>
 inline ext::intel::info::device::pci_address::return_type
-get_device_info<ext::intel::info::device::pci_address>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_pci_address))
+get_device_info<ext::intel::info::device::pci_address>(const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_pci_address))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_pci_address aspect");
@@ -1477,8 +1425,8 @@ get_device_info<ext::intel::info::device::pci_address>(
 template <>
 inline ext::intel::info::device::gpu_eu_simd_width::return_type
 get_device_info<ext::intel::info::device::gpu_eu_simd_width>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_gpu_eu_simd_width))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_gpu_eu_simd_width))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_gpu_eu_simd_width aspect");
@@ -1489,8 +1437,8 @@ get_device_info<ext::intel::info::device::gpu_eu_simd_width>(
 template <>
 inline ext::intel::info::device::gpu_eu_count::return_type
 get_device_info<ext::intel::info::device::gpu_eu_count>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_gpu_eu_count))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_gpu_eu_count))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_gpu_eu_count aspect");
@@ -1500,9 +1448,8 @@ get_device_info<ext::intel::info::device::gpu_eu_count>(
 
 template <>
 inline ext::intel::info::device::gpu_slices::return_type
-get_device_info<ext::intel::info::device::gpu_slices>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_gpu_slices))
+get_device_info<ext::intel::info::device::gpu_slices>(const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_gpu_slices))
     throw exception(make_error_code(errc::feature_not_supported),
                     "The device does not have the ext_intel_gpu_slices aspect");
   using Param = ext::intel::info::device::gpu_slices;
@@ -1512,8 +1459,8 @@ get_device_info<ext::intel::info::device::gpu_slices>(
 template <>
 inline ext::intel::info::device::gpu_subslices_per_slice::return_type
 get_device_info<ext::intel::info::device::gpu_subslices_per_slice>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_gpu_subslices_per_slice))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_gpu_subslices_per_slice))
     throw exception(make_error_code(errc::feature_not_supported),
                     "The device does not have the "
                     "ext_intel_gpu_subslices_per_slice aspect");
@@ -1524,8 +1471,8 @@ get_device_info<ext::intel::info::device::gpu_subslices_per_slice>(
 template <>
 inline ext::intel::info::device::gpu_eu_count_per_subslice::return_type
 get_device_info<ext::intel::info::device::gpu_eu_count_per_subslice>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_gpu_eu_count_per_subslice))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_gpu_eu_count_per_subslice))
     throw exception(make_error_code(errc::feature_not_supported),
                     "The device does not have the "
                     "ext_intel_gpu_eu_count_per_subslice aspect");
@@ -1536,8 +1483,8 @@ get_device_info<ext::intel::info::device::gpu_eu_count_per_subslice>(
 template <>
 inline ext::intel::info::device::gpu_hw_threads_per_eu::return_type
 get_device_info<ext::intel::info::device::gpu_hw_threads_per_eu>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_gpu_hw_threads_per_eu))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_gpu_hw_threads_per_eu))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_gpu_hw_threads_per_eu aspect");
@@ -1548,8 +1495,8 @@ get_device_info<ext::intel::info::device::gpu_hw_threads_per_eu>(
 template <>
 inline ext::intel::info::device::max_mem_bandwidth::return_type
 get_device_info<ext::intel::info::device::max_mem_bandwidth>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_max_mem_bandwidth))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_max_mem_bandwidth))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_max_mem_bandwidth aspect");
@@ -1559,9 +1506,8 @@ get_device_info<ext::intel::info::device::max_mem_bandwidth>(
 
 template <>
 inline ext::intel::info::device::free_memory::return_type
-get_device_info<ext::intel::info::device::free_memory>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_free_memory))
+get_device_info<ext::intel::info::device::free_memory>(const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_free_memory))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_free_memory aspect");
@@ -1572,8 +1518,8 @@ get_device_info<ext::intel::info::device::free_memory>(
 template <>
 inline ext::intel::info::device::memory_clock_rate::return_type
 get_device_info<ext::intel::info::device::memory_clock_rate>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_memory_clock_rate))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_memory_clock_rate))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_memory_clock_rate aspect");
@@ -1584,8 +1530,8 @@ get_device_info<ext::intel::info::device::memory_clock_rate>(
 template <>
 inline ext::intel::info::device::memory_bus_width::return_type
 get_device_info<ext::intel::info::device::memory_bus_width>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_memory_bus_width))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_memory_bus_width))
     throw exception(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_memory_bus_width aspect");
@@ -1596,13 +1542,13 @@ get_device_info<ext::intel::info::device::memory_bus_width>(
 template <>
 inline ext::intel::esimd::info::device::has_2d_block_io_support::return_type
 get_device_info<ext::intel::esimd::info::device::has_2d_block_io_support>(
-    const DeviceImplPtr &Dev) {
-  if (!Dev->has(aspect::ext_intel_esimd))
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_esimd))
     return false;
 
   ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities;
-  Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-      Dev->getHandleRef(),
+  Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      Dev.getHandleRef(),
       UrInfoCode<
           ext::intel::esimd::info::device::has_2d_block_io_support>::value,
       sizeof(BlockArrayCapabilities), &BlockArrayCapabilities, nullptr);
@@ -1610,6 +1556,81 @@ get_device_info<ext::intel::esimd::info::device::has_2d_block_io_support>(
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) &&
          (BlockArrayCapabilities &
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
+}
+
+template <>
+inline ext::intel::info::device::current_clock_throttle_reasons::return_type
+get_device_info<ext::intel::info::device::current_clock_throttle_reasons>(
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_current_clock_throttle_reasons))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the "
+                    "ext_intel_current_clock_throttle_reasons aspect");
+
+  ur_device_throttle_reasons_flags_t UrThrottleReasons;
+  Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      Dev.getHandleRef(),
+      UrInfoCode<
+          ext::intel::info::device::current_clock_throttle_reasons>::value,
+      sizeof(UrThrottleReasons), &UrThrottleReasons, nullptr);
+  std::vector<ext::intel::throttle_reason> ThrottleReasons;
+  constexpr std::pair<ur_device_throttle_reasons_flags_t,
+                      ext::intel::throttle_reason>
+      UR2SYCLMappings[] = {{UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP,
+                            ext::intel::throttle_reason::power_cap},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT,
+                            ext::intel::throttle_reason::current_limit},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT,
+                            ext::intel::throttle_reason::thermal_limit},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT,
+                            ext::intel::throttle_reason::psu_alert},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE,
+                            ext::intel::throttle_reason::sw_range},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE,
+                            ext::intel::throttle_reason::hw_range},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER,
+                            ext::intel::throttle_reason::other}};
+
+  for (const auto &[UrFlag, SyclReason] : UR2SYCLMappings) {
+    if (UrThrottleReasons & UrFlag) {
+      ThrottleReasons.push_back(SyclReason);
+    }
+  }
+  return ThrottleReasons;
+}
+
+template <>
+inline ext::intel::info::device::fan_speed::return_type
+get_device_info<ext::intel::info::device::fan_speed>(const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_fan_speed))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the ext_intel_fan_speed aspect");
+  using Param = ext::intel::info::device::fan_speed;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::max_power_limit::return_type
+get_device_info<ext::intel::info::device::max_power_limit>(
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_power_limits))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_power_limits aspect");
+  using Param = ext::intel::info::device::max_power_limit;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::min_power_limit::return_type
+get_device_info<ext::intel::info::device::min_power_limit>(
+    const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_power_limits))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_power_limits aspect");
+  using Param = ext::intel::info::device::min_power_limit;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
 }
 
 // Returns the list of all progress guarantees that can be requested for
@@ -1624,11 +1645,11 @@ struct get_device_info_impl<
     ReturnT,
     ext::oneapi::experimental::info::device::work_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>> {
-  static ReturnT get(const DeviceImplPtr &Dev) {
+  static ReturnT get(const device_impl &Dev) {
     using execution_scope = ext::oneapi::experimental::execution_scope;
     return device_impl::getProgressGuaranteesUpTo<ReturnT>(
-        Dev->getProgressGuarantee(execution_scope::work_group,
-                                  execution_scope::root_group));
+        Dev.getProgressGuarantee(execution_scope::work_group,
+                                 execution_scope::root_group));
   }
 };
 template <typename ReturnT>
@@ -1636,11 +1657,11 @@ struct get_device_info_impl<
     ReturnT,
     ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>> {
-  static ReturnT get(const DeviceImplPtr &Dev) {
+  static ReturnT get(const device_impl &Dev) {
     using execution_scope = ext::oneapi::experimental::execution_scope;
     return device_impl::getProgressGuaranteesUpTo<ReturnT>(
-        Dev->getProgressGuarantee(execution_scope::sub_group,
-                                  execution_scope::root_group));
+        Dev.getProgressGuarantee(execution_scope::sub_group,
+                                 execution_scope::root_group));
   }
 };
 
@@ -1649,12 +1670,12 @@ struct get_device_info_impl<
     ReturnT,
     ext::oneapi::experimental::info::device::sub_group_progress_capabilities<
         ext::oneapi::experimental::execution_scope::work_group>> {
-  static ReturnT get(const DeviceImplPtr &Dev) {
+  static ReturnT get(const device_impl &Dev) {
 
     using execution_scope = ext::oneapi::experimental::execution_scope;
     return device_impl::getProgressGuaranteesUpTo<ReturnT>(
-        Dev->getProgressGuarantee(execution_scope::sub_group,
-                                  execution_scope::work_group));
+        Dev.getProgressGuarantee(execution_scope::sub_group,
+                                 execution_scope::work_group));
   }
 };
 
@@ -1663,12 +1684,12 @@ struct get_device_info_impl<
     ReturnT,
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::root_group>> {
-  static ReturnT get(const DeviceImplPtr &Dev) {
+  static ReturnT get(const device_impl &Dev) {
 
     using execution_scope = ext::oneapi::experimental::execution_scope;
     return device_impl::getProgressGuaranteesUpTo<ReturnT>(
-        Dev->getProgressGuarantee(execution_scope::work_item,
-                                  execution_scope::root_group));
+        Dev.getProgressGuarantee(execution_scope::work_item,
+                                 execution_scope::root_group));
   }
 };
 template <typename ReturnT>
@@ -1676,12 +1697,12 @@ struct get_device_info_impl<
     ReturnT,
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::work_group>> {
-  static ReturnT get(const DeviceImplPtr &Dev) {
+  static ReturnT get(const device_impl &Dev) {
 
     using execution_scope = ext::oneapi::experimental::execution_scope;
     return device_impl::getProgressGuaranteesUpTo<ReturnT>(
-        Dev->getProgressGuarantee(execution_scope::work_item,
-                                  execution_scope::work_group));
+        Dev.getProgressGuarantee(execution_scope::work_item,
+                                 execution_scope::work_group));
   }
 };
 
@@ -1690,12 +1711,12 @@ struct get_device_info_impl<
     ReturnT,
     ext::oneapi::experimental::info::device::work_item_progress_capabilities<
         ext::oneapi::experimental::execution_scope::sub_group>> {
-  static ReturnT get(const DeviceImplPtr &Dev) {
+  static ReturnT get(const device_impl &Dev) {
 
     using execution_scope = ext::oneapi::experimental::execution_scope;
     return device_impl::getProgressGuaranteesUpTo<ReturnT>(
-        Dev->getProgressGuarantee(execution_scope::work_item,
-                                  execution_scope::sub_group));
+        Dev.getProgressGuarantee(execution_scope::work_item,
+                                 execution_scope::sub_group));
   }
 };
 

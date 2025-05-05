@@ -96,7 +96,7 @@ namespace sycl {
 class queue {
   ...
 
-  event ext_oneapi_get_last_event() const { /*...*/ }
+  std::optional<event> ext_oneapi_get_last_event() const { /*...*/ }
 
   void ext_oneapi_set_external_event(const event &external_event) { /*...*/ }
 }
@@ -113,12 +113,15 @@ These new APIs have the following behaviour:
 a| 
 [source, c++]
 ----
-event ext_oneapi_get_last_event() const;
+std::optional<event> ext_oneapi_get_last_event() const;
 ----
 | Returns an event representing the execution of the last command submitted to
 the queue. If a call to `ext_oneapi_set_external_event()` on the queue happened
 after all previously submitted commands to the queue, this function returns a
 copy of the event that was passed to `ext_oneapi_set_external_event()`.
+
+If no commands have been submitted to the queue prior to a call to
+`ext_oneapi_set_external_event()`, the call will return `std::nullopt`.
 
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.

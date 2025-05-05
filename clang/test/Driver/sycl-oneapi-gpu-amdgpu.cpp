@@ -57,12 +57,6 @@
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx90c \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx90c -DMAC_STR=GFX90C
-// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx940 \
-// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx940 -DMAC_STR=GFX940
-// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx941 \
-// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx941 -DMAC_STR=GFX941
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx942 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx942 -DMAC_STR=GFX942
@@ -163,7 +157,7 @@
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_FATO
 // AMD_FATO: clang-offload-bundler{{.*}} "-type=o"
-// AMD_FATO: "-targets=host-x86_64-unknown-linux,hipv4-amdgcn-amd-amdhsa--gfx700"
+// AMD_FATO: "-targets=host-x86_64-unknown-linux-gnu,hipv4-amdgcn-amd-amdhsa--gfx700"
 
 /// Test for proper consumption of fat object
 // RUN: touch %t.o

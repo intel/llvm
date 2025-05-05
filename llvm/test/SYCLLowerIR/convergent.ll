@@ -12,7 +12,7 @@ define internal spir_func void @wibble(ptr byval(%struct.baz) %arg1) !work_group
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_xv()
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_yv()
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_zv()
-; CHECK:   call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272)
+; CHECK:   call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272)
   ret void
 }
 
@@ -23,7 +23,7 @@ define internal spir_func void @wibble(ptr byval(%struct.baz) %arg1) !work_group
 ; CHECK-PTX: declare i64 @_Z27__spirv_LocalInvocationId_zv()
 
 ; CHECK: ; Function Attrs: convergent
-; CHECK: declare void @_Z22__spirv_ControlBarrierjjj(i32, i32, i32) #[[ATTR_NUM:[0-9]+]]
+; CHECK: declare void @_Z22__spirv_ControlBarrieriii(i32, i32, i32) #[[ATTR_NUM:[0-9]+]]
 
 ; CHECK: attributes #[[ATTR_NUM]] = { convergent }
 

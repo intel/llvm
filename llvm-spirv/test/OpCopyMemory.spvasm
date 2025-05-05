@@ -46,6 +46,6 @@
                OpFunctionEnd
 
 ; CHECK-LABEL: define spir_kernel void @copymemory(ptr addrspace(1) %dstShort, ptr addrspace(1) %dstInt, ptr addrspace(1) %dstStruct)
-; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstShort, ptr @pShort, i64 2, i1 false)
-; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstInt, ptr @pInt, i64 4, i1 false)
-; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstStruct, ptr @pStruct, i64 12, i1 false)
+; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstShort, ptr %pShort, i64 2, i1 false)
+; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstInt, ptr %pInt, i64 4, i1 false)
+; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstStruct, ptr %pStruct, i64 12, i1 false)

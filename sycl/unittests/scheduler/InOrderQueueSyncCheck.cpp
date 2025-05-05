@@ -22,7 +22,7 @@ using ::testing::An;
 
 class MockQueueImpl : public sycl::detail::queue_impl {
 public:
-  MockQueueImpl(const sycl::detail::DeviceImplPtr &Device,
+  MockQueueImpl(sycl::detail::device_impl &Device,
                 const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
       : sycl::detail::queue_impl(Device, AsyncHandler, PropList) {}
@@ -52,6 +52,8 @@ public:
   sycl::detail::CGType MCGType;
   std::shared_ptr<MockQueueImpl> MQueue;
   std::shared_ptr<sycl::detail::handler_impl> impl;
+  std::shared_ptr<detail::kernel_impl> MKernel;
+  detail::string MKernelName;
 };
 
 // Needed to use EXPECT_CALL to verify depends_on that originally appends lst
@@ -75,22 +77,21 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
 
   const sycl::device Dev = Plt.get_devices()[0];
   auto Queue = std::make_shared<MockQueueImpl>(
-      sycl::detail::getSyclObjImpl(Dev), sycl::async_handler{},
+      *sycl::detail::getSyclObjImpl(Dev), sycl::async_handler{},
       sycl::property::queue::in_order());
 
   // Check that tasks submitted to an in-order queue implicitly depend_on the
   // previous task, this is needed to properly sync blocking & blocked tasks.
-  sycl::event Event;
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(0);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, std::nullopt);
   }
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, std::nullopt);
   }
 }

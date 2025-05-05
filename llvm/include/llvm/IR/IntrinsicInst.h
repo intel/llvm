@@ -718,7 +718,7 @@ public:
   /// Check the callsite attributes for this FPBuiltinIntrinsic against a list
   /// of FP attributes that the caller knows how to process to see if the
   /// current intrinsic has unrecognized attributes
-  bool hasUnrecognizedFPAttrs(const StringSet<> HandledAttrs);
+  bool hasUnrecognizedFPAttrs(const StringSet<> HandledAttrs) const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   /// @{
@@ -1898,15 +1898,20 @@ public:
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }
 
-  bool isAnchor() {
+  bool isAnchor() const {
     return getIntrinsicID() == Intrinsic::experimental_convergence_anchor;
   }
-  bool isEntry() {
+  bool isEntry() const {
     return getIntrinsicID() == Intrinsic::experimental_convergence_entry;
   }
-  bool isLoop() {
+  bool isLoop() const {
     return getIntrinsicID() == Intrinsic::experimental_convergence_loop;
   }
+
+  static ConvergenceControlInst *CreateAnchor(BasicBlock &BB);
+  static ConvergenceControlInst *CreateEntry(BasicBlock &BB);
+  static ConvergenceControlInst *CreateLoop(BasicBlock &BB,
+                                            ConvergenceControlInst *Parent);
 };
 
 /// This represents the llvm.sycl.alloca intrinsic.

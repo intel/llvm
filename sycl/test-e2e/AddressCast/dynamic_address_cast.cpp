@@ -7,11 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 // Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit
-// OpGenericCastToPtr* intrinsics not implemented on AMD or NVIDIA
 // FPGA emulator affected by same issue as OpenCL CPU runtime
-// UNSUPPORTED: cpu, hip, cuda, accelerator
+// UNSUPPORTED: cpu, accelerator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include <sycl/detail/core.hpp>
 

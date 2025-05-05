@@ -138,7 +138,7 @@ public:
   void transFunctionMetadataAsExecutionMode(SPIRVFunction *BF, Function *F);
   void transFunctionMetadataAsUserSemanticDecoration(SPIRVFunction *BF,
                                                      Function *F);
-  void transAuxDataInst(SPIRVFunction *BF, Function *F);
+  void transAuxDataInst(SPIRVValue *BV, Value *V);
 
   bool transGlobalVariables();
 

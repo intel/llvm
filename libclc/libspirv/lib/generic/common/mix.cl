@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_mad.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <mix.inc>

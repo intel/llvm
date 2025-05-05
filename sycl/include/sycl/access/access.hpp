@@ -350,15 +350,6 @@ address_space_cast_is_possible(access::address_space Src,
 
 template <access::address_space Space, typename ElementType>
 auto static_address_cast(ElementType *Ptr) {
-  constexpr auto generic_space = access::address_space::generic_space;
-  constexpr auto global_space = access::address_space::global_space;
-  constexpr auto local_space = access::address_space::local_space;
-  constexpr auto private_space = access::address_space::private_space;
-  constexpr auto global_device =
-      access::address_space::ext_intel_global_device_space;
-  constexpr auto global_host =
-      access::address_space::ext_intel_global_host_space;
-
   constexpr auto SrcAS = deduce_AS<ElementType *>::value;
   static_assert(address_space_cast_is_possible(SrcAS, Space));
 
@@ -367,31 +358,7 @@ auto static_address_cast(ElementType *Ptr) {
 
   // Note: reinterpret_cast isn't enough for some of the casts between different
   // address spaces, use C-style cast instead.
-#if !defined(__SPIR__)
   return (dst_type)Ptr;
-#else
-  if constexpr (SrcAS != generic_space) {
-    return (dst_type)Ptr;
-  } else if constexpr (Space == global_space) {
-    return (dst_type)__spirv_GenericCastToPtr_ToGlobal(
-        Ptr, __spv::StorageClass::CrossWorkgroup);
-  } else if constexpr (Space == local_space) {
-    return (dst_type)__spirv_GenericCastToPtr_ToLocal(
-        Ptr, __spv::StorageClass::Workgroup);
-  } else if constexpr (Space == private_space) {
-    return (dst_type)__spirv_GenericCastToPtr_ToPrivate(
-        Ptr, __spv::StorageClass::Function);
-#if !defined(__ENABLE_USM_ADDR_SPACE__)
-  } else if constexpr (Space == global_device || Space == global_host) {
-    // If __ENABLE_USM_ADDR_SPACE__ isn't defined then both
-    // global_device/global_host are just aliases for global_space.
-    return (dst_type)__spirv_GenericCastToPtr_ToGlobal(
-        Ptr, __spv::StorageClass::CrossWorkgroup);
-#endif
-  } else {
-    return (dst_type)Ptr;
-  }
-#endif
 }
 
 // Previous implementation (`castAS`, used in `multi_ptr` ctors among other
@@ -427,14 +394,13 @@ auto dynamic_address_cast(ElementType *Ptr) {
 #if defined(__ENABLE_USM_ADDR_SPACE__)
     static_assert(SupressNotImplementedAssert || Space != Space,
                   "Not supported yet!");
-    return static_address_cast<Space>(Ptr);
+    return detail::static_address_cast<Space>(Ptr);
 #else
     // If __ENABLE_USM_ADDR_SPACE__ isn't defined then both
     // global_device/global_host are just aliases for global_space.
     static_assert(std::is_same_v<dst_type, ElementType *>);
     return (dst_type)Ptr;
 #endif
-#if defined(__SPIR__)
   } else if constexpr (Space == global_space) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToGlobal(
         Ptr, __spv::StorageClass::CrossWorkgroup);
@@ -450,11 +416,10 @@ auto dynamic_address_cast(ElementType *Ptr) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToGlobal(
         Ptr, __spv::StorageClass::CrossWorkgroup);
 #endif
-#endif
   } else {
     static_assert(SupressNotImplementedAssert || Space != Space,
                   "Not supported yet!");
-    return static_address_cast<Space>(Ptr);
+    return detail::static_address_cast<Space>(Ptr);
   }
 }
 #else  // __SYCL_DEVICE_ONLY__

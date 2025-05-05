@@ -19,10 +19,6 @@
 // old entry points. Others were exported unnecessarily but only actually used
 // inside DSO, yet we have to keep the entry points as well.
 
-// https://github.com/intel/llvm/pull/16179
-// CHECK:_ZN4sycl3_V13ext5intel12experimental15online_compilerILNS3_15source_languageE0EE7compileIJSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaISE_EEEEES8_IhSaIhEERKSE_DpRKT_
-// CHECK:_ZN4sycl3_V13ext5intel12experimental15online_compilerILNS3_15source_languageE1EE7compileIJSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaISE_EEEEES8_IhSaIhEERKSE_DpRKT_
-//
 // https://github.com/intel/llvm/pull/16178
 // CHECK:_ZN4sycl3_V13ext5intel12experimental9pipe_base13get_pipe_nameB5cxx11EPKv
 //

@@ -37,9 +37,8 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 namespace matrix {
-
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout>
+          layout Layout = layout::dynamic>
 struct joint_matrix {
 
 #if defined(__SYCL_DEVICE_ONLY__)

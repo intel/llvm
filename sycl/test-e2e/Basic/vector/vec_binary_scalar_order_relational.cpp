@@ -29,12 +29,8 @@ int main() {
   // Check all operators without requirements.
   CHECK_SIZES_AND_OPS(Q, Failures, float);
   CHECK_SIZES_AND_OPS(Q, Failures, int8_t);
-  CHECK_SIZES_AND_OPS(Q, Failures, int16_t);
   CHECK_SIZES_AND_OPS(Q, Failures, int32_t);
-  CHECK_SIZES_AND_OPS(Q, Failures, int64_t);
   CHECK_SIZES_AND_OPS(Q, Failures, uint8_t);
   CHECK_SIZES_AND_OPS(Q, Failures, uint16_t);
-  CHECK_SIZES_AND_OPS(Q, Failures, uint32_t);
-  CHECK_SIZES_AND_OPS(Q, Failures, uint64_t);
   return Failures;
 }

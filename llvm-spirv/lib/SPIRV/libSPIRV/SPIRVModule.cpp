@@ -253,7 +253,8 @@ public:
   template <class T> T *addType(T *Ty);
   SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) override;
   SPIRVTypeBool *addBoolType() override;
-  SPIRVTypeFloat *addFloatType(unsigned BitWidth) override;
+  SPIRVTypeFloat *addFloatType(unsigned BitWidth,
+                               unsigned FloatingPointEncoding) override;
   SPIRVTypeFunction *addFunctionType(SPIRVType *,
                                      const std::vector<SPIRVType *> &) override;
   SPIRVTypeInt *addIntegerType(unsigned BitWidth) override;
@@ -577,7 +578,8 @@ private:
   SmallDenseMap<SPIRVStorageClassKind, SPIRVTypeUntypedPointerKHR *>
       UntypedPtrTyMap;
   SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
-  SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
+  SmallDenseMap<std::pair<unsigned, unsigned>, SPIRVTypeFloat *, 4>
+      FloatTypeMap;
   SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
       PointerTypeMap;
   std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
@@ -1007,12 +1009,14 @@ SPIRVTypeInt *SPIRVModuleImpl::addIntegerType(unsigned BitWidth) {
   return addType(Ty);
 }
 
-SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth) {
-  auto Loc = FloatTypeMap.find(BitWidth);
+SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth,
+                                              unsigned FloatingPointEncoding) {
+  auto Desc = std::make_pair(BitWidth, FloatingPointEncoding);
+  auto Loc = FloatTypeMap.find(Desc);
   if (Loc != FloatTypeMap.end())
     return Loc->second;
-  auto *Ty = new SPIRVTypeFloat(this, getId(), BitWidth);
-  FloatTypeMap[BitWidth] = Ty;
+  auto *Ty = new SPIRVTypeFloat(this, getId(), BitWidth, FloatingPointEncoding);
+  FloatTypeMap[Desc] = Ty;
   return addType(Ty);
 }
 
@@ -1280,10 +1284,10 @@ SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
   const int NumElements = Elements.size();
 
   // In case number of elements is greater than maximum WordCount and
-  // SPV_INTEL_long_constant_composite is not enabled, the error will be emitted
+  // SPV_INTEL_long_composites is not enabled, the error will be emitted
   // by validate functionality of SPIRVCompositeConstant class.
   if (NumElements <= MaxNumElements ||
-      !isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_constant_composite))
+      !isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_composites))
     return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
 
   auto Start = Elements.begin();
@@ -1315,10 +1319,10 @@ SPIRVValue *SPIRVModuleImpl::addSpecConstantComposite(
   const int NumElements = Elements.size();
 
   // In case number of elements is greater than maximum WordCount and
-  // SPV_INTEL_long_constant_composite is not enabled, the error will be emitted
+  // SPV_INTEL_long_composites is not enabled, the error will be emitted
   // by validate functionality of SPIRVSpecConstantComposite class.
   if (NumElements <= MaxNumElements ||
-      !isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_constant_composite))
+      !isAllowedToUseExtension(ExtensionID::SPV_INTEL_long_composites))
     return addConstant(
         new SPIRVSpecConstantComposite(this, Ty, getId(), Elements));
 

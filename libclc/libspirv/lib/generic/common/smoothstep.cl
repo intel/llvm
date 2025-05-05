@@ -6,43 +6,36 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/clcmacro.h>
+#include <clc/common/clc_smoothstep.h>
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
+#define SMOOTHSTEP_SINGLE_DEF(X_TYPE)                                          \
+  _CLC_OVERLOAD _CLC_DEF X_TYPE __spirv_ocl_smoothstep(                        \
+      X_TYPE edge0, X_TYPE edge1, X_TYPE x) {                                  \
+    return __clc_smoothstep(edge0, edge1, x);                                  \
+  }
 
-_CLC_OVERLOAD _CLC_DEF float __spirv_ocl_smoothstep(float edge0, float edge1,
-                                                    float x) {
-  float t = __spirv_ocl_fclamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
-  return t * t * (3.0f - 2.0f * t);
-}
+#define SMOOTHSTEP_DEF(type)                                                   \
+  SMOOTHSTEP_SINGLE_DEF(type)                                                  \
+  SMOOTHSTEP_SINGLE_DEF(type##2)                                               \
+  SMOOTHSTEP_SINGLE_DEF(type##3)                                               \
+  SMOOTHSTEP_SINGLE_DEF(type##4)                                               \
+  SMOOTHSTEP_SINGLE_DEF(type##8)                                               \
+  SMOOTHSTEP_SINGLE_DEF(type##16)
 
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_smoothstep,
-                       float, float, float)
+SMOOTHSTEP_DEF(float)
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_OVERLOAD _CLC_DEF double __spirv_ocl_smoothstep(double edge0, double edge1,
-                                                     double x) {
-  double t = __spirv_ocl_fclamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-  return t * t * (3.0 - 2.0 * t);
-}
-
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_smoothstep,
-                       double, double, double)
+SMOOTHSTEP_DEF(double);
 
 #endif
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_OVERLOAD _CLC_DEF half __spirv_ocl_smoothstep(half edge0, half edge1,
-                                                   half x) {
-  half t = __spirv_ocl_fclamp((x - edge0) / (edge1 - edge0), 0.0h, 1.0h);
-  return t * t * (3.0h - 2.0h * t);
-}
-
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_smoothstep,
-                       half, half, half);
+SMOOTHSTEP_DEF(half);
 
 #endif

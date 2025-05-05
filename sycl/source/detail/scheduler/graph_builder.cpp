@@ -216,7 +216,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     std::vector<sycl::device> Devices =
         InteropCtxPtr->get_info<info::context::devices>();
     assert(Devices.size() != 0);
-    DeviceImplPtr Dev = detail::getSyclObjImpl(Devices[0]);
+    device_impl &Dev = *detail::getSyclObjImpl(Devices[0]);
 
     // Since all the Scheduler commands require queue but we have only context
     // here, we need to create a dummy queue bound to the context and one of the
@@ -486,6 +486,9 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 
   std::vector<Command *> ToCleanUp;
   for (Command *Dep : Deps) {
+    if (Dep->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     Command *ConnCmd = MemCpyCmd->addDep(
         DepDesc{Dep, MemCpyCmd->getRequirement(), SrcAllocaCmd}, ToCleanUp);
     if (ConnCmd)

@@ -30,24 +30,22 @@ namespace detail {
 
 // Forward declaration
 class platform_impl;
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
 // TODO: Make code thread-safe
-class device_impl {
+class device_impl : public std::enable_shared_from_this<device_impl> {
+  struct private_tag {
+    explicit private_tag() = default;
+  };
+  friend class platform_impl;
+
 public:
-  /// Constructs a SYCL device instance as a host device.
-  device_impl();
-
-  /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(ur_native_handle_t, const AdapterPtr &Adapter);
-
   /// Constructs a SYCL device instance using the provided
   /// UR device instance.
-  explicit device_impl(ur_device_handle_t Device, PlatformImplPtr Platform);
-
-  /// Constructs a SYCL device instance using the provided
-  /// UR device instance.
-  explicit device_impl(ur_device_handle_t Device, const AdapterPtr &Adapter);
+  //
+  // Must be called through `platform_impl::getOrMakeDeviceImpl` only.
+  // `private_tag` ensures that is true.
+  explicit device_impl(ur_device_handle_t Device, platform_impl &Platform,
+                       private_tag);
 
   ~device_impl();
 
@@ -209,7 +207,12 @@ public:
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
 
-  bool isAssertFailSupported() const;
+  /// Indicates the SYCL device prefers to use its native assert
+  /// implementation.
+  ///
+  /// If this is false we will use the fallback assert implementation,
+  /// as detailed in doc/design/Assert.md
+  bool useNativeAssert() const;
 
   bool isRootDevice() const { return MRootDevice == nullptr; }
 
@@ -232,6 +235,7 @@ public:
     return false;
   }
 
+  bool extOneapiCanBuild(ext::oneapi::experimental::source_language Language);
   bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
 
   // Returns all guarantees that are either equal to guarantee or weaker than
@@ -284,8 +288,7 @@ public:
   backend getBackend() const { return MPlatform->getBackend(); }
 
   /// @brief  Get the platform impl serving this device
-  /// @return PlatformImplPtr
-  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+  platform_impl &getPlatformImpl() const { return *MPlatform; }
 
   /// Get device info string
   std::string get_device_info_string(ur_device_info_t InfoCode) const;
@@ -294,15 +297,11 @@ public:
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
 private:
-  explicit device_impl(ur_native_handle_t InteropDevice,
-                       ur_device_handle_t Device, PlatformImplPtr Platform,
-                       const AdapterPtr &Adapter);
-
   ur_device_handle_t MDevice = 0;
   ur_device_type_t MType;
   ur_device_handle_t MRootDevice = nullptr;
-  PlatformImplPtr MPlatform;
-  bool MIsAssertFailSupported = false;
+  std::shared_ptr<platform_impl> MPlatform;
+  bool MUseNativeAssert = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
   mutable ext::oneapi::experimental::architecture MDeviceArch{};

@@ -1,16 +1,16 @@
 // RUN: %{build} -Wno-error=incorrect-sub-group-size -o %t.out
 // RUN: %{run} %t.out
 
+#include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/sub_group.hpp>
-
-#include <numeric>
 
 using namespace sycl;
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
-template <int SG_SIZE> void test(queue &q) {
+template <access::address_space addr_space, int SG_SIZE> void test(queue &q) {
   // Verify scenario when the last sub_group isn't full.
   constexpr std::size_t wg_size = SG_SIZE * 3 / 2;
   constexpr std::size_t elems_per_wi = 4;
@@ -36,6 +36,7 @@ template <int SG_SIZE> void test(queue &q) {
     accessor store_blocked{store_blocked_buf, cgh};
     accessor store_striped{store_striped_buf, cgh};
 
+    local_accessor<int, 1> local_acc{wg_size * elems_per_wi, cgh};
     cgh.parallel_for(
         nd_range<1>{wg_size, wg_size},
         [=](nd_item<1> ndi) [[sycl::reqd_sub_group_size(SG_SIZE)]] {
@@ -49,13 +50,34 @@ template <int SG_SIZE> void test(queue &q) {
           auto blocked = sycl_exp::properties{sycl_exp::data_placement_blocked};
           auto striped = sycl_exp::properties{sycl_exp::data_placement_striped};
 
+          if constexpr (addr_space == access::address_space::local_space) {
+            // Copy input to local memory.
+            for (int i = sg.get_local_id() * elems_per_wi;
+                 i < sg.get_local_id() * elems_per_wi + elems_per_wi; i++) {
+              local_acc[offset + i] = input[offset + i];
+            }
+            group_barrier(sg);
+          }
+
           // blocked
-          sycl_exp::group_load(sg, input.begin() + offset, span{data}, blocked);
+          if constexpr (addr_space == access::address_space::local_space) {
+            sycl_exp::group_load(sg, local_acc.begin() + offset, span{data},
+                                 blocked);
+          } else {
+            sycl_exp::group_load(sg, input.begin() + offset, span{data},
+                                 blocked);
+          }
           for (int i = 0; i < elems_per_wi; ++i)
             load_blocked[gid * elems_per_wi + i] = data[i];
 
           // striped
-          sycl_exp::group_load(sg, input.begin() + offset, span{data}, striped);
+          if constexpr (addr_space == access::address_space::local_space) {
+            sycl_exp::group_load(sg, local_acc.begin() + offset, span{data},
+                                 striped);
+          } else {
+            sycl_exp::group_load(sg, input.begin() + offset, span{data},
+                                 striped);
+          }
           for (int i = 0; i < elems_per_wi; ++i)
             load_striped[gid * elems_per_wi + i] = data[i];
 
@@ -63,10 +85,30 @@ template <int SG_SIZE> void test(queue &q) {
 
           std::iota(std::begin(data), std::end(data), gid * elems_per_wi);
 
-          sycl_exp::group_store(sg, span{data}, store_blocked.begin() + offset,
-                                blocked);
-          sycl_exp::group_store(sg, span{data}, store_striped.begin() + offset,
-                                striped);
+          auto copy_local_acc_to_global_output = [&](accessor<int, 1> output) {
+            for (int i = sg.get_local_id() * elems_per_wi;
+                 i < sg.get_local_id() * elems_per_wi + elems_per_wi; i++) {
+              output[offset + i] = local_acc[offset + i];
+            }
+          };
+
+          if constexpr (addr_space == access::address_space::local_space) {
+            sycl_exp::group_store(sg, span{data}, local_acc.begin() + offset,
+                                  blocked);
+            copy_local_acc_to_global_output(store_blocked);
+          } else {
+            sycl_exp::group_store(sg, span{data},
+                                  store_blocked.begin() + offset, blocked);
+          }
+
+          if constexpr (addr_space == access::address_space::local_space) {
+            sycl_exp::group_store(sg, span{data}, local_acc.begin() + offset,
+                                  striped);
+            copy_local_acc_to_global_output(store_striped);
+          } else {
+            sycl_exp::group_store(sg, span{data},
+                                  store_striped.begin() + offset, striped);
+          }
         });
   });
 
@@ -110,8 +152,10 @@ int main() {
   detail::loop<std::size(sg_sizes)>([&](auto sg_size_idx) {
     constexpr auto sg_size = sg_sizes[sg_size_idx];
     if (std::any_of(device_sg_sizes.begin(), device_sg_sizes.end(),
-                    [](auto x) { return x == sg_size; }))
-      test<sg_size>(q);
+                    [](auto x) { return x == sg_size; })) {
+      test<access::address_space::global_space, sg_size>(q);
+      test<access::address_space::local_space, sg_size>(q);
+    }
   });
 
   return 0;

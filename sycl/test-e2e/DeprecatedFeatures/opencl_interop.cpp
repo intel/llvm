@@ -1,7 +1,7 @@
-// REQUIRES: opencl, opencl_icd
+// REQUIRES: any-device-is-opencl, opencl_icd, target-spir
 
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib
-// RUN: %{run} %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <cassert>
 #include <exception>
@@ -25,7 +25,14 @@ cl_platform_id selectOpenCLPlatform() {
   err = clGetPlatformIDs(num_of_platforms, &platforms[0], 0);
   CL_CHECK_ERRORS(err);
 
-  return platforms[0];
+  for (int i = 0; i < num_of_platforms; ++i) {
+    cl_uint num_of_devices = 0;
+    err =
+        clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, 0, &num_of_devices);
+    if (err == CL_SUCCESS && num_of_devices > 0)
+      return platforms[i];
+  }
+  throw std::runtime_error("No OpenCL platforms with available devices!");
 }
 
 cl_device_id selectOpenCLDevice(cl_platform_id platform) {

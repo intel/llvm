@@ -23,7 +23,7 @@ int main(void) {
   bool passed = true;
 
   constexpr bool TestCacheHintProperties = true;
-  passed &= test_main<TestCacheHintProperties>(q);
+  passed &= test_main<TestCacheHintProperties, true>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

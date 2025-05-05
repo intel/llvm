@@ -6,6 +6,10 @@
 // This test performs basic checks of reductions initialized with a pack
 // containing at least one sycl::span
 
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && cpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/reduction.hpp>

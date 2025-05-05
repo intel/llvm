@@ -1,0 +1,38 @@
+# This workflow performs a trivy check of docker config files.
+
+name: Trivy
+
+on:
+  pull_request:
+    paths:
+      - 'devops/containers/**'
+      - 'devops/.trivyignore.yaml'
+      - '.github/workflows/trivy.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: devops
+
+      # There is a github action, but for some reason it ignores ignore-file.
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+          ./bin/trivy --version
+
+      - name: Run Trivy vulnerability scanner
+        run: ./bin/trivy config --format json --output trivy-report.json --ignorefile=devops/.trivyignore.yaml devops/containers --exit-code 1
+
+      - name: Upload report artifact
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+          retention-days: 3

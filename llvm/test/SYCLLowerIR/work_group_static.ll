@@ -6,7 +6,7 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-; CHECK: @__sycl_dynamicLocalMemoryPlaceholder_GV = linkonce_odr local_unnamed_addr addrspace(3) global ptr addrspace(3) undef
+; CHECK: @__sycl_dynamicLocalMemoryPlaceholder_GV = linkonce_odr local_unnamed_addr addrspace(3) global ptr addrspace(3) poison
 
 ; Function Attrs: convergent norecurse
 ; CHECK: @_ZTS7KernelA(ptr addrspace(1) %0, ptr addrspace(3) noalias "sycl-implicit-local-arg" %[[IMPLICT_ARG:[a-zA-Z0-9]+]]{{.*}} !kernel_arg_addr_space ![[ADDR_SPACE_MD:[0-9]+]]
@@ -38,5 +38,5 @@ attributes #1 = { convergent norecurse }
 !2 = !{i32 4, i32 100000}
 !3 = !{!"clang version 13.0.0"}
 !4 = !{}
-; ![[ADDR_SPACE_MD]] = !{i32 1, i32 3}
+; CHECK: ![[ADDR_SPACE_MD]] = !{i32 1, i32 3}
 !5 = !{i32 1}

@@ -16,7 +16,7 @@
 // CHECK-NOT: declare {{.*}} @_Z
 // CHECK-NOT: call {{[^ ]*}} bitcast
 __attribute__((overloadable)) void
-test___spirv_ControlBarrier(__clc_uint32_t args_0, __clc_uint32_t args_1,
-                            __clc_uint32_t args_2) {
+test___spirv_ControlBarrier(__clc_int32_t args_0, __clc_int32_t args_1,
+                            __clc_int32_t args_2) {
   __spirv_ControlBarrier(args_0, args_1, args_2);
 }

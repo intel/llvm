@@ -1,3 +1,11 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef __CLC_CLCFUNC_H_
 #define __CLC_CLCFUNC_H_
 
@@ -17,10 +25,5 @@
 #else
 #define _CLC_DEF __attribute__((always_inline))
 #endif
-
-#define _CLC_INLINE __attribute__((always_inline)) inline
-#define _CLC_CONVERGENT __attribute__((convergent))
-#define _CLC_PURE __attribute__((pure))
-#define _CLC_CONSTFN __attribute__((const))
 
 #endif // __CLC_CLCFUNC_H_
