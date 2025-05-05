@@ -66,6 +66,61 @@ TEST_P(urEnqueueTimestampRecordingExpTest, SuccessBlocking) {
   ASSERT_SUCCESS(urEventRelease(event));
 }
 
+TEST_P(urEnqueueTimestampRecordingExpTest,
+       ReleaseEventWhileTimestampWritePending) {
+  void *ptr;
+  ASSERT_SUCCESS(
+      urUSMSharedAlloc(context, device, nullptr, nullptr, 1024 * 1024, &ptr));
+
+  // Enqueue an operation to keep the device busy
+  uint8_t pattern = 0xFF;
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(uint8_t), &pattern,
+                                  1024 * 1024, 0, nullptr, nullptr));
+
+  ur_event_handle_t event1 = nullptr;
+  ASSERT_SUCCESS(
+      urEnqueueTimestampRecordingExp(queue, false, 0, nullptr, &event1));
+  ASSERT_SUCCESS(urEventRelease(event1));
+
+  ur_event_handle_t event2 = nullptr;
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(uint8_t), &pattern,
+                                  1024 * 1024, 0, nullptr, &event2));
+
+  // Make sure the new event does not contain profiling info (in case it's reused
+  // by the adapter)
+  ASSERT_EQ(urEventGetProfilingInfo(event2, UR_PROFILING_INFO_COMMAND_QUEUED,
+                                    sizeof(uint64_t), nullptr, nullptr),
+            UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+  ASSERT_SUCCESS(urEventRelease(event2));
+  ASSERT_SUCCESS(urUSMFree(context, ptr));
+}
+
+TEST_P(urEnqueueTimestampRecordingExpTest, ReleaseEventAfterQueueRelease) {
+  void *ptr;
+  ASSERT_SUCCESS(
+      urUSMSharedAlloc(context, device, nullptr, nullptr, 1024 * 1024, &ptr));
+
+  // Enqueue an operation to keep the device busy
+  uint8_t pattern = 0xFF;
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(uint8_t), &pattern,
+                                  1024 * 1024, 0, nullptr, nullptr));
+
+  ur_event_handle_t event1 = nullptr;
+  ASSERT_SUCCESS(
+      urEnqueueTimestampRecordingExp(queue, false, 0, nullptr, &event1));
+
+  ASSERT_SUCCESS(urQueueRelease(queue));
+  queue = nullptr;
+
+  uint64_t queuedTime = 0;
+  ASSERT_SUCCESS(
+      urEventGetProfilingInfo(event1, UR_PROFILING_INFO_COMMAND_QUEUED,
+                              sizeof(uint64_t), &queuedTime, nullptr));
+
+  ASSERT_SUCCESS(urEventRelease(event1));
+  ASSERT_SUCCESS(urUSMFree(context, ptr));
+}
+
 TEST_P(urEnqueueTimestampRecordingExpTest, InvalidNullHandleQueue) {
   ur_event_handle_t event = nullptr;
   ASSERT_EQ_RESULT(

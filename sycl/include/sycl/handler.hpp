@@ -214,7 +214,6 @@ class HandlerAccess;
 class HostTask;
 
 using EventImplPtr = std::shared_ptr<event_impl>;
-using DeviceImplPtr = std::shared_ptr<device_impl>;
 
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
@@ -251,7 +250,7 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
-const DeviceImplPtr &getDeviceImplFromHandler(handler &);
+device_impl &getDeviceImplFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
@@ -448,7 +447,6 @@ private:
           bool CallerNeedsEvent);
 #endif
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
-                           detail::queue_impl *PrimaryQueue,
                            detail::queue_impl *SecondaryQueue,
                            bool CallerNeedsEvent);
 
@@ -3304,8 +3302,7 @@ private:
             typename PropertyListT>
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
-  friend const detail::DeviceImplPtr &
-  detail::getDeviceImplFromHandler(handler &);
+  friend detail::device_impl &detail::getDeviceImplFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -3687,11 +3684,13 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
+  template <int Dims>
+  static sycl::range<3> padRange(sycl::range<Dims> Range,
+                                 [[maybe_unused]] size_t DefaultValue = 0) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
-      sycl::range<3> Res{0, 0, 0};
+      sycl::range<3> Res{DefaultValue, DefaultValue, DefaultValue};
       for (int I = 0; I < Dims; ++I)
         Res[I] = Range[I];
       return Res;
@@ -3712,7 +3711,8 @@ private:
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> N,
                             bool SetNumWorkGroups = false) {
-    return setNDRangeDescriptorPadded(padRange(N), SetNumWorkGroups, Dims);
+    return setNDRangeDescriptorPadded(padRange(N, SetNumWorkGroups ? 0 : 1),
+                                      SetNumWorkGroups, Dims);
   }
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
@@ -3722,9 +3722,10 @@ private:
   }
   template <int Dims>
   void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
+    sycl::range<Dims> LocalRange = ExecutionRange.get_local_range();
     return setNDRangeDescriptorPadded(
-        padRange(ExecutionRange.get_global_range()),
-        padRange(ExecutionRange.get_local_range()),
+        padRange(ExecutionRange.get_global_range(), 1),
+        padRange(LocalRange, LocalRange[0] ? 1 : 0),
         padId(ExecutionRange.get_offset()), Dims);
   }
 

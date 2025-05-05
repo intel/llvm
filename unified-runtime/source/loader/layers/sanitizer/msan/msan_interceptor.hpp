@@ -160,6 +160,10 @@ struct MsanRuntimeDataWrapper {
   MsanRuntimeDataWrapper(ur_context_handle_t Context, ur_device_handle_t Device)
       : Context(Context), Device(Device) {}
 
+  MsanRuntimeDataWrapper(const MsanRuntimeDataWrapper &) = delete;
+
+  MsanRuntimeDataWrapper &operator=(const MsanRuntimeDataWrapper &) = delete;
+
   ~MsanRuntimeDataWrapper();
 
   MsanRuntimeData *getDevicePtr() {

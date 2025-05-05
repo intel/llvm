@@ -47,20 +47,20 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
   const std::shared_ptr<context_impl> &CtxImpl = QueueImpl->getContextImplPtr();
-  const std::shared_ptr<device_impl> &DevImpl = QueueImpl->getDeviceImplPtr();
+  // DevImpl is not const since alignedAllocInternal may add mark about shared
+  // USM usage needed for host task handling.
+  device_impl &DevImpl = QueueImpl->getDeviceImpl();
   std::lock_guard<std::mutex> Lock(MDeviceToUSMPtrMapMutex);
 
-  auto DGUSMPtr = MDeviceToUSMPtrMap.find({DevImpl.get(), CtxImpl.get()});
+  auto DGUSMPtr = MDeviceToUSMPtrMap.find({&DevImpl, CtxImpl.get()});
   if (DGUSMPtr != MDeviceToUSMPtrMap.end())
     return DGUSMPtr->second;
 
   void *NewDGUSMPtr = detail::usm::alignedAllocInternal(
-      0, MDeviceGlobalTSize, CtxImpl.get(), DevImpl.get(),
-      sycl::usm::alloc::device);
+      0, MDeviceGlobalTSize, CtxImpl.get(), &DevImpl, sycl::usm::alloc::device);
 
   auto NewAllocIt = MDeviceToUSMPtrMap.emplace(
-      std::piecewise_construct,
-      std::forward_as_tuple(DevImpl.get(), CtxImpl.get()),
+      std::piecewise_construct, std::forward_as_tuple(&DevImpl, CtxImpl.get()),
       std::forward_as_tuple(NewDGUSMPtr));
   assert(NewAllocIt.second &&
          "USM allocation for device and context already happened.");

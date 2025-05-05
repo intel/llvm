@@ -649,9 +649,18 @@ etors:
 - name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
   desc: Enumerator for $xAdapterSetLoggerCallbackLevel
   value: '267'
+- name: BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageUnsampledHandleSupportExp
+  value: '268'
+- name: BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageSampledHandleSupportExp
+  value: '269'
+- name: BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageMemoryHandleTypeSupportExp
+  value: '270'
 - name: EVENT_HOST_SIGNAL
   desc: Enumerator for $xEventHostSignal
-  value: '268'
+  value: '271'
 ---
 type: enum
 desc: Defines structure types
