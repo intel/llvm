@@ -346,9 +346,11 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
   auto isHostTask = Type == CGType::CodeplayHostTask;
+  auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
 
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
-  auto fastPath = !isHostTask && MNoEventMode.load(std::memory_order_relaxed) &&
+  auto fastPath = !isHostTask && !isGraphSubmission &&
+                  MNoEventMode.load(std::memory_order_relaxed) &&
                   !requiresPostProcess;
 
   if (fastPath) {
@@ -371,9 +373,8 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       Event = finalizeHandlerInOrderHostTaskUnlocked(Handler);
     } else {
       std::unique_lock<std::mutex> Lock(MMutex);
-      auto noEventsMode = trySwitchingToNoEventsMode();
 
-      if (noEventsMode) {
+      if (!isGraphSubmission && trySwitchingToNoEventsMode()) {
         Event = finalizeHandlerInOrderNoEventsUnlocked(Handler);
       } else {
         Event = finalizeHandlerInOrderWithDepsUnlocked(Handler);
