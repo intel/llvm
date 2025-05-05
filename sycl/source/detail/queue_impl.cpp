@@ -315,7 +315,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               queue_impl *SecondaryQueue, bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
-                              const SubmissionInfo &SubmitInfo) {
+                              const d1::SubmissionInfo &SubmitInfo) {
   handler Handler(Self, SecondaryQueue, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -424,7 +424,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
-  SubmissionInfo SI{};
+  d1::SubmissionInfo SI{};
   auto L = [&](handler &CGH) {
     CGH.depends_on(DepEvents);
     HandlerFunc(CGH);

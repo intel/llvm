@@ -95,6 +95,59 @@ public:
 private:
   std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
 };
+
+namespace d1 {
+
+struct SubmissionInfoImpl {
+    optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+    std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+    ext::oneapi::experimental::event_mode_enum MEventMode =
+        ext::oneapi::experimental::event_mode_enum::none;
+
+    SubmissionInfoImpl() = default;
+
+    SubmissionInfoImpl(const optional<detail::SubmitPostProcessF> &PostProcessorFunc,
+                       const std::shared_ptr<detail::queue_impl> &SecondaryQueue,
+                       const ext::oneapi::experimental::event_mode_enum &EventMode) :
+      MPostProcessorFunc(PostProcessorFunc), MSecondaryQueue(SecondaryQueue),
+      MEventMode(EventMode) {}
+};
+
+class __SYCL_EXPORT SubmissionInfo {
+  public:
+    SubmissionInfo() {}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    SubmissionInfo(const detail::SubmissionInfo &SI) :
+      impl(SI.PostProcessorFunc(), SI.SecondaryQueue(), SI.EventMode()) {}
+#endif
+
+      sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
+        return impl.MPostProcessorFunc;
+      }
+      const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
+        return impl.MPostProcessorFunc;
+      }
+
+      std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
+        return impl.MSecondaryQueue;
+      }
+      const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const {
+        return impl.MSecondaryQueue;
+      }
+
+      ext::oneapi::experimental::event_mode_enum &EventMode() {
+        return impl.MEventMode;
+      }
+      const ext::oneapi::experimental::event_mode_enum &EventMode() const {
+        return impl.MEventMode;
+      }
+
+  private:
+    SubmissionInfoImpl impl;
+};
+
+} // namespace d1
 } // namespace detail
 
 namespace ext ::oneapi ::experimental {
@@ -3534,7 +3587,7 @@ private:
       const sycl::detail::code_location &CodeLoc);
 
   template <typename PropertiesT>
-  void ProcessSubmitProperties(PropertiesT Props, detail::SubmissionInfo &SI) {
+  void ProcessSubmitProperties(PropertiesT Props, detail::d1::SubmissionInfo &SI) {
     if constexpr (Props.template has_property<
                       ext::oneapi::experimental::event_mode_key>()) {
       ext::oneapi::experimental::event_mode EventModeProp =
@@ -3589,17 +3642,25 @@ private:
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
+  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                               const detail::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc);
+  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                 const detail::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// A template-free versions of submit.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::SubmissionInfo &SubmitInfo,
+                               const detail::d1::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc);
 
   /// A template-free version of submit_without_event.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::SubmissionInfo &SubmitInfo,
+                                 const detail::d1::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
 
@@ -3621,7 +3682,7 @@ private:
       queue *SecondaryQueuePtr,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::SubmissionInfo SI{};
+    detail::d1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     if (SecondaryQueuePtr)
       SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
@@ -3659,7 +3720,7 @@ private:
       PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::SubmissionInfo SI{};
+    detail::d1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     if constexpr (UseFallbackAssert)
       SI.PostProcessorFunc() = [this, &TlsCodeLocCapture](bool IsKernel,
@@ -3698,7 +3759,7 @@ private:
       submit_with_event<UseFallbackAssert>(Props, CGF, CodeLoc);
     } else {
       detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-      detail::SubmissionInfo SI{};
+      detail::d1::SubmissionInfo SI{};
       ProcessSubmitProperties(Props, SI);
       submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                 TlsCodeLocCapture.isToplevel());
