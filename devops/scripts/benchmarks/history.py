@@ -128,7 +128,8 @@ class BenchmarkHistory:
         if options.build_compute_runtime:
             compute_runtime = options.compute_runtime_tag
         elif options.detect_versions.compute_runtime:
-            compute_runtime = DetectVersion.instance().get_compute_runtime_ver()
+            detect_res = DetectVersion.instance()
+            compute_runtime = detect_res.get_compute_runtime_ver()
             if detect_res.get_compute_runtime_ver_cached() is None:
                 print("Warning: Could not find compute_runtime version via github tags API.")
         else:
