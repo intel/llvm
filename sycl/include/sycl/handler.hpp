@@ -467,7 +467,7 @@ private:
                            bool CallerNeedsEvent);
 #endif
 
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from Graph.
   ///
   /// The handler will add the command-group as a node to the graph rather than
