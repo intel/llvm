@@ -340,7 +340,7 @@ struct NonBlocking {
     auto InEvents =
         native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
     futures.emplace_back(
-        tp.schedule_task([op, InEvents = InEvents.get()](size_t) mutable {
+        tp.schedule_task([op, InEvents = InEvents.get()](size_t) {
           if (InEvents)
             InEvents->wait();
           op();
@@ -395,6 +395,40 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
 }
 
 template <bool IsRead>
+static inline void MemBufferReadWriteRect_impl(
+    ur_mem_handle_t Buff, ur_rect_offset_t BufferOffset,
+    ur_rect_offset_t HostOffset, ur_rect_region_t region, size_t BufferRowPitch,
+    size_t BufferSlicePitch, size_t HostRowPitch, size_t HostSlicePitch,
+    typename std::conditional<IsRead, void *, const void *>::type DstMem) {
+  // TODO: check other constraints, performance optimizations
+  //       More sharing with level_zero where possible
+
+  if (BufferRowPitch == 0)
+    BufferRowPitch = region.width;
+  if (BufferSlicePitch == 0)
+    BufferSlicePitch = BufferRowPitch * region.height;
+  if (HostRowPitch == 0)
+    HostRowPitch = region.width;
+  if (HostSlicePitch == 0)
+    HostSlicePitch = HostRowPitch * region.height;
+  for (size_t w = 0; w < region.width; w++)
+    for (size_t h = 0; h < region.height; h++)
+      for (size_t d = 0; d < region.depth; d++) {
+        size_t buff_orign = (d + BufferOffset.z) * BufferSlicePitch +
+                            (h + BufferOffset.y) * BufferRowPitch + w +
+                            BufferOffset.x;
+        size_t host_origin = (d + HostOffset.z) * HostSlicePitch +
+                             (h + HostOffset.y) * HostRowPitch + w +
+                             HostOffset.x;
+        int8_t &buff_mem = ur_cast<int8_t *>(Buff->_mem)[buff_orign];
+        if constexpr (IsRead)
+          ur_cast<int8_t *>(DstMem)[host_origin] = buff_mem;
+        else
+          buff_mem = ur_cast<const int8_t *>(DstMem)[host_origin];
+      }
+}
+
+template <bool IsRead>
 static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
     ur_queue_handle_t hQueue, ur_mem_handle_t Buff, bool blocking,
     ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
@@ -411,34 +445,10 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
   return withTimingEvent(
       command_t, hQueue, NumEventsInWaitList, phEventWaitList, phEvent,
       [BufferRowPitch, region, BufferSlicePitch, HostRowPitch, HostSlicePitch,
-       BufferOffset, HostOffset, Buff, DstMem]() mutable {
-        // TODO: check other constraints, performance optimizations
-        //       More sharing with level_zero where possible
-
-        if (BufferRowPitch == 0)
-          BufferRowPitch = region.width;
-        if (BufferSlicePitch == 0)
-          BufferSlicePitch = BufferRowPitch * region.height;
-        if (HostRowPitch == 0)
-          HostRowPitch = region.width;
-        if (HostSlicePitch == 0)
-          HostSlicePitch = HostRowPitch * region.height;
-        for (size_t w = 0; w < region.width; w++)
-          for (size_t h = 0; h < region.height; h++)
-            for (size_t d = 0; d < region.depth; d++) {
-              size_t buff_orign = (d + BufferOffset.z) * BufferSlicePitch +
-                                  (h + BufferOffset.y) * BufferRowPitch + w +
-                                  BufferOffset.x;
-              size_t host_origin = (d + HostOffset.z) * HostSlicePitch +
-                                   (h + HostOffset.y) * HostRowPitch + w +
-                                   HostOffset.x;
-              int8_t &buff_mem = ur_cast<int8_t *>(Buff->_mem)[buff_orign];
-              if constexpr (IsRead)
-                ur_cast<int8_t *>(DstMem)[host_origin] = buff_mem;
-              else
-                buff_mem = ur_cast<const int8_t *>(DstMem)[host_origin];
-            }
-
+       BufferOffset, HostOffset, Buff, DstMem]() {
+        MemBufferReadWriteRect_impl<IsRead>(
+            Buff, BufferOffset, HostOffset, region, BufferRowPitch,
+            BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem);
         return UR_RESULT_SUCCESS;
       },
       blocking);
