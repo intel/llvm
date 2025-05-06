@@ -123,27 +123,30 @@ ur_result_t urEnqueueEventsWait(
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
+    // Get a new command list to be used on this call
+    ur_command_list_ptr_t CommandList{};
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, CommandList, false, 0, nullptr, false /*AllowBatching*/,
+        nullptr /*ForceCmdQueue*/));
+
+    UR_CALL(Queue->executeCommandList(CommandList, true, false));
+
     if (OutEvent) {
       UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
                                            UR_COMMAND_EVENTS_WAIT,
                                            Queue->CommandListMap.end(), false,
                                            /* IsInternal */ false));
-    }
 
-    UR_CALL(Queue->synchronize());
-
-    if (OutEvent) {
       Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
 
       if (!(*OutEvent)->CounterBasedEventsEnabled)
         ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
       (*OutEvent)->Completed = true;
-    }
-  }
 
-  if (!Queue->UsingImmCmdLists) {
-    std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
-    resetCommandLists(Queue);
+      if (!Queue->UsingImmCmdLists) {
+        resetCommandLists(Queue);
+      }
+    }
   }
 
   return UR_RESULT_SUCCESS;
