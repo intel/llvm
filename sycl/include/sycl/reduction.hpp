@@ -1078,7 +1078,7 @@ public:
     std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
     CGH.addReduction(Counter);
 
-#if __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     std::shared_ptr<detail::queue_impl> Queue(CGH.MQueue);
 #else
     std::shared_ptr<detail::queue_impl> &Queue = CGH.MQueue;
