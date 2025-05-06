@@ -149,7 +149,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                            pLocalWorkSize);
   auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
-  std::vector<std::future<void>> futures;
+  auto Tasks = native_cpu::getScheduler(tp);
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
@@ -203,22 +203,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     for (size_t t = 0; t < numParallelThreads;) {
       IndexT first = {t, 0, 0};
       IndexT last = {++t, numWG1, numWG2};
-      futures.emplace_back(
-          tp.schedule_task([ndr, itemsPerThread, &kernel = *kernel, first, last,
+      Tasks.schedule([ndr, itemsPerThread, &kernel = *kernel, first, last,
                             InEvents = InEvents.get()](size_t) {
             native_cpu::state resized_state =
                 getResizedState(ndr, itemsPerThread);
             if (InEvents)
               InEvents->wait();
             execute_range(resized_state, kernel, first, last);
-          }));
+          });
     }
 
     size_t start_wg0_remainder = new_num_work_groups_0 * itemsPerThread;
     if (start_wg0_remainder < numWG0) {
       // Peel the remaining work items. Since the local size is 1, we iterate
       // over the work groups.
-      futures.emplace_back(tp.schedule_task(
+      Tasks.schedule(
           [ndr, &kernel = *kernel, start_wg0_remainder, numWG0, numWG1, numWG2,
            InEvents = InEvents.get()](size_t) mutable {
             IndexT first = {start_wg0_remainder, 0, 0};
@@ -227,7 +226,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
               InEvents->wait();
             native_cpu::state state = getState(ndr);
             execute_range(state, kernel, first, last);
-          }));
+          });
     }
   } else {
     // We are running a parallel_for over an nd_range
@@ -250,7 +249,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         first[dim] = wg_start;
         wg_start += groupsPerThread[dim];
         last[dim] = wg_start;
-        futures.emplace_back(tp.schedule_task(
+        Tasks.schedule(
             [ndr, numParallelThreads, &kernel = *kernel, first, last,
              InEvents = InEvents.get()](size_t threadId) mutable {
               if (InEvents)
@@ -259,13 +258,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
               execute_range(state, kernel,
                             kernel.getArgs(numParallelThreads, threadId), first,
                             last);
-            }));
+            });
       }
     }
     if (wg_start < numWG[dim]) {
       first[dim] = wg_start;
       last[dim] = numWG[dim];
-      futures.emplace_back(tp.schedule_task(
+      Tasks.schedule(
           [ndr, numParallelThreads, &kernel = *kernel, first, last,
            InEvents = InEvents.get()](size_t threadId) mutable {
             if (InEvents)
@@ -274,12 +273,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             execute_range(state, kernel,
                           kernel.getArgs(numParallelThreads, threadId), first,
                           last);
-          }));
+          });
     }
   }
 
 #endif // NATIVECPU_USE_OCK
-  event->set_futures(futures);
+  event->set_futures(Tasks.getTaskInfo());
 
   if (phEvent) {
     *phEvent = event;
@@ -336,16 +335,15 @@ struct NonBlocking {
                          ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
                          const ur_event_handle_t *phEventWaitList) const {
     auto &tp = hQueue->getDevice()->tp;
-    std::vector<std::future<void>> futures;
+    auto Tasks = native_cpu::getScheduler(tp);
     auto InEvents =
         native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
-    futures.emplace_back(
-        tp.schedule_task([op, InEvents = InEvents.get()](size_t) mutable {
+    Tasks.schedule([op, InEvents = InEvents.get()](size_t) mutable {
           if (InEvents)
             InEvents->wait();
           op();
-        }));
-    event->set_futures(futures);
+        });
+    event->set_futures(Tasks.getTaskInfo());
     event->set_callback(
         [event, InEvents = std::move(InEvents)]() { event->tick_end(); });
     return UR_RESULT_SUCCESS;
@@ -557,7 +555,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
         // TODO: error checking
         // TODO: handle async
         void *startingPtr = hBuffer->_mem + offset;
-        unsigned steps = size / patternSize;
+        size_t steps = size / patternSize;
         for (unsigned i = 0; i < steps; i++) {
           memcpy(static_cast<int8_t *>(startingPtr) + i * patternSize, pPattern,
                  patternSize);
@@ -667,7 +665,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
           break;
         }
         default: {
-          for (unsigned int step{0}; step < size; step += patternSize) {
+          for (size_t step{0}; step < size; step += patternSize) {
             auto *dest = reinterpret_cast<void *>(
                 reinterpret_cast<uint8_t *>(ptr) + step);
             memcpy(dest, pPattern, patternSize);

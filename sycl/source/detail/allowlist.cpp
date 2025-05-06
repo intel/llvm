@@ -9,7 +9,6 @@
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
-#include <detail/platform_info.hpp>
 #include <sycl/backend_types.hpp>
 
 #include <algorithm>
@@ -387,12 +386,10 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
   }
   // get PlatformVersion value and put it to DeviceDesc
   DeviceDesc.emplace(PlatformVersionKeyName,
-                     sycl::detail::get_platform_info<info::platform::version>(
-                         UrPlatform, Adapter));
+                     PlatformImpl.get_info<info::platform::version>());
   // get PlatformName value and put it to DeviceDesc
   DeviceDesc.emplace(PlatformNameKeyName,
-                     sycl::detail::get_platform_info<info::platform::name>(
-                         UrPlatform, Adapter));
+                     PlatformImpl.get_info<info::platform::name>());
 
   int InsertIDx = 0;
   for (ur_device_handle_t Device : UrDevices) {

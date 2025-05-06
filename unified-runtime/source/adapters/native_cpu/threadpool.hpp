@@ -207,7 +207,84 @@ public:
     return ret;
   }
 };
+using simple_threadpool_t = threadpool_interface<detail::simple_thread_pool>;
 
-using threadpool_t = threadpool_interface<detail::simple_thread_pool>;
+class TasksInfo_TP {
+  using FType = std::future<void>;
+  std::vector<FType> futures;
+
+public:
+  inline void schedule(FType &&f) { futures.emplace_back(std::move(f)); }
+  inline void wait_all() {
+    for (auto &f : futures)
+      f.wait();
+  }
+  TasksInfo_TP(simple_threadpool_t &) {}
+};
+
+template <class TP, class TaskInfo> struct Scheduler_base {
+  TP &ref;
+  TaskInfo ti;
+  Scheduler_base(TP &ref_) : ref(ref_), ti(ref_) {}
+  TaskInfo getTaskInfo() { return std::move(ti); }
+};
+
+template <class TP> struct Scheduler : Scheduler_base<TP, TasksInfo_TP> {
+  using Scheduler_base<TP, TasksInfo_TP>::Scheduler_base;
+
+  template <class T> void schedule(T &&task) {
+    this->ti.schedule(this->ref.schedule_task(std::forward<T>(task)));
+  }
+};
+
+template <class TPType> inline Scheduler<TPType> getScheduler(TPType &tp) {
+  return Scheduler<TPType>(tp);
+}
 
 } // namespace native_cpu
+
+#ifdef NATIVECPU_WITH_ONETBB
+// Simple TBB backend
+#include "oneapi/tbb.h"
+namespace native_cpu {
+
+struct TBB_threadpool {
+  oneapi::tbb::task_group tasks;
+  inline size_t num_threads() const noexcept {
+    return oneapi::tbb::info::default_concurrency();
+  }
+};
+
+class TBB_TasksInfo {
+  TBB_threadpool *tp;
+
+public:
+  inline void wait_all() { tp->tasks.wait(); }
+  TBB_TasksInfo(TBB_threadpool &t) : tp(&t) {}
+};
+
+template <>
+struct Scheduler<TBB_threadpool>
+    : Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
+  using Scheduler_base<TBB_threadpool, TBB_TasksInfo>::Scheduler_base;
+  template <class T> inline void schedule(T &&task_) {
+    ref.tasks.run(std::function<void()>([task = std::move(task_)]() mutable {
+      auto thread_id = tbb::this_task_arena::current_thread_index();
+      assert(thread_id >= 0 &&
+             thread_id < oneapi::tbb::info::default_concurrency());
+      task(thread_id);
+    }));
+  }
+};
+
+using tasksinfo_t = TBB_TasksInfo;
+using threadpool_t = TBB_threadpool;
+} // namespace native_cpu
+
+#else
+// The default backend
+namespace native_cpu {
+using tasksinfo_t = TasksInfo_TP;
+using threadpool_t = simple_threadpool_t;
+} // namespace native_cpu
+#endif
