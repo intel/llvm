@@ -77,6 +77,7 @@ inline event submitAssertCapture(queue &, event &, queue *,
 // event &Event - event after which post processing should be executed
 using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct SubmissionInfoImpl;
 
 class __SYCL_EXPORT SubmissionInfo {
@@ -95,8 +96,9 @@ public:
 private:
   std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
 };
+#endif
 
-namespace d1 {
+namespace v1 {
 
 struct SubmissionInfoImpl {
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
@@ -106,12 +108,14 @@ struct SubmissionInfoImpl {
 
   SubmissionInfoImpl() = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   SubmissionInfoImpl(
       const optional<detail::SubmitPostProcessF> &PostProcessorFunc,
       const std::shared_ptr<detail::queue_impl> &SecondaryQueue,
       const ext::oneapi::experimental::event_mode_enum &EventMode)
       : MPostProcessorFunc(PostProcessorFunc), MSecondaryQueue(SecondaryQueue),
         MEventMode(EventMode) {}
+#endif
 };
 
 class __SYCL_EXPORT SubmissionInfo {
@@ -148,7 +152,7 @@ private:
   SubmissionInfoImpl impl;
 };
 
-} // namespace d1
+} // namespace v1
 } // namespace detail
 
 namespace ext ::oneapi ::experimental {
@@ -3589,7 +3593,7 @@ private:
 
   template <typename PropertiesT>
   void ProcessSubmitProperties(PropertiesT Props,
-                               detail::d1::SubmissionInfo &SI) {
+                               detail::v1::SubmissionInfo &SI) {
     if constexpr (Props.template has_property<
                       ext::oneapi::experimental::event_mode_key>()) {
       ext::oneapi::experimental::event_mode EventModeProp =
@@ -3656,13 +3660,13 @@ private:
 
   /// A template-free versions of submit.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                               const detail::d1::SubmissionInfo &SubmitInfo,
+                               const detail::v1::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc);
 
   /// A template-free version of submit_without_event.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                 const detail::d1::SubmissionInfo &SubmitInfo,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
 
@@ -3684,7 +3688,7 @@ private:
       queue *SecondaryQueuePtr,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::d1::SubmissionInfo SI{};
+    detail::v1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     if (SecondaryQueuePtr)
       SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
@@ -3722,7 +3726,7 @@ private:
       PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::d1::SubmissionInfo SI{};
+    detail::v1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     if constexpr (UseFallbackAssert)
       SI.PostProcessorFunc() = [this, &TlsCodeLocCapture](bool IsKernel,
@@ -3761,7 +3765,7 @@ private:
       submit_with_event<UseFallbackAssert>(Props, CGF, CodeLoc);
     } else {
       detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-      detail::d1::SubmissionInfo SI{};
+      detail::v1::SubmissionInfo SI{};
       ProcessSubmitProperties(Props, SI);
       submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                 TlsCodeLocCapture.isToplevel());

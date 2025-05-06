@@ -20,6 +20,7 @@
 namespace sycl {
 inline namespace _V1 {
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 namespace detail {
 SubmissionInfo::SubmissionInfo()
     : impl{std::make_shared<SubmissionInfoImpl>()} {}
@@ -50,6 +51,8 @@ SubmissionInfo::EventMode() const {
   return impl->MEventMode;
 }
 } // namespace detail
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -274,7 +277,7 @@ event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                     const detail::SubmissionInfo &SubmitInfo,
                                     const detail::code_location &CodeLoc,
                                     bool IsTopCodeLoc) {
-  detail::d1::SubmissionInfo SI{SubmitInfo};
+  detail::v1::SubmissionInfo SI{SubmitInfo};
   return impl->submit_with_event(CGH, impl, SI, CodeLoc, IsTopCodeLoc);
 }
 
@@ -282,7 +285,7 @@ void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                       const detail::SubmissionInfo &SubmitInfo,
                                       const detail::code_location &CodeLoc,
                                       bool IsTopCodeLoc) {
-  detail::d1::SubmissionInfo SI{SubmitInfo};
+  detail::v1::SubmissionInfo SI{SubmitInfo};
   impl->submit_without_event(CGH, impl, SI, CodeLoc, IsTopCodeLoc);
 }
 
@@ -290,17 +293,15 @@ void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
 
 event queue::submit_with_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
-    const detail::d1::SubmissionInfo &SubmitInfo,
-    const detail::code_location &CodeLoc,
-    bool IsTopCodeLoc) {
+    const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
 void queue::submit_without_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
-    const detail::d1::SubmissionInfo &SubmitInfo,
-    const detail::code_location &CodeLoc,
-    bool IsTopCodeLoc) {
+    const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
