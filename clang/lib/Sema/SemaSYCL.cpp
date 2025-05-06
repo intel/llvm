@@ -1159,8 +1159,6 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type and be declared at file
-// scope, outside any namespaces.
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
@@ -1169,9 +1167,7 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
           NameValuePair.first == "sycl-single-task-kernel") {
         if (!FD->getReturnType()->isVoidType()) {
-          llvm::report_fatal_error(
-              "Only functions at file scope with void return "
-              "type are permitted as free functions");
+          Diag(FD->getLocation(), diag::err_free_function_return_type);
           return false;
         }
         return true;
@@ -5792,32 +5788,30 @@ void SemaSYCL::MarkDevices() {
 }
 
 static void CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
+  if (FD->isVariadic()) {
+    S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
+    return;
+  }
+
+  PrintingPolicy Policy{S.getLangOpts()};
   for (ParmVarDecl *Param : FD->parameters()) {
     // Default arguments are not allowed in SYCL kernels.
     if (Param->hasDefaultArg()) {
       llvm::SmallString<128> DiagOut;
       llvm::raw_svector_ostream DiagOutStream{DiagOut};
-      PrintingPolicy Policy{S.getLangOpts()};
       Param->getType().print(DiagOutStream, Policy);
       DiagOutStream << " " << Param->getName() << " = ";
       Param->getDefaultArg()->printPretty(DiagOutStream, nullptr, Policy);
       S.Diag(Param->getLocation(), diag::err_free_function_with_default_arg)
           << DiagOut.str();
-      break;
+      continue;
     }
   }
 }
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
-
     CheckFreeFunctionDiagnostics(SemaRef, FD);
-
-    if (FD->isVariadic()) {
-      Diag(FD->getLocation(), diag::err_free_function_variadic_args);
-      return;
-    }
-
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);

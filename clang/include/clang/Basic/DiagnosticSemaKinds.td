@@ -12672,8 +12672,11 @@ def err_not_sycl_free_function : Error<
   "attempting to register a function that is not a SYCL free function as '%0'">;
 def err_free_function_with_default_arg : Error<
   "a function with a default argument value cannot be used as a kernel function, '%0'">;
-def err_free_function_variadic_args: Error<
+def err_free_function_variadic_args : Error<
   "free function kernel cannot be a variadic function">;
+def err_free_function_return_type : Error<
+  "kernel free function should have return type 'void'">;
+
 
 // SYCL kernel entry point diagnostics
 def err_sycl_entry_point_invalid : Error<
