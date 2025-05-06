@@ -184,7 +184,7 @@ ProgramManager &GlobalHandler::getProgramManager() {
   return PM;
 }
 
-std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+std::unordered_map<platform_impl *, ContextImplPtr> &
 GlobalHandler::getPlatformToDefaultContextCache() {
   // The optimization with static reference is not done because
   // there are public methods of the GlobalHandler
@@ -205,10 +205,18 @@ Sync &GlobalHandler::getSync() {
   return sync;
 }
 
-std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
-  static std::vector<PlatformImplPtr> &PlatformCache =
+std::vector<std::shared_ptr<platform_impl>> &GlobalHandler::getPlatformCache() {
+  static std::vector<std::shared_ptr<platform_impl>> &PlatformCache =
       getOrCreate(MPlatformCache);
   return PlatformCache;
+}
+
+void GlobalHandler::clearPlatforms() {
+  if (!MPlatformCache.Inst)
+    return;
+  for (auto &PltSmartPtr : *MPlatformCache.Inst)
+    PltSmartPtr->MDevices.clear();
+  MPlatformCache.Inst->clear();
 }
 
 std::mutex &GlobalHandler::getPlatformMapMutex() {
@@ -366,6 +374,7 @@ void shutdown_late() {
 #endif
 
   // First, release resources, that may access adapters.
+  Handler->clearPlatforms(); // includes dropping platforms' devices ownership.
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);

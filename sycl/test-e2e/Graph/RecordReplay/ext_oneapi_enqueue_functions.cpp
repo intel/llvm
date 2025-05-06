@@ -7,9 +7,6 @@
 
 // Tests the enqueue free function kernel shortcuts.
 
-// UNSUPPORTED: opencl
-// UNSUPPORTED-INTENDED: USM memcpy command not supported for OpenCL
-
 #include "../graph_common.hpp"
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>
@@ -55,7 +52,7 @@ int main() {
 
   for (size_t i = 0; i < Size; i++) {
     T Ref = Pattern * i;
-    assert(Output[i] == Ref);
+    assert(check_value(i, Ref, Output[i], "Output"));
   }
 
   return 0;
