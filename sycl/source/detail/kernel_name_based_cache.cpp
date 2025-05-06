@@ -19,7 +19,7 @@ KernelNameBasedCachePtrT createKernelNameBasedCache() {
 }
 void KernelNameBasedCacheDeleterT::operator()(KernelNameBasedCacheT *Ptr) {
   delete Ptr;
-};
+}
 
 } // namespace detail
 } // namespace _V1
