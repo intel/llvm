@@ -113,16 +113,6 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 [[maybe_unused]] void setErrorMessage(const char *Message,
                                       ur_result_t ErrorCode);
 
-/// ------ Error handling, matching OpenCL plugin semantics.
-namespace detail {
-namespace ur {
-
-// Reports error messages
-void hipPrint(const char *pMessage);
-
-} // namespace ur
-} // namespace detail
-
 // Helper method to return a (non-null) pointer's attributes, or std::nullopt in
 // the case that the pointer is unknown to the HIP subsystem.
 inline static std::optional<hipPointerAttribute_t>
