@@ -119,6 +119,10 @@ unsigned TargetCodeGenInfo::getOpenCLKernelCallingConv() const {
 
 void TargetCodeGenInfo::setOCLKernelStubCallingConvention(
     const FunctionType *&FT) const {
+
+  if (getABIInfo().getContext().getLangOpts().SYCLIsNativeCPU)
+     return;
+
   FT = getABIInfo().getContext().adjustFunctionType(
       FT, FT->getExtInfo().withCallingConv(CC_C));
 }
