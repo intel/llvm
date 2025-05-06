@@ -881,22 +881,14 @@ uint64_t device_impl::getCurrentDeviceTime() {
   return MDeviceHostBaseTime.first + Diff;
 }
 
-bool device_impl::isGetDeviceAndHostTimerSupported() {
-  const auto &Adapter = getAdapter();
-  uint64_t DeviceTime = 0, HostTime = 0;
-  auto Result = Adapter->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
-      MDevice, &DeviceTime, &HostTime);
-  return Result != UR_RESULT_ERROR_INVALID_OPERATION;
-}
-
 bool device_impl::extOneapiCanBuild(
     ext::oneapi::experimental::source_language Language) {
   try {
     // Get the shared_ptr to this object from the platform that owns it.
-    std::shared_ptr<device_impl> Self = MPlatform->getOrMakeDeviceImpl(MDevice);
+    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return sycl::ext::oneapi::experimental::detail::
         is_source_kernel_bundle_supported(Language,
-                                          std::vector<DeviceImplPtr>{Self});
+                                          std::vector<device_impl *>{&Self});
 
   } catch (sycl::exception &) {
     return false;
@@ -907,11 +899,11 @@ bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
     // Currently only SYCL language is supported for compiling.
-    std::shared_ptr<device_impl> Self = MPlatform->getOrMakeDeviceImpl(MDevice);
+    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return Language == ext::oneapi::experimental::source_language::sycl &&
            sycl::ext::oneapi::experimental::detail::
                is_source_kernel_bundle_supported(
-                   Language, std::vector<DeviceImplPtr>{Self});
+                   Language, std::vector<device_impl *>{&Self});
   } catch (sycl::exception &) {
     return false;
   }

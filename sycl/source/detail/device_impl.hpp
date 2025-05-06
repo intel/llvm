@@ -32,7 +32,7 @@ namespace detail {
 class platform_impl;
 
 // TODO: Make code thread-safe
-class device_impl {
+class device_impl : public std::enable_shared_from_this<device_impl> {
   struct private_tag {
     explicit private_tag() = default;
   };
@@ -279,10 +279,6 @@ public:
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
-
-  /// Check clGetDeviceAndHostTimer is available for fallback profiling
-
-  bool isGetDeviceAndHostTimerSupported();
 
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }

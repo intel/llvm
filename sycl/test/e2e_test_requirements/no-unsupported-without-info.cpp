@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 261
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 258
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -69,7 +69,6 @@
 // CHECK-NEXT: Adapters/level_zero/interop-buffer-ownership.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-buffer.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-direct.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-get-native-mem.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-get-native-mem.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
@@ -159,7 +158,6 @@
 // CHECK-NEXT: Graph/Explicit/buffer_copy_target2host_offset.cpp
 // CHECK-NEXT: Graph/Explicit/host_task2_multiple_roots.cpp
 // CHECK-NEXT: Graph/Explicit/host_task_multiple_roots.cpp
-// CHECK-NEXT: Graph/Explicit/interop-level-zero-get-native-mem.cpp
 // CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: Graph/Explicit/memadvise.cpp
 // CHECK-NEXT: Graph/Explicit/prefetch.cpp
@@ -174,7 +172,6 @@
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host_offset.cpp
 // CHECK-NEXT: Graph/RecordReplay/host_task2_multiple_roots.cpp
 // CHECK-NEXT: Graph/RecordReplay/host_task_multiple_roots.cpp
-// CHECK-NEXT: Graph/RecordReplay/interop-level-zero-get-native-mem.cpp
 // CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: Graph/RecordReplay/memadvise.cpp
 // CHECK-NEXT: Graph/RecordReplay/prefetch.cpp

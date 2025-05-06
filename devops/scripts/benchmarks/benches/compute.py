@@ -49,7 +49,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "9c1ed6fd59a7a40f8829251df4b5c0d847591183"
+        return "5e4e39cabd0f74422754890ff8e362789c714543"
 
     def setup(self):
         if options.sycl is None:
@@ -168,7 +168,7 @@ class ComputeBench(Suite):
             benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
         # Add GraphApiSubmitGraph benchmarks
-        for runtime in self.enabled_runtimes([RUNTIMES.SYCL, RUNTIMES.UR]):
+        for runtime in self.enabled_runtimes():
             for in_order_queue in [0, 1]:
                 for num_kernels in [4, 10, 32]:
                     for measure_completion_time in [0, 1]:
@@ -640,7 +640,7 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
 
 
 # TODO: once L0 SubmitGraph exists, this needs to be cleaned up split benchmarks into more groups,
-# set all the parameters (NoEvents 0/1, which should get inverted into UseEvents) and
+# set all the parameters (UseEvents 0/1) and
 # unify the benchmark naming scheme with SubmitKernel.
 class GraphApiSubmitGraph(ComputeBenchmark):
     def __init__(
@@ -681,7 +681,8 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--InOrderQueue={self.inOrderQueue}",
             "--Profiling=0",
             "--KernelExecutionTime=1",
-            "--NoEvents=1",  # not all implementations support NoEvents=0
+            "--UseEvents=0",  # not all implementations support UseEvents=1
+            "--UseExplicit=0",
         ]
 
 
