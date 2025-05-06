@@ -288,17 +288,19 @@ void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
 
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                    const detail::d1::SubmissionInfo &SubmitInfo,
-                                    const detail::code_location &CodeLoc,
-                                    bool IsTopCodeLoc) {
+event queue::submit_with_event_impl(
+    const detail::type_erased_cgfo_ty &CGH,
+    const detail::d1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc) {
   return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
-void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
-                                      const detail::d1::SubmissionInfo &SubmitInfo,
-                                      const detail::code_location &CodeLoc,
-                                      bool IsTopCodeLoc) {
+void queue::submit_without_event_impl(
+    const detail::type_erased_cgfo_ty &CGH,
+    const detail::d1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc) {
   impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 

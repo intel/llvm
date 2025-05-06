@@ -119,8 +119,8 @@ public:
   SubmissionInfo() {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  SubmissionInfo(const detail::SubmissionInfo &SI) :
-      impl(SI.PostProcessorFunc(), SI.SecondaryQueue(), SI.EventMode()) {}
+  SubmissionInfo(const detail::SubmissionInfo &SI)
+      : impl(SI.PostProcessorFunc(), SI.SecondaryQueue(), SI.EventMode()) {}
 #endif
 
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
