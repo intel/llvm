@@ -803,43 +803,13 @@ protected:
     return EventRet;
   }
 
+  template <typename HandlerType = handler>
+  event finalizeHandler(HandlerType &Handler) {
+    return MIsInorder ? finalizeHandlerInOrder(Handler)
+                      : finalizeHandlerOutOfOrder(Handler);
+  }
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  template <typename HandlerType = handler>
-  event finalizeHandlerPostProcess(
-      HandlerType &Handler,
-      const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    bool IsKernel = Handler.getType() == CGType::Kernel;
-    bool KernelUsesAssert = false;
-
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert =
-          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              Handler.MKernelName.data());
-
-    auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
-                            : finalizeHandlerOutOfOrder(Handler);
-
-    auto &PostProcess = *PostProcessorFunc;
-
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-
-    return Event;
-  }
-
-  // template is needed for proper unit testing
-  template <typename HandlerType = handler>
-  event finalizeHandler(HandlerType &Handler,
-                        const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    if (PostProcessorFunc) {
-      return finalizeHandlerPostProcess(Handler, PostProcessorFunc);
-    } else {
-      return MIsInorder ? finalizeHandlerInOrder(Handler)
-                        : finalizeHandlerOutOfOrder(Handler);
-    }
-  }
-
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -859,13 +829,6 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
                     bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
-#else  // __INTEL_PREVIEW_BREAKING_CHANGES
-  // template is needed for proper unit testing
-  template <typename HandlerType = handler>
-  event finalizeHandler(HandlerType &Handler) {
-    return MIsInorder ? finalizeHandlerInOrder(Handler)
-                      : finalizeHandlerOutOfOrder(Handler);
-  }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Performs command group submission to the queue.
