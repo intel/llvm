@@ -19,6 +19,7 @@ inputs:
     required: false
   compiler:
     required: false
+    default: "cl"
 
 runs:
   using: "composite"
