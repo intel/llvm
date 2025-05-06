@@ -47,6 +47,7 @@ __GROUP_OPERATION(BitwiseXorKHR)
 
 __GROUP_NONUNIFORM_BROADCAST(uint)
 __GROUP_NONUNIFORM_BROADCAST(ulong)
+#undef __GROUP_NONUNIFORM_BROADCAST
 
 #define __GROUP_OPERATION_NONUNIFORM(Name)                                     \
   _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __CLC_GENTYPE                         \
