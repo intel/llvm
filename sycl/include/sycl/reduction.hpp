@@ -140,7 +140,7 @@ template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
   return sycl::detail::make_tuple(Elements...);
 }
 
-#if __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT size_t reduGetMaxWGSize(const std::shared_ptr<queue_impl> &Queue,
                                       size_t LocalMemBytesPerWorkItem);
 __SYCL_EXPORT size_t reduGetPreferredWGSize(
