@@ -96,7 +96,7 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== New kernel property
+=== New property
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
@@ -126,6 +126,27 @@ error code.
 `T` must be an integral type.
 
 |===
+
+This property can also be associated with a device function using the
+`SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro.
+
+There are special requirements whenever a device function defined in one
+translation unit makes a call to a device function that is defined in a second
+translation unit.
+In such a case, the second device function is always declared using
+`SYCL_EXTERNAL`.
+If the kernel calling these device functions is defined using a `range_type`
+property, the functions declared using `SYCL_EXTERNAL` must be similarly
+decorated to ensure that a compatible `range_type` is used.
+This decoration must exist in both the translation unit making the call and
+also in the translation unit that defines the function.
+If the `range_type` property is missing in the translation unit that makes the
+call, or if the `range_type` of the called function is not compatible with the
+`range_type` of the calling function, the program is ill-formed and the
+compiler must raise a diagnostic.
+Two `range_type` properties are considered compatible if all values that can be
+represented by the `range_type` of the caller function can be represented by
+the `range_type` of the called function.
 
 == Usage example
 
