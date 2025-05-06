@@ -735,6 +735,12 @@ private:
     case sycl::detail::CGType::EnqueueNativeCommand:
       Stream << "CGNativeCommand \\n";
       break;
+    case sycl::detail::CGType::AsyncAlloc:
+      Stream << "CGAsyncAlloc \\n";
+      break;
+    case sycl::detail::CGType::AsyncFree:
+      Stream << "CGAsyncFree \\n";
+      break;
     default:
       Stream << "Other \\n";
       break;
@@ -935,6 +941,30 @@ public:
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "No node in this graph is associated with this event");
+  }
+
+  /// Find the nodes associated with a list of SYCL events. Throws if no node is
+  /// found for a given event.
+  /// @param Events Events to find nodes for.
+  /// @return A list of node counterparts for each event, in the same order.
+  std::vector<std::shared_ptr<node_impl>> getNodesForEvents(
+      const std::vector<std::shared_ptr<sycl::detail::event_impl>> Events) {
+    std::vector<std::shared_ptr<node_impl>> NodeList{Events.size()};
+
+    ReadLock Lock(MMutex);
+
+    for (size_t i = 0; i < Events.size(); i++) {
+      if (auto NodeFound = MEventsMap.find(Events[i]);
+          NodeFound != std::end(MEventsMap)) {
+        NodeList[i] = NodeFound->second;
+      } else {
+        throw sycl::exception(
+            sycl::make_error_code(errc::invalid),
+            "No node in this graph is associated with this event");
+      }
+    }
+
+    return NodeList;
   }
 
   /// Query for the context tied to this graph.
@@ -1190,6 +1220,12 @@ public:
   /// Get the number of unique executable graph instances currently alive for
   /// this graph.
   size_t getExecGraphCount() const { return MExecGraphCount; }
+
+  void resetNodeVisitedEdges() {
+    for (auto &Node : MNodeStorage) {
+      Node->MTotalVisitedEdges = 0;
+    }
+  }
 
 private:
   /// Check the graph for cycles by performing a depth-first search of the
