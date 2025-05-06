@@ -296,12 +296,23 @@ VkResult setupDevice(std::string device) {
   vkGetPhysicalDeviceQueueFamilyProperties(
       vk_physical_device, &queueFamilyCount, queueFamilies.data());
   uint32_t i = 0;
+  bool computeQueueFamilyFound = false;
+  bool transferQueueFamilyFound = false;
   for (auto &qf : queueFamilies) {
-    if (qf.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+    // Queue families that support `VK_QUEUE_COMPUTE_BIT` or
+    // `VK_QUEUE_TRANSFER_BIT` capabilities should also implicitly support
+    // `VK_QUEUE_GRAPHICS_BIT`.
+    // `VK_QUEUE_GRAPHICS_BIT` support is required for the `depth_format.cpp`
+    // test.
+    if (!computeQueueFamilyFound && (qf.queueFlags & VK_QUEUE_COMPUTE_BIT) &&
+        (qf.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
       vk_computeQueueFamilyIndex = i;
+      computeQueueFamilyFound = true;
     }
-    if (qf.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+    if (!transferQueueFamilyFound && (qf.queueFlags & VK_QUEUE_TRANSFER_BIT) &&
+        (qf.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
       vk_transferQueueFamilyIndex = i;
+      transferQueueFamilyFound = true;
     }
     ++i;
   }
