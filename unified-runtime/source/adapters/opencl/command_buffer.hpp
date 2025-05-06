@@ -55,6 +55,8 @@ struct ur_exp_command_buffer_handle_t_ {
       CommandHandles;
   /// Object reference count
   std::atomic_uint32_t RefCount;
+  /// Track last submission of the command-buffer
+  cl_event LastSubmission;
 
   ur_exp_command_buffer_handle_t_(ur_queue_handle_t hQueue,
                                   ur_context_handle_t hContext,
@@ -63,7 +65,8 @@ struct ur_exp_command_buffer_handle_t_ {
                                   bool IsUpdatable, bool IsInOrder)
       : hInternalQueue(hQueue), hContext(hContext), hDevice(hDevice),
         CLCommandBuffer(CLCommandBuffer), IsUpdatable(IsUpdatable),
-        IsInOrder(IsInOrder), IsFinalized(false), RefCount(0) {}
+        IsInOrder(IsInOrder), IsFinalized(false), RefCount(0),
+        LastSubmission(nullptr) {}
 
   ~ur_exp_command_buffer_handle_t_();
 
