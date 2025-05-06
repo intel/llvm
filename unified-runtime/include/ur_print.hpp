@@ -19,6 +19,18 @@
 #include <bitset>
 #include <ostream>
 
+#define __PRINT_TAGGED_UTILS(T, os, ptr, size)                                 \
+  ;                                                                            \
+  const T *tptr = (const T *)ptr;                                              \
+  if (sizeof(T) > size) {                                                      \
+    os << "invalid size (is: " << size << ", expected: >=" << sizeof(T)        \
+       << ")";                                                                 \
+    return UR_RESULT_ERROR_INVALID_SIZE;                                       \
+  }                                                                            \
+  os << (const void *)(tptr) << " (";                                          \
+  os << *tptr;                                                                 \
+  os << ")";
+
 namespace ur::details {
 template <typename T> struct is_handle : std::false_type {};
 template <> struct is_handle<ur_loader_config_handle_t> : std::true_type {};
@@ -2213,17 +2225,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     printPtr(os, tptr);
   } break;
   case UR_LOADER_CONFIG_INFO_REFERENCE_COUNT: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   default:
     os << "unknown enumerator";
@@ -2297,43 +2299,13 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
   switch (value) {
   case UR_ADAPTER_INFO_BACKEND: {
-    const ur_adapter_backend_t *tptr = (const ur_adapter_backend_t *)ptr;
-    if (sizeof(ur_adapter_backend_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_adapter_backend_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(ur_adapter_backend_t, os, ptr, size);
   } break;
   case UR_ADAPTER_INFO_REFERENCE_COUNT: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_ADAPTER_INFO_VERSION: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   default:
     os << "unknown enumerator";
@@ -3154,72 +3126,21 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
   switch (value) {
   case UR_DEVICE_INFO_TYPE: {
-    const ur_device_type_t *tptr = (const ur_device_type_t *)ptr;
-    if (sizeof(ur_device_type_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_device_type_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(ur_device_type_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_VENDOR_ID: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_DEVICE_ID: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
-
     const size_t *tptr = (const size_t *)ptr;
     os << "{";
     size_t nelems = size / sizeof(size_t);
@@ -3233,17 +3154,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << "}";
   } break;
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
-    const size_t *tptr = (const size_t *)ptr;
-    if (sizeof(size_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(size_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
     const ur_device_fp_capability_flags_t *tptr =
@@ -3301,160 +3212,40 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    __PRINT_TAGGED_UTILS(uint32_t, os, ptr, size);
   } break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE: {
     const uint32_t *tptr = (const uint32_t *)ptr;
