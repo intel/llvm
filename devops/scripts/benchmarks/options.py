@@ -35,7 +35,8 @@ class DetectVersionsOptions:
     # TODO unauthenticated users only get 60 API calls per hour: this will not
     # work if we enable benchmark CI in precommit.
     compute_runtime_tag_api: str = "https://api.github.com/repos/intel/compute-runtime/tags"
-    max_api_calls = 2
+    # Max amount of api calls permitted on each run of the benchmark scripts
+    max_api_calls = 4
 
 @dataclass
 class Options:
