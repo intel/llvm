@@ -1166,10 +1166,6 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
     for (const auto &NameValuePair : NameValuePairs) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
           NameValuePair.first == "sycl-single-task-kernel") {
-        if (!FD->getReturnType()->isVoidType()) {
-          Diag(FD->getLocation(), diag::err_free_function_return_type);
-          return false;
-        }
         return true;
       }
     }
@@ -5793,17 +5789,15 @@ static void CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
     return;
   }
 
-  PrintingPolicy Policy{S.getLangOpts()};
+  if (!FD->getReturnType()->isVoidType()) {
+    S.Diag(FD->getLocation(), diag::err_free_function_return_type);
+    return;
+  }
+
   for (ParmVarDecl *Param : FD->parameters()) {
-    // Default arguments are not allowed in SYCL kernels.
     if (Param->hasDefaultArg()) {
-      llvm::SmallString<128> DiagOut;
-      llvm::raw_svector_ostream DiagOutStream{DiagOut};
-      Param->getType().print(DiagOutStream, Policy);
-      DiagOutStream << " " << Param->getName() << " = ";
-      Param->getDefaultArg()->printPretty(DiagOutStream, nullptr, Policy);
       S.Diag(Param->getLocation(), diag::err_free_function_with_default_arg)
-          << DiagOut.str();
+      << Param->getSourceRange();
       continue;
     }
   }

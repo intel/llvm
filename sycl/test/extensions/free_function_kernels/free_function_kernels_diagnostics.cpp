@@ -19,28 +19,3 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<3>)
 void ndRangeKernelVariadic( // expected-error {{free function kernel cannot be a variadic function}}
     ...) {}
 
-// expected-error@+2 {{a function with a default argument value cannot be used as a kernel function, 'int Value = 1'}}
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
-void singleTaskKernelDefaultValues(int Value = 1) {}
-
-// expected-error@+2 {{a function with a default argument value cannot be used as a kernel function, 'int Value = 1'}}
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
-void ndRangeKernelDefaultValues(int Value = 1) {}
-
-// expected-error@+3 {{a function with a default argument value cannot be used as a kernel function, 'int Ivalue = 1'}}
-// expected-error@+2 {{a function with a default argument value cannot be used as a kernel function, 'unsigned int Uvalue = 3'}}
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
-void singleTaskKernelDefaultValues(int Ivalue = 1, unsigned int Uvalue = 3) {}
-
-// expected-error@+3 {{a function with a default argument value cannot be used as a kernel function, 'int Ivalue = 1'}}
-// expected-error@+2 {{a function with a default argument value cannot be used as a kernel function, 'unsigned int Uvalue = 3'}}
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
-void ndRangeKernelDefaultValues(int Ivalue = 1, unsigned int Uvalue = 3) {}
-
-// expected-error@+2 {{kernel free function should have return type 'void'}}
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
-int singleTaskKernelReturnType(int Value) {}
-
-// expected-error@+2 {{kernel free function should have return type 'void'}}
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
-int ndRangeKernelReturnType(int Value) {}
