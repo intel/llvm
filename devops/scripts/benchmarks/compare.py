@@ -156,9 +156,7 @@ class Compare:
                 if test_run.name not in average_aggregate:
                     average_aggregate[test_run.name] = reset_aggregate()
                 else:
-                    average_aggregate[test_run.name]["aggregate"].add(
-                        test_run.value
-                    )
+                    average_aggregate[test_run.name]["aggregate"].add(test_run.value)
 
         return {
             name: BenchmarkHistoricAverage(

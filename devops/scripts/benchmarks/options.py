@@ -21,6 +21,7 @@ class DetectVersionsOptions:
     """
     Options for automatic version detection
     """
+
     # Components to detect versions for:
     sycl: bool = False
     compute_runtime: bool = False
@@ -30,11 +31,13 @@ class DetectVersionsOptions:
     # Placeholder text, should automatic version detection fail: This text will
     # only be used if automatic version detection for x component is explicitly
     # specified.
-    not_found_placeholder = "unknown" # None
+    not_found_placeholder = "unknown"  # None
 
     # TODO unauthenticated users only get 60 API calls per hour: this will not
     # work if we enable benchmark CI in precommit.
-    compute_runtime_tag_api: str = "https://api.github.com/repos/intel/compute-runtime/tags"
+    compute_runtime_tag_api: str = (
+        "https://api.github.com/repos/intel/compute-runtime/tags"
+    )
     # Max amount of api calls permitted on each run of the benchmark scripts
     max_api_calls = 4
 
@@ -86,7 +89,9 @@ class Options:
     github_repo_override: str = None
     git_commit_override: str = None
 
-    detect_versions: DetectVersionsOptions = field(default_factory=DetectVersionsOptions)
+    detect_versions: DetectVersionsOptions = field(
+        default_factory=DetectVersionsOptions
+    )
 
 
 options = Options()
