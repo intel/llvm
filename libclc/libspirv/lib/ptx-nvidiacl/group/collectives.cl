@@ -21,6 +21,8 @@ __local bool *
 __clc__get_group_scratch_bool() __asm("__clc__get_group_scratch_bool");
 __local char *
 __clc__get_group_scratch_char() __asm("__clc__get_group_scratch_char");
+__local schar *
+__clc__get_group_scratch_schar() __asm("__clc__get_group_scratch_char");
 __local uchar *
 __clc__get_group_scratch_uchar() __asm("__clc__get_group_scratch_char");
 __local short *
@@ -60,6 +62,7 @@ _CLC_DEF uint inline __clc__membermask() {
     return __nvvm_shfl_sync_idx_i32(__clc__membermask(), x, idx, 0x1f);        \
   }
 __CLC_SUBGROUP_SHUFFLE_I32(char);
+__CLC_SUBGROUP_SHUFFLE_I32(schar);
 __CLC_SUBGROUP_SHUFFLE_I32(uchar);
 __CLC_SUBGROUP_SHUFFLE_I32(short);
 __CLC_SUBGROUP_SHUFFLE_I32(ushort);
@@ -141,6 +144,7 @@ __clc__SubgroupShuffle(complex_double x, uint idx) {
     return __nvvm_shfl_sync_up_i32(__clc__membermask(), x, delta, 0);          \
   }
 __CLC_SUBGROUP_SHUFFLEUP_I32(char);
+__CLC_SUBGROUP_SHUFFLEUP_I32(schar);
 __CLC_SUBGROUP_SHUFFLEUP_I32(uchar);
 __CLC_SUBGROUP_SHUFFLEUP_I32(short);
 __CLC_SUBGROUP_SHUFFLEUP_I32(ushort);
@@ -344,6 +348,7 @@ complex_double __muldc3(double a, double b, double c, double d) {
   }
 
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, char, 0)
+__CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, schar, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, uchar, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, short, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, ushort, 0)
@@ -356,6 +361,7 @@ __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
 __CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, char, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, schar, 1)
 __CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uchar, 1)
 __CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, short, 1)
 __CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ushort, 1)
@@ -401,6 +407,9 @@ __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -INFINITY)
 __CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, uchar, ~0)
 __CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, uchar, 0)
 __CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, uchar, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, schar, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, schar, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, schar, 0)
 __CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseAndKHR, __CLC_AND, and, char, ~0)
 __CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseOrKHR, __CLC_OR, or, char, 0)
 __CLC_SUBGROUP_COLLECTIVE_REDUX(BitwiseXorKHR, __CLC_XOR, xor, char, 0)
@@ -512,6 +521,7 @@ _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAll(int scope,
 }
 
 __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, char, 0)
+__CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, schar, 0)
 __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, short, 0)
 __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, int, 0)
 __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, long, 0)
@@ -520,6 +530,7 @@ __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
 __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, char, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, schar, 1)
 __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, short, 1)
 __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, int, 1)
 __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, long, 1)
@@ -561,6 +572,9 @@ __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, half, -INFINITY)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -INFINITY)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -INFINITY)
 
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, schar, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, schar, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, schar, 0)
 __CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, char, ~0)
 __CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, char, 0)
 __CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, char, 0)
@@ -636,6 +650,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     return __spirv_GroupBroadcast(scope, x, (ulong)local_id);                  \
   }
 __CLC_GROUP_BROADCAST(char);
+__CLC_GROUP_BROADCAST(schar);
 __CLC_GROUP_BROADCAST(short);
 __CLC_GROUP_BROADCAST(int)
 __CLC_GROUP_BROADCAST(long)
