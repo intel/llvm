@@ -795,19 +795,25 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  int32_t StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
-  sycl::detail::CGExecKernel *CGExec =
-      static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
-  sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
-                                      CGExec->MFunctionName.c_str(),
-                                      CGExec->MLine, CGExec->MColumn);
-  auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-      StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-      CGExec->MKernelName.data(), nullptr, CGExec->MNDRDesc,
-      CGExec->MKernelBundle, CGExec->MArgs);
-  if (CmdTraceEvent)
-    sycl::detail::emitInstrumentationGeneral(
-        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+  const static bool xptiEnabled = xptiTraceEnabled();
+  int32_t StreamID = xpti::invalid_id;
+  xpti_td *CmdTraceEvent = nullptr;
+  uint64_t InstanceID = 0;
+  if (xptiEnabled) {
+    StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
+    sycl::detail::CGExecKernel *CGExec =
+        static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+    sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
+                                        CGExec->MFunctionName.c_str(),
+                                        CGExec->MLine, CGExec->MColumn);
+    std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
+        StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
+        CGExec->MKernelName.data(), nullptr, CGExec->MNDRDesc,
+        CGExec->MKernelBundle, CGExec->MArgs);
+    if (CmdTraceEvent)
+      sycl::detail::emitInstrumentationGeneral(
+          StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+  }
 #endif
 
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
@@ -825,7 +831,7 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (CmdTraceEvent)
+  if (xptiEnabled && CmdTraceEvent)
     sycl::detail::emitInstrumentationGeneral(
         StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
 #endif
