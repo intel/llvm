@@ -221,5 +221,5 @@ runs:
     if: always()
     uses: actions/upload-artifact@v4
     with:
-      name: Benchmark run ${{ github.run_id }} (${{ runner.name }})
+      name: Benchmark run ${{ github.run_id }} (${{ runner.name }}, ${{ inputs.target_devices }})
       path: ./cached_changes
