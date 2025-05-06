@@ -819,6 +819,11 @@ protected:
     if (!getSyclObjImpl(EventRet)->isDiscarded()) {
       MNoEventMode = false;
       EventToBuildDeps = getSyclObjImpl(EventRet);
+
+      // TODO: if the event is NOP we should be able to discard it as well.
+      // However, NOP events are used to describe ordering for graph operations
+      // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
+      // start relying on command buffer in-order property instead.
     }
 
     return EventRet;

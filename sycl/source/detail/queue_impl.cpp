@@ -343,17 +343,17 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   auto isHostTask = Type == CGType::CodeplayHostTask;
 
-  // TODO: we shouldn't need to treat ExecCommandBuffer differently,
-  // but currently UR (legacy L0 adapter) does not respect
-  // in-order property of command buffer and still requires sync points.
+  // TODO: this shouldn't be needed but without this
+  // the legacy adapter doesn't synchronize the operations properly
+  // when non-immediate command lists are used.
   auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
 
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
-  auto fastPath = !isHostTask && !isGraphSubmission &&
-                  MNoEventMode.load(std::memory_order_relaxed) &&
-                  !requiresPostProcess;
+  auto noLastEventPath = !isHostTask && !isGraphSubmission &&
+                         MNoEventMode.load(std::memory_order_relaxed) &&
+                         !requiresPostProcess;
 
-  if (fastPath) {
+  if (noLastEventPath) {
     std::unique_lock<std::mutex> Lock(MMutex);
 
     // Check if we are still in no event mode. There could
@@ -366,6 +366,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   event Event;
   if (!isInOrder()) {
     Event = finalizeHandlerOutOfOrder(Handler);
+    addEvent(Event);
   } else {
     if (isHostTask) {
       std::unique_lock<std::mutex> Lock(MMutex);
@@ -380,8 +381,6 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       }
     }
   }
-
-  addEvent(Event);
 
   if (SubmitInfo.PostProcessorFunc())
     handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
