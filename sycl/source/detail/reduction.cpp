@@ -72,7 +72,7 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
   return NumThreads;
 }
 
-#if __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT size_t
 reduGetMaxWGSize(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                  size_t LocalMemBytesPerWorkItem) {
