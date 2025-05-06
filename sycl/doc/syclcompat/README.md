@@ -37,7 +37,7 @@ Specifically, this library depends on the following SYCL extensions:
 * [sycl_ext_oneapi_complex](
     ../extensions/experimental/sycl_ext_oneapi_complex.asciidoc)
 * [sycl_ext_oneapi_free_function_queries](
-    ../extensions/supported/sycl_ext_oneapi_free_function_queries.asciidoc)
+    ../extensions/supported/sycl_ext_oneapi_free_function_queries.rst)
 * [sycl_ext_oneapi_assert](
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
