@@ -761,13 +761,12 @@ protected:
                                               : MExtGraphDeps.LastEventPtr;
 
     if (MNoEventMode) {
-      assert(MGraph.expired());
-      assert(EventToBuildDeps == nullptr);
       // There might be some operations submitted to the queue
       // but the LastEventPtr is not set. If we are to run a host_task,
       // we need to insert a barrier to ensure proper synchronization.
       Handler.depends_on(insertHelperBarrier(Handler));
-    } else if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
+    }
+    if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
       // We are not in no-event mode, so we can use the last event.
       // depends_on after an async alloc is explicitly disallowed. Async alloc
       // handles in order queue dependencies preemptively, so we skip them.
@@ -812,12 +811,16 @@ protected:
     }
 
     MEmpty = false;
-    MNoEventMode = false;
 
     synchronizeWithExternalEvent(Handler);
 
     auto EventRet = Handler.finalize();
-    EventToBuildDeps = getSyclObjImpl(EventRet);
+
+    if (!getSyclObjImpl(EventRet)->isDiscarded()) {
+      MNoEventMode = false;
+      EventToBuildDeps = getSyclObjImpl(EventRet);
+    }
+
     return EventRet;
   }
 
@@ -1051,6 +1054,7 @@ protected:
   // tasks submitted to the queue.
   std::atomic<bool> MNoEventMode = false;
 
+  // Used exclusively in getLastEvent implementation
   bool MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;

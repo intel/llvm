@@ -294,7 +294,7 @@ queue_impl::getLastEvent(const std::shared_ptr<queue_impl> &Self) {
     return std::nullopt;
   auto &LastEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                      : MExtGraphDeps.LastEventPtr;
-  if (LastEvent && !LastEvent->isNOP())
+  if (LastEvent)
     return detail::createSyclObjFromImpl<event>(LastEvent);
   // We insert a marker to represent an event at end.
   return detail::createSyclObjFromImpl<event>(insertMarkerEvent(Self));
@@ -304,7 +304,8 @@ void queue_impl::addEvent(const event &Event) {
   const EventImplPtr &EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
-  if (Cmd != nullptr && EImpl->getHandle() == nullptr) {
+  if (Cmd != nullptr && EImpl->getHandle() == nullptr &&
+      !EImpl->isDiscarded()) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -745,6 +746,10 @@ bool queue_impl::ext_oneapi_empty() const {
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==
              info::event_command_status::complete;
+    else if (!MNoEventMode) {
+      // If Last Event is NULL in normal mode, the queue is empty.
+      return true;
+    }
   }
 
   // Check the status of the backend queue if this is not a host queue.
