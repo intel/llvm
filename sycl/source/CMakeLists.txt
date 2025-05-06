@@ -194,7 +194,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   add_dependencies(${LIB_NAME} LLVMSupport)
   target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
   target_include_directories(${LIB_OBJ_NAME} SYSTEM PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING=1)
 
   check_linker_flag(CXX "-Wl,--gc-sections" LINKER_SUPPORTS_WL_GC_SECTIONS)
   if(LINKER_SUPPORTS_WL_GC_SECTIONS)
