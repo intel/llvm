@@ -881,14 +881,6 @@ uint64_t device_impl::getCurrentDeviceTime() {
   return MDeviceHostBaseTime.first + Diff;
 }
 
-bool device_impl::isGetDeviceAndHostTimerSupported() {
-  const auto &Adapter = getAdapter();
-  uint64_t DeviceTime = 0, HostTime = 0;
-  auto Result = Adapter->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
-      MDevice, &DeviceTime, &HostTime);
-  return Result != UR_RESULT_ERROR_INVALID_OPERATION;
-}
-
 bool device_impl::extOneapiCanBuild(
     ext::oneapi::experimental::source_language Language) {
   try {

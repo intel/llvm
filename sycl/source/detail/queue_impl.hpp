@@ -126,13 +126,9 @@ public:
         throw sycl::exception(make_error_code(errc::invalid),
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
-      // fallback profiling support. See MFallbackProfiling
-      if (MDevice.has(aspect::queue_profiling)) {
-        // When urDeviceGetGlobalTimestamps is not supported, compute the
-        // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImpl().isGetDeviceAndHostTimerSupported())
-          MFallbackProfiling = true;
-      } else {
+
+      if (!MDevice.has(aspect::queue_profiling)) {
+
         throw sycl::exception(make_error_code(errc::feature_not_supported),
                               "Cannot enable profiling, the associated device "
                               "does not have the queue_profiling aspect");
@@ -466,22 +462,21 @@ public:
       }
       CreationFlags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
     }
-    // Track that submission modes do not conflict.
-    bool SubmissionSeen = false;
-    if (PropList.has_property<
-            ext::intel::property::queue::no_immediate_command_list>()) {
-      SubmissionSeen = true;
-      CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
-    }
-    if (PropList.has_property<
-            ext::intel::property::queue::immediate_command_list>()) {
-      if (SubmissionSeen) {
+    {
+      // Track that submission modes do not conflict.
+      bool no_imm_cmdlist = PropList.has_property<
+          ext::intel::property::queue::no_immediate_command_list>();
+      bool imm_cmdlist = PropList.has_property<
+          ext::intel::property::queue::immediate_command_list>();
+      if (no_imm_cmdlist && imm_cmdlist) {
         throw sycl::exception(
             make_error_code(errc::invalid),
-            "Queue cannot be constructed with different submission modes.");
+            "Queue cannot be constructed with conflicting submission modes.");
       }
-      SubmissionSeen = true;
-      CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+      if (no_imm_cmdlist)
+        CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+      if (imm_cmdlist)
+        CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     }
     return CreationFlags;
   }
@@ -611,8 +606,6 @@ public:
                                size_t Offset,
                                const std::vector<event> &DepEvents,
                                bool CallerNeedsEvent);
-
-  bool isProfilingFallback() { return MFallbackProfiling; }
 
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
@@ -1007,9 +1000,6 @@ protected:
   uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
-
-  // the fallback implementation of profiling info
-  bool MFallbackProfiling = false;
 
   // This event can be optionally provided by users for in-order queues to add
   // an additional dependency for the subsequent submission in to the queue.

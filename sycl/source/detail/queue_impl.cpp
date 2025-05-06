@@ -464,7 +464,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
           supportsDiscardingPiEvents()) {
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
-                  /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
+                  /*PiEvent*/ nullptr);
 
         event DiscardedEvent = createDiscardedEvent();
         if (isInOrder()) {
@@ -482,8 +482,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       {
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
-        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent,
-                  EventImpl);
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent);
         EventImpl->setHandle(UREvent);
         EventImpl->setEnqueued();
         // connect returned event with dependent events
