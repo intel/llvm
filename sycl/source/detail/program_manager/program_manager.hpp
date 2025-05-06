@@ -72,7 +72,6 @@ static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class device_impl;
-using DeviceImplPtr = std::shared_ptr<device_impl>;
 class queue_impl;
 class event_impl;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
@@ -177,7 +176,7 @@ public:
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
   ur_program_handle_t getBuiltURProgram(const ContextImplPtr &ContextImpl,
-                                        const DeviceImplPtr &DeviceImpl,
+                                        device_impl &DeviceImpl,
                                         KernelNameStrRefT KernelName,
                                         const NDRDescT &NDRDesc = {});
 
@@ -200,8 +199,7 @@ public:
 
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
              ur_program_handle_t>
-  getOrCreateKernel(const ContextImplPtr &ContextImpl,
-                    const DeviceImplPtr &DeviceImpl,
+  getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
@@ -216,7 +214,7 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr &Context);
 
-  void addImage(sycl_device_binary RawImg,
+  void addImage(sycl_device_binary RawImg, bool RegisterImgExports = true,
                 RTDeviceBinaryImage **OutImage = nullptr,
                 std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);
@@ -256,7 +254,7 @@ public:
                                   const char *UniqueId);
 
   // Returns true if any available image is compatible with the device Dev.
-  bool hasCompatibleImage(const device &Dev);
+  bool hasCompatibleImage(const device_impl &DeviceImpl);
 
   // The function gets a device_global entry identified by the pointer to the
   // device_global object from the device_global map.
@@ -341,9 +339,9 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain> link(const DevImgPlainWithDeps &ImgWithDeps,
-                                       const std::vector<device> &Devs,
-                                       const property_list &PropList);
+  std::vector<device_image_plain>
+  link(const std::vector<device_image_plain> &Imgs,
+       const std::vector<device> &Devs, const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
@@ -372,10 +370,12 @@ public:
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
   std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev,
+                         bool ErrorOnUnresolvableImport = true);
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev);
+                                           const device &Dev,
+                                           bool ErrorOnUnresolvableImport);
 
 private:
   ProgramManager(ProgramManager const &) = delete;
@@ -406,7 +406,7 @@ private:
 
   bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
   bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
-                                        const device &Dev);
+                                        const device_impl &DeviceImpl);
 
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is

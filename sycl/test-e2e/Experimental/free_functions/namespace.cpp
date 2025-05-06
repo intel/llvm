@@ -125,6 +125,7 @@ static void call_kernel_code(sycl::queue &q, sycl::kernel &kernel) {
      cgh.parallel_for(ndr, kernel);
    }).wait();
   check_result<T>(ptr);
+  sycl::free(ptr, q);
 }
 
 void test_function_without_ns(sycl::queue &q, sycl::context &ctxt) {
