@@ -13,6 +13,7 @@
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/spinlock.hpp>
@@ -39,6 +40,13 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 class context_impl;
+
+using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
+using FastKernelCacheValT =
+    std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
+               ur_program_handle_t>;
+using FastKernelSubcacheT =
+    ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
 
 // During SYCL program execution SYCL runtime will create internal objects
 // representing kernels and programs, it may also invoke JIT compiler to bring
@@ -228,17 +236,10 @@ public:
   using KernelCacheT =
       ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
-  using FastKernelCacheKeyT =
-      std::pair<ur_device_handle_t, ur_context_handle_t>;
-  using FastKernelCacheValT =
-      std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-                 ur_program_handle_t>;
-  using FastKernelSubcacheT =
-      ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
-
   class FastKernelCacheWrapper {
   public:
-    FastKernelCacheWrapper(void **HintPtr, ur_context_handle_t UrContext)
+    FastKernelCacheWrapper(FastKernelSubcacheT **HintPtr,
+                           ur_context_handle_t UrContext)
         : MHintPtr{HintPtr}, MUrContext{UrContext} {
       if (!MHintPtr) {
         MCache = new FastKernelSubcacheT();
@@ -289,7 +290,7 @@ public:
     FastKernelSubcacheT &get() { return *MCache; }
 
   private:
-    void **MHintPtr;
+    FastKernelSubcacheT **MHintPtr;
     FastKernelSubcacheT *MCache = nullptr;
     ur_context_handle_t MUrContext = nullptr;
   };
@@ -477,13 +478,12 @@ public:
 
   FastKernelCacheValT tryToGetKernelFast(KernelNameStrRefT KernelName,
                                          ur_device_handle_t Device,
-                                         void **KernelCacheHint) {
+                                         FastKernelSubcacheT **CacheHintPtr) {
     KernelFastCacheReadLockT Lock(MFastKernelCacheMutex);
     FastKernelSubcacheT *KernelSubcache =
-        KernelCacheHint ? static_cast<FastKernelSubcacheT *>(*KernelCacheHint)
-                        : nullptr;
+        CacheHintPtr ? *CacheHintPtr : nullptr;
     if (!KernelSubcache) {
-      auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint,
+      auto It = MFastKernelCache.try_emplace(KernelName, CacheHintPtr,
                                              getURContext());
       KernelSubcache = &It.first->second.get();
     }
@@ -498,7 +498,8 @@ public:
   }
 
   void saveKernel(KernelNameStrRefT KernelName, ur_device_handle_t Device,
-                  FastKernelCacheValT CacheVal, void **KernelCacheHint) {
+                  FastKernelCacheValT CacheVal,
+                  FastKernelSubcacheT **CacheHintPtr) {
     ur_program_handle_t Program = std::get<3>(CacheVal);
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
             isProgramCacheEvictionEnabled()) {
@@ -517,8 +518,8 @@ public:
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", KernelName, true);
-    auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint,
-                                           getURContext());
+    auto It =
+        MFastKernelCache.try_emplace(KernelName, CacheHintPtr, getURContext());
     FastKernelSubcacheT &KernelSubcache = It.first->second.get();
     ur_context_handle_t Context = getURContext();
     KernelSubcache.emplace(FastKernelCacheKeyT(Device, Context),

@@ -521,8 +521,8 @@ event handler::finalize() {
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
           StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc, MKernelName.data(),
-          impl->MKernelCacheHint, MQueue, impl->MNDRDesc, KernelBundleImpPtr,
-          impl->MArgs);
+          impl->MKernelNameBasedCachePtr, MQueue, impl->MNDRDesc,
+          KernelBundleImpPtr, impl->MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
 #else
@@ -540,7 +540,7 @@ event handler::finalize() {
         }
         enqueueImpKernel(
             MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr, MKernel,
-            MKernelName.data(), impl->MKernelCacheHint, RawEvents,
+            MKernelName.data(), impl->MKernelNameBasedCachePtr, RawEvents,
             DiscardEvent ? detail::EventImplPtr{} : LastEventImpl, nullptr,
             impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
@@ -591,9 +591,10 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), MKernelName.data(), impl->MKernelCacheHint,
-        std::move(MStreamStorage), std::move(impl->MAuxiliaryResources),
-        getType(), impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+        std::move(impl->MArgs), MKernelName.data(),
+        impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
+        std::move(impl->MAuxiliaryResources), getType(),
+        impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
         MCodeLoc));
     break;
@@ -2238,8 +2239,9 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
 }
 
-void handler::setKernelCacheHint(void **KernelCacheHint) {
-  impl->MKernelCacheHint = KernelCacheHint;
+void handler::setKernelNameBasedCachePtr(
+    sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
+  impl->MKernelNameBasedCachePtr = KernelNameBasedCachePtr;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {

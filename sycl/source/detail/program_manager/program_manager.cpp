@@ -13,6 +13,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -1109,11 +1110,10 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 // already have their ref count incremented.
 std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
            ur_program_handle_t>
-ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
-                                  device_impl &DeviceImpl,
-                                  KernelNameStrRefT KernelName,
-                                  void **KernelCacheHint,
-                                  const NDRDescT &NDRDesc) {
+ProgramManager::getOrCreateKernel(
+    const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -1123,10 +1123,12 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
-
+  FastKernelSubcacheT **CacheHintPtr =
+      KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcachePtr
+                              : nullptr;
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple =
-        Cache.tryToGetKernelFast(KernelName, UrDevice, KernelCacheHint);
+        Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr);
     constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
     constexpr size_t Program = 3; // see KernelFastCacheValT tuple
     if (std::get<Kernel>(ret_tuple)) {
@@ -1191,7 +1193,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   // kernel.
   ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
-  Cache.saveKernel(KernelName, UrDevice, ret_val, KernelCacheHint);
+  Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);
   return ret_val;
 }
 

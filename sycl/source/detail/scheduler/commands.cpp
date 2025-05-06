@@ -1978,7 +1978,8 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    KernelNameStrRefT KernelName, void **KernelCacheHint,
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
@@ -2009,7 +2010,7 @@ void instrumentationAddExtraKernelMetadata(
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName,
-            KernelCacheHint);
+            KernelNameBasedCachePtr);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2094,8 +2095,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string_view SyclKernelName, void **KernelCacheHint,
-    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const std::string_view SyclKernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, const QueueImplPtr &Queue,
+    const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
@@ -2134,7 +2136,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                    getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(
         CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
-        std::string(SyclKernelName), KernelCacheHint, SyclKernel, Queue,
+        std::string(SyclKernelName), KernelNameBasedCachePtr, SyclKernel, Queue,
         CGArgs);
 
     xptiNotifySubscribers(
@@ -2190,7 +2192,7 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle(),
-          KernelCG->MKernelName, KernelCG->MKernelCacheHint,
+          KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
           KernelCG->MSyclKernel, MQueue, KernelCG->MArgs);
     }
 
@@ -2531,7 +2533,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName,
-            CommandGroup.MKernelCacheHint);
+            CommandGroup.MKernelNameBasedCachePtr);
     UrKernelsToRelease.push_back(UrKernel);
     UrProgramsToRelease.push_back(UrProgram);
   }
@@ -2653,7 +2655,8 @@ void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    KernelNameStrRefT KernelName, void **KernelCacheHint,
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr,
     std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
@@ -2700,7 +2703,8 @@ void enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, KernelCacheHint, NDRDesc);
+            ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr,
+            NDRDesc);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -3251,7 +3255,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
     enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, ExecKernel->MKernelCacheHint, RawEvents, EventImpl,
+        KernelName, ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
         getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
         ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
         ExecKernel->MKernelWorkGroupMemorySize, BinImage);

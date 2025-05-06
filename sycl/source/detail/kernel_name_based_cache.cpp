@@ -1,22 +1,25 @@
-//==------------------------- kernel_cache_hint.hpp ------------------------==//
+//==--------------------- kernel_name_based_cache.cpp ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#pragma once
+
+#include <detail/kernel_name_based_cache_t.hpp>
+#include <sycl/detail/kernel_name_based_cache.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-// Retrieves a hint pointer unique to a kernel name type that can be used to
-// avoid kernel name based lookup in the runtime.
-template <typename KernelName> void **getKernelCacheHint() {
-  static void *Instance = nullptr;
-  return &Instance;
+KernelNameBasedCachePtrT createKernelNameBasedCache() {
+  KernelNameBasedCachePtrT Result{new KernelNameBasedCacheT()};
+  return Result;
 }
+void KernelNameBasedCacheDeleterT::operator()(KernelNameBasedCacheT *Ptr) {
+  delete Ptr;
+};
 
 } // namespace detail
 } // namespace _V1

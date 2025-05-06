@@ -4361,7 +4361,7 @@
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z
-?setKernelCacheHint@handler@_V1@sycl@@AEAAXPEAPEAX@Z
+?setKernelNameBasedCachePtr@handler@_V1@sycl@@AEAAXPEAPEAX@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
 ?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z

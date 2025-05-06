@@ -201,7 +201,7 @@ public:
 
   // A pointer to the fast kernel cache stored on the application side to avoid
   // kernel name based lookup.
-  void **MKernelCacheHint;
+  KernelNameBasedCacheT *MKernelNameBasedCachePtr;
 };
 
 } // namespace detail
