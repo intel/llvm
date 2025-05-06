@@ -130,9 +130,8 @@ enum class aspect {
 ----
 
 If device has the `ext_oneapi_native_assert` aspect, then its Device-Side
-Runtime is capable of native support of `assert`. That is, safe implementation
-is used. If device doesn't have the aspect, then assertions on the device will
-be silently ignored.
+Runtime is capable of native support of `assert`.  If device doesn't have the
+aspect, then assertions on the device will be silently ignored.
 
 == Version
 
