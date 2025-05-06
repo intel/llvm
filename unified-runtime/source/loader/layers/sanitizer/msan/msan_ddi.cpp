@@ -420,8 +420,6 @@ ur_result_t urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
-  auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
-
   getContext()->logger.debug("==== urEnqueueKernelLaunch");
 
   USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
@@ -431,22 +429,14 @@ ur_result_t urEnqueueKernelLaunch(
 
   UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  ur_event_handle_t hEvent{};
-  ur_result_t result =
-      pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                      pGlobalWorkSize, LaunchInfo.LocalWorkSize.data(),
-                      numEventsInWaitList, phEventWaitList, &hEvent);
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      LaunchInfo.LocalWorkSize.data(), numEventsInWaitList, phEventWaitList,
+      phEvent));
 
-  if (result == UR_RESULT_SUCCESS) {
-    UR_CALL(
-        getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
-  }
+  UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  if (phEvent) {
-    *phEvent = hEvent;
-  }
-
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1323,6 +1313,58 @@ ur_result_t urEnqueueMemUnmap(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+
+  getContext()->logger.debug("==== urEnqueueCooperativeKernelLaunchExp");
+
+  USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
+                           pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
+                           workDim);
+  UR_CALL(LaunchInfo.initialize());
+
+  UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      LaunchInfo.LocalWorkSize.data(), numEventsInWaitList, phEventWaitList,
+      phEvent));
+
+  UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 ur_result_t urKernelRetain(
@@ -1912,6 +1954,25 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
   return UR_RESULT_SUCCESS;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EnqueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+__urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_enqueue_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnCooperativeKernelLaunchExp =
+      ur_sanitizer_layer::msan::urEnqueueCooperativeKernelLaunchExp;
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace msan
 
 ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
@@ -1964,6 +2025,11 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::msan::urGetUSMProcAddrTable(&dditable->USM);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::msan::urGetEnqueueExpProcAddrTable(
+        &dditable->EnqueueExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

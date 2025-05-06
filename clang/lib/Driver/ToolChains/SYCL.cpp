@@ -603,7 +603,15 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       // For DG2, we just use libsycl-msan as placeholder.
       {"libsycl-msan", "internal"},
       {"libsycl-msan-pvc", "internal"}};
-  const SYCLDeviceLibsList SYCLDeviceTsanLibs = {{"libsycl-tsan", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceTsanLibs = {
+      {"libsycl-tsan", "internal"},
+      {"libsycl-tsan-cpu", "internal"},
+      // Currently, we only provide aot tsan libdevice for PVC and CPU.
+      // For DG2, we just use libsycl-tsan as placeholder.
+      // TODO: replace "libsycl-tsan" with "libsycl-tsan-dg2" when DG2
+      // AOT support is added.
+      {"libsycl-tsan", "internal"},
+      {"libsycl-tsan-pvc", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
@@ -759,7 +767,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   else if (SanitizeVal == "memory")
     addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "thread")
-    addLibraries(SYCLDeviceTsanLibs);
+    addSingleLibrary(SYCLDeviceTsanLibs[sanitizer_lib_idx]);
 #endif
 
   if (isSYCLNativeCPU(TargetTriple))
@@ -883,6 +891,8 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "msan-pvc",
     "msan-cpu",
     "tsan",
+    "tsan-pvc",
+    "tsan-cpu",
 #endif
     "imf",
     "imf-fp64",

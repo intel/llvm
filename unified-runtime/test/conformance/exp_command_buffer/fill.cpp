@@ -53,7 +53,8 @@ struct urCommandBufferFillCommandsTest
             testParametersFill>::TearDown());
   }
 
-  void verifyData(std::vector<uint8_t> &output, size_t verify_size) {
+  void verifyData(const std::vector<uint8_t> &output,
+                  const size_t verify_size) {
     size_t pattern_index = 0;
     for (size_t i = 0; i < verify_size; ++i) {
       ASSERT_EQ(output[i], pattern[pattern_index])
@@ -155,8 +156,11 @@ TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
 }
 
 TEST_P(urCommandBufferFillCommandsTest, USM) {
-  // No USM fill command in cl_khr_command_buffer
-  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  if (pattern_size > 128) {
+    // clCommandSVMMemFillKHR returns an error according to the spec if pattern
+    // size is not one of {1, 2, 4, 8, 16, 32, 64, 128}
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  }
 
   ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
       cmd_buf_handle, device_ptr, pattern.data(), pattern_size, size, 0,
