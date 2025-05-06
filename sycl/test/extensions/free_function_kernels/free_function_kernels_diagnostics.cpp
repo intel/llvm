@@ -21,10 +21,10 @@ void singleTaskKernelVariadic(...) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<3>)
 void ndRangeKernelVariadic(...) {}
 
-// TODO: Add expected error when it will be implemented.
+// expected-error@+2 {{a function with a default argument value cannot be used as a kernel function, 'int Value = 1'}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskKernelDefaultValues(int Value = 1) {}
 
-// TODO: Add expected error when it will be implemented.
+// expected-error@+2 {{a function with a default argument value cannot be used as a kernel function, 'int Value = 1'}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
 void ndRangeKernelDefaultValues(int Value = 1) {}

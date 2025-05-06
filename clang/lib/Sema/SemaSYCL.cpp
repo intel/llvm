@@ -5791,8 +5791,26 @@ void SemaSYCL::MarkDevices() {
   }
 }
 
+static void CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
+  for (ParmVarDecl *Param : FD->parameters()) {
+    // Default arguments are not allowed in SYCL kernels.
+    if (Param->hasDefaultArg()) {
+      llvm::SmallString<128> DiagOut;
+      llvm::raw_svector_ostream DiagOutStream{DiagOut};
+      PrintingPolicy Policy{S.getLangOpts()};
+      Param->getType().print(DiagOutStream, Policy);
+      DiagOutStream << " " << Param->getName() << " = ";
+      Param->getDefaultArg()->printPretty(DiagOutStream, nullptr, Policy);
+      S.Diag(Param->getLocation(), diag::err_free_function_with_default_arg)
+          << DiagOut.str();
+      break;
+    }
+  }
+}
+
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
+    CheckFreeFunctionDiagnostics(SemaRef, FD);
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
