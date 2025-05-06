@@ -218,9 +218,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     if (start_wg0_remainder < numWG0) {
       // Peel the remaining work items. Since the local size is 1, we iterate
       // over the work groups.
-      futures.emplace_back(tp.schedule_task(
-          [ndr, &kernel = *kernel, start_wg0_remainder, numWG0, numWG1, numWG2,
-           InEvents = InEvents.get()](size_t) mutable {
+      futures.emplace_back(
+          tp.schedule_task([ndr, &kernel = *kernel, start_wg0_remainder, numWG0,
+                            numWG1, numWG2, InEvents = InEvents.get()](size_t) {
             IndexT first = {start_wg0_remainder, 0, 0};
             IndexT last = {numWG0, numWG1, numWG2};
             if (InEvents)
@@ -252,7 +252,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         last[dim] = wg_start;
         futures.emplace_back(tp.schedule_task(
             [ndr, numParallelThreads, &kernel = *kernel, first, last,
-             InEvents = InEvents.get()](size_t threadId) mutable {
+             InEvents = InEvents.get()](size_t threadId) {
               if (InEvents)
                 InEvents->wait();
               native_cpu::state state = getState(ndr);
@@ -265,9 +265,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     if (wg_start < numWG[dim]) {
       first[dim] = wg_start;
       last[dim] = numWG[dim];
-      futures.emplace_back(tp.schedule_task(
-          [ndr, numParallelThreads, &kernel = *kernel, first, last,
-           InEvents = InEvents.get()](size_t threadId) mutable {
+      futures.emplace_back(
+          tp.schedule_task([ndr, numParallelThreads, &kernel = *kernel, first,
+                            last, InEvents = InEvents.get()](size_t threadId) {
             if (InEvents)
               InEvents->wait();
             native_cpu::state state = getState(ndr);
