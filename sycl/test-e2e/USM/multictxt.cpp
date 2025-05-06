@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run} %t.out
 
-// REQUIRES: any-device-is-cpu, any-device-is-gpu
+// REQUIRES: cpu, any-device-is-gpu
 
 //==----------------- multictxt.cpp - Multi Context USM test ---------------==//
 //

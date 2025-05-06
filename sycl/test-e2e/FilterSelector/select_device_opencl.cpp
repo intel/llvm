@@ -6,7 +6,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: opencl, any-device-is-gpu, any-device-is-cpu
+// REQUIRES: opencl,gpu,cpu,accelerator
 
 #include "../helpers.hpp"
 #include <iostream>
@@ -16,6 +16,12 @@ using namespace sycl;
 using namespace std;
 
 int main() {
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
+  string forcedPIs;
+  if (envVal.empty()) {
+    forcedPIs = envVal;
+  }
+
   {
     device d(default_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
@@ -30,6 +36,9 @@ int main() {
   }
   {
     device d(cpu_selector_v);
+  }
+  {
+    device d(accelerator_selector_v);
   }
 
   return 0;
