@@ -40,13 +40,15 @@ class BenchmarkHistory:
         benchmark_files = list(results_dir.glob("*.json"))
 
         # Extract timestamp and sort files by it
-        def extract_timestamp(file_path: Path) -> str:
+        def extract_timestamp(file_path: Path) -> datetime:
             try:
                 # Assumes results are stored as <name>_YYYYMMDD_HHMMSS.json
                 ts = file_path.stem[-len("YYYYMMDD_HHMMSS") :]
-                return ts if Validate.timestamp(ts) else ""
-            except IndexError:
-                return ""
+                if Validate.timestamp(ts):
+                    return datetime.strptime(ts, "%Y%m%d_%H%M%S")
+                return datetime.fromtimestamp(0)  # Default to epoch if invalid
+            except (IndexError, ValueError):
+                return datetime.fromtimestamp(0)  # Default to epoch if exception
 
         benchmark_files.sort(key=extract_timestamp, reverse=True)
 
