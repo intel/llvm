@@ -164,6 +164,7 @@ jobs:
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
         retention-days: ${{ inputs.artifact_retention_days }}
+        compiler: ${{ inputs.compiler }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
