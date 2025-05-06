@@ -3250,13 +3250,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           retrieveKernelBinary(MQueue, KernelName.data());
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
-                     SyclKernel.get(), KernelName,
-                     ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
-                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
-                     ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch,
-                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
+    enqueueImpKernel(
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel.get(),
+        KernelName, ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
+        getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+        ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
+        ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
