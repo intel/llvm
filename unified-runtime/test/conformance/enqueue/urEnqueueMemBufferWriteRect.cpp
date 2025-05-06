@@ -87,7 +87,7 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
     UUR_KNOWN_FAILURE_ON(uur::HIP{});
   }
 
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
   // Unpack the parameters.
   const auto host_size = getParam().src_size;
@@ -210,7 +210,7 @@ TEST_P(urEnqueueMemBufferWriteRectTest, InvalidSize) {
   std::vector<uint32_t> src(count);
   std::fill(src.begin(), src.end(), 1);
 
-  // region.width == 0 || region.height == 0 || region.width == 0
+  // region.width == 0 || region.height == 0 || region.depth == 0
   region.width = 0;
   ASSERT_EQ_RESULT(urEnqueueMemBufferWriteRect(
                        queue, buffer, true, buffer_offset, host_offset, region,

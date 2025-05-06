@@ -24,11 +24,7 @@
 
 // See vec::DataType definitions for more details
 #ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
-#else
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
-#endif
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE !__SYCL_USE_LIBSYCL8_VEC_IMPL
 #endif
 
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
@@ -291,7 +287,7 @@ template <typename DataT> class vec_base<DataT, 1> {
 
 protected:
   static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
-  alignas(alignment) DataType m_Data{};
+  alignas(alignment) DataType m_Data;
 
 public:
   constexpr vec_base() = default;
@@ -309,8 +305,13 @@ template <typename Self> class ConversionToVecMixin {
 
 public:
   operator vec_ty() const {
-    vec_ty res{*static_cast<const Self *>(this)};
-    return res;
+    auto &self = *static_cast<const Self *>(this);
+    if constexpr (vec_ty::size() == 1)
+      // Avoid recursion by explicitly going through `vec(const DataT &)` ctor.
+      return vec_ty{static_cast<typename vec_ty::element_type>(self)};
+    else
+      // Uses `vec`'s variadic ctor.
+      return vec_ty{self};
   }
 };
 
@@ -398,9 +399,8 @@ class __SYCL_EBO Swizzle
       public ApplyIf<sizeof...(Indexes) == 1,
                      ScalarConversionOperatorsMixIn<
                          Swizzle<IsConstVec, DataT, VecSize, Indexes...>>>,
-      public ApplyIf<sizeof...(Indexes) != 1,
-                     ConversionToVecMixin<
-                         Swizzle<IsConstVec, DataT, VecSize, Indexes...>>>,
+      public ConversionToVecMixin<
+          Swizzle<IsConstVec, DataT, VecSize, Indexes...>>,
       public NamedSwizzlesMixinBoth<
           Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
   using Base = SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>;

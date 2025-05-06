@@ -40,7 +40,6 @@ option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UR_ENABLE_SANITIZER "enable device sanitizer" ON)
 option(UR_ENABLE_SYMBOLIZER "enable symoblizer for sanitizer" OFF)
 option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" ON)
-option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" ON)
 option(UR_BUILD_ADAPTER_L0 "Build the Level-Zero adapter" OFF)
 option(UR_BUILD_ADAPTER_OPENCL "Build the OpenCL adapter" OFF)
 option(UR_BUILD_ADAPTER_CUDA "Build the CUDA adapter" OFF)
@@ -60,6 +59,7 @@ set(UR_EXTERNAL_DEPENDENCIES "" CACHE STRING
     "List of external CMake targets for executables/libraries to depend on")
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
+set(UR_DEVICE_CODE_EXTRACTOR "" CACHE PATH "Path to clang-offload-extract")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
     "Path of the SYCL runtime library directory")
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
@@ -67,6 +67,7 @@ set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
 option(UR_CONFORMANCE_ENABLE_MATCH_FILES "Enable CTS match files" ON)
 option(UR_CONFORMANCE_TEST_LOADER "Also test the loader in the conformance tests" OFF)
+option(UR_USE_DEBUG_POSTFIX "Enable debug postfix 'd' for libraries" OFF)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
     "Path to external 'level_zero' adapter source dir")
 set(UR_ADAPTER_OPENCL_SOURCE_DIR "" CACHE PATH
@@ -141,6 +142,28 @@ if(NOT MSVC)
         # is available we still need to link this library.
         link_libraries(stdc++fs)
     endif()
+endif()
+
+if(NOT UR_STANDALONE_BUILD AND "${UR_DPCXX}" STREQUAL "")
+    set(UR_FOUND_DPCXX "$<TARGET_FILE:clang>")
+    set(UR_FOUND_DEVICE_CODE_EXTRACTOR "$<TARGET_FILE:clang-offload-extract>")
+    set(UR_DPCXX_DEPS "sycl-toolchain;")
+else()
+    set(UR_FOUND_DPCXX "${UR_DPCXX}")
+    if(UR_DEVICE_CODE_EXTRACTOR)
+        set(UR_FOUND_DEVICE_CODE_EXTRACTOR "${UR_DEVICE_CODE_EXTRACTOR}")
+    else()
+        cmake_path(GET UR_FOUND_DPCXX EXTENSION EXE)
+        cmake_path(REPLACE_FILENAME UR_FOUND_DPCXX "clang-offload-extract${EXE}" OUTPUT_VARIABLE UR_FOUND_DEVICE_CODE_EXTRACTOR)
+    endif()
+    set(UR_DPCXX_DEPS "")
+endif()
+
+if(NOT UR_STANDALONE_BUILD AND
+    UR_ENABLE_TRACING AND
+    DEFINED LLVM_EXTERNAL_PROJECTS AND
+    (NOT "xpti" IN_LIST LLVM_EXTERNAL_PROJECTS OR NOT "xptifw" IN_LIST LLVM_EXTERNAL_PROJECTS))
+  message(FATAL_ERROR "UR_ENABLE_TRACING=ON but XPTI is not going to be built")
 endif()
 
 if(UR_ENABLE_TRACING)

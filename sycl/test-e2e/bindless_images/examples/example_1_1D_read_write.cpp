@@ -1,6 +1,4 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// UNSUPPORTED: arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16923
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
 
@@ -66,6 +64,9 @@ int main() {
 
   // Copy data written to imgOut to host
   q.ext_oneapi_copy(imgMemoryOut.get_handle(), dataOut.data(), desc);
+
+  // Ensure copying data from the device to host is finished before validate
+  q.wait_and_throw();
 
   // Cleanup
   sycl::ext::oneapi::experimental::destroy_image_handle(imgIn, q);

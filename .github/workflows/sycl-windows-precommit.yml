@@ -49,25 +49,10 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
-
-  build-e2e:
-    needs: build
-    # Continue if build was successful.
-    if: |
-      always()
-      && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-    uses: ./.github/workflows/sycl-windows-run-tests.yml
-    with:
-      name: Build Windows E2E tests
-      runner: '["Windows", "build-e2e"]'
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      e2e_testing_mode: build-only
-      extra_lit_opts: --param sycl_build_targets="spir"
       e2e_binaries_artifact: sycl_windows_e2ebin
 
   run_prebuilt_e2e_tests:
-    needs: [build, build-e2e]
+    needs: build
     # Continue if build was successful.
     if: |
       always()
@@ -79,30 +64,13 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Windows","gen12"]'
-    uses: ./.github/workflows/sycl-windows-run-tests.yml
-    with:
-      name: ${{ matrix.name }}
-      runner: ${{ matrix.runner }}
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      e2e_testing_mode: run-only
-      e2e_binaries_artifact: sycl_windows_e2ebin
-
-  run_full_e2e_tests:
-    needs: build
-    # Continue if build was successful.
-    if: |
-      always()
-      && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
           - name: Intel Battlemage Graphics with Level Zero
             runner: '["Windows","bmg"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
+      target_devices: "level_zero:gpu"
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      e2e_testing_mode: full
+      e2e_testing_mode: run-only
+      e2e_binaries_artifact: sycl_windows_e2ebin

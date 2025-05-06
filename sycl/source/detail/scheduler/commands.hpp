@@ -37,9 +37,6 @@ void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr);
 #endif
-RTDeviceBinaryImage *
-retrieveAMDGCNOrNVPTXKernelBinary(const DeviceImplPtr DeviceImpl,
-                                  const std::string &KernelName);
 
 class queue_impl;
 class event_impl;
@@ -624,7 +621,7 @@ void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, std::vector<ur_event_handle_t> &RawEvents,
+    KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
@@ -731,7 +728,7 @@ private:
 
 // Enqueues a given kernel to a ur_exp_command_buffer_handle_t
 ur_result_t enqueueImpCommandBufferKernel(
-    context Ctx, DeviceImplPtr DeviceImpl,
+    context Ctx, device_impl &DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const CGExecKernel &CommandGroup,
     std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints,

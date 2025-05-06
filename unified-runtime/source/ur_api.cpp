@@ -300,9 +300,10 @@ ur_result_t UR_APICALL urAdapterGet(
 ///
 /// @details
 ///     - When the reference count of the adapter reaches zero, the adapter may
-///       perform adapter-specififc resource teardown. Resources must be left in
-///       a state where it safe for the adapter to be subsequently reinitialized
-///       with ::urAdapterGet
+///       perform adapter-specififc resource teardown. Any objects associated
+///       with the adapter should be considered invalid after this point.
+///     - Calling ::urAdapterGet after any adapter handle's reference count has
+///       reached zero will result in undefined behaviour.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -4732,7 +4733,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
 ///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height *
@@ -4821,7 +4822,7 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `region.width == 0 || region.height == 0 || region.width == 0`
+///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
 ///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height *
@@ -5966,6 +5967,9 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6007,6 +6011,9 @@ ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6049,6 +6056,9 @@ ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6088,6 +6098,9 @@ ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMFreeExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6762,6 +6775,121 @@ ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     void *pPropValue,
     /// [out][optional] returned query value size
     size_t *pPropSizeRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query support for allocating a given image backing memory handle type
+///        with specific image properties
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageDesc`
+///         + `NULL == pImageFormat`
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+ur_result_t UR_APICALL urBindlessImagesGetImageMemoryHandleTypeSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for allocating the given image
+    /// backing memory handle type
+    ur_bool_t *pSupportedRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query support for creating an unsampled image handle with specific
+///        image properties
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageDesc`
+///         + `NULL == pImageFormat`
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+ur_result_t UR_APICALL urBindlessImagesGetImageUnsampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating unsampled image
+    /// handles
+    ur_bool_t *pSupportedRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query support for creating an sampled image handle with specific
+/// image
+///        properties
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageDesc`
+///         + `NULL == pImageFormat`
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+ur_result_t UR_APICALL urBindlessImagesGetImageSampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating sampled image
+    /// handles
+    ur_bool_t *pSupportedRet) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
