@@ -75,79 +75,48 @@ ur_result_t urEnqueueEventsWait(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  if (EventWaitList) {
-    bool UseCopyEngine = false;
+  bool UseCopyEngine = false;
 
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-    ur_ze_event_list_t TmpWaitList = {};
+  ur_command_list_ptr_t CommandList{};
+  ur_ze_event_list_t TmpWaitList = {};
+  if (NumEventsInWaitList) {
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
     // Get a new command list to be used on this call
-    ur_command_list_ptr_t CommandList{};
     UR_CALL(Queue->Context->getAvailableCommandList(
         Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
         false /*AllowBatching*/, nullptr /*ForceCmdQueue*/));
-
-    ze_event_handle_t ZeEvent = nullptr;
-    ur_event_handle_t InternalEvent;
-    bool IsInternal = OutEvent == nullptr;
-    ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
-    UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_EVENTS_WAIT,
-                                         CommandList, IsInternal, false));
-
-    ZeEvent = (*Event)->ZeEvent;
-    (*Event)->WaitList = TmpWaitList;
-
-    const auto &WaitList = (*Event)->WaitList;
-    auto ZeCommandList = CommandList->first;
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
-
-    ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
-
-    // Execute command list asynchronously as the event will be used
-    // to track down its completion.
-    return Queue->executeCommandList(CommandList, false /*IsBlocking*/,
-                                     false /*OKToBatchCommand*/);
-  }
-
-  {
-    // If wait-list is empty, then this particular command should wait until
-    // all previous enqueued commands to the command-queue have completed.
-    //
-    // TODO: find a way to do that without blocking the host.
-
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
-
-    // Get a new command list to be used on this call
-    ur_command_list_ptr_t CommandList{};
+  } else {
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CommandList, false, 0, nullptr, false /*AllowBatching*/,
+        Queue, CommandList, UseCopyEngine, 0, nullptr, false /*AllowBatching*/,
         nullptr /*ForceCmdQueue*/));
-
-    UR_CALL(Queue->executeCommandList(CommandList, true, false));
-
-    if (OutEvent) {
-      UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
-                                           UR_COMMAND_EVENTS_WAIT,
-                                           Queue->CommandListMap.end(), false,
-                                           /* IsInternal */ false));
-
-      Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
-
-      if (!(*OutEvent)->CounterBasedEventsEnabled)
-        ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
-      (*OutEvent)->Completed = true;
-
-      if (!Queue->UsingImmCmdLists) {
-        resetCommandLists(Queue);
-      }
-    }
   }
+
+  ze_event_handle_t ZeEvent = nullptr;
+  ur_event_handle_t InternalEvent;
+  bool IsInternal = OutEvent == nullptr;
+  ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_EVENTS_WAIT,
+                                       CommandList, IsInternal, false));
+
+  ZeEvent = (*Event)->ZeEvent;
+  (*Event)->WaitList = TmpWaitList;
+  const auto &WaitList = (*Event)->WaitList;
+
+  auto ZeCommandList = CommandList->first;
+  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
+
+  ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
+
+  // Execute command list asynchronously as the event will be used
+  // to track down its completion.
+  return Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+                                   false /*OKToBatchCommand*/);
 
   return UR_RESULT_SUCCESS;
 }
