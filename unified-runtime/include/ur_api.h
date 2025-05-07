@@ -1428,6 +1428,8 @@ typedef enum ur_adapter_backend_t {
   UR_ADAPTER_BACKEND_HIP = 4,
   /// The backend is Native CPU
   UR_ADAPTER_BACKEND_NATIVE_CPU = 5,
+  /// The backend is liboffload
+  UR_ADAPTER_BACKEND_OFFLOAD = 0x100,
   /// @cond
   UR_ADAPTER_BACKEND_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1807,6 +1809,8 @@ typedef enum ur_platform_backend_t {
   UR_PLATFORM_BACKEND_HIP = 4,
   /// The backend is Native CPU
   UR_PLATFORM_BACKEND_NATIVE_CPU = 5,
+  /// The backend is liboffload
+  UR_PLATFORM_BACKEND_OFFLOAD = 0x100,
   /// @cond
   UR_PLATFORM_BACKEND_FORCE_UINT32 = 0x7fffffff
   /// @endcond

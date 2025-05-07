@@ -215,6 +215,25 @@ std::string KernelsEnvironment::getTargetName(ur_platform_handle_t platform) {
     return "nvptx64-nvidia-cuda";
   case UR_PLATFORM_BACKEND_HIP:
     return "amdgcn-amd-amdhsa";
+  case UR_PLATFORM_BACKEND_OFFLOAD: {
+    // All Offload platforms report this backend, use the platform name to select
+    // the actual underlying backend.
+    std::vector<char> PlatformName;
+    size_t PlatformNameSize = 0;
+    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, 0, nullptr,
+                      &PlatformNameSize);
+    PlatformName.resize(PlatformNameSize);
+    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, PlatformNameSize,
+                      PlatformName.data(), nullptr);
+    if (std::strcmp(PlatformName.data(), "CUDA") == 0) {
+      return "nvptx64-nvidia-cuda";
+    } else if (std::strcmp(PlatformName.data(), "AMDGPU") == 0) {
+      return "amdgcn-amd-amdhsa";
+    } else {
+      error = "Could not detect target for Offload platform";
+      return {};
+    }
+  }
   case UR_PLATFORM_BACKEND_NATIVE_CPU:
     error = "native_cpu doesn't support kernel tests yet";
     return {};
@@ -297,7 +316,8 @@ void KernelsEnvironment::CreateProgram(
                                    sizeof(ur_platform_backend_t), &backend,
                                    nullptr));
   if (backend == UR_PLATFORM_BACKEND_HIP ||
-      backend == UR_PLATFORM_BACKEND_CUDA) {
+      backend == UR_PLATFORM_BACKEND_CUDA ||
+      backend == UR_PLATFORM_BACKEND_OFFLOAD) {
     // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
     // need to use urProgramCreateWithBinary instead.
     auto size = binary.size();
