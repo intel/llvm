@@ -5785,29 +5785,26 @@ void SemaSYCL::MarkDevices() {
 
 static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
   if (FD->isVariadic()) {
-    S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
-    return false;
+    return S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
   }
 
   if (!FD->getReturnType()->isVoidType()) {
-    S.Diag(FD->getLocation(), diag::err_free_function_return_type);
-    return false;
+    return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
   }
 
-  bool ReturnStatus = true;
   for (ParmVarDecl *Param : FD->parameters()) {
     if (Param->hasDefaultArg()) {
-      S.Diag(Param->getLocation(), diag::err_free_function_with_default_arg)
-          << Param->getSourceRange();
-      ReturnStatus = false;
+      return S.Diag(Param->getLocation(),
+                    diag::err_free_function_with_default_arg)
+             << Param->getSourceRange();
     }
   }
-  return ReturnStatus;
+  return false;
 }
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
-    if (!CheckFreeFunctionDiagnostics(SemaRef, FD))
+    if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);

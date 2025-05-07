@@ -20,13 +20,11 @@ singleTaskKernelDefaultValues(int Value = 1) {
 ndRangeKernelDefaultValues(int Value = 1) {
 }
 
-// expected-error@+3 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
 // expected-error@+2 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void  
 singleTaskKernelDefaultValues(int Ivalue = 1, unsigned int Uvalue = 3) {
 }
 
-// expected-error@+3 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
 // expected-error@+2 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void 
 ndRangeKernelDefaultValues(int Ivalue = 1, unsigned int Uvalue = 3) {
