@@ -1123,8 +1123,8 @@ ProgramManager::getOrCreateKernel(
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
-  FastKernelSubcacheT **CacheHintPtr =
-      KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcachePtr
+  FastKernelSubcacheT *CacheHintPtr =
+      KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcache
                               : nullptr;
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple =

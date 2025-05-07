@@ -26,7 +26,7 @@ using FastKernelSubcacheT =
     ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
 
 struct KernelNameBasedCacheT {
-  FastKernelSubcacheT *FastKernelSubcachePtr = nullptr;
+  FastKernelSubcacheT FastKernelSubcache;
 };
 
 } // namespace detail
