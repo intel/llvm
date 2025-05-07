@@ -319,8 +319,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   handler Handler(Self, SecondaryQueue, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  const static bool xptiEnabled = xptiTraceEnabled();
-  if (xptiEnabled) {
+  if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
   }
 #endif
@@ -376,8 +375,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 
 #if XPTI_ENABLE_INSTRUMENTATION
-  const static bool xptiEnabled = xptiTraceEnabled();
-  if (xptiEnabled) {
+  if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
   }
 #endif
@@ -592,7 +590,7 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
 void queue_impl::wait(const detail::code_location &CodeLoc) {
   (void)CodeLoc;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  const static bool xptiEnabled = xptiTraceEnabled();
+  const bool xptiEnabled = xptiTraceEnabled();
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;

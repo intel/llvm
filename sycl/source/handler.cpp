@@ -517,7 +517,7 @@ event handler::finalize() {
       }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-      const static bool xptiEnabled = xptiTraceEnabled();
+      const bool xptiEnabled = xptiTraceEnabled();
 #endif
       auto EnqueueKernel = [&]() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -525,7 +525,7 @@ event handler::finalize() {
         xpti_td *CmdTraceEvent = nullptr;
         uint64_t InstanceID = 0;
         if (xptiEnabled) {
-          int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
+          StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
               MKernelName.data(), MQueue, impl->MNDRDesc, KernelBundleImpPtr,
