@@ -100,6 +100,17 @@ private:
 
 namespace v1 {
 
+// This class is a part of the ABI, so it's moved to a separate namespace to
+// simplify changes.
+// To perform non-ABI breaking changes:
+// * namespace v(N+1) can be added,
+// * functions that use SubmissionInfo should be switched to use v(N+1)
+// namespace,
+// * old namespace vN should be moved under #ifndef
+// __INTEL_PREVIEW_BREAKING_CHANGES guard.
+// TODO: inline namespace can be employed here after SubmissionInfo removed from
+// the enclosing scope.
+
 struct SubmissionInfoImpl {
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
