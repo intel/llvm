@@ -1439,8 +1439,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
   UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   try {
-    ScopedContext Active(hDevice);
-    UR_CHECK_ERROR(hipMemFree(static_cast<hipDeviceptr_t>(pMem)));
+    ScopedDevice Active(hDevice);
+    UR_CHECK_ERROR(hipFree(static_cast<hipDeviceptr_t>(pMem)));
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
