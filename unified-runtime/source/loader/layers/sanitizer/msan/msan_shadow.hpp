@@ -101,15 +101,8 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
     return UR_RESULT_SUCCESS;
   }
 
-  ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint64_t NumWI,
-                                 uint32_t NumWG, uptr *&Base, uptr &Begin,
-                                 uptr &End) override {
-    std::ignore = Queue;
-    std::ignore = NumWI;
-    std::ignore = NumWG;
-    std::ignore = Base;
-    std::ignore = Begin;
-    std::ignore = End;
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint64_t, uint32_t, uptr *&,
+                                 uptr &, uptr &) override {
     return UR_RESULT_SUCCESS;
   }
 };

@@ -350,8 +350,7 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
   {
     const size_t Size = NumWI * sizeof(uptr);
     UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-      Context, Device, nullptr, nullptr, Size,
-      (void **)&Base));
+        Context, Device, nullptr, nullptr, Size, (void **)&Base));
   }
 
   {
@@ -365,28 +364,28 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
         PrivateShadowOffset = 0;
         LastAllocedSize = 0;
       }
-  
+
       UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
           Context, Device, nullptr, nullptr, RequiredShadowSize,
           (void **)&PrivateShadowOffset));
-  
+
       // Initialize shadow memory
-      ur_result_t URes = EnqueueUSMBlockingSet(Queue, (void *)PrivateShadowOffset,
-                                               0, RequiredShadowSize);
+      ur_result_t URes = EnqueueUSMBlockingSet(
+          Queue, (void *)PrivateShadowOffset, 0, RequiredShadowSize);
       if (URes != UR_RESULT_SUCCESS) {
         UR_CALL(getContext()->urDdiTable.USM.pfnFree(
             Context, (void *)PrivateShadowOffset));
         PrivateShadowOffset = 0;
         LastAllocedSize = 0;
       }
-  
+
       LastAllocedSize = RequiredShadowSize;
     }
-  
+
     Begin = PrivateShadowOffset;
     End = PrivateShadowOffset + RequiredShadowSize - 1;
   }
-  
+
   return UR_RESULT_SUCCESS;
 }
 
