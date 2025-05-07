@@ -777,8 +777,8 @@ typedef enum ur_result_t {
   UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 25,
   /// Invalid work dimension
   UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 26,
-  /// Invalid kernel args
-  UR_RESULT_ERROR_INVALID_KERNEL_ARGS = 27,
+  /// [deprecated-value] No longer used - invalid kernel args are now UB
+  UR_RESULT_ERROR_INVALID_KERNEL_ARGS [[deprecated]] = 27,
   /// Invalid kernel
   UR_RESULT_ERROR_INVALID_KERNEL = 28,
   /// [Validation] kernel name is not found in the program
@@ -7638,6 +7638,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a kernel
 ///
+/// @details
+///     - Providing invalid kernel arguments is Undefined Behavior.
+///
 /// @remarks
 ///   _Analogues_
 ///     - **clEnqueueNDRangeKernel**
@@ -7665,8 +7668,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
-///     have not been specified."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
