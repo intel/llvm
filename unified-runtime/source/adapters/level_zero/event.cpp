@@ -114,35 +114,33 @@ ur_result_t urEnqueueEventsWait(
                                      false /*OKToBatchCommand*/);
   }
 
-  {
-    // If wait-list is empty, then this particular command should wait until
-    // all previous enqueued commands to the command-queue have completed.
-    //
-    // TODO: find a way to do that without blocking the host.
+  // If wait-list is empty, then this particular command should wait until
+  // all previous enqueued commands to the command-queue have completed.
+  //
+  // TODO: find a way to do that without blocking the host.
 
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-    if (OutEvent) {
-      UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
-                                           UR_COMMAND_EVENTS_WAIT,
-                                           Queue->CommandListMap.end(), false,
-                                           /* IsInternal */ false));
-    }
+  if (OutEvent) {
+    UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
+                                         UR_COMMAND_EVENTS_WAIT,
+                                         Queue->CommandListMap.end(), false,
+                                         /* IsInternal */ false));
+  }
 
-    UR_CALL(Queue->synchronize());
+  UR_CALL(Queue->executeAllOpenCommandLists());
+  UR_CALL(Queue->synchronize());
 
-    if (OutEvent) {
-      Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
+  if (OutEvent) {
+    Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
 
-      if (!(*OutEvent)->CounterBasedEventsEnabled)
-        ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
-      (*OutEvent)->Completed = true;
-    }
+    if (!(*OutEvent)->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
+    (*OutEvent)->Completed = true;
   }
 
   if (!Queue->UsingImmCmdLists) {
-    std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
 

@@ -502,7 +502,12 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 const std::vector<sycl::detail::ArgDesc> &Args,
                 std::vector<std::shared_ptr<node_impl>> &Deps) {
   (void)Args;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImpl{shared_from_this()};
+  sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+#else
   sycl::handler Handler{shared_from_this()};
+#endif
 
 #if XPTI_ENABLE_INSTRUMENTATION
   // Save code location if one was set in TLS.
@@ -1990,16 +1995,17 @@ size_t executable_command_graph::get_required_mem_size() const {
   return impl->getGraphImpl()->getMemPool().getMemUseCurrent();
 }
 
-dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph)
-    : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph))) {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+dynamic_parameter_base::dynamic_parameter_base()
+    : impl(std::make_shared<dynamic_parameter_impl>()) {}
+#endif
 
 dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph, size_t ParamSize,
-    const void *Data)
-    : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {}
+    command_graph<graph_state::modifiable>)
+    : impl(std::make_shared<dynamic_parameter_impl>()) {}
+dynamic_parameter_base::dynamic_parameter_base(
+    command_graph<graph_state::modifiable>, size_t ParamSize, const void *Data)
+    : impl(std::make_shared<dynamic_parameter_impl>(ParamSize, Data)) {}
 
 void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);
@@ -2183,7 +2189,12 @@ void dynamic_command_group_impl::finalizeCGFList(
     const auto &CGF = CGFList[CGFIndex];
     // Handler defined inside the loop so it doesn't appear to the runtime
     // as a single command-group with multiple commands inside.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    detail::handler_impl HandlerImpl{MGraph};
+    sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+#else
     sycl::handler Handler{MGraph};
+#endif
     CGF(Handler);
 
     if (Handler.getType() != sycl::detail::CGType::Kernel &&
