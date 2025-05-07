@@ -201,8 +201,15 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
     const auto shadow_offset = GetMsanLaunchInfo->PrivateShadowOffset;
     if (shadow_offset != 0) {
       const size_t wid = WorkGroupLinearId();
-      const uptr private_base =
-          GetMsanLaunchInfo->PrivateBase[SubWorkGroupLinearId()];
+      const size_t sid = SubWorkGroupLinearId();
+      const uptr private_base = GetMsanLaunchInfo->PrivateBase[sid];
+
+      // FIXME: The recorded private_base may not be the most bottom one,
+      // ideally there should have a build-in to get this information
+      if (addr < private_base) {
+        return GetMsanLaunchInfo->CleanShadow;
+      }
+
       uptr shadow_ptr =
           shadow_offset + (wid * MSAN_PRIVATE_SIZE) + (addr - private_base);
       MSAN_DEBUG(const auto shadow_offset_end =
