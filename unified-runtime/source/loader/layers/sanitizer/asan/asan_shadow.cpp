@@ -168,9 +168,9 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
   uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
   assert(ShadowBegin <= ShadowEnd);
 
-  getContext()->logger.debug(
-    "EnqueuePoisonShadow(addr={}, count={}, value={})",
-    (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)(size_t)Value);
+  getContext()->logger.debug("EnqueuePoisonShadow(addr={}, count={}, value={})",
+                             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+                             (void *)(size_t)Value);
 
   // Make sure the shadow memory is mapped to physical memory
   {
