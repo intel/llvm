@@ -502,7 +502,12 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 const std::vector<sycl::detail::ArgDesc> &Args,
                 std::vector<std::shared_ptr<node_impl>> &Deps) {
   (void)Args;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImpl{shared_from_this()};
+  sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+#else
   sycl::handler Handler{shared_from_this()};
+#endif
 
 #if XPTI_ENABLE_INSTRUMENTATION
   // Save code location if one was set in TLS.
@@ -2184,7 +2189,12 @@ void dynamic_command_group_impl::finalizeCGFList(
     const auto &CGF = CGFList[CGFIndex];
     // Handler defined inside the loop so it doesn't appear to the runtime
     // as a single command-group with multiple commands inside.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    detail::handler_impl HandlerImpl{MGraph};
+    sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+#else
     sycl::handler Handler{MGraph};
+#endif
     CGF(Handler);
 
     if (Handler.getType() != sycl::detail::CGType::Kernel &&
