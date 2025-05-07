@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
+#include "helpers/common.hpp"
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
@@ -40,9 +41,36 @@ int main() {
       {width, height}, 4, sycl::image_channel_type::fp32);
 
   try {
+
+    // Verify ability to allocate the above image descriptor
+    if (!bindless_helpers::memoryAllocationSupported(
+            desc,
+            sycl::ext::oneapi::experimental::image_memory_handle_type::
+                opaque_handle,
+            q)) {
+      // We cannot allocate the opaque `image_mem` below
+      std::cout << "Memory allocation unsupported. Skipping test.\n";
+      return 0;
+    }
+
     // Extension: allocate memory on device and create the handle
     sycl::ext::oneapi::experimental::image_mem imgMem0(desc, dev, ctxt);
     sycl::ext::oneapi::experimental::image_mem imgMem1(desc, dev, ctxt);
+
+    // Extension: verify ability to create the unsampled image handles below
+    bool supportedUnsampledHandle =
+        sycl::ext::oneapi::experimental::is_image_handle_supported<
+            sycl::ext::oneapi::experimental::unsampled_image_handle>(
+            desc,
+            sycl::ext::oneapi::experimental::image_memory_handle_type::
+                opaque_handle,
+            q);
+    if (!supportedUnsampledHandle) {
+      // We cannot create the unsampled handles below
+      std::cout << "Unsampled image handle creation unsupported. Skipping "
+                   "test.\n";
+      return 0;
+    }
 
     // Extension: create the image and return the handle
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1 =

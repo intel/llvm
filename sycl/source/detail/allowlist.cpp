@@ -9,7 +9,6 @@
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
-#include <detail/platform_info.hpp>
 #include <sycl/backend_types.hpp>
 
 #include <algorithm>
@@ -387,16 +386,14 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
   }
   // get PlatformVersion value and put it to DeviceDesc
   DeviceDesc.emplace(PlatformVersionKeyName,
-                     sycl::detail::get_platform_info<info::platform::version>(
-                         UrPlatform, Adapter));
+                     PlatformImpl.get_info<info::platform::version>());
   // get PlatformName value and put it to DeviceDesc
   DeviceDesc.emplace(PlatformNameKeyName,
-                     sycl::detail::get_platform_info<info::platform::name>(
-                         UrPlatform, Adapter));
+                     PlatformImpl.get_info<info::platform::name>());
 
   int InsertIDx = 0;
   for (ur_device_handle_t Device : UrDevices) {
-    auto DeviceImpl = PlatformImpl.getOrMakeDeviceImpl(Device);
+    device_impl &DeviceImpl = PlatformImpl.getOrMakeDeviceImpl(Device);
     // get DeviceType value and put it to DeviceDesc
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
     Adapter->call<UrApiKind::urDeviceGetInfo>(
@@ -429,20 +426,18 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     }
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
-        sycl::detail::get_device_info<info::device::vendor_id>(
-            *DeviceImpl.get());
+        sycl::detail::get_device_info<info::device::vendor_id>(DeviceImpl);
     std::stringstream DeviceVendorIdHexStringStream;
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
     const std::string &DriverVersionValue =
-        sycl::detail::get_device_info<info::device::driver_version>(
-            *DeviceImpl.get());
+        sycl::detail::get_device_info<info::device::driver_version>(DeviceImpl);
     DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
     const std::string &DeviceNameValue =
-        sycl::detail::get_device_info<info::device::name>(*DeviceImpl.get());
+        sycl::detail::get_device_info<info::device::name>(DeviceImpl);
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc
