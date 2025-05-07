@@ -6,19 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/kernel_name_based_cache_t.hpp>
+#include <detail/global_handler.hpp>
 #include <sycl/detail/kernel_name_based_cache.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-KernelNameBasedCachePtrT createKernelNameBasedCache() {
-  KernelNameBasedCachePtrT Result{new KernelNameBasedCacheT()};
-  return Result;
-}
-void KernelNameBasedCacheDeleterT::operator()(KernelNameBasedCacheT *Ptr) {
-  delete Ptr;
+KernelNameBasedCacheT *createKernelNameBasedCache() {
+  return GlobalHandler::instance().createKernelNameBasedCache();
 }
 
 } // namespace detail

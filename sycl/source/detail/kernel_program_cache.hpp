@@ -11,6 +11,7 @@
 #include "sycl/exception.hpp"
 #include <detail/config.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
@@ -40,13 +41,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 class context_impl;
-
-using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
-using FastKernelCacheValT =
-    std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-               ur_program_handle_t>;
-using FastKernelSubcacheT =
-    ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
 
 // During SYCL program execution SYCL runtime will create internal objects
 // representing kernels and programs, it may also invoke JIT compiler to bring

@@ -16,19 +16,14 @@ inline namespace _V1 {
 namespace detail {
 
 struct KernelNameBasedCacheT;
-struct __SYCL_EXPORT KernelNameBasedCacheDeleterT {
-  void operator()(KernelNameBasedCacheT *Ptr);
-};
-using KernelNameBasedCachePtrT =
-    std::unique_ptr<KernelNameBasedCacheT, KernelNameBasedCacheDeleterT>;
-__SYCL_EXPORT KernelNameBasedCachePtrT createKernelNameBasedCache();
+__SYCL_EXPORT KernelNameBasedCacheT *createKernelNameBasedCache();
 
 // Retrieves a cache pointer unique to a kernel name type that can be used to
 // avoid kernel name based lookup in the runtime.
 template <typename KernelName>
 KernelNameBasedCacheT *getKernelNameBasedCache() {
-  static KernelNameBasedCachePtrT Instance{createKernelNameBasedCache()};
-  return Instance.get();
+  static KernelNameBasedCacheT *Instance = createKernelNameBasedCache();
+  return Instance;
 }
 
 } // namespace detail
