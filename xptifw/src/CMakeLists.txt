@@ -55,7 +55,7 @@ function(add_xpti_library LIB_NAME)
       target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
   endif()
 
-  if (WIN32)
+  if (CMAKE_SYSTEM_NAME STREQUAL Windows)
       set_target_properties(${LIB_NAME} PROPERTIES DEBUG_POSTFIX d)
   endif()
 

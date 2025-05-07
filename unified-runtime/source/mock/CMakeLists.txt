@@ -6,7 +6,7 @@
 add_library (ur_mock_headers SHARED
     "${CMAKE_CURRENT_SOURCE_DIR}/ur_mock_helpers.cpp")
 
-if(WIN32)
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     set_target_properties(ur_mock_headers PROPERTIES DEBUG_POSTFIX d)
 endif()
 

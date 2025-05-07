@@ -197,7 +197,7 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
-    if(WIN32)
+    if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
     endif()
     if(UR_EXTERNAL_DEPENDENCIES)

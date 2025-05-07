@@ -21,7 +21,7 @@ add_ur_library(ur_loader
 )
 install_ur_library(ur_loader)
 
-if (WIN32)
+if (CMAKE_SYSTEM_NAME STREQUAL Windows)
     if(CMAKE_BUILD_TYPE STREQUAL Debug)
         target_compile_definitions(ur_loader PRIVATE UR_USE_DEBUG_POSTFIX=1)
     endif()
