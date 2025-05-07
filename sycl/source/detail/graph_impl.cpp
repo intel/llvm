@@ -1990,16 +1990,17 @@ size_t executable_command_graph::get_required_mem_size() const {
   return impl->getGraphImpl()->getMemPool().getMemUseCurrent();
 }
 
-dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph)
-    : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph))) {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+dynamic_parameter_base::dynamic_parameter_base()
+    : impl(std::make_shared<dynamic_parameter_impl>()) {}
+#endif
 
 dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph, size_t ParamSize,
-    const void *Data)
-    : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {}
+    command_graph<graph_state::modifiable>)
+    : impl(std::make_shared<dynamic_parameter_impl>()) {}
+dynamic_parameter_base::dynamic_parameter_base(
+    command_graph<graph_state::modifiable>, size_t ParamSize, const void *Data)
+    : impl(std::make_shared<dynamic_parameter_impl>(ParamSize, Data)) {}
 
 void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);

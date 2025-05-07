@@ -2153,12 +2153,6 @@ void handler::registerDynamicParameter(
   }
 
   auto Paraimpl = detail::getSyclObjImpl(DynamicParamBase);
-  if (Paraimpl->MGraph.lock() != this->impl->MGraph) {
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Cannot use a Dynamic Parameter with a node associated with a graph "
-        "other than the one it was created with.");
-  }
   impl->MDynamicParameters.emplace_back(Paraimpl.get(), ArgIndex);
 }
 
