@@ -298,74 +298,40 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
-template <class T, class I>
-static inline ur_result_t
-withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
-                uint32_t numEventsInWaitList,
-                const ur_event_handle_t *phEventWaitList,
-                ur_event_handle_t *phEvent, T &&f, I &&inv) {
-  if (phEvent) {
-    ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
-    event->tick_start();
-    ur_result_t result = inv(std::forward<T>(f), event, hQueue,
-                             numEventsInWaitList, phEventWaitList);
-    *phEvent = event;
-    return result;
-  }
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_result_t result = f();
-  return result;
-}
-
-namespace {
-struct BlockingWithEvent {
-  template <class T>
-  ur_result_t operator()(T &&op, ur_event_handle_t event, ur_queue_handle_t,
-                         uint32_t numEventsInWaitList,
-                         const ur_event_handle_t *phEventWaitList) const {
-    urEventWait(numEventsInWaitList, phEventWaitList);
-    ur_result_t result = op();
-    event->tick_end();
-    return result;
-  }
-};
-
-struct NonBlocking {
-  template <class T>
-  ur_result_t operator()(T &&op, ur_event_handle_t event,
-                         ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
-                         const ur_event_handle_t *phEventWaitList) const {
-    auto &tp = hQueue->getDevice()->tp;
-    std::vector<std::future<void>> futures;
-    auto InEvents =
-        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
-    futures.emplace_back(
-        tp.schedule_task([op, InEvents = InEvents.get()](size_t) {
-          if (InEvents)
-            InEvents->wait();
-          op();
-        }));
-    event->set_futures(futures);
-    event->set_callback(
-        [event, InEvents = std::move(InEvents)]() { event->tick_end(); });
-    return UR_RESULT_SUCCESS;
-  }
-};
-} // namespace
-
 template <class T>
 static inline ur_result_t
 withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                 uint32_t numEventsInWaitList,
                 const ur_event_handle_t *phEventWaitList,
                 ur_event_handle_t *phEvent, T &&f, bool blocking = true) {
-  if (blocking || hQueue->isInOrder())
-    return withTimingEvent(command_type, hQueue, numEventsInWaitList,
-                           phEventWaitList, phEvent, std::forward<T>(f),
-                           BlockingWithEvent());
-  return withTimingEvent(command_type, hQueue, numEventsInWaitList,
-                         phEventWaitList, phEvent, std::forward<T>(f),
-                         NonBlocking());
+  if (phEvent) {
+    ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
+    *phEvent = event;
+    event->tick_start();
+    if (blocking || hQueue->isInOrder()) {
+      urEventWait(numEventsInWaitList, phEventWaitList);
+      ur_result_t result = f();
+      event->tick_end();
+      return result;
+    }
+    auto &tp = hQueue->getDevice()->tp;
+    std::vector<std::future<void>> futures;
+    auto InEvents =
+        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
+    futures.emplace_back(
+        tp.schedule_task([f, InEvents = InEvents.get()](size_t) {
+          if (InEvents)
+            InEvents->wait();
+          f();
+        }));
+    event->set_futures(futures);
+    event->set_callback(
+        [event, InEvents = std::move(InEvents)]() { event->tick_end(); });
+    return UR_RESULT_SUCCESS;
+  }
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  ur_result_t result = f();
+  return result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
