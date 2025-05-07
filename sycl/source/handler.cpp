@@ -553,13 +553,13 @@ event handler::finalize() {
               detail::retrieveKernelBinary(MQueue, MKernelName.data());
           assert(BinImage && "Failed to obtain a binary image.");
         }
-        enqueueImpKernel(
-            MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr, MKernel,
-            MKernelName.data(), RawEvents,
-            DiscardEvent ? detail::EventImplPtr{} : LastEventImpl, nullptr,
-            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-            impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-            BinImage);
+        enqueueImpKernel(MQueue, impl->MNDRDesc, impl->MArgs,
+                         KernelBundleImpPtr, MKernel.get(), MKernelName.data(),
+                         RawEvents,
+                         DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
+                         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+                         impl->MKernelUsesClusterLaunch,
+                         impl->MKernelWorkGroupMemorySize, BinImage);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (!DiscardEvent) {
