@@ -12,7 +12,6 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/device_info.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
