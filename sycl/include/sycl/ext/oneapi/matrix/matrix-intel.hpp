@@ -270,9 +270,14 @@ public:
                             sycl::ext::oneapi::bfloat16, NumRows, NumCols,
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
-  float *tmp = new float;
-  BF16VecToFloatVec<1>(ExtractP, tmp);
-  return *tmp;
+  union {
+    uint16_t intStorage;
+    sycl::ext::oneapi::bfloat16 floatValue;
+  };
+  floatValue = *ExtractP;
+
+  float tmp = __devicelib_ConvertBF16ToFINTEL(intStorage);
+  return tmp;
 
 #else
     throw exception(make_error_code(errc::runtime),
@@ -301,6 +306,22 @@ public:
     sycl::ext::oneapi::bfloat16 *InsertP =
         __spirv_AccessChain<sycl::ext::oneapi::bfloat16,
                             sycl::ext::oneapi::bfloat16, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    *InsertP = rhs;
+    return *this;
+#else
+    (void)rhs;
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+    wi_element &operator=(const float &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    float *InsertP =
+        __spirv_AccessChain<float,
+                            float, NumRows, NumCols,
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
     *InsertP = rhs;
