@@ -4149,6 +4149,7 @@
 ?get_image_num_channels@experimental@oneapi@ext@_V1@sycl@@YAIUimage_mem_handle@12345@AEBVqueue@45@@Z
 ?get_image_range@experimental@oneapi@ext@_V1@sycl@@YA?AV?$range@$02@45@Uimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?get_image_range@experimental@oneapi@ext@_V1@sycl@@YA?AV?$range@$02@45@Uimage_mem_handle@12345@AEBVqueue@45@@Z
+?get_impl@handler@_V1@sycl@@AEAAPEAVhandler_impl@detail@23@XZ
 ?get_kernel@kernel_bundle_plain@detail@_V1@sycl@@IEBA?AVkernel@34@AEBVkernel_id@34@@Z
 ?get_kernel_bundle@kernel@_V1@sycl@@QEBA?AV?$kernel_bundle@$01@23@XZ
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z

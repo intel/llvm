@@ -712,7 +712,7 @@ ur_result_t urAdapterGetLastError(
   *Message = ErrorMessage;
   *Error = ErrorAdapterNativeCode;
 
-  return ErrorMessageCode;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
