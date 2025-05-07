@@ -605,6 +605,10 @@ if "verbose-print" in lit_config.params:
 else:
     config.substitutions.append(("%verbose_print", ""))
 
+# Enable `vulkan` feature if Vulkan was found.
+if config.vulkan_found == "TRUE":
+    config.available_features.add("vulkan")
+
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
 
