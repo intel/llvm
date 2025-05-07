@@ -14,6 +14,17 @@ if __name__ == "__main__":
 from options import options
 
 
+def _get_patch_from_ver(ver: str) -> str:
+    """Extract patch from a version string."""
+    # L0 version strings follows semver: major.minor.patch+optional
+    # compute-runtime version tags follow year.WW.patch.optional instead,
+    # but both follow a quasi-semver versioning where the patch, optional
+    # is still the same across both version string formats.
+    patch = re.sub(r"^\d+\.\d+\.", "", ver)
+    patch = re.sub(r"\+", ".", patch, count=1)
+    return patch
+
+
 class DetectVersion:
     _instance = None
 
@@ -63,8 +74,22 @@ class DetectVersion:
         cls._instance.l0_ver = get_var("L0_VER")
         cls._instance.dpcpp_ver = get_var("DPCPP_VER")
         cls._instance.dpcpp_exec = dpcpp_exec
-        # Do not make 2 API calls if compute_runtime_ver was already obtained
+
+        # Populate the computer-runtime version string cache: Since API calls
+        # are expensive, we want to avoid API calls when possible, i.e.:
+        # - Avoid a second API call if compute_runtime_ver was already obtained
+        # - Avoid an API call altogether if the user provides a valid
+        #   COMPUTE_RUNTIME_TAG_CACHE environment variable.
         cls._instance.compute_runtime_ver_cache = None
+        l0_ver_patch = _get_patch_from_ver(get_var("L0_VER"))
+        env_cache_ver = os.getenv("COMPUTE_RUNTIME_TAG_CACHE", default="")
+        env_cache_patch = _get_patch_from_ver(env_cache_ver)
+        # L0 patch often gets padded with 0's: if the environment variable 
+        # matches up with the prefix of the l0 version patch, the cache is
+        # indeed referring to the same version.
+        if env_cache_patch == l0_ver_patch[: len(env_cache_patch)]:
+            cls._instance.compute_runtime_ver_cache = env_cache_ver
+
         return cls._instance
 
     @classmethod
@@ -123,13 +148,7 @@ class DetectVersion:
         if self.compute_runtime_ver_cache is not None:
             return self.compute_runtime_ver_cache
 
-        # L0 version strings follows semver: major.minor.patch+optional
-        # compute-runtime version tags follow year.WW.patch.optional instead,
-        # but patch, pptional is still the same across both.
-        #
-        # We use patch+optional from L0 to figure out compute-runtime version:
-        patch = re.sub(r"^\d+\.\d+\.", "", self.l0_ver)
-        patch = re.sub(r"\+", ".", patch, count=1)
+        patch = _get_patch_from_ver(self.l0_ver)
 
         # TODO unauthenticated users only get 60 API calls per hour: this will
         # not work if we enable benchmark CI in precommit.
@@ -141,7 +160,7 @@ class DetectVersion:
                 tags = [tag["name"] for tag in json.loads(res.read())]
 
                 for tag in tags:
-                    tag_patch = re.sub(r"^\d+\.\d+\.", "", tag)
+                    tag_patch = _get_patch_from_ver(tag)
                     # compute-runtime's cmake files produces "optional" fields
                     # padded with 0's: this means e.g. L0 version string
                     # 1.6.32961.200000 could be either compute-runtime ver.
