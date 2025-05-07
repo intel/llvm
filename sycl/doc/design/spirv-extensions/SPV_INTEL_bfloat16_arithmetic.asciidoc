@@ -1,0 +1,145 @@
+:extension_name: SPV_INTEL_bfloat16_arithmetic
+:capability_name: BFloat16ArithmeticINTEL
+:capability_token: 6226
+:dep_ext_name: SPV_KHR_bfloat16
+:dep_ext_rev: 1
+:dep_ext_capability: BFloat16TypeKHR
+
+= {extension_name}
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+* Ben Ashbaugh, Intel
+* Victor Mustya, Intel
+
+== Notice
+
+Copyright (c) 2025 Intel Corporation.  All rights reserved.
+
+== Status
+
+* Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification, Version 1.6 Revision
+5, and `{dep_ext_name}`, Revision {dep_ext_rev}.
+
+This extension requires SPIR-V 1.0 and `{dep_ext_name}`, Revision {dep_ext_rev}.
+
+== Overview
+
+This extension allows to use *OpTypeFloat* instruction to define *BFloat16KHR*
+data type and use it for all the floating-point insructions.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== Validation Rules
+
+Add validation rules to section 2.16.1 Universal Validation Rules from:
+
+* Variables with a type that is or includes a floating-point type with the
+*BFloat16KHR* encoding must only be used with the following instructions,
+if *{capability_name}* is declared:
+
+** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_mode_setting_instructions[Arithmetic Instructions]:
+
+*** *OpFNegate*
+*** *OpFAdd*
+*** *OpFSub*
+*** *OpFMul*
+*** *OpFDiv*
+*** *OpFRem*
+*** *OpFMod*
+*** *OpVectorTimesScalar*
+
+** https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_relational_and_logical_instructions[Relational and Logical Instructions]
+
+* Variables with a type that is or includes a floating-point type with the
+*BFloat16KHR* encoding can be used with *OpExtInst* instruction with the
+opcodes from the https://registry.khronos.org/SPIR-V/specs/unified1/OpenCL.ExtendedInstructionSet.100.html[OpenCL extended instruction set].
+
+=== Capabilities
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[cols="^.^2,16,15",options="header"]
+|====
+2+^.^| Capability | Implicitly Declares
+| {capability_token} | *{capability_name}* +
+Allows *OpTypeFloat* with the *BFloat16KHR* <<Floating_Point_Encoding, floating point encoding>>
+to be used with arithmetic instructions.
+| *{dep_ext_capability}*
+|====
+--
+
+== Interactions with Other Extensions
+
+If `SPV_INTEL_masked_gather_scatter` is supported then *OpMaskedGatherINTEL*
+and *OpMaskedGatherINTEL* also accept vector of *BFloat16KHR* and vector of
+pointers to *BFloat16KHR*.
+
+== Issues
+
+. Should the extension be INTEL or EXT/KHR?
++
+--
+*UNRESOLVED*: The functionality is generic, so it probably may be useful for
+non-Intel implementations.
+--
+
+. Should we define *BFloat16* atomics and interaction with
+`SPV_EXT_shader_atomic_float_min_max` and `SPV_EXT_shader_atomic_float_add`
+by this extension?
++
+--
+*RESOLVED*: The atomic operations should be defined by a separate extension.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2025-05-07|Victor Mustya|Initial public revision
+|========================================
