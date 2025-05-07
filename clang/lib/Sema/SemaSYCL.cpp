@@ -5798,7 +5798,6 @@ static void CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
     if (Param->hasDefaultArg()) {
       S.Diag(Param->getLocation(), diag::err_free_function_with_default_arg)
           << Param->getSourceRange();
-      continue;
     }
   }
 }
