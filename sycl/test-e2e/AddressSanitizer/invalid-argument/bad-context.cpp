@@ -1,11 +1,6 @@
-// REQUIRES: linux, cpu || (gpu && level_zero)
+// REQUIRES: linux, cpu, any-device-is-level_zero
 // RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O2 -g -o %t
 // RUN: env UR_LAYER_ASAN_OPTIONS="detect_kernel_arguments:1" %{run-unfiltered-devices} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
-
-// Due to a typo in "REQUIRES" this test was never launched. However, it fails
-// currently, so disabling it.
-// UNSUPPORTED: true
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18337
 
 #include <sycl/detail/core.hpp>
 
