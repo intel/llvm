@@ -141,6 +141,7 @@ runs:
           ;;
       esac
       SAVE_NAME="${SAVE_PREFIX}_${MACHINE_TYPE}_${SAVE_SUFFIX}"
+      echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
       SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
 
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
@@ -221,5 +222,5 @@ runs:
     if: always()
     uses: actions/upload-artifact@v4
     with:
-      name: Benchmark run ${{ github.run_id }} (${{ runner.name }}, ${{ inputs.target_devices }})
+      name: Benchmark run ${{ github.run_id }} (${{ env.SAVE_NAME }})
       path: ./cached_changes
