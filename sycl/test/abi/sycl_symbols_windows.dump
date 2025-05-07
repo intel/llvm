@@ -564,8 +564,6 @@
 ??4AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4HostProfilingInfo@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4HostProfilingInfo@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
-??4KernelNameBasedCacheDeleterT@detail@_V1@sycl@@QEAAAEAU0123@$$QEAU0123@@Z
-??4KernelNameBasedCacheDeleterT@detail@_V1@sycl@@QEAAAEAU0123@AEBU0123@@Z
 ??4LocalAccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4LocalAccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4OSUtil@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
@@ -668,7 +666,6 @@
 ??R?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEBA_KAEBVdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@Z
 ??R?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEBA_KAEBVnode@experimental@oneapi@ext@_V1@sycl@@@Z
 ??R?$hash@Vqueue@_V1@sycl@@@std@@QEBA_KAEBVqueue@_V1@sycl@@@Z
-??RKernelNameBasedCacheDeleterT@detail@_V1@sycl@@QEAAXPEAUKernelNameBasedCacheT@123@@Z
 ??Raccelerator_selector@_V1@sycl@@UEBAHAEBVdevice@12@@Z
 ??Rcpu_selector@_V1@sycl@@UEBAHAEBVdevice@12@@Z
 ??Rdefault_selector@_V1@sycl@@UEBAHAEBVdevice@12@@Z
@@ -3813,7 +3810,7 @@
 ?contextSetExtendedDeleter@pi@detail@_V1@sycl@@YAXAEBVcontext@34@P6AXPEAX@Z1@Z
 ?copyCodeLoc@handler@_V1@sycl@@AEAAXAEBV123@@Z
 ?cpu_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
-?createKernelNameBasedCache@detail@_V1@sycl@@YA?AV?$unique_ptr@UKernelNameBasedCacheT@detail@_V1@sycl@@UKernelNameBasedCacheDeleterT@234@@std@@XZ
+?createKernelNameBasedCache@detail@_V1@sycl@@YAPEAUKernelNameBasedCacheT@123@XZ
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@AEAVimage_mem@12345@AEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@AEAVimage_mem@12345@AEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@PEAX_KAEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
