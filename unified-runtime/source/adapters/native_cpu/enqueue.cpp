@@ -204,29 +204,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       IndexT first = {t, 0, 0};
       IndexT last = {++t, numWG1, numWG2};
       Tasks.schedule([ndr, itemsPerThread, &kernel = *kernel, first, last,
-                            InEvents = InEvents.get()](size_t) {
-            native_cpu::state resized_state =
-                getResizedState(ndr, itemsPerThread);
-            if (InEvents)
-              InEvents->wait();
-            execute_range(resized_state, kernel, first, last);
-          });
+                      InEvents = InEvents.get()](size_t) {
+        native_cpu::state resized_state = getResizedState(ndr, itemsPerThread);
+        if (InEvents)
+          InEvents->wait();
+        execute_range(resized_state, kernel, first, last);
+      });
     }
 
     size_t start_wg0_remainder = new_num_work_groups_0 * itemsPerThread;
     if (start_wg0_remainder < numWG0) {
       // Peel the remaining work items. Since the local size is 1, we iterate
       // over the work groups.
-      Tasks.schedule(
-          [ndr, &kernel = *kernel, start_wg0_remainder, numWG0, numWG1, numWG2,
-           InEvents = InEvents.get()](size_t) mutable {
-            IndexT first = {start_wg0_remainder, 0, 0};
-            IndexT last = {numWG0, numWG1, numWG2};
-            if (InEvents)
-              InEvents->wait();
-            native_cpu::state state = getState(ndr);
-            execute_range(state, kernel, first, last);
-          });
+      Tasks.schedule([ndr, &kernel = *kernel, start_wg0_remainder, numWG0,
+                      numWG1, numWG2, InEvents = InEvents.get()](size_t) {
+        IndexT first = {start_wg0_remainder, 0, 0};
+        IndexT last = {numWG0, numWG1, numWG2};
+        if (InEvents)
+          InEvents->wait();
+        native_cpu::state state = getState(ndr);
+        execute_range(state, kernel, first, last);
+      });
     }
   } else {
     // We are running a parallel_for over an nd_range
@@ -249,31 +247,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         first[dim] = wg_start;
         wg_start += groupsPerThread[dim];
         last[dim] = wg_start;
-        Tasks.schedule(
-            [ndr, numParallelThreads, &kernel = *kernel, first, last,
-             InEvents = InEvents.get()](size_t threadId) mutable {
-              if (InEvents)
-                InEvents->wait();
-              native_cpu::state state = getState(ndr);
-              execute_range(state, kernel,
-                            kernel.getArgs(numParallelThreads, threadId), first,
-                            last);
-            });
+        Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
+                        InEvents = InEvents.get()](size_t threadId) {
+          if (InEvents)
+            InEvents->wait();
+          native_cpu::state state = getState(ndr);
+          execute_range(state, kernel,
+                        kernel.getArgs(numParallelThreads, threadId), first,
+                        last);
+        });
       }
     }
     if (wg_start < numWG[dim]) {
       first[dim] = wg_start;
       last[dim] = numWG[dim];
-      Tasks.schedule(
-          [ndr, numParallelThreads, &kernel = *kernel, first, last,
-           InEvents = InEvents.get()](size_t threadId) mutable {
-            if (InEvents)
-              InEvents->wait();
-            native_cpu::state state = getState(ndr);
-            execute_range(state, kernel,
-                          kernel.getArgs(numParallelThreads, threadId), first,
-                          last);
-          });
+      Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
+                      InEvents = InEvents.get()](size_t threadId) {
+        if (InEvents)
+          InEvents->wait();
+        native_cpu::state state = getState(ndr);
+        execute_range(state, kernel,
+                      kernel.getArgs(numParallelThreads, threadId), first,
+                      last);
+      });
     }
   }
 
@@ -297,73 +293,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
-template <class T, class I>
-static inline ur_result_t
-withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
-                uint32_t numEventsInWaitList,
-                const ur_event_handle_t *phEventWaitList,
-                ur_event_handle_t *phEvent, T &&f, I &&inv) {
-  if (phEvent) {
-    ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
-    event->tick_start();
-    ur_result_t result = inv(std::forward<T>(f), event, hQueue,
-                             numEventsInWaitList, phEventWaitList);
-    *phEvent = event;
-    return result;
-  }
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_result_t result = f();
-  return result;
-}
-
-namespace {
-struct BlockingWithEvent {
-  template <class T>
-  ur_result_t operator()(T &&op, ur_event_handle_t event, ur_queue_handle_t,
-                         uint32_t numEventsInWaitList,
-                         const ur_event_handle_t *phEventWaitList) const {
-    urEventWait(numEventsInWaitList, phEventWaitList);
-    ur_result_t result = op();
-    event->tick_end();
-    return result;
-  }
-};
-
-struct NonBlocking {
-  template <class T>
-  ur_result_t operator()(T &&op, ur_event_handle_t event,
-                         ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
-                         const ur_event_handle_t *phEventWaitList) const {
-    auto &tp = hQueue->getDevice()->tp;
-    auto Tasks = native_cpu::getScheduler(tp);
-    auto InEvents =
-        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
-    Tasks.schedule([op, InEvents = InEvents.get()](size_t) mutable {
-          if (InEvents)
-            InEvents->wait();
-          op();
-        });
-    event->set_futures(Tasks.getTaskInfo());
-    event->set_callback(
-        [event, InEvents = std::move(InEvents)]() { event->tick_end(); });
-    return UR_RESULT_SUCCESS;
-  }
-};
-} // namespace
-
 template <class T>
 static inline ur_result_t
 withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                 uint32_t numEventsInWaitList,
                 const ur_event_handle_t *phEventWaitList,
                 ur_event_handle_t *phEvent, T &&f, bool blocking = true) {
-  if (blocking || hQueue->isInOrder())
-    return withTimingEvent(command_type, hQueue, numEventsInWaitList,
-                           phEventWaitList, phEvent, std::forward<T>(f),
-                           BlockingWithEvent());
-  return withTimingEvent(command_type, hQueue, numEventsInWaitList,
-                         phEventWaitList, phEvent, std::forward<T>(f),
-                         NonBlocking());
+  if (phEvent) {
+    ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
+    *phEvent = event;
+    event->tick_start();
+    if (blocking || hQueue->isInOrder()) {
+      urEventWait(numEventsInWaitList, phEventWaitList);
+      ur_result_t result = f();
+      event->tick_end();
+      return result;
+    }
+    auto &tp = hQueue->getDevice()->tp;
+    auto Tasks = native_cpu::getScheduler(tp);
+    auto InEvents =
+        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
+    Tasks.schedule([f, InEvents = InEvents.get()](size_t) {
+      if (InEvents)
+        InEvents->wait();
+      f();
+    });
+    event->set_futures(Tasks.getTaskInfo());
+    event->set_callback(
+        [event, InEvents = std::move(InEvents)]() { event->tick_end(); });
+    return UR_RESULT_SUCCESS;
+  }
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  ur_result_t result = f();
+  return result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
@@ -393,6 +355,40 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
 }
 
 template <bool IsRead>
+static inline void MemBufferReadWriteRect_impl(
+    ur_mem_handle_t Buff, ur_rect_offset_t BufferOffset,
+    ur_rect_offset_t HostOffset, ur_rect_region_t region, size_t BufferRowPitch,
+    size_t BufferSlicePitch, size_t HostRowPitch, size_t HostSlicePitch,
+    typename std::conditional<IsRead, void *, const void *>::type DstMem) {
+  // TODO: check other constraints, performance optimizations
+  //       More sharing with level_zero where possible
+
+  if (BufferRowPitch == 0)
+    BufferRowPitch = region.width;
+  if (BufferSlicePitch == 0)
+    BufferSlicePitch = BufferRowPitch * region.height;
+  if (HostRowPitch == 0)
+    HostRowPitch = region.width;
+  if (HostSlicePitch == 0)
+    HostSlicePitch = HostRowPitch * region.height;
+  for (size_t w = 0; w < region.width; w++)
+    for (size_t h = 0; h < region.height; h++)
+      for (size_t d = 0; d < region.depth; d++) {
+        size_t buff_orign = (d + BufferOffset.z) * BufferSlicePitch +
+                            (h + BufferOffset.y) * BufferRowPitch + w +
+                            BufferOffset.x;
+        size_t host_origin = (d + HostOffset.z) * HostSlicePitch +
+                             (h + HostOffset.y) * HostRowPitch + w +
+                             HostOffset.x;
+        int8_t &buff_mem = ur_cast<int8_t *>(Buff->_mem)[buff_orign];
+        if constexpr (IsRead)
+          ur_cast<int8_t *>(DstMem)[host_origin] = buff_mem;
+        else
+          buff_mem = ur_cast<const int8_t *>(DstMem)[host_origin];
+      }
+}
+
+template <bool IsRead>
 static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
     ur_queue_handle_t hQueue, ur_mem_handle_t Buff, bool blocking,
     ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
@@ -409,34 +405,10 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
   return withTimingEvent(
       command_t, hQueue, NumEventsInWaitList, phEventWaitList, phEvent,
       [BufferRowPitch, region, BufferSlicePitch, HostRowPitch, HostSlicePitch,
-       BufferOffset, HostOffset, Buff, DstMem]() mutable {
-        // TODO: check other constraints, performance optimizations
-        //       More sharing with level_zero where possible
-
-        if (BufferRowPitch == 0)
-          BufferRowPitch = region.width;
-        if (BufferSlicePitch == 0)
-          BufferSlicePitch = BufferRowPitch * region.height;
-        if (HostRowPitch == 0)
-          HostRowPitch = region.width;
-        if (HostSlicePitch == 0)
-          HostSlicePitch = HostRowPitch * region.height;
-        for (size_t w = 0; w < region.width; w++)
-          for (size_t h = 0; h < region.height; h++)
-            for (size_t d = 0; d < region.depth; d++) {
-              size_t buff_orign = (d + BufferOffset.z) * BufferSlicePitch +
-                                  (h + BufferOffset.y) * BufferRowPitch + w +
-                                  BufferOffset.x;
-              size_t host_origin = (d + HostOffset.z) * HostSlicePitch +
-                                   (h + HostOffset.y) * HostRowPitch + w +
-                                   HostOffset.x;
-              int8_t &buff_mem = ur_cast<int8_t *>(Buff->_mem)[buff_orign];
-              if constexpr (IsRead)
-                ur_cast<int8_t *>(DstMem)[host_origin] = buff_mem;
-              else
-                buff_mem = ur_cast<const int8_t *>(DstMem)[host_origin];
-            }
-
+       BufferOffset, HostOffset, Buff, DstMem]() {
+        MemBufferReadWriteRect_impl<IsRead>(
+            Buff, BufferOffset, HostOffset, region, BufferRowPitch,
+            BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem);
         return UR_RESULT_SUCCESS;
       },
       blocking);
