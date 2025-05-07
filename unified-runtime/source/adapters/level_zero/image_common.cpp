@@ -285,6 +285,7 @@ ur_result_t createUrImgFromZeImage(ze_context_handle_t hContext,
   try {
     ur_bindless_mem_handle_t *urImg =
         new ur_bindless_mem_handle_t(ZeImage.get(), ZeImageDesc);
+    ZeImage.release();
     *pImg = reinterpret_cast<ur_exp_image_mem_native_handle_t>(urImg);
   } catch (...) {
     return exceptionToResult(std::current_exception());
@@ -334,10 +335,15 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
         reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
     ze_image_handle_t zeImg1 = urImg->getZeImage();
 
-    ZE2UR_CALL(zeImageViewCreateExt,
-               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg1, ZeImage.ptr()));
-    ZE2UR_CALL(zeContextMakeImageResident,
-               (zeCtx, hDevice->ZeDevice, ZeImage.get()));
+    try {
+      ZE2UR_CALL_THROWS(
+          zeImageViewCreateExt,
+          (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg1, ZeImage.ptr()));
+      ZE2UR_CALL_THROWS(zeContextMakeImageResident,
+                        (zeCtx, hDevice->ZeDevice, ZeImage.get()));
+    } catch (...) {
+      return exceptionToResult(std::current_exception());
+    }
   } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_HOST ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
@@ -348,7 +354,6 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     } else {
       BindlessDesc.pNext = &PitchedDesc;
     }
-
     try {
       ZE2UR_CALL_THROWS(zeImageCreate, (zeCtx, hDevice->ZeDevice, &ZeImageDesc,
                                         ZeImage.ptr()));
@@ -385,6 +390,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
   hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage.get();
   Lock.release();
+  ZeImage.release();
+
   return UR_RESULT_SUCCESS;
 }
 
