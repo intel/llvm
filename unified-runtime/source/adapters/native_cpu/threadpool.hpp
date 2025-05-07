@@ -220,6 +220,7 @@ public:
       f.wait();
   }
   TasksInfo_TP(simple_threadpool_t &) {}
+  static constexpr bool CanWaitInThread() { return true; }
 };
 
 template <class TP, class TaskInfo> struct Scheduler_base {
@@ -248,8 +249,12 @@ template <class TPType> inline Scheduler<TPType> getScheduler(TPType &tp) {
 #include "oneapi/tbb.h"
 namespace native_cpu {
 
-struct TBB_threadpool {
+class TBB_threadpool {
   oneapi::tbb::task_group tasks;
+
+public:
+  void wait_all() { tasks.wait(); }
+  oneapi::tbb::task_group &Tasks() { return tasks; }
   inline size_t num_threads() const noexcept {
     return oneapi::tbb::info::default_concurrency();
   }
@@ -259,8 +264,9 @@ class TBB_TasksInfo {
   TBB_threadpool *tp;
 
 public:
-  inline void wait_all() { tp->tasks.wait(); }
+  inline void wait_all() { tp->wait_all(); }
   TBB_TasksInfo(TBB_threadpool &t) : tp(&t) {}
+  static constexpr bool CanWaitInThread() { return false; }
 };
 
 template <>
@@ -268,7 +274,7 @@ struct Scheduler<TBB_threadpool>
     : Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
   using Scheduler_base<TBB_threadpool, TBB_TasksInfo>::Scheduler_base;
   template <class T> inline void schedule(T &&task_) {
-    ref.tasks.run(std::function<void()>([task = std::move(task_)]() mutable {
+    ref.Tasks().run(std::function<void()>([task = std::move(task_)]() mutable {
       auto thread_id = tbb::this_task_arena::current_thread_index();
       assert(thread_id >= 0 &&
              thread_id < oneapi::tbb::info::default_concurrency());
