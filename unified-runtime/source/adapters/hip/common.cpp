@@ -62,10 +62,6 @@ void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
   const char *ErrorString = nullptr;
   const char *ErrorName = nullptr;
   switch (Result) {
-  case AMD_COMGR_STATUS_ERROR:
-    ErrorName = "AMD_COMGR_STATUS_ERROR";
-    ErrorString = "Generic error";
-    break;
   case AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT:
     ErrorName = "AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT";
     ErrorString =
@@ -76,7 +72,11 @@ void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
     ErrorName = "AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES";
     ErrorString = "Failed to allocate the necessary resources";
     break;
+  case AMD_COMGR_STATUS_ERROR:
+    [[fallthrough]];
   default:
+    ErrorName = "AMD_COMGR_STATUS_ERROR";
+    ErrorString = "Generic error";
     break;
   }
   std::stringstream SS;
