@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -internal-isystem %S/Inputs -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s
 // This test checks if __builtin_printf is emitted in the IR.
 
 #include "sycl.hpp"
