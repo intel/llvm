@@ -1610,7 +1610,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back(InputFile);
 
   // If this is CPU offloading we copy the input libraries.
-  if (!Triple.isAMDGPU() && !Triple.isNVPTX() && !Triple.isSPIRV()) {
+  if (!Triple.isGPU()) {
     CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
@@ -2136,7 +2136,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         SYCLBIN::SYCLBINModuleDesc MD;
         MD.ArchString = LinkerArgs.getLastArgValue(OPT_arch_EQ);
         MD.SplitModules = std::move(SplitModules);
-        std::scoped_lock Guard(SYCLBINModulesMtx);
+        std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
@@ -2331,7 +2331,7 @@ Expected<bool> getSymbolsFromBitcode(MemoryBufferRef Buffer, OffloadKind Kind,
 
   // If the file gets extracted we update the table with the new symbols.
   if (ShouldExtract)
-    Syms.insert(std::begin(TmpSyms), std::end(TmpSyms));
+    Syms.insert_range(TmpSyms);
 
   return ShouldExtract;
 }
@@ -2386,7 +2386,7 @@ Expected<bool> getSymbolsFromObject(const ObjectFile &Obj, OffloadKind Kind,
 
   // If the file gets extracted we update the table with the new symbols.
   if (ShouldExtract)
-    Syms.insert(std::begin(TmpSyms), std::end(TmpSyms));
+    Syms.insert_range(TmpSyms);
 
   return ShouldExtract;
 }
