@@ -113,4 +113,4 @@ cmd = subprocess.Popen(
 cmd_stdout, _ = cmd.communicate()
 have_la57 = cmd_stdout.strip()
 if len(have_la57) > 0:
-    config.available_features.add('la57')
+    config.available_features.add("la57")
