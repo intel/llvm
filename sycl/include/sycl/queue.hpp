@@ -105,9 +105,9 @@ namespace v1 {
 // To perform non-ABI breaking changes:
 // * namespace v(N+1) can be added,
 // * functions that use SubmissionInfo should be switched to use v(N+1)
-// namespace,
+//   namespace,
 // * old namespace vN should be moved under #ifndef
-// __INTEL_PREVIEW_BREAKING_CHANGES guard.
+//   __INTEL_PREVIEW_BREAKING_CHANGES guard.
 // TODO: inline namespace can be employed here after SubmissionInfo removed from
 // the enclosing scope.
 
