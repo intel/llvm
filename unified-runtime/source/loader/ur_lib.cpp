@@ -330,9 +330,15 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
   // (If we wished to preserve the ordering of terms, we could replace
   // `std::map` with `std::queue<std::pair<key_type_t, value_type_t>>` or
   // something similar.)
-  auto maybeEnvVarMap =
-      getenv_to_map("ONEAPI_DEVICE_SELECTOR", /* reject_empty= */ false,
-                    /* allow_duplicate= */ false, /* lower= */ true);
+  std::optional<EnvVarMap> maybeEnvVarMap{};
+  try {
+    maybeEnvVarMap =
+        getenv_to_map("ONEAPI_DEVICE_SELECTOR", /* reject_empty= */ false,
+                      /* allow_duplicate= */ false, /* lower= */ true);
+  } catch (...) {
+    logger::error("ERROR: could not parse ONEAPI_DEVICE_SELECTOR string");
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
   logger::debug(
       "getenv_to_map parsed env var and {} a map",
       (maybeEnvVarMap.has_value() ? "produced" : "failed to produce"));

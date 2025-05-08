@@ -35,7 +35,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
 inline std::vector<memory_order>
 readMemoryOrderBitfield(ur_memory_order_capability_flags_t bits) {
   std::vector<memory_order> result;
@@ -200,22 +199,7 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 // for string return type in other specializations.
 inline std::string
 device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
-  size_t resultSize = 0;
-  getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), InfoCode, 0,
-                                                 nullptr, &resultSize);
-  if (resultSize == 0) {
-    return std::string();
-  }
-  std::string result;
-  // C++23's `resize_and_overwrite` would be better...
-  //
-  // UR counts null terminator in the size, std::string doesn't. Adjust by "-1"
-  // for that.
-  result.resize(resultSize - 1);
-  getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-      getHandleRef(), InfoCode, resultSize, result.data(), nullptr);
-
-  return result;
+  return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, InfoCode);
 }
 
 // Specialization for string return type, variable return size
@@ -738,17 +722,10 @@ struct get_device_info_impl<
         }
         return ext::oneapi::experimental::architecture::unknown;
       };
-      size_t ResultSize = 0;
-      Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          Dev.getHandleRef(), UrInfoCode<info::device::version>::value, 0,
-          nullptr, &ResultSize);
-      std::unique_ptr<char[]> DeviceArch(new char[ResultSize]);
-      Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          Dev.getHandleRef(), UrInfoCode<info::device::version>::value,
-          ResultSize, DeviceArch.get(), nullptr);
-      std::string DeviceArchCopy(DeviceArch.get());
-      std::string DeviceArchSubstr =
-          DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
+      std::string DeviceArch = urGetInfoString<UrApiKind::urDeviceGetInfo>(
+          Dev, UrInfoCode<info::device::version>::value);
+      std::string_view DeviceArchSubstr =
+          std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
       return MapArchIDToArchName(DeviceArchSubstr.data());
     } else if (Dev.is_cpu() && backend::opencl == CurrentBackend) {
       return LookupIPVersion(IntelCPUArchitectures)
@@ -1081,6 +1058,15 @@ struct get_device_info_impl<
 };
 
 template <>
+struct get_device_info_impl<std::string, info::device::opencl_c_version> {
+  static std::string get(const device_impl &) {
+    throw sycl::exception(
+        errc::feature_not_supported,
+        "Deprecated interface that hasn't been working for some time already");
+  }
+};
+
+template <>
 struct get_device_info_impl<
     size_t, ext::oneapi::experimental::info::device::max_global_work_groups> {
   static size_t get(const device_impl &) {
@@ -1171,9 +1157,8 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
       throw exception(make_error_code(errc::invalid),
                       "No parent for device because it is not a subdevice");
 
-    const auto &Platform = Dev.getPlatformImpl();
     return createSyclObjFromImpl<device>(
-        Platform->getOrMakeDeviceImpl(result, Platform));
+        Dev.getPlatformImpl().getOrMakeDeviceImpl(result));
   }
 };
 
@@ -1337,10 +1322,10 @@ struct get_device_info_impl<
             ext::oneapi::experimental::info::device::component_devices>::value,
         ResultSize, Devs.data(), nullptr);
     std::vector<sycl::device> Result;
-    const auto &Platform = Dev.getPlatformImpl();
+    platform_impl &Platform = Dev.getPlatformImpl();
     for (const auto &d : Devs)
-      Result.push_back(createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(d, Platform)));
+      Result.push_back(
+          createSyclObjFromImpl<device>(Platform.getOrMakeDeviceImpl(d)));
 
     return Result;
   }
@@ -1363,9 +1348,8 @@ struct get_device_info_impl<
         sizeof(Result), &Result, nullptr);
 
     if (Result) {
-      const auto &Platform = Dev.getPlatformImpl();
       return createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(Result, Platform));
+          Dev.getPlatformImpl().getOrMakeDeviceImpl(Result));
     }
     throw sycl::exception(make_error_code(errc::invalid),
                           "A component with aspect::ext_oneapi_is_component "

@@ -27,7 +27,6 @@ class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
 
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using AdapterPtr = std::shared_ptr<Adapter>;
 
@@ -60,9 +59,11 @@ public:
   bool isSchedulerAlive() const;
   ProgramManager &getProgramManager();
   Sync &getSync();
-  std::vector<PlatformImplPtr> &getPlatformCache();
+  std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
 
-  std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+  void clearPlatforms();
+
+  std::unordered_map<platform_impl *, ContextImplPtr> &
   getPlatformToDefaultContextCache();
 
   std::mutex &getPlatformToDefaultContextCacheMutex();
@@ -73,7 +74,7 @@ public:
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
-  static void registerEarlyShutdownHandler();
+  static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
   void endDeferredRelease();
@@ -95,7 +96,6 @@ private:
 
   bool OkToDefer = true;
 
-  friend void shutdown_win();
   friend void shutdown_early();
   friend void shutdown_late();
   friend class ObjectUsageCounter;
@@ -118,8 +118,8 @@ private:
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
-  InstWithLock<std::vector<PlatformImplPtr>> MPlatformCache;
-  InstWithLock<std::unordered_map<PlatformImplPtr, ContextImplPtr>>
+  InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;
+  InstWithLock<std::unordered_map<platform_impl *, ContextImplPtr>>
       MPlatformToDefaultContextCache;
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;

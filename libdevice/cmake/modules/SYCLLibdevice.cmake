@@ -433,6 +433,19 @@ else()
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
+
+    set(tsan_devicetypes pvc cpu)
+
+    foreach(tsan_ft IN LISTS sanitizer_filetypes)
+      foreach(tsan_device IN LISTS tsan_devicetypes)
+        compile_lib_ext(libsycl-tsan-${tsan_device}
+                        SRC sanitizer/tsan_rtl.cpp
+                        FILETYPE ${tsan_ft}
+                        DEPENDENCIES ${tsan_obj_deps}
+                        OPTS ${sanitizer_${tsan_device}_compile_opts_${tsan_ft}})
+      endforeach()
+    endforeach()
+
   endif()
 endif()
 

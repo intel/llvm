@@ -599,6 +599,9 @@ ur_result_t urQueueRetain(
 ur_result_t urQueueRelease(
     /// [in] handle of the queue object to release
     ur_queue_handle_t Queue) {
+  if (!checkL0LoaderTeardown())
+    return UR_RESULT_SUCCESS;
+
   std::vector<ur_event_handle_t> EventListToCleanup;
   {
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
@@ -612,8 +615,6 @@ ur_result_t urQueueRelease(
       return UR_RESULT_SUCCESS;
     }
 
-    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
-
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
     // are not yet completed. So do full queue synchronization here
@@ -626,6 +627,9 @@ ur_result_t urQueueRelease(
     // Make sure all commands get executed.
     if (Res == UR_RESULT_SUCCESS)
       UR_CALL(Queue->synchronize());
+
+    // Cleanup the allocations from 'AsyncPool' made by this queue.
+    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
 
     // Destroy all the fences created associated with this queue.
     for (auto it = Queue->CommandListMap.begin();

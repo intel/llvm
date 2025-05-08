@@ -21,7 +21,7 @@ physical_mem::physical_mem(const device &SyclDevice, const context &SyclContext,
         "Device does not support aspect::ext_oneapi_virtual_mem.");
 
   impl = std::make_shared<sycl::detail::physical_mem_impl>(
-      SyclDevice, SyclContext, NumBytes);
+      *getSyclObjImpl(SyclDevice), SyclContext, NumBytes);
 }
 
 void *physical_mem::map(uintptr_t Ptr, size_t NumBytes,

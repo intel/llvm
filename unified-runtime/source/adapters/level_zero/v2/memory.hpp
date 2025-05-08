@@ -15,6 +15,8 @@
 #include <ur_api.h>
 
 #include "../device.hpp"
+#include "../helpers/memory_helpers.hpp"
+#include "../image_common.hpp"
 #include "common.hpp"
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
@@ -85,6 +87,8 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
                                 size_t size, device_access_mode_t accesMode,
                                 bool ownHostPtr);
 
+  ~ur_integrated_buffer_handle_t();
+
   void *
   getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
                size_t size,
@@ -96,6 +100,7 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
 
 private:
   usm_unique_ptr_t ptr;
+  void *writeBackPtr = nullptr;
 };
 
 struct host_allocation_desc_t {

@@ -461,7 +461,7 @@ int main() {
   sycl::queue q;
   sycl::device d = q.get_device();
 
-  if (d.ext_oneapi_can_compile(syclex::source_language::opencl))
+  if (d.ext_oneapi_can_build(syclex::source_language::opencl))
     std::cout << "Device supports online compilation of OpenCL C kernels\n";
 
   if (d.ext_oneapi_supports_cl_c_version(syclex::opencl_c_3_0))

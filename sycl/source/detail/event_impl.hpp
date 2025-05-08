@@ -217,6 +217,9 @@ public:
   /// Cleans dependencies of this event's dependencies.
   void cleanDepEventsThroughOneLevel();
 
+  /// Cleans dependencies of this event's dependencies w/o locking MMutex.
+  void cleanDepEventsThroughOneLevelUnlocked();
+
   /// Checks if this event is discarded by SYCL implementation.
   ///
   /// \return true if this event is discarded.
@@ -251,10 +254,6 @@ public:
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
   void setSubmissionTime();
-
-  /// Calling this function to capture the host timestamp to use
-  /// profiling base time. See MFallbackProfiling
-  void setHostEnqueueTime();
 
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();
@@ -362,13 +361,11 @@ protected:
   std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
-  uint64_t MHostBaseTime = 0;
   ContextImplPtr MContext;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   bool MIsProfilingEnabled = false;
-  bool MFallbackProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;

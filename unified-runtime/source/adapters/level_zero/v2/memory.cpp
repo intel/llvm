@@ -12,8 +12,8 @@
 #include "../ur_interface_loader.hpp"
 #include "context.hpp"
 
-#include "../helpers/image_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
+#include "../image_common.hpp"
 
 static ur_mem_buffer_t::device_access_mode_t
 getDeviceAccessMode(ur_mem_flags_t memFlag) {
@@ -94,6 +94,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
 
     if (hostPtr) {
       std::memcpy(this->ptr.get(), hostPtr, size);
+      writeBackPtr = hostPtr;
     }
   }
 }
@@ -110,17 +111,23 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
   });
 }
 
+ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
+  if (writeBackPtr) {
+    std::memcpy(writeBackPtr, this->ptr.get(), size);
+  }
+}
+
 void *ur_integrated_buffer_handle_t::getDevicePtr(
     ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
-    size_t /*offset*/, size_t /*size*/,
+    size_t offset, size_t /*size*/,
     std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
-  return ptr.get();
+  return ur_cast<char *>(ptr.get()) + offset;
 }
 
 void *ur_integrated_buffer_handle_t::mapHostPtr(
-    ur_map_flags_t /*flags*/, size_t /*offset*/, size_t /*size*/,
+    ur_map_flags_t /*flags*/, size_t offset, size_t /*size*/,
     std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
-  return ptr.get();
+  return ur_cast<char *>(ptr.get()) + offset;
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
