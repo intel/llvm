@@ -3496,7 +3496,9 @@ public:
   ///
   /// \return returns true if all enqueued commands in the queue have been
   /// completed, otherwise returns false.
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   bool khr_empty() const;
+#endif
 
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 

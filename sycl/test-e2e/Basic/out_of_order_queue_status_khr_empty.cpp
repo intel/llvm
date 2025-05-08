@@ -4,6 +4,8 @@
 // Test checks that queue::khr_empty() returns status of the out-of-order
 // queue.
 
+#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

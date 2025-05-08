@@ -3,6 +3,8 @@
 
 // Test checks that queue::khr_empty() returns status of the in-order queue.
 
+#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
