@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <regex>
+#include <sstream>
 
 namespace sycl {
 inline namespace _V1 {
