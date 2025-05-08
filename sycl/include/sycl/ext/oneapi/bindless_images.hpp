@@ -292,9 +292,10 @@ __SYCL_EXPORT void release_external_memory(external_mem externalMem,
  *  @param   syclDevice  The device in which the external memory was created
  *  @param   syclContext The context in which the external memory was created
  */
-__SYCL_EXPORT void unmap_external_linear_memory(void *mappedLinearMem,
-                                                const sycl::device &syclDevice,
-                                                const sycl::context &syclContext);
+__SYCL_EXPORT void
+unmap_external_linear_memory(void *mappedLinearMem,
+                             const sycl::device &syclDevice,
+                             const sycl::context &syclContext);
 
 /**
  *  @brief   Unmap external linear memory region
