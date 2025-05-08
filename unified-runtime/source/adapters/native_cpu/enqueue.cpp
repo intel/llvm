@@ -544,8 +544,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
 
         switch (patternSize) {
         case 1:
-          memset(ptr, *static_cast<const uint8_t *>(pPattern),
-                 size * patternSize);
+          memset(ptr, *static_cast<const uint8_t *>(pPattern), size);
           break;
         case 2: {
           const auto pattern = *static_cast<const uint16_t *>(pPattern);
