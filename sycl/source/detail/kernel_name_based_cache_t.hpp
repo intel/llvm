@@ -30,8 +30,10 @@ using KernelFastSubcacheMutexT = SpinLock;
 using KernelFastSubcacheReadLockT = std::lock_guard<KernelFastSubcacheMutexT>;
 using KernelFastSubcacheWriteLockT = std::lock_guard<KernelFastSubcacheMutexT>;
 
-using FastKernelSubcacheT =
-    std::pair<FastKernelSubcacheMapT, KernelFastSubcacheMutexT>;
+struct FastKernelSubcacheT {
+  FastKernelSubcacheMapT Map;
+  KernelFastSubcacheMutexT Mutex;
+};
 
 struct KernelNameBasedCacheT {
   FastKernelSubcacheT FastKernelSubcache;
