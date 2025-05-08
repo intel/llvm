@@ -1,4 +1,4 @@
-// There is a bug with Linux kernel with la57 
+// There is a bug with Linux kernel with la57
 // https://lore.kernel.org/all/20230803151609.22141-1-kirill.shutemov@linux.intel.com/ ,
 // some of our machines are still affected, disable this test for now.
 // UNSUPPORTED: tsan && la57
