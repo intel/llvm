@@ -272,18 +272,23 @@ ur_result_t createUrImgFromZeImage(ze_context_handle_t hContext,
                                    ze_device_handle_t hDevice,
                                    const ZeStruct<ze_image_desc_t> &ZeImageDesc,
                                    ur_exp_image_mem_native_handle_t *pImg) {
-  ze_image_handle_t ZeImage;
-  ZE2UR_CALL(zeImageCreate, (hContext, hDevice, &ZeImageDesc, &ZeImage));
-  ZE2UR_CALL(zeContextMakeImageResident, (hContext, hDevice, ZeImage));
+  v2::raii::ze_image_handle_t ZeImage;
+  try {
+    ZE2UR_CALL_THROWS(zeImageCreate,
+                      (hContext, hDevice, &ZeImageDesc, ZeImage.ptr()));
+    ZE2UR_CALL_THROWS(zeContextMakeImageResident,
+                      (hContext, hDevice, ZeImage.get()));
+  } catch (...) {
+    return exceptionToResult(std::current_exception());
+  }
 
   try {
     ur_bindless_mem_handle_t *urImg =
-        new ur_bindless_mem_handle_t(ZeImage, ZeImageDesc);
+        new ur_bindless_mem_handle_t(ZeImage.get(), ZeImageDesc);
+    ZeImage.release();
     *pImg = reinterpret_cast<ur_exp_image_mem_native_handle_t>(urImg);
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
+    return exceptionToResult(std::current_exception());
   }
   return UR_RESULT_SUCCESS;
 }
@@ -314,7 +319,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
   }
 
-  ze_image_handle_t ZeImage;
+  v2::raii::ze_image_handle_t ZeImage;
 
   ze_memory_allocation_properties_t MemAllocProperties{
       ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES, nullptr,
@@ -330,9 +335,15 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
         reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
     ze_image_handle_t zeImg1 = urImg->getZeImage();
 
-    ZE2UR_CALL(zeImageViewCreateExt,
-               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg1, &ZeImage));
-    ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
+    try {
+      ZE2UR_CALL_THROWS(
+          zeImageViewCreateExt,
+          (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg1, ZeImage.ptr()));
+      ZE2UR_CALL_THROWS(zeContextMakeImageResident,
+                        (zeCtx, hDevice->ZeDevice, ZeImage.get()));
+    } catch (...) {
+      return exceptionToResult(std::current_exception());
+    }
   } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_HOST ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
@@ -343,10 +354,14 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     } else {
       BindlessDesc.pNext = &PitchedDesc;
     }
-
-    ZE2UR_CALL(zeImageCreate,
-               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
-    ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
+    try {
+      ZE2UR_CALL_THROWS(zeImageCreate, (zeCtx, hDevice->ZeDevice, &ZeImageDesc,
+                                        ZeImage.ptr()));
+      ZE2UR_CALL_THROWS(zeContextMakeImageResident,
+                        (zeCtx, hDevice->ZeDevice, ZeImage.get()));
+    } catch (...) {
+      return exceptionToResult(std::current_exception());
+    }
   } else {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -367,14 +382,16 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   uint64_t DeviceOffset{};
   ze_image_handle_t ZeImageTranslated;
   ZE2UR_CALL(zelLoaderTranslateHandle,
-             (ZEL_HANDLE_IMAGE, ZeImage, (void **)&ZeImageTranslated));
+             (ZEL_HANDLE_IMAGE, ZeImage.get(), (void **)&ZeImageTranslated));
   ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr,
              (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
   std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
-  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
+  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage.get();
   Lock.release();
+  ZeImage.release();
+
   return UR_RESULT_SUCCESS;
 }
 
