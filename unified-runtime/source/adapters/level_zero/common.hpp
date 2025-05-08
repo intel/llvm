@@ -45,8 +45,8 @@ struct _ur_platform_handle_t;
     }
   } catch (...) {
   }
-  logger::debug(
-      "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  UR_LOG(DEBUG,
+         "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
   return false;
 }
 
