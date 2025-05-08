@@ -32,6 +32,11 @@ namespace detail {
 // Forward declaration
 class platform_impl;
 
+// This could be a private member of the class, but old gcc can't handle that.
+template <typename> static constexpr bool is_std_vector_v = false;
+template <typename T>
+static constexpr bool is_std_vector_v<std::vector<T>> = true;
+
 // TODO: Make code thread-safe
 class device_impl : public std::enable_shared_from_this<device_impl> {
   struct private_tag {
@@ -912,10 +917,6 @@ private:
     T value() const { return std::get<0>(*static_cast<const base *>(this)); }
     E error() const { return std::get<1>(*static_cast<const base *>(this)); }
   };
-
-  template <typename> static constexpr bool is_std_vector_v = false;
-  template <typename T>
-  static constexpr bool is_std_vector_v<std::vector<T>> = true;
 
   template <typename ReturnT>
   expected<ReturnT, ur_result_t>
