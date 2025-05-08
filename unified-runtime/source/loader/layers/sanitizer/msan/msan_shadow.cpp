@@ -349,8 +349,10 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
                                                     uptr &Begin, uptr &End) {
   {
     const size_t Size = NumWI * sizeof(uptr);
+    ur_usm_desc_t Properties{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
+                             UR_USM_ADVICE_FLAG_DEFAULT, sizeof(uptr)};
     UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, nullptr, nullptr, Size, (void **)&Base));
+        Context, Device, &Properties, nullptr, Size, (void **)&Base));
   }
 
   {

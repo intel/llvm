@@ -63,20 +63,6 @@ const __SYCL_CONSTANT__ char __msan_print_unknown[] = "unknown";
 
 namespace {
 
-inline size_t WorkGroupLinearId() {
-  return __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-             __spirv_BuiltInNumWorkgroups.z +
-         __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-         __spirv_BuiltInWorkgroupId.z;
-}
-
-// For GPU device, each sub group is a thread
-inline size_t SubWorkGroupLinearId() {
-  // sub-group linear id
-  size_t sg_lid = __spirv_BuiltInGlobalLinearId / __spirv_BuiltInSubgroupSize;
-  return sg_lid;
-}
-
 inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
   auto old = addr;
   if ((addr = (uptr)ToPrivate((void *)old))) {
@@ -201,7 +187,7 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
     const auto shadow_offset = GetMsanLaunchInfo->PrivateShadowOffset;
     if (shadow_offset != 0) {
       const size_t wid = WorkGroupLinearId();
-      const size_t sid = SubWorkGroupLinearId();
+      const size_t sid = SubGroupLinearId();
       const uptr private_base = GetMsanLaunchInfo->PrivateBase[sid];
 
       // FIXME: The recorded private_base may not be the most bottom one,
@@ -212,14 +198,14 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
 
       uptr shadow_ptr =
           shadow_offset + (wid * MSAN_PRIVATE_SIZE) + (addr - private_base);
-      MSAN_DEBUG(const auto shadow_offset_end =
-                     GetMsanLaunchInfo->PrivateShadowOffsetEnd;
-                 if (shadow_ptr > shadow_offset_end) {
-                   __spirv_ocl_printf(__msan_print_private_shadow_out_of_bound,
-                                      addr, shadow_ptr, wid,
-                                      (uptr)shadow_offset);
-                   return 0;
-                 });
+
+      const auto shadow_offset_end = GetMsanLaunchInfo->PrivateShadowOffsetEnd;
+      if (shadow_ptr > shadow_offset_end) {
+        __spirv_ocl_printf(__msan_print_private_shadow_out_of_bound, addr,
+                           shadow_ptr, wid, (uptr)shadow_offset);
+        return GetMsanLaunchInfo->CleanShadow;
+      };
+
       return shadow_ptr;
     }
   }
@@ -596,8 +582,9 @@ __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   // Only set on the first sub-group item
   if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
     return;
-  const size_t sid = SubWorkGroupLinearId();
+  const size_t sid = SubGroupLinearId();
   GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
+  SubGroupBarrier();
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
 }
 

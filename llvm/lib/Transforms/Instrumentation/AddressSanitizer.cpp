@@ -1334,6 +1334,54 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
                      Instruction *ThenTerm, Value *ValueIfFalse);
 };
 
+class AddressSanitizerOnSpirv {
+public:
+  explicit AddressSanitizerOnSpirv(Module &M)
+      : M(M), C(M.getContext()), DL(M.getDataLayout()) {
+    const auto &TargetTriple = Triple(M.getTargetTriple());
+    IsSPIRV = TargetTriple.isSPIROrSPIRV();
+
+    IntptrTy = DL.getIntPtrType(C);
+    Int32Ty = Type::getInt32Ty(C);
+  }
+
+  bool isSpirv() const {
+    return IsSPIRV;
+  }
+
+  void initializeCallbacks() {
+    IRBuilder<> IRB(C);
+
+    // __msan_set_private_base(
+    //   as(0) void *  ptr
+    // )
+    AsanSetPrivateBaseFunc =
+        M.getOrInsertFunction("__asan_set_private_base", IRB.getVoidTy(),
+                              PointerType::get(C, kSpirOffloadPrivateAS));
+  }
+
+  void instrumentPrivateBase(Function &F) {
+    if (!ClSpirOffloadPrivates)
+      return;
+
+    IRBuilder<> IRB(&F.getEntryBlock().front());
+    AllocaInst *PrivateBase = IRB.CreateAlloca(
+        IRB.getInt8Ty(), ConstantInt::get(Int32Ty, 1), "__private_base");
+    IRB.CreateCall(AsanSetPrivateBaseFunc, {PrivateBase});
+  }
+
+private:
+  Module &M;
+  LLVMContext &C;
+  const DataLayout &DL;
+  bool IsSPIRV;
+
+  Type *IntptrTy;
+  Type *Int32Ty;
+
+  FunctionCallee AsanSetPrivateBaseFunc;
+};
+
 } // end anonymous namespace
 
 static StringMap<GlobalVariable *> GlobalStringMap;
@@ -1569,7 +1617,10 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+  AddressSanitizerOnSpirv AsanSpirv(M);
+  if (AsanSpirv.isSpirv()) {
+    AsanSpirv.initializeCallbacks();
+
     // FIXME: W/A skip instrumentation if this module has ESIMD
     bool HasESIMD = false;
     for (auto &F : M) {
@@ -1606,8 +1657,10 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
         Options.UseAfterScope, Options.UseAfterReturn);
     const TargetLibraryInfo &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
     Modified |= FunctionSanitizer.instrumentFunction(F, &TLI);
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
       FunctionSanitizer.instrumentInitAsanLaunchInfo(F, &TLI);
+      AsanSpirv.instrumentPrivateBase(F);
+    }
   }
   Modified |= ModuleSanitizer.instrumentModule();
 
