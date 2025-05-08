@@ -276,18 +276,23 @@ ur_result_t createUrImgFromZeImage(ze_context_handle_t hContext,
                                    ze_device_handle_t hDevice,
                                    const ZeStruct<ze_image_desc_t> &ZeImageDesc,
                                    ur_exp_image_mem_native_handle_t *pImg) {
-  ze_image_handle_t ZeImage;
-  ZE2UR_CALL(zeImageCreate, (hContext, hDevice, &ZeImageDesc, &ZeImage));
-  ZE2UR_CALL(zeContextMakeImageResident, (hContext, hDevice, ZeImage));
+  v2::raii::ze_image_handle_t ZeImage;
+  try {
+    ZE2UR_CALL_THROWS(zeImageCreate,
+                      (hContext, hDevice, &ZeImageDesc, ZeImage.ptr()));
+    ZE2UR_CALL_THROWS(zeContextMakeImageResident,
+                      (hContext, hDevice, ZeImage.get()));
+  } catch (...) {
+    return exceptionToResult(std::current_exception());
+  }
 
   try {
     ur_bindless_mem_handle_t *urImg =
-        new ur_bindless_mem_handle_t(ZeImage, ZeImageDesc);
+        new ur_bindless_mem_handle_t(ZeImage.get(), ZeImageDesc);
+    ZeImage.release();
     *pImg = reinterpret_cast<ur_exp_image_mem_native_handle_t>(urImg);
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
+    return exceptionToResult(std::current_exception());
   }
   return UR_RESULT_SUCCESS;
 }
@@ -318,7 +323,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
   }
 
-  ze_image_handle_t ZeImage;
+  v2::raii::ze_image_handle_t ZeImage;
 
   ze_memory_allocation_properties_t MemAllocProperties{
       ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES, nullptr,
@@ -334,9 +339,15 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
         reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
     ze_image_handle_t zeImg1 = urImg->getZeImage();
 
-    ZE2UR_CALL(zeImageViewCreateExt,
-               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg1, &ZeImage));
-    ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
+    try {
+      ZE2UR_CALL_THROWS(
+          zeImageViewCreateExt,
+          (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg1, ZeImage.ptr()));
+      ZE2UR_CALL_THROWS(zeContextMakeImageResident,
+                        (zeCtx, hDevice->ZeDevice, ZeImage.get()));
+    } catch (...) {
+      return exceptionToResult(std::current_exception());
+    }
   } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_HOST ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
@@ -347,10 +358,14 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     } else {
       BindlessDesc.pNext = &PitchedDesc;
     }
-
-    ZE2UR_CALL(zeImageCreate,
-               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
-    ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
+    try {
+      ZE2UR_CALL_THROWS(zeImageCreate, (zeCtx, hDevice->ZeDevice, &ZeImageDesc,
+                                        ZeImage.ptr()));
+      ZE2UR_CALL_THROWS(zeContextMakeImageResident,
+                        (zeCtx, hDevice->ZeDevice, ZeImage.get()));
+    } catch (...) {
+      return exceptionToResult(std::current_exception());
+    }
   } else {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -372,14 +387,16 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   uint64_t DeviceOffset{};
   ze_image_handle_t ZeImageTranslated;
   ZE2UR_CALL(zelLoaderTranslateHandle,
-             (ZEL_HANDLE_IMAGE, ZeImage, (void **)&ZeImageTranslated));
+             (ZEL_HANDLE_IMAGE, ZeImage.get(), (void **)&ZeImageTranslated));
   ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr,
              (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
   std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
-  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
+  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage.get();
   Lock.release();
+  ZeImage.release();
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -519,6 +536,16 @@ getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
 }
 
 } // namespace
+
+bool is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
+  switch (ChannelOrder) {
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
+  case UR_IMAGE_CHANNEL_ORDER_RGX:
+    return true;
+  default:
+    return false;
+  }
+}
 
 /// Construct ZE image desc from UR image format and desc.
 ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
@@ -901,6 +928,144 @@ ur_result_t bindlessImagesHandleCopyFlags(
   }
 }
 
+bool verifyStandardImageSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
+
+  // Verify standard image dimensions are within device limits.
+  if (pImageDesc->depth != 0 && pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+    if ((hDevice->ZeDeviceImageProperties->maxImageDims3D == 0) ||
+        (pImageDesc->width >
+         hDevice->ZeDeviceImageProperties->maxImageDims3D) ||
+        (pImageDesc->height >
+         hDevice->ZeDeviceImageProperties->maxImageDims3D) ||
+        (pImageDesc->depth >
+         hDevice->ZeDeviceImageProperties->maxImageDims3D)) {
+      return false;
+    }
+  } else if (pImageDesc->height != 0 &&
+             pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+    if (((hDevice->ZeDeviceImageProperties->maxImageDims2D == 0) ||
+         (pImageDesc->width >
+          hDevice->ZeDeviceImageProperties->maxImageDims2D) ||
+         (pImageDesc->height >
+          hDevice->ZeDeviceImageProperties->maxImageDims2D))) {
+      return false;
+    }
+  } else if (pImageDesc->width != 0 &&
+             pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+    if ((hDevice->ZeDeviceImageProperties->maxImageDims1D == 0) ||
+        (pImageDesc->width >
+         hDevice->ZeDeviceImageProperties->maxImageDims1D)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool verifyMipmapImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify support for mipmap images.
+  // LevelZero currently does not support mipmap images.
+  if (pImageDesc->numMipLevel > 1) {
+    return false;
+  }
+
+  return true;
+}
+
+bool verifyCubemapImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify support for cubemap images.
+  // LevelZero current does not support cubemap images.
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
+    return false;
+  }
+
+  return true;
+}
+
+bool verifyLayeredImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify support for layered images.
+  // Bindless Images do not provide support for layered images/image arrays
+  // backed by USM pointers.
+  if (((pImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY) ||
+       (pImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY)) &&
+      imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
+    return false;
+  }
+
+  return true;
+}
+
+bool verifyGatherImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify support for gather images.
+  // LevelZero current does not support gather images.
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE_GATHER_EXP) {
+    return false;
+  }
+
+  return true;
+}
+
+bool verifyCommonImagePropertiesSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType) {
+
+  bool supported = true;
+
+  supported &=
+      verifyStandardImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  supported &=
+      verifyMipmapImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  supported &=
+      verifyLayeredImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  supported &=
+      verifyCubemapImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  supported &=
+      verifyGatherImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  // Verify 3-channel format support.
+  // LevelZero allows 3-channel formats for `uchar` and `ushort`.
+  if (is3ChannelOrder(pImageFormat->channelOrder)) {
+    switch (pImageFormat->channelType) {
+    default:
+      return false;
+    case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+    case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+      break;
+    }
+  }
+
+  // Verify unnormalized channel type support.
+  // LevelZero currently doesn't support unnormalized channel types.
+  switch (pImageFormat->channelType) {
+  default:
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+    return false;
+  }
+
+  return supported;
+}
+
 namespace ur::level_zero {
 
 ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
@@ -996,9 +1161,10 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
   auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
 
   if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
+    auto *handle = item->second;
     hDevice->ZeOffsetToImageHandleMap.erase(item);
     Lock.release();
-    ZE2UR_CALL(zeImageDestroy, (item->second));
+    ZE2UR_CALL(zeImageDestroy, (handle));
   } else {
     Lock.release();
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
@@ -1398,6 +1564,70 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
 
   externalMemoryData->urMemoryHandle =
       reinterpret_cast<ur_mem_handle_t>(*phRetMem);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urBindlessImagesGetImageMemoryHandleTypeSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Currently the Bindless Images extension does not allow creation of
+  // unsampled image handles from non-opaque (USM) memory.
+  if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
+    *pSupportedRet = false;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Bindless Images do not allow creation of `unsampled_image_handle`s for
+  // mipmap images.
+  if (pImageDesc->numMipLevel > 1) {
+    *pSupportedRet = false;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urBindlessImagesGetImageSampledHandleSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
 
   return UR_RESULT_SUCCESS;
 }

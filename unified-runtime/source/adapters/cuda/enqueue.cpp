@@ -1682,10 +1682,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   UR_CHECK_ERROR(cuPointerGetAttribute(
       &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
   if (!IsManaged) {
-    setErrorMessage(
-        "Memory advice ignored as memory advices only works with USM",
-        UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    logger::warning(
+        "Memory advice ignored as memory advices only works with USM.");
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t Result = UR_RESULT_SUCCESS;

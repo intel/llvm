@@ -7938,6 +7938,195 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageMemoryHandleTypeSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryHandleTypeSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for allocating the given image
+    /// backing memory handle type
+    ur_bool_t *pSupportedRet) {
+  auto pfnGetImageMemoryHandleTypeSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageMemoryHandleTypeSupportExp;
+
+  if (nullptr == pfnGetImageMemoryHandleTypeSupportExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pImageDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pImageFormat)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSupportedRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  ur_result_t result = pfnGetImageMemoryHandleTypeSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageUnsampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating unsampled image
+    /// handles
+    ur_bool_t *pSupportedRet) {
+  auto pfnGetImageUnsampledHandleSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageUnsampledHandleSupportExp;
+
+  if (nullptr == pfnGetImageUnsampledHandleSupportExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pImageDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pImageFormat)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSupportedRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  ur_result_t result = pfnGetImageUnsampledHandleSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageSampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageSampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating sampled image
+    /// handles
+    ur_bool_t *pSupportedRet) {
+  auto pfnGetImageSampledHandleSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageSampledHandleSupportExp;
+
+  if (nullptr == pfnGetImageSampledHandleSupportExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pImageDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pImageFormat)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSupportedRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  ur_result_t result = pfnGetImageSampledHandleSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     /// [in] handle of the context object
@@ -10844,6 +11033,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   dditable.pfnImageGetInfoExp = pDdiTable->pfnImageGetInfoExp;
   pDdiTable->pfnImageGetInfoExp =
       ur_validation_layer::urBindlessImagesImageGetInfoExp;
+
+  dditable.pfnGetImageMemoryHandleTypeSupportExp =
+      pDdiTable->pfnGetImageMemoryHandleTypeSupportExp;
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      ur_validation_layer::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+
+  dditable.pfnGetImageUnsampledHandleSupportExp =
+      pDdiTable->pfnGetImageUnsampledHandleSupportExp;
+  pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+      ur_validation_layer::urBindlessImagesGetImageUnsampledHandleSupportExp;
+
+  dditable.pfnGetImageSampledHandleSupportExp =
+      pDdiTable->pfnGetImageSampledHandleSupportExp;
+  pDdiTable->pfnGetImageSampledHandleSupportExp =
+      ur_validation_layer::urBindlessImagesGetImageSampledHandleSupportExp;
 
   dditable.pfnMipmapGetLevelExp = pDdiTable->pfnMipmapGetLevelExp;
   pDdiTable->pfnMipmapGetLevelExp =

@@ -1,3 +1,5 @@
+include(CheckCXXCompilerFlag)
+
 add_executable(syclbin-dump syclbin-dump.cpp)
 
 link_llvm_libs(syclbin-dump LLVMSupport LLVMObject)
@@ -12,8 +14,8 @@ if (WIN32 AND "${build_type_lower}" MATCHES "debug")
 endif()
 target_link_libraries(syclbin-dump PRIVATE ${sycl_lib})
 
-if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-    (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+check_cxx_compiler_flag(-fno-rtti COMPILER_HAS_NORTTI_FLAG)
+if (COMPILER_HAS_NORTTI_FLAG)
   target_compile_options(syclbin-dump PRIVATE -fno-rtti)
 endif()
 

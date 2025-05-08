@@ -137,15 +137,18 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *, const char *,
+                           bool) {
+  return ZeResult;
+}
+#else
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
   UR_LOG(DEBUG, "ZE ---> {}{}", ZeName, ZeArgs);
 
   if (ZeResult == ZE_RESULT_SUCCESS) {
-    if (UrL0LeaksDebug) {
-      ++(*ZeCallCount)[ZeName];
-    }
-    return ZE_RESULT_SUCCESS;
+    return ZeResult;
   }
 
   if (TraceError) {
@@ -155,6 +158,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   }
   return ZeResult;
 }
+#endif
 
 // Specializations for various L0 structures
 template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
@@ -343,13 +347,12 @@ getZeStructureType<ze_intel_device_block_array_exp_properties_t>() {
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
-thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
+thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize]{};
 thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode) {
   assert(strlen(pMessage) < MaxMessageSize);
   // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
@@ -357,9 +360,4 @@ thread_local int32_t ErrorAdapterNativeCode;
   strncpy(ErrorMessage, pMessage, MaxMessageSize - 1);
   ErrorMessageCode = ErrorCode;
   ErrorAdapterNativeCode = AdapterErrorCode;
-}
-
-ur_result_t zerPluginGetLastError(char **message) {
-  *message = &ErrorMessage[0];
-  return ErrorMessageCode;
 }
