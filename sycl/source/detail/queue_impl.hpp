@@ -339,7 +339,7 @@ public:
                const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
-    SubmissionInfo SI{};
+    v1::SubmissionInfo SI{};
     SI.SecondaryQueue() = SecondQueue;
     if (PostProcess)
       SI.PostProcessorFunc() = *PostProcess;
@@ -357,7 +357,7 @@ public:
   /// \return a SYCL event object for the submitted command group.
   event submit_with_event(const detail::type_erased_cgfo_ty &CGF,
                           const std::shared_ptr<queue_impl> &Self,
-                          const SubmissionInfo &SubmitInfo,
+                          const v1::SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
     event ResEvent =
@@ -368,7 +368,7 @@ public:
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const std::shared_ptr<queue_impl> &Self,
-                            const SubmissionInfo &SubmitInfo,
+                            const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
     submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
@@ -858,7 +858,7 @@ protected:
                     const std::shared_ptr<queue_impl> &Self,
                     queue_impl *SecondaryQueue, bool CallerNeedsEvent,
                     const detail::code_location &Loc, bool IsTopCodeLoc,
-                    const SubmissionInfo &SubmitInfo);
+                    const v1::SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
