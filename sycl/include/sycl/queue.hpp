@@ -137,9 +137,7 @@ public:
     return MSecondaryQueue;
   }
 
-  ext::oneapi::experimental::event_mode_enum &EventMode() {
-    return MEventMode;
-  }
+  ext::oneapi::experimental::event_mode_enum &EventMode() { return MEventMode; }
   const ext::oneapi::experimental::event_mode_enum &EventMode() const {
     return MEventMode;
   }
