@@ -259,8 +259,10 @@ public:
       if (!MCachePtr)
         return;
 
-      // TODO: do we need lock for Subcache?
-      // Single subcache might be used by different contexts
+      // Single subcache might be used by different contexts.
+      // Wrappers are stored in the fast kernel cache and their destruction
+      // should be done while locking MFastKernelCacheMutex, no need for
+      // additional locks here.
       for (auto it = MCachePtr->begin(); it != MCachePtr->end();) {
         if (it->first.second == MUrContext) {
           it = MCachePtr->erase(it);
