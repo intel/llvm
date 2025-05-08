@@ -423,7 +423,8 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
         if ((loader_version.major == 1 && loader_version.minor < 21) ||
             (loader_version.major == 1 && loader_version.minor == 21 &&
              loader_version.patch < 2)) {
-          logger::warning(
+          UR_LOG(
+              WARN,
               "WARNING: Level Zero Loader version is older than 1.21.2. "
               "Please update to the latest version for API logging support.\n");
         }
