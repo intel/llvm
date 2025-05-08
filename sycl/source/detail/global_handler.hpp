@@ -11,7 +11,6 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
-#include <deque>
 #include <memory>
 #include <unordered_map>
 

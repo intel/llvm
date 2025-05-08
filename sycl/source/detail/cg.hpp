@@ -46,7 +46,6 @@ using EventImplPtr = std::shared_ptr<event_impl>;
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
-struct FastKernelCacheWrapperT;
 
 // The structure represents kernel argument.
 class ArgDesc {
