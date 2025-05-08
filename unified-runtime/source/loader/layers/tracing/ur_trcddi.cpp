@@ -7204,10 +7204,11 @@ urBindlessImagesGetImageMemoryHandleTypeSupportExp(
         args_str,
         UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP,
         &params);
-    UR_LOG_L(logger, INFO,
-             "   <--- urBindlessImagesGetImageMemoryHandleTypeSupportExp({}) "
-             "-> {};\n",
-             args_str.str(), result);
+    UR_LOG_L(
+        logger, INFO,
+        "   <--- urBindlessImagesGetImageMemoryHandleTypeSupportExp({}) -> "
+        "{};\n",
+        args_str.str(), result);
   }
 
   return result;
@@ -7265,8 +7266,8 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
         UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP,
         &params);
     UR_LOG_L(logger, INFO,
-             "   <--- urBindlessImagesGetImageUnsampledHandleSupportExp({}) -> "
-             "{};\n",
+             "   <--- urBindlessImagesGetImageUnsampledHandleSupportExp({}) "
+             "-> {};\n",
              args_str.str(), result);
   }
 
