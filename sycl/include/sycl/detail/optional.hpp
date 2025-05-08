@@ -63,7 +63,7 @@ public:
   template <typename U> optional &operator=(const optional<U> &Other) {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
-    ContainsValue = bool(Other);
+    ContainsValue = Other.has_value();
     new (Storage) T(Other.value());
     return *this;
   }
