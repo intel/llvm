@@ -1216,7 +1216,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
                                                 uint32_t NumEntries,
                                                 ur_device_handle_t *phDevices,
                                                 uint32_t *pNumDevices) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   const bool AskingForAll = DeviceType == UR_DEVICE_TYPE_ALL;
   const bool AskingForDefault = DeviceType == UR_DEVICE_TYPE_DEFAULT;
   const bool AskingForGPU = DeviceType == UR_DEVICE_TYPE_GPU;
@@ -1234,13 +1233,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
         phDevices[i] = hPlatform->Devices[i].get();
       }
     }
-
-    return Result;
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
+
+  return UR_RESULT_SUCCESS;
 }
 
 /// Gets the native CUDA handle of a UR device object
