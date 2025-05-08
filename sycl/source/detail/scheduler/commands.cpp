@@ -2385,7 +2385,9 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    KernelNameStrRefT KernelName) {
+    KernelNameStrRefT KernelName, const void *DirectArgs = nullptr,
+    const int NumDirectArgs = 0,
+    detail::kernel_param_desc_t (*ParamDescGetter)(int) = nullptr) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2397,13 +2399,35 @@ static ur_result_t SetKernelParamsAndLaunch(
                               : Empty);
   }
 
-  auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
-                  &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-    SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                      Queue->getContextImplPtr(), Arg, NextTrueIndex);
-  };
-
-  applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+  if (DirectArgs) {
+    // TODO: Refactor to avoid SetArgBasedOnType duplication
+    // TODO: Find a way to use the built-ins instead of variables.
+    for (int I = 0; I < NumDirectArgs; ++I) {
+      auto ParamDesc = ParamDescGetter(I);
+      void *ArgPtr = (char *)DirectArgs + ParamDesc.offset;
+      switch (ParamDesc.kind) {
+      case kernel_param_kind_t::kind_std_layout: {
+        int Size = ParamDesc.info;
+        Adapter->call<UrApiKind::urKernelSetArgValue>(Kernel, I, Size, nullptr,
+                                                      ArgPtr);
+        break;
+      }
+      case kernel_param_kind_t::kind_pointer: {
+        const void *Ptr = *static_cast<const void *const *>(ArgPtr);
+        Adapter->call<UrApiKind::urKernelSetArgPointer>(Kernel, I, nullptr,
+                                                        Ptr);
+        break;
+      }
+      }
+    }
+  } else {
+    auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
+                    &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
+      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
+                        Queue->getContextImplPtr(), Arg, NextTrueIndex);
+    };
+    applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+  }
 
   std::optional<int> ImplicitLocalArg =
       ProgramManager::getInstance().kernelImplicitLocalArgPos(KernelName);
@@ -2655,7 +2679,9 @@ void enqueueImpKernel(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
-    const RTDeviceBinaryImage *BinImage) {
+    const RTDeviceBinaryImage *BinImage, const void *DirectArgs,
+    const int NumDirectArgs,
+    detail::kernel_param_desc_t (*ParamDescGetter)(int)) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto &ContextImpl = Queue->getContextImplPtr();
@@ -2739,7 +2765,7 @@ void enqueueImpKernel(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, KernelName);
+        BinImage, KernelName, DirectArgs, NumDirectArgs, ParamDescGetter);
 
     const AdapterPtr &Adapter = Queue->getAdapter();
     if (!SyclKernelImpl && !MSyclKernel) {

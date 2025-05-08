@@ -625,7 +625,9 @@ void enqueueImpKernel(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
-    const RTDeviceBinaryImage *BinImage = nullptr);
+    const RTDeviceBinaryImage *BinImage = nullptr,
+    const void *DirectArgs = nullptr, const int NumDirectArgs = 0,
+    detail::kernel_param_desc_t (*ParamDescGetter)(int) = nullptr);
 
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.

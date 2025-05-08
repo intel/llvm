@@ -398,7 +398,7 @@ event handler::finalize() {
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
   // be thrown.
-  {
+  if (!impl->MDirectArgs) {
     for (const auto &arg : impl->MArgs) {
       if (arg.MType != detail::kernel_param_kind_t::kind_accessor)
         continue;
@@ -537,13 +537,16 @@ event handler::finalize() {
               detail::retrieveKernelBinary(MQueue, MKernelName.data());
           assert(BinImage && "Failed to obtain a binary image.");
         }
-        enqueueImpKernel(MQueue, impl->MNDRDesc, impl->MArgs,
-                         KernelBundleImpPtr, MKernel.get(), MKernelName.data(),
-                         RawEvents,
-                         DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
-                         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-                         impl->MKernelUsesClusterLaunch,
-                         impl->MKernelWorkGroupMemorySize, BinImage);
+
+        enqueueImpKernel(
+            MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
+            MKernel.get(), MKernelName.data(), RawEvents,
+            DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
+            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+            impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+            BinImage, impl->MDirectArgs, impl->MNumDirectArgs,
+            impl->MParamDescGetter);
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (!DiscardEvent) {
@@ -2248,6 +2251,14 @@ void handler::saveCodeLoc(detail::code_location CodeLoc) {
 void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
+}
+
+void handler::prepareForDirectArgumentCopy(
+    void *KernelFuncPtr, int NumArgs,
+    detail::kernel_param_desc_t (*ParamDescGetter)(int)) {
+  impl->MDirectArgs = KernelFuncPtr;
+  impl->MNumDirectArgs = NumArgs;
+  impl->MParamDescGetter = ParamDescGetter;
 }
 
 } // namespace _V1

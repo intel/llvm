@@ -773,23 +773,32 @@ private:
         "-fsycl-host-compiler-options='/std:c++latest' "
         "might also help.");
 #endif
-    // Empty name indicates that the compilation happens without integration
-    // header, so don't perform things that require it.
-    if constexpr (KernelHasName) {
-      // TODO support ESIMD in no-integration-header case too.
+    // If a kernel has no special captures, we can extract the arguments
+    // from the kernel object directly when the kernel is enqueued.
+    if constexpr (detail::hasSpecialCaptures<KernelName>()) {
+      // Empty name indicates that the compilation happens without integration
+      // header, so don't perform things that require it.
+      if constexpr (KernelHasName) {
+        // TODO support ESIMD in no-integration-header case too.
 
-      clearArgs();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
-                                   &(detail::getKernelParamDesc<KernelName>),
-                                   detail::getKernelNumParams<KernelName>(),
-                                   detail::isKernelESIMD<KernelName>());
-      MKernelName = detail::getKernelName<KernelName>();
+        clearArgs();
+        extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
+                                     &(detail::getKernelParamDesc<KernelName>),
+                                     detail::getKernelNumParams<KernelName>(),
+                                     detail::isKernelESIMD<KernelName>());
+        MKernelName = detail::getKernelName<KernelName>();
+      } else {
+        // In case w/o the integration header it is necessary to process
+        // accessors from the list(which are associated with this handler) as
+        // arguments. We must copy the associated accessors as they are checked
+        // later during finalize.
+        setArgsToAssociatedAccessors();
+      }
     } else {
-      // In case w/o the integration header it is necessary to process
-      // accessors from the list(which are associated with this handler) as
-      // arguments. We must copy the associated accessors as they are checked
-      // later during finalize.
-      setArgsToAssociatedAccessors();
+      MKernelName = detail::getKernelName<KernelName>();
+      prepareForDirectArgumentCopy((void *)&KernelFunc,
+                                   detail::getKernelNumParams<KernelName>(),
+                                   &detail::getKernelParamDesc<KernelName>);
     }
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
@@ -3732,6 +3741,10 @@ private:
   void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                   sycl::range<3> LocalSize, sycl::id<3> Offset,
                                   int Dims);
+
+  void prepareForDirectArgumentCopy(
+      void *KernelFuncPtr, int NumArgs,
+      detail::kernel_param_desc_t (*ParamDescGetter)(int));
 
   friend class detail::HandlerAccess;
 
