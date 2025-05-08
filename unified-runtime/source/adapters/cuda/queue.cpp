@@ -202,7 +202,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   } else {
     setErrorMessage("Incorrect native stream flags, expecting "
                     "CU_STREAM_DEFAULT or CU_STREAM_NON_BLOCKING",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
