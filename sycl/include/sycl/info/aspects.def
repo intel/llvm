@@ -78,4 +78,5 @@ __SYCL_ASPECT(ext_intel_current_clock_throttle_reasons, 84)
 __SYCL_ASPECT(ext_intel_fan_speed, 85)
 __SYCL_ASPECT(ext_intel_power_limits, 86)
 __SYCL_ASPECT(ext_oneapi_async_memory_alloc, 87)
+__SYCL_ASPECT(ext_oneapi_memory_export_linear, 88)
 

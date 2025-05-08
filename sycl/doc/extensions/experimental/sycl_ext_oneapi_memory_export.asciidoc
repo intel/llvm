@@ -1,0 +1,285 @@
+= sycl_ext_oneapi_memory_export
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) Codeplay. All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Backend support status
+
+This extension is currently implemented in {dpcpp} only for GPU devices and
+only when using the Level Zero backend.  Attempting to use this extension in
+kernels that run on other devices or backends will not work. 
+Be aware that the compiler may not be able to issue a diagnostic to
+warn you if this happens.
+
+== Overview
+
+This extension provides new APIs for allocating and deallocating exportable
+device memory in SYCL, and obtaining a handle to that memory which can be used
+in external APIs. This is useful when applications want to share device memory
+between different APIs.
+
+Without the ability to allocate exportable memory and obtain an interoperable
+handle, applications would have to copy device memory allocated by one API to
+the host, then copy that host memory back to the device in a memory region
+allocated by a second API. If the second API modifies that memory, then this
+process would have to be repeated in the opposite direction in order for the
+first API to see the changes made to that memory.
+
+This extension enables copy-free sharing of SYCL allocated device memory with
+external APIs.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification. An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_MEMORY_EXPORT` to one of the values defined in the
+table below. Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[frame="none",options="header"]
+|======================
+|Rev | Description
+|1   | Initial draft of the proposal
+|======================
+
+=== Querying device support
+
+We provide the following device aspect to query for support of exporting memory.
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_memory_export_linear` | Indicates if the device supports
+the allocation of exportable linear memory and exporting that memory to an
+interoperable handle.
+|======================
+
+=== External Memory Resource Handle Types [[external_mem_res_handles]]
+
+This extension provides two types of external memory resource handles. These
+types are used to import the memory allocated by this extension into external
+APIs.
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+// External memory resource handle types.
+enum class external_mem_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+};
+
+// POSIX file descriptor handle type.
+struct resource_fd {
+  int file_descriptor;
+};
+
+// Windows HANDLE type.
+struct resource_win32_handle {
+  void *handle;
+};
+
+}
+```
+
+The `external_mem_handle_type` enum class defines the types of external
+memory resource handles that can be exported by this extension. The `opaque_fd`
+and `win32_nt_handle` values are used during allocation of exportable memory to
+indicate the type of handle that will later be returned by the
+`export_memory_handle` function.
+
+The `opaque_fd` handle type corresponds to the `resource_fd` struct.
+The `win32_nt_handle` handle type corresponds to the `resource_win32_handle`
+struct.
+
+The `resource_fd` handle type represents a POSIX file descriptor commonly used
+on POSIX systems to share resources between applications and APIs.
+
+The `resource_win32_handle` handle type represents a Windows NT handle used on
+Windows systems to share resources between applications and APIs.
+
+=== API of the extension
+
+```c++
+
+namespace sycl::ext::oneapi::experimental {
+
+void *alloc_exportable_memory(size_t size, size_t alignment,
+                              external_mem_handle_type externalMemHandleType,
+                              const sycl::device &syclDevice,
+                              const sycl::context &syclContext);
+
+void *alloc_exportable_memory(size_t size, size_t alignment,
+                              external_mem_handle_type externalMemHandleType,
+                              const sycl::queue &syclQueue);
+}
+```
+
+The `alloc_exportable_memory` function allocates memory on the device marked as
+having the ability to later export that memory to an external memory resource
+handle.
+
+Memory allocated through this function must only be freed using
+`free_exportable_memory`. Using `sycl::free` to deallocate memory allocated with
+this function constitutes undefined behavior.
+
+With the exception of the `sycl::free` function from the core SYCL
+specification, pointers to memory allocated through this function may be passed
+to any core SYCL specification API accepting device USM memory pointers.
+
+Memory allocated through this function is only available on device.
+
+Memory allocated through this function must have a linear memory layout on the
+device.
+
+If an invalid `externalMemHandleType` is passed, the function will throw a
+`sycl::exception` with the `errc::invalid` code.
+
+If any error occurs while allocating the memory, the function will throw a
+`sycl::exception` with the `errc::runtime` code.
+
+```c++
+
+namespace sycl::ext::oneapi::experimental {
+
+template <typename ResourceType>
+ResourceType export_memory_handle(void *deviceMemory,
+                                  const sycl::device &syclDevice, 
+                                  const sycl::context &syclContext);
+
+template <typename ResourceType>
+ResourceType export_memory_handle(void *deviceMemory,
+                                  const sycl::queue &syclQueue);
+}
+```
+
+The `export_memory_handle` function accepts a `void *` representing a device
+allocation made using `alloc_exportable_memory`.
+
+The return type is determined by the template parameter, `ResourceType`, and can
+be any of the types defined in <<external_mem_res_handles>>.
+
+The returned handle can be used to import the SYCL allocated memory into an
+external API, such as Vulkan or DirectX.
+
+If any error occurs while exporting the memory handle, the function will throw a
+`sycl::exception` with the `errc::runtime` code.
+
+```c++
+
+namespace sycl::ext::oneapi::experimental {
+
+void free_exportable_memory(void *deviceMemory,
+                            const sycl::device &syclDevice, 
+                            const sycl::context &syclContext);
+
+void free_exportable_memory(void *deviceMemory,
+                            const sycl::queue &syclQueue);
+}
+```
+
+The `free_exportable_memory` function deallocates memory, represented by the
+`void *` parameter, which has been previously allocated through
+`alloc_exportable_memory`.
+
+Using `free_exportable_memory` on memory allocated through any function other
+than `alloc_exportable_memory` constitutes undefined behavior.
+
+Using `free_exportable_memory` on a memory region invalidates the handle
+returned by `export_memory_handle` for that region. The handle must not be used
+after the memory has been freed.
+
+If any error occurs while freeing the memory, the function will throw a
+`sycl::exception` with the `errc::runtime` code.
+
+== Issues and Limitations
+
+=== Memory Layout
+
+This extension is currently limited to exporting memory with a linear layout. It
+does not support exporting memory with a non-linear layout, such as the
+"optimal" layout which would have an equivalent in Vulkan as
+`VK_IMAGE_LAYOUT_OPTIMAL`, or in CUDA as `cudaArray`. These "optimal" layouts
+are typically optimized for texture access. The reason for this limitation is
+that currently, no backend supported by {dpcpp} supports exporting memory with
+a non-linear layout. This may change in the future, and if it does, we could
+then amend the extension to support exporting memory with a non-linear layout.
+
+=== Closing OS Handles
+
+When a call is made to `export_memory_handle`, the {dpcpp} implementation will
+internally create an OS specific handle to the memory region. Both CUDA and
+Level Zero allow the user to specify the type of handle to be created. However,
+this is not always respected by the Level Zero driver. For this reason, if the
+user wishes to close the OS handle returned by `export_memory_handle` without
+freeing the memory, they must call the appropriate OS specific API to close
+the type of handle returned by the function.
+When exporting a file descriptor handle on Linux, our testing has shown that the
+`close` Linux API should work.
+On Windows systems, the type of OS handle returned by `export_memory_handle` may
+not be an NT handle (e.g. it may be a KMT handle), and therefore the user may
+experience issues when trying to close the handle using the `CloseHandle`
+Windows API.
+
+The issue of closing OS handles returned by `export_memory_handle` is something
+we are aware of and want to address in future versions of this extension. Once
+we have a solution, we will update this specification with a SYCL API that will
+close the OS handles returned by `export_memory_handle` without freeing the
+memory.
+
+== Revision History
+
+[frame="none",options="header"]
+|===============================================================================
+|Rev  |Date       | Author        | Changes
+|1.0  |2025-06-17 | Przemek Malon | Initial draft
+|===============================================================================
