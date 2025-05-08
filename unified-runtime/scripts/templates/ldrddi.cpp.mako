@@ -71,6 +71,7 @@ namespace ur_loader
         return ${X}_RESULT_SUCCESS;
         %else:
         auto *dditable = *reinterpret_cast<${x}_dditable_t **>(${th.get_dditable_field(obj)});
+        dditable->validate(__PRETTY_FUNCTION__);
 
         auto *${th.make_pfn_name(n, tags, obj)} = dditable->${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)};
         if( nullptr == ${th.make_pfn_name(n, tags, obj)} )

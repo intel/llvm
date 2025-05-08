@@ -18,6 +18,7 @@
 #pragma once
 #endif
 #include "ur_api.h"
+#include <iostream>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -2032,6 +2033,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetDeviceProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all DDI tables
 typedef struct ur_dditable_t {
+  static constexpr uint64_t MAGIC_VAL = 0x123456789;
+  uint64_t magic;
   ur_adapter_dditable_t Adapter;
   ur_platform_dditable_t Platform;
   ur_context_dditable_t Context;
@@ -2054,6 +2057,13 @@ typedef struct ur_dditable_t {
   ur_usm_p2p_exp_dditable_t UsmP2PExp;
   ur_virtual_mem_dditable_t VirtualMem;
   ur_device_dditable_t Device;
+
+  void validate(const char *Func) {
+    if (magic != MAGIC_VAL) {
+      std::cerr << "INVALID DDITABLE FOUND in " << Func << "\n";
+      abort();
+    }
+  }
 } ur_dditable_t;
 
 #if defined(__cplusplus)

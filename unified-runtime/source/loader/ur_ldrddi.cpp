@@ -62,6 +62,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     ur_adapter_handle_t hAdapter) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAdapterRelease = dditable->Global.pfnAdapterRelease;
   if (nullptr == pfnAdapterRelease)
@@ -78,6 +79,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     ur_adapter_handle_t hAdapter) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAdapterRetain = dditable->Global.pfnAdapterRetain;
   if (nullptr == pfnAdapterRetain)
@@ -100,6 +102,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
     int32_t *pError) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAdapterGetLastError = dditable->Global.pfnAdapterGetLastError;
   if (nullptr == pfnAdapterGetLastError)
@@ -129,6 +132,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAdapterGetInfo = dditable->Global.pfnAdapterGetInfo;
   if (nullptr == pfnAdapterGetInfo)
@@ -152,6 +156,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallback(
     ur_logger_level_t level) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetLoggerCallback = dditable->Adapter.pfnSetLoggerCallback;
   if (nullptr == pfnSetLoggerCallback)
@@ -170,6 +175,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
     ur_logger_level_t level) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetLoggerCallbackLevel = dditable->Adapter.pfnSetLoggerCallbackLevel;
   if (nullptr == pfnSetLoggerCallbackLevel)
@@ -197,6 +203,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     uint32_t *pNumPlatforms) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGet = dditable->Platform.pfnGet;
   if (nullptr == pfnGet)
@@ -226,6 +233,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPlatform);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Platform.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -244,6 +252,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_api_version_t *pVersion) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPlatform);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetApiVersion = dditable->Platform.pfnGetApiVersion;
   if (nullptr == pfnGetApiVersion)
@@ -262,6 +271,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_native_handle_t *phNativePlatform) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPlatform);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Platform.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -284,6 +294,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_platform_handle_t *phPlatform) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithNativeHandle =
       dditable->Platform.pfnCreateWithNativeHandle;
@@ -307,6 +318,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char **ppPlatformOption) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPlatform);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetBackendOption = dditable->Platform.pfnGetBackendOption;
   if (nullptr == pfnGetBackendOption)
@@ -337,6 +349,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     uint32_t *pNumDevices) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPlatform);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGet = dditable->Device.pfnGet;
   if (nullptr == pfnGet)
@@ -367,6 +380,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Device.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -383,6 +397,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     ur_device_handle_t hDevice) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->Device.pfnRetain;
   if (nullptr == pfnRetain)
@@ -399,6 +414,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     ur_device_handle_t hDevice) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->Device.pfnRelease;
   if (nullptr == pfnRelease)
@@ -426,6 +442,7 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     uint32_t *pNumDevicesRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPartition = dditable->Device.pfnPartition;
   if (nullptr == pfnPartition)
@@ -453,6 +470,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
     uint32_t *pSelectedBinary) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSelectBinary = dditable->Device.pfnSelectBinary;
   if (nullptr == pfnSelectBinary)
@@ -471,6 +489,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_native_handle_t *phNativeDevice) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Device.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -493,6 +512,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_device_handle_t *phDevice) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithNativeHandle = dditable->Device.pfnCreateWithNativeHandle;
   if (nullptr == pfnCreateWithNativeHandle)
@@ -516,6 +536,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     uint64_t *pHostTimestamp) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetGlobalTimestamps = dditable->Device.pfnGetGlobalTimestamps;
   if (nullptr == pfnGetGlobalTimestamps)
@@ -538,6 +559,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     ur_context_handle_t *phContext) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(phDevices[0]);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreate = dditable->Context.pfnCreate;
   if (nullptr == pfnCreate)
@@ -554,6 +576,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
     ur_context_handle_t hContext) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->Context.pfnRetain;
   if (nullptr == pfnRetain)
@@ -570,6 +593,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     ur_context_handle_t hContext) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->Context.pfnRelease;
   if (nullptr == pfnRelease)
@@ -600,6 +624,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Context.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -618,6 +643,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_native_handle_t *phNativeContext) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Context.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -645,6 +671,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_context_handle_t *phContext) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithNativeHandle = dditable->Context.pfnCreateWithNativeHandle;
   if (nullptr == pfnCreateWithNativeHandle)
@@ -666,6 +693,7 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
     void *pUserData) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetExtendedDeleter = dditable->Context.pfnSetExtendedDeleter;
   if (nullptr == pfnSetExtendedDeleter)
@@ -692,6 +720,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     ur_mem_handle_t *phMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImageCreate = dditable->Mem.pfnImageCreate;
   if (nullptr == pfnImageCreate)
@@ -717,6 +746,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     ur_mem_handle_t *phBuffer) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnBufferCreate = dditable->Mem.pfnBufferCreate;
   if (nullptr == pfnBufferCreate)
@@ -733,6 +763,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
     ur_mem_handle_t hMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hMem);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->Mem.pfnRetain;
   if (nullptr == pfnRetain)
@@ -749,6 +780,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
     ur_mem_handle_t hMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hMem);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->Mem.pfnRelease;
   if (nullptr == pfnRelease)
@@ -773,6 +805,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     ur_mem_handle_t *phMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnBufferPartition = dditable->Mem.pfnBufferPartition;
   if (nullptr == pfnBufferPartition)
@@ -794,6 +827,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_native_handle_t *phNativeMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hMem);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Mem.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -816,6 +850,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ur_mem_handle_t *phMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnBufferCreateWithNativeHandle =
       dditable->Mem.pfnBufferCreateWithNativeHandle;
@@ -844,6 +879,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     ur_mem_handle_t *phMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImageCreateWithNativeHandle =
       dditable->Mem.pfnImageCreateWithNativeHandle;
@@ -875,6 +911,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hMemory);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Mem.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -904,6 +941,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hMemory);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImageGetInfo = dditable->Mem.pfnImageGetInfo;
   if (nullptr == pfnImageGetInfo)
@@ -924,6 +962,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
     ur_sampler_handle_t *phSampler) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreate = dditable->Sampler.pfnCreate;
   if (nullptr == pfnCreate)
@@ -940,6 +979,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     ur_sampler_handle_t hSampler) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hSampler);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->Sampler.pfnRetain;
   if (nullptr == pfnRetain)
@@ -956,6 +996,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     ur_sampler_handle_t hSampler) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hSampler);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->Sampler.pfnRelease;
   if (nullptr == pfnRelease)
@@ -981,6 +1022,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hSampler);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Sampler.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -999,6 +1041,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_native_handle_t *phNativeSampler) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hSampler);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Sampler.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -1021,6 +1064,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_sampler_handle_t *phSampler) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithNativeHandle = dditable->Sampler.pfnCreateWithNativeHandle;
   if (nullptr == pfnCreateWithNativeHandle)
@@ -1046,6 +1090,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     void **ppMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnHostAlloc = dditable->USM.pfnHostAlloc;
   if (nullptr == pfnHostAlloc)
@@ -1072,6 +1117,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     void **ppMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnDeviceAlloc = dditable->USM.pfnDeviceAlloc;
   if (nullptr == pfnDeviceAlloc)
@@ -1098,6 +1144,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     void **ppMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSharedAlloc = dditable->USM.pfnSharedAlloc;
   if (nullptr == pfnSharedAlloc)
@@ -1116,6 +1163,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     void *pMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnFree = dditable->USM.pfnFree;
   if (nullptr == pfnFree)
@@ -1143,6 +1191,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetMemAllocInfo = dditable->USM.pfnGetMemAllocInfo;
   if (nullptr == pfnGetMemAllocInfo)
@@ -1165,6 +1214,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
     ur_usm_pool_handle_t *ppPool) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolCreate = dditable->USM.pfnPoolCreate;
   if (nullptr == pfnPoolCreate)
@@ -1181,6 +1231,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
     ur_usm_pool_handle_t pPool) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(pPool);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolRetain = dditable->USM.pfnPoolRetain;
   if (nullptr == pfnPoolRetain)
@@ -1197,6 +1248,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
     ur_usm_pool_handle_t pPool) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(pPool);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolRelease = dditable->USM.pfnPoolRelease;
   if (nullptr == pfnPoolRelease)
@@ -1222,6 +1274,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPool);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolGetInfo = dditable->USM.pfnPoolGetInfo;
   if (nullptr == pfnPoolGetInfo)
@@ -1254,6 +1307,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGranularityGetInfo = dditable->VirtualMem.pfnGranularityGetInfo;
   if (nullptr == pfnGranularityGetInfo)
@@ -1280,6 +1334,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
     void **ppStart) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnReserve = dditable->VirtualMem.pfnReserve;
   if (nullptr == pfnReserve)
@@ -1300,6 +1355,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
     size_t size) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnFree = dditable->VirtualMem.pfnFree;
   if (nullptr == pfnFree)
@@ -1326,6 +1382,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
     ur_virtual_mem_access_flags_t flags) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMap = dditable->VirtualMem.pfnMap;
   if (nullptr == pfnMap)
@@ -1346,6 +1403,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
     size_t size) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUnmap = dditable->VirtualMem.pfnUnmap;
   if (nullptr == pfnUnmap)
@@ -1368,6 +1426,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_virtual_mem_access_flags_t flags) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetAccess = dditable->VirtualMem.pfnSetAccess;
   if (nullptr == pfnSetAccess)
@@ -1400,6 +1459,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->VirtualMem.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -1426,6 +1486,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_physical_mem_handle_t *phPhysicalMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreate = dditable->PhysicalMem.pfnCreate;
   if (nullptr == pfnCreate)
@@ -1442,6 +1503,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_physical_mem_handle_t hPhysicalMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPhysicalMem);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->PhysicalMem.pfnRetain;
   if (nullptr == pfnRetain)
@@ -1458,6 +1520,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_physical_mem_handle_t hPhysicalMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPhysicalMem);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->PhysicalMem.pfnRelease;
   if (nullptr == pfnRelease)
@@ -1486,6 +1549,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPhysicalMem);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->PhysicalMem.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -1510,6 +1574,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_program_handle_t *phProgram) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithIL = dditable->Program.pfnCreateWithIL;
   if (nullptr == pfnCreateWithIL)
@@ -1541,6 +1606,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_program_handle_t *phProgram) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithBinary = dditable->Program.pfnCreateWithBinary;
   if (nullptr == pfnCreateWithBinary)
@@ -1562,6 +1628,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     const char *pOptions) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnBuild = dditable->Program.pfnBuild;
   if (nullptr == pfnBuild)
@@ -1582,6 +1649,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
     const char *pOptions) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCompile = dditable->Program.pfnCompile;
   if (nullptr == pfnCompile)
@@ -1608,6 +1676,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     *phProgram = nullptr;
   }
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnLink = dditable->Program.pfnLink;
   if (nullptr == pfnLink)
@@ -1624,6 +1693,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     ur_program_handle_t hProgram) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->Program.pfnRetain;
   if (nullptr == pfnRetain)
@@ -1640,6 +1710,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     ur_program_handle_t hProgram) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->Program.pfnRelease;
   if (nullptr == pfnRelease)
@@ -1664,6 +1735,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
     void **ppFunctionPointer) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetFunctionPointer = dditable->Program.pfnGetFunctionPointer;
   if (nullptr == pfnGetFunctionPointer)
@@ -1691,6 +1763,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
     void **ppGlobalVariablePointerRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetGlobalVariablePointer =
       dditable->Program.pfnGetGlobalVariablePointer;
@@ -1724,6 +1797,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Program.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -1755,6 +1829,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetBuildInfo = dditable->Program.pfnGetBuildInfo;
   if (nullptr == pfnGetBuildInfo)
@@ -1777,6 +1852,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     const ur_specialization_constant_info_t *pSpecConstants) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetSpecializationConstants =
       dditable->Program.pfnSetSpecializationConstants;
@@ -1796,6 +1872,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_native_handle_t *phNativeProgram) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Program.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -1818,6 +1895,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_program_handle_t *phProgram) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithNativeHandle = dditable->Program.pfnCreateWithNativeHandle;
   if (nullptr == pfnCreateWithNativeHandle)
@@ -1839,6 +1917,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     ur_kernel_handle_t *phKernel) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreate = dditable->Kernel.pfnCreate;
   if (nullptr == pfnCreate)
@@ -1865,6 +1944,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     const void *pArgValue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetArgValue = dditable->Kernel.pfnSetArgValue;
   if (nullptr == pfnSetArgValue)
@@ -1887,6 +1967,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     const ur_kernel_arg_local_properties_t *pProperties) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetArgLocal = dditable->Kernel.pfnSetArgLocal;
   if (nullptr == pfnSetArgLocal)
@@ -1917,6 +1998,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Kernel.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -1945,6 +2027,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetGroupInfo = dditable->Kernel.pfnGetGroupInfo;
   if (nullptr == pfnGetGroupInfo)
@@ -1974,6 +2057,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetSubGroupInfo = dditable->Kernel.pfnGetSubGroupInfo;
   if (nullptr == pfnGetSubGroupInfo)
@@ -1991,6 +2075,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     ur_kernel_handle_t hKernel) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->Kernel.pfnRetain;
   if (nullptr == pfnRetain)
@@ -2007,6 +2092,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     ur_kernel_handle_t hKernel) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->Kernel.pfnRelease;
   if (nullptr == pfnRelease)
@@ -2030,6 +2116,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     const void *pArgValue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetArgPointer = dditable->Kernel.pfnSetArgPointer;
   if (nullptr == pfnSetArgPointer)
@@ -2055,6 +2142,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     const void *pPropValue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetExecInfo = dditable->Kernel.pfnSetExecInfo;
   if (nullptr == pfnSetExecInfo)
@@ -2077,6 +2165,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_sampler_handle_t hArgValue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetArgSampler = dditable->Kernel.pfnSetArgSampler;
   if (nullptr == pfnSetArgSampler)
@@ -2099,6 +2188,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_mem_handle_t hArgValue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetArgMemObj = dditable->Kernel.pfnSetArgMemObj;
   if (nullptr == pfnSetArgMemObj)
@@ -2119,6 +2209,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     const ur_specialization_constant_info_t *pSpecConstants) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetSpecializationConstants =
       dditable->Kernel.pfnSetSpecializationConstants;
@@ -2138,6 +2229,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_native_handle_t *phNativeKernel) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Kernel.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -2162,6 +2254,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_kernel_handle_t *phKernel) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithNativeHandle = dditable->Kernel.pfnCreateWithNativeHandle;
   if (nullptr == pfnCreateWithNativeHandle)
@@ -2194,6 +2287,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     size_t *pSuggestedLocalWorkSize) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetSuggestedLocalWorkSize =
       dditable->Kernel.pfnGetSuggestedLocalWorkSize;
@@ -2222,6 +2316,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Queue.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -2244,6 +2339,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     ur_queue_handle_t *phQueue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreate = dditable->Queue.pfnCreate;
   if (nullptr == pfnCreate)
@@ -2260,6 +2356,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     ur_queue_handle_t hQueue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->Queue.pfnRetain;
   if (nullptr == pfnRetain)
@@ -2276,6 +2373,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     ur_queue_handle_t hQueue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->Queue.pfnRelease;
   if (nullptr == pfnRelease)
@@ -2296,6 +2394,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_native_handle_t *phNativeQueue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Queue.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -2320,6 +2419,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_queue_handle_t *phQueue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithNativeHandle = dditable->Queue.pfnCreateWithNativeHandle;
   if (nullptr == pfnCreateWithNativeHandle)
@@ -2337,6 +2437,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
     ur_queue_handle_t hQueue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnFinish = dditable->Queue.pfnFinish;
   if (nullptr == pfnFinish)
@@ -2353,6 +2454,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t hQueue) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnFlush = dditable->Queue.pfnFlush;
   if (nullptr == pfnFlush)
@@ -2378,6 +2480,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hEvent);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfo = dditable->Event.pfnGetInfo;
   if (nullptr == pfnGetInfo)
@@ -2404,6 +2507,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hEvent);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetProfilingInfo = dditable->Event.pfnGetProfilingInfo;
   if (nullptr == pfnGetProfilingInfo)
@@ -2424,6 +2528,7 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     const ur_event_handle_t *phEventWaitList) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(phEventWaitList[0]);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnWait = dditable->Event.pfnWait;
   if (nullptr == pfnWait)
@@ -2440,6 +2545,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
     ur_event_handle_t hEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hEvent);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetain = dditable->Event.pfnRetain;
   if (nullptr == pfnRetain)
@@ -2456,6 +2562,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
     ur_event_handle_t hEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hEvent);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRelease = dditable->Event.pfnRelease;
   if (nullptr == pfnRelease)
@@ -2474,6 +2581,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_native_handle_t *phNativeEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hEvent);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandle = dditable->Event.pfnGetNativeHandle;
   if (nullptr == pfnGetNativeHandle)
@@ -2496,6 +2604,7 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateWithNativeHandle = dditable->Event.pfnCreateWithNativeHandle;
   if (nullptr == pfnCreateWithNativeHandle)
@@ -2519,6 +2628,7 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     void *pUserData) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hEvent);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSetCallback = dditable->Event.pfnSetCallback;
   if (nullptr == pfnSetCallback)
@@ -2564,6 +2674,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnKernelLaunch = dditable->Enqueue.pfnKernelLaunch;
   if (nullptr == pfnKernelLaunch)
@@ -2594,6 +2705,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnEventsWait = dditable->Enqueue.pfnEventsWait;
   if (nullptr == pfnEventsWait)
@@ -2622,6 +2734,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnEventsWaitWithBarrier = dditable->Enqueue.pfnEventsWaitWithBarrier;
   if (nullptr == pfnEventsWaitWithBarrier)
@@ -2660,6 +2773,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemBufferRead = dditable->Enqueue.pfnMemBufferRead;
   if (nullptr == pfnMemBufferRead)
@@ -2698,6 +2812,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemBufferWrite = dditable->Enqueue.pfnMemBufferWrite;
   if (nullptr == pfnMemBufferWrite)
@@ -2748,6 +2863,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemBufferReadRect = dditable->Enqueue.pfnMemBufferReadRect;
   if (nullptr == pfnMemBufferReadRect)
@@ -2801,6 +2917,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemBufferWriteRect = dditable->Enqueue.pfnMemBufferWriteRect;
   if (nullptr == pfnMemBufferWriteRect)
@@ -2841,6 +2958,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemBufferCopy = dditable->Enqueue.pfnMemBufferCopy;
   if (nullptr == pfnMemBufferCopy)
@@ -2887,6 +3005,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemBufferCopyRect = dditable->Enqueue.pfnMemBufferCopyRect;
   if (nullptr == pfnMemBufferCopyRect)
@@ -2927,6 +3046,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemBufferFill = dditable->Enqueue.pfnMemBufferFill;
   if (nullptr == pfnMemBufferFill)
@@ -2970,6 +3090,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemImageRead = dditable->Enqueue.pfnMemImageRead;
   if (nullptr == pfnMemImageRead)
@@ -3014,6 +3135,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemImageWrite = dditable->Enqueue.pfnMemImageWrite;
   if (nullptr == pfnMemImageWrite)
@@ -3056,6 +3178,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemImageCopy = dditable->Enqueue.pfnMemImageCopy;
   if (nullptr == pfnMemImageCopy)
@@ -3097,6 +3220,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     void **ppRetMap) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemBufferMap = dditable->Enqueue.pfnMemBufferMap;
   if (nullptr == pfnMemBufferMap)
@@ -3130,6 +3254,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMemUnmap = dditable->Enqueue.pfnMemUnmap;
   if (nullptr == pfnMemUnmap)
@@ -3167,6 +3292,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMFill = dditable->Enqueue.pfnUSMFill;
   if (nullptr == pfnUSMFill)
@@ -3203,6 +3329,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMMemcpy = dditable->Enqueue.pfnUSMMemcpy;
   if (nullptr == pfnUSMMemcpy)
@@ -3237,6 +3364,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMPrefetch = dditable->Enqueue.pfnUSMPrefetch;
   if (nullptr == pfnUSMPrefetch)
@@ -3263,6 +3391,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMAdvise = dditable->Enqueue.pfnUSMAdvise;
   if (nullptr == pfnUSMAdvise)
@@ -3305,6 +3434,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMFill2D = dditable->Enqueue.pfnUSMFill2D;
   if (nullptr == pfnUSMFill2D)
@@ -3349,6 +3479,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMMemcpy2D = dditable->Enqueue.pfnUSMMemcpy2D;
   if (nullptr == pfnUSMMemcpy2D)
@@ -3390,6 +3521,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnDeviceGlobalVariableWrite =
       dditable->Enqueue.pfnDeviceGlobalVariableWrite;
@@ -3433,6 +3565,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnDeviceGlobalVariableRead =
       dditable->Enqueue.pfnDeviceGlobalVariableRead;
@@ -3478,6 +3611,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnReadHostPipe = dditable->Enqueue.pfnReadHostPipe;
   if (nullptr == pfnReadHostPipe)
@@ -3522,6 +3656,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnWriteHostPipe = dditable->Enqueue.pfnWriteHostPipe;
   if (nullptr == pfnWriteHostPipe)
@@ -3556,6 +3691,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMDeviceAllocExp = dditable->EnqueueExp.pfnUSMDeviceAllocExp;
   if (nullptr == pfnUSMDeviceAllocExp)
@@ -3591,6 +3727,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMSharedAllocExp = dditable->EnqueueExp.pfnUSMSharedAllocExp;
   if (nullptr == pfnUSMSharedAllocExp)
@@ -3626,6 +3763,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMHostAllocExp = dditable->EnqueueExp.pfnUSMHostAllocExp;
   if (nullptr == pfnUSMHostAllocExp)
@@ -3657,6 +3795,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUSMFreeExp = dditable->EnqueueExp.pfnUSMFreeExp;
   if (nullptr == pfnUSMFreeExp)
@@ -3681,6 +3820,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreateExp(
     ur_usm_pool_handle_t *pPool) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolCreateExp = dditable->USMExp.pfnPoolCreateExp;
   if (nullptr == pfnPoolCreateExp)
@@ -3701,6 +3841,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
     ur_usm_pool_handle_t hPool) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolDestroyExp = dditable->USMExp.pfnPoolDestroyExp;
   if (nullptr == pfnPoolDestroyExp)
@@ -3721,6 +3862,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     ur_usm_pool_handle_t *pPool) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolGetDefaultDevicePoolExp =
       dditable->USMExp.pfnPoolGetDefaultDevicePoolExp;
@@ -3744,6 +3886,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPool);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolGetInfoExp = dditable->USMExp.pfnPoolGetInfoExp;
   if (nullptr == pfnPoolGetInfoExp)
@@ -3766,6 +3909,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
     size_t propSize) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hPool);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolSetInfoExp = dditable->USMExp.pfnPoolSetInfoExp;
   if (nullptr == pfnPoolSetInfoExp)
@@ -3786,6 +3930,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
     ur_usm_pool_handle_t hPool) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolSetDevicePoolExp = dditable->USMExp.pfnPoolSetDevicePoolExp;
   if (nullptr == pfnPoolSetDevicePoolExp)
@@ -3806,6 +3951,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
     ur_usm_pool_handle_t *pPool) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolGetDevicePoolExp = dditable->USMExp.pfnPoolGetDevicePoolExp;
   if (nullptr == pfnPoolGetDevicePoolExp)
@@ -3828,6 +3974,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolTrimToExp(
     size_t minBytesToKeep) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPoolTrimToExp = dditable->USMExp.pfnPoolTrimToExp;
   if (nullptr == pfnPoolTrimToExp)
@@ -3860,6 +4007,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     size_t *pResultPitch) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPitchedAllocExp = dditable->USMExp.pfnPitchedAllocExp;
   if (nullptr == pfnPitchedAllocExp)
@@ -3882,6 +4030,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_exp_image_native_handle_t hImage) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUnsampledImageHandleDestroyExp =
       dditable->BindlessImagesExp.pfnUnsampledImageHandleDestroyExp;
@@ -3904,6 +4053,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
     ur_exp_image_native_handle_t hImage) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSampledImageHandleDestroyExp =
       dditable->BindlessImagesExp.pfnSampledImageHandleDestroyExp;
@@ -3929,6 +4079,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_exp_image_mem_native_handle_t *phImageMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImageAllocateExp = dditable->BindlessImagesExp.pfnImageAllocateExp;
   if (nullptr == pfnImageAllocateExp)
@@ -3950,6 +4101,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_exp_image_mem_native_handle_t hImageMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImageFreeExp = dditable->BindlessImagesExp.pfnImageFreeExp;
   if (nullptr == pfnImageFreeExp)
@@ -3976,6 +4128,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_exp_image_native_handle_t *phImage) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUnsampledImageCreateExp =
       dditable->BindlessImagesExp.pfnUnsampledImageCreateExp;
@@ -4006,6 +4159,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_exp_image_native_handle_t *phImage) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSampledImageCreateExp =
       dditable->BindlessImagesExp.pfnSampledImageCreateExp;
@@ -4053,6 +4207,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImageCopyExp = dditable->BindlessImagesExp.pfnImageCopyExp;
   if (nullptr == pfnImageCopyExp)
@@ -4080,6 +4235,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImageGetInfoExp = dditable->BindlessImagesExp.pfnImageGetInfoExp;
   if (nullptr == pfnImageGetInfoExp)
@@ -4110,6 +4266,7 @@ urBindlessImagesGetImageMemoryHandleTypeSupportExp(
     ur_bool_t *pSupportedRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetImageMemoryHandleTypeSupportExp =
       dditable->BindlessImagesExp.pfnGetImageMemoryHandleTypeSupportExp;
@@ -4142,6 +4299,7 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
     ur_bool_t *pSupportedRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetImageUnsampledHandleSupportExp =
       dditable->BindlessImagesExp.pfnGetImageUnsampledHandleSupportExp;
@@ -4174,6 +4332,7 @@ urBindlessImagesGetImageSampledHandleSupportExp(
     ur_bool_t *pSupportedRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetImageSampledHandleSupportExp =
       dditable->BindlessImagesExp.pfnGetImageSampledHandleSupportExp;
@@ -4201,6 +4360,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_exp_image_mem_native_handle_t *phImageMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMipmapGetLevelExp = dditable->BindlessImagesExp.pfnMipmapGetLevelExp;
   if (nullptr == pfnMipmapGetLevelExp)
@@ -4222,6 +4382,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_exp_image_mem_native_handle_t hMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMipmapFreeExp = dditable->BindlessImagesExp.pfnMipmapFreeExp;
   if (nullptr == pfnMipmapFreeExp)
@@ -4248,6 +4409,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_exp_external_mem_handle_t *phExternalMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImportExternalMemoryExp =
       dditable->BindlessImagesExp.pfnImportExternalMemoryExp;
@@ -4276,6 +4438,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_exp_image_mem_native_handle_t *phImageMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMapExternalArrayExp =
       dditable->BindlessImagesExp.pfnMapExternalArrayExp;
@@ -4304,6 +4467,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     void **ppRetMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnMapExternalLinearMemoryExp =
       dditable->BindlessImagesExp.pfnMapExternalLinearMemoryExp;
@@ -4326,6 +4490,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_exp_external_mem_handle_t hExternalMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnReleaseExternalMemoryExp =
       dditable->BindlessImagesExp.pfnReleaseExternalMemoryExp;
@@ -4351,6 +4516,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_exp_external_semaphore_handle_t *phExternalSemaphore) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImportExternalSemaphoreExp =
       dditable->BindlessImagesExp.pfnImportExternalSemaphoreExp;
@@ -4374,6 +4540,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_exp_external_semaphore_handle_t hExternalSemaphore) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnReleaseExternalSemaphoreExp =
       dditable->BindlessImagesExp.pfnReleaseExternalSemaphoreExp;
@@ -4412,6 +4579,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnWaitExternalSemaphoreExp =
       dditable->BindlessImagesExp.pfnWaitExternalSemaphoreExp;
@@ -4452,6 +4620,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSignalExternalSemaphoreExp =
       dditable->BindlessImagesExp.pfnSignalExternalSemaphoreExp;
@@ -4477,6 +4646,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCreateExp = dditable->CommandBufferExp.pfnCreateExp;
   if (nullptr == pfnCreateExp)
@@ -4493,6 +4663,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     ur_exp_command_buffer_handle_t hCommandBuffer) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnRetainExp = dditable->CommandBufferExp.pfnRetainExp;
   if (nullptr == pfnRetainExp)
@@ -4509,6 +4680,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     ur_exp_command_buffer_handle_t hCommandBuffer) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnReleaseExp = dditable->CommandBufferExp.pfnReleaseExp;
   if (nullptr == pfnReleaseExp)
@@ -4525,6 +4697,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
     ur_exp_command_buffer_handle_t hCommandBuffer) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnFinalizeExp = dditable->CommandBufferExp.pfnFinalizeExp;
   if (nullptr == pfnFinalizeExp)
@@ -4582,6 +4755,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendKernelLaunchExp =
       dditable->CommandBufferExp.pfnAppendKernelLaunchExp;
@@ -4628,6 +4802,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendUSMMemcpyExp =
       dditable->CommandBufferExp.pfnAppendUSMMemcpyExp;
@@ -4675,6 +4850,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendUSMFillExp = dditable->CommandBufferExp.pfnAppendUSMFillExp;
   if (nullptr == pfnAppendUSMFillExp)
@@ -4723,6 +4899,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendMemBufferCopyExp =
       dditable->CommandBufferExp.pfnAppendMemBufferCopyExp;
@@ -4770,6 +4947,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendMemBufferWriteExp =
       dditable->CommandBufferExp.pfnAppendMemBufferWriteExp;
@@ -4817,6 +4995,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendMemBufferReadExp =
       dditable->CommandBufferExp.pfnAppendMemBufferReadExp;
@@ -4874,6 +5053,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendMemBufferCopyRectExp =
       dditable->CommandBufferExp.pfnAppendMemBufferCopyRectExp;
@@ -4935,6 +5115,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendMemBufferWriteRectExp =
       dditable->CommandBufferExp.pfnAppendMemBufferWriteRectExp;
@@ -4995,6 +5176,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendMemBufferReadRectExp =
       dditable->CommandBufferExp.pfnAppendMemBufferReadRectExp;
@@ -5045,6 +5227,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendMemBufferFillExp =
       dditable->CommandBufferExp.pfnAppendMemBufferFillExp;
@@ -5090,6 +5273,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendUSMPrefetchExp =
       dditable->CommandBufferExp.pfnAppendUSMPrefetchExp;
@@ -5135,6 +5319,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_command_handle_t *phCommand) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendUSMAdviseExp =
       dditable->CommandBufferExp.pfnAppendUSMAdviseExp;
@@ -5173,6 +5358,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnAppendNativeCommandExp =
       dditable->CommandBufferExp.pfnAppendNativeCommandExp;
@@ -5206,6 +5392,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCommandBufferExp = dditable->EnqueueExp.pfnCommandBufferExp;
   if (nullptr == pfnCommandBufferExp)
@@ -5229,6 +5416,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         *pUpdateKernelLaunch) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUpdateKernelLaunchExp =
       dditable->CommandBufferExp.pfnUpdateKernelLaunchExp;
@@ -5249,6 +5437,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
     ur_event_handle_t *phSignalEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommand);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUpdateSignalEventExp =
       dditable->CommandBufferExp.pfnUpdateSignalEventExp;
@@ -5272,6 +5461,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateWaitEventsExp(
     const ur_event_handle_t *phEventWaitList) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommand);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnUpdateWaitEventsExp =
       dditable->CommandBufferExp.pfnUpdateWaitEventsExp;
@@ -5298,6 +5488,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetInfoExp = dditable->CommandBufferExp.pfnGetInfoExp;
   if (nullptr == pfnGetInfoExp)
@@ -5317,6 +5508,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
     ur_native_handle_t *phNativeCommandBuffer) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hCommandBuffer);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnGetNativeHandleExp =
       dditable->CommandBufferExp.pfnGetNativeHandleExp;
@@ -5363,6 +5555,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCooperativeKernelLaunchExp =
       dditable->EnqueueExp.pfnCooperativeKernelLaunchExp;
@@ -5396,6 +5589,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     uint32_t *pGroupCountRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnSuggestMaxCooperativeGroupCountExp =
       dditable->KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
@@ -5437,6 +5631,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnTimestampRecordingExp =
       dditable->EnqueueExp.pfnTimestampRecordingExp;
@@ -5488,6 +5683,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnKernelLaunchCustomExp =
       dditable->EnqueueExp.pfnKernelLaunchCustomExp;
@@ -5514,6 +5710,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     const char *pOptions) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnBuildExp = dditable->ProgramExp.pfnBuildExp;
   if (nullptr == pfnBuildExp)
@@ -5536,6 +5733,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     const char *pOptions) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hProgram);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnCompileExp = dditable->ProgramExp.pfnCompileExp;
   if (nullptr == pfnCompileExp)
@@ -5566,6 +5764,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     *phProgram = nullptr;
   }
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnLinkExp = dditable->ProgramExp.pfnLinkExp;
   if (nullptr == pfnLinkExp)
@@ -5587,6 +5786,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     size_t size) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnImportExp = dditable->USMExp.pfnImportExp;
   if (nullptr == pfnImportExp)
@@ -5605,6 +5805,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
     void *pMem) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnReleaseExp = dditable->USMExp.pfnReleaseExp;
   if (nullptr == pfnReleaseExp)
@@ -5623,6 +5824,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_device_handle_t peerDevice) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnEnablePeerAccessExp = dditable->UsmP2PExp.pfnEnablePeerAccessExp;
   if (nullptr == pfnEnablePeerAccessExp)
@@ -5641,6 +5843,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
     ur_device_handle_t peerDevice) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnDisablePeerAccessExp = dditable->UsmP2PExp.pfnDisablePeerAccessExp;
   if (nullptr == pfnDisablePeerAccessExp)
@@ -5673,6 +5876,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     size_t *pPropSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(commandDevice);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnPeerAccessGetInfoExp = dditable->UsmP2PExp.pfnPeerAccessGetInfoExp;
   if (nullptr == pfnPeerAccessGetInfoExp)
@@ -5704,6 +5908,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnEventsWaitWithBarrierExt =
       dditable->Enqueue.pfnEventsWaitWithBarrierExt;
@@ -5749,6 +5954,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_event_handle_t *phEvent) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  dditable->validate(__PRETTY_FUNCTION__);
 
   auto *pfnNativeCommandExp = dditable->EnqueueExp.pfnNativeCommandExp;
   if (nullptr == pfnNativeCommandExp)

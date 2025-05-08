@@ -482,6 +482,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
 
 UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
                                                    ur_dditable_t *pDdiTable) {
+  pDdiTable->magic = ur_dditable_t::MAGIC_VAL;
   urGetGlobalProcAddrTable(version, &pDdiTable->Global);
   urGetBindlessImagesExpProcAddrTable(version, &pDdiTable->BindlessImagesExp);
   urGetCommandBufferExpProcAddrTable(version, &pDdiTable->CommandBufferExp);

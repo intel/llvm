@@ -563,6 +563,8 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
+  ddi->magic = ur_dditable_t::MAGIC_VAL;
+
   ur_result_t result;
 
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO

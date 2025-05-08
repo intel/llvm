@@ -27,6 +27,7 @@ from templates import helper as th
 #pragma once
 #endif
 #include "${n}_api.h"
+#include <iostream>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -95,9 +96,18 @@ typedef ${x}_result_t (${X}_APICALL *${tbl['pfn']})(
 /// @brief Container for all DDI tables
 typedef struct ${n}_dditable_t
 {
+  static constexpr uint64_t MAGIC_VAL = 0x123456789;
+  uint64_t magic;
 %for tbl in th.get_pfntables(specs, meta, n, tags):
     ${th.append_ws(tbl['type'], 35)} ${tbl['name']};
 %endfor
+
+  void validate(const char *Func) {
+    if (magic != MAGIC_VAL) {
+        std::cerr << "INVALID DDITABLE FOUND in " << Func << "\n";
+        abort();
+    }
+  }
 } ${n}_dditable_t;
 
 #if defined(__cplusplus)
