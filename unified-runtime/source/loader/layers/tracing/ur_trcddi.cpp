@@ -7186,7 +7186,8 @@ urBindlessImagesGetImageMemoryHandleTypeSupportExp(
       "urBindlessImagesGetImageMemoryHandleTypeSupportExp", &params);
 
   auto &logger = getContext()->logger;
-  logger.info("   ---> urBindlessImagesGetImageMemoryHandleTypeSupportExp\n");
+  UR_LOG_L(logger, INFO,
+           "   ---> urBindlessImagesGetImageMemoryHandleTypeSupportExp\n");
 
   ur_result_t result = pfnGetImageMemoryHandleTypeSupportExp(
       hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
@@ -7203,7 +7204,8 @@ urBindlessImagesGetImageMemoryHandleTypeSupportExp(
         args_str,
         UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP,
         &params);
-    logger.info(
+    UR_LOG_L(
+        logger, INFO,
         "   <--- urBindlessImagesGetImageMemoryHandleTypeSupportExp({}) -> "
         "{};\n",
         args_str.str(), result);
@@ -7245,7 +7247,8 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
       "urBindlessImagesGetImageUnsampledHandleSupportExp", &params);
 
   auto &logger = getContext()->logger;
-  logger.info("   ---> urBindlessImagesGetImageUnsampledHandleSupportExp\n");
+  UR_LOG_L(logger, INFO,
+           "   ---> urBindlessImagesGetImageUnsampledHandleSupportExp\n");
 
   ur_result_t result = pfnGetImageUnsampledHandleSupportExp(
       hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
@@ -7262,9 +7265,10 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
         args_str,
         UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP,
         &params);
-    logger.info("   <--- urBindlessImagesGetImageUnsampledHandleSupportExp({}) "
-                "-> {};\n",
-                args_str.str(), result);
+    UR_LOG_L(logger, INFO,
+             "   <--- urBindlessImagesGetImageUnsampledHandleSupportExp({}) "
+             "-> {};\n",
+             args_str.str(), result);
   }
 
   return result;
@@ -7303,7 +7307,8 @@ urBindlessImagesGetImageSampledHandleSupportExp(
       "urBindlessImagesGetImageSampledHandleSupportExp", &params);
 
   auto &logger = getContext()->logger;
-  logger.info("   ---> urBindlessImagesGetImageSampledHandleSupportExp\n");
+  UR_LOG_L(logger, INFO,
+           "   ---> urBindlessImagesGetImageSampledHandleSupportExp\n");
 
   ur_result_t result = pfnGetImageSampledHandleSupportExp(
       hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
@@ -7320,7 +7325,8 @@ urBindlessImagesGetImageSampledHandleSupportExp(
         args_str,
         UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP,
         &params);
-    logger.info(
+    UR_LOG_L(
+        logger, INFO,
         "   <--- urBindlessImagesGetImageSampledHandleSupportExp({}) -> {};\n",
         args_str.str(), result);
   }
