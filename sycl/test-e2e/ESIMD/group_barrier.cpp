@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-----------------------------------------------------------===//
-// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
+// REQUIRES: level_zero && (arch-intel_gpu_pvc || gpu-intel-dg2)
 // REQUIRES-INTEL-DRIVER: lin: 31155
 
 // RUN: %{build} -o %t.out
