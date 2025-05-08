@@ -163,7 +163,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
     }
   } else {
     // If pooling is disabled, do nothing.
-    logger::info("USM pooling is disabled. Skiping pool limits adjustment.");
+    UR_LOG(INFO, "USM pooling is disabled. Skiping pool limits adjustment.");
   }
 
   auto devicesAndSubDevices =
@@ -236,7 +236,7 @@ ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
   if (umfPool) {
     return umf::umf2urResult(umfPoolFree(umfPool, ptr));
   } else {
-    logger::error("Failed to find pool for pointer: {}", ptr);
+    UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 }
@@ -439,7 +439,7 @@ ur_result_t urUSMGetMemAllocInfo(
       memAllocType = UR_USM_TYPE_SHARED;
       break;
     default:
-      logger::error("urUSMGetMemAllocInfo: unexpected usm memory type");
+      UR_LOG(ERR, "urUSMGetMemAllocInfo: unexpected usm memory type");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return ReturnValue(memAllocType);
@@ -468,7 +468,7 @@ ur_result_t urUSMGetMemAllocInfo(
     // TODO
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   default:
-    logger::error("urUSMGetMemAllocInfo: unsupported ParamName");
+    UR_LOG(ERR, "urUSMGetMemAllocInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   }
