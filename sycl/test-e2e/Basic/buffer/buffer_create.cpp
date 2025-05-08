@@ -1,7 +1,7 @@
 // REQUIRES: gpu,level_zero,level_zero_dev_kit
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
-// UNSUPPORTED: ze_debug, level_zero_v2_adapter
+// UNSUPPORTED: ze_debug
 
 #include <iostream>
 #include <level_zero/ze_api.h>

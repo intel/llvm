@@ -527,6 +527,10 @@ dynamic_parameter(command_graph<graph_state::modifiable> graph,
 |Constructs a dynamic parameter object that can be registered with command graph
 nodes with an initial value.
 
+[Note: This constructor which takes a graph has been deprecated and will be
+replaced in the next ABI breaking window. The new constructor will not associate
+a dynamic parameter with any specific graph. -- end note]
+
 Parameters:
 
 * `graph` - Graph containing the nodes which will have dynamic parameters.
@@ -1936,10 +1940,6 @@ a command-group submitted to a queue with is currently recording to a graph.
 * Throws synchronously with error code `invalid` if this function is called from
 a normal SYCL command-group submission.
 
-* Throws synchronously with error code `invalid` if the graph which will be
-associated with the graph node resulting from this command-group submission is
-different from the one with which `dynamicParameterAcc` was created.
-
 |
 [source,c++]
 ----
@@ -1965,10 +1965,6 @@ a command-group submitted to a queue with is currently recording to a graph.
 
 * Throws synchronously with error code `invalid` if this function is called from
 a normal SYCL command-group submission.
-
-* Throws synchronously with error code `invalid` if the graph which will be
-associated with the graph node resulting from this command-group submission is
-different from the one with which the dynamic_parameter was created.
 
 |===
 

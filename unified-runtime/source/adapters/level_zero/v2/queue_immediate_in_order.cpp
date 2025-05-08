@@ -131,9 +131,10 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
     }
   }
   default:
-    logger::error("Unsupported ParamName in urQueueGetInfo: "
-                  "ParamName=ParamName={}(0x{})",
-                  propName, logger::toHex(propName));
+    UR_LOG(ERR,
+           "Unsupported ParamName in urQueueGetInfo: "
+           "ParamName=ParamName={}(0x{})",
+           propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -809,6 +810,16 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
     waitListView.clear();
   };
 
+  // If the offset is {0, 0, 0}, pass NULL instead.
+  // This allows us to skip setting the offset.
+  bool hasOffset = false;
+  for (uint32_t i = 0; i < workDim; ++i) {
+    hasOffset |= pGlobalWorkOffset[i];
+  }
+  if (!hasOffset) {
+    pGlobalWorkOffset = NULL;
+  }
+
   UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
                                         workDim, WG[0], WG[1], WG[2],
                                         memoryMigrate));
@@ -821,6 +832,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
               waitListView.handles));
 
   recordSubmittedKernel(hKernel);
+
+  postSubmit(hZeKernel, pGlobalWorkOffset);
 
   return UR_RESULT_SUCCESS;
 }
@@ -919,8 +932,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+  UR_LOG_LEGACY(
+      ERR, logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
       "{} function not implemented!", __FUNCTION__);
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
