@@ -668,7 +668,7 @@ for d in remove_level_zero_suffix(config.sycl_devices):
     if be not in available_devices:
         lit_config.error("Unsupported device {}".format(d))
     # Verify device from available_devices
-    if dev not in available_devices[be]:
+    if dev not in available_devices[be] and not "arch-" in dev:
         lit_config.error("Unsupported device {}".format(d))
 
 if "cuda:gpu" in config.sycl_devices:
@@ -834,6 +834,7 @@ if config.test_mode != "build-only":
 # ONEAPI_DEVICE_SELECTOR. Instead, if "require_device_arch" is provided, giving
 # the desired device architecture, select a device that matches that
 # architecture using the backend:device-num device selection scheme.
+'''
 filtered_sycl_devices = []
 if (config.require_device_arch != [""]):
     if (len(config.sycl_devices) > len(config.require_device_arch)):
@@ -893,6 +894,71 @@ if (config.require_device_arch != [""]):
     lit_config.note("Device architecture requirements applied. Device targets" \
     " being used: {}".format(", ".join(filtered_sycl_devices)))
     config.sycl_devices = filtered_sycl_devices
+'''
+
+# A device filter such as level_zero:gpu can have multiple devices under it and
+# the order is not guaranteed. The aspects enabled are also restricted to what
+# is supported on all devices under the label. It is possible for level_zero:gpu
+# and level_zero:0 to select different devices on different machines with the
+# same hardware. It is not currently possible to pass the device architecture to
+# ONEAPI_DEVICE_SELECTOR. Instead, if "BACKEND:arch-DEVICE_ARCH" is provided to
+# "sycl_devices", giving the desired device architecture, select a device that
+# matches that architecture using the backend:device-num device selection
+# scheme.
+filtered_sycl_devices = []
+for sycl_device in remove_level_zero_suffix(config.sycl_devices):
+
+    backend, device_arch  = sycl_device.split(":", 1)
+
+    if ("arch-" in device_arch):
+        env = copy.copy(llvm_config.config.environment)
+
+        # Find all available devices under the backend
+        env["ONEAPI_DEVICE_SELECTOR"] = backend + ":*"
+
+        # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
+        # prints warnings that might derail a user thinking something is wrong
+        # with their test run. It's just us filtering here, so silence them unless
+        # we get an exit status.
+        try:
+            cmd = "{} {} --verbose".format(config.run_launcher or "", sycl_ls)
+            sp = subprocess.run(cmd, env=env, text=True, shell=True, capture_output=True)
+            sp.check_returncode()
+        except subprocess.CalledProcessError as e:
+            # capturing e allows us to see path resolution errors / system
+            # permissions errors etc
+            lit_config.fatal(
+                f"Cannot list device architectures under {sycl_device}\n"
+                f"{e}\n"
+                f"stdout:{sp.stdout}\n"
+                f"stderr:{sp.stderr}\n"
+            )
+
+        detected_architectures = []
+
+        for line in sp.stdout.splitlines():
+            if re.match(r" *Architecture:", line):
+                _, architecture = line.strip().split(":", 1)
+                detected_architectures.append(architecture.strip())
+
+        device = device_arch.replace("arch-", "")
+
+        if device in detected_architectures:
+            device_num = detected_architectures.index(device)
+            filtered_sycl_devices.append(backend + ":" + str(device_num))
+        else:
+            lit_config.warning("Couldn't find device with architecture {}" \
+            " under {} device selector! Skipping device " \
+            "{}".format(device, backend + ":*", sycl_device))
+    else:
+        filtered_sycl_devices.append(sycl_device)
+
+
+if not filtered_sycl_devices:
+    lit_config.error("No sycl devices selected! Check your device " \
+    "architecture filters.")
+
+config.sycl_devices = filtered_sycl_devices
 
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
