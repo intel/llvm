@@ -8,9 +8,11 @@
 #pragma once
 
 #include <detail/kernel_arg_mask.hpp>
+#include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <mutex>
+#include <utility>
 
 #include <boost/unordered/unordered_flat_map.hpp>
 
@@ -21,8 +23,15 @@ using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
 using FastKernelCacheValT =
     std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
                ur_program_handle_t>;
-using FastKernelSubcacheT =
+using FastKernelSubcacheMapT =
     ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
+
+using KernelFastSubcacheMutexT = SpinLock;
+using KernelFastSubcacheReadLockT = std::lock_guard<KernelFastSubcacheMutexT>;
+using KernelFastSubcacheWriteLockT = std::lock_guard<KernelFastSubcacheMutexT>;
+
+using FastKernelSubcacheT =
+    std::pair<FastKernelSubcacheMapT, KernelFastSubcacheMutexT>;
 
 struct KernelNameBasedCacheT {
   FastKernelSubcacheT FastKernelSubcache;
