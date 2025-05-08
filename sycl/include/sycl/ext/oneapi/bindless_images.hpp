@@ -303,8 +303,11 @@ unmap_external_linear_memory(void *mappedLinearMem,
  *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
  *  @param   syclQueue The queue in which the external memory was created
  */
-__SYCL_EXPORT void unmap_external_linear_memory(void *mappedLinearMem,
-                                                const sycl::queue &syclQueue);
+inline void unmap_external_linear_memory(void *mappedLinearMem,
+                                         const sycl::queue &syclQueue) {
+  unmap_external_linear_memory(mappedLinearMem, syclQueue.get_device(),
+                               syclQueue.get_context());
+}
 
 /**
  *  @brief   Unmap external image memory
@@ -323,9 +326,12 @@ __SYCL_EXPORT void unmap_external_image_memory(
  *  @param   mappedImageMem Handle to the mapped image memory to unmap
  *  @param   syclQueue The queue in which the external memory was created
  */
-__SYCL_EXPORT void unmap_external_image_memory(image_mem_handle mappedImageMem,
-                                               image_type imageType,
-                                               const sycl::queue &syclQueue);
+inline void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                        image_type imageType,
+                                        const sycl::queue &syclQueue) {
+  unmap_external_image_memory(mappedImageMem, imageType, syclQueue.get_device(),
+                              syclQueue.get_context());
+}
 
 /**
  *  @brief   Create an image and return the device image handle

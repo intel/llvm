@@ -558,23 +558,10 @@ unmap_external_linear_memory(void *mappedLinearRegion,
       urCtx, urDevice, mappedLinearRegion);
 }
 
-__SYCL_EXPORT void unmap_external_linear_memory(void *mappedLinearRegion,
-                                                const sycl::queue &syclQueue) {
-  unmap_external_linear_memory(mappedLinearRegion, syclQueue.get_device(),
-                               syclQueue.get_context());
-}
-
 __SYCL_EXPORT void unmap_external_image_memory(
     image_mem_handle mappedImageMem, image_type imageType,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
   free_image_mem(mappedImageMem, imageType, syclDevice, syclContext);
-}
-
-__SYCL_EXPORT void unmap_external_image_memory(image_mem_handle mappedImageMem,
-                                               image_type imageType,
-                                               const sycl::queue &syclQueue) {
-  unmap_external_image_memory(mappedImageMem, imageType, syclQueue.get_device(),
-                              syclQueue.get_context());
 }
 
 template <>
