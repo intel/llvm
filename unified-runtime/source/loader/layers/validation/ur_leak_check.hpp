@@ -27,7 +27,7 @@ private:
 
     RefRuntimeInfo(int64_t refCount, std::type_index type,
                    std::vector<BacktraceLine> backtrace)
-        : refCount(refCount), type(type), backtrace(backtrace) {}
+        : refCount(refCount), type(type), backtrace(std::move(backtrace)) {}
   };
 
   enum RefCountUpdateType {
