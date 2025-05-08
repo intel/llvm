@@ -12,7 +12,6 @@
 #include <sycl/detail/ur.hpp>
 
 #include <mutex>
-#include <utility>
 
 #include <boost/unordered/unordered_flat_map.hpp>
 
