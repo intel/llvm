@@ -9,8 +9,6 @@
 
 #include <sycl/detail/export.hpp>
 
-#include <memory>
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
