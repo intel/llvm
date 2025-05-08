@@ -13,7 +13,6 @@
 #include <mutex>
 
 #include <boost/unordered/unordered_flat_map.hpp>
-#include <boost/unordered_map.hpp>
 
 namespace sycl {
 inline namespace _V1 {
