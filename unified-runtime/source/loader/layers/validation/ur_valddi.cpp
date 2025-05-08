@@ -7985,12 +7985,12 @@ urBindlessImagesGetImageMemoryHandleTypeSupportExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGetImageMemoryHandleTypeSupportExp(
@@ -8048,12 +8048,12 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGetImageUnsampledHandleSupportExp(
@@ -8111,12 +8111,12 @@ urBindlessImagesGetImageSampledHandleSupportExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGetImageSampledHandleSupportExp(
