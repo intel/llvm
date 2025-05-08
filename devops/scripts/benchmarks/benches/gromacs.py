@@ -69,7 +69,7 @@ class GromacsBench(Suite):
                 f"-DCMAKE_C_COMPILER=clang",
                 f"-DGMX_GPU=SYCL",
                 f"-DGMX_SYCL_ENABLE_GRAPHS=ON",
-                f"-DGMX_SYCL_ENABLE_EXPERIMENTAL_SUBMIT_API=ON"
+                f"-DGMX_SYCL_ENABLE_EXPERIMENTAL_SUBMIT_API=ON",
                 f"-DGMX_FFT_LIBRARY=MKL",
                 f"-DGMX_GPU_FFT_LIBRARY=MKL",
                 f"-DGMX_GPU_NB_CLUSTER_SIZE=8",
@@ -202,7 +202,7 @@ class GromacsBenchmark(Benchmark):
                 label=f"{self.name()}",
                 value=time,
                 unit="s",
-                command=" ".join(map(str, command)),
+                command=command,
                 env=env_vars,
                 stdout=mdrun_output,
                 git_url=self.suite.git_url(),
