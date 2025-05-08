@@ -492,9 +492,6 @@ void joint_matrix_copy(
   auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
   auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
   for (int i = 0; i < wi_data_c.length(); i++) {
-    // if constexpr (std::is_same<T1, bfloat16>::value && std::is_same<T2, float>::value)
-    //   wi_data_dst[i] = float(wi_data_c[i]);
-    // else
       wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
   }
 #endif // defined(__NVPTX__)
