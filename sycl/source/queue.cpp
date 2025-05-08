@@ -394,9 +394,7 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 bool queue::ext_oneapi_empty() const { return impl->queue_empty(); }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 bool queue::khr_empty() const { return impl->queue_empty(); }
-#endif
 
 void queue::ext_oneapi_prod() { impl->flush(); }
 
