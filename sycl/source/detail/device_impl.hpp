@@ -201,7 +201,6 @@ public:
   typename Param::return_type get_info_abi_workaround() const {
 #endif
     using return_type = typename Param::return_type;
-    auto Desc = UrInfoCode<Param>::value;
     using execution_scope = ext::oneapi::experimental::execution_scope;
 #define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
     if constexpr (false) {
@@ -776,6 +775,7 @@ public:
       return get_info_impl<int32_t>(UR_DEVICE_INFO_MIN_POWER_LIMIT);
     }
     else {
+      auto Desc = UrInfoCode<Param>::value;
       return get_info_impl<return_type>(Desc);
     }
 #undef CASE
