@@ -113,56 +113,42 @@ namespace v1 {
 // TODO: inline namespace can be employed here after SubmissionInfo removed from
 // the enclosing scope.
 
-struct SubmissionInfoImpl {
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
-  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
-  ext::oneapi::experimental::event_mode_enum MEventMode =
-      ext::oneapi::experimental::event_mode_enum::none;
-
-  SubmissionInfoImpl() = default;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  SubmissionInfoImpl(
-      const optional<detail::SubmitPostProcessF> &PostProcessorFunc,
-      const std::shared_ptr<detail::queue_impl> &SecondaryQueue,
-      const ext::oneapi::experimental::event_mode_enum &EventMode)
-      : MPostProcessorFunc(PostProcessorFunc), MSecondaryQueue(SecondaryQueue),
-        MEventMode(EventMode) {}
-#endif
-};
-
 class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo() {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   SubmissionInfo(const detail::SubmissionInfo &SI)
-      : impl(SI.PostProcessorFunc(), SI.SecondaryQueue(), SI.EventMode()) {}
+      : MPostProcessorFunc(SI.PostProcessorFunc()),
+        MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
 #endif
 
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
-    return impl.MPostProcessorFunc;
+    return MPostProcessorFunc;
   }
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
-    return impl.MPostProcessorFunc;
+    return MPostProcessorFunc;
   }
 
   std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
-    return impl.MSecondaryQueue;
+    return MSecondaryQueue;
   }
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const {
-    return impl.MSecondaryQueue;
+    return MSecondaryQueue;
   }
 
   ext::oneapi::experimental::event_mode_enum &EventMode() {
-    return impl.MEventMode;
+    return MEventMode;
   }
   const ext::oneapi::experimental::event_mode_enum &EventMode() const {
-    return impl.MEventMode;
+    return MEventMode;
   }
 
 private:
-  SubmissionInfoImpl impl;
+  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
 };
 
 } // namespace v1
