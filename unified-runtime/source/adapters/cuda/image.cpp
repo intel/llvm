@@ -1615,7 +1615,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 
   try {
     ScopedContext Active(hDevice);
-    UR_CHECK_ERROR(cuMemFree(static_cast<CUdeviceptr>(pMem)));
+    UR_CHECK_ERROR(cuMemFree(reinterpret_cast<CUdeviceptr>(pMem)));
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
