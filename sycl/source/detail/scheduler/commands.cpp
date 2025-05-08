@@ -2380,8 +2380,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
-    std::vector<ur_event_handle_t> &RawEvents,
-    const detail::EventImplPtr &OutEventImpl,
+    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
@@ -2651,9 +2650,8 @@ ur_result_t enqueueImpCommandBufferKernel(
 void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
-    const detail::EventImplPtr &OutEventImpl,
+    const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
+    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
@@ -2761,7 +2759,7 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
                                      const std::string &PipeName, bool blocking,
                                      void *ptr, size_t size,
                                      std::vector<ur_event_handle_t> &RawEvents,
-                                     const detail::EventImplPtr &OutEventImpl,
+                                     detail::event_impl *OutEventImpl,
                                      bool read) {
   assert(Queue &&
          "ReadWrite host pipe submissions should have an associated queue");
@@ -3122,7 +3120,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
-  detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
+  detail::event_impl *EventImpl = DiscardUrEvent ? nullptr : MEvent.get();
 
   auto SetEventHandleOrDiscard = [&]() {
     if (Event)
@@ -3237,7 +3235,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(KernelName);
       if (KernelUsesAssert) {
-        EventImpl = MEvent;
+        EventImpl = MEvent.get();
       }
     }
 
@@ -3248,7 +3246,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
-                     SyclKernel, KernelName, RawEvents, EventImpl,
+                     SyclKernel.get(), KernelName, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
                      ExecKernel->MKernelUsesClusterLaunch,
@@ -3645,7 +3643,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     bool read = ExecReadWriteHostPipe->isReadHostPipe();
 
     if (!EventImpl) {
-      EventImpl = MEvent;
+      EventImpl = MEvent.get();
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, EventImpl, read);

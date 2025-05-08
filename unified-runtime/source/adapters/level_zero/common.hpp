@@ -74,6 +74,7 @@ const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
   if (!UrRet)
     return 0;
+
   return std::atoi(UrRet);
 }();
 
@@ -373,11 +374,10 @@ constexpr char ZE_SUPPORTED_EXTENSIONS[] =
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 extern thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode);

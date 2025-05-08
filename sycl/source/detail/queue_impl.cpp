@@ -316,8 +316,15 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
+  detail::handler_impl *HandlerImpl = &HandlerImplVal;
+  handler Handler(HandlerImpl, Self);
+#else
   handler Handler(Self, SecondaryQueue, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+#endif
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
@@ -371,8 +378,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImplVal(PrimaryQueue.get(), CallerNeedsEvent);
+  detail::handler_impl *HandlerImpl = &HandlerImplVal;
+  handler Handler(HandlerImpl, Self);
+#else
   handler Handler(Self, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+#endif
 
 #if XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -590,11 +603,15 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
 void queue_impl::wait(const detail::code_location &CodeLoc) {
   (void)CodeLoc;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  const bool xptiEnabled = xptiTraceEnabled();
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+  int32_t StreamID = xpti::invalid_id;
+  if (xptiEnabled) {
+    StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+    TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+  }
 #endif
 
   if (MGraph.lock()) {
@@ -662,7 +679,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     Event->wait(Event);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  if (xptiEnabled) {
+    instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  }
 #endif
 }
 
