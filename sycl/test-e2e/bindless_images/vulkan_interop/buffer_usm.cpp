@@ -1,4 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
+// REQUIRES: vulkan
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
