@@ -31,7 +31,7 @@ static inline bool trackLatency = []() {
 
     auto it = map->find("level");
     return it != map->end() &&
-           logger::str_to_level(it->second.front()) != logger::Level::QUIET;
+           logger::str_to_level(it->second.front()) != UR_LOGGER_LEVEL_QUIET;
   } catch (...) {
     return false;
   }
@@ -64,7 +64,7 @@ static inline latencyValues getValues(const struct hdr_histogram *histogram) {
   auto ret = hdr_value_at_percentiles(histogram, percentiles,
                                       values.percentileValues, numPercentiles);
   if (ret != 0) {
-    logger::error("Failed to get percentiles from latency histogram");
+    UR_LOG(ERR, "Failed to get percentiles from latency histogram");
   }
 
   return values;
@@ -94,7 +94,7 @@ public:
     for (auto &[name, histogram] : values) {
       auto value = getValues(histogram.get());
       auto f = groupDigits<int64_t>;
-      logger.log(logger::Level::INFO,
+      logger.log(UR_LOGGER_LEVEL_INFO,
                  "{},{},{},{},{},{},{},{},{},{},{},{},{},{},ns", name,
                  f(value.mean), f(value.percentileValues[0]),
                  f(value.percentileValues[1]), f(value.percentileValues[2]),
@@ -107,8 +107,8 @@ public:
 
 private:
   inline void printHeader() {
-    logger.log(logger::Level::INFO, "Latency histogram:");
-    logger.log(logger::Level::INFO,
+    logger.log(UR_LOGGER_LEVEL_INFO, "Latency histogram:");
+    logger.log(UR_LOGGER_LEVEL_INFO,
                "name,mean,p{},p{},p{},p{},p{},p{}"
                ",p{},count,sum,min,max,stdev,unit",
                percentiles[0], percentiles[1], percentiles[2], percentiles[3],
@@ -137,7 +137,7 @@ public:
       auto ret = hdr_init(lowestDiscernibleValue, highestTrackableValue,
                           significantFigures, &cHistogram);
       if (ret != 0) {
-        logger::error("Failed to initialize latency histogram");
+        UR_LOG(ERR, "Failed to initialize latency histogram");
       }
       histogram = std::unique_ptr<struct hdr_histogram, decltype(&hdr_close)>(
           cHistogram, &hdr_close);
@@ -153,7 +153,7 @@ public:
     }
 
     if (hdr_min(histogram.get()) == std::numeric_limits<int64_t>::max()) {
-      logger::info("[{}] latency: no data", name);
+      UR_LOG(INFO, "[{}] latency: no data", name);
       return;
     }
 
