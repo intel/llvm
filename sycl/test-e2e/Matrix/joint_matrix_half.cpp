@@ -16,4 +16,5 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
+
 #include "joint_matrix_half_impl.hpp"

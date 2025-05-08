@@ -462,9 +462,9 @@ joint_matrix_mad(
   }
 #else
   constexpr uint32_t MatrixOperand =
-      sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc>();
+      sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc, Td>();
   D.spvm =
-      __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm, MatrixOperand);
+      __spirv_CooperativeMatrixMulAddKHR<Ta, Tb, Tc, Td>(A.spvm, B.spvm, C.spvm, MatrixOperand);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = A;
@@ -492,7 +492,7 @@ void joint_matrix_copy(
   auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
   auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
   for (int i = 0; i < wi_data_c.length(); i++) {
-    wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
+      wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
   }
 #endif // defined(__NVPTX__)
 #else

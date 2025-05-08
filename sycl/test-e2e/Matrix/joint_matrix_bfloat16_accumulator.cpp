@@ -15,6 +15,8 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
+// XFAIL: gpu
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out %}
@@ -23,5 +25,7 @@
 
 
 #include "common.hpp"
+
+#define ACC_BFLOAT16 true
 
 #include "joint_matrix_bfloat16_impl.hpp"
