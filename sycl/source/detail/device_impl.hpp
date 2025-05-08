@@ -178,64 +178,20 @@ public:
   /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
+
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param> typename Param::return_type get_info() const {
+#define CALL_GET_INFO get_info
 #else
-  template <typename Param> typename Param::return_type get_info() const {
-    return get_info_abi_workaround<Param>();
-  }
-
-#define EXPORT_GET_INFO(PARAM)                                                 \
-  template <> __SYCL_EXPORT PARAM::return_type get_info<PARAM>() const;
-
-  // clang-format off
-  EXPORT_GET_INFO(ext::intel::info::device::device_id)
-  EXPORT_GET_INFO(ext::intel::info::device::pci_address)
-  EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count)
-  EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_simd_width)
-  EXPORT_GET_INFO(ext::intel::info::device::gpu_slices)
-  EXPORT_GET_INFO(ext::intel::info::device::gpu_subslices_per_slice)
-  EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count_per_subslice)
-  EXPORT_GET_INFO(ext::intel::info::device::gpu_hw_threads_per_eu)
-  EXPORT_GET_INFO(ext::intel::info::device::max_mem_bandwidth)
-  EXPORT_GET_INFO(ext::intel::info::device::uuid)
-  EXPORT_GET_INFO(ext::intel::info::device::free_memory)
-  EXPORT_GET_INFO(ext::intel::info::device::memory_clock_rate)
-  EXPORT_GET_INFO(ext::intel::info::device::memory_bus_width)
-  EXPORT_GET_INFO(ext::intel::info::device::max_compute_queue_indices)
-  EXPORT_GET_INFO(ext::intel::esimd::info::device::has_2d_block_io_support)
-  EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
-  EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
-  EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
-  EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
-
-  EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
-  EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
-
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_global_work_groups)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<1>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<2>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<3>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::sub_group>)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::architecture)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::matrix_combinations)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::image_row_pitch_align)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_row_pitch)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_width)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_height)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::mipmap_max_anisotropy)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::component_devices)
-  EXPORT_GET_INFO(ext::oneapi::experimental::info::device::composite_device)
-  EXPORT_GET_INFO(ext::oneapi::info::device::num_compute_units)
-  // clang-format on
-
-#undef EXPORT_GET_INFO
-
+  // We've been exporting
+  // `device_impl::get_info<ext::<whatever>::info::device::<descriptor>` for no
+  // reason. Have to keep doing that until next ABI breaking window. Also, old
+  // gcc doesn't allow in-class specializations, so they have to go out-of-class
+  // which happens later then implicit instantiatons of delegating to
+  // `get_info<other_descriptor>`. As such, all such calls have to go through
+  // `get_info_abi_workaround` for which we need this ugly macro:
+#define CALL_GET_INFO get_info_abi_workaround
+  template <typename Param> typename Param::return_type get_info() const;
   template <typename Param>
   typename Param::return_type get_info_abi_workaround() const {
 #endif
@@ -254,11 +210,11 @@ public:
       return range<3>{result[2], result[1], result[0]};
     }
     CASE(info::device::max_work_item_sizes<2>) {
-      range<3> r3 = get_info<info::device::max_work_item_sizes<3>>();
+      range<3> r3 = CALL_GET_INFO<info::device::max_work_item_sizes<3>>();
       return range<2>{r3[1], r3[2]};
     }
     CASE(info::device::max_work_item_sizes<1>) {
-      range<3> r3 = get_info<info::device::max_work_item_sizes<3>>();
+      range<3> r3 = CALL_GET_INFO<info::device::max_work_item_sizes<3>>();
       return range<1>{r3[2]};
     }
 
@@ -331,7 +287,7 @@ public:
           get_info_impl<std::string>(UR_DEVICE_INFO_BUILT_IN_KERNELS), ';');
     }
     CASE(info::device::built_in_kernel_ids) {
-      auto names = get_info<info::device::built_in_kernels>();
+      auto names = CALL_GET_INFO<info::device::built_in_kernels>();
 
       std::vector<kernel_id> ids;
       ids.reserve(names.size());
@@ -526,22 +482,22 @@ public:
 
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
-      return get_info<
+      return CALL_GET_INFO<
           ext::oneapi::experimental::info::device::max_global_work_groups>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_1d) {
       // Deprecated alias.
-      return get_info<
+      return CALL_GET_INFO<
           ext::oneapi::experimental::info::device::max_work_groups<1>>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_2d) {
       // Deprecated alias.
-      return get_info<
+      return CALL_GET_INFO<
           ext::oneapi::experimental::info::device::max_work_groups<2>>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_3d) {
       // Deprecated alias.
-      return get_info<
+      return CALL_GET_INFO<
           ext::oneapi::experimental::info::device::max_work_groups<3>>();
     }
 
@@ -567,7 +523,7 @@ public:
       return static_cast<size_t>((std::numeric_limits<int>::max)());
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
-      size_t Limit = get_info<
+      size_t Limit = CALL_GET_INFO<
           ext::oneapi::experimental::info::device::max_global_work_groups>();
 
       // TODO: std::array<size_t, 3> ?
@@ -579,12 +535,12 @@ public:
                    std::min(Limit, result[0]));
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<2>) {
-      id<3> max_3d = get_info<
+      id<3> max_3d = CALL_GET_INFO<
           ext::oneapi::experimental::info::device::max_work_groups<3>>();
       return id<2>{max_3d[1], max_3d[2]};
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<1>) {
-      id<3> max_3d = get_info<
+      id<3> max_3d = CALL_GET_INFO<
           ext::oneapi::experimental::info::device::max_work_groups<3>>();
       return id<1>{max_3d[2]};
     }
@@ -1262,7 +1218,7 @@ private:
       // sycl_ext_oneapi_device_architecture, the runtime exception is
       // omitted, and std::nullopt is returned.
       try {
-        return get_info<
+        return CALL_GET_INFO<
             ext::oneapi::experimental::info::device::architecture>();
       } catch (sycl::exception &e) {
         if (e.code() != errc::runtime)
@@ -1577,6 +1533,67 @@ private:
   mutable std::once_flag MDeviceArchFlag;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 }; // class device_impl
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+template <typename Param>
+typename Param::return_type device_impl::get_info() const {
+  return get_info_abi_workaround<Param>();
+}
+
+#define EXPORT_GET_INFO(PARAM)                                                 \
+  template <>                                                                  \
+  __SYCL_EXPORT PARAM::return_type device_impl::get_info<PARAM>() const;
+
+// clang-format off
+EXPORT_GET_INFO(ext::intel::info::device::device_id)
+EXPORT_GET_INFO(ext::intel::info::device::pci_address)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_simd_width)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_slices)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_subslices_per_slice)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count_per_subslice)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_hw_threads_per_eu)
+EXPORT_GET_INFO(ext::intel::info::device::max_mem_bandwidth)
+EXPORT_GET_INFO(ext::intel::info::device::uuid)
+EXPORT_GET_INFO(ext::intel::info::device::free_memory)
+EXPORT_GET_INFO(ext::intel::info::device::memory_clock_rate)
+EXPORT_GET_INFO(ext::intel::info::device::memory_bus_width)
+EXPORT_GET_INFO(ext::intel::info::device::max_compute_queue_indices)
+EXPORT_GET_INFO(ext::intel::esimd::info::device::has_2d_block_io_support)
+EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
+EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
+EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
+EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
+
+EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
+EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
+
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_global_work_groups)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<1>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<2>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<3>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::sub_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::architecture)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::matrix_combinations)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::image_row_pitch_align)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_row_pitch)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_width)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_height)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::mipmap_max_anisotropy)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::component_devices)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::composite_device)
+EXPORT_GET_INFO(ext::oneapi::info::device::num_compute_units)
+// clang-format on
+
+#undef EXPORT_GET_INFO
+#endif
+
+#undef CALL_GET_INFO
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
