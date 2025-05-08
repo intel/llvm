@@ -77,8 +77,8 @@ void runSycl(const sycl::device &syclDevice, sycl::range<1> globalSize,
     syclQueue.wait_and_throw();
 
     // Cleanup.
-    syclexp::free_mapped_linear_memory(memIn, syclQueue);
-    syclexp::free_mapped_linear_memory(memOut, syclQueue);
+    syclexp::unmap_external_linear_memory(memIn, syclQueue);
+    syclexp::unmap_external_linear_memory(memOut, syclQueue);
     syclexp::release_external_memory(externalMemIn, syclQueue);
     syclexp::release_external_memory(externalMemOut, syclQueue);
 

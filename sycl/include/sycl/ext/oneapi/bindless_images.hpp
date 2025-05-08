@@ -286,24 +286,45 @@ __SYCL_EXPORT void release_external_memory(external_mem externalMem,
                                            const sycl::queue &syclQueue);
 
 /**
- *  @brief   Free mapped linear memory region
+ *  @brief   Unmap external linear memory region
  *
- *  @param   mappedLinearRegion Pointer to the mapped memory region to free
- *  @param   syclQueue   The queue in which the external memory was created
- */
-__SYCL_EXPORT void free_mapped_linear_memory(void *mappedLinearRegion,
-                                             const sycl::device &syclDevice,
-                                             const sycl::context &syclContext);
-
-/**
- *  @brief   Free mapped linear memory region
- *
- *  @param   mappedLinearRegion Pointer to the mapped memory region to free
+ *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
  *  @param   syclDevice  The device in which the external memory was created
  *  @param   syclContext The context in which the external memory was created
  */
-__SYCL_EXPORT void free_mapped_linear_memory(void *mappedLinearRegion,
-                                             const sycl::queue &syclQueue);
+__SYCL_EXPORT void unmap_external_linear_memory(void *mappedLinearMem,
+                                                const sycl::device &syclDevice,
+                                                const sycl::context &syclContext);
+
+/**
+ *  @brief   Unmap external linear memory region
+ *
+ *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
+ *  @param   syclQueue The queue in which the external memory was created
+ */
+__SYCL_EXPORT void unmap_external_linear_memory(void *mappedLinearMem,
+                                                const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Unmap external image memory
+ *
+ *  @param   mappedImageMem Handle to the mapped image memory to unmap
+ *  @param   syclDevice  The device in which the external memory was created
+ *  @param   syclContext The context in which the external memory was created
+ */
+__SYCL_EXPORT void unmap_external_image_memory(
+    image_mem_handle mappedImageMem, image_type imageType,
+    const sycl::device &syclDevice, const sycl::context &syclContext);
+
+/**
+ *  @brief   Unmap external image memory
+ *
+ *  @param   mappedImageMem Handle to the mapped image memory to unmap
+ *  @param   syclQueue The queue in which the external memory was created
+ */
+__SYCL_EXPORT void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                               image_type imageType,
+                                               const sycl::queue &syclQueue);
 
 /**
  *  @brief   Create an image and return the device image handle
