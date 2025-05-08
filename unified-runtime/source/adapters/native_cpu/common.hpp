@@ -16,7 +16,7 @@
 
 constexpr size_t MaxMessageSize = 256;
 
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 #define DIE_NO_IMPLEMENTATION                                                  \

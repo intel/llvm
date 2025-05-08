@@ -199,22 +199,7 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 // for string return type in other specializations.
 inline std::string
 device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
-  size_t resultSize = 0;
-  getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), InfoCode, 0,
-                                                 nullptr, &resultSize);
-  if (resultSize == 0) {
-    return std::string();
-  }
-  std::string result;
-  // C++23's `resize_and_overwrite` would be better...
-  //
-  // UR counts null terminator in the size, std::string doesn't. Adjust by "-1"
-  // for that.
-  result.resize(resultSize - 1);
-  getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-      getHandleRef(), InfoCode, resultSize, result.data(), nullptr);
-
-  return result;
+  return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, InfoCode);
 }
 
 // Specialization for string return type, variable return size
@@ -737,17 +722,10 @@ struct get_device_info_impl<
         }
         return ext::oneapi::experimental::architecture::unknown;
       };
-      size_t ResultSize = 0;
-      Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          Dev.getHandleRef(), UrInfoCode<info::device::version>::value, 0,
-          nullptr, &ResultSize);
-      std::unique_ptr<char[]> DeviceArch(new char[ResultSize]);
-      Dev.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          Dev.getHandleRef(), UrInfoCode<info::device::version>::value,
-          ResultSize, DeviceArch.get(), nullptr);
-      std::string DeviceArchCopy(DeviceArch.get());
-      std::string DeviceArchSubstr =
-          DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
+      std::string DeviceArch = urGetInfoString<UrApiKind::urDeviceGetInfo>(
+          Dev, UrInfoCode<info::device::version>::value);
+      std::string_view DeviceArchSubstr =
+          std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
       return MapArchIDToArchName(DeviceArchSubstr.data());
     } else if (Dev.is_cpu() && backend::opencl == CurrentBackend) {
       return LookupIPVersion(IntelCPUArchitectures)
@@ -1076,6 +1054,15 @@ struct get_device_info_impl<
         return sm_70_combinations;
     }
     return {};
+  }
+};
+
+template <>
+struct get_device_info_impl<std::string, info::device::opencl_c_version> {
+  static std::string get(const device_impl &) {
+    throw sycl::exception(
+        errc::feature_not_supported,
+        "Deprecated interface that hasn't been working for some time already");
   }
 };
 

@@ -284,19 +284,18 @@ KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;
 }
 
-bool context_impl::hasDevice(
-    std::shared_ptr<detail::device_impl> Device) const {
+bool context_impl::hasDevice(const detail::device_impl &Device) const {
   for (auto D : MDevices)
-    if (getSyclObjImpl(D) == Device)
+    if (getSyclObjImpl(D).get() == &Device)
       return true;
   return false;
 }
 
-DeviceImplPtr
+device_impl *
 context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
   for (device D : MDevices)
     if (getSyclObjImpl(D)->getHandleRef() == DeviceUR)
-      return getSyclObjImpl(D);
+      return getSyclObjImpl(D).get();
 
   return nullptr;
 }
@@ -356,10 +355,10 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     return {};
 
   const AdapterPtr &Adapter = getAdapter();
-  const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
+  device_impl &DeviceImpl = QueueImpl->getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
-      std::make_pair(NativePrg, DeviceImpl->getHandleRef()));
+      std::make_pair(NativePrg, DeviceImpl.getHandleRef()));
   if (ImgIt == MDeviceGlobalInitializers.end() ||
       ImgIt->second.MDeviceGlobalsFullyInitialized)
     return {};
@@ -461,12 +460,12 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(
 }
 
 void context_impl::memcpyToHostOnlyDeviceGlobal(
-    const std::shared_ptr<device_impl> &DeviceImpl, const void *DeviceGlobalPtr,
-    const void *Src, size_t DeviceGlobalTSize, bool IsDeviceImageScoped,
-    size_t NumBytes, size_t Offset) {
+    device_impl &DeviceImpl, const void *DeviceGlobalPtr, const void *Src,
+    size_t DeviceGlobalTSize, bool IsDeviceImageScoped, size_t NumBytes,
+    size_t Offset) {
   std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
-    KeyDevice = DeviceImpl->getHandleRef();
+    KeyDevice = DeviceImpl.getHandleRef();
   auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
 
   std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
@@ -483,13 +482,12 @@ void context_impl::memcpyToHostOnlyDeviceGlobal(
 }
 
 void context_impl::memcpyFromHostOnlyDeviceGlobal(
-    const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
-    const void *DeviceGlobalPtr, bool IsDeviceImageScoped, size_t NumBytes,
-    size_t Offset) {
+    device_impl &DeviceImpl, void *Dest, const void *DeviceGlobalPtr,
+    bool IsDeviceImageScoped, size_t NumBytes, size_t Offset) {
 
   std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
-    KeyDevice = DeviceImpl->getHandleRef();
+    KeyDevice = DeviceImpl.getHandleRef();
   auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
 
   std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
@@ -580,9 +578,8 @@ context_impl::get_default_memory_pool(const context &Context,
 
   assert(Kind == usm::alloc::device);
 
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(Device);
-  ur_device_handle_t DeviceHandle = DevImpl->getHandleRef();
+  detail::device_impl &DevImpl = *detail::getSyclObjImpl(Device);
+  ur_device_handle_t DeviceHandle = DevImpl.getHandleRef();
   const sycl::detail::AdapterPtr &Adapter = this->getAdapter();
 
   // Check dev is already in our list of device pool pairs.
