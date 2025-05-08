@@ -102,6 +102,8 @@ ur_result_t mapCLErrorToUR(cl_int Result) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
   case CL_INVALID_SPEC_ID:
     return UR_RESULT_ERROR_INVALID_SPEC_ID;
+  case CL_INVALID_KERNEL:
+    return UR_RESULT_ERROR_INVALID_KERNEL;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }
