@@ -443,7 +443,7 @@ sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
   // an event at end. If the event comes from a graph we must skip this because
   // the original event is used for tracking nodes in the graph.
   auto LastEventImpl = detail::getSyclObjImpl(*LastEvent);
-  if (!LastEventImpl->getCommandGraph() &&
+  if (!LastEventImpl->hasCommandGraph() &&
       (LastEventImpl->isDiscarded() || LastEventImpl->isNOP()))
     LastEvent =
         detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));

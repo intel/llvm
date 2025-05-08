@@ -948,15 +948,16 @@ public:
   /// @param Events Events to find nodes for.
   /// @return A list of node counterparts for each event, in the same order.
   std::vector<std::shared_ptr<node_impl>> getNodesForEvents(
-      const std::vector<std::shared_ptr<sycl::detail::event_impl>> Events) {
-    std::vector<std::shared_ptr<node_impl>> NodeList{Events.size()};
+      const std::vector<std::shared_ptr<sycl::detail::event_impl>> &Events) {
+    std::vector<std::shared_ptr<node_impl>> NodeList{};
+    NodeList.reserve(Events.size());
 
     ReadLock Lock(MMutex);
 
-    for (size_t i = 0; i < Events.size(); i++) {
-      if (auto NodeFound = MEventsMap.find(Events[i]);
+    for (const auto &Event : Events) {
+      if (auto NodeFound = MEventsMap.find(Event);
           NodeFound != std::end(MEventsMap)) {
-        NodeList[i] = NodeFound->second;
+        NodeList.push_back(NodeFound->second);
       } else {
         throw sycl::exception(
             sycl::make_error_code(errc::invalid),
@@ -1221,6 +1222,7 @@ public:
   /// this graph.
   size_t getExecGraphCount() const { return MExecGraphCount; }
 
+  /// Resets the visited edges variable across all nodes in the graph to 0.
   void resetNodeVisitedEdges() {
     for (auto &Node : MNodeStorage) {
       Node->MTotalVisitedEdges = 0;
