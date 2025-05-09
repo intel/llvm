@@ -95,8 +95,7 @@ template <auto &SpecName> const char *get_spec_constant_symbolic_ID();
 #ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
+  static constexpr const kernel_param_desc_t &getParamDesc(int) {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
@@ -106,12 +105,14 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
   static constexpr int64_t getKernelSize() { return 0; }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 #else
 template <char...> struct KernelInfoData {
   static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
+  static constexpr const kernel_param_desc_t &getParamDesc(int) {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
@@ -121,6 +122,9 @@ template <char...> struct KernelInfoData {
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
   static constexpr int64_t getKernelSize() { return 0; }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 // C++14 like index_sequence and make_index_sequence
@@ -154,7 +158,7 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() {
     return SubKernelInfo::getNumParams();
   }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return SubKernelInfo::getParamDesc(Idx);
   }
   static constexpr const char *getName() { return SubKernelInfo::getName(); }
@@ -186,7 +190,7 @@ template <typename KernelNameType> constexpr unsigned getKernelNumParams() {
 }
 
 template <typename KernelNameType>
-kernel_param_desc_t getKernelParamDesc(int Idx) {
+constexpr kernel_param_desc_t getKernelParamDesc(int Idx) {
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
   kernel_param_desc_t ParamDesc;
   ParamDesc.kind =
@@ -255,6 +259,19 @@ template <typename KernelNameType> constexpr int64_t getKernelSize() {
   // cases with external host compiler, which use integration headers.
   return KernelInfo<KernelNameType>::getKernelSize();
 }
+
+template <typename KernelNameType> constexpr bool hasSpecialCaptures() {
+  bool FoundSpecialCapture = false;
+  for (int I = 0; I < getKernelNumParams<KernelNameType>(); ++I) {
+    auto ParamDesc = getKernelParamDesc<KernelNameType>(I);
+    bool IsSpecialCapture =
+        (ParamDesc.kind != kernel_param_kind_t::kind_std_layout &&
+         ParamDesc.kind != kernel_param_kind_t::kind_pointer);
+    FoundSpecialCapture |= IsSpecialCapture;
+  }
+  return FoundSpecialCapture;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
