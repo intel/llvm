@@ -5381,11 +5381,6 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
       CmdArgs.push_back("-D_MT");
     if (Defines & addDLL && !isSPIROrSPIRV)
       CmdArgs.push_back("-D_DLL");
-    // for /MDd with spir targets
-    if ((Defines & addDLL) && (Defines & addDEBUG) && isSPIROrSPIRV) {
-      CmdArgs.push_back("-D_CONTAINER_DEBUG_LEVEL=0");
-      CmdArgs.push_back("-D_ITERATOR_DEBUG_LEVEL=0");
-    }
   };
   StringRef FlagForCRT;
   switch (RTOptionID) {
@@ -11470,6 +11465,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
     }
+    // Add option to enable creating of the .syclbin file.
+    if (Args.hasArg(options::OPT_fsyclbin))
+      CmdArgs.push_back(Args.MakeArgString("--syclbin"));
   }
 
   // Construct the link job so we can wrap around it.

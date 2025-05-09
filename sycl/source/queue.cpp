@@ -20,6 +20,7 @@
 namespace sycl {
 inline namespace _V1 {
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 namespace detail {
 SubmissionInfo::SubmissionInfo()
     : impl{std::make_shared<SubmissionInfoImpl>()} {}
@@ -51,6 +52,8 @@ SubmissionInfo::EventMode() const {
 }
 } // namespace detail
 
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
   const std::vector<device> Devs = SyclContext.get_devices();
@@ -62,21 +65,21 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
   const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+      *detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+      *detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       AsyncHandler, PropList);
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
+      *detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
@@ -269,19 +272,36 @@ void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       bool IsTopCodeLoc) {
   impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                     const detail::SubmissionInfo &SubmitInfo,
                                     const detail::code_location &CodeLoc,
                                     bool IsTopCodeLoc) {
-  return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
+  detail::v1::SubmissionInfo SI{SubmitInfo};
+  return impl->submit_with_event(CGH, impl, SI, CodeLoc, IsTopCodeLoc);
 }
 
 void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                       const detail::SubmissionInfo &SubmitInfo,
                                       const detail::code_location &CodeLoc,
                                       bool IsTopCodeLoc) {
+  detail::v1::SubmissionInfo SI{SubmitInfo};
+  impl->submit_without_event(CGH, impl, SI, CodeLoc, IsTopCodeLoc);
+}
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+event queue::submit_with_event_impl(
+    const detail::type_erased_cgfo_ty &CGH,
+    const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
+}
+
+void queue::submit_without_event_impl(
+    const detail::type_erased_cgfo_ty &CGH,
+    const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
@@ -420,7 +440,7 @@ event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
 
 bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
-  return impl->getDeviceImplPtr()->has(Aspect);
+  return impl->getDeviceImpl().has(Aspect);
 }
 
 // TODO(#15184) Remove this function in the next ABI-breaking window.
