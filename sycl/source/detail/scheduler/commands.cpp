@@ -2404,7 +2404,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     // TODO: Find a way to use the built-ins instead of variables.
     for (int I = 0; I < NumDirectArgs; ++I) {
       auto ParamDesc = ParamDescGetter(I);
-      void *ArgPtr = (char *)DirectArgs + ParamDesc.offset;
+      const void *ArgPtr = (const char *)DirectArgs + ParamDesc.offset;
       switch (ParamDesc.kind) {
       case kernel_param_kind_t::kind_std_layout: {
         int Size = ParamDesc.info;
