@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected -verify-ignore-unexpected=note -fsycl-int-header=%t.h %s
 
 #include "sycl.hpp"
 
@@ -9,6 +9,20 @@ foo(int start, ...) { // expected-error {{free function kernel cannot be a varia
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
 foo1(int start, ...) { // expected-error {{free function kernel cannot be a variadic function}}
 }
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 1)]] void
+foo2(int start);
+
+// expected-error@+1 {{attribute 'add_ir_attributes_function' is already applied with different arguments}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
+foo2(int start) {
+}
+
+// expected-error@+1 {{the first occurrence of kernel free function should be declared with attribute}}
+void foo3(int start, int *ptr);
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
+foo3(int start, int *ptr){}
 
 // expected-error@+2 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
