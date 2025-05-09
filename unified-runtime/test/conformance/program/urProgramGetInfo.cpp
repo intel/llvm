@@ -178,8 +178,6 @@ TEST_P(urProgramGetInfoTest, SuccessBinaries) {
 }
 
 TEST_P(urProgramGetInfoTest, SuccessNumKernels) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{});
-
   size_t property_size = 0;
   const ur_program_info_t property_name = UR_PROGRAM_INFO_NUM_KERNELS;
 

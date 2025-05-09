@@ -633,10 +633,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
 
 TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
-  if (use_pool) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
   ur_device_usm_access_capability_flags_t shared_usm_flags = 0;
   ASSERT_SUCCESS(
       uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
