@@ -68,7 +68,6 @@ elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.available_features.add("build-mode")
     config.sycl_devices = []
-    config.require_device_arch = []
     if not config.amd_arch:
         config.amd_arch = "gfx1030"
 else:
@@ -891,7 +890,7 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
         filtered_sycl_devices.append(sycl_device)
 
 
-if not filtered_sycl_devices:
+if not filtered_sycl_devices and not config.test_mode == "build-only":
     lit_config.error("No sycl devices selected! Check your device " \
     "architecture filters.")
 
