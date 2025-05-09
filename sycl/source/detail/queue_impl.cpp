@@ -346,7 +346,25 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool IsKernel = Handler.getType() == CGType::Kernel;
+  bool KernelUsesAssert = false;
+  if (SubmitInfo.PostProcessorFunc() && IsKernel)
+    // Kernel only uses assert if it's non interop one
+    KernelUsesAssert =
+        (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
+        ProgramManager::getInstance().kernelUsesAssert(
+            Handler.MKernelName.data());
+#endif
+
+  auto Event = finalizeHandler(Handler);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (SubmitInfo.PostProcessorFunc()) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+    PostProcess(IsKernel, KernelUsesAssert, Event);
+  }
+#endif
 
   addEvent(Event);
 
@@ -408,7 +426,25 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool IsKernel = Handler.getType() == CGType::Kernel;
+  bool KernelUsesAssert = false;
+  if (SubmitInfo.PostProcessorFunc() && IsKernel)
+    // Kernel only uses assert if it's non interop one
+    KernelUsesAssert =
+        (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
+        ProgramManager::getInstance().kernelUsesAssert(
+            Handler.MKernelName.data());
+#endif
+
+  auto Event = finalizeHandler(Handler);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (SubmitInfo.PostProcessorFunc()) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+    PostProcess(IsKernel, KernelUsesAssert, Event);
+  }
+#endif
 
   addEvent(Event);
 
