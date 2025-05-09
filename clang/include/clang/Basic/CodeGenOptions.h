@@ -92,6 +92,8 @@ public:
                        // to use with PGO.
     ProfileIRInstr,    // IR level PGO instrumentation in LLVM.
     ProfileCSIRInstr, // IR level PGO context sensitive instrumentation in LLVM.
+    ProfileIRSampleColdCov, // IR level sample pgo based cold function coverage
+                            // instrumentation in LLVM.
   };
 
   enum EmbedBitcodeKind {

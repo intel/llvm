@@ -17,6 +17,7 @@ add_llvm_unittest(ObjectTests
   ObjectFileTest.cpp
   OffloadingTest.cpp
   SYCLBINTest.cpp
+  OffloadingBundleTest.cpp
   SymbolSizeTest.cpp
   SymbolicFileTest.cpp
   XCOFFObjectFileTest.cpp
