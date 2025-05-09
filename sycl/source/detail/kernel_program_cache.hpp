@@ -565,8 +565,8 @@ public:
                     FastKernelCacheKeyT(FastCacheKey.second, Context));
                 traceKernel("Kernel evicted.", FastCacheKey.first, true);
 
-                // Remove the subcache wrapper from this kernel program cache if the
-                // subcache no longer contains entries for this context.
+                // Remove the subcache wrapper from this kernel program cache if
+                // the subcache no longer contains entries for this context.
                 RemoveSubcache = std::none_of(
                     Subcache.Map.begin(), Subcache.Map.end(),
                     [&](const auto &It) { return It.first.second == Context; });
