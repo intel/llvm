@@ -102,7 +102,11 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
   }
 
   ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint64_t, uint32_t, uptr *&,
-                                 uptr &, uptr &) override {
+                                 uptr &Begin, uptr &End) override {
+    // This is necessary as msan_rtl use it to check whether detecting private
+    // is enabled
+    Begin = ShadowBegin;
+    End = ShadowEnd;
     return UR_RESULT_SUCCESS;
   }
 };
