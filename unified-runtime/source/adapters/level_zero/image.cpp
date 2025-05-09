@@ -20,8 +20,6 @@
 
 #include "loader/ze_loader.h"
 
-namespace {} // namespace
-
 namespace ur::level_zero {
 
 ur_result_t
