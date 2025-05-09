@@ -12,6 +12,9 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
+// XFAIL: preview-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18390
+
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 
