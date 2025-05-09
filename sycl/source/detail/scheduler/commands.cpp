@@ -2418,7 +2418,7 @@ static ur_result_t SetKernelParamsAndLaunch(
                                                         Ptr);
         break;
       }
-      default: {
+      default:
         throw std::runtime_error("Direct kernel argument copy failed.");
       }
     }
