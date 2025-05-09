@@ -1345,9 +1345,7 @@ public:
     Int32Ty = Type::getInt32Ty(C);
   }
 
-  bool isSpirv() const {
-    return IsSPIRV;
-  }
+  bool isSpirv() const { return IsSPIRV; }
 
   void initializeCallbacks() {
     IRBuilder<> IRB(C);

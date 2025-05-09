@@ -219,7 +219,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
       return 0;
     }
 
-    const auto wid = WorkGroupLinearId();
+    const size_t wid = WorkGroupLinearId();
     const size_t sid = SubGroupLinearId();
     const uptr private_base = launch_info->PrivateBase[sid];
 
