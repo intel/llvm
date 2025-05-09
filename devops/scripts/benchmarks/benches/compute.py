@@ -88,7 +88,7 @@ class ComputeBench(Suite):
 
         self.built = True
 
-    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+    def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {
             "SubmitKernel": BenchmarkMetadata(
                 type="group",
