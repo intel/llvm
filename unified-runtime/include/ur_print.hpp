@@ -1835,9 +1835,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
   case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
     os << "UR_RESULT_ERROR_INVALID_WORK_DIMENSION";
     break;
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    os << "UR_RESULT_ERROR_INVALID_KERNEL_ARGS";
-    break;
   case UR_RESULT_ERROR_INVALID_KERNEL:
     os << "UR_RESULT_ERROR_INVALID_KERNEL";
     break;

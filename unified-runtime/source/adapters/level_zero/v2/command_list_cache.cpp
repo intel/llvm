@@ -62,13 +62,13 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
 
   if (ForceDisableCopyOffload && requestedCopyOffload) {
-    logger::info("Copy offload is disabled by the environment variable.");
+    UR_LOG(INFO, "Copy offload is disabled by the environment variable.");
     requestedCopyOffload = false;
   }
 
   if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
-    logger::info(
-        "Copy offload is requested but is not supported by the driver.");
+    UR_LOG(INFO,
+           "Copy offload is requested but is not supported by the driver.");
     requestedCopyOffload = false;
   }
 
@@ -89,10 +89,10 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     }
     QueueDesc.pNext = &offloadDesc;
 
-    logger::debug("create command list ordinal: {}, type: immediate, device: "
-                  "{}, inOrder: {}",
-                  ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice,
-                  ImmCmdDesc->IsInOrder);
+    UR_LOG(DEBUG,
+           "create command list ordinal: {}, type: immediate, "
+           "device: {}, inOrder: {}",
+           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder);
 
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
@@ -106,10 +106,10 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     CmdListDesc.commandQueueGroupOrdinal = RegCmdDesc.Ordinal;
     CmdListDesc.pNext = &offloadDesc;
 
-    logger::debug("create command list ordinal: {}, type: immediate, device: "
-                  "{}, inOrder: {}",
-                  RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice,
-                  RegCmdDesc.IsInOrder);
+    UR_LOG(DEBUG,
+           "create command list ordinal: {}, type: immediate, "
+           "device: {}, inOrder: {}",
+           RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder);
 
     ze_command_list_handle_t ZeCommandList;
     ZE2UR_CALL_THROWS(zeCommandListCreate, (ZeContext, RegCmdDesc.ZeDevice,
