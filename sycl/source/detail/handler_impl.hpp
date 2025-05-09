@@ -175,6 +175,9 @@ public:
   std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
+  /// Storage for node dependencies passed when adding a graph node explicitly
+  std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+      MNodeDeps;
 
   /// Storage for lambda/function when using HostTask
   std::shared_ptr<detail::HostTask> MHostTask;
