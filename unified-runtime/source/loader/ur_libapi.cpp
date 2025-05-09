@@ -7923,6 +7923,43 @@ ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Free a linear memory region mapped using MapExternalLinearMemoryExp
+///
+/// @remarks
+///   _Analogues_
+///     - **cuMemFree**
+///     - **zeMemFree**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMem == NULL`
+ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) try {
+  auto pfnFreeMappedLinearMemoryExp =
+      ur_lib::getContext()
+          ->urDdiTable.BindlessImagesExp.pfnFreeMappedLinearMemoryExp;
+  if (nullptr == pfnFreeMappedLinearMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Import an external semaphore
 ///
 /// @remarks

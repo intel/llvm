@@ -202,8 +202,8 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
                                         dev, ctxt);
 #endif
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
-    syclexp::free_image_mem(handles.imgMem, syclexp::image_type::standard, dev,
-                            ctxt);
+    syclexp::unmap_external_image_memory(
+        handles.imgMem, syclexp::image_type::standard, dev, ctxt);
     syclexp::release_external_memory(handles.inputExternalMem, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;

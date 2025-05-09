@@ -5,6 +5,7 @@
 		urAdapterGetLastError;
 		urAdapterRelease;
 		urAdapterRetain;
+		urBindlessImagesFreeMappedLinearMemoryExp;
 		urBindlessImagesImageAllocateExp;
 		urBindlessImagesImageCopyExp;
 		urBindlessImagesImageFreeExp;
@@ -182,6 +183,7 @@
 		urPrintApiVersion;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
+		urPrintBindlessImagesFreeMappedLinearMemoryExpParams;
 		urPrintBindlessImagesImageAllocateExpParams;
 		urPrintBindlessImagesImageCopyExpParams;
 		urPrintBindlessImagesImageFreeExpParams;

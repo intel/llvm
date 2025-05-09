@@ -742,6 +742,16 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urBindlessImagesFreeMappedLinearMemoryExp(
+    ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
+    void *pMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pMem));
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_mem_handle_t hExternalMem) {

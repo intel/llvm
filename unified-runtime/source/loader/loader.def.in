@@ -5,6 +5,7 @@ EXPORTS
 	urAdapterGetLastError
 	urAdapterRelease
 	urAdapterRetain
+	urBindlessImagesFreeMappedLinearMemoryExp
 	urBindlessImagesImageAllocateExp
 	urBindlessImagesImageCopyExp
 	urBindlessImagesImageFreeExp
@@ -182,6 +183,7 @@ EXPORTS
 	urPrintApiVersion
 	urPrintBaseDesc
 	urPrintBaseProperties
+	urPrintBindlessImagesFreeMappedLinearMemoryExpParams
 	urPrintBindlessImagesImageAllocateExpParams
 	urPrintBindlessImagesImageCopyExpParams
 	urPrintBindlessImagesImageFreeExpParams

@@ -142,6 +142,7 @@ Enums
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
@@ -188,6 +189,7 @@ Functions
    * ${x}BindlessImagesMapExternalArrayExp
    * ${x}BindlessImagesMapExternalLinearMemoryExp
    * ${x}BindlessImagesReleaseExternalMemoryExp
+   * ${x}BindlessImagesFreeMappedLinearMemoryExp
    * ${x}BindlessImagesImportExternalSemaphoreExp
    * ${x}BindlessImagesReleaseExternalSemaphoreExp
    * ${x}BindlessImagesWaitExternalSemaphoreExp
@@ -269,6 +271,8 @@ Changelog
 |          || to DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP    |
 |          || to be more consistent with other UR enums                         |
 +----------+--------------------------------------------------------------------+
+| 23.0     | Added BindlessImagesFreeMappedLinearMemory function.        |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------

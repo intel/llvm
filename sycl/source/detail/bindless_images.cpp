@@ -621,6 +621,30 @@ __SYCL_EXPORT void release_external_memory(external_mem extMem,
                           syclQueue.get_context());
 }
 
+__SYCL_EXPORT void
+unmap_external_linear_memory(void *mappedLinearRegion,
+                             const sycl::device &syclDevice,
+                             const sycl::context &syclContext) {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  ur_context_handle_t C = CtxImpl->getHandleRef();
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  ur_device_handle_t Device = DevImpl->getHandleRef();
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  Adapter->call<
+      sycl::errc::invalid,
+      sycl::detail::UrApiKind::urBindlessImagesFreeMappedLinearMemoryExp>(
+      C, Device, mappedLinearRegion);
+}
+
+__SYCL_EXPORT void unmap_external_image_memory(
+    image_mem_handle mappedImageMem, image_type imageType,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+  free_image_mem(mappedImageMem, imageType, syclDevice, syclContext);
+}
+
 template <>
 __SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_fd> externalSemaphoreDesc,

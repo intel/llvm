@@ -450,12 +450,24 @@ VkResult setupCommandBuffers() {
 /*
 Create a Vulkan buffer with a specified size and usage.
 */
-VkBuffer createBuffer(size_t size, VkBufferUsageFlags usage) {
+VkBuffer createBuffer(size_t size, VkBufferUsageFlags usage,
+                      bool exportable = false) {
   VkBufferCreateInfo bci = {};
   bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   bci.size = size;
   bci.usage = usage;
   bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  VkExternalMemoryBufferCreateInfo embci = {};
+  if (exportable) {
+    embci.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
+#ifdef _WIN32
+    embci.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
+    embci.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
+    bci.pNext = &embci;
+  }
 
   VkBuffer buffer;
   if (vkCreateBuffer(vk_device, &bci, nullptr, &buffer) != VK_SUCCESS) {

@@ -643,6 +643,9 @@ etors:
 - name: USM_POOL_SET_INFO_EXP
   desc: Enumerator for $xUSMPoolSetInfoExp
   value: '265'
+- name: BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesFreeMappedLinearMemoryExp
+  value: '271'
 ---
 type: enum
 desc: Defines structure types

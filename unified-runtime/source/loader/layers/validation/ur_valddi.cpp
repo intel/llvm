@@ -8140,6 +8140,48 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesFreeMappedLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) {
+  auto pfnFreeMappedLinearMemoryExp =
+      getContext()->urDdiTable.BindlessImagesExp.pfnFreeMappedLinearMemoryExp;
+
+  if (nullptr == pfnFreeMappedLinearMemoryExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (pMem == NULL)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  ur_result_t result = pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -10737,6 +10779,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   dditable.pfnReleaseExternalMemoryExp = pDdiTable->pfnReleaseExternalMemoryExp;
   pDdiTable->pfnReleaseExternalMemoryExp =
       ur_validation_layer::urBindlessImagesReleaseExternalMemoryExp;
+
+  dditable.pfnFreeMappedLinearMemoryExp =
+      pDdiTable->pfnFreeMappedLinearMemoryExp;
+  pDdiTable->pfnFreeMappedLinearMemoryExp =
+      ur_validation_layer::urBindlessImagesFreeMappedLinearMemoryExp;
 
   dditable.pfnImportExternalSemaphoreExp =
       pDdiTable->pfnImportExternalSemaphoreExp;

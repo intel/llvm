@@ -131,6 +131,13 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urBindlessImagesFreeMappedLinearMemoryExp(
+    ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
+    void *pMem) {
+  logger::error("{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,

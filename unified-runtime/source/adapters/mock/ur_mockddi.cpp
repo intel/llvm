@@ -8788,6 +8788,56 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesFreeMappedLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_free_mapped_linear_memory_exp_params_t params = {
+      &hContext, &hDevice, &pMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesFreeMappedLinearMemoryExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesFreeMappedLinearMemoryExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesFreeMappedLinearMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -11740,6 +11790,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
   pDdiTable->pfnReleaseExternalMemoryExp =
       driver::urBindlessImagesReleaseExternalMemoryExp;
+
+  pDdiTable->pfnFreeMappedLinearMemoryExp =
+      driver::urBindlessImagesFreeMappedLinearMemoryExp;
 
   pDdiTable->pfnImportExternalSemaphoreExp =
       driver::urBindlessImagesImportExternalSemaphoreExp;

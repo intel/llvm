@@ -807,6 +807,29 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Free a linear memory region mapped using MapExternalLinearMemoryExp"
+class: $xBindlessImages
+name: FreeMappedLinearMemoryExp
+ordinal: "0"
+analogue:
+    - "**cuMemFree**"
+    - "**zeMemFree**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: void *
+      name: pMem
+      desc: "[in][release] pointer to mapped linear memory region to be freed"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pMem == NULL`"
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Import an external semaphore"
 class: $xBindlessImages
 name: ImportExternalSemaphoreExp

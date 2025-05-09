@@ -577,6 +577,8 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
 ur_result_t urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_mem_handle_t hExternalMem);
+ur_result_t urBindlessImagesFreeMappedLinearMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, void *pMem);
 ur_result_t urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_semaphore_type_t semHandleType,
