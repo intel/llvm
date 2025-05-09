@@ -19,111 +19,134 @@ struct LegacyMessage {
 
 class Logger {
 public:
-  Logger(std::unique_ptr<logger::Sink> sink) : sink(std::move(sink)) {
-    this->level = logger::Level::QUIET;
-  }
+  Logger(std::unique_ptr<logger::Sink> sink,
+         std::unique_ptr<logger::CallbackSink> callbackSink = nullptr)
+      : standardSinkLevel(UR_LOGGER_LEVEL_QUIET), standardSink(std::move(sink)),
+        callbackSinkLevel(UR_LOGGER_LEVEL_QUIET),
+        callbackSink(std::move(callbackSink)) {}
 
-  Logger(logger::Level level, std::unique_ptr<logger::Sink> sink)
-      : level(level), sink(std::move(sink)) {}
+  Logger(ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET,
+         std::unique_ptr<logger::Sink> sink = nullptr,
+         ur_logger_level_t callbackSinkLevel = UR_LOGGER_LEVEL_QUIET,
+         std::unique_ptr<logger::CallbackSink> callbackSink = nullptr)
+      : standardSinkLevel(level), standardSink(std::move(sink)),
+        callbackSinkLevel(callbackSinkLevel),
+        callbackSink(std::move(callbackSink)) {}
 
-  Logger &operator=(Logger &&) = default;
-  ~Logger() = default;
+  void setLevel(ur_logger_level_t level) { this->standardSinkLevel = level; }
 
-  void setLevel(logger::Level level) { this->level = level; }
+  ur_logger_level_t getLevel() { return this->standardSinkLevel; }
 
-  logger::Level getLevel() { return this->level; }
-
-  void setFlushLevel(logger::Level level) {
-    if (sink) {
-      this->sink->setFlushLevel(level);
-    }
-  }
-
-  template <typename... Args> void debug(const char *format, Args &&...args) {
-    log(logger::Level::DEBUG, format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args> void info(const char *format, Args &&...args) {
-    log(logger::Level::INFO, format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args> void warning(const char *format, Args &&...args) {
-    log(logger::Level::WARN, format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args> void warn(const char *format, Args &&...args) {
-    warning(format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args> void error(const char *format, Args &&...args) {
-    log(logger::Level::ERR, format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args> void always(const char *format, Args &&...args) {
-    if (sink) {
-      sink->log(logger::Level::QUIET, format, std::forward<Args>(args)...);
+  void setFlushLevel(ur_logger_level_t level) {
+    if (standardSink) {
+      this->standardSink->setFlushLevel(level);
     }
   }
 
   template <typename... Args>
-  void debug(const logger::LegacyMessage &p, const char *format,
-             Args &&...args) {
-    log(p, logger::Level::DEBUG, format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args>
-  void info(const logger::LegacyMessage &p, const char *format,
-            Args &&...args) {
-    log(p, logger::Level::INFO, format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args>
-  void warning(const logger::LegacyMessage &p, const char *format,
-               Args &&...args) {
-    log(p, logger::Level::WARN, format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args>
-  void error(const logger::LegacyMessage &p, const char *format,
-             Args &&...args) {
-    log(p, logger::Level::ERR, format, std::forward<Args>(args)...);
-  }
-
-  template <typename... Args>
-  void log(logger::Level level, const char *format, Args &&...args) {
-    log(logger::LegacyMessage(format), level, format,
+  void log(ur_logger_level_t level, const char *filename, const char *lineno,
+           const char *format, Args &&...args) {
+    log(logger::LegacyMessage(format), level, filename, lineno, format,
         std::forward<Args>(args)...);
   }
 
   template <typename... Args>
-  void log(const logger::LegacyMessage &p, logger::Level level,
-           const char *format, Args &&...args) {
-    if (!sink) {
-      return;
+  void log(const logger::LegacyMessage &p, ur_logger_level_t level,
+           const char *filename, const char *lineno, const char *format,
+           Args &&...args) {
+    if (callbackSink && level >= this->callbackSinkLevel) {
+      callbackSink->log(level, filename, lineno, format,
+                        std::forward<Args>(args)...);
     }
 
-    if (isLegacySink) {
-      sink->log(level, p.message, std::forward<Args>(args)...);
-      return;
-    }
-    if (level < this->level) {
-      return;
-    }
+    if (standardSink) {
+      if (isLegacySink) {
+        standardSink->log(level, filename, lineno, p.message,
+                          std::forward<Args>(args)...);
+        return;
+      }
 
-    sink->log(level, format, std::forward<Args>(args)...);
+      if (level < this->standardSinkLevel) {
+        return;
+      }
+      standardSink->log(level, filename, lineno, format,
+                        std::forward<Args>(args)...);
+    }
   }
 
-  void setLegacySink(std::unique_ptr<logger::Sink> legacySink) {
+  void setLegacySink(std::unique_ptr<Sink> legacySink) {
     this->isLegacySink = true;
-    this->sink = std::move(legacySink);
+    this->standardSink = std::move(legacySink);
+  }
+
+  void setCallbackSink(ur_logger_callback_t callBack, void *pUserData,
+                       ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
+    if (!callbackSink) {
+      callbackSink = std::make_unique<CallbackSink>("UR_LOG_CALLBACK");
+    }
+
+    if (callBack) {
+      callbackSink->setCallback(callBack, pUserData);
+      callbackSinkLevel = level;
+    }
+  }
+
+  void setCallbackLevel(ur_logger_level_t level) {
+    this->callbackSinkLevel = level;
   }
 
 private:
-  logger::Level level;
-  std::unique_ptr<logger::Sink> sink;
+  ur_logger_level_t standardSinkLevel;
+  std::unique_ptr<logger::Sink> standardSink;
   bool isLegacySink = false;
+
+  ur_logger_level_t callbackSinkLevel;
+  std::unique_ptr<logger::CallbackSink> callbackSink;
 };
 
 } // namespace logger
+
+#define UR_STRIMPL_(x) #x
+#define UR_STR_(x) UR_STRIMPL_(x)
+
+#define URLOG2_(logger_instance, level, ...)                                   \
+  {                                                                            \
+    (logger_instance).log(level, __FILE__, UR_STR_(__LINE__), __VA_ARGS__);    \
+  }
+
+#define URLOG_L2_(logger_instance, level, legacy_message, ...)                 \
+  {                                                                            \
+    (logger_instance)                                                          \
+        .log(legacy_message, level, __FILE__, UR_STR_(__LINE__), __VA_ARGS__); \
+  }
+
+// some symbols usefuls for log levels are predfined in some systems,
+// eg. ERROR on Windows
+#define URLOG_ERR(logger_instance, ...)                                        \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_ERROR, __VA_ARGS__)
+#define URLOG_WARN(logger_instance, ...)                                       \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_WARN, __VA_ARGS__)
+#define URLOG_DEBUG(logger_instance, ...)                                      \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_DEBUG, __VA_ARGS__)
+#define URLOG_INFO(logger_instance, ...)                                       \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_INFO, __VA_ARGS__)
+#define URLOG_QUIET(logger_instance, ...)                                      \
+  URLOG2_(logger_instance, UR_LOGGER_LEVEL_QUIET, __VA_ARGS__)
+
+#define URLOG_L_ERR(logger_instance, legacy_message, ...)                      \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_ERROR, legacy_message, __VA_ARGS__)
+#define URLOG_L_WARN(logger_instance, legacy_message, ...)                     \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_WARN, legacy_message, __VA_ARGS__)
+#define URLOG_L_DEBUG(logger_instance, legacy_message, ...)                    \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_DEBUG, legacy_message, __VA_ARGS__)
+#define URLOG_L_INFO(logger_instance, legacy_message, ...)                     \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_INFO, legacy_message, __VA_ARGS__)
+#define URLOG_L_QUIET(logger_instance, legacy_message, ...)                    \
+  URLOG_L2_(logger_instance, UR_LOGGER_LEVEL_QUIET, legacy_message, __VA_ARGS__)
+
+#define URLOG_(logger_instance, level, ...)                                    \
+  URLOG_##level(logger_instance, __VA_ARGS__)
+#define URLOG_L_(logger_instance, level, legacy_message, ...)                  \
+  URLOG_L_##level(logger_instance, legacy_message, __VA_ARGS__)
 
 #endif /* UR_LOGGER_DETAILS_HPP */

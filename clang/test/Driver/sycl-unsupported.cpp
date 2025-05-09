@@ -31,8 +31,6 @@
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fcs-profile-generate \
 // RUN:    -DOPT_CC1=-fprofile-instrument=csllvm \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
-// RUN: %clangxx -fsycl -forder-file-instrumentation -### %s 2>&1 \
-// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-forder-file-instrumentation
 // RUN: %clangxx -fsycl --coverage -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=--coverage \
 // RUN:    -DOPT_CC1=-coverage-notes-file \
@@ -65,14 +63,14 @@
 // RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-targets=spir64_fpga
 // RUN: not %clangxx -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-targets=spir64_fpga-unknown-unknown
-// RUN: not %clangxx -fintelfpga -reuse-exe=exe -### %s 2>&1 \
+// RUN: not %clangxx -fsycl -reuse-exe=exe -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-reuse-exe=exe
 // RUN: not %clangxx -fsycl-help=fpga -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-help=fpga
 // RUN: not %clangxx -fsycl -fintelfpga -Xsycl-target-backend=spir64_fpga "-backend_opts" -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-Xsycl-target-backend=spir64_fpga
-// RUN: not %clangxx -fintelfpga -fsycl-link=early -### %s 2>&1 \
+// RUN: not %clangxx -fsycl -fsycl-link=early -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-link=early
-// RUN: not %clangxx -fintelfpga -fsycl-link=image -### %s 2>&1 \
+// RUN: not %clangxx -fsycl -fsycl-link=image -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-link=image
 // UNSUPPORTED_FPGA: option '[[BADOPT]]' is not supported and has been removed from the compiler. Please see the compiler documentation for more details

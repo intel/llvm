@@ -219,6 +219,16 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
     waitListView.clear();
   };
 
+  // If the offset is {0, 0, 0}, pass NULL instead.
+  // This allows us to skip setting the offset.
+  bool hasOffset = false;
+  for (uint32_t i = 0; i < workDim; ++i) {
+    hasOffset |= pGlobalWorkOffset[i];
+  }
+  if (!hasOffset) {
+    pGlobalWorkOffset = NULL;
+  }
+
   UR_CALL(hKernel->prepareForSubmission(context, device, pGlobalWorkOffset,
                                         workDim, WG[0], WG[1], WG[2],
                                         memoryMigrate));
@@ -228,6 +238,8 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
   ZE2UR_CALL(zeCommandListAppendLaunchKernel,
              (zeCommandList.get(), hZeKernel, &zeThreadGroupDimensions,
               zeSignalEvent, waitListView.num, waitListView.handles));
+
+  postSubmit(hZeKernel, pGlobalWorkOffset);
 
   return UR_RESULT_SUCCESS;
 }
@@ -283,12 +295,10 @@ ur_result_t ur_command_list_manager::appendUSMFill(
 }
 
 ur_result_t ur_command_list_manager::appendUSMPrefetch(
-    const void *pMem, size_t size, ur_usm_migration_flags_t flags,
+    const void *pMem, size_t size, ur_usm_migration_flags_t /*flags*/,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMPrefetch");
-
-  std::ignore = flags;
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_PREFETCH);
 

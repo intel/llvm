@@ -38,7 +38,7 @@ DIBuilder::DIBuilder(Module &m, bool AllowUnresolvedNodes, DICompileUnit *CU)
     if (const auto &IMs = CUNode->getImportedEntities())
       ImportedModules.assign(IMs.begin(), IMs.end());
     if (const auto &MNs = CUNode->getMacros())
-      AllMacrosPerParent.insert({nullptr, {MNs.begin(), MNs.end()}});
+      AllMacrosPerParent.insert({nullptr, {llvm::from_range, MNs}});
   }
 }
 
@@ -270,6 +270,37 @@ DIBasicType *DIBuilder::createBasicType(StringRef Name, uint64_t SizeInBits,
   assert(!Name.empty() && "Unable to create type without name");
   return DIBasicType::get(VMContext, dwarf::DW_TAG_base_type, Name, SizeInBits,
                           0, Encoding, NumExtraInhabitants, Flags);
+}
+
+DIFixedPointType *
+DIBuilder::createBinaryFixedPointType(StringRef Name, uint64_t SizeInBits,
+                                      uint32_t AlignInBits, unsigned Encoding,
+                                      DINode::DIFlags Flags, int Factor) {
+  return DIFixedPointType::get(VMContext, dwarf::DW_TAG_base_type, Name,
+                               SizeInBits, AlignInBits, Encoding, Flags,
+                               DIFixedPointType::FixedPointBinary, Factor,
+                               APInt(), APInt());
+}
+
+DIFixedPointType *
+DIBuilder::createDecimalFixedPointType(StringRef Name, uint64_t SizeInBits,
+                                       uint32_t AlignInBits, unsigned Encoding,
+                                       DINode::DIFlags Flags, int Factor) {
+  return DIFixedPointType::get(VMContext, dwarf::DW_TAG_base_type, Name,
+                               SizeInBits, AlignInBits, Encoding, Flags,
+                               DIFixedPointType::FixedPointDecimal, Factor,
+                               APInt(), APInt());
+}
+
+DIFixedPointType *
+DIBuilder::createRationalFixedPointType(StringRef Name, uint64_t SizeInBits,
+                                        uint32_t AlignInBits, unsigned Encoding,
+                                        DINode::DIFlags Flags, APInt Numerator,
+                                        APInt Denominator) {
+  return DIFixedPointType::get(VMContext, dwarf::DW_TAG_base_type, Name,
+                               SizeInBits, AlignInBits, Encoding, Flags,
+                               DIFixedPointType::FixedPointRational, 0,
+                               Numerator, Denominator);
 }
 
 DIStringType *DIBuilder::createStringType(StringRef Name, uint64_t SizeInBits) {
@@ -511,8 +542,8 @@ DICompositeType *DIBuilder::createClassType(
   auto *R = DICompositeType::get(
       VMContext, dwarf::DW_TAG_class_type, Name, File, LineNumber,
       getNonCompileUnitScope(Context), DerivedFrom, SizeInBits, AlignInBits,
-      OffsetInBits, Flags, Elements, RunTimeLang, VTableHolder,
-      cast_or_null<MDTuple>(TemplateParams), UniqueIdentifier);
+      OffsetInBits, Flags, Elements, RunTimeLang, /*EnumKind=*/std::nullopt,
+      VTableHolder, cast_or_null<MDTuple>(TemplateParams), UniqueIdentifier);
   trackIfUnresolved(R);
   return R;
 }
@@ -526,9 +557,9 @@ DICompositeType *DIBuilder::createStructType(
   auto *R = DICompositeType::get(
       VMContext, dwarf::DW_TAG_structure_type, Name, File, LineNumber,
       getNonCompileUnitScope(Context), DerivedFrom, SizeInBits, AlignInBits, 0,
-      Flags, Elements, RunTimeLang, VTableHolder, nullptr, UniqueIdentifier,
-      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, Specification,
-      NumExtraInhabitants);
+      Flags, Elements, RunTimeLang, /*EnumKind=*/std::nullopt, VTableHolder,
+      nullptr, UniqueIdentifier, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, Specification, NumExtraInhabitants);
   trackIfUnresolved(R);
   return R;
 }
@@ -540,7 +571,8 @@ DICompositeType *DIBuilder::createUnionType(
   auto *R = DICompositeType::get(
       VMContext, dwarf::DW_TAG_union_type, Name, File, LineNumber,
       getNonCompileUnitScope(Scope), nullptr, SizeInBits, AlignInBits, 0, Flags,
-      Elements, RunTimeLang, nullptr, nullptr, UniqueIdentifier);
+      Elements, RunTimeLang, /*EnumKind=*/std::nullopt, nullptr, nullptr,
+      UniqueIdentifier);
   trackIfUnresolved(R);
   return R;
 }
@@ -554,7 +586,8 @@ DIBuilder::createVariantPart(DIScope *Scope, StringRef Name, DIFile *File,
   auto *R = DICompositeType::get(
       VMContext, dwarf::DW_TAG_variant_part, Name, File, LineNumber,
       getNonCompileUnitScope(Scope), nullptr, SizeInBits, AlignInBits, 0, Flags,
-      Elements, 0, nullptr, nullptr, UniqueIdentifier, Discriminator);
+      Elements, 0, /*EnumKind=*/std::nullopt, nullptr, nullptr,
+      UniqueIdentifier, Discriminator);
   trackIfUnresolved(R);
   return R;
 }
@@ -565,17 +598,16 @@ DISubroutineType *DIBuilder::createSubroutineType(DITypeRefArray ParameterTypes,
   return DISubroutineType::get(VMContext, Flags, CC, ParameterTypes);
 }
 
-DICompositeType *
-DIBuilder::createEnumerationType(DIScope *Scope, StringRef Name, DIFile *File,
-                                 unsigned LineNumber, uint64_t SizeInBits,
-                                 uint32_t AlignInBits, DINodeArray Elements,
-                                 DIType *UnderlyingType, unsigned RunTimeLang,
-                                 StringRef UniqueIdentifier, bool IsScoped) {
+DICompositeType *DIBuilder::createEnumerationType(
+    DIScope *Scope, StringRef Name, DIFile *File, unsigned LineNumber,
+    uint64_t SizeInBits, uint32_t AlignInBits, DINodeArray Elements,
+    DIType *UnderlyingType, unsigned RunTimeLang, StringRef UniqueIdentifier,
+    bool IsScoped, std::optional<uint32_t> EnumKind) {
   auto *CTy = DICompositeType::get(
       VMContext, dwarf::DW_TAG_enumeration_type, Name, File, LineNumber,
       getNonCompileUnitScope(Scope), UnderlyingType, SizeInBits, AlignInBits, 0,
       IsScoped ? DINode::FlagEnumClass : DINode::FlagZero, Elements,
-      RunTimeLang, nullptr, nullptr, UniqueIdentifier);
+      RunTimeLang, EnumKind, nullptr, nullptr, UniqueIdentifier);
   AllEnumTypes.emplace_back(CTy);
   trackIfUnresolved(CTy);
   return CTy;
@@ -600,10 +632,21 @@ DIBuilder::createArrayType(uint64_t Size, uint32_t AlignInBits, DIType *Ty,
                            PointerUnion<DIExpression *, DIVariable *> AS,
                            PointerUnion<DIExpression *, DIVariable *> AL,
                            PointerUnion<DIExpression *, DIVariable *> RK) {
+  return createArrayType(nullptr, StringRef(), nullptr, 0, Size, AlignInBits,
+                         Ty, Subscripts, DL, AS, AL, RK);
+}
+
+DICompositeType *DIBuilder::createArrayType(
+    DIScope *Scope, StringRef Name, DIFile *File, unsigned LineNumber,
+    uint64_t Size, uint32_t AlignInBits, DIType *Ty, DINodeArray Subscripts,
+    PointerUnion<DIExpression *, DIVariable *> DL,
+    PointerUnion<DIExpression *, DIVariable *> AS,
+    PointerUnion<DIExpression *, DIVariable *> AL,
+    PointerUnion<DIExpression *, DIVariable *> RK, Metadata *BitStride) {
   auto *R = DICompositeType::get(
-      VMContext, dwarf::DW_TAG_array_type, "", nullptr, 0, nullptr, Ty, Size,
-      AlignInBits, 0, DINode::FlagZero, Subscripts, 0, nullptr, nullptr, "",
-      nullptr,
+      VMContext, dwarf::DW_TAG_array_type, Name, File, LineNumber,
+      getNonCompileUnitScope(Scope), Ty, Size, AlignInBits, 0, DINode::FlagZero,
+      Subscripts, 0, /*EnumKind=*/std::nullopt, nullptr, nullptr, "", nullptr,
       isa<DIExpression *>(DL) ? (Metadata *)cast<DIExpression *>(DL)
                               : (Metadata *)cast<DIVariable *>(DL),
       isa<DIExpression *>(AS) ? (Metadata *)cast<DIExpression *>(AS)
@@ -611,7 +654,8 @@ DIBuilder::createArrayType(uint64_t Size, uint32_t AlignInBits, DIType *Ty,
       isa<DIExpression *>(AL) ? (Metadata *)cast<DIExpression *>(AL)
                               : (Metadata *)cast<DIVariable *>(AL),
       isa<DIExpression *>(RK) ? (Metadata *)cast<DIExpression *>(RK)
-                              : (Metadata *)cast<DIVariable *>(RK));
+                              : (Metadata *)cast<DIVariable *>(RK),
+      nullptr, nullptr, 0, BitStride);
   trackIfUnresolved(R);
   return R;
 }
@@ -621,7 +665,8 @@ DICompositeType *DIBuilder::createVectorType(uint64_t Size,
                                              DINodeArray Subscripts) {
   auto *R = DICompositeType::get(VMContext, dwarf::DW_TAG_array_type, "",
                                  nullptr, 0, nullptr, Ty, Size, AlignInBits, 0,
-                                 DINode::FlagVector, Subscripts, 0, nullptr);
+                                 DINode::FlagVector, Subscripts, 0,
+                                 /*EnumKind=*/std::nullopt, nullptr);
   trackIfUnresolved(R);
   return R;
 }
@@ -666,17 +711,16 @@ void DIBuilder::retainType(DIScope *T) {
 
 DIBasicType *DIBuilder::createUnspecifiedParameter() { return nullptr; }
 
-DICompositeType *
-DIBuilder::createForwardDecl(unsigned Tag, StringRef Name, DIScope *Scope,
-                             DIFile *F, unsigned Line, unsigned RuntimeLang,
-                             uint64_t SizeInBits, uint32_t AlignInBits,
-                             StringRef UniqueIdentifier) {
+DICompositeType *DIBuilder::createForwardDecl(
+    unsigned Tag, StringRef Name, DIScope *Scope, DIFile *F, unsigned Line,
+    unsigned RuntimeLang, uint64_t SizeInBits, uint32_t AlignInBits,
+    StringRef UniqueIdentifier, std::optional<uint32_t> EnumKind) {
   // FIXME: Define in terms of createReplaceableForwardDecl() by calling
   // replaceWithUniqued().
   auto *RetTy = DICompositeType::get(
       VMContext, Tag, Name, F, Line, getNonCompileUnitScope(Scope), nullptr,
       SizeInBits, AlignInBits, 0, DINode::FlagFwdDecl, nullptr, RuntimeLang,
-      nullptr, nullptr, UniqueIdentifier);
+      /*EnumKind=*/EnumKind, nullptr, nullptr, UniqueIdentifier);
   trackIfUnresolved(RetTy);
   return RetTy;
 }
@@ -684,14 +728,14 @@ DIBuilder::createForwardDecl(unsigned Tag, StringRef Name, DIScope *Scope,
 DICompositeType *DIBuilder::createReplaceableCompositeType(
     unsigned Tag, StringRef Name, DIScope *Scope, DIFile *F, unsigned Line,
     unsigned RuntimeLang, uint64_t SizeInBits, uint32_t AlignInBits,
-    DINode::DIFlags Flags, StringRef UniqueIdentifier,
-    DINodeArray Annotations) {
+    DINode::DIFlags Flags, StringRef UniqueIdentifier, DINodeArray Annotations,
+    std::optional<uint32_t> EnumKind) {
   auto *RetTy =
       DICompositeType::getTemporary(
           VMContext, Tag, Name, F, Line, getNonCompileUnitScope(Scope), nullptr,
-          SizeInBits, AlignInBits, 0, Flags, nullptr, RuntimeLang, nullptr,
-          nullptr, UniqueIdentifier, nullptr, nullptr, nullptr, nullptr,
-          nullptr, Annotations)
+          SizeInBits, AlignInBits, 0, Flags, nullptr, RuntimeLang, EnumKind,
+          nullptr, nullptr, UniqueIdentifier, nullptr, nullptr, nullptr,
+          nullptr, nullptr, Annotations)
           .release();
   trackIfUnresolved(RetTy);
   return RetTy;
@@ -746,6 +790,16 @@ DIGenericSubrange *DIBuilder::getOrCreateGenericSubrange(
   return DIGenericSubrange::get(VMContext, ConvToMetadata(CountNode),
                                 ConvToMetadata(LB), ConvToMetadata(UB),
                                 ConvToMetadata(Stride));
+}
+
+DISubrangeType *DIBuilder::createSubrangeType(
+    StringRef Name, DIFile *File, unsigned LineNo, DIScope *Scope,
+    uint64_t SizeInBits, uint32_t AlignInBits, DINode::DIFlags Flags,
+    DIType *Ty, Metadata *LowerBound, Metadata *UpperBound, Metadata *Stride,
+    Metadata *Bias) {
+  return DISubrangeType::get(VMContext, Name, File, LineNo, Scope, SizeInBits,
+                             AlignInBits, Flags, Ty, LowerBound, UpperBound,
+                             Stride, Bias);
 }
 
 static void checkGlobalVariableScope(DIScope *Context) {

@@ -35,6 +35,10 @@ struct event_profiling_data_t {
   bool recordingStarted() const;
   bool recordingEnded() const;
 
+  // clear the profiling data, allowing the event to be reused
+  // for a new command
+  void reset();
+
 private:
   ze_event_handle_t hZeEvent;
 
@@ -46,7 +50,7 @@ private:
   uint64_t timestampMaxValue = 0;
 };
 
-struct ur_event_handle_t_ : _ur_object {
+struct ur_event_handle_t_ : ur_object {
 public:
   // cache_borrowed_event is used for pooled events, whilst ze_event_handle_t is
   // used for native events
@@ -63,9 +67,6 @@ public:
 
   // Set the queue and command that this event is associated with
   void resetQueueAndCommand(ur_queue_t_ *hQueue, ur_command_t commandType);
-
-  // releases event immediately
-  ur_result_t forceRelease();
 
   void reset();
   ze_event_handle_t getZeEvent() const;
@@ -95,6 +96,9 @@ public:
   // Get the type of the command that this event is associated with
   ur_command_t getCommandType() const;
 
+  // Get the device associated with this event
+  ur_device_handle_t getDevice() const;
+
   // Record the start timestamp of the event, to be obtained by
   // urEventGetProfilingInfo. resetQueueAndCommand should be
   // called before this.
@@ -122,6 +126,7 @@ protected:
   // commands
   ur_queue_t_ *hQueue = nullptr;
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
+  ur_device_handle_t hDevice = nullptr;
 
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;

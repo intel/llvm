@@ -806,8 +806,6 @@ TEST_P(urDeviceGetInfoTest, SuccessGlobalMemorySize) {
 }
 
 TEST_P(urDeviceGetInfoTest, SuccessGlobalMemoryFreeSize) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_GLOBAL_MEM_FREE;
 
@@ -816,11 +814,12 @@ TEST_P(urDeviceGetInfoTest, SuccessGlobalMemoryFreeSize) {
       property_name);
   ASSERT_EQ(property_size, sizeof(uint64_t));
 
-  uint64_t property_value = 0;
-  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
-                                             property_size, &property_value,
-                                             nullptr),
-                             property_value);
+  // Free memory can be any value (even 0), but we assume that UR will not
+  // run in environments with devices with 18EiB of memory
+  uint64_t property_value = std::numeric_limits<uint64_t>::max();
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+  ASSERT_NE(property_value, std::numeric_limits<uint64_t>::max());
 }
 
 TEST_P(urDeviceGetInfoTest, SuccessMaxConstantBufferSize) {

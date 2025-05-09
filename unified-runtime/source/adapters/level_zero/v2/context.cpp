@@ -25,7 +25,7 @@ filterP2PDevices(ur_device_handle_t hSourceDevice,
 
     ze_bool_t p2p;
     ZE2UR_CALL_THROWS(zeDeviceCanAccessPeer,
-                      (hSourceDevice->ZeDevice, device->ZeDevice, &p2p));
+                      (device->ZeDevice, hSourceDevice->ZeDevice, &p2p));
 
     if (p2p) {
       p2pDevices.push_back(device);
@@ -51,20 +51,18 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
     : hContext(hContext, ownZeContext),
       hDevices(phDevices, phDevices + numDevices),
       commandListCache(hContext,
-                       phDevices[0]->Platform->ZeCopyOffloadExtensionSupported),
-      eventPoolCache(this, phDevices[0]->Platform->getNumDevices(),
-                     [context = this, platform = phDevices[0]->Platform](
-                         DeviceId deviceId, v2::event_flags_t flags)
-                         -> std::unique_ptr<v2::event_provider> {
-                       assert((flags & v2::EVENT_FLAGS_COUNTER) != 0);
+                       {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
+                        phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
+      eventPoolCache(
+          this, phDevices[0]->Platform->getNumDevices(),
+          [context = this](DeviceId /* deviceId*/, v2::event_flags_t flags)
+              -> std::unique_ptr<v2::event_provider> {
+            assert((flags & v2::EVENT_FLAGS_COUNTER) != 0);
 
-                       std::ignore = deviceId;
-                       std::ignore = platform;
-
-                       // TODO: just use per-context id?
-                       return std::make_unique<v2::provider_normal>(
-                           context, v2::QUEUE_IMMEDIATE, flags);
-                     }),
+            // TODO: just use per-context id?
+            return std::make_unique<v2::provider_normal>(
+                context, v2::QUEUE_IMMEDIATE, flags);
+          }),
       nativeEventsPool(this, std::make_unique<v2::provider_normal>(
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),
@@ -115,9 +113,8 @@ ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
 namespace ur::level_zero {
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
-                            const ur_context_properties_t *pProperties,
+                            const ur_context_properties_t * /*pProperties*/,
                             ur_context_handle_t *phContext) try {
-  std::ignore = pProperties;
 
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
   ZeStruct<ze_context_desc_t> contextDesc{};
@@ -152,7 +149,6 @@ ur_result_t urContextCreateWithNativeHandle(
 
   *phContext =
       new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
-  (*phContext)->IsInteropNativeHandle = true;
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

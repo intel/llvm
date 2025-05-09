@@ -97,44 +97,46 @@ class ComputeRuntime:
             options.workdir,
             "vc-intrinsics",
             "https://github.com/intel/vc-intrinsics",
-            "b980474c99859f7e4eb157828c5e80202b062177",
+            "9d255266e1df8f1dc5d11e1fbb03213acfaa4fc7",
         )
         self.llvm_project = git_clone(
             options.workdir,
             "llvm-project",
             "https://github.com/llvm/llvm-project",
-            "llvmorg-14.0.5",
+            "llvmorg-15.0.7",
         )
         llvm_projects = os.path.join(self.llvm_project, "llvm", "projects")
         self.ocl = git_clone(
             llvm_projects,
             "opencl-clang",
             "https://github.com/intel/opencl-clang",
-            "ocl-open-140",
+            "ocl-open-150",
         )
         self.translator = git_clone(
             llvm_projects,
             "llvm-spirv",
             "https://github.com/KhronosGroup/SPIRV-LLVM-Translator",
-            "llvm_release_140",
+            "llvm_release_150",
         )
         self.spirv_tools = git_clone(
             options.workdir,
             "SPIRV-Tools",
             "https://github.com/KhronosGroup/SPIRV-Tools.git",
-            "173fe3c60a8d9c7d35d7842ae267bb9df267a127",
+            "f289d047f49fb60488301ec62bafab85573668cc",
         )
         self.spirv_headers = git_clone(
             options.workdir,
             "SPIRV-Headers",
             "https://github.com/KhronosGroup/SPIRV-Headers.git",
-            "2b2e05e088841c63c0b6fd4c9fb380d8688738d3",
+            "0e710677989b4326ac974fd80c5308191ed80965",
         )
 
         self.igc_build = os.path.join(options.workdir, "igc-build")
         self.igc_install = os.path.join(options.workdir, "igc-install")
         configure_command = [
             "cmake",
+            "-DCMAKE_C_FLAGS=-Wno-error",
+            "-DCMAKE_CXX_FLAGS=-Wno-error",
             f"-B {self.igc_build}",
             f"-S {self.igc_repo}",
             f"-DCMAKE_INSTALL_PREFIX={self.igc_install}",

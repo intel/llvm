@@ -56,6 +56,7 @@ sycl/source/detail/posix_ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/windows_ur.cpp @intel/unified-runtime-reviewers
 sycl/test-e2e/Adapters/ @intel/unified-runtime-reviewers
+sycl/test-e2e/Adapters/level_zero/ @intel/unified-runtime-reviewers-level-zero
 
 # Win Proxy Loader
 sycl/ur_win_proxy_loader @intel/llvm-reviewers-runtime
@@ -123,6 +124,7 @@ sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers
 .github/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
+sycl/cts_exclude_filter/ @intel/dpcpp-devops-reviewers
 
 # dev-igc driver update
 devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd-reviewers @intel/dpcpp-devops-reviewers
@@ -201,9 +203,11 @@ llvm/include/llvm/Transforms/Instrumentation/AddressSanitizer.h @intel/dpcpp-san
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/ThreadSanitizer.h @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/MemorySanitizer.cpp @intel/dpcpp-sanitizers-review
+llvm/lib/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.cpp @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/ThreadSanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/MemorySanitizer/ @intel/dpcpp-sanitizers-review

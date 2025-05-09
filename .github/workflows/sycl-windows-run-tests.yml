@@ -58,10 +58,19 @@ on:
         default: '{}'
         required: False
 
-      compiler:
+      cxx:
         type: string
         required: false
         default: "cl"
+
+      e2e_testing_mode:
+        type: string
+        default: "full"
+
+      e2e_binaries_artifact:
+        type: string
+        default: ''
+        required: False
 
       cts_testing_mode:
         description: |
@@ -92,9 +101,8 @@ jobs:
     - name:  Detect hung tests
       if: always()
       shell: powershell
-      continue-on-error: true
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
@@ -109,7 +117,7 @@ jobs:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -143,31 +151,20 @@ jobs:
         sycl-ls
     - run: |
         sycl-ls --verbose
-    - name: Configure E2E with Level Zero target
-      if: inputs.tests_selector == 'e2e'
-      shell: cmd
-      run: |
-        mkdir build-e2e
-        cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py"
-    - name: Run End-to-End tests
-      if: inputs.tests_selector == 'e2e'
-      shell: bash {0}
-      env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True ${{ inputs.extra_lit_opts }}
-      run: |
-        # Run E2E tests.
-        if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           export LIT_FILTER_OUT="compile_on_win_with_mdd"
-        fi
-        cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
 
-        exit_code=$?
-        cat e2e.log
-        if [ $exit_code -ne 0 ]; then
-          # This is duplicated between lin/win, updates must change both.
-          awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
-        fi
-        exit $exit_code
+    - name: Run E2E Tests
+      if: inputs.tests_selector == 'e2e'
+      uses: ./devops/actions/run-tests/windows/e2e
+      timeout-minutes: 60
+      with:
+        ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        testing_mode: ${{ inputs.e2e_testing_mode }}
+        extra_cmake_args: ${{ inputs.extra_cmake_args }}
+        target_devices: ${{ inputs.target_devices }}
+        extra_lit_opts: ${{ inputs.extra_lit_opts }}
+        retention-days: ${{ inputs.artifact_retention_days }}
+        cxx: ${{ inputs.cxx }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
@@ -185,7 +182,7 @@ jobs:
       if: always()
       shell: powershell
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"      
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"

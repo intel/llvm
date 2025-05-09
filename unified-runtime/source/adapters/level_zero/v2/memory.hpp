@@ -15,13 +15,13 @@
 #include <ur_api.h>
 
 #include "../device.hpp"
+#include "../helpers/memory_helpers.hpp"
+#include "../image_common.hpp"
 #include "common.hpp"
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
-struct ur_mem_buffer_t : _ur_object {
-  // Indicates if this object is an interop handle.
-  bool IsInteropNativeHandle = false;
+struct ur_mem_buffer_t : ur_object {
 
   enum class device_access_mode_t { read_write, read_only, write_only };
 
@@ -49,6 +49,18 @@ struct ur_mem_buffer_t : _ur_object {
   device_access_mode_t getDeviceAccessMode() const { return accessMode; }
   ur_context_handle_t getContext() const { return hContext; }
   size_t getSize() const { return size; }
+  static ur_mem_buffer_t::device_access_mode_t
+  getDeviceAccessMode(ur_mem_flags_t memFlag) {
+    if (memFlag & UR_MEM_FLAG_READ_WRITE) {
+      return ur_mem_buffer_t::device_access_mode_t::read_write;
+    } else if (memFlag & UR_MEM_FLAG_READ_ONLY) {
+      return ur_mem_buffer_t::device_access_mode_t::read_only;
+    } else if (memFlag & UR_MEM_FLAG_WRITE_ONLY) {
+      return ur_mem_buffer_t::device_access_mode_t::write_only;
+    } else {
+      return ur_mem_buffer_t::device_access_mode_t::read_write;
+    }
+  }
 
 protected:
   const ur_context_handle_t hContext;
@@ -85,7 +97,9 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
 
   ur_integrated_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
                                 size_t size, device_access_mode_t accesMode,
-                                bool ownHostPtr, bool interopNativeHandle);
+                                bool ownHostPtr);
+
+  ~ur_integrated_buffer_handle_t();
 
   void *
   getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
@@ -98,6 +112,7 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
 
 private:
   usm_unique_ptr_t ptr;
+  void *writeBackPtr = nullptr;
 };
 
 struct host_allocation_desc_t {
@@ -125,8 +140,7 @@ struct ur_discrete_buffer_handle_t : ur_mem_buffer_t {
   ur_discrete_buffer_handle_t(ur_context_handle_t hContext,
                               ur_device_handle_t hDevice, void *devicePtr,
                               size_t size, device_access_mode_t accesMode,
-                              void *writeBackMemory, bool ownDevicePtr,
-                              bool interopNativeHandle);
+                              void *writeBackMemory, bool ownDevicePtr);
 
   void *
   getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
@@ -200,13 +214,13 @@ private:
   size_t offset;
 };
 
-struct ur_mem_image_t : _ur_object {
+struct ur_mem_image_t : ur_object {
   ur_mem_image_t(ur_context_handle_t hContext, ur_mem_flags_t flags,
                  const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, void *pHost);
   ur_mem_image_t(ur_context_handle_t, const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, ze_image_handle_t zeImage,
-                 bool ownZeImage, bool interopNativeHandle);
+                 bool ownZeImage);
 
   ze_image_handle_t getZeImage() const { return zeImage.get(); }
 
@@ -265,10 +279,10 @@ struct ur_mem_handle_t_ {
         mem);
   }
 
-  _ur_object *getObject() {
+  ur_object *getObject() {
     return std::visit(
-        [](auto &&arg) -> _ur_object * {
-          return static_cast<_ur_object *>(&arg);
+        [](auto &&arg) -> ur_object * {
+          return static_cast<ur_object *>(&arg);
         },
         mem);
   }

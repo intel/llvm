@@ -11,7 +11,7 @@ from templates import helper as th
     handle_create_get_retain_release_funcs=th.get_handle_create_get_retain_release_functions(specs, n, tags)
 %>/*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023-2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -93,7 +93,7 @@ namespace ur_validation_layer
             %>
             %if tp_input_handle_funcs and not is_related_create_get_retain_release_func:
             if (getContext()->enableLifetimeValidation && !getContext()->refCountContext->isReferenceValid(${tp['name']})) {
-                getContext()->refCountContext->logInvalidReference(${tp['name']});
+                URLOG_CTX_INVALID_REFERENCE(${tp['name']});
             }
             %endif
             %endfor
@@ -117,9 +117,14 @@ namespace ur_validation_layer
         <%
             tp_handle_funcs = next((hf for hf in handle_create_get_retain_release_funcs if th.subt(n, tags, tp['type']) in [hf['handle'], hf['handle'] + "*"]), None)
             is_handle_to_adapter = ("_adapter_handle_t" in tp['type'])
+            is_handle_to_event = ("_event_handle_t" in tp['type'])
         %>
         %if func_name in tp_handle_funcs['create']:
-        if( getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS )
+        if( getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS
+        %if is_handle_to_event:
+            && ${tp['name']}
+        %endif
+        )
         {
             getContext()->refCountContext->createRefCount(*${tp['name']});
         }
@@ -234,9 +239,9 @@ namespace ur_validation_layer
 
     ${x}_result_t context_t::tearDown() {
         if (enableLeakChecking) {
-            getContext()->refCountContext->logInvalidReferences();
+            URLOG_CTX_INVALID_REFERENCES();
         }
-        
+
         return ${X}_RESULT_SUCCESS;
     }
 

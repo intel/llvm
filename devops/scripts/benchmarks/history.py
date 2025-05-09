@@ -11,6 +11,7 @@ from utils.result import Result, BenchmarkRun
 from options import Compare, options
 from datetime import datetime, timezone
 from utils.utils import run
+from utils.validate import Validate
 
 
 class BenchmarkHistory:
@@ -30,7 +31,10 @@ class BenchmarkHistory:
     def load(self, n: int):
         results_dir = Path(self.dir) / "results"
         if not results_dir.exists() or not results_dir.is_dir():
-            return []
+            print(
+                f"Warning: {results_dir} is not a valid directory: no historic results loaded."
+            )
+            return
 
         # Get all JSON files in the results directory
         benchmark_files = list(results_dir.glob("*.json"))
@@ -38,7 +42,9 @@ class BenchmarkHistory:
         # Extract timestamp and sort files by it
         def extract_timestamp(file_path: Path) -> str:
             try:
-                return file_path.stem.split("_")[-1]
+                # Assumes results are stored as <name>_YYYYMMDD_HHMMSS.json
+                ts = file_path.stem[-len("YYYYMMDD_HHMMSS") :]
+                return ts if Validate.timestamp(ts) else ""
             except IndexError:
                 return ""
 
@@ -54,31 +60,67 @@ class BenchmarkHistory:
         self.runs = benchmark_runs
 
     def create_run(self, name: str, results: list[Result]) -> BenchmarkRun:
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            result = run("git rev-parse --short HEAD", cwd=script_dir)
-            git_hash = result.stdout.decode().strip()
+        def git_info_from_path(path: Path) -> (str, str):
+            """
+            Derives git repo, commit information from git repo located in path.
 
-            # Get the GitHub repo URL from git remote
-            remote_result = run("git remote get-url origin", cwd=script_dir)
-            remote_url = remote_result.stdout.decode().strip()
+            Returns:
+                (str, str): git_hash, github_repo
+            """
+            try:
+                result = run("git rev-parse --short HEAD", cwd=path)
+                git_hash = result.stdout.decode().strip()
 
-            # Convert SSH or HTTPS URL to owner/repo format
-            if remote_url.startswith("git@github.com:"):
-                # SSH format: git@github.com:owner/repo.git
-                github_repo = remote_url.split("git@github.com:")[1].rstrip(".git")
-            elif remote_url.startswith("https://github.com/"):
-                # HTTPS format: https://github.com/owner/repo.git
-                github_repo = remote_url.split("https://github.com/")[1].rstrip(".git")
-            else:
+                # Get the GitHub repo URL from git remote
+                remote_result = run("git remote get-url origin", cwd=path)
+                remote_url = remote_result.stdout.decode().strip()
+
+                # Convert SSH or HTTPS URL to owner/repo format
+                if remote_url.startswith("git@github.com:"):
+                    # SSH format: git@github.com:owner/repo.git
+                    github_repo = remote_url.split("git@github.com:")[1].rstrip(".git")
+                elif remote_url.startswith("https://github.com/"):
+                    # HTTPS format: https://github.com/owner/repo.git
+                    github_repo = remote_url.split("https://github.com/")[1].rstrip(
+                        ".git"
+                    )
+                else:
+                    github_repo = None
+
+            except:
+                git_hash = "unknown"
                 github_repo = None
 
-        except:
-            git_hash = "unknown"
-            github_repo = None
+            return git_hash, github_repo
+
+        if options.git_commit_override is None or options.github_repo_override is None:
+            git_hash, github_repo = git_info_from_path(
+                os.path.dirname(os.path.abspath(__file__))
+            )
+        else:
+            git_hash, github_repo = (
+                options.git_commit_override,
+                options.github_repo_override,
+            )
+
+        # Check if RUNNER_NAME environment variable has been declared.
+        #
+        # Github runners obfusicate hostnames, thus running socket.gethostname()
+        # twice produces two different hostnames. Since github runners always
+        # define a RUNNER_NAME variable, use RUNNER_NAME instead if it exists:
+        hostname = os.getenv("RUNNER_NAME")
+        if hostname is None:
+            hostname = socket.gethostname()
+        else:
+            # Ensure RUNNER_NAME has not been tampered with:
+            # TODO is this overkill?
+            Validate.runner_name(
+                hostname,
+                throw=ValueError("Illegal characters found in specified RUNNER_NAME."),
+            )
 
         compute_runtime = (
-            options.compute_runtime_tag if options.build_compute_runtime else None
+            options.compute_runtime_tag if options.build_compute_runtime else ""
         )
 
         return BenchmarkRun(
@@ -87,7 +129,7 @@ class BenchmarkHistory:
             github_repo=github_repo,
             date=datetime.now(tz=timezone.utc),
             results=results,
-            hostname=socket.gethostname(),
+            hostname=hostname,
             compute_runtime=compute_runtime,
         )
 
@@ -103,7 +145,11 @@ class BenchmarkHistory:
         os.makedirs(results_dir, exist_ok=True)
 
         # Use formatted timestamp for the filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = (
+            datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+            if options.timestamp_override is None
+            else options.timestamp_override
+        )
         file_path = Path(os.path.join(results_dir, f"{save_name}_{timestamp}.json"))
         with file_path.open("w") as file:
             json.dump(serialized, file, indent=4)

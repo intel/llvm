@@ -41,10 +41,10 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr), MPlatform(), MPropList(PropList),
-      MSupportBufferLocationByDevices(NotChecked) {
+      MContext(nullptr),
+      MPlatform(detail::getSyclObjImpl(MDevices[0].get_platform())),
+      MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
   verifyProps(PropList);
-  MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<ur_device_handle_t> DeviceIds;
   for (const auto &D : MDevices) {
     if (D.has(aspect::ext_oneapi_is_composite)) {
@@ -96,13 +96,13 @@ context_impl::context_impl(ur_context_handle_t UrContext,
           make_error_code(errc::invalid),
           "No devices in the provided device list and native context.");
 
-    std::shared_ptr<detail::platform_impl> Platform =
+    platform_impl &Platform =
         platform_impl::getPlatformFromUrDevice(DeviceIds[0], Adapter);
     for (ur_device_handle_t Dev : DeviceIds) {
-      MDevices.emplace_back(createSyclObjFromImpl<device>(
-          Platform->getOrMakeDeviceImpl(Dev, Platform)));
+      MDevices.emplace_back(
+          createSyclObjFromImpl<device>(Platform.getOrMakeDeviceImpl(Dev)));
     }
-    MPlatform = Platform;
+    MPlatform = Platform.shared_from_this();
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getAdapter() will be the same as the Adapter passed. This should be taken
@@ -158,7 +158,7 @@ uint32_t context_impl::get_info<info::context::reference_count>() const {
                                                           this->getAdapter());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
-  return createSyclObjFromImpl<platform>(MPlatform);
+  return createSyclObjFromImpl<platform>(*MPlatform);
 }
 template <>
 std::vector<sycl::device>
@@ -284,19 +284,18 @@ KernelProgramCache &context_impl::getKernelProgramCache() const {
   return MKernelProgramCache;
 }
 
-bool context_impl::hasDevice(
-    std::shared_ptr<detail::device_impl> Device) const {
+bool context_impl::hasDevice(const detail::device_impl &Device) const {
   for (auto D : MDevices)
-    if (getSyclObjImpl(D) == Device)
+    if (getSyclObjImpl(D).get() == &Device)
       return true;
   return false;
 }
 
-DeviceImplPtr
+device_impl *
 context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
   for (device D : MDevices)
     if (getSyclObjImpl(D)->getHandleRef() == DeviceUR)
-      return getSyclObjImpl(D);
+      return getSyclObjImpl(D).get();
 
   return nullptr;
 }
@@ -338,21 +337,28 @@ void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 void context_impl::addDeviceGlobalInitializer(
     ur_program_handle_t Program, const std::vector<device> &Devs,
     const RTDeviceBinaryImage *BinImage) {
+  if (BinImage->getDeviceGlobals().empty())
+    return;
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
   for (const device &Dev : Devs) {
     auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
-    MDeviceGlobalInitializers.emplace(Key, BinImage);
+    auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
+    if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
+      ++MDeviceGlobalNotInitializedCnt;
   }
 }
 
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg,
     const std::shared_ptr<queue_impl> &QueueImpl) {
+  if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
+    return {};
+
   const AdapterPtr &Adapter = getAdapter();
-  const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
+  device_impl &DeviceImpl = QueueImpl->getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
-      std::make_pair(NativePrg, DeviceImpl->getHandleRef()));
+      std::make_pair(NativePrg, DeviceImpl.getHandleRef()));
   if (ImgIt == MDeviceGlobalInitializers.end() ||
       ImgIt->second.MDeviceGlobalsFullyInitialized)
     return {};
@@ -369,7 +375,6 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
           [&Adapter](const ur_event_handle_t &Event) {
             return get_event_info<info::event::command_execution_status>(
                        Event, Adapter) == info::event_command_status::complete;
-            return false;
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
@@ -377,8 +382,10 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // Remove them from the collection.
       InitEventsRef.erase(NewEnd, InitEventsRef.end());
       // If there are no more events, we can mark it as fully initialized.
-      if (InitEventsRef.empty())
+      if (InitEventsRef.empty()) {
         InitRef.MDeviceGlobalsFullyInitialized = true;
+        --MDeviceGlobalNotInitializedCnt;
+      }
       return InitEventsRef;
     } else if (InitRef.MDeviceGlobalsFullyInitialized) {
       // MDeviceGlobalsFullyInitialized could have been set while we were
@@ -387,7 +394,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     }
 
     // There were no events and it was not set as fully initialized, so this is
-    // responsible for intializing the device globals.
+    // responsible for initializing the device globals.
     auto DeviceGlobals = InitRef.MBinImage->getDeviceGlobals();
     std::vector<std::string> DeviceGlobalIds;
     DeviceGlobalIds.reserve(DeviceGlobals.size());
@@ -402,6 +409,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     // globals are trivially fully initialized and we can end early.
     if (DeviceGlobalEntries.empty()) {
       InitRef.MDeviceGlobalsFullyInitialized = true;
+      --MDeviceGlobalNotInitializedCnt;
       return {};
     }
 
@@ -452,12 +460,12 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(
 }
 
 void context_impl::memcpyToHostOnlyDeviceGlobal(
-    const std::shared_ptr<device_impl> &DeviceImpl, const void *DeviceGlobalPtr,
-    const void *Src, size_t DeviceGlobalTSize, bool IsDeviceImageScoped,
-    size_t NumBytes, size_t Offset) {
+    device_impl &DeviceImpl, const void *DeviceGlobalPtr, const void *Src,
+    size_t DeviceGlobalTSize, bool IsDeviceImageScoped, size_t NumBytes,
+    size_t Offset) {
   std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
-    KeyDevice = DeviceImpl->getHandleRef();
+    KeyDevice = DeviceImpl.getHandleRef();
   auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
 
   std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
@@ -474,13 +482,12 @@ void context_impl::memcpyToHostOnlyDeviceGlobal(
 }
 
 void context_impl::memcpyFromHostOnlyDeviceGlobal(
-    const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
-    const void *DeviceGlobalPtr, bool IsDeviceImageScoped, size_t NumBytes,
-    size_t Offset) {
+    device_impl &DeviceImpl, void *Dest, const void *DeviceGlobalPtr,
+    bool IsDeviceImageScoped, size_t NumBytes, size_t Offset) {
 
   std::optional<ur_device_handle_t> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
-    KeyDevice = DeviceImpl->getHandleRef();
+    KeyDevice = DeviceImpl.getHandleRef();
   auto Key = std::make_pair(DeviceGlobalPtr, KeyDevice);
 
   std::lock_guard<std::mutex> InitLock(MDeviceGlobalUnregisteredDataMutex);
@@ -571,9 +578,8 @@ context_impl::get_default_memory_pool(const context &Context,
 
   assert(Kind == usm::alloc::device);
 
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(Device);
-  ur_device_handle_t DeviceHandle = DevImpl->getHandleRef();
+  detail::device_impl &DevImpl = *detail::getSyclObjImpl(Device);
+  ur_device_handle_t DeviceHandle = DevImpl.getHandleRef();
   const sycl::detail::AdapterPtr &Adapter = this->getAdapter();
 
   // Check dev is already in our list of device pool pairs.
