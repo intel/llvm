@@ -315,7 +315,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               queue_impl *SecondaryQueue, bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
-                              const SubmissionInfo &SubmitInfo) {
+                              const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
@@ -437,7 +437,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
-  SubmissionInfo SI{};
+  v1::SubmissionInfo SI{};
   auto L = [&](handler &CGH) {
     CGH.depends_on(DepEvents);
     HandlerFunc(CGH);

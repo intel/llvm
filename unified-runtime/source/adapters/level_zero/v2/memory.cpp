@@ -88,7 +88,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
       auto ret = hContext->getDefaultUSMPool()->free(ptr);
       if (ret != UR_RESULT_SUCCESS) {
-        logger::error("Failed to free host memory: {}", ret);
+        UR_LOG(ERR, "Failed to free host memory: {}", ret);
       }
     });
 
@@ -175,7 +175,7 @@ void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
       usm_unique_ptr_t(ptr, [hContext = this->hContext](void *ptr) {
         auto ret = hContext->getDefaultUSMPool()->free(ptr);
         if (ret != UR_RESULT_SUCCESS) {
-          logger::error("Failed to free device memory: {}", ret);
+          UR_LOG(ERR, "Failed to free device memory: {}", ret);
         }
       });
 
@@ -305,7 +305,7 @@ void *ur_discrete_buffer_handle_t::mapHostPtr(
         if (ownsAlloc) {
           auto ret = hContext->getDefaultUSMPool()->free(p);
           if (ret != UR_RESULT_SUCCESS) {
-            logger::error("Failed to mapped memory: {}", ret);
+            UR_LOG(ERR, "Failed to mapped memory: {}", ret);
           }
         }
       });
@@ -735,7 +735,7 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
                               ur_image_info_t /*propName*/, size_t /*propSize*/,
                               void * /*pPropValue*/,
                               size_t * /*pPropSizeRet*/) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
