@@ -569,8 +569,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-imf-fp64", "libimf-fp64"},
       {"libsycl-imf-bf16", "libimf-bf16"}};
   // For AOT compilation, we need to link sycl_device_fallback_libs as
-  // default too.
-  const SYCLDeviceLibsList SYCLDeviceFallbackLibs = {
+  // default too. Guarantee fallback-cassert is the first item in the
+  // list, we will replace it with 'preview' version when the compiler
+  // option '-fpreview-breaking-changes' is added.
+  SYCLDeviceLibsList SYCLDeviceFallbackLibs = {
       {"libsycl-fallback-cassert", "libc"},
       {"libsycl-fallback-cstring", "libc"},
       {"libsycl-fallback-complex", "libm-fp32"},
@@ -635,8 +637,13 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT)
+  if (IsSpirvAOT) {
+    if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+      SYCLDeviceFallbackLibs[0].DeviceLibName =
+          StringRef("libsycl-fallback-cassert-preview");
+
     addLibraries(SYCLDeviceFallbackLibs);
+  }
 
   bool NativeBfloatLibs;
   bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
