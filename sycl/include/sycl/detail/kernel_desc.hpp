@@ -105,6 +105,7 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
   static constexpr int64_t getKernelSize() { return 0; }
+
 private:
   static constexpr kernel_param_desc_t Dummy{};
 };
@@ -121,6 +122,7 @@ template <char...> struct KernelInfoData {
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
   static constexpr int64_t getKernelSize() { return 0; }
+
 private:
   static constexpr kernel_param_desc_t Dummy{};
 };
