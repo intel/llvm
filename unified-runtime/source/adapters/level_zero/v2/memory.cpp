@@ -15,19 +15,6 @@
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
 
-static ur_mem_buffer_t::device_access_mode_t
-getDeviceAccessMode(ur_mem_flags_t memFlag) {
-  if (memFlag & UR_MEM_FLAG_READ_WRITE) {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  } else if (memFlag & UR_MEM_FLAG_READ_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::read_only;
-  } else if (memFlag & UR_MEM_FLAG_WRITE_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::write_only;
-  } else {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  }
-}
-
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {
   return requested == actual ||
@@ -138,13 +125,16 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
 static v2::raii::command_list_unique_handle
 getSyncCommandListForCopy(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice) {
-  return hContext->getCommandListCache().getImmediateCommandList(
-      hDevice->ZeDevice, true,
+  v2::command_list_desc_t listDesc;
+  listDesc.IsInOrder = true;
+  listDesc.Ordinal =
       hDevice
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
-          .ZeOrdinal,
-      true, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
-      std::nullopt);
+          .ZeOrdinal;
+  listDesc.CopyOffloadEnable = true;
+  return hContext->getCommandListCache().getImmediateCommandList(
+      hDevice->ZeDevice, listDesc, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS,
+      ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt);
 }
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
@@ -520,7 +510,7 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   }
 
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
     auto hostPtrAction =
@@ -551,7 +541,7 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
              pRegion->size <= hBuffer->getSize()),
             UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   UR_ASSERT(isAccessCompatible(accessMode, hBuffer->getDeviceAccessMode()),
             UR_RESULT_ERROR_INVALID_VALUE);

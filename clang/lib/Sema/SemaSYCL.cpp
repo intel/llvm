@@ -1159,8 +1159,6 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type and be declared at file
-// scope, outside any namespaces.
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
@@ -1168,12 +1166,6 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
     for (const auto &NameValuePair : NameValuePairs) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
           NameValuePair.first == "sycl-single-task-kernel") {
-        if (!FD->getReturnType()->isVoidType()) {
-          llvm::report_fatal_error(
-              "Only functions at file scope with void return "
-              "type are permitted as free functions");
-          return false;
-        }
         return true;
       }
     }
@@ -5791,12 +5783,29 @@ void SemaSYCL::MarkDevices() {
   }
 }
 
+static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
+  if (FD->isVariadic()) {
+    return S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
+  }
+
+  if (!FD->getReturnType()->isVoidType()) {
+    return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
+  }
+
+  for (ParmVarDecl *Param : FD->parameters()) {
+    if (Param->hasDefaultArg()) {
+      return S.Diag(Param->getLocation(),
+                    diag::err_free_function_with_default_arg)
+             << Param->getSourceRange();
+    }
+  }
+  return false;
+}
+
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
-    if (FD->isVariadic()) {
-      Diag(FD->getLocation(), diag::err_free_function_variadic_args);
+    if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
-    }
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
