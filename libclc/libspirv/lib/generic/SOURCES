@@ -35,6 +35,8 @@ geometric/fast_normalize.cl
 geometric/length.cl
 geometric/normalize.cl
 geometric/scale.cl
+group/collectives_unsigned.cl
+group/shuffle_unsigned.cl
 integer/abs.cl
 integer/abs_diff.cl
 integer/add_sat.cl
