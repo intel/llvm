@@ -8,6 +8,7 @@ import argparse
 presets: dict[str, list[str]] = {
     "Full": [
         "Compute Benchmarks",
+        "Gromacs Bench",
         "llama.cpp bench",
         "SYCL-Bench",
         "Velocity Bench",
@@ -24,11 +25,15 @@ presets: dict[str, list[str]] = {
     ],
     "Normal": [
         "Compute Benchmarks",
+        "Gromacs Bench",
         "llama.cpp bench",
         "Velocity Bench",
     ],
     "Test": [
         "Test Suite",
+    ],
+    "Gromacs": [
+        "Gromacs Bench",
     ],
 }
 
