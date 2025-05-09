@@ -1614,7 +1614,7 @@ void end_recording(queue& recordingQueue)
 ----
 !====
 
-_Effects:_Synchronously changes the state of `recordingQueue` to the
+_Effects:_ Synchronously changes the state of `recordingQueue` to the
 `queue_state::executing` state. This operation is a no-op if `recordingQueue`
 is already in the `queue_state::executing` state.
 
