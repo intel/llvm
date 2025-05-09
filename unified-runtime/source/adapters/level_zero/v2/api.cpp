@@ -41,28 +41,6 @@ ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
-    const ur_exp_command_buffer_update_kernel_launch_desc_t
-        *pUpdateKernelLaunch) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urCommandBufferUpdateSignalEventExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    ur_event_handle_t *phEvent) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urCommandBufferUpdateWaitEventsExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t hContext,
                                           ur_device_handle_t hDevice,
                                           ur_usm_pool_desc_t *PoolDesc,
