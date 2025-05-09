@@ -191,6 +191,7 @@ if config.extra_environment:
 # Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
 llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
+
 # Temporarily modify environment to be the same that we use when running tests
 class test_env:
     def __enter__(self):
@@ -634,27 +635,28 @@ if (
     if "amdgcn" in sp[1]:
         config.sycl_build_targets.add("target-amd")
 
-cmd = "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
-sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
+with test_env():
+    cmd = "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+    sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
 
-# In contrast to `cpu` feature this is a compile-time feature, which is needed
-# to check if we can build cpu AOT tests.
-if "opencl:cpu" in sycl_ls_output:
-    config.available_features.add("opencl-cpu-rt")
+    # In contrast to `cpu` feature this is a compile-time feature, which is needed
+    # to check if we can build cpu AOT tests.
+    if "opencl:cpu" in sycl_ls_output:
+        config.available_features.add("opencl-cpu-rt")
 
-if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
-    devices = set()
-    for line in sycl_ls_output.splitlines():
-        if not line.startswith("["):
-            continue
-        (backend, device) = line[1:].split("]")[0].split(":")
-        devices.add("{}:{}".format(backend, device))
-    config.sycl_devices = list(devices)
+    if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
+        devices = set()
+        for line in sycl_ls_output.splitlines():
+            if not line.startswith("["):
+                continue
+            (backend, device) = line[1:].split("]")[0].split(":")
+            devices.add("{}:{}".format(backend, device))
+        config.sycl_devices = list(devices)
 
-if len(config.sycl_devices) > 1:
-    lit_config.note(
-        "Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices"
-    )
+    if len(config.sycl_devices) > 1:
+        lit_config.note(
+            "Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices"
+        )
 
 
 def remove_level_zero_suffix(devices):
