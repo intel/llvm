@@ -48,7 +48,7 @@ TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentIndex) {
 }
 
 TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentSize) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::OpenCL{"Intel(R) UHD Graphics 770"});
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE,
                    urKernelSetArgValue(kernel, 2, 0, nullptr, &arg_value));
