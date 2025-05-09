@@ -6,9 +6,8 @@ define spir_kernel void @MyKernel(ptr addrspace(1) noundef align 4 %_arg_array) 
 entry:
   %arrayidx3 = getelementptr inbounds <3 x i16>, ptr addrspace(1) %_arg_array, i64 0
   %extractVec4 = shufflevector <3 x i16> <i16 0, i16 0, i16 0>, <3 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
-; CHECK: [[REG1:%[0-9]+]] = call i64 @__msan_get_shadow
-; CHECK: [[REG2:%[0-9]+]] = inttoptr i64 [[REG1]] to ptr addrspace(1)
-; CHECK: store <4 x i16> zeroinitializer, ptr addrspace(1) [[REG2]]
+; CHECK: [[REG1:%[0-9]+]] = call ptr addrspace(1) @__msan_get_shadow
+; CHECK: store <4 x i16> zeroinitializer, ptr addrspace(1) [[REG1]]
   store <4 x i16> %extractVec4, ptr addrspace(1) %arrayidx3, align 8
   br label %exit
 

@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "atomic.hpp"
 #include "spir_global_var.hpp"
+#include "spirv_vars.h"
 #include <cstdint>
 
 using uptr = uintptr_t;
@@ -62,6 +64,25 @@ __SYCL_LOCAL__ void *ToLocal(void *ptr) {
 }
 __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
+}
+
+size_t WorkGroupLinearId() {
+  return __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+             __spirv_BuiltInNumWorkgroups.z +
+         __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+         __spirv_BuiltInWorkgroupId.z;
+}
+
+// For GPU device, each sub group is a hardware thread
+size_t SubGroupLinearId() {
+  return __spirv_BuiltInGlobalLinearId / __spirv_BuiltInSubgroupSize;
+}
+
+void SubGroupBarrier() {
+  __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
 }
 
 #endif // __SPIR__ || __SPIRV__
