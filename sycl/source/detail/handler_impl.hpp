@@ -198,6 +198,11 @@ public:
 
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
+
+  // A pointer to a blob of direct kernel arguments, alternative to MArgs.
+  const void *MDirectArgs = nullptr;
+  int MNumDirectArgs = 0;
+  detail::kernel_param_desc_t (*MParamDescGetter)(int) = nullptr;
 };
 
 } // namespace detail
