@@ -191,7 +191,6 @@ if config.extra_environment:
 # Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
 llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
-
 # Temporarily modify environment to be the same that we use when running tests
 class test_env:
     def __enter__(self):
@@ -653,10 +652,10 @@ with test_env():
             devices.add("{}:{}".format(backend, device))
         config.sycl_devices = list(devices)
 
-    if len(config.sycl_devices) > 1:
-        lit_config.note(
-            "Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices"
-        )
+if len(config.sycl_devices) > 1:
+    lit_config.note(
+        "Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices"
+    )
 
 
 def remove_level_zero_suffix(devices):
