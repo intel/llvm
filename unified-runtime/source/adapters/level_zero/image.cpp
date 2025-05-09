@@ -20,19 +20,7 @@
 
 #include "loader/ze_loader.h"
 
-namespace {} // namespace
-
 namespace ur::level_zero {
-
-ur_result_t
-urBindlessImagesImageFreeExp(ur_context_handle_t /*hContext*/,
-                             ur_device_handle_t /*hDevice*/,
-                             ur_exp_image_mem_native_handle_t hImageMem) {
-  auto Native = reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
-  delete Native;
-
-  return UR_RESULT_SUCCESS;
-}
 
 ur_result_t urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, const void *pSrc, void *pDst,

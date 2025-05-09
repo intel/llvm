@@ -1256,6 +1256,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     os << "UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_"
           "EXP";
     break;
+  case UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -18629,6 +18632,32 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
+/// ur_bindless_images_free_mapped_linear_memory_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_free_mapped_linear_memory_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
 /// ur_bindless_images_import_external_semaphore_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -21413,6 +21442,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP: {
     os << (const struct ur_bindless_images_release_external_memory_exp_params_t
                *)params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP: {
+    os << (const struct
+           ur_bindless_images_free_mapped_linear_memory_exp_params_t *)params;
   } break;
   case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
     os << (const struct
