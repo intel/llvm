@@ -1654,22 +1654,18 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   // one underlying device doesn't support cl_khr_fp64.
   const bool fp64Support = std::all_of(
       Devices.begin(), Devices.end(), [&Context](ur_device_handle_t Device) {
-        std::string DevExtList =
-            Context->getPlatformImpl()
-                .getDeviceImpl(Device)
-                ->get_device_info_string(
-                    UrInfoCode<info::device::extensions>::value);
-        return (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
+        return Context->getPlatformImpl().getDeviceImpl(Device)->has_extension(
+            "cl_khr_fp64");
       });
 
   // Load a fallback library for an extension if the any device does not
   // support it.
   for (auto Device : Devices) {
-    std::string DevExtList =
-        Context->getPlatformImpl()
-            .getDeviceImpl(Device)
-            ->get_device_info_string(
-                UrInfoCode<info::device::extensions>::value);
+    // TODO: device_impl::has_extension should cache extension string, then we'd
+    // be able to use that in the loop below directly.
+    std::string DevExtList = urGetInfoString<UrApiKind::urDeviceGetInfo>(
+        *Context->getPlatformImpl().getDeviceImpl(Device),
+        UR_DEVICE_INFO_EXTENSIONS);
 
     for (auto &Pair : RequiredDeviceLibExt) {
       DeviceLibExt Ext = Pair.first;
