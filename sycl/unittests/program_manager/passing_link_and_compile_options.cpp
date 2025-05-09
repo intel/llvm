@@ -14,6 +14,8 @@
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 #include <gtest/gtest.h>
 
 std::string current_link_options, current_compile_options, current_build_opts;
@@ -67,7 +69,8 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
+  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
+                 std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 

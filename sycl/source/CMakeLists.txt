@@ -96,9 +96,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (SYCL_ENABLE_STACK_PRINTING)
     if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
       (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
-        add_dependencies(${LIB_NAME} LLVMSupport)
         target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
-        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
     endif()
   endif()
 
@@ -192,6 +190,11 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
   endif()
+
+  # Link with LLVMSupport for shared utilities.
+  add_dependencies(${LIB_NAME} LLVMSupport)
+  target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+  target_include_directories(${LIB_OBJ_NAME} SYSTEM PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
 
   check_linker_flag(CXX "-Wl,--gc-sections" LINKER_SUPPORTS_WL_GC_SECTIONS)
   if(LINKER_SUPPORTS_WL_GC_SECTIONS)
