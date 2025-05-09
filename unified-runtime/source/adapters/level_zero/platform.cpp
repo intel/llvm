@@ -543,6 +543,22 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
 
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeImageGetDeviceOffsetExp",
+                   reinterpret_cast<void **>(
+                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+
+  ZeImageGetDeviceOffsetExt.Supported =
+      ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeMemGetPitchFor2dImage",
+                   reinterpret_cast<void **>(
+                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+
+  ZeMemGetPitchFor2dImageExt.Supported =
+      ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
+
   return UR_RESULT_SUCCESS;
 }
 

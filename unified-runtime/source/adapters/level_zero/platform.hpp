@@ -169,4 +169,16 @@ struct ur_platform_handle_t_ : public ur_platform {
         ze_command_list_handle_t, uint32_t, ze_command_list_handle_t *,
         ze_event_handle_t, uint32_t, ze_event_handle_t *);
   } ZeCommandListImmediateAppendExt;
+
+  struct ZeImageGetDeviceOffsetExtension {
+    bool Supported = false;
+    ze_result_t (*zeImageGetDeviceOffsetExp)(ze_image_handle_t, uint64_t *);
+  } ZeImageGetDeviceOffsetExt;
+
+  struct ZeMemGetPitchFor2dImageExtension {
+    bool Supported = false;
+    ze_result_t (*zeMemGetPitchFor2dImage)(ze_context_handle_t,
+                                           ze_device_handle_t, size_t, size_t,
+                                           unsigned int, size_t *);
+  } ZeMemGetPitchFor2dImageExt;
 };

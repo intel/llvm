@@ -19,18 +19,9 @@
 #include "helpers/memory_helpers.hpp"
 #include "image_common.hpp"
 #include "logger/ur_logger.hpp"
+#include "platform.hpp"
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
-
-typedef ze_result_t(ZE_APICALL *zeMemGetPitchFor2dImage_pfn)(
-    ze_context_handle_t hContext, ze_device_handle_t hDevice, size_t imageWidth,
-    size_t imageHeight, unsigned int elementSizeInBytes, size_t *rowPitch);
-
-typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
-    ze_image_handle_t hImage, uint64_t *pDeviceOffset);
-
-zeMemGetPitchFor2dImage_pfn zeMemGetPitchFor2dImageFunctionPtr = nullptr;
-zeImageGetDeviceOffsetExp_pfn zeImageGetDeviceOffsetExpFunctionPtr = nullptr;
 
 namespace {
 
@@ -370,26 +361,16 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  static std::once_flag InitFlag;
-  std::call_once(InitFlag, [&]() {
-    ze_driver_handle_t DriverHandle = hContext->getPlatform()->ZeDriver;
-    auto Result = zeDriverGetExtensionFunctionAddress(
-        DriverHandle, "zeImageGetDeviceOffsetExp",
-        (void **)&zeImageGetDeviceOffsetExpFunctionPtr);
-    if (Result != ZE_RESULT_SUCCESS)
-      UR_LOG(ERR,
-             "zeDriverGetExtensionFunctionAddress "
-             "zeImageGetDeviceOffsetExpv failed, err = {}",
-             Result);
-  });
-  if (!zeImageGetDeviceOffsetExpFunctionPtr)
+  if (!hDevice->Platform->ZeImageGetDeviceOffsetExt.Supported)
     return UR_RESULT_ERROR_INVALID_OPERATION;
+
   uint64_t DeviceOffset{};
   ze_image_handle_t ZeImageTranslated;
   ZE2UR_CALL(zelLoaderTranslateHandle,
              (ZEL_HANDLE_IMAGE, ZeImage.get(), (void **)&ZeImageTranslated));
-  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr,
-             (ZeImageTranslated, &DeviceOffset));
+  ZE2UR_CALL(
+      hDevice->Platform->ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp,
+      (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
   std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
@@ -1078,29 +1059,19 @@ ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
   UR_ASSERT(widthInBytes != 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
   UR_ASSERT(ppMem && pResultPitch, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  static std::once_flag InitFlag;
-  std::call_once(InitFlag, [&]() {
-    ze_driver_handle_t DriverHandle = hContext->getPlatform()->ZeDriver;
-    auto Result = zeDriverGetExtensionFunctionAddress(
-        DriverHandle, "zeMemGetPitchFor2dImage",
-        (void **)&zeMemGetPitchFor2dImageFunctionPtr);
-    if (Result != ZE_RESULT_SUCCESS)
-      UR_LOG(ERR,
-             "zeDriverGetExtensionFunctionAddress zeMemGetPitchFor2dImage "
-             "failed, err = {}",
-             Result);
-  });
-  if (!zeMemGetPitchFor2dImageFunctionPtr)
+  if (!hDevice->Platform->ZeMemGetPitchFor2dImageExt.Supported) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
 
   size_t Width = widthInBytes / elementSizeBytes;
   size_t RowPitch;
   ze_device_handle_t ZeDeviceTranslated;
   ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DEVICE, hDevice->ZeDevice,
                                         (void **)&ZeDeviceTranslated));
-  ZE2UR_CALL(zeMemGetPitchFor2dImageFunctionPtr,
-             (hContext->getZeHandle(), ZeDeviceTranslated, Width, height,
-              elementSizeBytes, &RowPitch));
+  ZE2UR_CALL(
+      hDevice->Platform->ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage,
+      (hContext->getZeHandle(), ZeDeviceTranslated, Width, height,
+       elementSizeBytes, &RowPitch));
   *pResultPitch = RowPitch;
 
   size_t Size = height * RowPitch;
