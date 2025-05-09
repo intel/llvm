@@ -75,9 +75,13 @@ public:
   sycl::usm::alloc get_alloc_kind() const;
   size_t get_threshold() const;
   size_t get_reserved_size_current() const;
+  size_t get_reserved_size_high() const;
   size_t get_used_size_current() const;
+  size_t get_used_size_high() const;
 
   void increase_threshold_to(size_t newThreshold);
+  void reset_reserved_size_high();
+  void reset_used_size_high();
 
   // Property getters.
   template <typename PropertyT> bool has_property() const noexcept {
