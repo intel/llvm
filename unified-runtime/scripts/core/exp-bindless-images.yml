@@ -527,6 +527,7 @@ name: SampledImageCreateExp
 ordinal: "0"
 analogue:
     - "**cuTexObjectCreate**"
+    - "**hipTexObjectCreate**"
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -543,9 +544,9 @@ params:
     - type: "const $x_image_desc_t*"
       name: pImageDesc
       desc: "[in] pointer to image description"
-    - type: $x_sampler_handle_t
-      name: hSampler
-      desc: "[in] sampler to be used"
+    - type: const $x_sampler_desc_t*
+      name: pSamplerDesc
+      desc: "[in] pointer to sampler description to be used"
     - type: $x_exp_image_native_handle_t*
       name: phImage
       desc: "[out][alloc] pointer to handle of image object created"

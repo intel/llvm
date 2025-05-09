@@ -28,7 +28,12 @@ ur_result_t
 cudaToUrImageChannelFormat(CUarray_format cuda_format,
                            ur_image_channel_type_t *return_image_channel_type);
 
-ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
+ur_result_t urToCudaFilterMode(ur_sampler_filter_mode_t FilterMode,
+                               CUfilter_mode &CudaFilterMode);
+ur_result_t urToCudaAddressingMode(ur_sampler_addressing_mode_t AddressMode,
+                                   CUaddress_mode &CudaAddressMode);
+
+ur_result_t urTextureCreate(const ur_sampler_desc_t *pSamplerDesc,
                             const ur_image_desc_t *pImageDesc,
                             const CUDA_RESOURCE_DESC &ResourceDesc,
                             const unsigned int normalized_dtype_flag,
