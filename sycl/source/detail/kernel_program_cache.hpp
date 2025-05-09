@@ -230,43 +230,44 @@ public:
   using KernelCacheT =
       ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
-  class FastKernelCacheWrapper {
+  class FastKernelSubcacheWrapper {
   public:
-    FastKernelCacheWrapper(FastKernelSubcacheT *CachePtr,
-                           ur_context_handle_t UrContext)
-        : MCachePtr{CachePtr}, MUrContext{UrContext} {
-      if (!MCachePtr) {
-        MOwnsCache = true;
-        MCachePtr = new FastKernelSubcacheT();
+    FastKernelSubcacheWrapper(FastKernelSubcacheT *CachePtr,
+                              ur_context_handle_t UrContext)
+        : MSubcachePtr{CachePtr}, MUrContext{UrContext} {
+      if (!MSubcachePtr) {
+        MOwnsSubcache = true;
+        MSubcachePtr = new FastKernelSubcacheT();
       }
     }
-    FastKernelCacheWrapper(const FastKernelCacheWrapper &) = delete;
-    FastKernelCacheWrapper(FastKernelCacheWrapper &&Other)
-        : MCachePtr{Other.MCachePtr}, MOwnsCache{Other.MOwnsCache},
+    FastKernelSubcacheWrapper(const FastKernelSubcacheWrapper &) = delete;
+    FastKernelSubcacheWrapper(FastKernelSubcacheWrapper &&Other)
+        : MSubcachePtr{Other.MSubcachePtr}, MOwnsSubcache{Other.MOwnsSubcache},
           MUrContext{Other.MUrContext} {
-      Other.MCachePtr = nullptr;
+      Other.MSubcachePtr = nullptr;
     }
-    FastKernelCacheWrapper &operator=(const FastKernelCacheWrapper &) = delete;
-    FastKernelCacheWrapper &operator=(FastKernelCacheWrapper &&Other) {
-      MCachePtr = Other.MCachePtr;
-      MOwnsCache = Other.MOwnsCache;
+    FastKernelSubcacheWrapper &
+    operator=(const FastKernelSubcacheWrapper &) = delete;
+    FastKernelSubcacheWrapper &operator=(FastKernelSubcacheWrapper &&Other) {
+      MSubcachePtr = Other.MSubcachePtr;
+      MOwnsSubcache = Other.MOwnsSubcache;
       MUrContext = Other.MUrContext;
-      Other.MCachePtr = nullptr;
+      Other.MSubcachePtr = nullptr;
       return *this;
     };
 
-    ~FastKernelCacheWrapper() {
-      if (!MCachePtr)
+    ~FastKernelSubcacheWrapper() {
+      if (!MSubcachePtr)
         return;
 
-      if (MOwnsCache) {
-        delete MCachePtr;
+      if (MOwnsSubcache) {
+        delete MSubcachePtr;
         return;
       }
 
       // Single subcache might be used by different contexts.
-      FastKernelSubcacheMapT &CacheMap = MCachePtr->Map;
-      FastKernelSubcacheWriteLockT Lock{MCachePtr->Mutex};
+      FastKernelSubcacheMapT &CacheMap = MSubcachePtr->Map;
+      FastKernelSubcacheWriteLockT Lock{MSubcachePtr->Mutex};
       for (auto it = CacheMap.begin(); it != CacheMap.end();) {
         if (it->first.second == MUrContext) {
           it = CacheMap.erase(it);
@@ -276,16 +277,16 @@ public:
       }
     }
 
-    FastKernelSubcacheT &get() { return *MCachePtr; }
+    FastKernelSubcacheT &get() { return *MSubcachePtr; }
 
   private:
-    FastKernelSubcacheT *MCachePtr = nullptr;
-    bool MOwnsCache = false;
+    FastKernelSubcacheT *MSubcachePtr = nullptr;
+    bool MOwnsSubcache = false;
     ur_context_handle_t MUrContext = nullptr;
   };
 
   using FastKernelCacheT =
-      ::boost::unordered_flat_map<KernelNameStrT, FastKernelCacheWrapper>;
+      ::boost::unordered_flat_map<KernelNameStrT, FastKernelSubcacheWrapper>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -468,15 +469,15 @@ public:
   FastKernelCacheValT
   tryToGetKernelFast(KernelNameStrRefT KernelName, ur_device_handle_t Device,
                      FastKernelSubcacheT *KernelSubcacheHint) {
+    FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
     if (!KernelSubcacheHint) {
-      FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
       auto It = MFastKernelCache.try_emplace(KernelName, KernelSubcacheHint,
                                              getURContext());
       KernelSubcacheHint = &It.first->second.get();
     }
 
     const FastKernelSubcacheMapT &SubcacheMap = KernelSubcacheHint->Map;
-    FastKernelSubcacheReadLockT Lock{KernelSubcacheHint->Mutex};
+    FastKernelSubcacheReadLockT SubcacheLock{KernelSubcacheHint->Mutex};
     ur_context_handle_t Context = getURContext();
     auto It = SubcacheMap.find(FastKernelCacheKeyT(Device, Context));
     if (It != SubcacheMap.end()) {
@@ -502,19 +503,17 @@ public:
     }
 
     // Save reference between the program and the fast cache key.
-    {
-      FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
-      MProgramToFastKernelCacheKeyMap[Program].emplace_back(KernelName, Device);
+    FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
+    MProgramToFastKernelCacheKeyMap[Program].emplace_back(KernelName, Device);
 
-      // if no insertion took place, then some other thread has already inserted
-      // smth in the cache
-      traceKernel("Kernel inserted.", KernelName, true);
-      auto It = MFastKernelCache.try_emplace(KernelName, KernelSubcacheHint,
-                                             getURContext());
-      KernelSubcacheHint = &It.first->second.get();
-    }
+    // if no insertion took place, then some other thread has already inserted
+    // smth in the cache
+    traceKernel("Kernel inserted.", KernelName, true);
+    auto It = MFastKernelCache.try_emplace(KernelName, KernelSubcacheHint,
+                                           getURContext());
+    KernelSubcacheHint = &It.first->second.get();
 
-    FastKernelSubcacheWriteLockT Lock{KernelSubcacheHint->Mutex};
+    FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcacheHint->Mutex};
     ur_context_handle_t Context = getURContext();
     KernelSubcacheHint->Map.emplace(FastKernelCacheKeyT(Device, Context),
                                     std::move(CacheVal));
@@ -559,11 +558,20 @@ public:
                     MFastKernelCache.find(FastCacheKey.first);
                 FastKernelCacheItr != MFastKernelCache.end()) {
               FastKernelSubcacheT &Subcache = FastKernelCacheItr->second.get();
-              FastKernelSubcacheWriteLockT SubcacheLock{Subcache.Mutex};
-              Subcache.Map.erase(
-                  FastKernelCacheKeyT(FastCacheKey.second, Context));
-              traceKernel("Kernel evicted.", FastCacheKey.first, true);
-              if (Subcache.Map.empty())
+              bool RemoveSubcache = false;
+              {
+                FastKernelSubcacheWriteLockT SubcacheLock{Subcache.Mutex};
+                Subcache.Map.erase(
+                    FastKernelCacheKeyT(FastCacheKey.second, Context));
+                traceKernel("Kernel evicted.", FastCacheKey.first, true);
+
+                // Remove the subcache wrapper from this kernel program cache if the
+                // subcache no longer contains entries for this context.
+                RemoveSubcache = std::none_of(
+                    Subcache.Map.begin(), Subcache.Map.end(),
+                    [&](const auto &It) { return It.first.second == Context; });
+              }
+              if (RemoveSubcache)
                 MFastKernelCache.erase(FastKernelCacheItr);
             }
           }
