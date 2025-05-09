@@ -5516,16 +5516,18 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         if (!NeedCopy) {
           // Skip the extra memcpy call.
           llvm::Value *V = getAsNaturalPointerTo(Addr, I->Ty);
-          auto *T = llvm::PointerType::get(
-              CGM.getLLVMContext(), CGM.getDataLayout().getAllocaAddrSpace());
+          unsigned AddrSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
+                                            ? ArgInfo.getIndirectAddrSpace()
+                                            : CGM.getDataLayout().getAllocaAddrSpace();
+          auto *T = llvm::PointerType::get(CGM.getLLVMContext(), AddrSpace);
 
           // FIXME: This should not depend on the language address spaces, and
           // only the contextual values. If the address space mismatches, see if
           // we can look through a cast to a compatible address space value,
           // otherwise emit a copy.
           llvm::Value *Val = getTargetHooks().performAddrSpaceCast(
-              *this, V, LangAS::Default, CGM.getASTAllocaAddressSpace(), T,
-              true);
+              *this, V, I->Ty.getAddressSpace(), CGM.getASTAllocaAddressSpace(),
+              T, true);
           if (ArgHasMaybeUndefAttr)
             Val = Builder.CreateFreeze(Val);
           IRCallArgs[FirstIRArg] = Val;
