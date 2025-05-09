@@ -426,8 +426,23 @@ private:
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  handler(const std::shared_ptr<detail::queue_impl> &Queue,
+          bool CallerNeedsEvent);
+#else
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
+#endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs SYCL handler from the pre-constructed handler_impl and the
+  /// associated queue. Inside of Graph implementation, the Queue value is not
+  /// used, for those cases it can be initialized with an empty shared_ptr.
+  ///
+  /// \param HandlerImpl is a pre-constructed handler_impl.
+  /// \param Queue is a SYCL queue.
+  handler(detail::handler_impl *HandlerImpl,
+          const std::shared_ptr<detail::queue_impl> &Queue);
+#else
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -449,7 +464,9 @@ private:
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
                            detail::queue_impl *SecondaryQueue,
                            bool CallerNeedsEvent);
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from Graph.
   ///
   /// The handler will add the command-group as a node to the graph rather than
@@ -457,6 +474,7 @@ private:
   ///
   /// \param Graph is a SYCL command_graph
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
+#endif
 
   void *storeRawArg(const void *Ptr, size_t Size);
 
@@ -3272,8 +3290,18 @@ public:
       uint64_t SignalValue);
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // In some cases we need to construct handler_impl in heap. Sole propose
+  // of MImplOwner is to destroy handler_impl in destructor of handler.
+  // Can't use unique_ptr because declaration of handler_impl is not available
+  // in this header.
+  std::shared_ptr<detail::handler_impl> MImplOwner;
+  detail::handler_impl *impl;
+  const std::shared_ptr<detail::queue_impl> &MQueue;
+#else
   std::shared_ptr<detail::handler_impl> impl;
   std::shared_ptr<detail::queue_impl> MQueue;
+#endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::ABINeutralKernelNameStrT MKernelName;
@@ -3684,13 +3712,11 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims>
-  static sycl::range<3> padRange(sycl::range<Dims> Range,
-                                 [[maybe_unused]] size_t DefaultValue = 0) {
+  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
-      sycl::range<3> Res{DefaultValue, DefaultValue, DefaultValue};
+      sycl::range<3> Res{0, 0, 0};
       for (int I = 0; I < Dims; ++I)
         Res[I] = Range[I];
       return Res;
@@ -3711,8 +3737,7 @@ private:
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> N,
                             bool SetNumWorkGroups = false) {
-    return setNDRangeDescriptorPadded(padRange(N, SetNumWorkGroups ? 0 : 1),
-                                      SetNumWorkGroups, Dims);
+    return setNDRangeDescriptorPadded(padRange(N), SetNumWorkGroups, Dims);
   }
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
@@ -3722,10 +3747,9 @@ private:
   }
   template <int Dims>
   void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
-    sycl::range<Dims> LocalRange = ExecutionRange.get_local_range();
     return setNDRangeDescriptorPadded(
-        padRange(ExecutionRange.get_global_range(), 1),
-        padRange(LocalRange, LocalRange[0] ? 1 : 0),
+        padRange(ExecutionRange.get_global_range()),
+        padRange(ExecutionRange.get_local_range()),
         padId(ExecutionRange.get_offset()), Dims);
   }
 
@@ -3739,6 +3763,11 @@ private:
 
   friend class detail::HandlerAccess;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
+#else
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
+#endif
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
   ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
