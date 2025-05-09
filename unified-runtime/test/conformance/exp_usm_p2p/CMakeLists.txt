@@ -3,6 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_conformance_devices_test(exp_usm_p2p
+add_conformance_test_with_devices_environment(exp_usm_p2p
         usm_p2p.cpp
   )
