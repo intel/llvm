@@ -420,7 +420,7 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
       blocking);
 }
 
-template <void *(copy_func)(void *dst, const void *src, size_t) = memmove>
+template <bool AllowPartialOverlap = true>
 static inline ur_result_t doCopy_impl(
     ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr, size_t Size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
@@ -435,7 +435,11 @@ static inline ur_result_t doCopy_impl(
   return withTimingEvent(
       command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
       [DstPtr, SrcPtr, Size]() {
-        copy_func(DstPtr, SrcPtr, Size);
+        if constexpr (AllowPartialOverlap) {
+          memmove(DstPtr, SrcPtr, Size);
+        } else {
+          memcpy(DstPtr, SrcPtr, Size);
+        }
         return UR_RESULT_SUCCESS;
       },
       blocking);
@@ -662,9 +666,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  return doCopy_impl<memcpy>(hQueue, pDst, pSrc, size, numEventsInWaitList,
-                             phEventWaitList, phEvent, UR_COMMAND_USM_MEMCPY,
-                             blocking);
+  return doCopy_impl<false /*use memcpy*/>(
+      hQueue, pDst, pSrc, size, numEventsInWaitList, phEventWaitList, phEvent,
+      UR_COMMAND_USM_MEMCPY, blocking);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
