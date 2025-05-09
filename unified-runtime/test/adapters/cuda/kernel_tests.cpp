@@ -236,7 +236,7 @@ TEST_P(cudaKernelTest, URKernelDispatch) {
   const size_t localWorkSize[] = {1};
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, workDim, globalWorkOffset,
                                        globalWorkSize, localWorkSize, 0,
-                                       nullptr, nullptr));
+                                       nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
@@ -271,6 +271,6 @@ TEST_P(cudaKernelTest, URKernelDispatchTwo) {
   const size_t localWorkSize[] = {1};
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, workDim, globalWorkOffset,
                                        globalWorkSize, localWorkSize, 0,
-                                       nullptr, nullptr));
+                                       nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }

@@ -84,9 +84,9 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
     ASSERT_SUCCESS(
         urKernelCreate(program.get(), kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[i], kernel.get(), n_dimensions,
-                                         &global_offset, &local_size,
-                                         &global_size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
+        &global_size, 0, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }
@@ -126,9 +126,9 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
     ASSERT_SUCCESS(
         urKernelCreate(linked_program.get(), kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[i], kernel.get(), n_dimensions,
-                                         &global_offset, &local_size,
-                                         &global_size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
+        &global_size, 0, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }

@@ -454,7 +454,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     [[maybe_unused]] ur_kernel_handle_t hKernel,
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] uint32_t workDim,

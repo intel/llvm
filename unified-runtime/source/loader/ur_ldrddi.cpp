@@ -3810,6 +3810,50 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] number of dimensions, from 1 to 3, to specify the work-group
+    /// work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of local work-items forming a work-group that will execute the
+    /// kernel function.
+    const size_t *pLocalWorkSize,
+    /// [in] size of dynamic shared memory, for each work-group, in bytes,
+    /// that will be used when the kernel is launched
+    size_t dynamicSharedMemorySize,
+    /// [out] pointer to maximum number of groups
+    uint32_t *pGroupCountRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_kernel_object_t *>(hKernel)->dditable;
+  auto pfnSuggestMaxCooperativeGroupCount =
+      dditable->ur.Kernel.pfnSuggestMaxCooperativeGroupCount;
+  if (nullptr == pfnSuggestMaxCooperativeGroupCount)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
+
+  // convert loader handle to platform handle
+  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
+  // forward to device-platform
+  result = pfnSuggestMaxCooperativeGroupCount(
+      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+      pGroupCountRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueGetInfo
 __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     /// [in] handle of the queue object
@@ -4463,6 +4507,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4499,9 +4548,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
 
   // forward to device-platform
-  result = pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                           pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList,
-                           phEventWaitListLocal.data(), phEvent);
+  result = pfnKernelLaunch(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
   // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any
   // output handles below.
@@ -9396,130 +9446,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueCooperativeKernelLaunchExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
-  auto pfnCooperativeKernelLaunchExp =
-      dditable->ur.EnqueueExp.pfnCooperativeKernelLaunchExp;
-  if (nullptr == pfnCooperativeKernelLaunchExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
-
-  // convert loader handle to platform handle
-  hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
-
-  // convert loader handles to platform handles
-  auto phEventWaitListLocal =
-      std::vector<ur_event_handle_t>(numEventsInWaitList);
-  for (size_t i = 0; i < numEventsInWaitList; ++i)
-    phEventWaitListLocal[i] =
-        reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
-
-  // forward to device-platform
-  result = pfnCooperativeKernelLaunchExp(hQueue, hKernel, workDim,
-                                         pGlobalWorkOffset, pGlobalWorkSize,
-                                         pLocalWorkSize, numEventsInWaitList,
-                                         phEventWaitListLocal.data(), phEvent);
-
-  // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any
-  // output handles below.
-  if (UR_RESULT_SUCCESS != result && UR_RESULT_ERROR_ADAPTER_SPECIFIC != result)
-    return result;
-  try {
-    // convert platform handle to loader handle
-    if (nullptr != phEvent)
-      *phEvent = reinterpret_cast<ur_event_handle_t>(
-          context->factories.ur_event_factory.getInstance(*phEvent, dditable));
-  } catch (std::bad_alloc &) {
-    result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
-__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] number of dimensions, from 1 to 3, to specify the work-group
-    /// work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of local work-items forming a work-group that will execute the
-    /// kernel function.
-    const size_t *pLocalWorkSize,
-    /// [in] size of dynamic shared memory, for each work-group, in bytes,
-    /// that will be used when the kernel is launched
-    size_t dynamicSharedMemorySize,
-    /// [out] pointer to maximum number of groups
-    uint32_t *pGroupCountRet) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_kernel_object_t *>(hKernel)->dditable;
-  auto pfnSuggestMaxCooperativeGroupCountExp =
-      dditable->ur.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
-  if (nullptr == pfnSuggestMaxCooperativeGroupCountExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
-
-  // convert loader handle to platform handle
-  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
-
-  // forward to device-platform
-  result = pfnSuggestMaxCooperativeGroupCountExp(
-      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
-      pGroupCountRet);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -9579,90 +9505,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     // convert platform handle to loader handle
     *phEvent = reinterpret_cast<ur_event_handle_t>(
         context->factories.ur_event_factory.getInstance(*phEvent, dditable));
-  } catch (std::bad_alloc &) {
-    result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function. If nullptr, the runtime implementation
-    /// will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_exp_launch_property_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If nullptr,
-    /// the numEventsInWaitList must be 0, indicating that no wait event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
-  auto pfnKernelLaunchCustomExp =
-      dditable->ur.EnqueueExp.pfnKernelLaunchCustomExp;
-  if (nullptr == pfnKernelLaunchCustomExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
-
-  // convert loader handle to platform handle
-  hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
-
-  // convert loader handles to platform handles
-  auto phEventWaitListLocal =
-      std::vector<ur_event_handle_t>(numEventsInWaitList);
-  for (size_t i = 0; i < numEventsInWaitList; ++i)
-    phEventWaitListLocal[i] =
-        reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
-
-  // forward to device-platform
-  result = pfnKernelLaunchCustomExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
-
-  // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any
-  // output handles below.
-  if (UR_RESULT_SUCCESS != result && UR_RESULT_ERROR_ADAPTER_SPECIFIC != result)
-    return result;
-  try {
-    // convert platform handle to loader handle
-    if (nullptr != phEvent)
-      *phEvent = reinterpret_cast<ur_event_handle_t>(
-          context->factories.ur_event_factory.getInstance(*phEvent, dditable));
   } catch (std::bad_alloc &) {
     result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
@@ -10590,15 +10432,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
-      pDdiTable->pfnKernelLaunchCustomExp =
-          ur_loader::urEnqueueKernelLaunchCustomExp;
       pDdiTable->pfnUSMDeviceAllocExp = ur_loader::urEnqueueUSMDeviceAllocExp;
       pDdiTable->pfnUSMSharedAllocExp = ur_loader::urEnqueueUSMSharedAllocExp;
       pDdiTable->pfnUSMHostAllocExp = ur_loader::urEnqueueUSMHostAllocExp;
       pDdiTable->pfnUSMFreeExp = ur_loader::urEnqueueUSMFreeExp;
       pDdiTable->pfnCommandBufferExp = ur_loader::urEnqueueCommandBufferExp;
-      pDdiTable->pfnCooperativeKernelLaunchExp =
-          ur_loader::urEnqueueCooperativeKernelLaunchExp;
       pDdiTable->pfnTimestampRecordingExp =
           ur_loader::urEnqueueTimestampRecordingExp;
       pDdiTable->pfnNativeCommandExp = ur_loader::urEnqueueNativeCommandExp;
@@ -10733,64 +10571,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
       pDdiTable->pfnSetArgMemObj = ur_loader::urKernelSetArgMemObj;
       pDdiTable->pfnSetSpecializationConstants =
           ur_loader::urKernelSetSpecializationConstants;
+      pDdiTable->pfnSuggestMaxCooperativeGroupCount =
+          ur_loader::urKernelSuggestMaxCooperativeGroupCount;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable =
           ur_loader::getContext()->platforms.front().dditable.ur.Kernel;
-    }
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's KernelExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_kernel_exp_dditable_t *pDdiTable) {
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (ur_loader::getContext()->version < version)
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  // Load the device-platform DDI tables
-  for (auto &platform : ur_loader::getContext()->platforms) {
-    // statically linked adapter inside of the loader
-    if (platform.handle == nullptr)
-      continue;
-
-    if (platform.initStatus != UR_RESULT_SUCCESS)
-      continue;
-    auto getTable = reinterpret_cast<ur_pfnGetKernelExpProcAddrTable_t>(
-        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
-                                             "urGetKernelExpProcAddrTable"));
-    if (!getTable)
-      continue;
-    platform.initStatus = getTable(version, &platform.dditable.ur.KernelExp);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    if (ur_loader::getContext()->platforms.size() != 1 ||
-        ur_loader::getContext()->forceIntercept) {
-      // return pointers to loader's DDIs
-      pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
-          ur_loader::urKernelSuggestMaxCooperativeGroupCountExp;
-    } else {
-      // return pointers directly to platform's DDIs
-      *pDdiTable =
-          ur_loader::getContext()->platforms.front().dditable.ur.KernelExp;
     }
   }
 

@@ -73,7 +73,63 @@ TEST_P(urEnqueueKernelLaunchTest, Success) {
   AddPodArg(val);
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        &global_offset, &global_size, nullptr, 0,
-                                       nullptr, nullptr));
+                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+  ValidateBuffer(buffer, sizeof(val) * global_size, val);
+}
+
+TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
+  std::vector<ur_kernel_launch_property_t> props(1);
+  props[0].id = UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE;
+
+  ur_platform_backend_t backend;
+  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                   sizeof(backend), &backend, nullptr));
+
+  if (backend == UR_PLATFORM_BACKEND_CUDA) {
+    size_t returned_size = 0;
+    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_VERSION, 0, nullptr,
+                                   &returned_size));
+
+    std::unique_ptr<char[]> returned_compute_capability(
+        new char[returned_size]);
+
+    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_VERSION,
+                                   returned_size,
+                                   returned_compute_capability.get(), nullptr));
+
+    auto compute_capability =
+        std::stof(std::string(returned_compute_capability.get()));
+
+    if (compute_capability >= 6.0) {
+      ur_kernel_launch_property_t coop_prop;
+      coop_prop.id = UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE;
+      coop_prop.value.cooperative = 1;
+      props.push_back(coop_prop);
+    }
+
+    ur_bool_t cluster_launch_supported = false;
+    ASSERT_SUCCESS(
+        urDeviceGetInfo(device, UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT,
+                        sizeof(ur_bool_t), &cluster_launch_supported, nullptr));
+
+    if (cluster_launch_supported) {
+      ur_kernel_launch_property_t cluster_dims_prop;
+      cluster_dims_prop.id = UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION;
+      cluster_dims_prop.value.clusterDim[0] = 16;
+      cluster_dims_prop.value.clusterDim[1] = 1;
+      cluster_dims_prop.value.clusterDim[2] = 1;
+
+      props.push_back(cluster_dims_prop);
+    }
+  }
+  ur_mem_handle_t buffer = nullptr;
+  AddBuffer1DArg(sizeof(val) * global_size, &buffer);
+  AddPodArg(val);
+
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                       &global_offset, &global_size, nullptr, 1,
+                                       &props[0], 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
@@ -81,33 +137,33 @@ TEST_P(urEnqueueKernelLaunchTest, Success) {
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(nullptr, kernel, n_dimensions,
                                          &global_offset, &global_size, nullptr,
-                                         0, nullptr, nullptr),
+                                         0, nullptr, 0, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullPointer) {
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
-                                         &global_size, nullptr, 0, nullptr,
-                                         nullptr),
+                                         &global_size, nullptr, 0, nullptr, 0,
+                                         nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                          &global_offset, nullptr, nullptr, 0,
-                                         nullptr, nullptr),
+                                         nullptr, 0, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleKernel) {
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, nullptr, n_dimensions,
                                          &global_offset, &global_size, nullptr,
-                                         0, nullptr, nullptr),
+                                         0, nullptr, 0, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullPtrEventWaitList) {
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                          &global_offset, &global_size, nullptr,
-                                         1, nullptr, nullptr),
+                                         0, nullptr, 1, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t validEvent;
@@ -115,13 +171,13 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullPtrEventWaitList) {
 
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                          &global_offset, &global_size, nullptr,
-                                         0, &validEvent, nullptr),
+                                         0, nullptr, 0, &validEvent, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                          &global_offset, &global_size, nullptr,
-                                         1, &inv_evt, nullptr),
+                                         0, nullptr, 1, &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   ASSERT_SUCCESS(urEventRelease(validEvent));
 }
@@ -134,7 +190,7 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkDimension) {
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel,
                                          max_work_item_dimensions + 1,
                                          &global_offset, &global_size, nullptr,
-                                         0, nullptr, nullptr),
+                                         0, nullptr, 0, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 }
 
@@ -146,26 +202,49 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
   ur_mem_handle_t buffer = nullptr;
   AddBuffer1DArg(sizeof(val) * global_size, &buffer);
   AddPodArg(val);
-  auto result =
-      urEnqueueKernelLaunch(queue, kernel, n_dimensions, &global_offset,
-                            &global_size, &local_size, 0, nullptr, nullptr);
+  auto result = urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                      &global_offset, &global_size, &local_size,
+                                      0, nullptr, 0, nullptr, nullptr);
   ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE ||
               result == UR_RESULT_SUCCESS);
+}
+
+TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
+  // Cuda and hip both lack any way to validate kernel args
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
+  ur_platform_backend_t backend;
+  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                   sizeof(ur_platform_backend_t), &backend,
+                                   nullptr));
+
+  if (backend == UR_PLATFORM_BACKEND_CUDA ||
+      backend == UR_PLATFORM_BACKEND_HIP ||
+      backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+    GTEST_FAIL() << "AMD, L0 and Nvidia can't check kernel arguments.";
+  }
+
+  // Enqueue kernel without setting any args
+  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                         &global_offset, &global_size, nullptr,
+                                         0, nullptr, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_KERNEL_ARGS);
 }
 
 TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       global_offset.data(), global_size.data(),
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
+      nullptr, 0, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
 TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, SuccessWithExplicitLocalSize) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       global_offset.data(), global_size.data(),
-                                       wg_size.data(), 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
+      wg_size.data(), 0, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
@@ -176,7 +255,7 @@ TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, NonMatchingLocalSize) {
   ASSERT_EQ_RESULT(
       urEnqueueKernelLaunch(queue, kernel, n_dimensions, global_offset.data(),
                             global_size.data(), wrong_wg_size.data(), 0,
-                            nullptr, nullptr),
+                            nullptr, 0, nullptr, nullptr),
       UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
 }
 
@@ -185,9 +264,9 @@ TEST_P(urEnqueueKernelLaunchKernelSubGroupTest, Success) {
 
   ur_mem_handle_t buffer = nullptr;
   AddBuffer1DArg(sizeof(size_t), &buffer);
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       global_offset.data(), global_size.data(),
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
+      nullptr, 0, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   // We specify this subgroup size in the kernel source, and then the kernel
   // queries for its subgroup size at runtime and writes it to the buffer.
@@ -210,8 +289,8 @@ TEST_P(urEnqueueKernelLaunchKernelStandardTest, Success) {
   AddPodArg<float>(11.0);
 
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, &offset,
-                                       &global_size, nullptr, 0, nullptr,
-                                       nullptr));
+                                       &global_size, nullptr, 0, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer<uint32_t>(output, sizeof(uint32_t), expected_result);
 }
@@ -301,7 +380,7 @@ TEST_P(urEnqueueKernelLaunchTestWithParam, Success) {
   AddPodArg(val);
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        global_offset, global_range, nullptr, 0,
-                                       nullptr, nullptr));
+                                       nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, buffer_size, val);
 }
@@ -357,8 +436,8 @@ TEST_P(urEnqueueKernelLaunchWithUSM, Success) {
 
   ur_event_handle_t kernel_evt;
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim, &global_offset,
-                                       &global_size, nullptr, 0, nullptr,
-                                       &kernel_evt));
+                                       &global_size, nullptr, 0, nullptr, 0,
+                                       nullptr, &kernel_evt));
 
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -388,8 +467,8 @@ TEST_P(urEnqueueKernelLaunchWithUSM, WithMemcpy) {
 
   ur_event_handle_t kernel_evt;
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim, &global_offset,
-                                       &global_size, nullptr, 0, nullptr,
-                                       &kernel_evt));
+                                       &global_size, nullptr, 0, nullptr, 0,
+                                       nullptr, &kernel_evt));
 
   ur_event_handle_t memcpy_event;
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, data.data(), usmPtr,
@@ -476,8 +555,8 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
 
   ur_event_handle_t kernel_evt;
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim, &global_offset,
-                                       &global_size, nullptr, 0, nullptr,
-                                       &kernel_evt));
+                                       &global_size, nullptr, 0, nullptr, 0,
+                                       nullptr, &kernel_evt));
 
   std::vector<uint32_t> data(global_size);
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, data.data(), virtual_ptr,
@@ -554,7 +633,7 @@ TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
   helper.AddPodArg(val);
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernel, n_dimensions,
                                        &global_offset, &global_size, nullptr, 0,
-                                       nullptr, nullptr));
+                                       nullptr, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
   EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
@@ -671,8 +750,8 @@ TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
   // Run kernel which will iterate the list and modify the values
   ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, list_head));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &global_offset,
-                                       &global_size, nullptr, 0, nullptr,
-                                       nullptr));
+                                       &global_size, nullptr, 0, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   // Verify values

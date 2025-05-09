@@ -201,7 +201,7 @@ ur_result_t urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urEnqueueCooperativeKernelLaunchExp(
+inline ur_result_t EnqueueCooperativeKernelLaunchHelper(
     /// [in] handle of the queue object
     ur_queue_handle_t Queue,
     /// [in] handle of the kernel object
@@ -1098,7 +1098,7 @@ ur_result_t urKernelGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
+ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
     const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
     uint32_t *pGroupCountRet) {
