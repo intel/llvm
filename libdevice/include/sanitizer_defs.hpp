@@ -79,7 +79,7 @@ size_t SubGroupLinearId() {
 }
 
 void SubGroupBarrier() {
-  __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Workgroup,
+  __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory);

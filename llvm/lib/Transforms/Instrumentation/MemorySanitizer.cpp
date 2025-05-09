@@ -2095,8 +2095,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     auto DebugLoc = IRB.getCurrentDebugLocation();
 
     // SPIR constant address space
-    auto *ConstASPtrTy =
-        PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+    auto *ConstASPtrTy = PointerType::get(C, kSpirOffloadConstantAS);
 
     // file name and line number
     if (DebugLoc) {
@@ -2535,8 +2534,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         OffsetLong =
             IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
     } else { // SPIR or SPIR-V
-      auto *ConstASPtrTy = PointerType::get(Type::getInt8Ty(Addr->getContext()),
-                                            kSpirOffloadConstantAS);
+      auto *ConstASPtrTy =
+          PointerType::get(Addr->getContext(), kSpirOffloadConstantAS);
       auto *FuncNameGV = MS.Spirv.getOrCreateGlobalString(
           "__msan_func", F.getName(), kSpirOffloadConstantAS);
 

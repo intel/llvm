@@ -1478,7 +1478,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
     }
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
-    Types.push_back(llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
+    Types.push_back(PointerType::get(M.getContext(), kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1656,8 +1656,9 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
     const TargetLibraryInfo &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
     Modified |= FunctionSanitizer.instrumentFunction(F, &TLI);
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      FunctionSanitizer.instrumentInitAsanLaunchInfo(F, &TLI);
       AsanSpirv.instrumentPrivateBase(F);
+      // Instrument __AsanLaunchInfo should always be the last step
+      FunctionSanitizer.instrumentInitAsanLaunchInfo(F, &TLI);
     }
   }
   Modified |= ModuleSanitizer.instrumentModule();
@@ -1780,8 +1781,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   auto &Loc = InsertBefore->getDebugLoc();
 
   // SPIR constant address space
-  PointerType *ConstASPtrTy =
-      llvm::PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+  PointerType *ConstASPtrTy = PointerType::get(C, kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {
@@ -1881,7 +1881,7 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(
   // this step
   initializeCallbacks(TLI);
   IRB.CreateStore(ConstantPointerNull::get(
-                      llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS)),
+                      PointerType::get(*C, kSpirOffloadGlobalAS)),
                   AsanLaunchInfo);
 }
 
@@ -3659,8 +3659,7 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
       //   char* func
       // )
       if (TargetTriple.isSPIROrSPIRV()) {
-        auto *Int8PtrTy =
-            llvm::PointerType::get(Type::getInt8Ty(*C), kSpirOffloadConstantAS);
+        auto *Int8PtrTy = PointerType::get(*C, kSpirOffloadConstantAS);
 
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
@@ -3760,10 +3759,9 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
                               IRB.getVoidTy(), IntptrTy, Int32Ty);
 
     AsanLaunchInfo = M.getOrInsertGlobal(
-        "__AsanLaunchInfo",
-        llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), [&] {
+        "__AsanLaunchInfo", PointerType::get(*C, kSpirOffloadGlobalAS), [&] {
           return new GlobalVariable(
-              M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
+              M, PointerType::get(*C, kSpirOffloadGlobalAS), false,
               GlobalVariable::ExternalLinkage, nullptr, "__AsanLaunchInfo",
               nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
         });

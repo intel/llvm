@@ -46,7 +46,8 @@ const __SYCL_CONSTANT__ char __msan_print_func_end[] =
     "[kernel] ===== END   %s()\n";
 
 const __SYCL_CONSTANT__ char __msan_print_private_shadow_out_of_bound[] =
-    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
+    "[kernel] Private shadow memory out-of-bound(ptr: %p -> %p, wid: %llu, "
+    "sid: %llu, base: "
     "%p)\n";
 
 const __SYCL_CONSTANT__ char __msan_print_unknown[] = "unknown";
@@ -202,7 +203,7 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
       const auto shadow_offset_end = GetMsanLaunchInfo->PrivateShadowOffsetEnd;
       if (shadow_ptr > shadow_offset_end) {
         __spirv_ocl_printf(__msan_print_private_shadow_out_of_bound, addr,
-                           shadow_ptr, wid, (uptr)shadow_offset);
+                           shadow_ptr, wid, sid, private_base);
         return GetMsanLaunchInfo->CleanShadow;
       };
 

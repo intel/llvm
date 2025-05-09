@@ -26,11 +26,11 @@ static const __SYCL_CONSTANT__ char __newline[] = "\n";
 static const __SYCL_CONSTANT__ char __global_shadow_out_of_bound[] =
     "[kernel] Global shadow memory out-of-bound (ptr: %p -> %p, base: %p)\n";
 static const __SYCL_CONSTANT__ char __local_shadow_out_of_bound[] =
-    "[kernel] Local shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
-    "%p)\n";
+    "[kernel] Local shadow memory out-of-bound (ptr: %p -> %p, wid: %llu, "
+    "base: %p)\n";
 static const __SYCL_CONSTANT__ char __private_shadow_out_of_bound[] =
-    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
-    "%p)\n";
+    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wid: %llu, "
+    "sid: %llu, base: %p)\n";
 
 static const __SYCL_CONSTANT__ char __asan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
@@ -159,7 +159,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
     const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
     if (shadow_ptr > shadow_offset_end) {
       __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, wid,
-                         (uptr)shadow_offset);
+                         sid, private_base);
       return 0;
     };
 
@@ -236,7 +236,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
     if (shadow_ptr > shadow_offset_end) {
       __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, wid,
-                         (uptr)shadow_offset);
+                         sid, private_base);
       return 0;
     };
 
@@ -898,7 +898,7 @@ DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr begin, uptr size,
 }
 
 static __SYCL_CONSTANT__ const char __asan_print_private_base[] =
-    "[kernel] __asan_set_private_base: %llu -> %p\n";
+    "[kernel] set_private_base: %llu -> %p\n";
 
 DEVICE_EXTERN_C_NOINLINE void
 __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
