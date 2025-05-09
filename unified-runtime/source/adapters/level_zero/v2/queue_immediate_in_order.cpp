@@ -31,7 +31,7 @@ wait_list_view ur_queue_immediate_in_order_t::getWaitListView(
                                       additionalWaitEvent);
 }
 
-static int32_t getZeOrdinal(ur_device_handle_t hDevice) {
+static uint32_t getZeOrdinal(ur_device_handle_t hDevice) {
   return hDevice->QueueGroup[queue_group_type::Compute].ZeOrdinal;
 }
 
@@ -70,8 +70,9 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
       commandListManager(
           hContext, hDevice,
           hContext->getCommandListCache().getImmediateCommandList(
-              hDevice->ZeDevice, true, getZeOrdinal(hDevice),
-              true /* always enable copy offload */,
+              hDevice->ZeDevice,
+              {true, getZeOrdinal(hDevice),
+               true /* always enable copy offload */},
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
               getZePriority(pProps ? pProps->flags : ur_queue_flags_t{}),
               getZeIndex(pProps)),
