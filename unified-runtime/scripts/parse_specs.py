@@ -26,28 +26,23 @@ all_versions = [
 
 def _preprocess(d):
     """preprocess object"""
-    try:
-        if "enum" == d["type"]:
-            use_hex = False
-            next = 0
-            for etor in d["etors"]:
-                if type_traits.is_flags(d["name"]):
-                    etor["name"] = "%s_%s" % (d["name"][:-3].upper(), etor["name"])
-                    etor["value"] = etor.get("value", "$X_BIT(%s)" % next)
-                    next = int(value_traits.get_bit_count(etor["value"])) + 1
-                else:
-                    etor["name"] = d["name"][:-1].upper() + etor["name"]
-                    use_hex = use_hex or value_traits.is_hex(etor.get("value"))
-                    if use_hex:
-                        etor["value"] = etor.get("value", "%s" % hex(next))
-                        next = int(etor["value"], 16) + 1
-                    elif not value_traits.is_ver(etor.get("value")):
-                        etor["value"] = etor.get("value", "%s" % next)
-                        next = int(etor["value"]) + 1
-    except TypeError as err:
-        print("type error with:")
-        print("{0}".format(d))
-        raise(err)
+    if "enum" == d["type"]:
+        use_hex = False
+        next = 0
+        for etor in d["etors"]:
+            if type_traits.is_flags(d["name"]):
+                etor["name"] = "%s_%s" % (d["name"][:-3].upper(), etor["name"])
+                etor["value"] = etor.get("value", "$X_BIT(%s)" % next)
+                next = int(value_traits.get_bit_count(etor["value"])) + 1
+            else:
+                etor["name"] = d["name"][:-1].upper() + etor["name"]
+                use_hex = use_hex or value_traits.is_hex(etor.get("value"))
+                if use_hex:
+                    etor["value"] = etor.get("value", "%s" % hex(next))
+                    next = int(etor["value"], 16) + 1
+                elif not value_traits.is_ver(etor.get("value")):
+                    etor["value"] = etor.get("value", "%s" % next)
+                    next = int(etor["value"]) + 1
     return d
 
 
