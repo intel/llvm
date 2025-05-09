@@ -5,12 +5,36 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+#ifdef __FALLBACK_ASSERT_PREVIEW
+#include "include/spir_global_var.hpp"
+#else
 #include "atomic.hpp"
 #include "include/assert-happened.hpp"
+#endif
 #include "wrapper.h"
 
 #if defined(__SPIR__) || defined(__SPIRV__)
+
+#ifdef __FALLBACK_ASSERT_PREVIEW
+
+extern SYCL_EXTERNAL int
+__spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
+
+static const __SYCL_CONSTANT__ char __assert_fmt[] =
+    "%s:%d: %s: global id: [%lld, %lld, %lld], "
+    "local id: [%lld, %lld ,%lld] "
+    "Assertion `%s` failed.\n";
+
+DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
+                                             int32_t line, const char *func,
+                                             uint64_t gid0, uint64_t gid1,
+                                             uint64_t gid2, uint64_t lid0,
+                                             uint64_t lid1, uint64_t lid2) {
+  __spirv_ocl_printf(__assert_fmt, file, (int32_t)line, func, gid0, gid1, gid2,
+                     lid0, lid1, lid2, expr);
+}
+
+#else
 
 #define ASSERT_NONE 0
 #define ASSERT_START 1
@@ -98,6 +122,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   // volatile int *die = (int *)0x0;
   // *die = 0xdead;
 }
+#endif // __FALLBACK_ASSERT_PREVIEW
 #endif // __SPIR__ || __SPIRV__
 
 #if defined(__NVPTX__) || defined(__AMDGCN__)

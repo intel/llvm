@@ -901,6 +901,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "itt-stubs",
     "itt-user-wrappers",
     "fallback-cassert",
+    "fallback-cassert-preview",
     "fallback-cstring",
     "fallback-cmath",
     "fallback-cmath-fp64",
