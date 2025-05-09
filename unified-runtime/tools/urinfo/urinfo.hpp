@@ -344,6 +344,11 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
@@ -355,9 +360,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP);
-  std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP);
@@ -444,13 +446,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP);
-  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
-  std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP);

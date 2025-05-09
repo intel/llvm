@@ -231,15 +231,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnKernelLaunchCustomExp =
-      ur::level_zero::urEnqueueKernelLaunchCustomExp;
   pDdiTable->pfnUSMDeviceAllocExp = ur::level_zero::urEnqueueUSMDeviceAllocExp;
   pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
   pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
   pDdiTable->pfnUSMFreeExp = ur::level_zero::urEnqueueUSMFreeExp;
   pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
-  pDdiTable->pfnCooperativeKernelLaunchExp =
-      ur::level_zero::urEnqueueCooperativeKernelLaunchExp;
   pDdiTable->pfnTimestampRecordingExp =
       ur::level_zero::urEnqueueTimestampRecordingExp;
   pDdiTable->pfnNativeCommandExp = ur::level_zero::urEnqueueNativeCommandExp;
@@ -293,19 +289,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgMemObj = ur::level_zero::urKernelSetArgMemObj;
   pDdiTable->pfnSetSpecializationConstants =
       ur::level_zero::urKernelSetSpecializationConstants;
-
-  return result;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    ur_api_version_t version, ur_kernel_exp_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-
-  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
-      ur::level_zero::urKernelSuggestMaxCooperativeGroupCountExp;
+  pDdiTable->pfnSuggestMaxCooperativeGroupCount =
+      ur::level_zero::urKernelSuggestMaxCooperativeGroupCount;
 
   return result;
 }
@@ -599,10 +584,6 @@ ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
     return result;
   result = ur::level_zero::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
                                                     &ddi->Kernel);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = ur::level_zero::urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                       &ddi->KernelExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result =

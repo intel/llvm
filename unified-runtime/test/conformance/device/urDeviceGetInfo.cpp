@@ -2059,8 +2059,7 @@ TEST_P(urDeviceGetInfoTest, SuccessCommandBufferEventSupport) {
 
 TEST_P(urDeviceGetInfoTest, SuccessClusterLaunch) {
   size_t property_size = 0;
-  const ur_device_info_t property_name =
-      UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));

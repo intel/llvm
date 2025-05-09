@@ -68,14 +68,12 @@ EXPORTS
 	urDeviceRetain
 	urDeviceSelectBinary
 	urEnqueueCommandBufferExp
-	urEnqueueCooperativeKernelLaunchExp
 	urEnqueueDeviceGlobalVariableRead
 	urEnqueueDeviceGlobalVariableWrite
 	urEnqueueEventsWait
 	urEnqueueEventsWaitWithBarrier
 	urEnqueueEventsWaitWithBarrierExt
 	urEnqueueKernelLaunch
-	urEnqueueKernelLaunchCustomExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
 	urEnqueueMemBufferFill
@@ -119,7 +117,6 @@ EXPORTS
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
 	urGetGlobalProcAddrTable
-	urGetKernelExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
 	urGetPhysicalMemProcAddrTable
@@ -148,7 +145,7 @@ EXPORTS
 	urKernelSetArgValue
 	urKernelSetExecInfo
 	urKernelSetSpecializationConstants
-	urKernelSuggestMaxCooperativeGroupCountExp
+	urKernelSuggestMaxCooperativeGroupCount
 	urLoaderConfigCreate
 	urLoaderConfigEnableLayer
 	urLoaderConfigGetInfo
@@ -278,13 +275,11 @@ EXPORTS
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
 	urPrintEnqueueCommandBufferExpParams
-	urPrintEnqueueCooperativeKernelLaunchExpParams
 	urPrintEnqueueDeviceGlobalVariableReadParams
 	urPrintEnqueueDeviceGlobalVariableWriteParams
 	urPrintEnqueueEventsWaitParams
 	urPrintEnqueueEventsWaitWithBarrierExtParams
 	urPrintEnqueueEventsWaitWithBarrierParams
-	urPrintEnqueueKernelLaunchCustomExpParams
 	urPrintEnqueueKernelLaunchParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
@@ -346,8 +341,6 @@ EXPORTS
 	urPrintExpImageCopyFlags
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
-	urPrintExpLaunchProperty
-	urPrintExpLaunchPropertyId
 	urPrintExpPeerInfo
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
@@ -378,6 +371,8 @@ EXPORTS
 	urPrintKernelGetSuggestedLocalWorkSizeParams
 	urPrintKernelGroupInfo
 	urPrintKernelInfo
+	urPrintKernelLaunchProperty
+	urPrintKernelLaunchPropertyId
 	urPrintKernelNativeProperties
 	urPrintKernelReleaseParams
 	urPrintKernelRetainParams
@@ -389,7 +384,7 @@ EXPORTS
 	urPrintKernelSetExecInfoParams
 	urPrintKernelSetSpecializationConstantsParams
 	urPrintKernelSubGroupInfo
-	urPrintKernelSuggestMaxCooperativeGroupCountExpParams
+	urPrintKernelSuggestMaxCooperativeGroupCountParams
 	urPrintLoaderConfigCreateParams
 	urPrintLoaderConfigEnableLayerParams
 	urPrintLoaderConfigGetInfoParams
