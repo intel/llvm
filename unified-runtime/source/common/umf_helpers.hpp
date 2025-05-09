@@ -126,7 +126,7 @@ umf_result_t initialize(T *obj, ArgsTuple &&args) {
 }
 
 template <typename T, typename ArgsTuple>
-umf_memory_pool_ops_t poolMakeUniqueOps() {
+const umf_memory_pool_ops_t poolMakeUniqueOps() {
   umf_memory_pool_ops_t ops = {};
 
   ops.version = UMF_VERSION_CURRENT;
@@ -222,7 +222,7 @@ auto poolMakeUnique(provider_unique_handle_t provider, Args &&...args) {
       ret, pool_unique_handle_t(hPool, umfPoolDestroy)};
 }
 
-static inline auto poolMakeUniqueFromOps(umf_memory_pool_ops_t *ops,
+static inline auto poolMakeUniqueFromOps(const umf_memory_pool_ops_t *ops,
                                          provider_unique_handle_t provider,
                                          void *params) {
   umf_memory_pool_handle_t hPool;
@@ -240,7 +240,7 @@ static inline auto poolMakeUniqueFromOps(umf_memory_pool_ops_t *ops,
 }
 
 static inline auto
-poolMakeUniqueFromOpsProviderHandle(umf_memory_pool_ops_t *ops,
+poolMakeUniqueFromOpsProviderHandle(const umf_memory_pool_ops_t *ops,
                                     umf_memory_provider_handle_t provider,
                                     void *params) {
   umf_memory_pool_handle_t hPool;
