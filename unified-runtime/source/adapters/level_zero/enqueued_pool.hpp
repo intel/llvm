@@ -22,17 +22,23 @@ public:
     void *Ptr;
     size_t Size;
     ur_event_handle_t Event;
-    ur_queue_handle_t Queue;
+    // Queue handle, used as an identifier for the associated queue.
+    // This can either be a `ur_queue_handle_t` or a pointer to a v2 queue
+    // object.
+    void *Queue;
     size_t Alignment;
   };
 
+  EnqueuedPool(ur_result_t (*eventRelease)(ur_event_handle_t))
+      : eventRelease(eventRelease) {}
+
   ~EnqueuedPool();
   std::optional<Allocation> getBestFit(size_t Size, size_t Alignment,
-                                       ur_queue_handle_t Queue);
-  void insert(void *Ptr, size_t Size, ur_event_handle_t Event,
-              ur_queue_handle_t Queue);
+                                       void *Queue);
+  void insert(void *Ptr, size_t Size, ur_event_handle_t Event, void *Queue);
   bool cleanup();
-  bool cleanupForQueue(ur_queue_handle_t Queue);
+  bool cleanupForQueue(void *Queue);
+  ur_result_t (*eventRelease)(ur_event_handle_t);
 
 private:
   struct Comparator {

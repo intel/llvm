@@ -166,6 +166,11 @@ ur_result_t ur_event_handle_t_::release() {
   if (!RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  if (originAllocEvent) {
+    originAllocEvent->release();
+    originAllocEvent = nullptr;
+  }
+
   if (event_pool) {
     event_pool->free(this);
   } else {
@@ -195,6 +200,11 @@ ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
 
 ur_device_handle_t ur_event_handle_t_::getDevice() const { return hDevice; }
+
+void ur_event_handle_t_::setOriginAllocEvent(
+    ur_event_handle_t originAllocEvent) {
+  this->originAllocEvent = originAllocEvent;
+}
 
 ur_event_handle_t_::ur_event_handle_t_(
     ur_context_handle_t hContext,
