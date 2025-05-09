@@ -48,24 +48,13 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
 std::string getCudaVersionString();
 
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode);
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode);
 
 void setPluginSpecificMessage(CUresult cu_res);
-
-/// ------ Error handling, matching OpenCL plugin semantics.
-namespace detail {
-namespace ur {
-
-// Reports error messages
-void cuPrint(const char *Message);
-
-} // namespace ur
-} // namespace detail
 
 namespace umf {
 

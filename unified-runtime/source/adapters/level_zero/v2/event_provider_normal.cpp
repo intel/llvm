@@ -50,7 +50,7 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
     devices.push_back(d->ZeDevice);
   }
 
-  logger::debug("ze_event_pool_desc_t flags set to: {}", desc.flags);
+  UR_LOG(DEBUG, "ze_event_pool_desc_t flags set to: {}", desc.flags);
 
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
                     (context->getZeHandle(), &desc, devices.size(),

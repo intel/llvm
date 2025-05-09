@@ -316,6 +316,8 @@ std::optional<uint64_t> SPIRVToLLVM::getAlignment(SPIRVValue *V) {
 Type *SPIRVToLLVM::transFPType(SPIRVType *T) {
   switch (T->getFloatBitWidth()) {
   case 16:
+    if (T->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return Type::getBFloatTy(*Context);
     return Type::getHalfTy(*Context);
   case 32:
     return Type::getFloatTy(*Context);
@@ -381,7 +383,7 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
     Type *ElementTy = transType(T->getPointerElementType(), UseTPT);
     if (UseTPT)
       return TypedPointerType::get(ElementTy, AS);
-    return mapType(T, PointerType::get(ElementTy, AS));
+    return mapType(T, PointerType::get(*Context, AS));
   }
   case OpTypeUntypedPointerKHR: {
     unsigned AS = SPIRSPIRVAddrSpaceMap::rmap(T->getPointerStorageClass());
@@ -461,7 +463,7 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
     if (UseTPT) {
       return mapType(T, TypedPointerType::get(STy, 1));
     }
-    return mapType(T, PointerType::get(STy, 1));
+    return mapType(T, PointerType::get(*Context, 1));
   }
   case OpTypeVmeImageINTEL: {
     auto *VT = static_cast<SPIRVTypeVmeImageINTEL *>(T)->getImageType();
@@ -646,8 +648,7 @@ SPIRVToLLVM::transTypeVector(const std::vector<SPIRVType *> &BT, bool UseTPT) {
 
 static Type *opaquifyType(Type *Ty) {
   if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
-    Ty = PointerType::get(opaquifyType(TPT->getElementType()),
-                          TPT->getAddressSpace());
+    Ty = PointerType::get(Ty->getContext(), TPT->getAddressSpace());
   }
   return Ty;
 }
@@ -1227,6 +1228,7 @@ Value *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F) {
   else if (BT->isTypeVectorOrScalarFloat())
     Inst = Builder.CreateFCmp(CmpMap::rmap(OP), Op0, Op1);
   assert(Inst && "not implemented");
+  applyFPFastMathModeDecorations(BV, static_cast<Instruction *>(Inst));
   return Inst;
 }
 
@@ -1485,7 +1487,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       const llvm::fltSemantics *FS = nullptr;
       switch (BT->getFloatBitWidth()) {
       case 16:
-        FS = &APFloat::IEEEhalf();
+        FS =
+            (BT->isTypeFloat(16, FPEncodingBFloat16KHR) ? &APFloat::BFloat()
+                                                        : &APFloat::IEEEhalf());
         break;
       case 32:
         FS = &APFloat::IEEEsingle();
@@ -2674,12 +2678,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         return mapValue(
             BV, cast<Instruction *>(DbgTran->transDebugIntrinsic(ExtInst, BB)));
       } else {
-        auto MaybeRecord = DbgTran->transDebugIntrinsic(ExtInst, BB);
-        if (!MaybeRecord.isNull()) {
-          auto *Record = cast<DbgRecord *>(MaybeRecord);
-          Record->setDebugLoc(
-              DbgTran->transDebugScope(static_cast<SPIRVInstruction *>(BV)));
-        }
+        DbgTran->transDebugIntrinsic(ExtInst, BB);
         return mapValue(BV, nullptr);
       }
     default:
@@ -3035,7 +3034,8 @@ Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   std::vector<Value *> Args;
   Args.reserve(8);
   if (RetTy->getIntegerBitWidth() > 64) {
-    llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+    llvm::PointerType *RetPtrTy =
+        llvm::PointerType::get(*Context, SPIRAS_Generic);
     Value *Alloca =
         new AllocaInst(RetTy, M->getDataLayout().getAllocaAddrSpace(), "", BB);
     Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
@@ -3159,7 +3159,8 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   std::vector<Value *> Args;
 
   if (RetTy->getIntegerBitWidth() > 64) {
-    llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+    llvm::PointerType *RetPtrTy =
+        llvm::PointerType::get(*Context, SPIRAS_Generic);
     ArgTys.push_back(RetPtrTy);
     Value *Alloca =
         new AllocaInst(RetTy, M->getDataLayout().getAllocaAddrSpace(), "", BB);
@@ -4506,8 +4507,7 @@ void SPIRVToLLVM::createCXXStructor(const char *ListName,
 
   // Type of a structor entry: { i32, void ()*, i8* }
   Type *PriorityTy = Type::getInt32Ty(*Context);
-  PointerType *CtorTy = PointerType::getUnqual(
-      FunctionType::get(Type::getVoidTy(*Context), false));
+  PointerType *CtorTy = PointerType::getUnqual(*Context);
   PointerType *ComdatTy = PointerType::getUnqual(*Context);
   StructType *StructorTy = StructType::get(PriorityTy, CtorTy, ComdatTy);
 

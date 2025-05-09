@@ -122,19 +122,34 @@ llvm_config.with_system_environment(
     ]
 )
 
+# Take into account extra system environment variables if provided via parameter.
+if config.extra_system_environment:
+    lit_config.note(
+        "Extra system variables to propagate value from: "
+        + config.extra_system_environment
+    )
+    extra_env_vars = config.extra_system_environment.split(",")
+    for var in extra_env_vars:
+        if var in os.environ:
+            llvm_config.with_system_environment(var)
+
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")
-    llvm_config.with_system_environment(["LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH"])
+    llvm_config.with_system_environment(
+        ["LD_LIBRARY_PATH", "LIBRARY_PATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"]
+    )
     llvm_config.with_environment(
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
 elif platform.system() == "Windows":
     config.available_features.add("windows")
-    llvm_config.with_system_environment(["LIB", "CPATH", "INCLUDE"])
+    llvm_config.with_system_environment(
+        ["LIB", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "INCLUDE"]
+    )
     llvm_config.with_environment("LIB", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment("PATH", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment(
@@ -143,14 +158,19 @@ elif platform.system() == "Windows":
 
 elif platform.system() == "Darwin":
     # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
-    llvm_config.with_system_environment("CPATH")
+    llvm_config.with_system_environment(["C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"])
     llvm_config.with_environment(
-        "CPATH",
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1",
         append_path=True,
     )
     llvm_config.with_environment(
-        "CPATH",
+        "C_INCLUDE_PATH",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
+        append_path=True,
+    )
+    llvm_config.with_environment(
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
         append_path=True,
     )
@@ -251,8 +271,10 @@ def check_igc_tag_and_add_feature():
 
 
 def quote_path(path):
+    if not path:
+        return ""
     if platform.system() == "Windows":
-        return f'"{path}"' if path else ""
+        return f'"{path}"'
     return shlex.quote(path)
 
 # Call the function to perform the check and add the feature
@@ -538,9 +560,9 @@ if cl_options:
             "%sycl_options",
             " "
             + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
-            + " /I"
+            + " -Xclang -isystem -Xclang "
             + config.sycl_include
-            + " /I"
+            + " -Xclang -isystem -Xclang "
             + os.path.join(config.sycl_include, "sycl"),
         )
     )
@@ -556,9 +578,9 @@ else:
         (
             "%sycl_options",
             (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
-            + " -I"
+            + " -isystem "
             + config.sycl_include
-            + " -I"
+            + " -isystem "
             + os.path.join(config.sycl_include, "sycl")
             + " -L"
             + config.sycl_libs_dir,
@@ -584,22 +606,7 @@ if "verbose-print" in lit_config.params:
 else:
     config.substitutions.append(("%verbose_print", ""))
 
-config.substitutions.append(("%vulkan_include_dir", config.vulkan_include_dir))
-config.substitutions.append(("%vulkan_lib", config.vulkan_lib))
-
-if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%link-vulkan", "-l %s -I %s" % (config.vulkan_lib, config.vulkan_include_dir))
-    )
-else:
-    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
-    config.substitutions.append(
-        (
-            "%link-vulkan",
-            "-L %s -lvulkan -I %s" % (vulkan_lib_path, config.vulkan_include_dir),
-        )
-    )
-
+# Enable `vulkan` feature if Vulkan was found.
 if config.vulkan_found == "TRUE":
     config.available_features.add("vulkan")
 

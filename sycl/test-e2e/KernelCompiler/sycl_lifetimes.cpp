@@ -38,8 +38,7 @@ int test_lifetimes() {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source "
                  "kernel bundle extension: "
