@@ -207,6 +207,18 @@ void memory_pool_impl::reset_used_size_high() {
           static_cast<void *>(&resetVal), 8 /*uint64_t*/);
 }
 
+void memory_pool_impl::trim_to(size_t minBytesToKeep) {
+  ur_context_handle_t C = MContextImplPtr->getHandleRef();
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(MDevice);
+  ur_device_handle_t Device = DevImpl->getHandleRef();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolTrimToExp>(
+          C, Device, MPoolHandle, minBytesToKeep);
+}
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
