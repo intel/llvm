@@ -1,5 +1,4 @@
 // RUN: %{build} -fsyntax-only -o %t.out
-// RUN: %{run} %t.out
 
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/queue.hpp>
