@@ -6937,13 +6937,18 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
       !(AL.existsInTarget(S.Context.getTargetInfo()) ||
         (S.Context.getLangOpts().SYCLIsDevice &&
          Aux && AL.existsInTarget(*Aux)))) {
-    S.Diag(AL.getLoc(),
-           AL.isRegularKeywordAttribute()
+    if (AL.isRegularKeywordAttribute() || AL.isDeclspecAttribute()) {
+      S.Diag(AL.getLoc(), AL.isRegularKeywordAttribute()
                ? (unsigned)diag::err_keyword_not_supported_on_target
            : AL.isDeclspecAttribute()
                ? (unsigned)diag::warn_unhandled_ms_attribute_ignored
                : (unsigned)diag::warn_unknown_attribute_ignored)
-        << AL << AL.getRange();
+          << AL.getAttrName() << AL.getRange();
+    } else {
+      S.Diag(AL.getNormalizedRange().getBegin(),
+             diag::warn_unknown_attribute_ignored)
+          << "'" + AL.getNormalizedFullName() + "'" << AL.getNormalizedRange();
+    }
     return;
   }
 
