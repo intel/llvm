@@ -236,8 +236,8 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  if (numKernelAlternatives > 0 && command == nullptr) {
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  if (numKernelAlternatives > 0 && kernelAlternatives == nullptr) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   auto commandListLocked = commandBuffer->commandListManager.lock();
