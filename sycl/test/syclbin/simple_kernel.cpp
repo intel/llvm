@@ -1,15 +1,7 @@
-// RUN: %clangxx -fsycl-device-only -Xclang -emit-llvm-bc -o %t.bc %s
-// RUN: clang-offload-packager -o %t.out "--image=file=%t.bc,triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts="
-// RUN: clang-linker-wrapper --syclbin --host-triple=x86_64-unknown-linux-gnu -sycl-device-libraries="libsycl-crt.new.o" -sycl-device-library-location=%sycl_libs_dir --sycl-post-link-options="-device-globals" --llvm-spirv-options=-spirv-max-version=1.4 -o %t.syclbin %t.out
+// RUN: %clangxx --offload-new-driver -fsyclbin -o %t.syclbin %s
 // RUN: syclbin-dump %t.syclbin | FileCheck %s
 
 // Checks the generated SYCLBIN contents of a simple SYCL free function kernel.
-
-// TODO: Replace clang tooling invocation with -fsyclbin clang driver command
-//       when available. Once this is in place, Windows should also be
-//       supported.
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-65259
 
 #include <sycl/sycl.hpp>
 

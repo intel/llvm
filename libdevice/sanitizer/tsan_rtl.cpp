@@ -76,7 +76,7 @@ inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
 }
 
 inline Epoch IncrementEpoch(Sid sid) {
-  return atomicAdd(&TsanLaunchInfo->Clock[sid].clk_[sid], 1);
+  return TsanLaunchInfo->Clock[sid].clk_[sid]++;
 }
 
 inline __SYCL_GLOBAL__ RawShadow *MemToShadow_CPU(uptr addr, uint32_t) {
@@ -145,12 +145,11 @@ inline Sid GetCurrentSid_CPU() {
   return wg_lid;
 }
 
-// For GPU device, each sub group is a thread
+// For GPU device, each work item is a thread
 inline Sid GetCurrentSid_GPU() {
   // sub-group linear id
-  const auto sg_lid =
-      __spirv_BuiltInGlobalLinearId / __spirv_BuiltInSubgroupSize;
-  return sg_lid;
+  const auto lid = __spirv_BuiltInGlobalLinearId;
+  return lid;
 }
 
 inline Sid GetCurrentSid() {
