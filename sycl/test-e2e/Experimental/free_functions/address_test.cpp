@@ -1,10 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda, hip
-// UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
-
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/kernel_bundle.hpp>
