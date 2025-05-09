@@ -104,51 +104,78 @@ macro(append_common_extra_security_flags)
   endif()
 
   # Position Independent Code
-    if (is_gcc OR is_clang OR (is_icpx AND MSVC))
-      add_compile_option_ext("-fPIC" FPIC)
-    elseif (is_msvc)
-      add_compile_option_ext("/Gy" GY)
+  if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+    add_compile_option_ext("-fPIC" FPIC)
+  elseif (is_msvc)
+    add_compile_option_ext("/Gy" GY)
+  endif()
+
+  # Position Independent Execution
+  if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+  # The project should be configured with -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+    add_compile_option_ext("-fPIE" FPIE)
+    add_link_option_ext("-pie" PIE CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+    CMAKE_SHARED_LINKER_FLAGS)
+  elseif (is_msvc)
+    add_compile_option_ext("/DYNAMICBASE" DYNAMICBASE)
+  endif()
+
+  if (CMAKE_BUILD_TYPE MATCHES "Release")
+    if (is_msvc)
+      add_compile_option_ext("/NXCOMPAT" NXCOMPAT)
     endif()
+  endif()
 
-
-
-
+  # Stack Protection
+  if (is_msvc)
+    add_compile_option_ext("/GS" GS)
+  elseif (is_gcc OR is_clang OR (is_icpx AND MSVC))
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+      add_compile_option_ext("-fstack-protector" FSTACKPROTECTOR)
+    elseif (CMAKE_BUILD_TYPE MATCHES "Release")
+      add_compile_option_ext("-fstack-protector-strong" FSTACKPROTECTORSTRONG)
+      add_compile_option_ext("-fstack-clash-protection" FSTACKCLASHPROTECTION)
+    endif()
+  endif()
 
   if( LLVM_ON_UNIX )
     # Fortify Source (strongly recommended):
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
       message(WARNING
-        "-D_FORTIFY_SOURCE=2 can only be used with optimization.")
-      message(WARNING "-D_FORTIFY_SOURCE=2 is not supported.")
+        "-D_FORTIFY_SOURCE=3 can only be used with optimization.")
+      message(WARNING "-D_FORTIFY_SOURCE=3 is not supported.")
     else()
       # Sanitizers do not work with checked memory functions,
       # such as __memset_chk. We do not build release packages
-      # with sanitizers, so just avoid -D_FORTIFY_SOURCE=2
+      # with sanitizers, so just avoid -D_FORTIFY_SOURCE=3
       # under LLVM_USE_SANITIZER.
       if (NOT LLVM_USE_SANITIZER)
-        message(STATUS "Building with -D_FORTIFY_SOURCE=2")
-        add_definitions(-D_FORTIFY_SOURCE=2)
+        message(STATUS "Building with -D_FORTIFY_SOURCE=3")
+        add_definitions(-D_FORTIFY_SOURCE=3)
       else()
         message(WARNING
-          "-D_FORTIFY_SOURCE=2 dropped due to LLVM_USE_SANITIZER.")
+          "-D_FORTIFY_SOURCE=3 dropped due to LLVM_USE_SANITIZER.")
       endif()
     endif()
 
-    # Format String Defense
-    add_compile_option_ext("-Werror=format-security" WERRORFORMATSECURITY)
-
-    # Stack Protection
-    add_compile_option_ext("-fstack-protector-strong" FSTACKPROTECTORSTRONG)
+    add_definitions(-D_GLIBCXX_ASSERTIONS)
 
     # Full Relocation Read Only
-    add_link_option_ext("-Wl,-z,relro" ZRELRO
-      CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
-      CMAKE_SHARED_LINKER_FLAGS)
+    if (CMAKE_BUILD_TYPE MATCHES "Release")
+      add_link_option_ext("-Wl,-z,relro" ZRELRO
+        CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+        CMAKE_SHARED_LINKER_FLAGS)
+    endif()
 
     # Immediate Binding (Bindnow)
-    add_link_option_ext("-Wl,-z,now" ZNOW
-      CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
-      CMAKE_SHARED_LINKER_FLAGS)
+    if (CMAKE_BUILD_TYPE MATCHES "Release")
+      add_link_option_ext("-Wl,-z,now" ZNOW
+        CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+        CMAKE_SHARED_LINKER_FLAGS)
+      add_link_option_ext("-Wl,-z,nodlopen" ZDLOPEN
+        CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
+        CMAKE_SHARED_LINKER_FLAGS)
+    endif()
   endif()
 endmacro()
 
