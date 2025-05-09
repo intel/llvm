@@ -361,7 +361,7 @@ ur_result_t validateCommandDescUnlocked(
 
   auto SupportedFeatures =
       Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags;
-  logger::debug("Mutable features supported by device {}", SupportedFeatures);
+  UR_LOG(DEBUG, "Mutable features supported by device {}", SupportedFeatures);
 
   for (size_t i = 0; i < CommandDescSize; i++) {
     const auto &CommandDesc = CommandDescs[i];
@@ -393,7 +393,7 @@ ur_result_t validateCommandDescUnlocked(
         UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
     if (NewGlobalWorkOffset) {
       if (!ZeDriverGlobalOffsetExtensionFound) {
-        logger::error("No global offset extension found on this driver");
+        UR_LOG(ERR, "No global offset extension found on this driver");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     }
