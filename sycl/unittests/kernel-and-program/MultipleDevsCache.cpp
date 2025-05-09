@@ -180,9 +180,11 @@ TEST_P(MultipleDeviceCacheTest, ProgramRetain) {
   // expect 3 urKernelRelease calls.
 
   // We create 2 kernels in the test. So, we expect
-  // 4 urKernelRelease calls (correpsonding to 2 create calls + 2 retain calls
+  // 3 urKernelRelease calls (correpsonding to 2 create calls + 1 retain calls
   // when handle is returned to the caller).
-  EXPECT_EQ(KernelReleaseCounter, 4) << "Expect 4 piKernelRelease calls";
+  // While kernel is created using handler::single_task(), the retain call
+  // will be made when cache is destroyed (during shutdown).
+  EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
 }
 
 INSTANTIATE_TEST_SUITE_P(

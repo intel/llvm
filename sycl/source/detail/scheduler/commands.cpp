@@ -2696,7 +2696,8 @@ void enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, NDRDesc);
+            ContextImpl, DeviceImpl, KernelName, NDRDesc, true
+            /*Transfer ownership of kernel and program objects to cache.*/);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2741,8 +2742,13 @@ void enqueueImpKernel(
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, KernelName);
 
-    const AdapterPtr &Adapter = Queue->getAdapter();
-    if (!SyclKernelImpl && !MSyclKernel) {
+    // If cache is owning the kernel and programs, we don't have to release
+    // them here, as they will be released when the cache is destroyed or
+    // when the kernel is evicted from the cache.
+    if (!SyclKernelImpl && !MSyclKernel &&
+        !SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+      // If cache is disabled, we need to release the kernel and program.
+      const AdapterPtr &Adapter = Queue->getAdapter();
       Adapter->call<UrApiKind::urKernelRelease>(Kernel);
       Adapter->call<UrApiKind::urProgramRelease>(Program);
     }
