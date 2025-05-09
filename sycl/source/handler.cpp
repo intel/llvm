@@ -2254,7 +2254,7 @@ void handler::copyCodeLoc(const handler &other) {
 }
 
 void handler::prepareForDirectArgumentCopy(
-    void *KernelFuncPtr, int NumArgs,
+    const void *KernelFuncPtr, int NumArgs,
     detail::kernel_param_desc_t (*ParamDescGetter)(int)) {
   impl->MDirectArgs = KernelFuncPtr;
   impl->MNumDirectArgs = NumArgs;

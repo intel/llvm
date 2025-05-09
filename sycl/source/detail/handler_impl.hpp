@@ -200,7 +200,7 @@ public:
   void *MFreePtr = nullptr;
 
   // A pointer to a blob of direct kernel arguments, alternative to MArgs.
-  void *MDirectArgs = nullptr;
+  const void *MDirectArgs = nullptr;
   int MNumDirectArgs = 0;
   detail::kernel_param_desc_t (*MParamDescGetter)(int) = nullptr;
 };

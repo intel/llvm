@@ -796,7 +796,7 @@ private:
       }
     } else {
       MKernelName = detail::getKernelName<KernelName>();
-      prepareForDirectArgumentCopy((void *)&KernelFunc,
+      prepareForDirectArgumentCopy((const void *)&KernelFunc,
                                    detail::getKernelNumParams<KernelName>(),
                                    &detail::getKernelParamDesc<KernelName>);
     }
@@ -3743,7 +3743,7 @@ private:
                                   int Dims);
 
   void prepareForDirectArgumentCopy(
-      void *KernelFuncPtr, int NumArgs,
+      const void *KernelFuncPtr, int NumArgs,
       detail::kernel_param_desc_t (*ParamDescGetter)(int));
 
   friend class detail::HandlerAccess;
