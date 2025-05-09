@@ -1129,8 +1129,8 @@ ProgramManager::getOrCreateKernel(
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple =
         Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr);
-    constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
-    constexpr size_t Program = 3; // see KernelFastCacheValT tuple
+    constexpr size_t Kernel = 0;  // see FastKernelCacheValT tuple
+    constexpr size_t Program = 3; // see FastKernelCacheValT tuple
     if (std::get<Kernel>(ret_tuple)) {
       // Pulling a copy of a kernel and program from the cache,
       // so we need to retain those resources.

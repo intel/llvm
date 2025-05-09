@@ -25,13 +25,13 @@ using FastKernelCacheValT =
 using FastKernelSubcacheMapT =
     ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
 
-using KernelFastSubcacheMutexT = SpinLock;
-using KernelFastSubcacheReadLockT = std::lock_guard<KernelFastSubcacheMutexT>;
-using KernelFastSubcacheWriteLockT = std::lock_guard<KernelFastSubcacheMutexT>;
+using FastKernelSubcacheMutexT = SpinLock;
+using FastKernelSubcacheReadLockT = std::lock_guard<FastKernelSubcacheMutexT>;
+using FastKernelSubcacheWriteLockT = std::lock_guard<FastKernelSubcacheMutexT>;
 
 struct FastKernelSubcacheT {
   FastKernelSubcacheMapT Map;
-  KernelFastSubcacheMutexT Mutex;
+  FastKernelSubcacheMutexT Mutex;
 };
 
 struct KernelNameBasedCacheT {
