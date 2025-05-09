@@ -103,11 +103,9 @@ endif()
 
 target_sources(ur_loader
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_object.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_loader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_ldrddi.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_ldrddi.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libapi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.hpp

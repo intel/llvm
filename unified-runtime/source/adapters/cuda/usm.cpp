@@ -210,7 +210,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t,
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
-    : Context{Context} {
+    : handle_base(), Context{Context} {
   const void *pNext = PoolDesc->pNext;
   while (pNext != nullptr) {
     const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);

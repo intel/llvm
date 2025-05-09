@@ -14,7 +14,7 @@
 #define UR_LOADER_HPP 1
 
 #include "ur_adapter_registry.hpp"
-#include "ur_ldrddi.hpp"
+#include "ur_ddi.h"
 #include "ur_lib_loader.hpp"
 
 namespace ur_loader {
@@ -25,7 +25,7 @@ struct platform_t {
 
   std::unique_ptr<HMODULE, LibLoader::lib_dtor> handle;
   ur_result_t initStatus = UR_RESULT_SUCCESS;
-  dditable_t dditable = {};
+  ur_dditable_t dditable = {};
 };
 
 using platform_vector_t = std::vector<platform_t>;
@@ -41,8 +41,6 @@ public:
 
   ur_result_t init();
   bool intercept_enabled = false;
-
-  struct handle_factories factories;
 };
 
 context_t *getContext();
