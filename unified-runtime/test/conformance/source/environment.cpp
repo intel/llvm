@@ -261,7 +261,10 @@ void KernelsEnvironment::LoadSource(
                    std::ios::binary | std::ios::in | std::ios::ate);
 
   if (!source_file.is_open()) {
-    FAIL() << "failed opening kernel path: " + source_path;
+    FAIL() << "failed opening kernel path: " + source_path
+           << "\nNote: make sure that UR_CONFORMANCE_TARGET_TRIPLES includes "
+           << '\'' << target_name << '\''
+           << " and that device binaries have been built.";
   }
 
   size_t source_size = static_cast<size_t>(source_file.tellg());
