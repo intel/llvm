@@ -892,6 +892,12 @@ public:
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
 private:
+  bool has_info_desc(ur_device_info_t Desc) const {
+    size_t return_size = 0;
+    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
+  }
+
   // This should really be
   //   std::expected<ReturnT, ur_result_t>
   // but we don't have C++23. Emulate close enough with as little code as
