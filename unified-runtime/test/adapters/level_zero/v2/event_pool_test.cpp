@@ -4,6 +4,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v2 ./event_pool-test
+// REQUIRES: v2
+
+// Level Zero V2 Event Pool tests are disabled when using CFI sanitizer
+// See https://github.com/oneapi-src/unified-runtime/issues/2324
+// UNSUPPORTED: has-cfi-sanitizer
+
 #include "command_list_cache.hpp"
 
 #include "level_zero/common.hpp"
