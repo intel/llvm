@@ -40,11 +40,12 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit a5c3d266641c479511dc6a984ea5b71257e8fee9
+    # commit e66a3cbeefc8d0e5910e81ded03817b5362bcaca
+    # Merge: 0c09d060 43a4abd3
     # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-    # Date:   Thu Apr 17 14:13:05 2025 +0200
-    # 0.11.0 release
-    set(UMF_TAG v0.11.0)
+    # Date:   Thu May 8 08:22:28 2025 -0700
+    # Merge pull request #1302 from lukaszstolarczuk/merge-v0.11.x-into-main
+    set(UMF_TAG v0.12.0-dev2)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
