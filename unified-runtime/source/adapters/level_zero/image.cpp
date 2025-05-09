@@ -112,8 +112,9 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -196,8 +197,9 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

@@ -72,7 +72,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                                     : compiledLocalWorksize.data(),
       numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event));
   if (Err == CL_INVALID_KERNEL_ARGS) {
-    ur::cl::getAdapter()->log.error("Kernel called with invalid arguments");
+    UR_LOG_L(ur::cl::getAdapter()->log, ERR,
+             "Kernel called with invalid arguments");
   }
   CL_RETURN_ON_FAILURE(Err);
 
