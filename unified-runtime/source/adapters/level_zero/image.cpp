@@ -15,21 +15,12 @@
 #include "logger/ur_logger.hpp"
 #include "memory.hpp"
 #include "sampler.hpp"
+#include "ur_api.h"
 #include "ur_interface_loader.hpp"
 
 #include "loader/ze_loader.h"
 
 namespace {
-
-bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
-  switch (ChannelOrder) {
-  case UR_IMAGE_CHANNEL_ORDER_RGB:
-  case UR_IMAGE_CHANNEL_ORDER_RGX:
-    return true;
-  default:
-    return false;
-  }
-}
 
 } // namespace
 
@@ -68,9 +59,9 @@ ur_result_t urBindlessImagesImageCopyExp(
   bool UseCopyEngine = hQueue->useCopyEngine(/*PreferCopyEngine*/ true);
   // Due to the limitation of the copy engine, disable usage of Copy Engine
   // Given 3 channel image
-  if (Is3ChannelOrder(
+  if (is3ChannelOrder(
           ur_cast<ur_image_channel_order_t>(pSrcImageFormat->channelOrder)) ||
-      Is3ChannelOrder(
+      is3ChannelOrder(
           ur_cast<ur_image_channel_order_t>(pDstImageFormat->channelOrder))) {
     UseCopyEngine = false;
   }
@@ -121,8 +112,9 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -205,8 +197,9 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

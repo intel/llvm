@@ -102,7 +102,7 @@ ur_result_t urPlatformGetInfo(
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(GlobalAdapter);
   default:
-    logger::debug("urPlatformGetInfo: unrecognized ParamName");
+    UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
