@@ -28,8 +28,9 @@ ur_result_t
 urBindlessImagesImageFreeExp(ur_context_handle_t /*hContext*/,
                              ur_device_handle_t /*hDevice*/,
                              ur_exp_image_mem_native_handle_t hImageMem) {
-  UR_CALL(ur::level_zero::urMemRelease(
-      reinterpret_cast<ur_mem_handle_t>(hImageMem)));
+  auto Native = reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
+  delete Native;
+
   return UR_RESULT_SUCCESS;
 }
 
