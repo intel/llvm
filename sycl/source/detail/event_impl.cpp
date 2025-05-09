@@ -581,9 +581,9 @@ void event_impl::setSubmissionTime() {
   } else {
     // Returning host time
     using namespace std::chrono;
-    MSubmitTime =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
+    MSubmitTime = duration_cast<nanoseconds>(
+                      high_resolution_clock::now().time_since_epoch())
+                      .count();
   }
 }
 
