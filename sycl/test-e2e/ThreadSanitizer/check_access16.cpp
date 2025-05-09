@@ -11,7 +11,7 @@ int main() {
   auto *array = sycl::malloc_device<sycl::int3>(1, Q);
 
   Q.submit([&](sycl::handler &h) {
-     h.parallel_for<class Test>(sycl::nd_range<1>(32, 8),
+     h.parallel_for<class Test>(sycl::nd_range<1>(128, 8),
                                 [=](sycl::nd_item<1>) {
                                   sycl::int3 vec1 = {1, 1, 1};
                                   sycl::int3 vec2 = {2, 2, 2};

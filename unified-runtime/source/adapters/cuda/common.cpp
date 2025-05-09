@@ -71,7 +71,7 @@ void checkErrorUR(CUresult Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr ||
       std::getenv("UR_CUDA_ABORT") != nullptr) {
@@ -95,7 +95,7 @@ void checkErrorUR(nvmlReturn_t Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr ||
       std::getenv("UR_CUDA_ABORT") != nullptr) {
@@ -115,7 +115,7 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
   SS << "\nUR ERROR:"
      << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
      << "\n\tSource Location: " << File << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
@@ -135,12 +135,11 @@ std::string getCudaVersionString() {
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
-thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
+thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize]{};
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode) {
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode) {
   assert(strlen(pMessage) < MaxMessageSize);
   // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
   // always null terminated.

@@ -52,15 +52,15 @@ ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
         --GroupSize[I];
       }
       if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-        logger::error("getSuggestedLocalWorkSize: can't find a WG size "
-                      "suitable for global work size > UINT32_MAX");
+        UR_LOG(ERR, "getSuggestedLocalWorkSize: can't find a WG size "
+                    "suitable for global work size > UINT32_MAX");
         return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
       }
       WG[I] = GroupSize[I];
     }
-    logger::debug(
-        "getSuggestedLocalWorkSize: using computed WG size = {{{}, {}, {}}}",
-        WG[0], WG[1], WG[2]);
+    UR_LOG(DEBUG,
+           "getSuggestedLocalWorkSize: using computed WG size = {{{}, {}, {}}}",
+           WG[0], WG[1], WG[2]);
   }
 
   return UR_RESULT_SUCCESS;
@@ -70,7 +70,7 @@ ur_result_t setKernelGlobalOffset(ur_context_handle_t Context,
                                   ze_kernel_handle_t Kernel, uint32_t WorkDim,
                                   const size_t *GlobalWorkOffset) {
   if (!Context->getPlatform()->ZeDriverGlobalOffsetExtensionFound) {
-    logger::debug("No global offset extension found on this driver");
+    UR_LOG(DEBUG, "No global offset extension found on this driver");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -130,27 +130,27 @@ ur_result_t calculateKernelWorkDimensions(
     break;
 
   default:
-    logger::error("calculateKernelWorkDimensions: unsupported work_dim");
+    UR_LOG(ERR, "calculateKernelWorkDimensions: unsupported work_dim");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Error handling for non-uniform group size case
   if (GlobalWorkSize3D[0] !=
       size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 1st dimension");
+    UR_LOG(ERR, "calculateKernelWorkDimensions: invalid work_dim. The range "
+                "is not a multiple of the group size in the 1st dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[1] !=
       size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 2nd dimension");
+    UR_LOG(ERR, "calculateKernelWorkDimensions: invalid work_dim. The range "
+                "is not a multiple of the group size in the 2nd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[2] !=
       size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 3rd dimension");
+    UR_LOG(ERR, "calculateKernelWorkDimensions: invalid work_dim. The range "
+                "is not a multiple of the group size in the 3rd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
