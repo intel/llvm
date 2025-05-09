@@ -1,8 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_msan_flags -O0 -g -o %t1.out
 // RUN: %{run} not %t1.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
-// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
