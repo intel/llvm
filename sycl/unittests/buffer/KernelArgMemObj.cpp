@@ -30,7 +30,6 @@ private:
   static constexpr detail::kernel_param_desc_t desc{
       detail::kernel_param_kind_t::kind_accessor,
       int(access::target::device) /*info*/, 0 /*offset*/};
-  
 };
 } // namespace detail
 } // namespace _V1
