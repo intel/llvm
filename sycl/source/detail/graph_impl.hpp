@@ -949,9 +949,7 @@ public:
 
   /// Query for the device_impl tied to this graph.
   /// @return device_impl shared ptr reference associated with graph.
-  const DeviceImplPtr &getDeviceImplPtr() const {
-    return getSyclObjImpl(MDevice);
-  }
+  device_impl &getDeviceImpl() const { return *getSyclObjImpl(MDevice); }
 
   /// Query for the device tied to this graph.
   /// @return Device associated with graph.
@@ -1421,7 +1419,7 @@ private:
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
-  enqueueNodeDirect(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
+  enqueueNodeDirect(sycl::context Ctx, sycl::detail::device_impl &DeviceImpl,
                     ur_exp_command_buffer_handle_t CommandBuffer,
                     std::shared_ptr<node_impl> Node);
 
@@ -1553,23 +1551,19 @@ private:
 
 class dynamic_parameter_impl {
 public:
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
-      : MGraph(GraphImpl),
-        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
+  dynamic_parameter_impl()
+      : MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
 
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
-                         size_t ParamSize, const void *Data)
-      : MGraph(GraphImpl), MValueStorage(ParamSize),
+  dynamic_parameter_impl(size_t ParamSize, const void *Data)
+      : MValueStorage(ParamSize),
         MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     std::memcpy(MValueStorage.data(), Data, ParamSize);
   }
 
   /// sycl_ext_oneapi_raw_kernel_arg constructor
   /// Parameter size is taken from member of raw_kernel_arg object.
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl, size_t,
-                         raw_kernel_arg *Data)
-      : MGraph(GraphImpl),
-        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
+  dynamic_parameter_impl(size_t, raw_kernel_arg *Data)
+      : MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     size_t RawArgSize = Data->MArgSize;
     const void *RawArgData = Data->MArgData;
     MValueStorage.reserve(RawArgSize);
@@ -1662,8 +1656,6 @@ public:
   std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
   // Dynamic command-groups which will be updated
   std::vector<DynamicCGInfo> MDynCGs;
-
-  std::weak_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
 
 private:

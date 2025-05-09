@@ -1491,8 +1491,8 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // If no event arguments in original call, add dummy ones
   if (!HasEvents) {
     Args.push_back(getInt32(M, 0)); // dummy num events
-    Value *Null = Constant::getNullValue(PointerType::get(
-        getSPIRVType(OpTypeDeviceEvent, true), SPIRAS_Generic));
+    Value *Null = Constant::getNullValue(
+        PointerType::get(CI->getContext(), SPIRAS_Generic));
     Args.push_back(Null); // dummy wait events
     Args.push_back(Null); // dummy ret event
   }

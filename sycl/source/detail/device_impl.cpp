@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_impl.hpp>
-#include <detail/device_info.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
@@ -21,7 +21,8 @@ namespace detail {
 
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
-device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform)
+device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
+                         device_impl::private_tag)
     : MDevice(Device), MPlatform(Platform.shared_from_this()),
       MDeviceHostBaseTime(std::make_pair(0, 0)) {
   const AdapterPtr &Adapter = Platform.getAdapter();
@@ -77,30 +78,6 @@ platform device_impl::get_platform() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 
-template <typename Param>
-typename Param::return_type device_impl::get_info() const {
-  return get_device_info<Param>(*this);
-}
-// Explicitly instantiate all device info traits
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template ReturnT device_impl::get_info<info::device::Desc>() const;
-
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
-  template ReturnT device_impl::get_info<info::device::Desc>() const;
-
-#include <sycl/info/device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT ReturnT                                               \
-  device_impl::get_info<Namespace::info::DescType::Desc>() const;
-
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
@@ -145,7 +122,8 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
   std::string AllExtensionNames =
-      get_device_info_string(UR_DEVICE_INFO_EXTENSIONS);
+      get_info_impl<std::string>(UR_DEVICE_INFO_EXTENSIONS);
+
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -253,6 +231,32 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
                           "Total counts exceed max compute units");
 
   return create_sub_devices(&Properties, Counts.size());
+}
+
+static inline std::string
+affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
+  switch (AffinityDomain) {
+#define __SYCL_AFFINITY_DOMAIN_STRING_CASE(DOMAIN)                             \
+  case DOMAIN:                                                                 \
+    return #DOMAIN;
+
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::numa)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L4_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L3_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L2_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L1_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::next_partitionable)
+#undef __SYCL_AFFINITY_DOMAIN_STRING_CASE
+  default:
+    assert(false && "Missing case for affinity domain.");
+    return "unknown";
+  }
 }
 
 std::vector<device> device_impl::create_sub_devices(
@@ -370,17 +374,15 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_cuda_cluster_group:
     return get_info<info::device::ext_oneapi_cuda_cluster_group>();
   case aspect::usm_atomic_host_allocations:
-    return (
-        get_device_info_impl<ur_device_usm_access_capability_flags_t,
-                             info::device::usm_host_allocations>::get(*this) &
-        UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    return (get_info_impl<ur_device_usm_access_capability_flags_t>(
+                UR_DEVICE_INFO_USM_HOST_SUPPORT) &
+            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return (
-        get_device_info_impl<ur_device_usm_access_capability_flags_t,
-                             info::device::usm_shared_allocations>::get(*this) &
-        UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    return (get_info_impl<ur_device_usm_access_capability_flags_t>(
+                UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT) &
+            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
@@ -701,7 +703,7 @@ bool device_impl::has(aspect Aspect) const {
     return components.size() >= 2;
   }
   case aspect::ext_oneapi_is_component: {
-    typename sycl_to_ur<device>::type Result;
+    ur_device_handle_t Result;
     bool CallSuccessful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
             getHandleRef(),
@@ -880,23 +882,29 @@ uint64_t device_impl::getCurrentDeviceTime() {
   return MDeviceHostBaseTime.first + Diff;
 }
 
-bool device_impl::isGetDeviceAndHostTimerSupported() {
-  const auto &Adapter = getAdapter();
-  uint64_t DeviceTime = 0, HostTime = 0;
-  auto Result = Adapter->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
-      MDevice, &DeviceTime, &HostTime);
-  return Result != UR_RESULT_ERROR_INVALID_OPERATION;
+bool device_impl::extOneapiCanBuild(
+    ext::oneapi::experimental::source_language Language) {
+  try {
+    // Get the shared_ptr to this object from the platform that owns it.
+    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
+    return sycl::ext::oneapi::experimental::detail::
+        is_source_kernel_bundle_supported(Language,
+                                          std::vector<device_impl *>{&Self});
+
+  } catch (sycl::exception &) {
+    return false;
+  }
 }
 
 bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
-    // Get the shared_ptr to this object from the platform that owns it.
-    std::shared_ptr<device_impl> Self = MPlatform->getOrMakeDeviceImpl(MDevice);
-    return sycl::ext::oneapi::experimental::detail::
-        is_source_kernel_bundle_supported(Language,
-                                          std::vector<DeviceImplPtr>{Self});
-
+    // Currently only SYCL language is supported for compiling.
+    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
+    return Language == ext::oneapi::experimental::source_language::sycl &&
+           sycl::ext::oneapi::experimental::detail::
+               is_source_kernel_bundle_supported(
+                   Language, std::vector<device_impl *>{&Self});
   } catch (sycl::exception &) {
     return false;
   }
@@ -945,9 +953,7 @@ bool device_impl::supportsForwardProgress(
     ext::oneapi::experimental::forward_progress_guarantee guarantee,
     ext::oneapi::experimental::execution_scope threadScope,
     ext::oneapi::experimental::execution_scope coordinationScope) const {
-  using ReturnT =
-      std::vector<ext::oneapi::experimental::forward_progress_guarantee>;
-  auto guarantees = getProgressGuaranteesUpTo<ReturnT>(
+  auto guarantees = getProgressGuaranteesUpTo(
       getProgressGuarantee(threadScope, coordinationScope));
   return std::find(guarantees.begin(), guarantees.end(), guarantee) !=
          guarantees.end();
@@ -989,6 +995,62 @@ device_impl::getImmediateProgressGuarantee(
   }
   return forward_progress_guarantee::weakly_parallel;
 }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#define EXPORT_GET_INFO(PARAM)                                                 \
+  template <>                                                                  \
+  __SYCL_EXPORT PARAM::return_type device_impl::get_info<PARAM>() const {      \
+    return get_info_abi_workaround<PARAM>();                                   \
+  }
+
+// clang-format off
+EXPORT_GET_INFO(ext::intel::info::device::device_id)
+EXPORT_GET_INFO(ext::intel::info::device::pci_address)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_simd_width)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_slices)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_subslices_per_slice)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count_per_subslice)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_hw_threads_per_eu)
+EXPORT_GET_INFO(ext::intel::info::device::max_mem_bandwidth)
+EXPORT_GET_INFO(ext::intel::info::device::uuid)
+EXPORT_GET_INFO(ext::intel::info::device::free_memory)
+EXPORT_GET_INFO(ext::intel::info::device::memory_clock_rate)
+EXPORT_GET_INFO(ext::intel::info::device::memory_bus_width)
+EXPORT_GET_INFO(ext::intel::info::device::max_compute_queue_indices)
+EXPORT_GET_INFO(ext::intel::esimd::info::device::has_2d_block_io_support)
+EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
+EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
+EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
+EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
+
+EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
+EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
+
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_global_work_groups)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<1>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<2>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<3>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::sub_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::architecture)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::matrix_combinations)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::image_row_pitch_align)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_row_pitch)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_width)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_height)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::mipmap_max_anisotropy)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::component_devices)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::composite_device)
+EXPORT_GET_INFO(ext::oneapi::info::device::num_compute_units)
+// clang-format on
+
+#undef EXPORT_GET_INFO
+#endif
 
 } // namespace detail
 } // namespace _V1

@@ -121,6 +121,17 @@ llvm_config.with_system_environment(
     ]
 )
 
+# Take into account extra system environment variables if provided via parameter.
+if config.extra_system_environment:
+    lit_config.note(
+        "Extra system variables to propagate value from: "
+        + config.extra_system_environment
+    )
+    extra_env_vars = config.extra_system_environment.split(",")
+    for var in extra_env_vars:
+        if var in os.environ:
+            llvm_config.with_system_environment(var)
+
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
@@ -594,20 +605,7 @@ if "verbose-print" in lit_config.params:
 else:
     config.substitutions.append(("%verbose_print", ""))
 
-config.substitutions.append(("%vulkan_include_dir", config.vulkan_include_dir))
-config.substitutions.append(("%vulkan_lib", config.vulkan_lib))
-
-link_vulkan = "-I %s " % (config.vulkan_include_dir)
-if platform.system() == "Windows":
-    if cl_options:
-        link_vulkan += "/clang:-l%s" % (config.vulkan_lib)
-    else:
-        link_vulkan += "-l %s" % (config.vulkan_lib)
-else:
-    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
-    link_vulkan += "-L %s -lvulkan" % (vulkan_lib_path)
-config.substitutions.append(("%link-vulkan", link_vulkan))
-
+# Enable `vulkan` feature if Vulkan was found.
 if config.vulkan_found == "TRUE":
     config.available_features.add("vulkan")
 
