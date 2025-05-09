@@ -25,8 +25,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
 
 TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
-
   ur_event_handle_t advise_event = nullptr;
   ur_result_t result = urEnqueueUSMAdvise(queue, ptr, allocation_size,
                                           getParam(), &advise_event);
@@ -54,8 +52,6 @@ struct urEnqueueUSMAdviseTest : uur::urUSMDeviceAllocTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMAdviseTest);
 
 TEST_P(urEnqueueUSMAdviseTest, MultipleParamsSuccess) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
-
   ur_result_t result = urEnqueueUSMAdvise(queue, ptr, allocation_size,
                                           UR_USM_ADVICE_FLAG_SET_READ_MOSTLY |
                                               UR_USM_ADVICE_FLAG_BIAS_CACHED,
