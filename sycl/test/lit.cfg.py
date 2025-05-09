@@ -69,6 +69,10 @@ if config.extra_environment:
 if config.sycl_preview_lib_enabled == "ON":
     config.available_features.add("preview-breaking-changes-supported")
 
+# Check if the current build mode is debug.
+if config.build_mode == "Debug":
+    config.available_features.add("debug_sycl_library")
+
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 # Add 'libcxx' feature to filter out all SYCL abi tests when SYCL runtime
 # is built with llvm libcxx. This feature is added for Linux only since MSVC
@@ -137,9 +141,12 @@ for include_dir in [
         sycl_host_only_options += " -isystem %s" % include_dir
 config.substitutions.append(("%fsycl-host-only", sycl_host_only_options))
 
-config.substitutions.append(
-    ("%sycl_lib", " -lsycl8" if platform.system() == "Windows" else "-lsycl")
-)
+if platform.system() == "Windows":
+    config.substitutions.append(
+        ("%sycl_lib", " -lsycl8d" if config.build_mode == "Debug" else " -lsycl8")
+    )
+else:
+    config.substitutions.append(("%sycl_lib", "-lsycl"))
 
 llvm_config.add_tool_substitutions(["llvm-spirv"], [config.sycl_tools_dir])
 
@@ -198,10 +205,13 @@ llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 if not dump_only_tests:
     llvm_config.use_clang(additional_flags=additional_flags)
 
-# Set timeout for test = 10 mins
+# Set timeout for test = 10 mins (Release) or 20 mins (Debug)
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    if config.build_mode != "Debug":
+        lit_config.maxIndividualTestTime = 600
+    else:
+        lit_config.maxIndividualTestTime = 1200
 except ImportError:
     pass

@@ -203,6 +203,9 @@ or via the ***LIT_OPTS*** environment variable.
 compilation command line for GPU device. If not specified "-device *" value is
 used.
 
+***USE_DEBUG_LIBRARIES*** - enable the use of Windows debug libraries by setting
+this to "ON". "OFF" by default.
+
 ## Special test categories
 
 There are two special directories for extended testing. See documentation at:
