@@ -191,6 +191,7 @@ if config.extra_environment:
 # Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
 llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
+
 # Temporarily modify environment to be the same that we use when running tests
 class test_env:
     def __enter__(self):
@@ -276,6 +277,7 @@ def quote_path(path):
         return f'"{path}"'
     return shlex.quote(path)
 
+
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
 
@@ -294,6 +296,7 @@ if lit_config.params.get("enable-perf-tests", False):
 
 if lit_config.params.get("spirv-backend", False):
     config.available_features.add("spirv-backend")
+
 
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the
@@ -635,7 +638,9 @@ if (
         config.sycl_build_targets.add("target-amd")
 
 with test_env():
-    cmd = "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+    cmd = (
+        "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+    )
     sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
 
     # In contrast to `cpu` feature this is a compile-time feature, which is needed
@@ -842,7 +847,9 @@ def get_sycl_ls_verbose(sycl_device, env):
         # we get an exit status.
         try:
             cmd = "{} {} --verbose".format(config.run_launcher or "", sycl_ls)
-            sp = subprocess.run(cmd, env=env, text=True, shell=True, capture_output=True)
+            sp = subprocess.run(
+                cmd, env=env, text=True, shell=True, capture_output=True
+            )
             sp.check_returncode()
         except subprocess.CalledProcessError as e:
             # capturing e allows us to see path resolution errors / system
@@ -855,6 +862,7 @@ def get_sycl_ls_verbose(sycl_device, env):
             )
         return sp.stdout.splitlines()
 
+
 # A device filter such as level_zero:gpu can have multiple devices under it and
 # the order is not guaranteed. The aspects enabled are also restricted to what
 # is supported on all devices under the label. It is possible for level_zero:gpu
@@ -866,7 +874,7 @@ def get_sycl_ls_verbose(sycl_device, env):
 # scheme.
 filtered_sycl_devices = []
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
-    backend, device_arch  = sycl_device.split(":", 1)
+    backend, device_arch = sycl_device.split(":", 1)
 
     if not "arch-" in device_arch:
         filtered_sycl_devices.append(sycl_device)
@@ -890,13 +898,16 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
         device_num = detected_architectures.index(device)
         filtered_sycl_devices.append(backend + ":" + str(device_num))
     else:
-        lit_config.warning("Couldn't find device with architecture {}" \
-        " under {} device selector! Skipping device " \
-        "{}".format(device, backend + ":*", sycl_device))
+        lit_config.warning(
+            "Couldn't find device with architecture {}"
+            " under {} device selector! Skipping device "
+            "{}".format(device, backend + ":*", sycl_device)
+        )
 
 if not filtered_sycl_devices and not config.test_mode == "build-only":
-    lit_config.error("No sycl devices selected! Check your device " \
-    "architecture filters.")
+    lit_config.error(
+        "No sycl devices selected! Check your device " "architecture filters."
+    )
 
 config.sycl_devices = filtered_sycl_devices
 
