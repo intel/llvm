@@ -3481,8 +3481,8 @@ using this library:
 #include <cassert>
 #include <iostream>
 
-#include <syclcompat.hpp>
 #include <sycl/sycl.hpp>
+#include <syclcompat/syclcompat.hpp>
 
 /**
  * Slope intercept form of a straight line equation: Y = m * X + b
@@ -3571,7 +3571,11 @@ int main(int argc, char **argv) {
 
   // Check output
   for (size_t i = 0; i < n_points; i++) {
-    assert(h_Y[i] - h_expected[i] < 1e-6);
+    if (std::abs(h_Y[i] - h_expected[i]) >= 1e-6) {
+      std::cerr << "Mismatch at index " << i << ": expected " << h_expected[i]
+          << ", but got " << h_Y[i] << std::endl;
+      exit(EXIT_FAILURE);
+    }
   }
 
   // Clean up memory
@@ -3581,7 +3585,7 @@ int main(int argc, char **argv) {
   syclcompat::free(d_X);
   syclcompat::free(d_Y);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 ```
 
