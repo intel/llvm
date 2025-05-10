@@ -23,6 +23,7 @@
 #if defined(__SYCL_DEVICE_ONLY__)
 
 #include <sycl/detail/defines_elementary.hpp>  // For __DPCPP_SYCL_EXTERNAL
+#include <cstdint>
 
 // STL containers should be safe for concurrent reads, but it is runtime's
 // responsibility to manage write hazards.
