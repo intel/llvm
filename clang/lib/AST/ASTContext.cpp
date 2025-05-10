@@ -940,7 +940,7 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       DependentSizedMatrixTypes(this_()),
       FunctionProtoTypes(this_(), FunctionProtoTypesLog2InitSize),
       DependentTypeOfExprTypes(this_()), DependentDecltypeTypes(this_()),
-      TemplateSpecializationTypes(this_()),
+      DependentPackIndexingTypes(this_()), TemplateSpecializationTypes(this_()),
       DependentTemplateSpecializationTypes(this_()),
       DependentBitIntTypes(this_()), SubstTemplateTemplateParmPacks(this_()),
       DeducedTemplates(this_()), ArrayParameterTypes(this_()),
@@ -2955,6 +2955,9 @@ bool ASTContext::hasUniqueObjectRepresentations(
 
   // All integrals and enums are unique.
   if (Ty->isIntegralOrEnumerationType()) {
+    // Address discriminated integer types are not unique.
+    if (Ty.hasAddressDiscriminatedPointerAuth())
+      return false;
     // Except _BitInt types that have padding bits.
     if (const auto *BIT = Ty->getAs<BitIntType>())
       return getTypeSize(BIT) == BIT->getNumBits();
@@ -6450,7 +6453,7 @@ QualType ASTContext::getPackIndexingType(QualType Pattern, Expr *IndexExpr,
   } else {
     llvm::FoldingSetNodeID ID;
     PackIndexingType::Profile(ID, *this, Pattern.getCanonicalType(), IndexExpr,
-                              FullySubstituted);
+                              FullySubstituted, Expansions);
     void *InsertPos = nullptr;
     PackIndexingType *Canon =
         DependentPackIndexingTypes.FindNodeOrInsertPos(ID, InsertPos);
@@ -6458,9 +6461,9 @@ QualType ASTContext::getPackIndexingType(QualType Pattern, Expr *IndexExpr,
       void *Mem = Allocate(
           PackIndexingType::totalSizeToAlloc<QualType>(Expansions.size()),
           TypeAlignment);
-      Canon = new (Mem)
-          PackIndexingType(*this, QualType(), Pattern.getCanonicalType(),
-                           IndexExpr, FullySubstituted, Expansions);
+      Canon =
+          new (Mem) PackIndexingType(QualType(), Pattern.getCanonicalType(),
+                                     IndexExpr, FullySubstituted, Expansions);
       DependentPackIndexingTypes.InsertNode(Canon, InsertPos);
     }
     Canonical = QualType(Canon, 0);
@@ -6469,7 +6472,7 @@ QualType ASTContext::getPackIndexingType(QualType Pattern, Expr *IndexExpr,
   void *Mem =
       Allocate(PackIndexingType::totalSizeToAlloc<QualType>(Expansions.size()),
                TypeAlignment);
-  auto *T = new (Mem) PackIndexingType(*this, Canonical, Pattern, IndexExpr,
+  auto *T = new (Mem) PackIndexingType(Canonical, Pattern, IndexExpr,
                                        FullySubstituted, Expansions);
   Types.push_back(T);
   return QualType(T, 0);

@@ -4193,8 +4193,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     LangAS EAS = E->getType()->getPointeeType().getAddressSpace();
     if (AAS != EAS) {
       llvm::Type *Ty = CGM.getTypes().ConvertType(E->getType());
-      return RValue::get(getTargetHooks().performAddrSpaceCast(*this, AI, AAS,
-                                                               EAS, Ty));
+      return RValue::get(
+          getTargetHooks().performAddrSpaceCast(*this, AI, AAS, Ty));
     }
     return RValue::get(AI);
   }
@@ -4215,8 +4215,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     LangAS EAS = E->getType()->getPointeeType().getAddressSpace();
     if (AAS != EAS) {
       llvm::Type *Ty = CGM.getTypes().ConvertType(E->getType());
-      return RValue::get(getTargetHooks().performAddrSpaceCast(*this, AI, AAS,
-                                                               EAS, Ty));
+      return RValue::get(
+          getTargetHooks().performAddrSpaceCast(*this, AI, AAS, Ty));
     }
     return RValue::get(AI);
   }
