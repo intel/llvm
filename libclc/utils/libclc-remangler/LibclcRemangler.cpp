@@ -642,15 +642,15 @@ private:
     for (auto I = PossibleKinds.rbegin(); I != PossibleKinds.rend(); ++I) {
       switch (I->K) {
       case Node::Kind::KPointerType: {
-        if (TargetGenericAddrSpace != 0 && Res.hasAddressSpace() &&
-            toTargetAddressSpace(Res.getAddressSpace()) ==
-                TargetGenericAddrSpace)
-          Res = AST->getPointerType(AST->removeAddrSpaceQualType(Res));
-        else if (TargetGenericAddrSpace != 0 && !Res.hasAddressSpace())
-          Res = AST->getPointerType(
-              AST->getAddrSpaceQualType(Res, LangAS::opencl_private));
-        else
-          Res = AST->getPointerType(Res);
+        if (TargetGenericAddrSpace != 0) {
+          if (Res.hasAddressSpace() &&
+              toTargetAddressSpace(Res.getAddressSpace()) ==
+                  TargetGenericAddrSpace)
+            Res = AST->removeAddrSpaceQualType(Res);
+          else if (!Res.hasAddressSpace())
+            Res = AST->getAddrSpaceQualType(Res, LangAS::opencl_private);
+        }
+        Res = AST->getPointerType(Res);
         break;
       }
       case Node::Kind::KVectorType: {
