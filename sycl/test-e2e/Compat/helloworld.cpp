@@ -29,7 +29,6 @@
 #include <cassert>
 #include <iostream>
 
-#include <syclcompat.hpp>
 #include <sycl/sycl.hpp>
 
 /**
