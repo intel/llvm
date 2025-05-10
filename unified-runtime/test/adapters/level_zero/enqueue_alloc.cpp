@@ -4,6 +4,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v1 ./enqueue_alloc-test
+// REQUIRES: v1
+
 #include <thread>
 
 #include "ur_api.h"
