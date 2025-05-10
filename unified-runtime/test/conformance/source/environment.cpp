@@ -128,11 +128,11 @@ DevicesEnvironment::DevicesEnvironment() : PlatformEnvironment() {
 
   for (auto &platform : platforms) {
     uint32_t platform_device_count = 0;
-    urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
-                        &platform_device_count);
+    urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
+                &platform_device_count);
     std::vector<ur_device_handle_t> platform_devices(platform_device_count);
-    urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, platform_device_count,
-                        platform_devices.data(), nullptr);
+    urDeviceGet(platform, UR_DEVICE_TYPE_ALL, platform_device_count,
+                platform_devices.data(), nullptr);
     ur_adapter_handle_t adapter = nullptr;
     urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
                       sizeof(ur_adapter_handle_t), &adapter, nullptr);

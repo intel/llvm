@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_conformance_kernels_test(kernel
+add_conformance_test_with_kernels_environment(kernel
     urKernelCreate.cpp
     urKernelCreateWithNativeHandle.cpp
     urKernelGetGroupInfo.cpp

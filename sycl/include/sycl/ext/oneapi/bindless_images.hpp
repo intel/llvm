@@ -286,6 +286,54 @@ __SYCL_EXPORT void release_external_memory(external_mem externalMem,
                                            const sycl::queue &syclQueue);
 
 /**
+ *  @brief   Unmap external linear memory region
+ *
+ *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
+ *  @param   syclDevice  The device in which the external memory was created
+ *  @param   syclContext The context in which the external memory was created
+ */
+__SYCL_EXPORT void
+unmap_external_linear_memory(void *mappedLinearMem,
+                             const sycl::device &syclDevice,
+                             const sycl::context &syclContext);
+
+/**
+ *  @brief   Unmap external linear memory region
+ *
+ *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
+ *  @param   syclQueue The queue in which the external memory was created
+ */
+inline void unmap_external_linear_memory(void *mappedLinearMem,
+                                         const sycl::queue &syclQueue) {
+  unmap_external_linear_memory(mappedLinearMem, syclQueue.get_device(),
+                               syclQueue.get_context());
+}
+
+/**
+ *  @brief   Unmap external image memory
+ *
+ *  @param   mappedImageMem Handle to the mapped image memory to unmap
+ *  @param   syclDevice  The device in which the external memory was created
+ *  @param   syclContext The context in which the external memory was created
+ */
+__SYCL_EXPORT void unmap_external_image_memory(
+    image_mem_handle mappedImageMem, image_type imageType,
+    const sycl::device &syclDevice, const sycl::context &syclContext);
+
+/**
+ *  @brief   Unmap external image memory
+ *
+ *  @param   mappedImageMem Handle to the mapped image memory to unmap
+ *  @param   syclQueue The queue in which the external memory was created
+ */
+inline void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                        image_type imageType,
+                                        const sycl::queue &syclQueue) {
+  unmap_external_image_memory(mappedImageMem, imageType, syclQueue.get_device(),
+                              syclQueue.get_context());
+}
+
+/**
  *  @brief   Create an image and return the device image handle
  *
  *  @param   memHandle Device memory handle wrapper for allocated image memory

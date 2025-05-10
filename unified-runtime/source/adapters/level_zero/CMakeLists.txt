@@ -181,7 +181,6 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_counter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/v2/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp

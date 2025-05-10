@@ -31,9 +31,8 @@ configure_file(lit.site.cfg.py.in lit.site.cfg.py)
 add_custom_target(deps_check-unified-runtime)
 if(UR_STANDALONE_BUILD)
   add_custom_target(check-unified-runtime
-    COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -sv
+    COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -v
     DEPENDS deps_check-unified-runtime
-    USES_TERMINAL
   )
 else()
   # Use the LLVM method to add the test suite - this also registers it under `check-all`
@@ -61,8 +60,7 @@ function(add_ur_lit_testsuite suite)
 
   if(UR_STANDALONE_BUILD)
     add_custom_target(${TARGET}
-      COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -sv
-      USES_TERMINAL
+      COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -v
     )
   else()
     add_lit_testsuite(${TARGET} "Running Unified Runtime ${suite} tests"

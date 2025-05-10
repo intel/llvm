@@ -3,12 +3,12 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_conformance_devices_test(queue
+add_conformance_test_with_devices_environment(queue 
   urQueueCreate.cpp 
-  urQueueCreateWithNativeHandle.cpp
+  urQueueCreateWithNativeHandle.cpp 
   urQueueFinish.cpp
   urQueueFlush.cpp
   urQueueGetInfo.cpp
-  urQueueGetNativeHandle.cpp
+  urQueueGetNativeHandle.cpp 
   urQueueRetain.cpp
   urQueueRelease.cpp)

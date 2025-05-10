@@ -3541,11 +3541,19 @@ public:
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
 
-  /// Allows to check status of the queue (completed vs noncompleted).
+  /// Allows to check status of the queue (completed vs incomplete).
   ///
   /// \return returns true if all enqueued commands in the queue have been
   /// completed, otherwise returns false.
   bool ext_oneapi_empty() const;
+
+  /// Allows to check status of the queue (completed vs incomplete).
+  ///
+  /// \return returns true if all enqueued commands in the queue have been
+  /// completed, otherwise returns false.
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  bool khr_empty() const;
+#endif
 
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 

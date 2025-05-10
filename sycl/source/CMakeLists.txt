@@ -50,6 +50,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   target_compile_definitions(
     ${LIB_OBJ_NAME}
     PRIVATE
+      __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
       __SYCL_INTERNAL_API
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
