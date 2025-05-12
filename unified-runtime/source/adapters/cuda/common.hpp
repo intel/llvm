@@ -14,15 +14,9 @@
 #include <ur/ur.hpp>
 
 #include <umf/base.h>
+#include <umf/memory_pool.h>
+#include <umf/memory_provider.h>
 #include <umf/providers/provider_cuda.h>
-
-#define UMF_RETURN_UMF_ERROR(UmfResult)                                        \
-  do {                                                                         \
-    umf_result_t UmfResult_ = (UmfResult);                                     \
-    if (UmfResult_ != UMF_RESULT_SUCCESS) {                                    \
-      return UmfResult_;                                                       \
-    }                                                                          \
-  } while (0)
 
 ur_result_t mapErrorUR(CUresult Result);
 
@@ -57,24 +51,8 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 void setPluginSpecificMessage(CUresult cu_res);
 
 namespace umf {
-
-inline umf_result_t setCUMemoryProviderParams(
-    umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams,
-    int cuDevice, void *cuContext, umf_usm_memory_type_t memType) {
-
-  umf_result_t UmfResult =
-      umfCUDAMemoryProviderParamsSetContext(CUMemoryProviderParams, cuContext);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  UmfResult =
-      umfCUDAMemoryProviderParamsSetDevice(CUMemoryProviderParams, cuDevice);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  UmfResult =
-      umfCUDAMemoryProviderParamsSetMemoryType(CUMemoryProviderParams, memType);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  return UMF_RESULT_SUCCESS;
-}
-
+ur_result_t CreateProviderPool(int cuDevice, void *cuContext,
+                               umf_usm_memory_type_t type,
+                               umf_memory_provider_handle_t *provider,
+                               umf_memory_pool_handle_t *pool);
 } // namespace umf

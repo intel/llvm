@@ -25,8 +25,8 @@ struct urCommandBufferMemcpyCommandsTest
     offset_src = std::get<1>(GetParam()).offset_src;
     offset_dst = std::get<1>(GetParam()).offset_dst;
     copy_size = std::get<1>(GetParam()).copy_size;
-    assert(size <= offset_src + copy_size);
-    assert(size <= offset_dst + copy_size);
+    assert(size >= offset_src + copy_size);
+    assert(size >= offset_dst + copy_size);
     // Allocate USM pointers
     ASSERT_SUCCESS(
         urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &device_ptr));
