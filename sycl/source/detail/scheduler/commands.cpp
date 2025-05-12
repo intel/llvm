@@ -3113,8 +3113,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   // We can omit creating a UR event and create a "discarded" event if the
   // command has been explicitly marked as not needing an event, e.g. if the
   // user did not ask for one, and there are no requirements.
-  bool DiscardUrEvent =
-      MQueue && !MEventNeeded && MCommandGroup->getRequirements().size() == 0;
+  bool DiscardUrEvent = MQueue && !MEventNeeded &&
+                        MQueue->supportsDiscardingPiEvents() &&
+                        MCommandGroup->getRequirements().size() == 0;
 
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
