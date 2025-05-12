@@ -27,29 +27,20 @@
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_DEBUG)
 
-#include <sycl/detail/defines_elementary.hpp>  // For __DPCPP_SYCL_EXTERNAL
-#include <cstdint> // For uintptr_t
+#include <cstdint>                            // For uintptr_t
+#include <sycl/detail/defines_elementary.hpp> // For __DPCPP_SYCL_EXTERNAL
 
 extern "C" __DPCPP_SYCL_EXTERNAL void __cdecl _invalid_parameter(
-	wchar_t const*,
-	wchar_t const*,
-	wchar_t const*,
-	unsigned int,
-	uintptr_t
-) {
-	// Do nothing when called in device code
+    wchar_t const *, wchar_t const *, wchar_t const *, unsigned int,
+    uintptr_t) {
+  // Do nothing when called in device code
 }
 
 #endif
 
-#if defined(__has_include_next)
-// GCC/clang support go through this path.
-#include_next <corecrt.h>
-#else
 // MSVC doesn't support "#include_next", so we have to be creative.
-// Our header is located in "stl_wrappers/corecrt.h" so it won't be picked by 
+// Our header is located in "stl_wrappers/corecrt.h" so it won't be picked by
 // the aforementioned include. MSVC's installation, on the other hand, has the
 // layout where the following would result in the <corecrt.h> we want. This is
 // obviously hacky, but the best we can do...
 #include <../ucrt/corecrt.h>
-#endif
