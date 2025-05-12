@@ -1,7 +1,7 @@
 // REQUIRES: system-windows
 
 // RUN: not clang-cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc 2>&1 | FileCheck %s
- 
+
 // FIXME: This code should have compiled cleanly.
 // CHECK: error: SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute
 // CHECK: note: '_invalid_parameter' declared here
