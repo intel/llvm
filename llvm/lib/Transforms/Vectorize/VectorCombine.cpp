@@ -1301,7 +1301,6 @@ static void analyzeCostOfVecReduction(const IntrinsicInst &II,
   }
   CostAfterReduction = TTI.getArithmeticReductionCost(ReductionOpc, VecRedTy,
                                                       std::nullopt, CostKind);
-  return;
 }
 
 bool VectorCombine::foldBinopOfReductions(Instruction &I) {

@@ -2546,7 +2546,6 @@ static void GetSDLFromOffloadArchive(
 
   C.addTempFile(C.getArgs().MakeArgString(OutputLib));
 
-  ArgStringList CmdArgs;
   SmallString<128> DeviceTriple;
   DeviceTriple += Action::GetOffloadKindName(JA.getOffloadingDeviceKind());
   DeviceTriple += '-';

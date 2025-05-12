@@ -5698,7 +5698,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
 
   if (Tok.is(tok::l_brace) && TUK == TagUseKind::Definition) {
     Decl *D = SkipBody.CheckSameAsPrevious ? SkipBody.New : TagDecl;
-    ParseEnumBody(StartLoc, D);
+    ParseEnumBody(StartLoc, D, &SkipBody);
     if (SkipBody.CheckSameAsPrevious &&
         !Actions.ActOnDuplicateDefinition(getCurScope(), TagDecl, SkipBody)) {
       DS.SetTypeSpecError();
@@ -5723,7 +5723,8 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
 ///       enumeration-constant:
 ///         identifier
 ///
-void Parser::ParseEnumBody(SourceLocation StartLoc, Decl *EnumDecl) {
+void Parser::ParseEnumBody(SourceLocation StartLoc, Decl *EnumDecl,
+                           SkipBodyInfo *SkipBody) {
   // Enter the scope of the enum body and start the definition.
   ParseScope EnumScope(this, Scope::DeclScope | Scope::EnumScope);
   Actions.ActOnTagStartDefinition(getCurScope(), EnumDecl);
@@ -5781,7 +5782,7 @@ void Parser::ParseEnumBody(SourceLocation StartLoc, Decl *EnumDecl) {
     // Install the enumerator constant into EnumDecl.
     Decl *EnumConstDecl = Actions.ActOnEnumConstant(
         getCurScope(), EnumDecl, LastEnumConstDecl, IdentLoc, Ident, attrs,
-        EqualLoc, AssignedVal.get());
+        EqualLoc, AssignedVal.get(), SkipBody);
     EnumAvailabilityDiags.back().done();
 
     EnumConstantDecls.push_back(EnumConstDecl);
@@ -6511,7 +6512,7 @@ bool Parser::isConstructorDeclarator(bool IsUnqualified, bool DeductionGuide,
 /// Note: vendor can be GNU, MS, etc and can be explicitly controlled via
 /// AttrRequirements bitmask values.
 void Parser::ParseTypeQualifierListOpt(
-    DeclSpec &DS, unsigned AttrReqs, bool AtomicAllowed,
+    DeclSpec &DS, unsigned AttrReqs, bool AtomicOrPtrauthAllowed,
     bool IdentifierRequired,
     std::optional<llvm::function_ref<void()>> CodeCompletionHandler) {
   if ((AttrReqs & AR_CXX11AttributesParsed) &&
@@ -6551,7 +6552,7 @@ void Parser::ParseTypeQualifierListOpt(
                                  getLangOpts());
       break;
     case tok::kw__Atomic:
-      if (!AtomicAllowed)
+      if (!AtomicOrPtrauthAllowed)
         goto DoneWithTypeQuals;
       diagnoseUseOfC11Keyword(Tok);
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_atomic, Loc, PrevSpec, DiagID,
@@ -6584,6 +6585,8 @@ void Parser::ParseTypeQualifierListOpt(
 
     // __ptrauth qualifier.
     case tok::kw___ptrauth:
+      if (!AtomicOrPtrauthAllowed)
+        goto DoneWithTypeQuals;
       ParsePtrauthQualifier(DS.getAttributes());
       EndLoc = PrevTokLocation;
       continue;
@@ -6860,7 +6863,8 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
                     ((D.getContext() != DeclaratorContext::CXXNew)
                          ? AR_GNUAttributesParsed
                          : AR_GNUAttributesParsedAndRejected);
-    ParseTypeQualifierListOpt(DS, Reqs, true, !D.mayOmitIdentifier());
+    ParseTypeQualifierListOpt(DS, Reqs, /*AtomicOrPtrauthAllowed=*/true,
+                              !D.mayOmitIdentifier());
     D.ExtendWithDeclSpec(DS);
 
     // Recursively parse the declarator.
@@ -7725,7 +7729,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
       // Parse cv-qualifier-seq[opt].
       ParseTypeQualifierListOpt(
           DS, AR_NoAttributesParsed,
-          /*AtomicAllowed*/ false,
+          /*AtomicOrPtrauthAllowed=*/false,
           /*IdentifierRequired=*/false, llvm::function_ref<void()>([&]() {
             Actions.CodeCompletion().CodeCompleteFunctionQualifiers(DS, D);
           }));
