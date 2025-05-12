@@ -1,4 +1,4 @@
-// REQUIRES: system-windows
+// REQUIRES: windows
 
 // RUN: not clang-cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc 2>&1 | FileCheck %s
 
