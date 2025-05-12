@@ -247,11 +247,10 @@ public:
       case UR_DEVICE_TYPE_MCA:
       case UR_DEVICE_TYPE_VPU:
         return device_type::custom;
-      case UR_DEVICE_TYPE_FORCE_UINT32:
-        assert(false);
-        // FIXME: what is that???
-        return device_type::custom;
       }
+      assert(false);
+      // FIXME: what is that???
+      return device_type::custom;
     }
 
     CASE(info::device::max_work_item_sizes<3>) {
