@@ -10,6 +10,7 @@ from .base import Suite, Benchmark
 from options import options
 from utils.utils import git_clone, download, run, create_build_path
 from utils.result import Result
+import re
 
 
 class GromacsBench(Suite):
@@ -192,6 +193,14 @@ class GromacsBenchmark(Benchmark):
             add_sycl=True,
             use_stdout=False,
         )
+
+        if self.type == "pme" and not self._validate_correctness(
+            options.benchmark_cwd + "/md.log"
+        ):
+            raise ValueError(
+                f"Validation failed: Conserved energy drift exceeds threshold in {model_dir / 'md.log'}"
+            )
+
         time = self._extract_execution_time(mdrun_output)
 
         if options.verbose:
@@ -226,6 +235,34 @@ class GromacsBenchmark(Benchmark):
                 return float(part)
 
         raise ValueError(f"No numeric value found in the 'Time:' line.")
+
+    def _validate_correctness(self, log_file):
+        threshold = 1e-3  # Define an acceptable energy drift threshold
+
+        log_file = Path(log_file)
+        if not log_file.exists():
+            raise FileNotFoundError(f"Log file not found: {log_file}")
+
+        sci_pattern = r"([-+]?\d*\.\d+(?:e[-+]?\d+)?)"
+        with open(log_file, "r") as file:
+            for line in file:
+                if "Conserved energy drift:" in line:
+                    match = re.search(sci_pattern, line, re.IGNORECASE)
+                    if match:
+                        try:
+                            drift_value = float(match.group(1))
+                            return abs(drift_value) <= threshold
+                        except ValueError:
+                            print(
+                                f"Parsed drift value: {drift_value} exceeds threshold"
+                            )
+                            return False
+                    else:
+                        raise ValueError(
+                            f"No valid numerical value found in line: {line}"
+                        )
+
+        raise ValueError(f"Conserved Energy Drift not found in log file: {log_file}")
 
     def teardown(self):
         pass
