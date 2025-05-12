@@ -20,6 +20,13 @@
 
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
+#include "event_pool.hpp"
+#include "event_provider.hpp"
+#include "event_provider_normal.hpp"
+#include "ur_api.h"
+#include "ze_api.h"
+#include <optional>
+#include <vector>
 
 namespace v2 {
 
@@ -76,7 +83,9 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
               getZePriority(pProps ? pProps->flags : ur_queue_flags_t{}),
               getZeIndex(pProps)),
-          eventFlagsFromQueueFlags(flags), this, PoolCacheType::Immediate) {}
+          eventFlagsFromQueueFlags(flags), this, PoolCacheType::Immediate),
+      normalEventsPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
+                           .borrow(hDevice->Id.value(), 0)) {}
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
@@ -93,7 +102,9 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
                   }
                 }
               }),
-          eventFlagsFromQueueFlags(flags), this, PoolCacheType::Immediate) {}
+          eventFlagsFromQueueFlags(flags), this, PoolCacheType::Immediate),
+      normalEventsPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
+                           .borrow(hDevice->Id.value(), 0)) {}
 
 ze_event_handle_t ur_queue_immediate_in_order_t::getSignalEvent(
     locked<ur_command_list_manager> &commandList, ur_event_handle_t *hUserEvent,
@@ -182,6 +193,10 @@ ur_result_t ur_queue_immediate_in_order_t::queueFlush() {
 
 ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
   try {
+    if (HostTaskWorker.has_value()) {
+      HostTaskSender->close();
+      HostTaskWorker->join();
+    }
     UR_CALL_THROWS(queueFinish());
   } catch (...) {
     // Ignore errors during destruction
@@ -1051,4 +1066,147 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueHostTaskExp(
+    ur_exp_host_task_function_t pfnHostTask, void *data,
+    const ur_exp_host_task_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  // L0 does not support enqueuing host tasks on a command list yet.
+  // The implementation below works around that by spawning a worker thread,
+  // inside of the queue object, that waits on the input events, executes the
+  // host task callback, and then signals the output event.
+
+  // Since this functionality relies on the worker thread to complete some work
+  // and then signal the event from host, the output event of this function is a
+  // normal (not counter-based) event, so that calling zeEventHostSignal is
+  // legal. This leads to a slightly more complicated lifetime management...
+
+  if (!HostTaskWorker) {
+    auto [sender, receiver] = mpmc::createChannel<HostTaskData>();
+
+    HostTaskWorker = std::thread([Receiver = std::move(receiver)]() mutable {
+      std::queue<HostTaskData> Local;
+      std::vector<HostTaskData> Cleanup;
+
+      // We can't immediately release the (normal) output event after it has
+      // been signaled beceause that might lead to use-after-free inside of the
+      // driver. Instead, we create a "cleanup" event, to be signaled on the
+      // command list immediately after our output event is signaled. This
+      // ensures that both the output event and the cleanup event are safe to be
+      // released.
+      auto EventCleanup = [&Cleanup]() {
+        auto CleanupNewEnd = std::remove_if(
+            Cleanup.begin(), Cleanup.end(), [](const HostTaskData &task) {
+              bool Completed =
+                  ZE_CALL_NOCHECK(zeEventQueryStatus,
+                                  (task.CleanupEvent->getZeEvent())) ==
+                  ZE_RESULT_SUCCESS;
+              if (Completed) {
+                task.CleanupEvent->release();
+                task.OutputEvent->release();
+              }
+              return Completed;
+            });
+        Cleanup.erase(CleanupNewEnd, Cleanup.end());
+      };
+
+      for (;;) {
+        EventCleanup();
+
+        std::optional<HostTaskData> Data;
+        if (Local.empty()) {
+          // Blocking. It will unblock either on new data or when the channel
+          // has closed.
+          Data = Receiver.receive();
+          if (!Data.has_value()) // no data left and the channel has closed
+            break;
+          Local.push(*Data);
+        } else { // if we already have some host tasks being processed...
+          // Nonblocking. Opportunistically tries to get data from the channel.
+          while ((Data = Receiver.tryReceive()) != std::nullopt)
+            Local.push(*Data);
+        }
+
+        auto &Task = Local.front();
+        // we need to wait for the host tasks' input event to signal. We need to
+        // do this on host.
+        bool Completed = ZE_CALL_NOCHECK(zeEventQueryStatus,
+                                         (Task.InputEvent->getZeEvent())) ==
+                         ZE_RESULT_SUCCESS;
+        if (!Completed) {
+          continue;
+        }
+        Task.InputEvent->release();
+
+        Task.pfnHostTask(Task.data);
+
+        ZE_CALL_NOCHECK(zeEventHostSignal, (Task.OutputEvent->getZeEvent()));
+
+        Cleanup.push_back(Task);
+        Local.pop();
+      }
+
+      while (!Cleanup.empty()) {
+        EventCleanup();
+      }
+    });
+
+    HostTaskSender = std::move(sender);
+  }
+
+  auto CommandListLocked = commandListManager.lock();
+
+  HostTaskData HostTask;
+  HostTask.pfnHostTask = pfnHostTask;
+  HostTask.data = data;
+
+  // Aggregate all input events into a single event for the host task worker
+  // thread to poll.
+  auto *InputZeEvent = getSignalEvent(CommandListLocked, &HostTask.InputEvent,
+                                      UR_COMMAND_HOST_TASK_EXP);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(CommandListLocked, phEventWaitList, numEventsInWaitList);
+
+  if (numWaitEvents > 0) {
+    ZE2UR_CALL(
+        zeCommandListAppendWaitOnEvents,
+        (CommandListLocked->getZeCommandList(), numWaitEvents, pWaitEvents));
+  }
+
+  // Since this is an in-order queue, we also need to make sure the host task
+  // executes only after the previous operations on the queue.
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (CommandListLocked->getZeCommandList(), InputZeEvent));
+
+  auto *CleanupEvent = getSignalEvent(CommandListLocked, &HostTask.CleanupEvent,
+                                      UR_COMMAND_HOST_TASK_EXP);
+
+  // We can't use the normal getSignalEvent method since that allocates
+  // counter-based events. We need to explicitly use the normal events pool so
+  // that the event can be signaled from host (the worker thread).
+  HostTask.OutputEvent = normalEventsPool->allocate();
+  HostTask.OutputEvent->resetQueueAndCommand(this, UR_COMMAND_HOST_TASK_EXP);
+
+  auto *OutputZeEvent = HostTask.OutputEvent->getZeEvent();
+  // this will block the command list until the host task completes
+  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+             (CommandListLocked->getZeCommandList(), 1, &OutputZeEvent));
+
+  // this will signal the cleanup event, triggering the release of host task's
+  // cleanup and output events.
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (CommandListLocked->getZeCommandList(), CleanupEvent));
+
+  if (phEvent) {
+    *phEvent = HostTask.OutputEvent;
+    // we need the extra retain since the event is going to be used internally
+    // by the worker thread.
+    HostTask.OutputEvent->retain();
+  }
+
+  HostTaskSender->send(std::move(HostTask));
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace v2
