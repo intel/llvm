@@ -23,7 +23,7 @@ struct urCommandBufferWriteCommandsTest
     size = std::get<1>(GetParam()).size;
     offset = std::get<1>(GetParam()).offset;
     write_size = std::get<1>(GetParam()).write_size;
-    assert(size <= offset + write_size);
+    assert(size >= offset + write_size);
     // Allocate USM pointers
     ASSERT_SUCCESS(
         urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &device_ptr));
