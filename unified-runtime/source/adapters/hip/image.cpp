@@ -637,7 +637,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                  CopyExtentBytes, Stream));
 #else
           UR_CHECK_ERROR(hipMemcpyHtoA(
-              (hipArray_t)pDst, pCopyRegion->dstOffset.x * PixelSizeBytes,
+              static_cast<hipArray_t>(pDst),
+              pCopyRegion->dstOffset.x * PixelSizeBytes,
               static_cast<const void *>(SrcWithOffset), CopyExtentBytes));
 #endif
         } else if (memType == hipMemoryTypeDevice) {
@@ -645,7 +646,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
               static_cast<void *>(static_cast<char *>(pDst) +
                                   (PixelSizeBytes * pCopyRegion->dstOffset.x));
           UR_CHECK_ERROR(hipMemcpyHtoDAsync(
-              (hipDeviceptr_t)DstWithOffset,
+              static_cast<hipDeviceptr_t>(DstWithOffset),
               const_cast<void *>(static_cast<const void *>(SrcWithOffset)),
               CopyExtentBytes, Stream));
         } else {
