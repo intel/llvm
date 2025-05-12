@@ -287,7 +287,7 @@ Changelog
 |          ||  - GetImageSampledHandleSupportExp                         |
 +----------+-------------------------------------------------------------+
 | 23.0     || Update the ${x}BindlessImagesSampledImageCreateExp API     |
-|          || to take a sampled description instead of sampler handle.   |
+|          || to take a sampler description instead of sampler handle.   |
 +----------+-------------------------------------------------------------+
 
 Contributors
