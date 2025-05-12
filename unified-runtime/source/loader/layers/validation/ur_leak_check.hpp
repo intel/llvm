@@ -27,7 +27,7 @@ private:
 
     RefRuntimeInfo(int64_t refCount, std::type_index type,
                    std::vector<BacktraceLine> backtrace)
-        : refCount(refCount), type(type), backtrace(backtrace) {}
+        : refCount(refCount), type(type), backtrace(std::move(backtrace)) {}
   };
 
   enum RefCountUpdateType {
@@ -68,14 +68,17 @@ private:
             ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
                                 getCurrentBacktrace()});
       } else {
-        getContext()->logger.error("Handle {} already exists", ptr);
+        getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, __FILE__,
+                                 UR_STR_(__LINE__), "Handle {} already exists",
+                                 ptr);
         return;
       }
       break;
     case REFCOUNT_INCREASE:
       if (it == counts.end()) {
-        getContext()->logger.error("Attempting to retain nonexistent handle {}",
-                                   ptr);
+        getContext()->logger.log(
+            UR_LOGGER_LEVEL_ERROR, __FILE__, UR_STR_(__LINE__),
+            "Attempting to retain nonexistent handle {}", ptr);
         return;
       } else {
         it->second.refCount++;
@@ -91,7 +94,8 @@ private:
       }
 
       if (it->second.refCount < 0) {
-        getContext()->logger.error(
+        getContext()->logger.log(
+            UR_LOGGER_LEVEL_ERROR, __FILE__, UR_STR_(__LINE__),
             "Attempting to release nonexistent handle {}", ptr);
       } else if (it->second.refCount == 0 && isAdapterHandle) {
         adapterCount--;
@@ -99,8 +103,9 @@ private:
       break;
     }
 
-    getContext()->logger.debug("Reference count for handle {} changed to {}",
-                               ptr, it->second.refCount);
+    getContext()->logger.log(UR_LOGGER_LEVEL_DEBUG, __FILE__, UR_STR_(__LINE__),
+                             "Reference count for handle {} changed to {}", ptr,
+                             it->second.refCount);
 
     if (it->second.refCount == 0) {
       counts.erase(ptr);
@@ -108,7 +113,7 @@ private:
 
     // No more active adapters, so any references still held are leaked
     if (adapterCount == 0) {
-      logInvalidReferences();
+      logInvalidReferences(__FILE__, UR_STR_(__LINE__));
       counts.clear();
     }
   }
@@ -143,25 +148,36 @@ public:
     return (it->second.type == std::type_index(typeid(handle)));
   }
 
-  void logInvalidReferences() {
+  void logInvalidReferences(const char *filename, const char *lineno) {
     for (auto &[ptr, refRuntimeInfo] : counts) {
-      getContext()->logger.error("Retained {} reference(s) to handle {}",
-                                 refRuntimeInfo.refCount, ptr);
-      getContext()->logger.error("Handle {} was recorded for first time here:",
-                                 ptr);
+      getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, filename, lineno,
+                               "Retained {} reference(s) to handle {}",
+                               refRuntimeInfo.refCount, ptr);
+      getContext()->logger.log(
+          UR_LOGGER_LEVEL_ERROR, filename, lineno,
+          "Handle {} was recorded for first time here:", ptr);
       for (size_t i = 0; i < refRuntimeInfo.backtrace.size(); i++) {
-        getContext()->logger.error("#{} {}", i,
-                                   refRuntimeInfo.backtrace[i].c_str());
+        getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, filename, lineno,
+                                 "#{} {}", i,
+                                 refRuntimeInfo.backtrace[i].c_str());
       }
     }
   }
 
-  void logInvalidReference(void *ptr) {
-    getContext()->logger.error("There are no valid references to handle {}",
-                               ptr);
+  void logInvalidReference(const char *filename, const char *lineno,
+                           void *ptr) {
+    getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, filename, lineno,
+                             "There are no valid references to handle {}", ptr);
   }
 };
 
 } // namespace ur_validation_layer
+
+#define URLOG_CTX_INVALID_REFERENCE(ptr)                                       \
+  getContext()->refCountContext->logInvalidReference(__FILE__,                 \
+                                                     UR_STR_(__LINE__), ptr);
+#define URLOG_CTX_INVALID_REFERENCES()                                         \
+  getContext()->refCountContext->logInvalidReferences(__FILE__,                \
+                                                      UR_STR_(__LINE__));
 
 #endif /* UR_LEAK_CHECK_H */

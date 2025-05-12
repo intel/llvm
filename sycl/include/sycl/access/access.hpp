@@ -381,6 +381,7 @@ auto dynamic_address_cast(ElementType *Ptr) {
   constexpr auto SrcAS = deduce_AS<ElementType *>::value;
   using dst_type = typename DecoratedType<
       std::remove_pointer_t<remove_decoration_t<ElementType *>>, Space>::type *;
+  using RemoveCvT = std::remove_cv_t<ElementType>;
 
   if constexpr (!address_space_cast_is_possible(SrcAS, Space)) {
     return (dst_type) nullptr;
@@ -403,18 +404,18 @@ auto dynamic_address_cast(ElementType *Ptr) {
 #endif
   } else if constexpr (Space == global_space) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToGlobal(
-        Ptr, __spv::StorageClass::CrossWorkgroup);
+        const_cast<RemoveCvT *>(Ptr), __spv::StorageClass::CrossWorkgroup);
   } else if constexpr (Space == local_space) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToLocal(
-        Ptr, __spv::StorageClass::Workgroup);
+        const_cast<RemoveCvT *>(Ptr), __spv::StorageClass::Workgroup);
   } else if constexpr (Space == private_space) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToPrivate(
-        Ptr, __spv::StorageClass::Function);
+        const_cast<RemoveCvT *>(Ptr), __spv::StorageClass::Function);
 #if !defined(__ENABLE_USM_ADDR_SPACE__)
   } else if constexpr (SrcAS == generic_space &&
                        (Space == global_device || Space == global_host)) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToGlobal(
-        Ptr, __spv::StorageClass::CrossWorkgroup);
+        const_cast<RemoveCvT *>(Ptr), __spv::StorageClass::CrossWorkgroup);
 #endif
   } else {
     static_assert(SupressNotImplementedAssert || Space != Space,

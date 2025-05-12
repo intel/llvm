@@ -208,7 +208,7 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
                        ur_native_handle_t *phNativeQueue) {
   ScopedDevice Active(hQueue->getDevice());
   *phNativeQueue =
-      reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
+      reinterpret_cast<ur_native_handle_t>(hQueue->getInteropStream());
   return UR_RESULT_SUCCESS;
 }
 
@@ -231,12 +231,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   UR_CHECK_ERROR(hipStreamGetFlags(HIPStream, &HIPFlags));
 
   ur_queue_flags_t Flags = 0;
-  if (HIPFlags == hipStreamDefault)
+  if (HIPFlags == hipStreamDefault) {
     Flags = UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
-  else if (HIPFlags == hipStreamNonBlocking)
+  } else if (HIPFlags == hipStreamNonBlocking) {
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
-  else
-    die("Unknown hip stream");
+  } else {
+    setErrorMessage("Incorrect native stream flags, expecting "
+                    "hipStreamDefault or hipStreamNonBlocking",
+                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
 
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;

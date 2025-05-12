@@ -130,6 +130,13 @@ ur_result_t urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintLoggerLevel(enum ur_logger_level_t value, char *buffer,
+                               const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintPlatformInfo(enum ur_platform_info_t value, char *buffer,
                                 const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -965,6 +972,14 @@ urPrintExpExternalSemaphoreType(enum ur_exp_external_semaphore_type_t value,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpImageMemType(enum ur_exp_image_mem_type_t value,
+                                   char *buffer, const size_t buff_size,
+                                   size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintExpFileDescriptor(const struct ur_exp_file_descriptor_t params,
                          char *buffer, const size_t buff_size,
@@ -1198,6 +1213,22 @@ urPrintAdapterGetInfoParams(const struct ur_adapter_get_info_params_t *params,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintAdapterSetLoggerCallbackParams(
+    const struct ur_adapter_set_logger_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintAdapterSetLoggerCallbackLevelParams(
+    const struct ur_adapter_set_logger_callback_level_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintBindlessImagesUnsampledImageHandleDestroyExpParams(
     const struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t
         *params,
@@ -1264,6 +1295,34 @@ ur_result_t urPrintBindlessImagesImageGetInfoExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_memory_handle_type_support_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_unsampled_handle_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesGetImageSampledHandleSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_sampled_handle_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintBindlessImagesMipmapGetLevelExpParams(
     const struct ur_bindless_images_mipmap_get_level_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -1307,6 +1366,15 @@ ur_result_t urPrintBindlessImagesMapExternalLinearMemoryExpParams(
 
 ur_result_t urPrintBindlessImagesReleaseExternalMemoryExpParams(
     const struct ur_bindless_images_release_external_memory_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesFreeMappedLinearMemoryExpParams(
+    const struct ur_bindless_images_free_mapped_linear_memory_exp_params_t
         *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;

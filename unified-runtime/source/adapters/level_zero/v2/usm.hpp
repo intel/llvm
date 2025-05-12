@@ -15,7 +15,7 @@
 #include "common.hpp"
 #include "ur_pool_manager.hpp"
 
-struct ur_usm_pool_handle_t_ : _ur_object {
+struct ur_usm_pool_handle_t_ : ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t hContext,
                         ur_usm_pool_desc_t *pPoolDes);
 

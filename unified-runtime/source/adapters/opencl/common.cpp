@@ -24,6 +24,7 @@ thread_local char ErrorMessage[MaxMessageSize]{};
 
   ErrorMessageCode = ErrorCode;
 }
+
 } // namespace cl_adapter
 
 ur_result_t mapCLErrorToUR(cl_int Result) {
@@ -94,13 +95,15 @@ ur_result_t mapCLErrorToUR(cl_int Result) {
   case CL_DEVICE_NOT_AVAILABLE:
     return UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE;
   case CL_INVALID_KERNEL_ARGS:
-    return UR_RESULT_ERROR_INVALID_KERNEL_ARGS;
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   case CL_INVALID_COMMAND_QUEUE:
     return UR_RESULT_ERROR_INVALID_QUEUE;
   case CL_INVALID_ARG_SIZE:
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
   case CL_INVALID_SPEC_ID:
     return UR_RESULT_ERROR_INVALID_SPEC_ID;
+  case CL_INVALID_KERNEL:
+    return UR_RESULT_ERROR_INVALID_KERNEL;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }

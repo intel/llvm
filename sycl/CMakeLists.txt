@@ -108,15 +108,12 @@ define_property(GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
 if (MSVC)
   set(CMAKE_CXX_FLAGS "/W4 ${CMAKE_CXX_FLAGS}")
 else ()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-deprecated-declarations")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 endif()
 
 if(SYCL_ENABLE_WERROR)
   if(MSVC)
     set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
-    add_definitions(
-      -wd4996 # Suppress 'function': was declared deprecated'
-    )
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
   endif()
@@ -362,6 +359,12 @@ if (NOT WIN32)
     COMPONENT sycl-headers-extras)
 endif()
 
+if(SYCL_ENABLE_XPTI_TRACING AND
+    DEFINED LLVM_EXTERNAL_PROJECTS AND
+    (NOT "xpti" IN_LIST LLVM_EXTERNAL_PROJECTS OR NOT "xptifw" IN_LIST LLVM_EXTERNAL_PROJECTS))
+  message(FATAL_ERROR "SYCL_ENABLE_XPTI_TRACING=ON but XPTI is not going to be built")
+endif()
+
 if (SYCL_ENABLE_XPTI_TRACING)
   if (MSVC)
     set(XPTIFW_LIBS xpti xptid xptifw xptifwd)
@@ -405,7 +408,7 @@ add_custom_target( sycl-toolchain ALL
 )
 
 if (WIN32)
-  add_dependencies(sycl-toolchain ur_win_proxy_loader)
+  add_dependencies(sycl-toolchain ur_win_proxy_loader unified-runtimed-build)
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)

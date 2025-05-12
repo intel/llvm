@@ -12,21 +12,8 @@
 #include "../ur_interface_loader.hpp"
 #include "context.hpp"
 
-#include "../helpers/image_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
-
-static ur_mem_buffer_t::device_access_mode_t
-getDeviceAccessMode(ur_mem_flags_t memFlag) {
-  if (memFlag & UR_MEM_FLAG_READ_WRITE) {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  } else if (memFlag & UR_MEM_FLAG_READ_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::read_only;
-  } else if (memFlag & UR_MEM_FLAG_WRITE_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::write_only;
-  } else {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  }
-}
+#include "../image_common.hpp"
 
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {
@@ -46,28 +33,21 @@ ur_usm_handle_t::ur_usm_handle_t(ur_context_handle_t hContext, size_t size,
       ptr(const_cast<void *>(ptr)) {}
 
 void *ur_usm_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = hDevice;
-  std::ignore = access;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
-  return ptr;
+    ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
+    size_t offset, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
+  return ur_cast<char *>(ptr) + offset;
 }
 
 void *
-ur_usm_handle_t::mapHostPtr(ur_map_flags_t flags, size_t offset, size_t size,
+ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t offset,
+                            size_t /*size*/,
                             std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = flags;
-  std::ignore = offset;
-  std::ignore = size;
-  return ptr;
+  return ur_cast<char *>(ptr) + offset;
 }
 
 void ur_usm_handle_t::unmapHostPtr(
-    void *pMappedPtr, std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = pMappedPtr;
+    void * /*pMappedPtr*/, std::function<void(void *src, void *dst, size_t)>) {
   /* nop */
 }
 
@@ -95,12 +75,13 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
       auto ret = hContext->getDefaultUSMPool()->free(ptr);
       if (ret != UR_RESULT_SUCCESS) {
-        logger::error("Failed to free host memory: {}", ret);
+        UR_LOG(ERR, "Failed to free host memory: {}", ret);
       }
     });
 
     if (hostPtr) {
       std::memcpy(this->ptr.get(), hostPtr, size);
+      writeBackPtr = hostPtr;
     }
   }
 }
@@ -117,54 +98,56 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
   });
 }
 
+ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
+  if (writeBackPtr) {
+    std::memcpy(writeBackPtr, this->ptr.get(), size);
+  }
+}
+
 void *ur_integrated_buffer_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = hDevice;
-  std::ignore = access;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
-  return ptr.get();
+    ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
+    size_t offset, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
+  return ur_cast<char *>(ptr.get()) + offset;
 }
 
 void *ur_integrated_buffer_handle_t::mapHostPtr(
-    ur_map_flags_t flags, size_t offset, size_t size,
-    std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = flags;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
-  return ptr.get();
+    ur_map_flags_t /*flags*/, size_t offset, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
+  return ur_cast<char *>(ptr.get()) + offset;
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
-    void *pMappedPtr, std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = pMappedPtr;
+    void * /*pMappedPtr*/, std::function<void(void *src, void *dst, size_t)>) {
   /* nop */
 }
 
 static v2::raii::command_list_unique_handle
 getSyncCommandListForCopy(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice) {
-  return hContext->getCommandListCache().getImmediateCommandList(
-      hDevice->ZeDevice, true,
+  v2::command_list_desc_t listDesc;
+  listDesc.IsInOrder = true;
+  listDesc.Ordinal =
       hDevice
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
-          .ZeOrdinal,
-      true, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
-      std::nullopt);
+          .ZeOrdinal;
+  listDesc.CopyOffloadEnable = true;
+  return hContext->getCommandListCache().getImmediateCommandList(
+      hDevice->ZeDevice, listDesc, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS,
+      ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt);
 }
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice, void *dst,
-                                     const void *src, size_t size) {
+                                     const void *src, size_t size) try {
   auto commandList = getSyncCommandListForCopy(hContext, hDevice);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (commandList.get(), dst, src, size, nullptr, 0, nullptr));
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
@@ -182,7 +165,7 @@ void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
       usm_unique_ptr_t(ptr, [hContext = this->hContext](void *ptr) {
         auto ret = hContext->getDefaultUSMPool()->free(ptr);
         if (ret != UR_RESULT_SUCCESS) {
-          logger::error("Failed to free device memory: {}", ret);
+          UR_LOG(ERR, "Failed to free device memory: {}", ret);
         }
       });
 
@@ -219,16 +202,19 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
 
 ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, void *devicePtr,
-    size_t size, device_access_mode_t accessMode, void *writeBackMemory,
-    bool ownZePtr)
+    size_t size, device_access_mode_t accessMode, void *hostPtr, bool ownZePtr)
     : ur_mem_buffer_t(hContext, size, accessMode),
       deviceAllocations(hContext->getPlatform()->getNumDevices()),
-      activeAllocationDevice(hDevice), writeBackPtr(writeBackMemory),
+      activeAllocationDevice(hDevice), writeBackPtr(hostPtr),
       hostAllocations() {
 
   if (!devicePtr) {
     hDevice = hDevice ? hDevice : hContext->getDevices()[0];
     devicePtr = allocateOnDevice(hDevice, size);
+
+    if (hostPtr) {
+      UR_CALL_THROWS(migrateBufferTo(hDevice, hostPtr, size));
+    }
   } else {
     assert(hDevice);
     deviceAllocations[hDevice->Id.value()] = usm_unique_ptr_t(
@@ -258,13 +244,11 @@ void *ur_discrete_buffer_handle_t::getActiveDeviceAlloc(size_t offset) {
 }
 
 void *ur_discrete_buffer_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
+    ur_device_handle_t hDevice, device_access_mode_t /*access*/, size_t offset,
+    size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   TRACK_SCOPE_LATENCY("ur_discrete_buffer_handle_t::getDevicePtr");
 
-  std::ignore = access;
-  std::ignore = size;
-  std::ignore = migrate;
   if (!activeAllocationDevice) {
     if (!hDevice) {
       hDevice = hContext->getDevices()[0];
@@ -311,7 +295,7 @@ void *ur_discrete_buffer_handle_t::mapHostPtr(
         if (ownsAlloc) {
           auto ret = hContext->getDefaultUSMPool()->free(p);
           if (ret != UR_RESULT_SUCCESS) {
-            logger::error("Failed to mapped memory: {}", ret);
+            UR_LOG(ERR, "Failed to mapped memory: {}", ret);
           }
         }
       });
@@ -414,20 +398,20 @@ void *ur_mem_sub_buffer_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
     size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->getDevicePtr(
-      hDevice, access, offset + this->offset, size, migrate);
+      hDevice, access, offset + this->offset, size, std::move(migrate));
 }
 
 void *ur_mem_sub_buffer_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t size,
     std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
-                                          migrate);
+                                          std::move(migrate));
 }
 
 void ur_mem_sub_buffer_t::unmapHostPtr(
     void *pMappedPtr,
     std::function<void(void *src, void *dst, size_t)> migrate) {
-  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, migrate);
+  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, std::move(migrate));
 }
 
 ur_shared_mutex &ur_mem_sub_buffer_t::getMutex() {
@@ -468,7 +452,7 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
   UR_CALL_THROWS(ur2zeImageDesc(pImageFormat, pImageDesc, zeImageDesc));
 }
 
-static void verifyImageRegion(ze_image_desc_t &zeImageDesc,
+static void verifyImageRegion([[maybe_unused]] ze_image_desc_t &zeImageDesc,
                               ze_image_region_t &zeRegion, size_t rowPitch,
                               size_t slicePitch) {
 #ifndef NDEBUG
@@ -481,8 +465,6 @@ static void verifyImageRegion(ze_image_desc_t &zeImageDesc,
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
          rowPitch == 4 * zeRegion.width)))
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
-#else
-  std::ignore = zeImageDesc;
 #endif
   if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height))
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
@@ -528,7 +510,7 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   }
 
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
     auto hostPtrAction =
@@ -559,7 +541,7 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
              pRegion->size <= hBuffer->getSize()),
             UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   UR_ASSERT(isAccessCompatible(accessMode, hBuffer->getDeviceAccessMode()),
             UR_RESULT_ERROR_INVALID_VALUE);
@@ -739,16 +721,11 @@ ur_result_t urMemImageCreateWithNativeHandle(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t propName,
-                              size_t propSize, void *pPropValue,
-                              size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-
-  std::ignore = hMemory;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
+ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
+                              ur_image_info_t /*propName*/, size_t /*propSize*/,
+                              void * /*pPropValue*/,
+                              size_t * /*pPropSizeRet*/) {
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

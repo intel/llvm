@@ -65,10 +65,9 @@ ur_result_t urProgramCreateWithIL(
     /// [in] length of `pIL` in bytes.
     size_t Length,
     /// [in][optional] pointer to program creation properties.
-    const ur_program_properties_t *Properties,
+    const ur_program_properties_t * /*Properties*/,
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *Program) {
-  std::ignore = Properties;
   UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(IL && Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   try {
@@ -440,9 +439,9 @@ ur_result_t urProgramLinkExp(
         ZeModuleDesc.pInputModule = ZeExtModuleDesc.pInputModules[0];
         ZeModuleDesc.pConstants = ZeExtModuleDesc.pConstants[0];
       } else {
-        logger::error(
-            "urProgramLink: level_zero driver does not have static linking "
-            "support.");
+        UR_LOG(ERR,
+               "urProgramLink: level_zero driver does not have static linking "
+               "support.");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     }
@@ -835,7 +834,6 @@ ur_result_t urProgramGetBuildInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *PropSizeRet) {
-  std::ignore = Device;
 
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
@@ -895,7 +893,7 @@ ur_result_t urProgramGetBuildInfo(
     // program.
     return ReturnValue("");
   } else {
-    logger::error("urProgramGetBuildInfo: unsupported ParamName");
+    UR_LOG(ERR, "urProgramGetBuildInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -903,18 +901,15 @@ ur_result_t urProgramGetBuildInfo(
 
 ur_result_t urProgramSetSpecializationConstant(
     /// [in] handle of the Program object
-    ur_program_handle_t Program,
+    ur_program_handle_t /*Program*/,
     /// [in] specification constant Id
-    uint32_t SpecId,
+    uint32_t /*SpecId*/,
     /// [in] size of the specialization constant value
-    size_t SpecSize,
+    size_t /*SpecSize*/,
     /// [in] pointer to the specialization value bytes
-    const void *SpecValue) {
-  std::ignore = Program;
-  std::ignore = SpecId;
-  std::ignore = SpecSize;
-  std::ignore = SpecValue;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+    const void * /*SpecValue*/) {
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

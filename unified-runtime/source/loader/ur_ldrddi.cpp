@@ -187,12 +187,67 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterSetLoggerCallback
+__urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
+  auto pfnSetLoggerCallback = dditable->ur.Adapter.pfnSetLoggerCallback;
+  if (nullptr == pfnSetLoggerCallback)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
+
+  // forward to device-platform
+  result = pfnSetLoggerCallback(hAdapter, pfnLoggerCallback, pUserData, level);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterSetLoggerCallbackLevel
+__urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
+  auto pfnSetLoggerCallbackLevel =
+      dditable->ur.Adapter.pfnSetLoggerCallbackLevel;
+  if (nullptr == pfnSetLoggerCallbackLevel)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
+
+  // forward to device-platform
+  result = pfnSetLoggerCallbackLevel(hAdapter, level);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -207,55 +262,39 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
   ur_result_t result = UR_RESULT_SUCCESS;
 
   [[maybe_unused]] auto context = getContext();
-  uint32_t total_platform_handle_count = 0;
 
-  for (uint32_t adapter_index = 0; adapter_index < NumAdapters;
-       adapter_index++) {
-    // extract adapter's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_platform_object_t *>(phAdapters[adapter_index])
-            ->dditable;
+  // extract adapter's function pointer table
+  auto dditable = reinterpret_cast<ur_platform_object_t *>(hAdapter)->dditable;
 
-    if ((0 < NumEntries) && (NumEntries == total_platform_handle_count))
-      break;
+  uint32_t library_platform_handle_count = 0;
 
-    uint32_t library_platform_handle_count = 0;
+  result = dditable->ur.Platform.pfnGet(hAdapter, 0, nullptr,
+                                        &library_platform_handle_count);
+  if (UR_RESULT_SUCCESS != result)
+    return result;
 
-    result =
-        dditable->ur.Platform.pfnGet(&phAdapters[adapter_index], 1, 0, nullptr,
-                                     &library_platform_handle_count);
-    if (UR_RESULT_SUCCESS != result)
-      break;
-
-    if (nullptr != phPlatforms && NumEntries != 0) {
-      if (total_platform_handle_count + library_platform_handle_count >
-          NumEntries) {
-        library_platform_handle_count =
-            NumEntries - total_platform_handle_count;
-      }
-      result = dditable->ur.Platform.pfnGet(
-          &phAdapters[adapter_index], 1, library_platform_handle_count,
-          &phPlatforms[total_platform_handle_count], nullptr);
-      if (UR_RESULT_SUCCESS != result)
-        break;
-
-      try {
-        for (uint32_t i = 0; i < library_platform_handle_count; ++i) {
-          uint32_t platform_index = total_platform_handle_count + i;
-          phPlatforms[platform_index] = reinterpret_cast<ur_platform_handle_t>(
-              context->factories.ur_platform_factory.getInstance(
-                  phPlatforms[platform_index], dditable));
-        }
-      } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-      }
+  if (nullptr != phPlatforms && NumEntries != 0) {
+    if (library_platform_handle_count > NumEntries) {
+      library_platform_handle_count = NumEntries;
     }
+    result = dditable->ur.Platform.pfnGet(
+        hAdapter, library_platform_handle_count, phPlatforms, nullptr);
+    if (UR_RESULT_SUCCESS != result)
+      return result;
 
-    total_platform_handle_count += library_platform_handle_count;
+    try {
+      for (uint32_t i = 0; i < library_platform_handle_count; ++i) {
+        phPlatforms[i] = reinterpret_cast<ur_platform_handle_t>(
+            context->factories.ur_platform_factory.getInstance(phPlatforms[i],
+                                                               dditable));
+      }
+    } catch (std::bad_alloc &) {
+      result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
   }
 
   if (UR_RESULT_SUCCESS == result && pNumPlatforms != nullptr)
-    *pNumPlatforms = total_platform_handle_count;
+    *pNumPlatforms = library_platform_handle_count;
 
   return result;
 }
@@ -7109,6 +7148,135 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageMemoryHandleTypeSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryHandleTypeSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for allocating the given image
+    /// backing memory handle type
+    ur_bool_t *pSupportedRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+  auto pfnGetImageMemoryHandleTypeSupportExp =
+      dditable->ur.BindlessImagesExp.pfnGetImageMemoryHandleTypeSupportExp;
+  if (nullptr == pfnGetImageMemoryHandleTypeSupportExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+  // convert loader handle to platform handle
+  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
+  // forward to device-platform
+  result = pfnGetImageMemoryHandleTypeSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageUnsampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating unsampled image
+    /// handles
+    ur_bool_t *pSupportedRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+  auto pfnGetImageUnsampledHandleSupportExp =
+      dditable->ur.BindlessImagesExp.pfnGetImageUnsampledHandleSupportExp;
+  if (nullptr == pfnGetImageUnsampledHandleSupportExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+  // convert loader handle to platform handle
+  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
+  // forward to device-platform
+  result = pfnGetImageUnsampledHandleSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageSampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageSampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating sampled image
+    /// handles
+    ur_bool_t *pSupportedRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+  auto pfnGetImageSampledHandleSupportExp =
+      dditable->ur.BindlessImagesExp.pfnGetImageSampledHandleSupportExp;
+  if (nullptr == pfnGetImageSampledHandleSupportExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+  // convert loader handle to platform handle
+  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
+  // forward to device-platform
+  result = pfnGetImageSampledHandleSupportExp(hContext, hDevice, pImageDesc,
+                                              pImageFormat, imageMemHandleType,
+                                              pSupportedRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     /// [in] handle of the context object
@@ -7354,6 +7522,38 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 
   // release loader handle
   context->factories.ur_exp_external_mem_factory.release(hExternalMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesFreeMappedLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+  auto pfnFreeMappedLinearMemoryExp =
+      dditable->ur.BindlessImagesExp.pfnFreeMappedLinearMemoryExp;
+  if (nullptr == pfnFreeMappedLinearMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+  // convert loader handle to platform handle
+  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
+  // forward to device-platform
+  result = pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
 
   return result;
 }
@@ -9998,6 +10198,61 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Adapter table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_adapter_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+    auto getTable = reinterpret_cast<ur_pfnGetAdapterProcAddrTable_t>(
+        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                             "urGetAdapterProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus = getTable(version, &platform.dditable.ur.Adapter);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnSetLoggerCallback = ur_loader::urAdapterSetLoggerCallback;
+      pDdiTable->pfnSetLoggerCallbackLevel =
+          ur_loader::urAdapterSetLoggerCallbackLevel;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable =
+          ur_loader::getContext()->platforms.front().dditable.ur.Adapter;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's BindlessImagesExp table
 ///        with current process' addresses
 ///
@@ -10054,6 +10309,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       pDdiTable->pfnImageCopyExp = ur_loader::urBindlessImagesImageCopyExp;
       pDdiTable->pfnImageGetInfoExp =
           ur_loader::urBindlessImagesImageGetInfoExp;
+      pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+          ur_loader::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+      pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+          ur_loader::urBindlessImagesGetImageUnsampledHandleSupportExp;
+      pDdiTable->pfnGetImageSampledHandleSupportExp =
+          ur_loader::urBindlessImagesGetImageSampledHandleSupportExp;
       pDdiTable->pfnMipmapGetLevelExp =
           ur_loader::urBindlessImagesMipmapGetLevelExp;
       pDdiTable->pfnMipmapFreeExp = ur_loader::urBindlessImagesMipmapFreeExp;
@@ -10065,6 +10326,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
           ur_loader::urBindlessImagesMapExternalLinearMemoryExp;
       pDdiTable->pfnReleaseExternalMemoryExp =
           ur_loader::urBindlessImagesReleaseExternalMemoryExp;
+      pDdiTable->pfnFreeMappedLinearMemoryExp =
+          ur_loader::urBindlessImagesFreeMappedLinearMemoryExp;
       pDdiTable->pfnImportExternalSemaphoreExp =
           ur_loader::urBindlessImagesImportExternalSemaphoreExp;
       pDdiTable->pfnReleaseExternalSemaphoreExp =
