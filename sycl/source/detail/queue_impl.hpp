@@ -119,13 +119,7 @@ public:
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     verifyProps(PropList);
     if (has_property<property::queue::enable_profiling>()) {
-      // fallback profiling support. See MFallbackProfiling
-      if (MDevice->has(aspect::queue_profiling)) {
-        // When urDeviceGetGlobalTimestamps is not supported, compute the
-        // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
-          MFallbackProfiling = true;
-      } else {
+      if (!MDevice.has(aspect::queue_profiling)) {
         throw sycl::exception(make_error_code(errc::feature_not_supported),
                               "Cannot enable profiling, the associated device "
                               "does not have the queue_profiling aspect");
