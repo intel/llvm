@@ -538,12 +538,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   hipFunction_t Func;
   hipError_t Ret = hipModuleGetFunction(&Func, hProgram->get(), pFunctionName);
   *ppFunctionPointer = Func;
-  if (Ret != hipSuccess && Ret != hipErrorNotFound)
-    return mapErrorUR(Ret);
 
   if (Ret == hipErrorNotFound) {
     *ppFunctionPointer = 0;
     return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
+  } else if (Ret != hipSuccess) {
+    return mapErrorUR(Ret);
   }
 
   return UR_RESULT_SUCCESS;
