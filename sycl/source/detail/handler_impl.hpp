@@ -198,6 +198,12 @@ public:
 
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
+
+  // Store information about the kernel arguments.
+  void *MKernelFuncPtr = nullptr;
+  int MKernelNumArgs = 0;
+  detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
+  bool MKernelIsESIMD = false;
 };
 
 } // namespace detail

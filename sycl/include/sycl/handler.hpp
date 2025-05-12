@@ -749,8 +749,8 @@ private:
 
   /// Stores lambda to the template-free object
   ///
-  /// Also initializes kernel name, list of arguments and requirements using
-  /// information from the integration header/built-ins.
+  /// Also initializes the kernel name and prepares for arguments to
+  /// be extracted from the lambda in handler::finalize().
   ///
   /// \param KernelFunc is a SYCL kernel function
   /// \param ParamDescs is the vector of kernel parameter descriptors.
@@ -796,11 +796,11 @@ private:
     if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
 
-      clearArgs();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
-                                   &(detail::getKernelParamDesc<KernelName>),
-                                   detail::getKernelNumParams<KernelName>(),
-                                   detail::isKernelESIMD<KernelName>());
+      setKernelInfo((void *)MHostKernel->getPtr(),
+                    detail::getKernelNumParams<KernelName>(),
+                    &(detail::getKernelParamDesc<KernelName>),
+                    detail::isKernelESIMD<KernelName>());
+
       MKernelName = detail::getKernelName<KernelName>();
     } else {
       // In case w/o the integration header it is necessary to process
@@ -3760,6 +3760,10 @@ private:
   void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                   sycl::range<3> LocalSize, sycl::id<3> Offset,
                                   int Dims);
+
+  void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
+                     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+                     bool KernelIsESIMD);
 
   friend class detail::HandlerAccess;
 

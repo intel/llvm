@@ -4377,6 +4377,7 @@
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
+?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
 ?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z

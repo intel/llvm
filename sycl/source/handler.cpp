@@ -411,6 +411,16 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  // Extract arguments from the kernel lambda.
+  // TODO: Skip this in simple cases.
+  const auto &type = getType();
+  if (type == detail::CGType::Kernel && impl->MKernelFuncPtr) {
+    clearArgs();
+    extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
+                                 impl->MKernelParamDescGetter,
+                                 impl->MKernelNumArgs, impl->MKernelIsESIMD);
+  }
+
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
   // be thrown.
@@ -448,7 +458,6 @@ event handler::finalize() {
     }
   }
 
-  const auto &type = getType();
   if (type == detail::CGType::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
@@ -2252,6 +2261,16 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::range<3> LocalSize,
                                          sycl::id<3> Offset, int Dims) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+}
+
+void handler::setKernelInfo(
+    void *KernelFuncPtr, int KernelNumArgs,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    bool KernelIsESIMD) {
+  impl->MKernelFuncPtr = KernelFuncPtr;
+  impl->MKernelNumArgs = KernelNumArgs;
+  impl->MKernelParamDescGetter = KernelParamDescGetter;
+  impl->MKernelIsESIMD = KernelIsESIMD;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
