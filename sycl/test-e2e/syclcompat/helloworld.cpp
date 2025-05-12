@@ -29,6 +29,12 @@
 #include <cstdlib>
 #include <iostream>
 
+#define CHECK_MEMORY(ptr) \
+  if ((ptr) == nullptr) { \
+    std::cerr << "Failed to allocate memory: " << ( #ptr ) << "\n"; \
+    exit(EXIT_FAILURE); \
+  }
+
 /**
  * Slope intercept form of a straight line equation: Y = m * X + b
  */
@@ -46,18 +52,11 @@ void slope_intercept(float *Y, float *X, float m, float b, size_t n) {
     Y[i] = m * X[i] + b;
 }
 
-void check_memory(void *ptr, std::string msg) {
-  if (ptr == nullptr) {
-    std::cerr << "Failed to allocate memory: " << msg << std::endl;
-    exit(EXIT_FAILURE);
-  }
-}
-
 /**
  * Program main
  */
 int main(int argc, char **argv) {
-  std::cout << "Simple Kernel example" << std::endl;
+  std::cout << "Simple Kernel example" << "\n";
 
   constexpr size_t n_points = 32;
   constexpr float m = 1.5f;
@@ -70,18 +69,18 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "block_size = " << block_size << ", n_points = " << n_points
-            << std::endl;
+            << "\n";
 
   // Allocate host memory for vectors X and Y
   size_t mem_size = n_points * sizeof(float);
   float *h_X = (float *)syclcompat::malloc_host(mem_size);
   float *h_Y = (float *)syclcompat::malloc_host(mem_size);
-  check_memory(h_X, "h_X allocation failed.");
-  check_memory(h_Y, "h_Y allocation failed.");
+  CHECK_MEMORY(h_X);
+  CHECK_MEMORY(h_Y);
 
   // Alternative templated allocation for the expected output
   float *h_expected = syclcompat::malloc_host<float>(n_points);
-  check_memory(h_expected, "Not enough for h_expected.");
+  CHECK_MEMORY(h_expected);
 
   // Initialize host memory & expected output
   for (size_t i = 0; i < n_points; i++) {
@@ -92,8 +91,8 @@ int main(int argc, char **argv) {
   // Allocate device memory
   float *d_X = (float *)syclcompat::malloc(mem_size);
   float *d_Y = (float *)syclcompat::malloc(mem_size);
-  check_memory(d_X, "d_X allocation failed.");
-  check_memory(d_Y, "d_Y allocation failed.");
+  CHECK_MEMORY(d_X);
+  CHECK_MEMORY(d_Y);
 
   // copy host memory to device
   syclcompat::memcpy(d_X, h_X, mem_size);
@@ -110,7 +109,7 @@ int main(int argc, char **argv) {
                                         n_points);
   }
   syclcompat::wait();
-  std::cout << "DONE" << std::endl;
+  std::cout << "DONE" << "\n";
 
   // Async copy result from device to host
   syclcompat::memcpy_async(h_Y, d_Y, mem_size).wait();
@@ -119,7 +118,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i < n_points; i++) {
     if (std::abs(h_Y[i] - h_expected[i]) >= 1e-6) {
       std::cerr << "Mismatch at index " << i << ": expected " << h_expected[i]
-          << ", but got " << h_Y[i] << std::endl;
+          << ", but got " << h_Y[i] << "\n";
       exit(EXIT_FAILURE);
     }
   }
