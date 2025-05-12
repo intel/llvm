@@ -1079,6 +1079,11 @@ ur_result_t urDeviceGetInfo(
       UpdateCapabilities |=
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
     }
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_SIGNAL_EVENT | ZE_MUTABLE_COMMAND_EXP_FLAG_WAIT_EVENTS)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS;
+    }
+
     return ReturnValue(UpdateCapabilities);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:

@@ -14,8 +14,11 @@
 
 struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
   ur_exp_command_buffer_command_handle_t_(
-      ur_exp_command_buffer_handle_t commandBuffer, uint64_t commandId)
-      : commandBuffer(commandBuffer), commandId(commandId) {}
+      ur_exp_command_buffer_handle_t commandBuffer, uint64_t commandId,
+      ur_command_t commandType,
+      bool hasSignalEvent, uint32_t waitListSize)
+      : commandBuffer(commandBuffer), commandId(commandId),
+        commandType(commandType), waitListSize(waitListSize), hasSignalEvent(hasSignalEvent) {}
 
   virtual ~ur_exp_command_buffer_command_handle_t_() {}
 
@@ -23,13 +26,17 @@ struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
   ur_exp_command_buffer_handle_t commandBuffer;
   // L0 command ID identifying this command
   uint64_t commandId;
+  ur_command_t commandType;
+  uint32_t waitListSize = 0;
+  bool hasSignalEvent = false;
 };
 
 struct kernel_command_handle : public ur_exp_command_buffer_command_handle_t_ {
   kernel_command_handle(ur_exp_command_buffer_handle_t commandBuffer,
                         ur_kernel_handle_t kernel, uint64_t commandId,
                         uint32_t workDim, uint32_t numKernelAlternatives,
-                        ur_kernel_handle_t *kernelAlternatives);
+                        ur_kernel_handle_t *kernelAlternatives,
+                        bool hasSignalEvent, uint32_t waitListSize);
 
   ~kernel_command_handle();
 

@@ -46,4 +46,5 @@ ur_result_t createCommandHandleUnlocked(
     ur_platform_handle_t Platform,
     ur_result_t (*getZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
                                ur_device_handle_t),
-    ur_device_handle_t Device, std::unique_ptr<kernel_command_handle> &Command);
+    ur_device_handle_t Device, bool hasSignalEvent, uint32_t waitListSize,
+    std::unique_ptr<kernel_command_handle> &Command);

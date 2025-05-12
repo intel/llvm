@@ -77,16 +77,17 @@ ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
     locked<ur_command_list_manager> &commandListLocked,
     ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pGlobalWorkSize,
     uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
+    bool hasSignalEvent, uint32_t waitListSize,
     ur_exp_command_buffer_command_handle_t *command) {
 
   auto platform = context->getPlatform();
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
   std::unique_ptr<kernel_command_handle> newCommand;
-  UR_CALL(createCommandHandleUnlocked(this, zeCommandList, hKernel, workDim,
-                                      pGlobalWorkSize, numKernelAlternatives,
-                                      kernelAlternatives, platform,
-                                      getZeKernelWrapped, device, newCommand));
+  UR_CALL(createCommandHandleUnlocked(
+      this, zeCommandList, hKernel, workDim, pGlobalWorkSize,
+      numKernelAlternatives, kernelAlternatives, platform, getZeKernelWrapped,
+      device, hasSignalEvent, waitListSize, newCommand));
   *command = newCommand.get();
 
   commandHandles.push_back(std::move(newCommand));
@@ -105,6 +106,16 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
 
 ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
   return currentExecution;
+}
+
+ur_result_t ur_exp_command_buffer_handle_t_::awaitExecution() {
+  if (currentExecution) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (currentExecution->getZeEvent(), UINT64_MAX));
+    currentExecution->release();
+    currentExecution = nullptr;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 void ur_exp_command_buffer_handle_t_::enableEvents() {
@@ -143,15 +154,11 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
       this, device, context->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
       numUpdateCommands, updateCommands));
 
-  if (currentExecution) {
-    // TODO: Move synchronization to command buffer enqueue
-    // it would require to remember the update commands and perform update
-    // before appending to the queue
-    ZE2UR_CALL(zeEventHostSynchronize,
-               (currentExecution->getZeEvent(), UINT64_MAX));
-    currentExecution->release();
-    currentExecution = nullptr;
-  }
+  // TODO: Move synchronization to command buffer enqueue
+  // it would require to remember the update commands and perform update
+  // before appending to the queue (all parameter of update commands should be
+  // deep-copied, to avoid deallocation before application)
+  UR_CALL(awaitExecution());
 
   device_ptr_storage_t zeHandles;
 
@@ -254,7 +261,8 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   if (command != nullptr) {
     UR_CALL(commandBuffer->createCommandHandle(
         commandListLocked, hKernel, workDim, pGlobalWorkSize,
-        numKernelAlternatives, kernelAlternatives, command));
+        numKernelAlternatives, kernelAlternatives, event != nullptr,
+        numEventsInWaitList, command));
   }
   UR_CALL(commandListLocked->appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
@@ -621,21 +629,57 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
 ur_result_t urCommandBufferUpdateSignalEventExp(
     ur_exp_command_buffer_command_handle_t hCommand,
     ur_event_handle_t *phEvent) {
-  // needs to be implemented together with signal event handling
-  (void)hCommand;
-  (void)phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  if (hCommand == nullptr) {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+  if (phEvent == nullptr) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+  if (!hCommand->hasSignalEvent) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+  auto commandBuffer = hCommand->commandBuffer;
+  auto commandListLocked = commandBuffer->commandListManager.lock();
+  commandListLocked->getSignalEvent(phEvent, hCommand->commandType);
+  ze_command_list_handle_t ZeCommandList =
+      commandListLocked->getZeCommandList();
+  // TODO: Move synchronization to command buffer enqueue
+  // similarly to kernel update
+  UR_CALL(commandBuffer->awaitExecution());
+  zeCommandListUpdateMutableCommandSignalEventExp(
+      ZeCommandList, hCommand->commandId, (*phEvent)->getZeEvent());
+
+  ZE2UR_CALL(zeCommandListClose, (ZeCommandList));
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urCommandBufferUpdateWaitEventsExp(
     ur_exp_command_buffer_command_handle_t hCommand,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
-  // needs to be implemented together with wait event handling
-  (void)hCommand;
-  (void)numEventsInWaitList;
-  (void)phEventWaitList;
 
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  if (hCommand == nullptr) {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+  if (hCommand->waitListSize != numEventsInWaitList) {
+    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+  }
+  auto commandBuffer = hCommand->commandBuffer;
+
+  auto commandListLocked = commandBuffer->commandListManager.lock();
+  ze_command_list_handle_t ZeCommandList =
+      commandListLocked->getZeCommandList();
+
+  auto [pWaitEvents, numWaitEvents] =
+      commandListLocked->getWaitListView(phEventWaitList, numEventsInWaitList);
+  // TODO: Move synchronization to command buffer enqueue
+  // similarly to kernel update
+  UR_CALL(commandBuffer->awaitExecution());
+  zeCommandListUpdateMutableCommandWaitEventsExp(
+      ZeCommandList, hCommand->commandId, numWaitEvents, pWaitEvents);
+
+  ZE2UR_CALL(zeCommandListClose, (ZeCommandList));
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur::level_zero

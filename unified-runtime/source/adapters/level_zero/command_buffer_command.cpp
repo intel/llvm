@@ -17,8 +17,11 @@
 kernel_command_handle::kernel_command_handle(
     ur_exp_command_buffer_handle_t commandBuffer, ur_kernel_handle_t kernel,
     uint64_t commandId, uint32_t workDim, uint32_t numKernelAlternatives,
-    ur_kernel_handle_t *kernelAlternatives)
-    : ur_exp_command_buffer_command_handle_t_(commandBuffer, commandId),
+    ur_kernel_handle_t *kernelAlternatives,
+    bool hasSignalEvent, uint32_t waitListSize)
+    : ur_exp_command_buffer_command_handle_t_(commandBuffer, commandId,
+                                              UR_COMMAND_KERNEL_LAUNCH,
+                                              hasSignalEvent, waitListSize),
       workDim(workDim), kernel(kernel) {
   // Add the default kernel to the list of valid kernels
   ur::level_zero::urKernelRetain(kernel);

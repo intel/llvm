@@ -434,6 +434,9 @@ ur_result_t validateCommandDescUnlocked(
  * @param[in] KernelAlternatives List of kernel alternatives.
  * @param[in] Platform The platform associated with the new command.
  * @param[in] GetZeKernel Function to get the ze kernel handle.
+ * @param[in] hasSignalEvent Whether the command was created with a signal
+ * event.
+ * @param[in] waitListSize Size of the wait list of the created command.
  * @param[out] Command The handle to the new command.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
@@ -445,7 +448,7 @@ ur_result_t createCommandHandleUnlocked(
     ur_platform_handle_t Platform,
     ur_result_t (*GetZeKernel)(ur_kernel_handle_t, ze_kernel_handle_t &,
                                ur_device_handle_t),
-    ur_device_handle_t Device,
+    ur_device_handle_t Device, bool hasSignalEvent, uint32_t waitListSize,
     std::unique_ptr<kernel_command_handle> &Command) {
 
   for (uint32_t i = 0; i < NumKernelAlternatives; ++i) {
@@ -508,7 +511,7 @@ ur_result_t createCommandHandleUnlocked(
   try {
     Command = std::make_unique<kernel_command_handle>(
         CommandBuffer, Kernel, CommandId, WorkDim, NumKernelAlternatives,
-        KernelAlternatives);
+        KernelAlternatives, hasSignalEvent, waitListSize);
 
     Command->setGlobalWorkSize(GlobalWorkSize);
 

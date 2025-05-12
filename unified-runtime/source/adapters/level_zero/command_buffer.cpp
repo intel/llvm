@@ -1061,7 +1061,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     UR_CALL(createCommandHandleUnlocked(
         CommandBuffer, ZeCommandList, Kernel, WorkDim, GlobalWorkSize,
         NumKernelAlternatives, KernelAlternatives, Platform, getZeKernelWrapped,
-        Device, NewCommand));
+        Device, false, 0, NewCommand));
     *Command = NewCommand.get();
     CommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   }

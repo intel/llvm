@@ -46,11 +46,13 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
                       const size_t *pGlobalWorkSize,
                       uint32_t numKernelAlternatives,
                       ur_kernel_handle_t *kernelAlternatives,
+                      bool hasSignalEvent, uint32_t waitListSize,
                       ur_exp_command_buffer_command_handle_t *command);
   ur_result_t applyUpdateCommands(
       uint32_t numUpdateCommands,
       const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands);
 
+  ur_result_t awaitExecution();
   void enableEvents();
   void registerEvent(ur_event_handle_t event);
 
