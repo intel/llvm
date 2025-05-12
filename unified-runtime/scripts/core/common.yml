@@ -196,7 +196,7 @@ etors:
     - name: ERROR_INVALID_WORK_DIMENSION
       desc: "Invalid work dimension"
     - name: ERROR_INVALID_KERNEL_ARGS
-      desc: "Invalid kernel args"
+      desc: "[deprecated-value] No longer used - invalid kernel args are now UB"
     - name: ERROR_INVALID_KERNEL
       desc: "Invalid kernel"
     - name: ERROR_INVALID_KERNEL_NAME

@@ -102,7 +102,7 @@ ur_result_t urPlatformGetInfo(
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(GlobalAdapter);
   default:
-    logger::debug("urPlatformGetInfo: unrecognized ParamName");
+    UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -542,6 +542,22 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeCommandListImmediateAppendExt
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeImageGetDeviceOffsetExp",
+                   reinterpret_cast<void **>(
+                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+
+  ZeImageGetDeviceOffsetExt.Supported =
+      ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeMemGetPitchFor2dImage",
+                   reinterpret_cast<void **>(
+                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+
+  ZeMemGetPitchFor2dImageExt.Supported =
+      ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
   return UR_RESULT_SUCCESS;
 }

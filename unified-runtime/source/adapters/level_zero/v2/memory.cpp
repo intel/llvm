@@ -15,19 +15,6 @@
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
 
-static ur_mem_buffer_t::device_access_mode_t
-getDeviceAccessMode(ur_mem_flags_t memFlag) {
-  if (memFlag & UR_MEM_FLAG_READ_WRITE) {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  } else if (memFlag & UR_MEM_FLAG_READ_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::read_only;
-  } else if (memFlag & UR_MEM_FLAG_WRITE_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::write_only;
-  } else {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  }
-}
-
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {
   return requested == actual ||
@@ -47,16 +34,16 @@ ur_usm_handle_t::ur_usm_handle_t(ur_context_handle_t hContext, size_t size,
 
 void *ur_usm_handle_t::getDevicePtr(
     ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
-    size_t /*offset*/, size_t /*size*/,
+    size_t offset, size_t /*size*/,
     std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
-  return ptr;
+  return ur_cast<char *>(ptr) + offset;
 }
 
 void *
-ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t /*offset*/,
+ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t offset,
                             size_t /*size*/,
                             std::function<void(void *src, void *dst, size_t)>) {
-  return ptr;
+  return ur_cast<char *>(ptr) + offset;
 }
 
 void ur_usm_handle_t::unmapHostPtr(
@@ -88,12 +75,13 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
       auto ret = hContext->getDefaultUSMPool()->free(ptr);
       if (ret != UR_RESULT_SUCCESS) {
-        logger::error("Failed to free host memory: {}", ret);
+        UR_LOG(ERR, "Failed to free host memory: {}", ret);
       }
     });
 
     if (hostPtr) {
       std::memcpy(this->ptr.get(), hostPtr, size);
+      writeBackPtr = hostPtr;
     }
   }
 }
@@ -110,17 +98,23 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
   });
 }
 
+ur_integrated_buffer_handle_t::~ur_integrated_buffer_handle_t() {
+  if (writeBackPtr) {
+    std::memcpy(writeBackPtr, this->ptr.get(), size);
+  }
+}
+
 void *ur_integrated_buffer_handle_t::getDevicePtr(
     ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
-    size_t /*offset*/, size_t /*size*/,
+    size_t offset, size_t /*size*/,
     std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
-  return ptr.get();
+  return ur_cast<char *>(ptr.get()) + offset;
 }
 
 void *ur_integrated_buffer_handle_t::mapHostPtr(
-    ur_map_flags_t /*flags*/, size_t /*offset*/, size_t /*size*/,
+    ur_map_flags_t /*flags*/, size_t offset, size_t /*size*/,
     std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
-  return ptr.get();
+  return ur_cast<char *>(ptr.get()) + offset;
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
@@ -131,13 +125,16 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
 static v2::raii::command_list_unique_handle
 getSyncCommandListForCopy(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice) {
-  return hContext->getCommandListCache().getImmediateCommandList(
-      hDevice->ZeDevice, true,
+  v2::command_list_desc_t listDesc;
+  listDesc.IsInOrder = true;
+  listDesc.Ordinal =
       hDevice
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
-          .ZeOrdinal,
-      true, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
-      std::nullopt);
+          .ZeOrdinal;
+  listDesc.CopyOffloadEnable = true;
+  return hContext->getCommandListCache().getImmediateCommandList(
+      hDevice->ZeDevice, listDesc, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS,
+      ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt);
 }
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
@@ -168,7 +165,7 @@ void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
       usm_unique_ptr_t(ptr, [hContext = this->hContext](void *ptr) {
         auto ret = hContext->getDefaultUSMPool()->free(ptr);
         if (ret != UR_RESULT_SUCCESS) {
-          logger::error("Failed to free device memory: {}", ret);
+          UR_LOG(ERR, "Failed to free device memory: {}", ret);
         }
       });
 
@@ -298,7 +295,7 @@ void *ur_discrete_buffer_handle_t::mapHostPtr(
         if (ownsAlloc) {
           auto ret = hContext->getDefaultUSMPool()->free(p);
           if (ret != UR_RESULT_SUCCESS) {
-            logger::error("Failed to mapped memory: {}", ret);
+            UR_LOG(ERR, "Failed to mapped memory: {}", ret);
           }
         }
       });
@@ -513,7 +510,7 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   }
 
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
     auto hostPtrAction =
@@ -544,7 +541,7 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
              pRegion->size <= hBuffer->getSize()),
             UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   UR_ASSERT(isAccessCompatible(accessMode, hBuffer->getDeviceAccessMode()),
             UR_RESULT_ERROR_INVALID_VALUE);
@@ -728,7 +725,7 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
                               ur_image_info_t /*propName*/, size_t /*propSize*/,
                               void * /*pPropValue*/,
                               size_t * /*pPropSizeRet*/) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
