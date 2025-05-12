@@ -81,10 +81,12 @@ macro(append_common_extra_security_flags)
   elseif(is_icpx)
     add_compile_option_ext("/Qcf-protection:full" FCFPROTECTION)
   elseif(is_msvc)
-    add_compile_option_ext("/LTCG" LTCG)
+    add_link_option_ext("/LTCG" LTCG CMAKE_EXE_LINKER_FLAGS
+                        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
     add_compile_option_ext("/sdl" SDL)
     add_compile_option_ext("/guard:cf" GUARDCF)
-    add_compile_option_ext("/CETCOMPAT" CETCOMPAT)
+    add_link_option_ext("/CETCOMPAT" CETCOMPAT CMAKE_EXE_LINKER_FLAGS
+                        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
 
   # Format String Defense
@@ -113,7 +115,9 @@ macro(append_common_extra_security_flags)
     if(is_gcc
        OR is_clang
        OR (is_icpx AND MSVC))
-      add_compile_option_ext("-Wl,-z,noexecstack" NOEXECSTACK)
+      add_link_option_ext(
+        "-Wl,-z,noexecstack" NOEXECSTACK CMAKE_EXE_LINKER_FLAGS
+        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
     endif()
   endif()
 
@@ -135,12 +139,14 @@ macro(append_common_extra_security_flags)
     add_link_option_ext("-pie" PIE CMAKE_EXE_LINKER_FLAGS
                         CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   elseif(is_msvc)
-    add_compile_option_ext("/DYNAMICBASE" DYNAMICBASE)
+    add_link_option_ext("/DYNAMICBASE" DYNAMICBASE CMAKE_EXE_LINKER_FLAGS
+                        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
 
   if(CMAKE_BUILD_TYPE MATCHES "Release")
     if(is_msvc)
-      add_compile_option_ext("/NXCOMPAT" NXCOMPAT)
+      add_link_option_ext("/NXCOMPAT" NXCOMPAT CMAKE_EXE_LINKER_FLAGS
+                          CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
     endif()
   endif()
 
@@ -177,7 +183,9 @@ macro(append_common_extra_security_flags)
       endif()
     endif()
 
-    add_definitions(-D_GLIBCXX_ASSERTIONS)
+    if(LLVM_ENABLE_ASSERTIONS)
+      add_definitions(-D_GLIBCXX_ASSERTIONS)
+    endif()
 
     # Full Relocation Read Only
     if(CMAKE_BUILD_TYPE MATCHES "Release")
