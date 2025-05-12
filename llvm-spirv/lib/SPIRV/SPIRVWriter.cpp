@@ -5550,7 +5550,7 @@ SPIRVValue *LLVMToSPIRVBase::transAsmINTEL(InlineAsm *IA) {
       BM->getOrAddAsmTargetINTEL(TripleStr.str()));
   auto *SIA = BM->addAsmINTEL(
       static_cast<SPIRVTypeFunction *>(transType(IA->getFunctionType())),
-      AsmTarget, IA->getAsmString().data(), IA->getConstraintString().str());
+      AsmTarget, IA->getAsmString().str(), IA->getConstraintString().str());
   if (IA->hasSideEffects())
     SIA->addDecorate(DecorationSideEffectsINTEL);
   return SIA;
