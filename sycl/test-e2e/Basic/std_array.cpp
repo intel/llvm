@@ -1,14 +1,14 @@
+// Check that std::array in device code does not result in compilation errors
+
 // REQUIRES: windows
 
-// RUN: clang-cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc 2>&1 | FileCheck --allow-empty %s
+// RUN: %clangxx --driver-mode=cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc
+// RUN: %{run} %t.exe
 
-// Check that std::array in device code does not result in compilation errors:
-
-// CHECK-NOT: error: SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute
-// CHECK-NOT: note: '_invalid_parameter' declared here
-// CHECK-NOT: Undefined function _invalid_parameter found in
-
-// RUN: %t.exe
+// Should not be producing errors such as:
+// - error: SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute
+//   note: '_invalid_parameter' declared here
+// - Undefined function _invalid_parameter found in
 
 #include <sycl/queue.hpp>
 
