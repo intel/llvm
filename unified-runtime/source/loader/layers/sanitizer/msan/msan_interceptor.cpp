@@ -544,6 +544,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
       UR_LOG_L(getContext()->logger, WARN,
                "Skip checking private memory of kernel <{}>",
                GetKernelName(Kernel));
+      LaunchInfo.Data.Host.PrivateShadowOffset = 0;
     } else {
       UR_LOG_L(
           getContext()->logger, DEBUG,

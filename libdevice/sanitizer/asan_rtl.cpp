@@ -877,22 +877,24 @@ static __SYCL_CONSTANT__ const char __mem_set_shadow_private[] =
 
 // We outline the function of setting shadow memory of private memory, because
 // it may allocate failed on UR
-DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr begin, uptr size,
+DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr shadow, uptr size,
                                                         char val) {
-  if (!__AsanLaunchInfo)
+  auto *launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
+  if (!launch_info || launch_info->PrivateShadowOffset == 0)
+    return;
+
+  // "__asan_mem_to_shadow" may return 0 although "PrivateShadowOffset != 0", in
+  // this case, "shadow" may be out of range of private shadow
+  if (shadow < launch_info->PrivateShadowOffset)
     return;
 
   ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private_begin));
 
-  auto *launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
-  if (launch_info->PrivateShadowOffset == 0)
-    return;
-
-  ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private, (void *)begin,
-                                (void *)(begin + size), val & 0xFF));
+  ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private, (void *)shadow,
+                                (void *)(shadow + size), val & 0xFF));
 
   for (size_t i = 0; i < size; i++)
-    ((__SYCL_GLOBAL__ u8 *)begin)[i] = val;
+    ((__SYCL_GLOBAL__ u8 *)shadow)[i] = val;
 
   ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private_end));
 }
@@ -903,8 +905,7 @@ static __SYCL_CONSTANT__ const char __asan_print_private_base[] =
 DEVICE_EXTERN_C_NOINLINE void
 __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
-  if (!launch_info || launch_info->PrivateShadowOffset == 0 ||
-      launch_info->PrivateBase == nullptr)
+  if (!launch_info || launch_info->PrivateShadowOffset == 0)
     return;
   // Only set on the first sub-group item
   if (__spirv_BuiltInSubgroupLocalInvocationId != 0)

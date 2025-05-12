@@ -1335,26 +1335,21 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
 class AddressSanitizerOnSpirv {
 public:
-  explicit AddressSanitizerOnSpirv(Module &M)
-      : M(M), C(M.getContext()), DL(M.getDataLayout()) {
-    const auto &TargetTriple = Triple(M.getTargetTriple());
-    IsSPIRV = TargetTriple.isSPIROrSPIRV();
-
-    IntptrTy = DL.getIntPtrType(C);
-    Int32Ty = Type::getInt32Ty(C);
+  explicit AddressSanitizerOnSpirv(Module *M) : M(M), C(&M->getContext()) {
+    const DataLayout &DL = M->getDataLayout();
+    IntptrTy = DL.getIntPtrType(*C);
+    Int32Ty = Type::getInt32Ty(*C);
   }
 
-  bool isSpirv() const { return IsSPIRV; }
-
   void initializeCallbacks() {
-    IRBuilder<> IRB(C);
+    IRBuilder<> IRB(*C);
 
     // __msan_set_private_base(
     //   as(0) void *  ptr
     // )
     AsanSetPrivateBaseFunc =
-        M.getOrInsertFunction("__asan_set_private_base", IRB.getVoidTy(),
-                              PointerType::get(C, kSpirOffloadPrivateAS));
+        M->getOrInsertFunction("__asan_set_private_base", IRB.getVoidTy(),
+                               PointerType::get(*C, kSpirOffloadPrivateAS));
   }
 
   void instrumentPrivateBase(Function &F) {
@@ -1368,10 +1363,8 @@ public:
   }
 
 private:
-  Module &M;
-  LLVMContext &C;
-  const DataLayout &DL;
-  bool IsSPIRV;
+  Module *M;
+  LLVMContext *C;
 
   Type *IntptrTy;
   Type *Int32Ty;
@@ -1614,9 +1607,10 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  AddressSanitizerOnSpirv AsanSpirv(M);
-  if (AsanSpirv.isSpirv()) {
-    AsanSpirv.initializeCallbacks();
+  std::optional<AddressSanitizerOnSpirv> AsanSpirv;
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    AsanSpirv = AddressSanitizerOnSpirv(&M);
+    AsanSpirv->initializeCallbacks();
 
     // FIXME: W/A skip instrumentation if this module has ESIMD
     bool HasESIMD = false;
@@ -1655,7 +1649,7 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
     const TargetLibraryInfo &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
     Modified |= FunctionSanitizer.instrumentFunction(F, &TLI);
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      AsanSpirv.instrumentPrivateBase(F);
+      AsanSpirv->instrumentPrivateBase(F);
       // Instrument __AsanLaunchInfo should always be the last step
       FunctionSanitizer.instrumentInitAsanLaunchInfo(F, &TLI);
     }
