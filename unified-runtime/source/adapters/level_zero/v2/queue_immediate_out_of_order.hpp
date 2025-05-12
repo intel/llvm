@@ -21,6 +21,7 @@
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
 #include "ur/ur.hpp"
+#include "ur_api.h"
 
 namespace v2 {
 
@@ -503,6 +504,13 @@ public:
         pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
         numEventsInWaitList, phEventWaitList,
         createEventIfRequested(eventPool.get(), phEvent, this));
+  }
+
+  ur_result_t enqueueHostTaskExp(ur_exp_host_task_function_t, void *,
+                                 const ur_exp_host_task_properties_t *,
+                                 uint32_t, const ur_event_handle_t *,
+                                 ur_event_handle_t *) override {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   ur::RefCount RefCount;

@@ -1263,6 +1263,13 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    static const bool USE_UR_HOST_TASK = getenv_tobool("UR_HOST_TASK");
+    return ReturnValue(USE_UR_HOST_TASK);
+#else
+    return ReturnValue(false);
+#endif
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
     if (!ParamValue) {

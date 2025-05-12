@@ -422,3 +422,89 @@ static inline void roundToHighestFactorOfGlobalSizeIn3d(
                MaxBlockDim[2]));
   roundToHighestFactorOfGlobalSize(ThreadsPerBlock[2], GlobalSize[2]);
 }
+
+namespace mpmc {
+
+template <typename T> struct ChannelData {
+  std::queue<T> queue;
+  std::mutex mutex;
+  std::condition_variable cond_var;
+  bool open = true;
+};
+
+template <typename T> class Sender {
+public:
+  explicit Sender(std::shared_ptr<ChannelData<T>> data)
+      : Data(std::move(data)) {}
+
+  Sender(const Sender &) = delete;
+  Sender &operator=(const Sender &) = delete;
+
+  Sender(Sender &&) noexcept = default;
+  Sender &operator=(Sender &&) noexcept = default;
+
+  ~Sender() = default;
+
+  void send(const T &&Item) {
+    std::unique_lock<std::mutex> Lock(Data->mutex);
+    Data->queue.push(Item);
+    Lock.unlock();
+    Data->cond_var.notify_one();
+  }
+
+  void close() {
+    std::unique_lock<std::mutex> Lock(Data->mutex);
+    Data->open = false;
+    Lock.unlock();
+    Data->cond_var.notify_all();
+  }
+
+private:
+  std::shared_ptr<ChannelData<T>> Data;
+};
+
+template <typename T> class Receiver {
+public:
+  explicit Receiver(std::shared_ptr<ChannelData<T>> Data)
+      : Data(std::move(Data)) {}
+
+  Receiver(const Receiver &) = delete;
+  Receiver &operator=(const Receiver &) = delete;
+
+  Receiver(Receiver &&) noexcept = default;
+  Receiver &operator=(Receiver &&) noexcept = default;
+
+  ~Receiver() = default;
+
+  std::optional<T> receive() {
+    std::unique_lock<std::mutex> Lock(Data->mutex);
+    Data->cond_var.wait(Lock,
+                        [&]() { return !Data->queue.empty() || !Data->open; });
+    return popItem();
+  }
+
+  std::optional<T> tryReceive() {
+    std::unique_lock<std::mutex> Lock(Data->mutex);
+    return popItem();
+  }
+
+private:
+  std::optional<T> popItem() {
+    if (Data->queue.empty()) {
+      return std::nullopt;
+    }
+    T Item = Data->queue.front();
+    Data->queue.pop();
+    return Item;
+  }
+
+  std::shared_ptr<ChannelData<T>> Data;
+};
+
+template <typename T> std::pair<Sender<T>, Receiver<T>> createChannel() {
+  auto Data = std::make_shared<ChannelData<T>>();
+
+  return {std::move(Sender<T>(Data)), std::move(Receiver<T>(Data))};
+}
+
+} // namespace mpmc

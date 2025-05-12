@@ -75,6 +75,7 @@
 		urEnqueueEventsWait;
 		urEnqueueEventsWaitWithBarrier;
 		urEnqueueEventsWaitWithBarrierExt;
+		urEnqueueHostTaskExp;
 		urEnqueueKernelLaunch;
 		urEnqueueMemBufferCopy;
 		urEnqueueMemBufferCopyRect;
@@ -283,6 +284,7 @@
 		urPrintEnqueueEventsWaitParams;
 		urPrintEnqueueEventsWaitWithBarrierExtParams;
 		urPrintEnqueueEventsWaitWithBarrierParams;
+		urPrintEnqueueHostTaskExpParams;
 		urPrintEnqueueKernelLaunchParams;
 		urPrintEnqueueMemBufferCopyParams;
 		urPrintEnqueueMemBufferCopyRectParams;
@@ -341,6 +343,8 @@
 		urPrintExpExternalSemaphoreDesc;
 		urPrintExpExternalSemaphoreType;
 		urPrintExpFileDescriptor;
+		urPrintExpHostTaskFlags;
+		urPrintExpHostTaskProperties;
 		urPrintExpImageCopyFlags;
 		urPrintExpImageCopyRegion;
 		urPrintExpImageMemType;

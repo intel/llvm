@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sycl/detail/cg_types.hpp"
 #include "sycl/detail/helpers.hpp"
 #include "ur_api.h"
 #include <algorithm>
@@ -427,6 +428,17 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   setHandlerKernelBundle(std::move(KernelBundleImpl));
 }
 
+extern "C" void hostTaskCallback(void *pUserData) noexcept {
+  auto Task = static_cast<detail::HostTask *>(pUserData);
+  assert(Task->Queue != nullptr);
+  try {
+    Task->call(nullptr);
+  } catch (...) {
+    Task->Queue->reportAsyncException(std::current_exception());
+  }
+  delete Task;
+}
+
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::EventImplPtr handler::finalize() {
 #else
@@ -651,6 +663,43 @@ event handler::finalize() {
                       : detail::event_impl::create_discarded_event());
 #endif
     }
+  }
+
+  bool HasNativeHostTasks =
+      Queue->get_device().has(sycl::aspect::ext_oneapi_native_host_tasks);
+  if (HasNativeHostTasks && type == detail::CGType::CodeplayHostTask &&
+      detail::Scheduler::areEventsSafeForSchedulerBypass(
+          impl->CGData.MEvents, Queue->getContextImpl())) {
+    auto & Adapter = Queue->getAdapter();
+    std::vector<ur_event_handle_t> RawEvents =
+        detail::Command::getUrEvents(impl->CGData.MEvents, Queue, false);
+    ur_event_handle_t UREvent = nullptr;
+
+    impl->MHostTask->Queue = Queue;
+    // This gets deallocated inside of the host task itself
+    auto Task = new detail::HostTask(*impl->MHostTask.get());
+
+    ur_result_t Result =
+        Adapter.call_nocheck<detail::UrApiKind::urEnqueueHostTaskExp>(
+            Queue->getHandleRef(), hostTaskCallback, Task, nullptr,
+            RawEvents.size(), RawEvents.data(), &UREvent);
+    if (Result != UR_RESULT_SUCCESS) {
+      delete Task;
+      throw exception(make_error_code(errc::runtime),
+                      "TODO. urEnqueueHostTaskExp failed.");
+    }
+    detail::EventImplPtr ResultEvent =
+        detail::event_impl::create_device_event(impl->get_queue());
+    ResultEvent->setHandle(UREvent);
+    ResultEvent->setStateIncomplete();
+    ResultEvent->setSubmittedQueue(Queue->weak_from_this());
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return ResultEvent;
+#else
+    return detail::createSyclObjFromImpl<sycl::event>(
+        ResultEvent ? ResultEvent
+                    : sycl::detail::event_impl::create_discarded_event());
+#endif
   }
 
   std::unique_ptr<detail::CG> CommandGroup;

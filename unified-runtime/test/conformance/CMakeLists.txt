@@ -82,6 +82,7 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "exp_usm_p2p"
     "memory-migrate"
     "usm"
+    "exp_host_task"
 )
 
 if(UR_FOUND_DPCXX)

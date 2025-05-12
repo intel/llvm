@@ -19,6 +19,7 @@
 #include "common.hpp"
 #include "event.hpp"
 #include "queue.hpp"
+#include "ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
@@ -348,6 +349,13 @@ ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
 }
 
 namespace ur::level_zero {
+
+ur_result_t urEnqueueHostTaskExp(ur_queue_handle_t, ur_exp_host_task_function_t,
+                                 void *, const ur_exp_host_task_properties_t *,
+                                 uint32_t, const ur_event_handle_t *,
+                                 ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
 
 ur_result_t urQueueGetInfo(
     /// [in] handle of the queue object
