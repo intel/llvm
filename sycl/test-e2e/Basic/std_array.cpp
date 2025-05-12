@@ -8,7 +8,7 @@
 // CHECK-NOT: note: '_invalid_parameter' declared here
 // CHECK-NOT: Undefined function _invalid_parameter found in
 
-// RUN: ${run} %t.exe
+// RUN: %t.exe
 
 #include <sycl/queue.hpp>
 
