@@ -17,8 +17,8 @@
 #include <clc/relational/clc_isnan.h>
 #include <clc/relational/clc_select.h>
 
-// FP32 and FP16 versions.
-#define __CLC_BODY <cos.inc>
+#define FUNCTION cos
+#define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>
 
 #ifdef cl_khr_fp64

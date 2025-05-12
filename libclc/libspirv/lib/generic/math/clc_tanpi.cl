@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sincos_helpers.h"
 #include <clc/math/clc_sincos_helpers.h>
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
