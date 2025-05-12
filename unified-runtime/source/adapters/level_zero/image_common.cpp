@@ -1161,6 +1161,8 @@ ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
   // Sampled image is a combination of unsampled image and sampler.
+  // The sampler is tied to the image on creation, and is destroyed together
+  // with the image.
   return ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
       hContext, hDevice, hImage);
 }
