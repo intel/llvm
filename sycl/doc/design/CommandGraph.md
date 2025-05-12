@@ -351,14 +351,14 @@ heuristic but rather expose this as a hint the user can provide.
 
 ### Graph Allocation Memory Reuse
 
-Within a single graph memory allocations which have previously been freed are
-checked when adding a new allocation to see if they can be reused. Because we
-have to return a pointer to the user immediately when the CGF for a node is
-processed when adding the node, we have to do this eagerly anytime
-`async_malloc()` is called. Allocations track the last free node associated with
-them to represent the most recent use of that allocation.
+When adding a new allocation node to a graph, memory allocations which have
+previously been freed are checked to see if they can be reused. Because we have
+to return a pointer to the user immediately when the CGF for a node is
+processed, we have to do this eagerly anytime `async_malloc()` is called.
+Allocations track the last free node associated with them to represent the most
+recent use of that allocation.
 
- To be reused the two allocations must meet these criteria:
+ To be reused, the two allocations must meet these criteria:
 
 - They must be of the same allocation type (device/host/shared).
 - They must have a matching size.

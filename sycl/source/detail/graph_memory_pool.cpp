@@ -94,7 +94,7 @@ graph_mem_pool::tryReuseExistingAllocation(
   CompatibleAllocs.reserve(MFreeAllocations.size());
 
   // Loop over free allocation list, search for ones that are compatible for
-  // reuse Currently that means they have the same alloc kind, size and read
+  // reuse. Currently that means they have the same alloc kind, size and read
   // only property.
 
   for (auto &Ptr : MFreeAllocations) {
@@ -104,6 +104,11 @@ graph_mem_pool::tryReuseExistingAllocation(
       // Store the alloc info since it is compatible
       CompatibleAllocs.push_back(Info);
     }
+  }
+
+  // If we have no suitable allocs to reuse, return early
+  if (CompatibleAllocs.size() == 0) {
+    return std::nullopt;
   }
 
   // Traverse graph back from each DepNode to try and find any of the suitable
@@ -119,7 +124,9 @@ graph_mem_pool::tryReuseExistingAllocation(
 
   std::optional<alloc_info> AllocInfo = {};
 
-  // Called when traversing over nodes to check if the current node
+  // Called when traversing over nodes to check if the current node is a free
+  // node for one of the available allocations. If it is we populate AllocInfo
+  // with the allocation to be reused.
   auto CheckNodeEqual =
       [&CompatibleAllocs,
        &AllocInfo](const std::shared_ptr<node_impl> &CurrentNode) -> bool {
@@ -145,9 +152,10 @@ graph_mem_pool::tryReuseExistingAllocation(
       continue;
     }
 
-    // Check if the node is a free node, and if so is a free node for any of the
-    // allocations which are free for reuse. We should not bother checking nodes
-    // that are free nodes, so we continue and check their predecessors.
+    // Check if the node is a free node and, if so, check if it is a free node
+    // for any of the allocations which are free for reuse. We should not bother
+    // checking nodes that are not free nodes, so we continue and check their
+    // predecessors.
     if (CurrentNode->MNodeType == node_type::async_free &&
         CheckNodeEqual(CurrentNode)) {
       // If we found an allocation AllocInfo has already been populated in

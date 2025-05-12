@@ -8,6 +8,7 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/graph_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
@@ -29,6 +30,27 @@ getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
   }
   return RetUrEvents;
 }
+
+std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
+    const std::shared_ptr<detail::handler_impl> &Handler,
+    const std::shared_ptr<detail::queue_impl> &Queue,
+    const std::shared_ptr<detail::graph_impl> &Graph,
+    const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
+  // Get dependent graph nodes from any events
+  auto DepNodes = Graph->getNodesForEvents(DepEvents);
+  // If this node was added explicitly we may have node deps in the handler as
+  // well, so add them to the list
+  DepNodes.insert(DepNodes.end(), Handler->MNodeDeps.begin(),
+                  Handler->MNodeDeps.end());
+  // If this is being recorded from an in-order queue we need to get the last
+  // in-order node if any, since this will later become a dependency of the
+  // node being processed here.
+  if (const auto &LastInOrderNode = Graph->getLastInorderNode(Queue);
+      LastInOrderNode) {
+    DepNodes.push_back(LastInOrderNode);
+  }
+  return DepNodes;
+}
 } // namespace
 
 __SYCL_EXPORT
@@ -49,34 +71,21 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
   // Get CG event dependencies for this allocation.
   const auto &DepEvents = h.impl->CGData.MEvents;
   auto UREvents = getUrEvents(DepEvents);
-  uint32_t numEvents = DepEvents.size();
 
   void *alloc = nullptr;
 
   ur_event_handle_t Event = nullptr;
   // If a graph is present do the allocation from the graph memory pool instead.
   if (auto Graph = h.getCommandGraph(); Graph) {
-    // Get dependent graph nodes from any events
-    auto DepNodes = Graph->getNodesForEvents(DepEvents);
-    // If this node was added explicitly we may have node deps in the handler as
-    // well, so add them to the list
-    DepNodes.insert(DepNodes.end(), h.impl->MNodeDeps.begin(),
-                    h.impl->MNodeDeps.end());
-    // If this is being recorded from an in-order queue we need to get the last
-    // in-order node if any, since this will later become a dependency of the
-    // node being processed here.
-    if (const auto &LastInOrderNode = Graph->getLastInorderNode(h.MQueue);
-        LastInOrderNode) {
-      DepNodes.push_back(LastInOrderNode);
-    }
-
+    auto DepNodes = getDepGraphNodes(sycl::detail::getSyclObjImpl(h), h.MQueue,
+                                     Graph, DepEvents);
     alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
   } else {
     auto &Q = h.MQueue->getHandleRef();
     Adapter->call<sycl::errc::runtime,
                   sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-        Q, (ur_usm_pool_handle_t)0, size, nullptr, numEvents, UREvents.data(),
-        &alloc, &Event);
+        Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
+        UREvents.data(), &alloc, &Event);
   }
 
   // Async malloc must return a void* immediately.
@@ -113,26 +122,15 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
   // Get CG event dependencies for this allocation.
   const auto &DepEvents = h.impl->CGData.MEvents;
   auto UREvents = getUrEvents(DepEvents);
-  uint32_t numEvents = DepEvents.size();
 
   void *alloc = nullptr;
 
   ur_event_handle_t Event = nullptr;
   // If a graph is present do the allocation from the graph memory pool instead.
   if (auto Graph = h.getCommandGraph(); Graph) {
-    // Get dependent graph nodes from any events
-    auto DepNodes = Graph->getNodesForEvents(DepEvents);
-    // If this node was added explicitly we may have node deps in the handler as
-    // well, so add them to the list
-    DepNodes.insert(DepNodes.end(), h.impl->MNodeDeps.begin(),
-                    h.impl->MNodeDeps.end());
-    // If this is being recorded from an in-order queue we need to get the last
-    // in-order node if any, since this will later become a dependency of the
-    // node being processed here.
-    if (const auto &LastInOrderNode = Graph->getLastInorderNode(h.MQueue);
-        LastInOrderNode) {
-      DepNodes.push_back(LastInOrderNode);
-    }
+    auto DepNodes = getDepGraphNodes(sycl::detail::getSyclObjImpl(h), h.MQueue,
+                                     Graph, DepEvents);
+
     // Memory pool is passed as the graph may use some properties of it.
     alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(), DepNodes,
                                        sycl::detail::getSyclObjImpl(pool));
@@ -140,7 +138,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
     auto &Q = h.MQueue->getHandleRef();
     Adapter->call<sycl::errc::runtime,
                   sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-        Q, memPoolImpl.get()->get_handle(), size, nullptr, numEvents,
+        Q, memPoolImpl.get()->get_handle(), size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
   }
   // Async malloc must return a void* immediately.
