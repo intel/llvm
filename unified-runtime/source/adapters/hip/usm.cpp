@@ -485,11 +485,6 @@ bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc) {
           (alignment == 0 || ((alignment & (alignment - 1)) == 0)));
 }
 
-bool checkUSMImplAlignment(uint32_t Alignment, void **ResultPtr) {
-  return Alignment == 0 ||
-         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t,
                                                        ur_device_handle_t,
                                                        ur_usm_pool_desc_t *,
