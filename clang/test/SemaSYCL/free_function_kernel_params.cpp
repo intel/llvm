@@ -2,7 +2,7 @@
 // RUN: %s -o - | FileCheck %s
 // This test checks parameter rewriting for free functions with parameters
 // of type scalar, pointer, non-decomposed struct, work group memory, dynamic work group memory 
-// and special types except for accessors.
+// and special types.
 
 #include "sycl.hpp"
 
@@ -212,6 +212,20 @@ void ff_8(sycl::dynamic_work_group_memory<int> DynMem) {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::dynamic_work_group_memory<int>)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (sycl::dynamic_work_group_memory<int>)' lvalue Function {{.*}} 'ff_8' 'void (sycl::dynamic_work_group_memory<int>)'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' Var {{.*}} 'DynMem' 'sycl::dynamic_work_group_memory<int>'
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_9(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::accessor<int, 1, sycl::access::mode::read_write>)'
+// CHECK-NEXT: ParmVarDecl {{.*}}acc 'sycl::accessor<int, 1, sycl::access::mode::read_write>'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__global int *'
+// CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Offset 'sycl::id<1>'
+// CHECK: CXXMemberCallExpr
+// CHECK-NEXT: MemberExpr {{.*}}.__init
 
 template <typename DataT>
 __attribute__((sycl_device))

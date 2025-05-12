@@ -2,7 +2,7 @@
 // RUN: -emit-llvm %s -o - | FileCheck %s
 // This test checks parameter IR generation for free functions with parameters
 // of non-decomposed struct type, work group memory type, dynamic work group memory type 
-// and special types except for accessors.
+// and special types.
 
 #include "sycl.hpp"
 
@@ -51,8 +51,8 @@ template void ff_6(KArgWithPtrArray<TestArrSize> KArg);
 // CHECK: %struct.Pointers = type { ptr addrspace(4), ptr addrspace(4) }
 // CHECK: %struct.Agg = type { %struct.NoPointers, i32, ptr addrspace(4), %struct.Pointers }
 // CHECK: %struct.__generated_Pointers = type { ptr addrspace(1), ptr addrspace(1) }
-// CHECK: %struct.__generated_Agg = type { %struct.NoPointers, i32, ptr addrspace(1), %struct.__generated_Pointers.3 }
-// CHECK: %struct.__generated_Pointers.3 = type { ptr addrspace(1), ptr addrspace(1) }
+// CHECK: %struct.__generated_Agg = type { %struct.NoPointers, i32, ptr addrspace(1), %struct.__generated_Pointers.4 }
+// CHECK: %struct.__generated_Pointers.4 = type { ptr addrspace(1), ptr addrspace(1) }
 // CHECK: %struct.__generated_KArgWithPtrArray = type { [3 x ptr addrspace(1)], [3 x i32], [3 x i32] }
 // CHECK: %struct.KArgWithPtrArray = type { [3 x ptr addrspace(4)], [3 x i32], [3 x i32] }
 // CHECK: define dso_local spir_kernel void @{{.*}}__sycl_kernel{{.*}}(ptr noundef byval(%struct.NoPointers) align 4 %__arg_S1, ptr noundef byval(%struct.__generated_Pointers) align 8 %__arg_S2, ptr noundef byval(%struct.__generated_Agg) align 8 %__arg_S3)
@@ -139,6 +139,30 @@ void ff_8(sycl::local_accessor<int, 1> lacc) {
   // CHECK-NEXT: call spir_func void @{{.*}}local_accessor{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable_or_null(24) %lacc.ascast)
   // CHECK: call spir_func void @{{.*}}local_accessor{{.*}}__init{{.*}}
 
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_8(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
+} 
+
+// CHECK: define dso_local spir_kernel void @{{.*}}__sycl_kernel_ff_8{{.*}}ptr addrspace(1) noundef align 4 %__arg_Ptr, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %__arg_AccessRange, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %__arg_MemRange, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %__arg_Offset)
+  // CHECK: %__arg_Ptr.addr = alloca ptr addrspace(1), align 8
+  // CHECK-NEXT: %acc = alloca %"class.sycl::_V1::accessor.2", align 4
+  // CHECK-NEXT: %agg.tmp = alloca %"struct.sycl::_V1::range", align 4
+  // CHECK-NEXT: %agg.tmp1 = alloca %"struct.sycl::_V1::range", align 4
+  // CHECK-NEXT: %agg.tmp2 = alloca %"struct.sycl::_V1::id", align 4
+  // CHECK-NEXT: %agg.tmp3 = alloca %"class.sycl::_V1::accessor.2", align 4
+  // CHECK-NEXT: %__arg_Ptr.addr.ascast = addrspacecast ptr %__arg_Ptr.addr to ptr addrspace(4)
+  // CHECK-NEXT: %acc.ascast = addrspacecast ptr %acc to ptr addrspace(4)
+  // CHECK-NEXT: %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
+  // CHECK-NEXT: %agg.tmp1.ascast = addrspacecast ptr %agg.tmp1 to ptr addrspace(4)
+  // CHECK-NEXT: %agg.tmp2.ascast = addrspacecast ptr %agg.tmp2 to ptr addrspace(4)
+  // CHECK-NEXT: %agg.tmp3.ascast = addrspacecast ptr %agg.tmp3 to ptr addrspace(4)
+  // CHECK-NEXT: store ptr addrspace(1) %__arg_Ptr, ptr addrspace(4) %__arg_Ptr.addr.ascast, align 8
+  // CHECK-NEXT: %__arg_AccessRange.ascast = addrspacecast ptr %__arg_AccessRange to ptr addrspace(4)
+  // CHECK-NEXT: %__arg_MemRange.ascast = addrspacecast ptr %__arg_MemRange to ptr addrspace(4)
+  // CHECK-NEXT: %__arg_Offset.ascast = addrspacecast ptr %__arg_Offset to ptr addrspace(4)
+  // CHECK-NEXT: call spir_func void @{{.*}}accessor{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable_or_null(12) %acc.ascast)
+  // CHECK: call spir_func void @{{.*}}accessor{{.*}}__init{{.*}}
 
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
