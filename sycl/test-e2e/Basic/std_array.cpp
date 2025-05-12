@@ -1,7 +1,7 @@
 // REQUIRES: windows
 
 // RUN: clang-cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc 2>&1 | FileCheck --allow-empty %s
- 
+
 // Check that std::array in device code does not result in compilation errors:
 
 // CHECK-NOT: error: SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute
