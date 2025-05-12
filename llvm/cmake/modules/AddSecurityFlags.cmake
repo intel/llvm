@@ -51,6 +51,8 @@ endif()
 
 macro(append_common_extra_security_flags)
   # Compiler Warnings and Error Detection
+  # Note: in intel/llvm we build both linux and win with --ci-defaults.
+  # This flag also enables -Werror or /WX.
   if(is_gcc
      OR is_clang
      OR (is_icpx AND MSVC))
