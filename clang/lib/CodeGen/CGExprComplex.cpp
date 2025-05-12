@@ -305,9 +305,9 @@ public:
     if (llvm::APFloat::semanticsMaxExponent(ElementTypeSemantics) * 2 + 1 <=
         llvm::APFloat::semanticsMaxExponent(HigherElementTypeSemantics)) {
       if ((!Ctx.getTargetInfo().hasLongDoubleType() &&
-	   HigherElementType.getCanonicalType().getUnqualifiedType() ==
-	   Ctx.LongDoubleTy) ||
-	  Ctx.getLangOpts().SYCLIsDevice)
+           HigherElementType.getCanonicalType().getUnqualifiedType() ==
+               Ctx.LongDoubleTy) ||
+          Ctx.getLangOpts().SYCLIsDevice)
         return QualType();
       FPHasBeenPromoted = true;
       return Ctx.getComplexType(HigherElementType);
