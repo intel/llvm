@@ -19,30 +19,197 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+ext::oneapi::experimental::architecture device_impl::get_architecture() const {
+  using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
+
+  // Only for NVIDIA and AMD GPU architectures
+  constexpr std::pair<const char *, oneapi_exp_arch>
+      NvidiaAmdGPUArchitectures[] = {
+          {"5.0", oneapi_exp_arch::nvidia_gpu_sm_50},
+          {"5.2", oneapi_exp_arch::nvidia_gpu_sm_52},
+          {"5.3", oneapi_exp_arch::nvidia_gpu_sm_53},
+          {"6.0", oneapi_exp_arch::nvidia_gpu_sm_60},
+          {"6.1", oneapi_exp_arch::nvidia_gpu_sm_61},
+          {"6.2", oneapi_exp_arch::nvidia_gpu_sm_62},
+          {"7.0", oneapi_exp_arch::nvidia_gpu_sm_70},
+          {"7.2", oneapi_exp_arch::nvidia_gpu_sm_72},
+          {"7.5", oneapi_exp_arch::nvidia_gpu_sm_75},
+          {"8.0", oneapi_exp_arch::nvidia_gpu_sm_80},
+          {"8.6", oneapi_exp_arch::nvidia_gpu_sm_86},
+          {"8.7", oneapi_exp_arch::nvidia_gpu_sm_87},
+          {"8.9", oneapi_exp_arch::nvidia_gpu_sm_89},
+          {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
+          {"gfx701", oneapi_exp_arch::amd_gpu_gfx701},
+          {"gfx702", oneapi_exp_arch::amd_gpu_gfx702},
+          {"gfx703", oneapi_exp_arch::amd_gpu_gfx703},
+          {"gfx704", oneapi_exp_arch::amd_gpu_gfx704},
+          {"gfx705", oneapi_exp_arch::amd_gpu_gfx705},
+          {"gfx801", oneapi_exp_arch::amd_gpu_gfx801},
+          {"gfx802", oneapi_exp_arch::amd_gpu_gfx802},
+          {"gfx803", oneapi_exp_arch::amd_gpu_gfx803},
+          {"gfx805", oneapi_exp_arch::amd_gpu_gfx805},
+          {"gfx810", oneapi_exp_arch::amd_gpu_gfx810},
+          {"gfx900", oneapi_exp_arch::amd_gpu_gfx900},
+          {"gfx902", oneapi_exp_arch::amd_gpu_gfx902},
+          {"gfx904", oneapi_exp_arch::amd_gpu_gfx904},
+          {"gfx906", oneapi_exp_arch::amd_gpu_gfx906},
+          {"gfx908", oneapi_exp_arch::amd_gpu_gfx908},
+          {"gfx909", oneapi_exp_arch::amd_gpu_gfx909},
+          {"gfx90a", oneapi_exp_arch::amd_gpu_gfx90a},
+          {"gfx90c", oneapi_exp_arch::amd_gpu_gfx90c},
+          {"gfx940", oneapi_exp_arch::amd_gpu_gfx940},
+          {"gfx941", oneapi_exp_arch::amd_gpu_gfx941},
+          {"gfx942", oneapi_exp_arch::amd_gpu_gfx942},
+          {"gfx1010", oneapi_exp_arch::amd_gpu_gfx1010},
+          {"gfx1011", oneapi_exp_arch::amd_gpu_gfx1011},
+          {"gfx1012", oneapi_exp_arch::amd_gpu_gfx1012},
+          {"gfx1013", oneapi_exp_arch::amd_gpu_gfx1013},
+          {"gfx1030", oneapi_exp_arch::amd_gpu_gfx1030},
+          {"gfx1031", oneapi_exp_arch::amd_gpu_gfx1031},
+          {"gfx1032", oneapi_exp_arch::amd_gpu_gfx1032},
+          {"gfx1033", oneapi_exp_arch::amd_gpu_gfx1033},
+          {"gfx1034", oneapi_exp_arch::amd_gpu_gfx1034},
+          {"gfx1035", oneapi_exp_arch::amd_gpu_gfx1035},
+          {"gfx1036", oneapi_exp_arch::amd_gpu_gfx1036},
+          {"gfx1100", oneapi_exp_arch::amd_gpu_gfx1100},
+          {"gfx1101", oneapi_exp_arch::amd_gpu_gfx1101},
+          {"gfx1102", oneapi_exp_arch::amd_gpu_gfx1102},
+          {"gfx1103", oneapi_exp_arch::amd_gpu_gfx1103},
+          {"gfx1150", oneapi_exp_arch::amd_gpu_gfx1150},
+          {"gfx1151", oneapi_exp_arch::amd_gpu_gfx1151},
+          {"gfx1200", oneapi_exp_arch::amd_gpu_gfx1200},
+          {"gfx1201", oneapi_exp_arch::amd_gpu_gfx1201},
+      };
+
+  // Only for Intel GPU architectures
+  constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
+      {0x02000000, oneapi_exp_arch::intel_gpu_bdw},
+      {0x02400009, oneapi_exp_arch::intel_gpu_skl},
+      {0x02404009, oneapi_exp_arch::intel_gpu_kbl},
+      {0x02408009, oneapi_exp_arch::intel_gpu_cfl},
+      {0x0240c000, oneapi_exp_arch::intel_gpu_apl},
+      {0x02410000, oneapi_exp_arch::intel_gpu_glk},
+      {0x02414000, oneapi_exp_arch::intel_gpu_whl},
+      {0x02418000, oneapi_exp_arch::intel_gpu_aml},
+      {0x0241c000, oneapi_exp_arch::intel_gpu_cml},
+      {0x02c00000, oneapi_exp_arch::intel_gpu_icllp},
+      {0x02c08000, oneapi_exp_arch::intel_gpu_ehl},
+      {0x03000000, oneapi_exp_arch::intel_gpu_tgllp},
+      {0x03004000, oneapi_exp_arch::intel_gpu_rkl},
+      {0x03008000, oneapi_exp_arch::intel_gpu_adl_s},
+      {0x0300c000, oneapi_exp_arch::intel_gpu_adl_p},
+      {0x03010000, oneapi_exp_arch::intel_gpu_adl_n},
+      {0x03028000, oneapi_exp_arch::intel_gpu_dg1},
+      {0x030dc000, oneapi_exp_arch::intel_gpu_acm_g10}, // A0
+      {0x030dc001, oneapi_exp_arch::intel_gpu_acm_g10}, // A1
+      {0x030dc004, oneapi_exp_arch::intel_gpu_acm_g10}, // B0
+      {0x030dc008, oneapi_exp_arch::intel_gpu_acm_g10}, // C0
+      {0x030e0000, oneapi_exp_arch::intel_gpu_acm_g11}, // A0
+      {0x030e0004, oneapi_exp_arch::intel_gpu_acm_g11}, // B0
+      {0x030e0005, oneapi_exp_arch::intel_gpu_acm_g11}, // B1
+      {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12}, // A0
+      {0x030f0000, oneapi_exp_arch::intel_gpu_pvc},     // XL-A0
+      {0x030f0001, oneapi_exp_arch::intel_gpu_pvc},     // XL-AOP
+      {0x030f0003, oneapi_exp_arch::intel_gpu_pvc},     // XT-A0
+      {0x030f0005, oneapi_exp_arch::intel_gpu_pvc},     // XT-B0
+      {0x030f0006, oneapi_exp_arch::intel_gpu_pvc},     // XT-B1
+      {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},     // XT-C0
+      {0x030f4007, oneapi_exp_arch::intel_gpu_pvc_vg},  // C0
+      {0x03118000, oneapi_exp_arch::intel_gpu_mtl_u},   // A0
+      {0x03118004, oneapi_exp_arch::intel_gpu_mtl_u},   // B0
+      {0x0311c000, oneapi_exp_arch::intel_gpu_mtl_h},   // A0
+      {0x0311c004, oneapi_exp_arch::intel_gpu_mtl_h},   // B0
+      {0x03128000, oneapi_exp_arch::intel_gpu_arl_h},   // A0
+      {0x03128004, oneapi_exp_arch::intel_gpu_arl_h},   // B0
+      {0x05004000, oneapi_exp_arch::intel_gpu_bmg_g21}, // A0
+      {0x05004001, oneapi_exp_arch::intel_gpu_bmg_g21}, // A1
+      {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21}, // B0
+      {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
+      {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
+      {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
+      {0x07800000, oneapi_exp_arch::intel_gpu_ptl_h},   // A0
+      {0x07800004, oneapi_exp_arch::intel_gpu_ptl_h},   // B0
+      {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
+      {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
+  };
+
+  // Only for Intel CPU architectures
+  constexpr std::pair<const int, oneapi_exp_arch> IntelCPUArchitectures[] = {
+      {8, oneapi_exp_arch::intel_cpu_spr},
+      {9, oneapi_exp_arch::intel_cpu_gnr},
+      {10, oneapi_exp_arch::intel_cpu_dmr},
+  };
+  backend CurrentBackend = getBackend();
+  auto LookupIPVersion = [&, this](auto &ArchList)
+      -> std::optional<ext::oneapi::experimental::architecture> {
+    auto DeviceIp = get_info_impl_nocheck<UR_DEVICE_INFO_IP_VERSION>();
+    if (!DeviceIp.has_val()) {
+      ur_result_t Err = DeviceIp.error();
+      if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+        // Not all devices support this device info query
+        return std::nullopt;
+      }
+      getAdapter()->checkUrResult(Err);
+    }
+
+    auto Val = static_cast<int>(DeviceIp.value());
+    for (const auto &Item : ArchList) {
+      if (Item.first == Val)
+        return Item.second;
+    }
+    return std::nullopt;
+  };
+
+  if (is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
+                   backend::opencl == CurrentBackend)) {
+    return LookupIPVersion(IntelGPUArchitectures)
+        .value_or(ext::oneapi::experimental::architecture::unknown);
+  } else if (is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
+                          backend::ext_oneapi_hip == CurrentBackend)) {
+    auto MapArchIDToArchName = [&](const char *arch) {
+      for (const auto &Item : NvidiaAmdGPUArchitectures) {
+        if (std::string_view(Item.first) == arch)
+          return Item.second;
+      }
+      return ext::oneapi::experimental::architecture::unknown;
+    };
+    std::string DeviceArch =
+        get_info_impl<UrInfoCode<info::device::version>::value>();
+    std::string_view DeviceArchSubstr =
+        std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
+    return MapArchIDToArchName(DeviceArchSubstr.data());
+  } else if (is_cpu() && backend::opencl == CurrentBackend) {
+    return LookupIPVersion(IntelCPUArchitectures)
+        .value_or(ext::oneapi::experimental::architecture::x86_64);
+  } // else is not needed
+  // TODO: add support of other architectures by extending with else if
+  return ext::oneapi::experimental::architecture::unknown;
+}
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                          device_impl::private_tag)
     : MDevice(Device), MPlatform(Platform.shared_from_this()),
-      MDeviceHostBaseTime(std::make_pair(0, 0)) {
-  const AdapterPtr &Adapter = Platform.getAdapter();
-
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  MType = get_info_impl<UR_DEVICE_INFO_TYPE>();
-
-  // No need to set MRootDevice when MAlwaysRootDevice is true
-  // TODO: Is get_info aligned with this?
-  if (!Platform.MAlwaysRootDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    MRootDevice = get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>();
-  }
-
+      // TODO catch an exception and put it to list of asynchronous exceptions
+      // for the field initializers below:
+      MType(get_info_impl<UR_DEVICE_INFO_TYPE>()),
+      // No need to set MRootDevice when MAlwaysRootDevice is true
+      MRootDevice(Platform.MAlwaysRootDevice
+                      ? nullptr
+                      : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
+      MUseNativeAssert(get_info_impl<UR_DEVICE_INFO_USE_NATIVE_ASSERT>()),
+      MExtensions([this]() {
+        auto Extensions =
+            split_string(get_info_impl<UR_DEVICE_INFO_EXTENSIONS>(), ' ');
+        std::sort(Extensions.begin(), Extensions.end());
+        return Extensions;
+      }()),
+      MDeviceArch(get_architecture()),
+      MDeviceName(get_info_impl<UR_DEVICE_INFO_NAME>()) {
   // TODO catch an exception and put it to list of asynchronous exceptions
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
-  Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
-
-  MUseNativeAssert = get_info_impl<UR_DEVICE_INFO_USE_NATIVE_ASSERT>();
+  getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
 }
 
 device_impl::~device_impl() {
@@ -116,10 +283,9 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 }
 #endif
 
-bool device_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_info_impl<UR_DEVICE_INFO_EXTENSIONS>();
-
-  return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+bool device_impl::has_extension(std::string_view ExtensionName) const {
+  return std::find(MExtensions.begin(), MExtensions.end(), ExtensionName) !=
+         MExtensions.end();
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {
@@ -415,7 +581,7 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_srgb:
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
-    return useNativeAssert();
+    return MUseNativeAssert;
   case aspect::ext_oneapi_cuda_async_barrier: {
     return get_info_impl_nocheck<UR_DEVICE_INFO_ASYNC_BARRIER>().value_or(0);
   }
@@ -647,24 +813,6 @@ bool device_impl::has(aspect Aspect) const {
   }
 
   return false; // This device aspect has not been implemented yet.
-}
-
-bool device_impl::useNativeAssert() const { return MUseNativeAssert; }
-
-std::string device_impl::getDeviceName() const {
-  std::call_once(MDeviceNameFlag,
-                 [this]() { MDeviceName = get_info<info::device::name>(); });
-
-  return MDeviceName;
-}
-
-ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
-  std::call_once(MDeviceArchFlag, [this]() {
-    MDeviceArch =
-        get_info<ext::oneapi::experimental::info::device::architecture>();
-  });
-
-  return MDeviceArch;
 }
 
 // On the first call this function queries for device timestamp

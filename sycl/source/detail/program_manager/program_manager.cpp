@@ -1475,7 +1475,7 @@ ProgramManager::ProgramManager()
 
 const char *getArchName(const device_impl *DeviceImpl) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  auto Arch = DeviceImpl->getDeviceArch();
+  auto Arch = DeviceImpl->get_info<syclex::info::device::architecture>();
   switch (Arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
@@ -1661,11 +1661,7 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   // Load a fallback library for an extension if the any device does not
   // support it.
   for (auto Device : Devices) {
-    // TODO: device_impl::has_extension should cache extension string, then we'd
-    // be able to use that in the loop below directly.
-    std::string DevExtList = urGetInfoString<UrApiKind::urDeviceGetInfo>(
-        *Context->getPlatformImpl().getDeviceImpl(Device),
-        UR_DEVICE_INFO_EXTENSIONS);
+    device_impl &DeviceImpl = *Context->getPlatformImpl().getDeviceImpl(Device);
 
     for (auto &Pair : RequiredDeviceLibExt) {
       DeviceLibExt Ext = Pair.first;
@@ -1695,7 +1691,7 @@ getDeviceLibPrograms(const ContextImplPtr Context,
         InhibitNativeImpl = strstr(Env, ExtName) != nullptr;
       }
 
-      bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtName);
+      bool DeviceSupports = DeviceImpl.has_extension(ExtName);
       if (!DeviceSupports || InhibitNativeImpl) {
         Programs.push_back(loadDeviceLibFallback(Context, Ext, Devices,
                                                  /*UseNativeLib=*/false));
