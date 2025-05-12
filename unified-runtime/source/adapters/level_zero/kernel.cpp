@@ -279,7 +279,7 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
 
   if (LocalWorkSize) {
     // L0
-    for (int I = 0; I < WorkDim; I++) {
+    for (uint32_t I = 0; I < WorkDim; I++) {
       UR_ASSERT(LocalWorkSize[I] < (std::numeric_limits<uint32_t>::max)(),
                 UR_RESULT_ERROR_INVALID_VALUE);
       WG[I] = static_cast<uint32_t>(LocalWorkSize[I]);
