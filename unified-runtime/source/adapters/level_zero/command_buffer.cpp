@@ -1058,7 +1058,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     }
 
     std::unique_ptr<kernel_command_handle> NewCommand;
-    UR_CALL(createCommandHandleUnlocked(
+    UR_CALL(createKernelCommandHandleUnlocked(
         CommandBuffer, ZeCommandList, Kernel, WorkDim, GlobalWorkSize,
         NumKernelAlternatives, KernelAlternatives, Platform, getZeKernelWrapped,
         Device, false, 0, NewCommand));

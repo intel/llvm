@@ -15,10 +15,10 @@
 struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t commandBuffer, uint64_t commandId,
-      ur_command_t commandType,
-      bool hasSignalEvent, uint32_t waitListSize)
+      ur_command_t commandType, bool hasSignalEvent, uint32_t waitListSize)
       : commandBuffer(commandBuffer), commandId(commandId),
-        commandType(commandType), waitListSize(waitListSize), hasSignalEvent(hasSignalEvent) {}
+        commandType(commandType), waitListSize(waitListSize),
+        hasSignalEvent(hasSignalEvent) {}
 
   virtual ~ur_exp_command_buffer_command_handle_t_() {}
 

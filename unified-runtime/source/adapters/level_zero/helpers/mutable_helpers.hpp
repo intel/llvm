@@ -38,7 +38,7 @@ ur_result_t validateCommandDescUnlocked(
     bool ZeDriverGlobalOffsetExtensionFound, size_t commandDescSize,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDescs);
 
-ur_result_t createCommandHandleUnlocked(
+ur_result_t createKernelCommandHandleUnlocked(
     ur_exp_command_buffer_handle_t CommandBuffer,
     ze_command_list_handle_t ZeCommandList, ur_kernel_handle_t Kernel,
     uint32_t WorkDim, const size_t *GlobalWorkSize,

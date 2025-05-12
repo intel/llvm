@@ -440,7 +440,7 @@ ur_result_t validateCommandDescUnlocked(
  * @param[out] Command The handle to the new command.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
-ur_result_t createCommandHandleUnlocked(
+ur_result_t createKernelCommandHandleUnlocked(
     ur_exp_command_buffer_handle_t CommandBuffer,
     ze_command_list_handle_t ZeCommandList, ur_kernel_handle_t Kernel,
     uint32_t WorkDim, const size_t *GlobalWorkSize,

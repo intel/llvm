@@ -910,9 +910,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
       hCommandBuffer->getExecutionEventUnlocked();
 
   if (executionEvent != nullptr) {
-    
+
     ZE2UR_CALL(zeEventHostSynchronize,
-      (executionEvent->getZeEvent(), UINT64_MAX));
+               (executionEvent->getZeEvent(), UINT64_MAX));
   }
   UR_CALL(enqueueGenericCommandListsExp(
       1, &commandBufferCommandList, phEvent, numEventsInWaitList,
