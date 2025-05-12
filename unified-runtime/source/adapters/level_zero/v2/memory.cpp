@@ -34,16 +34,16 @@ ur_usm_handle_t::ur_usm_handle_t(ur_context_handle_t hContext, size_t size,
 
 void *ur_usm_handle_t::getDevicePtr(
     ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
-    size_t /*offset*/, size_t /*size*/,
+    size_t offset, size_t /*size*/,
     std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
-  return ptr;
+  return ur_cast<char *>(ptr) + offset;
 }
 
 void *
-ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t /*offset*/,
+ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t offset,
                             size_t /*size*/,
                             std::function<void(void *src, void *dst, size_t)>) {
-  return ptr;
+  return ur_cast<char *>(ptr) + offset;
 }
 
 void ur_usm_handle_t::unmapHostPtr(
