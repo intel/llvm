@@ -663,7 +663,8 @@ public:
 
     CASE(ext::oneapi::experimental::info::device::mipmap_max_anisotropy) {
       // Implicit conversion:
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP>();
+      return get_info_impl<uint32_t,
+                           UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP>();
     }
 
     CASE(ext::oneapi::experimental::info::device::component_devices) {

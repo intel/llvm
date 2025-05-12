@@ -22,6 +22,7 @@
 // TODO: Maybe parsing ur_api.h could be better, but YAML seems easier to
 // process.
 
+// clang-format off
 MAP(UR_DEVICE_INFO_TYPE, ur_device_type_t)
 MAP(UR_DEVICE_INFO_VENDOR_ID, uint32_t)
 MAP(UR_DEVICE_INFO_DEVICE_ID, uint32_t)
@@ -187,3 +188,4 @@ MAP(UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP, ur_bool_t)
 MAP(UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP, uint32_t)
 MAP(UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP, ur_bool_t)
 MAP(UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP, ur_bool_t)
+// clang-format on
