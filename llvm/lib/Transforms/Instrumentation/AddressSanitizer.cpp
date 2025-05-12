@@ -872,8 +872,7 @@ struct AddressSanitizer {
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
   bool maybeInsertDynamicShadowAtFunctionEntry(Function &F);
   void markEscapedLocalAllocas(Function &F);
-  bool instrumentSyclDynamicLocalMemory(Function &F,
-                                        ArrayRef<Instruction *> RetVec);
+  bool instrumentSyclDynamicLocalMemory(Function &F);
   void instrumentInitAsanLaunchInfo(Function &F, const TargetLibraryInfo *TLI);
 
   void AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
@@ -1827,8 +1826,7 @@ Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB,
 }
 
 // Instument dynamic local memory
-bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
-    Function &F, ArrayRef<Instruction *> RetVec) {
+bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   InstrumentationIRBuilder IRB(&F.getEntryBlock(),
                                F.getEntryBlock().getFirstNonPHIIt());
 
@@ -1854,12 +1852,14 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
   IRB.CreateCall(AsanSetShadowDynamicLocalFunc,
                  {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
 
-  for (Instruction *Ret : RetVec) {
-    IRBuilder<> IRBRet(Ret);
-    IRBRet.CreateCall(
-        AsanUnpoisonShadowDynamicLocalFunc,
-        {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
-  }
+  for (BasicBlock &BB : F)
+    for (Instruction &I : BB)
+      if (auto *Ret = dyn_cast<ReturnInst>(&I)) {
+        IRBuilder<> IRBRet(Ret);
+        IRBRet.CreateCall(
+            AsanUnpoisonShadowDynamicLocalFunc,
+            {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+      }
 
   return true;
 }
@@ -1880,9 +1880,9 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(
   // FIXME: if the initial value of "__AsanLaunchInfo" is zero, we'll not need
   // this step
   initializeCallbacks(TLI);
-  IRB.CreateStore(ConstantPointerNull::get(
-                      PointerType::get(*C, kSpirOffloadGlobalAS)),
-                  AsanLaunchInfo);
+  IRB.CreateStore(
+      ConstantPointerNull::get(PointerType::get(*C, kSpirOffloadGlobalAS)),
+      AsanLaunchInfo);
 }
 
 // Instrument memset/memmove/memcpy
@@ -4002,7 +4002,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   // We need to instrument dynamic local arguments after stack poisoner
   if (TargetTriple.isSPIROrSPIRV()) {
     if (ClSpirOffloadLocals && F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      FunctionModified |= instrumentSyclDynamicLocalMemory(F, FSP.RetVec);
+      FunctionModified |= instrumentSyclDynamicLocalMemory(F);
     }
   }
 
