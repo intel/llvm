@@ -498,11 +498,6 @@ ur_native_handle_t event_impl::getNative() {
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
-  if (MState == HES_Discarded)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_wait_list() cannot be used for a discarded event.");
-
   std::lock_guard<std::mutex> Lock(MMutex);
 
   std::vector<EventImplPtr> Result;
@@ -581,9 +576,9 @@ void event_impl::setSubmissionTime() {
   } else {
     // Returning host time
     using namespace std::chrono;
-    MSubmitTime =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
+    MSubmitTime = duration_cast<nanoseconds>(
+                      high_resolution_clock::now().time_since_epoch())
+                      .count();
   }
 }
 

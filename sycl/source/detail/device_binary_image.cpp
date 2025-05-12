@@ -594,20 +594,25 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   const size_t PropertySectionSize = PropertyCount * PaddedPropertyByteSize;
 
   // Allocate the memory aligned to the property entry alignment.
+#ifdef _MSC_VER
   // Note: MSVC does not implement std::aligned_alloc.
   Data = std::unique_ptr<char[], std::function<void(void *)>>(
-#ifdef _MSC_VER
       static_cast<char *>(_aligned_malloc(sizeof(char) * PropertySectionSize +
                                               PropertyContentByteSize,
                                           PropertyAlignment)),
-      _aligned_free
+      _aligned_free);
 #else
-      static_cast<char *>(std::aligned_alloc(
-          PropertyAlignment,
-          sizeof(char) * PropertySectionSize + PropertyContentByteSize)),
-      std::free
+  // std::aligned_alloc requires the allocation size to be a multiple of the
+  // alignment, so we may over-allocate a little.
+  const size_t AllocSize =
+      sizeof(char) * PropertySectionSize + PropertyContentByteSize;
+  const size_t AlignedAllocSize = (AllocSize + PropertyAlignment - 1) /
+                                  PropertyAlignment * PropertyAlignment;
+  Data = std::unique_ptr<char[], std::function<void(void *)>>(
+      static_cast<char *>(
+          std::aligned_alloc(PropertyAlignment, AlignedAllocSize)),
+      std::free);
 #endif
-  );
 
   auto NextFreeProperty =
       reinterpret_cast<sycl_device_binary_property>(Data.get());

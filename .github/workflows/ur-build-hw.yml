@@ -13,6 +13,11 @@ on:
       runner_name:
         required: true
         type: string
+      platform:
+        description: "Platform string, `UR_CTS_ADAPTER_PLATFORM` will be set to this."
+        required: false
+        type: string
+        default: ""
       static_loader:
         required: false
         type: string
@@ -41,6 +46,11 @@ on:
       runner_name:
         required: true
         type: string
+      platform:
+        description: "Platform string, `UR_CTS_ADAPTER_PLATFORM` will be set to this."
+        required: false
+        type: string
+        default: ""
       static_loader:
         required: false
         type: string
@@ -79,6 +89,7 @@ jobs:
           {
             name: "${{inputs.adapter_name}}",
             other_name: "${{inputs.other_adapter_name}}",
+            platform: "${{inputs.platform}}",
             static_Loader: "${{inputs.static_loader}}",
             static_adapter: "${{inputs.static_loader}}"
           }
@@ -94,6 +105,7 @@ jobs:
     steps:
     # TODO:
     # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
+    # - find better way to handle platform param (e.g. "Intel(R) OpenCL" -> "opencl")
     # - switch to Ninja generator in CMake
     # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
@@ -144,6 +156,7 @@ jobs:
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
+        -DUR_CONFORMANCE_TEST_LOADER=${{ matrix.adapter.other_name != '' && 'ON' || 'OFF' }}
         ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
@@ -171,8 +184,7 @@ jobs:
     - name: Test adapters
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: " --timeout 120"
-      run: cmake --build build -j $(nproc) -- check-unified-runtime-conformance
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "conformance" --timeout 600 -VV
 
     - name: Get information about platform
       if: ${{ always() }}
