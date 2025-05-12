@@ -649,9 +649,12 @@ etors:
 - name: BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP
   desc: Enumerator for $xBindlessImagesGetImageMemoryHandleTypeSupportExp
   value: '270'
+- name: BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesFreeMappedLinearMemoryExp
+  value: '271'
 - name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT
   desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCount
-  value: '271'
+  value: '272'
 ---
 type: enum
 desc: Defines structure types

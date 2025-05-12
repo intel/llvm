@@ -100,6 +100,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       ur::level_zero::urBindlessImagesMapExternalLinearMemoryExp;
   pDdiTable->pfnReleaseExternalMemoryExp =
       ur::level_zero::urBindlessImagesReleaseExternalMemoryExp;
+  pDdiTable->pfnFreeMappedLinearMemoryExp =
+      ur::level_zero::urBindlessImagesFreeMappedLinearMemoryExp;
   pDdiTable->pfnImportExternalSemaphoreExp =
       ur::level_zero::urBindlessImagesImportExternalSemaphoreExp;
   pDdiTable->pfnReleaseExternalSemaphoreExp =

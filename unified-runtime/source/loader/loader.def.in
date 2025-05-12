@@ -7,6 +7,7 @@ EXPORTS
 	urAdapterRetain
 	urAdapterSetLoggerCallback
 	urAdapterSetLoggerCallbackLevel
+	urBindlessImagesFreeMappedLinearMemoryExp
 	urBindlessImagesGetImageMemoryHandleTypeSupportExp
 	urBindlessImagesGetImageSampledHandleSupportExp
 	urBindlessImagesGetImageUnsampledHandleSupportExp
@@ -187,6 +188,7 @@ EXPORTS
 	urPrintApiVersion
 	urPrintBaseDesc
 	urPrintBaseProperties
+	urPrintBindlessImagesFreeMappedLinearMemoryExpParams
 	urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams
 	urPrintBindlessImagesGetImageSampledHandleSupportExpParams
 	urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams
