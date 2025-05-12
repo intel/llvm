@@ -26,10 +26,8 @@
 #include <sycl/sycl.hpp>
 #include <syclcompat/syclcompat.hpp>
 
-#include <cassert>
+#include <cstdlib>
 #include <iostream>
-
-#include <sycl/sycl.hpp>
 
 /**
  * Slope intercept form of a straight line equation: Y = m * X + b
@@ -67,8 +65,9 @@ int main(int argc, char **argv) {
 
   int block_size = 32;
   if (block_size > syclcompat::get_current_device()
-                       .get_info<sycl::info::device::max_work_group_size>())
+                       .get_info<sycl::info::device::max_work_group_size>()) {
     block_size = 16;
+  }
 
   std::cout << "block_size = " << block_size << ", n_points = " << n_points
             << std::endl;
