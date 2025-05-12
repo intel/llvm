@@ -10077,7 +10077,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_exp_image_native_handle_t *phImage);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create a bindless sampled image handle from a sampler description
+/// @brief Create a bindless sampled image handle
 ///
 /// @remarks
 ///   _Analogues_
