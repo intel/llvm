@@ -162,8 +162,8 @@ ur_result_t urToHipFilterMode(ur_sampler_filter_mode_t FilterMode,
     HipFilterMode = HIP_TR_FILTER_MODE_LINEAR;
     break;
   default:
-    setErrorMessage("Unsupported filter mode",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    setErrorMessage("Invalid filter mode was requested for HIP.",
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
@@ -186,8 +186,8 @@ ur_result_t urToHipAddressingMode(ur_sampler_addressing_mode_t AddressMode,
     HipAddressMode = HIP_TR_ADDRESS_MODE_MIRROR;
     break;
   default:
-    setErrorMessage("Unsupported addressing mode",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    setErrorMessage("Invalid addressing mode was requested for HIP.",
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 

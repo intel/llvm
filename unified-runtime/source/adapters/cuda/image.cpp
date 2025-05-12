@@ -164,8 +164,8 @@ ur_result_t urToCudaFilterMode(ur_sampler_filter_mode_t FilterMode,
     CudaFilterMode = CU_TR_FILTER_MODE_LINEAR;
     break;
   default:
-    setErrorMessage("Unsupported filter mode",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    setErrorMessage("Invalid filter mode was requested for CUDA.",
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
@@ -188,8 +188,8 @@ ur_result_t urToCudaAddressingMode(ur_sampler_addressing_mode_t AddressMode,
     CudaAddressMode = CU_TR_ADDRESS_MODE_MIRROR;
     break;
   default:
-    setErrorMessage("Unsupported addressing mode",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    setErrorMessage("Invalid addressing mode was requested for CUDA.",
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
