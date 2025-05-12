@@ -3932,6 +3932,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (workDim < 1 || workDim > 3)
+      return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
   }
 
   if (getContext()->enableLifetimeValidation &&

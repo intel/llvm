@@ -625,5 +625,7 @@ params:
       desc: "[out] pointer to maximum number of groups"
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL
-    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If $X_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT query is false"
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION:
+        - "`workDim < 1 || workDim > 3`"

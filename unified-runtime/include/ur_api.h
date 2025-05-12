@@ -6790,8 +6790,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 ///         + `NULL == pLocalWorkSize`
 ///         + `NULL == pGroupCountRet`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE - "If
-///     ::UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT query is false"
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT query is false
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///         + `workDim < 1 || workDim > 3`
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,

@@ -260,12 +260,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  // We don't support any launch properties.
   for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
        propIndex++) {
-    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
+    // Adapters that don't support cooperative kernels are currently expected
+    // to ignore COOPERATIVE launch properties. Ideally we should avoid passing
+    // these at the SYCL RT level instead, see
+    // https://github.com/intel/llvm/issues/18421
+    if (launchPropList[propIndex].id == UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE ||
+        launchPropList[propIndex].id ==
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+      continue;
     }
+    return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
   // Early exit for zero size range kernel

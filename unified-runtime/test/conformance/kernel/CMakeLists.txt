@@ -19,4 +19,5 @@ add_conformance_test_with_kernels_environment(kernel
     urKernelSetArgValue.cpp
     urKernelSetExecInfo.cpp
     urKernelSetSpecializationConstants.cpp
+    urKernelSuggestMaxCooperativeGroupCount.cpp
     urKernelGetSuggestedLocalWorkSize.cpp)

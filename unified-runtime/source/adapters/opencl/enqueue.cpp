@@ -46,13 +46,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const ur_kernel_launch_property_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  // We don't support any launch properties.
   for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
        propIndex++) {
-    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
+    // Adapters that don't support cooperative kernels are currently expected
+    // to ignore COOPERATIVE launch properties. Ideally we should avoid passing
+    // these at the SYCL RT level instead, see
+    // https://github.com/intel/llvm/issues/18421
+    if (launchPropList[propIndex].id == UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE ||
+        launchPropList[propIndex].id ==
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+      continue;
     }
   }
+
   std::vector<size_t> compiledLocalWorksize;
   if (!pLocalWorkSize) {
     cl_device_id device = nullptr;
