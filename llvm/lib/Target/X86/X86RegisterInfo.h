@@ -179,6 +179,8 @@ public:
 
   const TargetRegisterClass *
   constrainRegClassToNonRex2(const TargetRegisterClass *RC) const;
+
+  bool isNonRex2RegClass(const TargetRegisterClass *RC) const;
 };
 
 } // End llvm namespace
