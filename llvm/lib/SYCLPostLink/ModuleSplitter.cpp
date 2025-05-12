@@ -932,7 +932,8 @@ void computeFuncCategoryFromStringMetadata(const Function &F,
     const auto *MDN = F.getMetadata(MetadataName);
     for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
       MDString *S = cast<llvm::MDString>(MDN->getOperand(I).get());
-      Result += "-" + S->getString().str();
+      Result += '-';
+      Result += S->getString();
     }
   }
 
@@ -944,9 +945,11 @@ void computeFuncCategoryFromIntegersListMetadata(const Function &F,
                                                  SmallString<256> &Result) {
   if (F.hasMetadata(MetadataName)) {
     auto *MDN = F.getMetadata(MetadataName);
-    for (const MDOperand &MDOp : MDN->operands())
-      Result += "-" + std::to_string(
-                          mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+    for (const MDOperand &MDOp : MDN->operands()) {
+      Result += '-';
+      Result +=
+          std::to_string(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+    }
   }
 
   Result += "-";
@@ -967,8 +970,10 @@ void computeFuncCategoryFromSYCLUsedAspects(const Function &F,
     }
 
     llvm::sort(Values);
-    for (std::uint64_t V : Values)
-      Result += ("-" + Twine(V)).str();
+    for (std::uint64_t V : Values) {
+      Result += '-';
+      Result += std::to_string(V);
+    }
   }
 
   Result += "-";
