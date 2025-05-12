@@ -103,7 +103,7 @@ ur_result_t urSamplerCreate(
   ze_sampler_handle_t ZeSampler;
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
   ze_api_version_t ZeApiVersion = Context->getPlatform()->ZeApiVersion;
-  ur2zeSamplerDesc(ZeApiVersion, Props, ZeSamplerDesc);
+  UR_CALL(ur2zeSamplerDesc(ZeApiVersion, Props, ZeSamplerDesc));
 
   ZE2UR_CALL(zeSamplerCreate, (Context->getZeHandle(), Device->ZeDevice,
                                &ZeSamplerDesc, // TODO: translate properties
