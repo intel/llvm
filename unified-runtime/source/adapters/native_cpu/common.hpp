@@ -16,28 +16,25 @@
 
 constexpr size_t MaxMessageSize = 256;
 
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 #define DIE_NO_IMPLEMENTATION                                                  \
   do {                                                                         \
-    logger::error("Not Implemented : {} - File : {} / Line : {}",              \
-                  __FUNCTION__, __FILE__, __LINE__);                           \
-                                                                               \
+    UR_LOG(ERR, "Not Implemented : {}", __FUNCTION__)                          \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;                                \
   } while (false)
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   do {                                                                         \
-    logger::warning("Not Implemented : {} - File : {} / Line : {}",            \
-                    __FUNCTION__, __FILE__, __LINE__);                         \
+    UR_LOG(WARN, "Not Implemented : {}", __FUNCTION__)                         \
     return UR_RESULT_SUCCESS;                                                  \
   } while (false)
 
 #define CASE_UR_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
-    logger::error("Unsupported UR case : {} in {}:{}({})", #not_supported,     \
-                  __FUNCTION__, __LINE__, __FILE__);                           \
+    UR_LOG(ERR, "Unsupported UR case : {} in {}", #not_supported,              \
+           __FUNCTION__)                                                       \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
 // Todo: replace this with a common helper once it is available

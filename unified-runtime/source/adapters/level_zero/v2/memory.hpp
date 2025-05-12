@@ -49,6 +49,18 @@ struct ur_mem_buffer_t : ur_object {
   device_access_mode_t getDeviceAccessMode() const { return accessMode; }
   ur_context_handle_t getContext() const { return hContext; }
   size_t getSize() const { return size; }
+  static ur_mem_buffer_t::device_access_mode_t
+  getDeviceAccessMode(ur_mem_flags_t memFlag) {
+    if (memFlag & UR_MEM_FLAG_READ_WRITE) {
+      return ur_mem_buffer_t::device_access_mode_t::read_write;
+    } else if (memFlag & UR_MEM_FLAG_READ_ONLY) {
+      return ur_mem_buffer_t::device_access_mode_t::read_only;
+    } else if (memFlag & UR_MEM_FLAG_WRITE_ONLY) {
+      return ur_mem_buffer_t::device_access_mode_t::write_only;
+    } else {
+      return ur_mem_buffer_t::device_access_mode_t::read_write;
+    }
+  }
 
 protected:
   const ur_context_handle_t hContext;
@@ -87,6 +99,8 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
                                 size_t size, device_access_mode_t accesMode,
                                 bool ownHostPtr);
 
+  ~ur_integrated_buffer_handle_t();
+
   void *
   getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
                size_t size,
@@ -98,6 +112,7 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
 
 private:
   usm_unique_ptr_t ptr;
+  void *writeBackPtr = nullptr;
 };
 
 struct host_allocation_desc_t {

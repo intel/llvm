@@ -163,6 +163,7 @@ jobs:
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
+      target_devices: level_zero:gpu
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
 
   cuda-aws-start:
@@ -249,7 +250,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Build SYCL-CTS for Windows
-      runner: '["Windows", "build-e2e"]'
+      runner: '["Windows", "build"]'
       cts_testing_mode: 'build-only'
       tests_selector: cts
       repo_ref: ${{ github.sha }}
@@ -329,7 +330,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@v2.2.1
+      uses: softprops/action-gh-release@v2.2.2
       with:
         files: |
           sycl_linux.tar.gz

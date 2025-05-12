@@ -83,6 +83,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   pDdiTable->pfnImageCopyExp = ur::level_zero::urBindlessImagesImageCopyExp;
   pDdiTable->pfnImageGetInfoExp =
       ur::level_zero::urBindlessImagesImageGetInfoExp;
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      ur::level_zero::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+  pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+      ur::level_zero::urBindlessImagesGetImageUnsampledHandleSupportExp;
+  pDdiTable->pfnGetImageSampledHandleSupportExp =
+      ur::level_zero::urBindlessImagesGetImageSampledHandleSupportExp;
   pDdiTable->pfnMipmapGetLevelExp =
       ur::level_zero::urBindlessImagesMipmapGetLevelExp;
   pDdiTable->pfnMipmapFreeExp = ur::level_zero::urBindlessImagesMipmapFreeExp;
@@ -94,6 +100,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       ur::level_zero::urBindlessImagesMapExternalLinearMemoryExp;
   pDdiTable->pfnReleaseExternalMemoryExp =
       ur::level_zero::urBindlessImagesReleaseExternalMemoryExp;
+  pDdiTable->pfnFreeMappedLinearMemoryExp =
+      ur::level_zero::urBindlessImagesFreeMappedLinearMemoryExp;
   pDdiTable->pfnImportExternalSemaphoreExp =
       ur::level_zero::urBindlessImagesImportExternalSemaphoreExp;
   pDdiTable->pfnReleaseExternalSemaphoreExp =

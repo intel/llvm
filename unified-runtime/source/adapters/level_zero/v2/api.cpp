@@ -23,43 +23,21 @@ ur_result_t
 urContextSetExtendedDeleter(ur_context_handle_t hContext,
                             ur_context_extended_deleter_t pfnDeleter,
                             void *pUserData) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t urKernelSetSpecializationConstants(
     ur_kernel_handle_t hKernel, uint32_t count,
     const ur_specialization_constant_info_t *pSpecConstants) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
                                ur_execution_info_t execStatus,
                                ur_event_callback_t pfnNotify, void *pUserData) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
-    const ur_exp_command_buffer_update_kernel_launch_desc_t
-        *pUpdateKernelLaunch) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urCommandBufferUpdateSignalEventExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    ur_event_handle_t *phEvent) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urCommandBufferUpdateWaitEventsExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -67,28 +45,28 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t hContext,
                                           ur_device_handle_t hDevice,
                                           ur_usm_pool_desc_t *PoolDesc,
                                           ur_usm_pool_handle_t *pPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
                                            ur_device_handle_t hDevice,
                                            ur_usm_pool_handle_t hPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool,
                                            ur_usm_pool_info_t propName,
                                            void *pPropValue, size_t propSize) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_usm_pool_handle_t *pPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -96,21 +74,21 @@ ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
                                            ur_usm_pool_info_t propName,
                                            void *pPropValue,
                                            size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t hContext,
                                                  ur_device_handle_t hDevice,
                                                  ur_usm_pool_handle_t *pPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(ur_context_handle_t hContext,
                                                  ur_device_handle_t hDevice,
                                                  ur_usm_pool_handle_t hPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -118,7 +96,7 @@ ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t hContext,
                                           ur_device_handle_t hDevice,
                                           ur_usm_pool_handle_t hPool,
                                           size_t minBytesToKeep) {
-  logger::error("{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

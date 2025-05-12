@@ -35,7 +35,6 @@ add_llvm_library(sycl-jit
    MC
    SYCLLowerIR
    SYCLPostLink
-   GenXIntrinsics
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS

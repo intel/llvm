@@ -177,6 +177,13 @@ separated from comma-separated list of target devices with colon. Example:
 -DSYCL_TEST_E2E_TARGETS="opencl:cpu;level_zero:gpu;cuda:gpu;hip:gpu"
 ```
 
+In addition, device architecture as shown in sycl-ls is accepted with the
+"arch-" prefix. Example:
+
+```bash
+-DSYCL_TEST_E2E_TARGETS="cuda:arch-nvidia_gpu_sm_61;level_zero:arch-intel_gpu_bmg_b21"
+```
+
 ***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
 interoperability tests require OpenCL ICD loader to be linked with. For such
 tests OpenCL ICD loader library should be installed in the system or available
@@ -293,6 +300,9 @@ configure specific single test execution in the command line:
 * **extra_environment** - comma-separated list of variables with values to be
   added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
   in CMake.
+* **extra_system_environment** - comma-separated list of variables to be
+  propagated from the host environment to test environment. Can be also set by
+  LIT_EXTRA_SYSTEM_ENVIRONMENT variable in CMake.
 * **level_zero_include** - directory containing Level_Zero native headers, can
   be also set by CMake variable LEVEL_ZERO_INCLUDE.
 * **level_zero_libs_dir** - directory containing Level_Zero native libraries,

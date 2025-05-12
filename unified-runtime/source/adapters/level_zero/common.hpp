@@ -31,7 +31,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <level_zero/include/level_zero/ze_intel_gpu.h>
+#include <level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "logger/ur_logger.hpp"
@@ -45,8 +45,8 @@ struct _ur_platform_handle_t;
     }
   } catch (...) {
   }
-  logger::debug(
-      "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  UR_LOG(DEBUG,
+         "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
   return false;
 }
 
@@ -74,6 +74,7 @@ const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
   if (!UrRet)
     return 0;
+
   return std::atoi(UrRet);
 }();
 
@@ -373,11 +374,10 @@ constexpr char ZE_SUPPORTED_EXTENSIONS[] =
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 extern thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode);
