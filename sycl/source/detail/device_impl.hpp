@@ -232,7 +232,6 @@ public:
 
     CASE(info::device::device_type) {
       using device_type = info::device_type;
-      // TODO: Are these enums the same?
       switch (get_info_impl<ur_device_type_t, UR_DEVICE_INFO_TYPE>()) {
       case UR_DEVICE_TYPE_DEFAULT:
         return device_type::automatic;
@@ -247,10 +246,12 @@ public:
       case UR_DEVICE_TYPE_MCA:
       case UR_DEVICE_TYPE_VPU:
         return device_type::custom;
+      default: {
+        assert(false);
+        // FIXME: what is that???
+        return device_type::custom;
       }
-      assert(false);
-      // FIXME: what is that???
-      return device_type::custom;
+      }
     }
 
     CASE(info::device::max_work_item_sizes<3>) {
