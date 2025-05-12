@@ -6,7 +6,7 @@
 // CHECK: error: SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute
 // CHECK: note: '_invalid_parameter' declared here
 
-#include <sycl/sycl.hpp>
+#include <sycl/queue.hpp>
 
 int main() {
   sycl::queue q;
