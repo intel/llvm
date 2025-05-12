@@ -51,7 +51,6 @@ enum ur_ze_external_memory_desc_type {
 
 struct ur_ze_external_memory_data {
   void *importExtensionDesc;
-  ur_mem_handle_t urMemoryHandle;
   enum ur_ze_external_memory_desc_type type;
   size_t size;
 };

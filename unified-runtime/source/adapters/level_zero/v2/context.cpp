@@ -51,7 +51,8 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
     : hContext(hContext, ownZeContext),
       hDevices(phDevices, phDevices + numDevices),
       commandListCache(hContext,
-                       phDevices[0]->Platform->ZeCopyOffloadExtensionSupported),
+                       {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
+                        phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
       eventPoolCache(
           this, phDevices[0]->Platform->getNumDevices(),
           [context = this](DeviceId /* deviceId*/, v2::event_flags_t flags)

@@ -91,8 +91,8 @@ TEST_P(urEventGetProfilingInfoTest, SuccessCommandComplete) {
 }
 
 TEST_P(urEventGetProfilingInfoTest, Success) {
-  // AMD/CUDA devices may report a "start" time before the "submit" time
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
+  // AMD devices may report a "start" time before the "submit" time
+  UUR_KNOWN_FAILURE_ON(uur::HIP{});
 
   // If a and b are supported, asserts that a <= b
   auto test_timing = [=](ur_profiling_info_t a, ur_profiling_info_t b) {

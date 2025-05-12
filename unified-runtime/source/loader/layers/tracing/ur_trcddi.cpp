@@ -7618,6 +7618,49 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesFreeMappedLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) {
+  auto pfnFreeMappedLinearMemoryExp =
+      getContext()->urDdiTable.BindlessImagesExp.pfnFreeMappedLinearMemoryExp;
+
+  if (nullptr == pfnFreeMappedLinearMemoryExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_bindless_images_free_mapped_linear_memory_exp_params_t params = {
+      &hContext, &hDevice, &pMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP,
+      "urBindlessImagesFreeMappedLinearMemoryExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urBindlessImagesFreeMappedLinearMemoryExp\n");
+
+  ur_result_t result = pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
+
+  getContext()->notify_end(
+      UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP,
+      "urBindlessImagesFreeMappedLinearMemoryExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP,
+        &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urBindlessImagesFreeMappedLinearMemoryExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -10267,6 +10310,11 @@ __urdlllocal ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   dditable.pfnReleaseExternalMemoryExp = pDdiTable->pfnReleaseExternalMemoryExp;
   pDdiTable->pfnReleaseExternalMemoryExp =
       ur_tracing_layer::urBindlessImagesReleaseExternalMemoryExp;
+
+  dditable.pfnFreeMappedLinearMemoryExp =
+      pDdiTable->pfnFreeMappedLinearMemoryExp;
+  pDdiTable->pfnFreeMappedLinearMemoryExp =
+      ur_tracing_layer::urBindlessImagesFreeMappedLinearMemoryExp;
 
   dditable.pfnImportExternalSemaphoreExp =
       pDdiTable->pfnImportExternalSemaphoreExp;
