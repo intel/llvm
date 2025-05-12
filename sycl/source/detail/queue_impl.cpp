@@ -442,7 +442,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
   };
   detail::type_erased_cgfo_ty CGF{L};
 
-  if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+  if (!CallerNeedsEvent) {
     submit_without_event(CGF, Self, SI,
                          /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
     return createDiscardedEvent();
@@ -471,7 +471,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
                                 ExpandedDepEvents, MContext)) {
-      if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+      if (!CallerNeedsEvent) {
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr);
