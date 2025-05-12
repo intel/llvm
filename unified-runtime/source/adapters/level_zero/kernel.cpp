@@ -279,15 +279,11 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
 
   if (LocalWorkSize) {
     // L0
-    UR_ASSERT(LocalWorkSize[0] < (std::numeric_limits<uint32_t>::max)(),
-              UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(LocalWorkSize[1] < (std::numeric_limits<uint32_t>::max)(),
-              UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(LocalWorkSize[2] < (std::numeric_limits<uint32_t>::max)(),
-              UR_RESULT_ERROR_INVALID_VALUE);
-    WG[0] = static_cast<uint32_t>(LocalWorkSize[0]);
-    WG[1] = static_cast<uint32_t>(LocalWorkSize[1]);
-    WG[2] = static_cast<uint32_t>(LocalWorkSize[2]);
+    for (uint32_t I = 0; I < WorkDim; I++) {
+      UR_ASSERT(LocalWorkSize[I] < (std::numeric_limits<uint32_t>::max)(),
+                UR_RESULT_ERROR_INVALID_VALUE);
+      WG[I] = static_cast<uint32_t>(LocalWorkSize[I]);
+    }
   } else {
     // We can't call to zeKernelSuggestGroupSize if 64-bit GlobalWorkSize
     // values do not fit to 32-bit that the API only supports currently.
