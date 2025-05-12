@@ -43,19 +43,12 @@ struct urEnqueueCommandBufferExpTest
                                     &zero_pattern, allocation_size, 0, nullptr,
                                     nullptr));
 
-    const int num_copy_buffers = 8;
+    const int num_copy_buffers = 10;
     const int buffer_size = 512;
     int* dst_buffers[num_copy_buffers];
     int* src_buffers[num_copy_buffers];
-    // int* src;
-    // int* dst;
 
     std::vector<int> temp_val(buffer_size, 3);
-
-    // ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr, buffer_size * sizeof(int), (void**) &(dst)));
-      
-    // ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr, buffer_size * sizeof(int), (void**) &(src)));
-    // ASSERT_SUCCESS(urEnqueueUSMMemcpy(in_order_queue, false, src, temp_val.data(), buffer_size * sizeof(int), 0, nullptr, nullptr));
 
     for (int i = 0; i < num_copy_buffers; i++) {
       ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr, buffer_size * sizeof(int), (void**) &(dst_buffers[i])));
@@ -163,15 +156,11 @@ TEST_P(urEnqueueCommandBufferExpTest, SerializeOutofOrderQueue) {
 }
 
 TEST_P(urEnqueueCommandBufferExpTest, SerializeInOrderQueue) {
-  const int iterations = 5;
+  const int iterations = 100;
   for (int i = 0; i < iterations; i++) {
     ASSERT_SUCCESS(urEnqueueCommandBufferExp(in_order_queue, cmd_buf_handle,
                                            0, nullptr, nullptr));
   }
-  // ASSERT_SUCCESS(urEnqueueCommandBufferExp(in_order_queue, cmd_buf_handle,
-                                          //  0, nullptr, nullptr));
-  // ASSERT_SUCCESS(urEnqueueCommandBufferExp(in_order_queue, cmd_buf_handle,
-                                          //  0, nullptr, nullptr));
 
   // Wait for both submissions to complete
   ASSERT_SUCCESS(urQueueFinish(in_order_queue));
