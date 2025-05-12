@@ -7,33 +7,38 @@
 //===----------------------------------------------------------------------===//
 
 // When std::array is used in device code, MSVC's STL uses a _invalid_parameter
-// function. However, since MSVC's STL never defined the function as
-// SYCL_EXTERNAL, errors are thrown.
+// function. This causes issue when _invalid_parameter is invoked from device
+// code:
 
-// As a workaround, this wrapper wraps around corecrt.h and defines an
-// _invalid_parameter with __DPCPP_SYCL_EXTERNAL upon device code compilation.
+// 1. `_invalid_parameter` is provided via ucrtbased.dll at runtime: DLLs are
+//    not loaded for device code, thus causing undefined symbol errors.
+
+// 2. MSVC's STL never defined the function as SYCL_EXTERNAL, errors are thrown
+//    when device code tries to invoke `_invalid_parameter`.
+
+// As a workaround, this wrapper wraps around corecrt.h and defines a custom
+// _invalid_parameter for device code compilation.
 
 // This new SYCL_EXTERNAL definition of _invalid_parameter has to be declared
-// before corecrt.h is included as otherwise we would not get SYCL_EXTERNAL on
-// _invalid_parameter: Thus we have this STL wrapper instead of declaring
-// _invalid_parameter function in SYCL headers.
+// before corecrt.h is included: Thus, we have this STL wrapper instead of
+// declaring _invalid_parameter function in SYCL headers.
 
 #pragma once
 
-#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(_DEBUG)
 
 #include <sycl/detail/defines_elementary.hpp>  // For __DPCPP_SYCL_EXTERNAL
-#include <cstdint>
+#include <cstdint> // For uintptr_t
 
-// STL containers should be safe for concurrent reads, but it is runtime's
-// responsibility to manage write hazards.
 extern "C" __DPCPP_SYCL_EXTERNAL void __cdecl _invalid_parameter(
 	wchar_t const*,
 	wchar_t const*,
 	wchar_t const*,
 	unsigned int,
 	uintptr_t
-);
+) {
+	// Do nothing when called in device code
+}
 
 #endif
 
