@@ -160,9 +160,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled},
-      MFallbackProfiling{MIsProfilingEnabled && Queue &&
-                         Queue->isProfilingFallback()} {
+    : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled} {
   if (Queue)
     this->setContextImpl(Queue->getContextImplPtr());
   else {
@@ -181,7 +179,6 @@ event_impl::event_impl(const QueueImplPtr &Queue)
 void event_impl::setQueue(const QueueImplPtr &Queue) {
   MQueue = Queue;
   MIsProfilingEnabled = Queue->MIsProfilingEnabled;
-  MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
 
   // TODO After setting the queue, the event is no longer default
   // constructed. Consider a design change which would allow
@@ -348,17 +345,8 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   if (!MIsHostEvent) {
     auto Handle = getHandle();
     if (Handle) {
-      auto StartTime =
-          get_event_profiling_info<info::event_profiling::command_start>(
-              Handle, this->getAdapter());
-      if (!MFallbackProfiling) {
-        return StartTime;
-      } else {
-        auto DeviceBaseTime =
-            get_event_profiling_info<info::event_profiling::command_submit>(
-                Handle, this->getAdapter());
-        return MHostBaseTime - DeviceBaseTime + StartTime;
-      }
+      return get_event_profiling_info<info::event_profiling::command_start>(
+          Handle, this->getAdapter());
     }
     return 0;
   }
@@ -376,17 +364,8 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   if (!MIsHostEvent) {
     auto Handle = this->getHandle();
     if (Handle) {
-      auto EndTime =
-          get_event_profiling_info<info::event_profiling::command_end>(
-              Handle, this->getAdapter());
-      if (!MFallbackProfiling) {
-        return EndTime;
-      } else {
-        auto DeviceBaseTime =
-            get_event_profiling_info<info::event_profiling::command_submit>(
-                Handle, this->getAdapter());
-        return MHostBaseTime - DeviceBaseTime + EndTime;
-      }
+      return get_event_profiling_info<info::event_profiling::command_end>(
+          Handle, this->getAdapter());
     }
     return 0;
   }
@@ -519,11 +498,6 @@ ur_native_handle_t event_impl::getNative() {
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
-  if (MState == HES_Discarded)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_wait_list() cannot be used for a discarded event.");
-
   std::lock_guard<std::mutex> Lock(MMutex);
 
   std::vector<EventImplPtr> Result;
@@ -587,38 +561,25 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
-  if (!MFallbackProfiling) {
-    if (QueueImplPtr Queue = MQueue.lock()) {
-      try {
-        MSubmitTime = Queue->getDeviceImpl().getCurrentDeviceTime();
-      } catch (sycl::exception &e) {
-        if (e.code() == sycl::errc::feature_not_supported)
-          throw sycl::exception(
-              make_error_code(errc::profiling),
-              std::string("Unable to get command group submission time: ") +
-                  e.what());
-        std::rethrow_exception(std::current_exception());
-      }
-    } else {
-      // Returning host time
-      using namespace std::chrono;
-      MSubmitTime =
-          duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-              .count();
+
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    try {
+      MSubmitTime = Queue->getDeviceImpl().getCurrentDeviceTime();
+    } catch (sycl::exception &e) {
+      if (e.code() == sycl::errc::feature_not_supported)
+        throw sycl::exception(
+            make_error_code(errc::profiling),
+            std::string("Unable to get command group submission time: ") +
+                e.what());
+      std::rethrow_exception(std::current_exception());
     }
   } else {
-    // Capture the host timestamp for a return value of function call
-    // <info::event_profiling::command_submit>. See MFallbackProfiling
-    MSubmitTime = getTimestamp();
+    // Returning host time
+    using namespace std::chrono;
+    MSubmitTime = duration_cast<nanoseconds>(
+                      high_resolution_clock::now().time_since_epoch())
+                      .count();
   }
-}
-
-void event_impl::setHostEnqueueTime() {
-  if (!MIsProfilingEnabled || !MFallbackProfiling)
-    return;
-  // Capture a host timestamp to use normalize profiling time in
-  // <command_start> and <command_end>. See MFallbackProfiling
-  MHostBaseTime = getTimestamp();
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }

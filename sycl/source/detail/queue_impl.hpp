@@ -12,7 +12,6 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/device_info.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
@@ -119,24 +118,12 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     verifyProps(PropList);
     if (has_property<property::queue::enable_profiling>()) {
-      if (has_property<ext::oneapi::property::queue::discard_events>())
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Queue cannot be constructed with both of "
-                              "discard_events and enable_profiling.");
-      // fallback profiling support. See MFallbackProfiling
-      if (MDevice.has(aspect::queue_profiling)) {
-        // When urDeviceGetGlobalTimestamps is not supported, compute the
-        // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImpl().isGetDeviceAndHostTimerSupported())
-          MFallbackProfiling = true;
-      } else {
+      if (!MDevice.has(aspect::queue_profiling)) {
         throw sycl::exception(make_error_code(errc::feature_not_supported),
                               "Cannot enable profiling, the associated device "
                               "does not have the queue_profiling aspect");
@@ -223,8 +210,6 @@ public:
         }()),
         MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
         MQueue(UrQueue), MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
@@ -297,9 +282,6 @@ public:
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
 
-  /// \return true if the discard event property was set at time of creation.
-  bool hasDiscardEventsProperty() const { return MDiscardEvents; }
-
   /// \return true if this queue allows for discarded events.
   bool supportsDiscardingPiEvents() const { return MIsInorder; }
 
@@ -351,7 +333,7 @@ public:
 #endif
   ) {
     event ResEvent;
-    SubmissionInfo SI{};
+    v1::SubmissionInfo SI{};
     SI.SecondaryQueue() = SecondQueue;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (PostProcess)
@@ -371,18 +353,18 @@ public:
   /// \return a SYCL event object for the submitted command group.
   event submit_with_event(const detail::type_erased_cgfo_ty &CGF,
                           const std::shared_ptr<queue_impl> &Self,
-                          const SubmissionInfo &SubmitInfo,
+                          const v1::SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
     event ResEvent =
         submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
-    return discard_or_return(ResEvent);
+    return ResEvent;
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const std::shared_ptr<queue_impl> &Self,
-                            const SubmissionInfo &SubmitInfo,
+                            const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
     submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
@@ -447,11 +429,6 @@ public:
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
     }
-    if (PropList.has_property<ext::oneapi::property::queue::discard_events>()) {
-      // Pass this flag to the Level Zero adapter to be able to check it from
-      // queue property.
-      CreationFlags |= UR_QUEUE_FLAG_DISCARD_EVENTS;
-    }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
     if (PropList
@@ -476,22 +453,21 @@ public:
       }
       CreationFlags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
     }
-    // Track that submission modes do not conflict.
-    bool SubmissionSeen = false;
-    if (PropList.has_property<
-            ext::intel::property::queue::no_immediate_command_list>()) {
-      SubmissionSeen = true;
-      CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
-    }
-    if (PropList.has_property<
-            ext::intel::property::queue::immediate_command_list>()) {
-      if (SubmissionSeen) {
+    {
+      // Track that submission modes do not conflict.
+      bool no_imm_cmdlist = PropList.has_property<
+          ext::intel::property::queue::no_immediate_command_list>();
+      bool imm_cmdlist = PropList.has_property<
+          ext::intel::property::queue::immediate_command_list>();
+      if (no_imm_cmdlist && imm_cmdlist) {
         throw sycl::exception(
             make_error_code(errc::invalid),
-            "Queue cannot be constructed with different submission modes.");
+            "Queue cannot be constructed with conflicting submission modes.");
       }
-      SubmissionSeen = true;
-      CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+      if (no_imm_cmdlist)
+        CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+      if (imm_cmdlist)
+        CreationFlags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     }
     return CreationFlags;
   }
@@ -608,7 +584,7 @@ public:
     MStreamsServiceEvents.push_back(Event);
   }
 
-  bool ext_oneapi_empty() const;
+  bool queue_empty() const;
 
   event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                              void *DeviceGlobalPtr, const void *Src,
@@ -621,8 +597,6 @@ public:
                                size_t Offset,
                                const std::vector<event> &DepEvents,
                                bool CallerNeedsEvent);
-
-  bool isProfilingFallback() { return MFallbackProfiling; }
 
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
@@ -706,8 +680,6 @@ public:
 #endif
 
 protected:
-  event discard_or_return(const event &Event);
-
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
@@ -845,7 +817,7 @@ protected:
                     const std::shared_ptr<queue_impl> &Self,
                     queue_impl *SecondaryQueue, bool CallerNeedsEvent,
                     const detail::code_location &Loc, bool IsTopCodeLoc,
-                    const SubmissionInfo &SubmitInfo);
+                    const v1::SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
@@ -988,9 +960,6 @@ protected:
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 
-  // the fallback implementation of profiling info
-  bool MFallbackProfiling = false;
-
   // This event can be optionally provided by users for in-order queues to add
   // an additional dependency for the subsequent submission in to the queue.
   // Access to the event should be guarded with mutex.
@@ -998,8 +967,6 @@ protected:
   CheckLockCheck<std::optional<event>> MInOrderExternalEvent;
 
 public:
-  // Queue constructed with the discard_events property
-  const bool MDiscardEvents;
   const bool MIsProfilingEnabled;
 
 protected:

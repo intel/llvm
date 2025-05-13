@@ -11,7 +11,6 @@
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/split_string.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
@@ -565,17 +564,6 @@ ur_native_handle_t platform_impl::getNative() const {
   return Handle;
 }
 
-template <typename Param>
-typename Param::return_type platform_impl::get_info() const {
-  std::string InfoStr = urGetInfoString<UrApiKind::urPlatformGetInfo>(
-      *this, detail::UrInfoCode<Param>::value);
-  if constexpr (std::is_same_v<Param, info::platform::extensions>) {
-    return split_string(InfoStr, ' ');
-  } else {
-    return InfoStr;
-  }
-}
-
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
@@ -644,12 +632,6 @@ device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
   }
   return nullptr;
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template ReturnT platform_impl::get_info<info::platform::Desc>() const;
-
-#include <sycl/info/platform_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace _V1

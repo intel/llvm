@@ -154,8 +154,7 @@ extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *Message,
-                                      ur_result_t ErrorCode);
+[[maybe_unused]] void setErrorMessage(const char *Message, int32_t ErrorCode);
 } // namespace cl_adapter
 
 namespace cl_ext {

@@ -300,7 +300,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
 
     - name: Remove E2E tests before spirv-backend run
@@ -315,5 +315,5 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_spirv_backend
-        cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param spirv-backend=True

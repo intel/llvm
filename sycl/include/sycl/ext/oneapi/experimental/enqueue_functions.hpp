@@ -417,15 +417,15 @@ inline void partial_barrier(queue Q, const std::vector<event> &Events,
       CodeLoc);
 }
 
-inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
-                          const sycl::detail::code_location &CodeLoc =
-                              sycl::detail::code_location::current()) {
-  Q.ext_oneapi_graph(G, CodeLoc);
-}
-
 inline void execute_graph(handler &CGH,
                           command_graph<graph_state::executable> &G) {
   CGH.ext_oneapi_graph(G);
+}
+
+inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current()) {
+  submit(std::move(Q), [&](handler &CGH) { execute_graph(CGH, G); }, CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental

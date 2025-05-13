@@ -107,6 +107,27 @@ void *&getDllHandle() {
   return dllHandle;
 }
 
+static bool shouldLoadL0V2adapter() {
+  auto SyclEnv = std::getenv("SYCL_UR_USE_LEVEL_ZERO_V2");
+  auto UREvn = std::getenv("UR_LOADER_USE_LEVEL_ZERO_V2");
+
+  try {
+    if (SyclEnv && std::stoi(SyclEnv) == 1) {
+      return true;
+    }
+  } catch (...) {
+  }
+
+  try {
+    if (UREvn && std::atoi(UREvn) == 1) {
+      return true;
+    }
+  } catch (...) {
+  }
+
+  return false;
+}
+
 /// Load the adapter libraries
 void preloadLibraries() {
   // Suppress system errors.
@@ -142,7 +163,8 @@ void preloadLibraries() {
   getDllHandle() = loadAdapter(UR_LIBRARY_NAME(loader));
   loadAdapter(UR_LIBRARY_NAME(adapter_opencl));
   loadAdapter(UR_LIBRARY_NAME(adapter_level_zero));
-  loadAdapter(UR_LIBRARY_NAME(adapter_level_zero_v2));
+  if (shouldLoadL0V2adapter())
+    loadAdapter(UR_LIBRARY_NAME(adapter_level_zero_v2));
   loadAdapter(UR_LIBRARY_NAME(adapter_cuda));
   loadAdapter(UR_LIBRARY_NAME(adapter_hip));
   loadAdapter(UR_LIBRARY_NAME(adapter_native_cpu));

@@ -106,9 +106,15 @@ target_include_directories(LevelZeroLoader-Headers
               "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 
-# Fetch only if UR_COMPUTE_RUNTIME_FETCH_REPO is set to ON.
-if (UR_COMPUTE_RUNTIME_FETCH_REPO)
-
+find_path(L0_COMPUTE_RUNTIME_HEADERS
+  NAMES "ze_intel_gpu.h"
+  PATH_SUFFIXES "level_zero"
+)
+if(NOT UR_COMPUTE_RUNTIME_REPO AND L0_COMPUTE_RUNTIME_HEADERS)
+    set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${L0_COMPUTE_RUNTIME_HEADERS}")
+    set(COMPUTE_RUNTIME_REPO_PATH "${L0_COMPUTE_RUNTIME_HEADERS}")
+elseif (UR_COMPUTE_RUNTIME_FETCH_REPO)
+    # Fetch only if UR_COMPUTE_RUNTIME_FETCH_REPO is set to ON.
     if (UR_COMPUTE_RUNTIME_REPO STREQUAL "")
         set(UR_COMPUTE_RUNTIME_REPO "https://github.com/intel/compute-runtime.git")
     endif()

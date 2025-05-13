@@ -97,8 +97,8 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &UnmappedFlag : UnmappedMemAdviceFlags) {
     if (URAdviceFlags & UnmappedFlag) {
-      logger::warning("Memory advice ignored because the CUDA backend does not "
-                      "support some of the specified flags.");
+      UR_LOG(WARN, "Memory advice ignored because the CUDA backend does not "
+                   "support some of the specified flags.");
       return UR_RESULT_SUCCESS;
     }
   }
@@ -1603,24 +1603,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
   ur_device_handle_t Device = hQueue->getDevice();
 
-  // Certain cuda devices and Windows do not have support for some Unified
-  // Memory features. cuMemPrefetchAsync requires concurrent memory access
-  // for managed memory. Therefore, ignore prefetch hint if concurrent managed
-  // memory access is not available.
-  if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
-    logger::warning("Prefetch hint ignored as device does not support "
-                    "concurrent managed access.");
-    return UR_RESULT_SUCCESS;
-  }
-
-  unsigned int IsManaged;
-  UR_CHECK_ERROR(cuPointerGetAttribute(
-      &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
-  if (!IsManaged) {
-    logger::warning("Prefetch hint ignored as prefetch only works with USM.");
-    return UR_RESULT_SUCCESS;
-  }
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
@@ -1635,12 +1617,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
               UR_COMMAND_MEM_BUFFER_COPY, hQueue, CuStream));
       UR_CHECK_ERROR(EventPtr->start());
     }
+
+    // Ensure we release the event even on early exit
+    OnScopeExit ReleaseEvent([&]() {
+      if (phEvent) {
+        UR_CHECK_ERROR(EventPtr->record());
+        *phEvent = EventPtr.release();
+      }
+    });
+
+    // Certain cuda devices and Windows do not have support for some Unified
+    // Memory features. cuMemPrefetchAsync requires concurrent memory access
+    // for managed memory. Therefore, ignore prefetch hint if concurrent managed
+    // memory access is not available.
+    if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+      UR_LOG(WARN, "Prefetch hint ignored as device does not support "
+                   "concurrent managed access.");
+      return UR_RESULT_SUCCESS;
+    }
+
+    unsigned int IsManaged;
+    UR_CHECK_ERROR(cuPointerGetAttribute(
+        &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
+    if (!IsManaged) {
+      UR_LOG(WARN, "Prefetch hint ignored as prefetch only works with USM.");
+      return UR_RESULT_SUCCESS;
+    }
+
     UR_CHECK_ERROR(
         cuMemPrefetchAsync((CUdeviceptr)pMem, size, Device->get(), CuStream));
-    if (phEvent) {
-      UR_CHECK_ERROR(EventPtr->record());
-      *phEvent = EventPtr.release();
-    }
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -1656,38 +1661,6 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
-  // Certain cuda devices and Windows do not have support for some Unified
-  // Memory features. Passing CU_MEM_ADVISE_SET/CLEAR_PREFERRED_LOCATION and
-  // to cuMemAdvise on a GPU device requires the GPU device to report a non-zero
-  // value for CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS. Therfore, ignore
-  // memory advise if concurrent managed memory access is not available.
-  if ((advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION) ||
-      (advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION) ||
-      (advice & UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE) ||
-      (advice & UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE) ||
-      (advice & UR_USM_ADVICE_FLAG_DEFAULT)) {
-    ur_device_handle_t Device = hQueue->getDevice();
-    if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
-      logger::warning("Mem advise ignored as device does not support "
-                      "concurrent managed access.");
-      return UR_RESULT_SUCCESS;
-    }
-
-    // TODO: If ptr points to valid system-allocated pageable memory we should
-    // check that the device also has the
-    // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
-  }
-
-  unsigned int IsManaged;
-  UR_CHECK_ERROR(cuPointerGetAttribute(
-      &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
-  if (!IsManaged) {
-    setErrorMessage(
-        "Memory advice ignored as memory advices only works with USM",
-        UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-  }
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
@@ -1699,6 +1672,47 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream()));
       UR_CHECK_ERROR(EventPtr->start());
+    }
+
+    // Ensure we release the event even on early exit
+    OnScopeExit ReleaseEvent([&]() {
+      if (phEvent) {
+        UR_CHECK_ERROR(EventPtr->record());
+        *phEvent = EventPtr.release();
+      }
+    });
+
+    // Certain cuda devices and Windows do not have support for some Unified
+    // Memory features. Passing CU_MEM_ADVISE_SET/CLEAR_PREFERRED_LOCATION and
+    // to cuMemAdvise on a GPU device requires the GPU device to report a
+    // non-zero value for CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS.
+    // Therfore, ignore memory advise if concurrent managed memory access is not
+    // available.
+    if ((advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION) ||
+        (advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION) ||
+        (advice & UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE) ||
+        (advice & UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE) ||
+        (advice & UR_USM_ADVICE_FLAG_DEFAULT)) {
+      ur_device_handle_t Device = hQueue->getDevice();
+      if (!getAttribute(Device,
+                        CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+        UR_LOG(WARN, "Mem advise ignored as device does not support "
+                     "concurrent managed access.");
+        return UR_RESULT_SUCCESS;
+      }
+
+      // TODO: If ptr points to valid system-allocated pageable memory we should
+      // check that the device also has the
+      // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
+    }
+
+    unsigned int IsManaged;
+    UR_CHECK_ERROR(cuPointerGetAttribute(
+        &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
+    if (!IsManaged) {
+      UR_LOG(WARN,
+             "Memory advice ignored as memory advices only works with USM.");
+      return UR_RESULT_SUCCESS;
     }
 
     if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
@@ -1714,11 +1728,6 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     } else {
       Result = setCuMemAdvise((CUdeviceptr)pMem, size, advice,
                               hQueue->getDevice()->get());
-    }
-
-    if (phEvent) {
-      UR_CHECK_ERROR(EventPtr->record());
-      *phEvent = EventPtr.release();
     }
   } catch (ur_result_t err) {
     Result = err;

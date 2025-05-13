@@ -1159,8 +1159,6 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type and be declared at file
-// scope, outside any namespaces.
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
@@ -1168,12 +1166,6 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
     for (const auto &NameValuePair : NameValuePairs) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
           NameValuePair.first == "sycl-single-task-kernel") {
-        if (!FD->getReturnType()->isVoidType()) {
-          llvm::report_fatal_error(
-              "Only functions at file scope with void return "
-              "type are permitted as free functions");
-          return false;
-        }
         return true;
       }
     }
@@ -5791,8 +5783,29 @@ void SemaSYCL::MarkDevices() {
   }
 }
 
+static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
+  if (FD->isVariadic()) {
+    return S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
+  }
+
+  if (!FD->getReturnType()->isVoidType()) {
+    return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
+  }
+
+  for (ParmVarDecl *Param : FD->parameters()) {
+    if (Param->hasDefaultArg()) {
+      return S.Diag(Param->getLocation(),
+                    diag::err_free_function_with_default_arg)
+             << Param->getSourceRange();
+    }
+  }
+  return false;
+}
+
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
+    if (CheckFreeFunctionDiagnostics(SemaRef, FD))
+      return;
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
@@ -6491,16 +6504,36 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 
 class FreeFunctionPrinter {
   raw_ostream &O;
+  PrintingPolicy &Policy;
   bool NSInserted = false;
 
 public:
-  FreeFunctionPrinter(raw_ostream &O) : O(O) {}
+  FreeFunctionPrinter(raw_ostream &O, PrintingPolicy &PrintPolicy)
+      : O(O), Policy(PrintPolicy) {}
+
+  /// Emits the function declaration of template free function.
+  /// \param FTD The function declaration to print.
+  /// \param S Sema object.
+  void printFreeFunctionDeclaration(FunctionTemplateDecl *FTD,
+                                    clang::SemaSYCL &S) {
+    const FunctionDecl *TemplatedDecl = FTD->getTemplatedDecl();
+    if (!TemplatedDecl)
+      return;
+    const std::string TemplatedDeclParams =
+        getTemplatedParamList(TemplatedDecl->parameters(), Policy);
+    const std::string TemplateParams =
+        getTemplateParameters(FTD->getTemplateParameters(), S);
+    printFreeFunctionDeclaration(TemplatedDecl, TemplatedDeclParams,
+                                 TemplateParams);
+  }
 
   /// Emits the function declaration of a free function.
   /// \param FD The function declaration to print.
   /// \param Args The arguments of the function.
+  /// \param TemplateParameters The template parameters of the function.
   void printFreeFunctionDeclaration(const FunctionDecl *FD,
-                                    const std::string &Args) {
+                                    const std::string &Args,
+                                    std::string_view TemplateParameters = "") {
     const DeclContext *DC = FD->getDeclContext();
     if (DC) {
       // if function in namespace, print namespace
@@ -6510,6 +6543,7 @@ public:
         // function
         NSInserted = true;
       }
+      O << TemplateParameters;
       O << FD->getReturnType().getAsString() << " ";
       O << FD->getNameAsString() << "(" << Args << ");";
       if (NSInserted) {
@@ -6533,6 +6567,95 @@ public:
     if (NSInserted)
       PrintNamespaces(O, FD, /*isPrintNamesOnly=*/true);
     O << FD->getIdentifier()->getName().data();
+    if (FD->getPrimaryTemplate()) {
+      std::string Buffer;
+      llvm::raw_string_ostream StringStream(Buffer);
+      const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
+      ArrayRef<TemplateArgument> A = TAL->asArray();
+      bool FirstParam = true;
+      for (const auto &X : A) {
+        if (FirstParam)
+          FirstParam = false;
+        else if (X.getKind() == TemplateArgument::Pack) {
+          for (const auto &PackArg : X.pack_elements()) {
+            StringStream << ", ";
+            PackArg.print(Policy, StringStream, true);
+          }
+          continue;
+        } else {
+          StringStream << ", ";
+        }
+
+        X.print(Policy, StringStream, true);
+      }
+      StringStream.flush();
+      if (Buffer.front() != '<')
+        Buffer = "<" + Buffer + ">";
+      O << Buffer;
+    }
+  }
+
+private:
+  /// Helper method to get arguments of templated function as a string
+  /// \param Parameters Array of parameters of the function.
+  /// \param Policy Printing policy.
+  /// returned string Example:
+  /// \code
+  ///  template <typename T1, typename T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "T1 a, T2 b"
+  std::string
+  getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> Parameters,
+                        PrintingPolicy Policy) {
+    bool FirstParam = true;
+    llvm::SmallString<128> ParamList;
+    llvm::raw_svector_ostream ParmListOstream{ParamList};
+    Policy.SuppressTagKeyword = true;
+    for (ParmVarDecl *Param : Parameters) {
+      if (FirstParam)
+        FirstParam = false;
+      else
+        ParmListOstream << ", ";
+      ParmListOstream << Param->getType().getAsString(Policy);
+      ParmListOstream << " " << Param->getNameAsString();
+    }
+    return ParamList.str().str();
+  }
+
+  /// Helper method to get text representation of the template parameters.
+  /// Throws an error if the last parameter is a pack.
+  /// \param TPL The template parameter list.
+  /// \param S The SemaSYCL object.
+  /// Example:
+  /// \code
+  ///  template <typename T1, class T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "template <typename T1, class T2> "
+  std::string getTemplateParameters(const clang::TemplateParameterList *TPL,
+                                    SemaSYCL &S) {
+    std::string TemplateParams{"template <"};
+    bool FirstParam{true};
+    for (NamedDecl *Param : *TPL) {
+      if (!FirstParam)
+        TemplateParams += ", ";
+      FirstParam = false;
+      if (const auto *TemplateParam = dyn_cast<TemplateTypeParmDecl>(Param)) {
+        TemplateParams +=
+            TemplateParam->wasDeclaredWithTypename() ? "typename " : "class ";
+        if (TemplateParam->isParameterPack())
+          TemplateParams += "... ";
+        TemplateParams += TemplateParam->getNameAsString();
+      } else if (const auto *NonTypeParam =
+                     dyn_cast<NonTypeTemplateParmDecl>(Param)) {
+        TemplateParams += NonTypeParam->getType().getAsString();
+        TemplateParams += " ";
+        TemplateParams += NonTypeParam->getNameAsString();
+      }
+    }
+    TemplateParams += "> ";
+    return TemplateParams;
   }
 };
 
@@ -6836,11 +6959,16 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         ParmList += ", ";
         ParmListWithNamesOstream << ", ";
       }
-      Policy.SuppressTagKeyword = true;
-      Param->getType().print(ParmListWithNamesOstream, Policy);
-      Policy.SuppressTagKeyword = false;
-      ParmListWithNamesOstream << " " << Param->getNameAsString();
-      ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+      if (Param->isParameterPack()) {
+        ParmListWithNamesOstream << "Args... args";
+        ParmList += "Args ...";
+      } else {
+        Policy.SuppressTagKeyword = true;
+        Param->getType().print(ParmListWithNamesOstream, Policy);
+        Policy.SuppressTagKeyword = false;
+        ParmListWithNamesOstream << " " << Param->getNameAsString();
+        ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+      }
     }
     ParmListWithNamesOstream.flush();
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
@@ -6876,30 +7004,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // template arguments that match default template arguments while printing
     // template-ids, even if the source code doesn't reference them.
     Policy.EnforceDefaultTemplateArgs = true;
-    FreeFunctionPrinter FFPrinter(O);
+    FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
-      FTD->print(O, Policy);
-      O << ";\n";
+      FFPrinter.printFreeFunctionDeclaration(FTD, S);
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
 
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
-    if (FTD) {
-      const TemplateArgumentList *TAL =
-          K.SyclKernel->getTemplateSpecializationArgs();
-      ArrayRef<TemplateArgument> A = TAL->asArray();
-      bool FirstParam = true;
-      O << "<";
-      for (const auto &X : A) {
-        if (FirstParam)
-          FirstParam = false;
-        else
-          O << ", ";
-        X.print(Policy, O, true);
-      }
-      O << ">";
-    }
     O << ";\n";
     O << "}\n";
     Policy.SuppressDefaultTemplateArgs = true;
