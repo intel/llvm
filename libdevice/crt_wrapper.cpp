@@ -128,8 +128,8 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
 }
 
 DEVICE_EXTERN_C
-void _invalid_parameter(wchar_t const *wexpr, wchar_t const *wfunc,
-                        wchar_t const *wfile, unsigned int line, uintptr_t) {
+void _invalid_parameter(wchar_t const *wexpr, wchar_t const *wfunc, wchar_t const *wfile,
+                        unsigned int line, uintptr_t) {
   // Paths and expressions that are longer than 256 characters are going to be
   // truncated.
   char expr[256];
