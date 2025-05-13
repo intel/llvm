@@ -3094,6 +3094,7 @@ private:
     return AttrsParsed;
   }
   void ParseMicrosoftUuidAttributeArgs(ParsedAttributes &Attrs);
+  void ParseMicrosoftRootSignatureAttributeArgs(ParsedAttributes &Attrs);
   void ParseMicrosoftAttributes(ParsedAttributes &Attrs);
   bool MaybeParseMicrosoftDeclSpecs(ParsedAttributes &Attrs) {
     if (getLangOpts().DeclSpecKeyword && Tok.is(tok::kw___declspec)) {
@@ -3537,6 +3538,9 @@ private:
   TypeResult parseOpenMPDeclareMapperVarDecl(SourceRange &Range,
                                              DeclarationName &Name,
                                              AccessSpecifier AS = AS_none);
+
+  /// Parses 'omp begin declare variant' directive.
+  bool ParseOpenMPDeclareBeginVariantDirective(SourceLocation Loc);
 
   /// Tries to parse cast part of OpenMP array shaping operation:
   /// '[' expression ']' { '[' expression ']' } ')'.
