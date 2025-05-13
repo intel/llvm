@@ -13,7 +13,7 @@
 #include "device.hpp"
 #include "platform.hpp"
 
-struct ur_device_handle_t_ {
+struct ur_device_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_device_id;
   native_type CLDevice;
   ur_platform_handle_t Platform;
@@ -24,7 +24,7 @@ struct ur_device_handle_t_ {
 
   ur_device_handle_t_(native_type Dev, ur_platform_handle_t Plat,
                       ur_device_handle_t Parent)
-      : CLDevice(Dev), Platform(Plat), ParentDevice(Parent) {
+      : handle_base(), CLDevice(Dev), Platform(Plat), ParentDevice(Parent) {
     RefCount = 1;
     if (Parent) {
       Type = Parent->Type;
