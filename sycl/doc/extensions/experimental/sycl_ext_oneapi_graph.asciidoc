@@ -1706,7 +1706,6 @@ all the nodes have finished execution.
 
 The queue should be associated with a device and context that are the same
 as the device and context used on creation of the graph.
-|====
 
 ==== New Handler Member Functions
 
