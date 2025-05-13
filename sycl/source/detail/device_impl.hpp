@@ -29,6 +29,28 @@ class platform;
 
 namespace detail {
 
+// Note that UR's enums have weird *_FORCE_UINT32 values, we ignore them in the
+// callers. But we also can't write a fully-covered switch without mentioning it
+// there, which wouldn't make any sense. As such, ensure that "real" values
+// match and then just `static_cast` them (in the caller).
+template <typename T0, typename T1>
+constexpr bool enums_match(std::initializer_list<T0> l0,
+                           std::initializer_list<T1> l1) {
+  using U0 = std::underlying_type_t<T0>;
+  using U1 = std::underlying_type_t<T1>;
+  using C = std::common_type_t<U0, U1>;
+  // std::equal isn't constexpr until C++20.
+  if (l0.size() != l1.size())
+    return false;
+  auto i0 = l0.begin();
+  auto e = l0.end();
+  auto i1 = l1.begin();
+  for (; i0 != e; ++i0, ++i1)
+    if (static_cast<C>(*i0) != static_cast<C>(*i1))
+      return false;
+  return true;
+}
+
 // Forward declaration
 class platform_impl;
 
@@ -208,6 +230,30 @@ public:
 
     // device_traits.def
 
+    CASE(info::device::device_type) {
+      using device_type = info::device_type;
+      switch (get_info_impl<ur_device_type_t, UR_DEVICE_INFO_TYPE>()) {
+      case UR_DEVICE_TYPE_DEFAULT:
+        return device_type::automatic;
+      case UR_DEVICE_TYPE_ALL:
+        return device_type::all;
+      case UR_DEVICE_TYPE_GPU:
+        return device_type::gpu;
+      case UR_DEVICE_TYPE_CPU:
+        return device_type::cpu;
+      case UR_DEVICE_TYPE_FPGA:
+        return device_type::accelerator;
+      case UR_DEVICE_TYPE_MCA:
+      case UR_DEVICE_TYPE_VPU:
+        return device_type::custom;
+      default: {
+        assert(false);
+        // FIXME: what is that???
+        return device_type::custom;
+      }
+      }
+    }
+
     CASE(info::device::max_work_item_sizes<3>) {
       auto result = get_info_impl<std::array<size_t, 3>,
                                   UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES>();
@@ -242,24 +288,46 @@ public:
       return get_fp_config<UR_DEVICE_INFO_DOUBLE_FP_CONFIG>();
     }
 
+    CASE(info::device::global_mem_cache_type) {
+      using cache = info::global_mem_cache_type;
+      static_assert(
+          enums_match({UR_DEVICE_MEM_CACHE_TYPE_NONE,
+                       UR_DEVICE_MEM_CACHE_TYPE_READ_ONLY_CACHE,
+                       UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE},
+                      {cache::none, cache::read_only, cache::read_write}));
+      return static_cast<cache>(
+          get_info_impl<ur_device_mem_cache_type_t,
+                        UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE>());
+    }
+
+    CASE(info::device::local_mem_type) {
+      using mem = info::local_mem_type;
+      static_assert(enums_match({UR_DEVICE_LOCAL_MEM_TYPE_NONE,
+                                 UR_DEVICE_LOCAL_MEM_TYPE_LOCAL,
+                                 UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL},
+                                {mem::none, mem::local, mem::global}));
+      return static_cast<mem>(get_info_impl<ur_device_local_mem_type_t,
+                                            UR_DEVICE_INFO_LOCAL_MEM_TYPE>());
+    }
+
     CASE(info::device::atomic_memory_order_capabilities) {
       return readMemoryOrderBitfield(
-          get_info_impl<ur_memory_order_capability_flag_t,
+          get_info_impl<ur_memory_order_capability_flags_t,
                         UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES>());
     }
     CASE(info::device::atomic_fence_order_capabilities) {
       return readMemoryOrderBitfield(
-          get_info_impl<ur_memory_order_capability_flag_t,
+          get_info_impl<ur_memory_order_capability_flags_t,
                         UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES>());
     }
     CASE(info::device::atomic_memory_scope_capabilities) {
       return readMemoryScopeBitfield(
-          get_info_impl<size_t,
+          get_info_impl<ur_memory_scope_capability_flags_t,
                         UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES>());
     }
     CASE(info::device::atomic_fence_scope_capabilities) {
       return readMemoryScopeBitfield(
-          get_info_impl<size_t,
+          get_info_impl<ur_memory_scope_capability_flags_t,
                         UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES>());
     }
 
@@ -269,8 +337,8 @@ public:
                         "info::device::execution_capabilities is available for "
                         "backend::opencl only");
 
-      ur_device_exec_capability_flag_t bits =
-          get_info_impl<ur_device_exec_capability_flag_t,
+      ur_device_exec_capability_flags_t bits =
+          get_info_impl<ur_device_exec_capability_flags_t,
                         UR_DEVICE_INFO_EXECUTION_CAPABILITIES>();
       std::vector<info::execution_capability> result;
       if (bits & UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL)
@@ -593,6 +661,12 @@ public:
       return get_matrix_combinations();
     }
 
+    CASE(ext::oneapi::experimental::info::device::mipmap_max_anisotropy) {
+      // Implicit conversion:
+      return get_info_impl<uint32_t,
+                           UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP>();
+    }
+
     CASE(ext::oneapi::experimental::info::device::component_devices) {
       auto Devs = get_info_impl_nocheck<std::vector<ur_device_handle_t>,
                                         UR_DEVICE_INFO_COMPONENT_DEVICES>();
@@ -627,6 +701,10 @@ public:
       throw sycl::exception(make_error_code(errc::invalid),
                             "A component with aspect::ext_oneapi_is_component "
                             "must have a composite device.");
+    }
+    CASE(ext::oneapi::info::device::num_compute_units) {
+      // uint32_t -> size_t
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_NUM_COMPUTE_UNITS>();
     }
 
     // ext_intel_device_traits.def
@@ -717,6 +795,11 @@ public:
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_memory_bus_width aspect");
       return get_info_impl<uint32_t, UR_DEVICE_INFO_MEMORY_BUS_WIDTH>();
+    }
+    CASE(ext::intel::info::device::max_compute_queue_indices) {
+      // uint32_t->int implicit conversion.
+      return get_info_impl<uint32_t,
+                           UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES>();
     }
     CASE(ext::intel::esimd::info::device::has_2d_block_io_support) {
       if (!has(aspect::ext_intel_esimd))
@@ -904,6 +987,17 @@ private:
                MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
   }
 
+  template <ur_device_info_t Desc> static constexpr auto ur_ret_type_impl() {
+    if constexpr (false) {
+    }
+#define MAP(VALUE, ...) else if constexpr (Desc == VALUE) return __VA_ARGS__{};
+#include "ur_device_info_ret_types.inc"
+#undef MAP
+  }
+
+  template <ur_device_info_t Desc>
+  using ur_ret_type = decltype(ur_ret_type_impl<Desc>());
+
   // This should really be
   //   std::expected<ReturnT, ur_result_t>
   // but we don't have C++23. Emulate close enough with as little code as
@@ -932,62 +1026,70 @@ private:
 
   template <typename ReturnT, ur_device_info_t Desc>
   expected<ReturnT, ur_result_t> get_info_impl_nocheck() const {
+    using ur_ret_t = ur_ret_type<Desc>;
     static_assert(!std::is_same_v<ReturnT, std::string>,
                   "Wasn't needed before.");
     if constexpr (std::is_same_v<ReturnT, bool>) {
       return get_info_impl_nocheck<ur_bool_t, Desc>();
-    } else if constexpr (is_std_vector_v<ReturnT>) {
-      static_assert(
-          !check_type_in_v<typename ReturnT::value_type, bool, std::string>);
-      size_t ResultSize = 0;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, 0, nullptr, &ResultSize);
-      if (Error != UR_RESULT_SUCCESS)
-        return {Error};
-      if (ResultSize == 0)
-        return {ReturnT{}};
-
-      ReturnT Result(ResultSize / sizeof(typename ReturnT::value_type));
-      Error = getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
-      if (Error != UR_RESULT_SUCCESS)
-        return {Error};
-      return {Result};
     } else {
-      ReturnT Result;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
-      if (Error == UR_RESULT_SUCCESS)
+      static_assert(std::is_same_v<ur_ret_t, ReturnT>);
+      if constexpr (is_std_vector_v<ReturnT>) {
+        static_assert(
+            !check_type_in_v<typename ReturnT::value_type, bool, std::string>);
+        size_t ResultSize = 0;
+        ur_result_t Error =
+            getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+                getHandleRef(), Desc, 0, nullptr, &ResultSize);
+        if (Error != UR_RESULT_SUCCESS)
+          return {Error};
+        if (ResultSize == 0)
+          return {ReturnT{}};
+
+        ReturnT Result(ResultSize / sizeof(typename ReturnT::value_type));
+        Error = getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
+        if (Error != UR_RESULT_SUCCESS)
+          return {Error};
         return {Result};
-      else
-        return {Error};
+      } else {
+        ReturnT Result;
+        ur_result_t Error =
+            getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+                getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+        if (Error == UR_RESULT_SUCCESS)
+          return {Result};
+        else
+          return {Error};
+      }
     }
   }
 
   template <typename ReturnT, ur_device_info_t Desc>
   ReturnT get_info_impl() const {
+    using ur_ret_t = ur_ret_type<Desc>;
     if constexpr (std::is_same_v<ReturnT, bool>) {
       return get_info_impl<ur_bool_t, Desc>();
-    } else if constexpr (std::is_same_v<ReturnT, std::string>) {
-      return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
-    } else if constexpr (is_std_vector_v<ReturnT>) {
-      size_t ResultSize = 0;
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
-                                                     nullptr, &ResultSize);
-      if (ResultSize == 0)
-        return {};
-
-      ReturnT Result(ResultSize / sizeof(typename ReturnT::value_type));
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
-      return Result;
     } else {
-      ReturnT Result;
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
-      return Result;
+      static_assert(std::is_same_v<ur_ret_t, ReturnT>);
+      if constexpr (std::is_same_v<ReturnT, std::string>) {
+        return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
+      } else if constexpr (is_std_vector_v<ReturnT>) {
+        size_t ResultSize = 0;
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
+                                                       nullptr, &ResultSize);
+        if (ResultSize == 0)
+          return {};
+
+        ReturnT Result(ResultSize / sizeof(typename ReturnT::value_type));
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+            getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
+        return Result;
+      } else {
+        ReturnT Result;
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+            getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+        return Result;
+      }
     }
   }
 

@@ -75,7 +75,6 @@ const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
   if (!UrRet)
     return 0;
-
   return std::atoi(UrRet);
 }();
 
