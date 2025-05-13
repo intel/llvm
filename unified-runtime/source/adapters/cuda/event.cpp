@@ -102,12 +102,9 @@ uint64_t ur_event_handle_t_::getEndTime() const {
 }
 
 ur_result_t ur_event_handle_t_::record() {
-
   if (isRecorded() || !isStarted()) {
     return UR_RESULT_ERROR_INVALID_EVENT;
   }
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
 
   UR_ASSERT(Queue, UR_RESULT_ERROR_INVALID_QUEUE);
 
@@ -118,26 +115,22 @@ ur_result_t ur_event_handle_t_::record() {
     }
     UR_CHECK_ERROR(cuEventRecord(EvEnd, Stream));
   } catch (ur_result_t error) {
-    Result = error;
+    return error;
   }
 
-  if (Result == UR_RESULT_SUCCESS) {
-    IsRecorded = true;
-  }
-
-  return Result;
+  IsRecorded = true;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_event_handle_t_::wait() {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     UR_CHECK_ERROR(cuEventSynchronize(EvEnd));
     HasBeenWaitedOn = true;
   } catch (ur_result_t error) {
-    Result = error;
+    return error;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_event_handle_t_::release() {

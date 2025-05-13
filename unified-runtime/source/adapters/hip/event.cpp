@@ -96,12 +96,9 @@ uint64_t ur_event_handle_t_::getEndTime() const {
 }
 
 ur_result_t ur_event_handle_t_::record() {
-
   if (isRecorded() || !isStarted()) {
     return UR_RESULT_ERROR_INVALID_EVENT;
   }
-
-  ur_result_t Result = UR_RESULT_ERROR_INVALID_OPERATION;
 
   UR_ASSERT(Queue, UR_RESULT_ERROR_INVALID_QUEUE);
 
@@ -111,28 +108,23 @@ ur_result_t ur_event_handle_t_::record() {
       die("Unrecoverable program state reached in event identifier overflow");
     }
     UR_CHECK_ERROR(hipEventRecord(EvEnd, Stream));
-    Result = UR_RESULT_SUCCESS;
   } catch (ur_result_t Error) {
-    Result = Error;
+    return Error;
   }
 
-  if (Result == UR_RESULT_SUCCESS) {
-    IsRecorded = true;
-  }
-
-  return Result;
+  IsRecorded = true;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_event_handle_t_::wait() {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
     HasBeenWaitedOn = true;
   } catch (ur_result_t Error) {
-    Result = Error;
+    return Error;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_event_handle_t_::release() {
