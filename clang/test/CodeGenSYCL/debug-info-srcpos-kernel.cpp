@@ -39,4 +39,3 @@ int main() {
 // CHECK: [[LINE_B0]] = !DILocation(line: 16,{{.*}}scope: [[BLOCK:![0-9]+]]
 // CHECK: [[BLOCK]] = distinct !DILexicalBlock(scope: [[KERNEL]]
 // CHECK: [[LINE_C0]] = !DILocation(line: 17,{{.*}}scope: [[KERNEL]]
-
