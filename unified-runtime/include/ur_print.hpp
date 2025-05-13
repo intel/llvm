@@ -3011,11 +3011,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
     os << "UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE";
     break;
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT:
+    os << "UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT";
+    break;
   case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT:
     os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT";
     break;
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT:
-    os << "UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT";
+  case UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT:
+    os << "UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4753,6 +4756,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
   case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
@@ -4766,7 +4782,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT: {
+  case UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size

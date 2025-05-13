@@ -978,6 +978,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_IL_VERSION:
     return ReturnValue("");
 
@@ -992,7 +996,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT:
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
   case UR_DEVICE_INFO_FAN_SPEED:
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:

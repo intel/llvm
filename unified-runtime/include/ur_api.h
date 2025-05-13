@@ -2327,12 +2327,15 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] support for native bfloat16 conversions
   UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
   /// [::ur_bool_t] return true if the device supports use of
-  /// ::UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION.
-  UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT = 128,
-  /// [::ur_bool_t] return true if the device supports use of
   /// ::UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and
   /// ::urKernelSuggestMaxCooperativeGroupCount.
-  UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT = 129,
+  UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT = 128,
+  /// [::ur_bool_t] return true if the device supports use of
+  /// ::UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION.
+  UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT = 129,
+  /// [::ur_bool_t] return true if the device supports use of
+  /// ::UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY.
+  UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT = 130,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -7677,13 +7680,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
 ///   _Analogues_
 ///     - **CUlaunchAttributeID**
 typedef enum ur_kernel_launch_property_id_t {
-  /// The property has no effect
+  /// The property has no effect.
   UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE = 0,
-  /// Whether to launch a cooperative kernel
+  /// Whether to launch a cooperative kernel.
   UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE = 1,
-  /// work-group cluster dimensions
+  /// work-group cluster dimensions.
   UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2,
-  /// Implicit work group memory allocation
+  /// Implicit work group memory allocation.
   UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY = 3,
   /// @cond
   UR_KERNEL_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff

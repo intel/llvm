@@ -447,6 +447,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT:
     return ReturnValue(false);
 
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT:
+    return ReturnValue(false);
+
+  case UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT:
+    return ReturnValue(false);
+
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
 

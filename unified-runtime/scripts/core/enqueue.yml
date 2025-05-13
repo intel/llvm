@@ -19,13 +19,13 @@ analogue:
     - "**CUlaunchAttributeID**"
 etors:
     - name: IGNORE
-      desc: "The property has no effect"
+      desc: "The property has no effect."
     - name: COOPERATIVE
-      desc: "Whether to launch a cooperative kernel"
+      desc: "Whether to launch a cooperative kernel."
     - name: CLUSTER_DIMENSION
-      desc: "work-group cluster dimensions"
+      desc: "work-group cluster dimensions."
     - name: WORK_GROUP_MEMORY
-      desc: "Implicit work group memory allocation"
+      desc: "Implicit work group memory allocation."
 --- #--------------------------------------------------------------------------
 type: union
 desc: "Specifies a launch property value"

@@ -2754,3 +2754,31 @@ TEST_P(urDeviceGetInfoComponentDevicesTest, SuccessComponentDevices) {
     }
   }
 }
+
+TEST_P(urDeviceGetInfoTest, SuccessCooperativeKernelSupport) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT;
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+  ASSERT_EQ(property_size, sizeof(ur_bool_t));
+
+  ur_bool_t property_value = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessImplicitWorkGroupMemorySupport) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT;
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+  ASSERT_EQ(property_size, sizeof(ur_bool_t));
+
+  ur_bool_t property_value = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+}

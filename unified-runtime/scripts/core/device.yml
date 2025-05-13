@@ -462,10 +462,12 @@ etors:
       desc: "[int32_t][optional-query] return max power limit in milliwatts."
     - name: BFLOAT16_CONVERSIONS_NATIVE
       desc: "[$x_bool_t] support for native bfloat16 conversions"
-    - name: CLUSTER_LAUNCH_SUPPORT
-      desc: "[$x_bool_t] return true if the device supports use of $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION."
     - name: COOPERATIVE_KERNEL_SUPPORT
       desc: "[$x_bool_t] return true if the device supports use of $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and $xKernelSuggestMaxCooperativeGroupCount."
+    - name: CLUSTER_LAUNCH_SUPPORT
+      desc: "[$x_bool_t] return true if the device supports use of $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION."
+    - name: IMPLICIT_WORK_GROUP_MEMORY_SUPPORT
+      desc: "[$x_bool_t] return true if the device supports use of $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
