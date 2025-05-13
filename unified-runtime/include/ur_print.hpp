@@ -12006,6 +12006,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY:
     os << "UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY";
     break;
+  case UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE:
+    os << "UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -12047,6 +12050,13 @@ inline ur_result_t printUnion(std::ostream &os,
     os << ".workgroup_mem_size = ";
 
     os << (params.workgroup_mem_size);
+
+    break;
+  case UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE:
+
+    os << ".opportunistic_queue_serialize = ";
+
+    os << (params.opportunistic_queue_serialize);
 
     break;
   default:

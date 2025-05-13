@@ -599,6 +599,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
       attr.value.cooperative = launchPropList[i].value.cooperative;
       break;
     }
+    case UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE: {
+      auto &attr = launch_attribute.emplace_back();
+      attr.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
+      attr.value.programmaticStreamSerializationAllowed =
+          launchPropList[i].value.opportunistic_queue_serialize;
+      break;
+    }
     case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY: {
       break;
     }
