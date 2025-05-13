@@ -17,6 +17,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
 #include <sycl/detail/export.hpp>
+#include <detail/kernel_program_cache.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
@@ -197,8 +198,7 @@ public:
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-             ur_program_handle_t>
+  KernelProgramCache::KernelFastCacheValTPtr
   getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {});
 

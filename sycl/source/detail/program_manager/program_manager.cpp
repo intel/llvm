@@ -1107,8 +1107,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 }
 // When caching is enabled, the returned UrProgram and UrKernel will
 // already have their ref count incremented.
-std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-           ur_program_handle_t>
+KernelProgramCache::KernelFastCacheValTPtr
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   device_impl &DeviceImpl,
                                   KernelNameStrRefT KernelName,
@@ -1126,15 +1125,19 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   auto key = std::make_pair(UrDevice, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(key);
+#if 0
     constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
     constexpr size_t Program = 3; // see KernelFastCacheValT tuple
-    if (std::get<Kernel>(ret_tuple)) {
+#endif
+    if (ret_tuple) {
+#if 0
       // Pulling a copy of a kernel and program from the cache,
       // so we need to retain those resources.
       ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-          std::get<Kernel>(ret_tuple));
+          std::get<Kernel>(*ret_tuple));
       ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
-          std::get<Program>(ret_tuple));
+          std::get<Program>(*ret_tuple));
+#endif
       return ret_tuple;
     }
   }
@@ -1174,22 +1177,26 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     // threads when caching is disabled, so we can return
     // nullptr for the mutex.
     auto [Kernel, ArgMask] = BuildF();
-    return make_tuple(Kernel, nullptr, ArgMask, Program);
+    return std::make_shared<KernelProgramCache::KernelFastCacheValT>(
+        Kernel, nullptr, ArgMask, Program, ContextImpl->getAdapter());
   }
 
   auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
-  auto ret_val = std::make_tuple(KernelArgMaskPair.first,
+  auto ret_val = std::make_shared<KernelProgramCache::KernelFastCacheValT>(
+                                 KernelArgMaskPair.first,
                                  &(BuildResult->MBuildResultMutex),
-                                 KernelArgMaskPair.second, Program);
+                                 KernelArgMaskPair.second, Program, ContextImpl->getAdapter());
+
   // If caching is enabled, one copy of the kernel handle will be
-  // stored in the cache, and one handle is returned to the
-  // caller. In that case, we need to increase the ref count of the
-  // kernel.
+  // stored in KernelProgramCache::KernelFastCacheT, and one is in
+  // KernelProgramCache::MKernelsPerProgramCache. To cover this,
+  // we need to increase the ref count of the kernel.
   ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
+
   Cache.saveKernel(key, ret_val);
   return ret_val;
 }

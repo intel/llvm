@@ -1463,7 +1463,7 @@ bool exec_graph_impl::needsScheduledUpdate(
 
 void exec_graph_impl::populateURKernelUpdateStructs(
     const std::shared_ptr<node_impl> &Node,
-    std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
+    KernelProgramCache::KernelFastCacheValTPtr &BundleObjs,
     std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
     std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
     std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
@@ -1499,11 +1499,9 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
-    ur_program_handle_t UrProgram = nullptr;
-    std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
+    BundleObjs =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, ExecCG.MKernelName);
-    BundleObjs = std::make_pair(UrProgram, UrKernel);
   }
 
   // Remove eliminated args
@@ -1698,7 +1696,7 @@ void exec_graph_impl::updateURImpl(
   std::vector<sycl::detail::NDRDescT> NDRDescList(NumUpdatableNodes);
   std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> UpdateDescList(
       NumUpdatableNodes);
-  std::vector<std::pair<ur_program_handle_t, ur_kernel_handle_t>>
+  std::vector<KernelProgramCache::KernelFastCacheValTPtr>
       KernelBundleObjList(NumUpdatableNodes);
 
   size_t StructListIndex = 0;
@@ -1724,7 +1722,7 @@ void exec_graph_impl::updateURImpl(
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   Adapter->call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
       CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
-
+#if 0
   for (auto &BundleObjs : KernelBundleObjList) {
     // We retained these objects by inside populateUpdateStruct() by calling
     // getOrCreateKernel()
@@ -1735,6 +1733,7 @@ void exec_graph_impl::updateURImpl(
       Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
     }
   }
+#endif
 }
 
 modifiable_command_graph::modifiable_command_graph(

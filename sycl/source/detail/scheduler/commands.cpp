@@ -1989,8 +1989,6 @@ void instrumentationAddExtraKernelMetadata(
   auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
     Args.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
   };
-  ur_kernel_handle_t Kernel = nullptr;
-  std::mutex *KernelMutex = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
   if (nullptr != SyclKernel) {
@@ -2005,10 +2003,10 @@ void instrumentationAddExtraKernelMetadata(
     // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
     //       by graph API, when a modifiable graph is finalized.
-    ur_program_handle_t Program = nullptr;
-    std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
+    KernelProgramCache::KernelFastCacheValTPtr KernelCacheVal =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName);
+    EliminatedArgMask = KernelCacheVal->MKernelArgMask;
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2526,9 +2524,15 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     ur_program_handle_t UrProgram = nullptr;
-    std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
+    KernelProgramCache::KernelFastCacheValTPtr KernelCacheVal =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+    UrKernel = KernelCacheVal->MKernelHandle;
+    EliminatedArgMask = KernelCacheVal->MKernelArgMask;
+    UrProgram = KernelCacheVal->MProgramHandle;
+    ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(UrProgram);
+    ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(UrKernel);
+
     UrKernelsToRelease.push_back(UrKernel);
     UrProgramsToRelease.push_back(UrProgram);
   }
@@ -2667,6 +2671,7 @@ void enqueueImpKernel(
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
+  KernelProgramCache::KernelFastCacheValTPtr KernelCacheVal;
 
   if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
@@ -2694,9 +2699,13 @@ void enqueueImpKernel(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
-    std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
+    KernelCacheVal =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, KernelName, NDRDesc);
+    Kernel = KernelCacheVal->MKernelHandle;
+    KernelMutex = KernelCacheVal->MMutex;
+    Program = KernelCacheVal->MProgramHandle;
+    EliminatedArgMask = KernelCacheVal->MKernelArgMask;
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2741,11 +2750,13 @@ void enqueueImpKernel(
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, KernelName);
 
+#if 0
     const AdapterPtr &Adapter = Queue->getAdapter();
     if (!SyclKernelImpl && !MSyclKernel) {
       Adapter->call<UrApiKind::urKernelRelease>(Kernel);
       Adapter->call<UrApiKind::urProgramRelease>(Program);
     }
+#endif
   }
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice

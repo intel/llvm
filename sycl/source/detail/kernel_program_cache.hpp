@@ -233,13 +233,33 @@ public:
                 KernelNameStrT      /* Kernel Name */
                 >;
 
-  using KernelFastCacheValT =
-      std::tuple<ur_kernel_handle_t,    /* UR kernel handle pointer. */
-                 std::mutex *,          /* Mutex guarding this kernel. */
-                 const KernelArgMask *, /* Eliminated kernel argument mask. */
-                 ur_program_handle_t /* UR program handle corresponding to this
+  struct KernelFastCacheValT {
+    ur_kernel_handle_t MKernelHandle;    /* UR kernel handle pointer. */
+    std::mutex *MMutex;          /* Mutex guarding this kernel. */
+    const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
+    ur_program_handle_t MProgramHandle;/* UR program handle corresponding to this
                                      kernel. */
-                 >;
+    std::weak_ptr<Adapter> MAdapterWeakPtr; /* Weak pointer to the adapter. */
+
+    KernelFastCacheValT(ur_kernel_handle_t KernelHandle,
+                        std::mutex *Mutex,
+                        const KernelArgMask *KernelArgMask,
+                        ur_program_handle_t ProgramHandle,
+                        const AdapterPtr &Adapter)
+        : MKernelHandle(KernelHandle), MMutex(Mutex), MKernelArgMask(KernelArgMask),
+          MProgramHandle(ProgramHandle), MAdapterWeakPtr(Adapter) { }
+
+    ~KernelFastCacheValT() {
+      if (AdapterPtr Adapter = MAdapterWeakPtr.lock()) {
+        if (MKernelHandle)
+          Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(MKernelHandle);
+        if (MProgramHandle)
+          Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(MProgramHandle);
+      }
+    }
+  };
+
+  using KernelFastCacheValTPtr = std::shared_ptr<KernelFastCacheValT>;
 
   // This container is used as a fast path for retrieving cached kernels.
   // unordered_flat_map is used here to reduce lookup overhead.
@@ -247,7 +267,7 @@ public:
   // higher overhead of insertion that comes with unordered_flat_map is more
   // of an issue there. For that reason, those use regular unordered maps.
   using KernelFastCacheT =
-      ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
+      ::boost::unordered_flat_map<KernelFastCacheKeyT, std::shared_ptr<KernelFastCacheValT>>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -428,19 +448,18 @@ public:
   }
 
   template <typename KeyT>
-  KernelFastCacheValT tryToGetKernelFast(KeyT &&CacheKey) {
+  std::shared_ptr<KernelFastCacheValT> tryToGetKernelFast(KeyT &&CacheKey) {
     KernelFastCacheReadLockT Lock(MKernelFastCacheMutex);
     auto It = MKernelFastCache.find(CacheKey);
     if (It != MKernelFastCache.end()) {
       traceKernel("Kernel fetched.", CacheKey.second, true);
       return It->second;
     }
-    return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
+    return std::shared_ptr<KernelFastCacheValT>();
   }
 
-  template <typename KeyT, typename ValT>
-  void saveKernel(KeyT &&CacheKey, ValT &&CacheVal) {
-    ur_program_handle_t Program = std::get<3>(CacheVal);
+  void saveKernel(const KernelProgramCache::KernelFastCacheKeyT &CacheKey,
+       const KernelProgramCache::KernelFastCacheValTPtr &CacheVal) {
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
             isProgramCacheEvictionEnabled()) {
 
@@ -448,13 +467,13 @@ public:
       // in the cache.
       auto LockedCache = acquireCachedPrograms();
       auto &ProgCache = LockedCache.get();
-      if (ProgCache.ProgramSizeMap.find(Program) ==
+      if (ProgCache.ProgramSizeMap.find(CacheVal->MProgramHandle) ==
           ProgCache.ProgramSizeMap.end())
         return;
     }
     // Save reference between the program and the fast cache key.
     KernelFastCacheWriteLockT Lock(MKernelFastCacheMutex);
-    MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
+    MProgramToKernelFastCacheKeyMap[CacheVal->MProgramHandle].emplace_back(CacheKey);
 
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
