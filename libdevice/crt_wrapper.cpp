@@ -116,6 +116,16 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
       __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
       __spirv_LocalInvocationId_z());
 }
+#else
+DEVICE_EXTERN_C
+void __assert_fail(const char *expr, const char *file, unsigned int line,
+                   const char *func) {
+  __devicelib_assert_fail(
+      expr, file, line, func, __spirv_GlobalInvocationId_x(),
+      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
+      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
+      __spirv_LocalInvocationId_z());
+}
 
 DEVICE_EXTERN_C
 void _invalid_parameter(wchar_t const *wexpr, wchar_t const *wfunc,
@@ -129,16 +139,6 @@ void _invalid_parameter(wchar_t const *wexpr, wchar_t const *wfunc,
   char file[256];
   __truncate_wchar_char_str(wfile, file, sizeof(file));
 
-  __devicelib_assert_fail(
-      expr, file, line, func, __spirv_GlobalInvocationId_x(),
-      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
-      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
-      __spirv_LocalInvocationId_z());
-}
-#else
-DEVICE_EXTERN_C
-void __assert_fail(const char *expr, const char *file, unsigned int line,
-                   const char *func) {
   __devicelib_assert_fail(
       expr, file, line, func, __spirv_GlobalInvocationId_x(),
       __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
