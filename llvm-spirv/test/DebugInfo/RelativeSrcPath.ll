@@ -49,7 +49,7 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 !6 = !{i32 1, i32 2}
 !7 = !{!"clang version 8.0.0 (cfe/trunk)"}
 !8 = distinct !DISubprogram(name: "foo", scope: !9, file: !9, line: 1, type: !10, isLocal: false, isDefinition: true, scopeLine: 1, flags: DIFlagPrototyped, isOptimized: false, unit: !0, retainedNodes: !2)
-; CHECK: String [[ID:[0-9]+]] "/tmp/RelativeSrcPath.cl"
+; CHECK: String [[ID:[0-9]+]] "/tmp{{[/\\]}}RelativeSrcPath.cl"
 ; CHECK: Line [[ID]]
 !9 = !DIFile(filename: "RelativeSrcPath.cl", directory: "/tmp")
 !10 = !DISubroutineType(types: !2)

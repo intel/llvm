@@ -461,11 +461,12 @@ SmallVector<unsigned, 3> decodeMDNode(MDNode *N);
 template <typename T> std::string getFullPath(const T *Scope) {
   if (!Scope)
     return std::string();
-  std::string Filename = Scope->getFilename().str();
-  if (sys::path::is_absolute(Filename))
-    return Filename;
+  StringRef Filename = Scope->getFilename();
+  auto Style = sys::path::Style::native;
+  if (sys::path::is_absolute(Filename, Style))
+    return Filename.str();
   SmallString<16> DirName = Scope->getDirectory();
-  sys::path::append(DirName, sys::path::Style::posix, Filename);
+  sys::path::append(DirName, Style, Filename.str());
   return DirName.str().str();
 }
 
