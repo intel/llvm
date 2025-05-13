@@ -111,10 +111,10 @@ int main(int argc, char **argv) {
   std::cout << "Computing result using SYCL Kernel... ";
   if (block_size == 16) {
     syclcompat::launch<slope_intercept<16>>(grid, threads, d_Y, d_X, m, b,
-                                        n_points);
+                                            n_points);
   } else {
     syclcompat::launch<slope_intercept<32>>(grid, threads, d_Y, d_X, m, b,
-                                        n_points);
+                                            n_points);
   }
   syclcompat::wait();
   std::cout << "DONE" << "\n";
