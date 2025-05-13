@@ -629,7 +629,7 @@ void enqueueImpKernel(
     const RTDeviceBinaryImage *BinImage = nullptr,
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
-    bool KernelHasSpecialCaptures = false);
+    bool KernelHasSpecialCaptures = true);
 
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.

@@ -2388,7 +2388,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     KernelNameStrRefT KernelName, void *KernelFuncPtr = nullptr,
     int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
-    bool KernelHasSpecialCaptures = false) {
+    bool KernelHasSpecialCaptures = true) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
