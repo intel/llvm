@@ -796,11 +796,19 @@ private:
     if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
 
-      setKernelInfo((void *)MHostKernel->getPtr(),
-                    detail::getKernelNumParams<KernelName>(),
-                    &(detail::getKernelParamDesc<KernelName>),
-                    detail::isKernelESIMD<KernelName>(),
-                    detail::hasSpecialCaptures<KernelName>());
+      // Force hasSpecialCaptures to be evaluated at compile-time.
+      // FIXME: This shouldn't be necessary!
+      if constexpr (detail::hasSpecialCaptures<KernelName>()) {
+        setKernelInfo((void *)MHostKernel->getPtr(),
+                      detail::getKernelNumParams<KernelName>(),
+                      &(detail::getKernelParamDesc<KernelName>),
+                      detail::isKernelESIMD<KernelName>(), true);
+      } else {
+        setKernelInfo((void *)MHostKernel->getPtr(),
+                      detail::getKernelNumParams<KernelName>(),
+                      &(detail::getKernelParamDesc<KernelName>),
+                      detail::isKernelESIMD<KernelName>(), false);
+      }
 
       MKernelName = detail::getKernelName<KernelName>();
     } else {
