@@ -2422,7 +2422,7 @@ static ur_result_t SetKernelParamsAndLaunch(
         throw std::runtime_error("Direct kernel argument copy failed.");
       }
     };
-    applyFuncOnFilteredArgs(EliminatedArgMask, KernelFuncPtr, KernelNumArgs,
+    applyFuncOnFilteredArgs(EliminatedArgMask, KernelNumArgs,
                             KernelParamDescGetter, setFunc);
   } else {
     auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,

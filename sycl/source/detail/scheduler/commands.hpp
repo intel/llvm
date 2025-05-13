@@ -785,8 +785,7 @@ void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,
 
 template <typename FuncT>
 void applyFuncOnFilteredArgs(
-    const KernelArgMask *EliminatedArgMask, void *KernelFuncPtr,
-    int KernelNumArgs,
+    const KernelArgMask *EliminatedArgMask, int KernelNumArgs,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int), FuncT Func) {
   if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
     for (int I = 0; I < KernelNumArgs; ++I) {
