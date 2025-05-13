@@ -10,6 +10,7 @@
 #pragma once
 
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 #include <atomic>
 #include <loader/ur_loader.hpp>
 #include <loader/ze_loader.h>
@@ -24,7 +25,7 @@ using PlatformVec = std::vector<std::unique_ptr<ur_platform_handle_t_>>;
 
 class ur_legacy_sink;
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   ur_adapter_handle_t_();
   std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
