@@ -128,9 +128,22 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
 }
 
 DEVICE_EXTERN_C
-void _invalid_parameter(wchar_t const *, wchar_t const *, wchar_t const *,
-                        unsigned int, uintptr_t) {
-  // Do nothing
+void _invalid_parameter(wchar_t const *wexpr, wchar_t const *wfunc, wchar_t const *wfile,
+                        unsigned int line, uintptr_t) {
+  // Paths and expressions that are longer than 256 characters are going to be
+  // truncated.
+  char expr[256];
+  __truncate_wchar_char_str(wexpr, expr, sizeof(expr));
+  char func[256];
+  __truncate_wchar_char_str(wfunc, func, sizeof(func));
+  char file[256];
+  __truncate_wchar_char_str(wfile, file, sizeof(file));
+
+  __devicelib_assert_fail(
+      expr, file, line, func, __spirv_GlobalInvocationId_x(),
+      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
+      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
+      __spirv_LocalInvocationId_z());
 }
 #endif
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
