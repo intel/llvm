@@ -29,10 +29,10 @@
 #include <cstdlib>
 #include <iostream>
 
-#define CHECK_MEMORY(ptr) \
-  if ((ptr) == nullptr) { \
-    std::cerr << "Failed to allocate memory: " << ( #ptr ) << "\n"; \
-    exit(EXIT_FAILURE); \
+#define CHECK_MEMORY(ptr)                                                      \
+  if ((ptr) == nullptr) {                                                      \
+    std::cerr << "Failed to allocate memory: " << (#ptr) << "\n";              \
+    exit(EXIT_FAILURE);                                                        \
   }
 
 /**
@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i < n_points; i++) {
     if (std::abs(h_Y[i] - h_expected[i]) >= 1e-6) {
       std::cerr << "Mismatch at index " << i << ": expected " << h_expected[i]
-          << ", but got " << h_Y[i] << "\n";
+                << ", but got " << h_Y[i] << "\n";
       exit(EXIT_FAILURE);
     }
   }
