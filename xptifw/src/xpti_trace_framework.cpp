@@ -82,7 +82,15 @@ static thread_local xpti_tracepoint_t *g_tls_tracepoint_scope_data;
 /// Default stream for the trace framework, if none is provided by the user.
 constexpr const char *g_default_stream = "xpti.framework";
 
+/// @brief Flag to ensure the default stream is initialized only once.
+/// @details Used with `std::call_once` to initialize the default stream in a
+/// thread-safe manner.
 static std::once_flag g_initialize_default_stream_flag;
+
+/// @brief Flag to ensure the default stream is finalized only once.
+/// @details Used with `std::call_once` to finalize the default stream in a
+/// thread-safe manner.
+static std::once_flag g_finalize_default_stream_flag;
 
 namespace xpti {
 /// @var env_subscribers
@@ -2290,6 +2298,9 @@ public:
   }
 
   static Framework &instance() {
+    // Using std::call_once has the same overhead as the original approach
+    // std::call_once(g_initialize_framework_flag,
+    //               [&]() { MInstance = new Framework(); });
     Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
     std::atomic_thread_fence(std::memory_order_acquire);
     if (TmpFramework == nullptr) {
@@ -2309,6 +2320,11 @@ private:
   friend void ::xptiFrameworkFinalize();
 
   static void release() {
+    // Using std::call_once has the same overhead as the original approach
+    // std::call_once(g_release_framework_flag, [&]() {
+    //   delete MInstance;
+    //   MInstance = nullptr;
+    // });
     Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
     MInstance.store(nullptr, std::memory_order_relaxed);
     delete TmpFramework;
@@ -2482,7 +2498,10 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *Stream, uint32_t maj,
 /// when the stream is no longer in use.
 
 XPTI_EXPORT_API void xptiFinalize(const char *Stream) {
-  xpti::Framework::instance().finalizeStream(Stream);
+  auto &FW = xpti::Framework::instance();
+  std::call_once(g_finalize_default_stream_flag,
+                 [&]() { FW.finalizeStream(g_default_stream); });
+  FW.finalizeStream(Stream);
 }
 
 /// @brief Retrieves the 64-bit universal ID for the current scope, if published
