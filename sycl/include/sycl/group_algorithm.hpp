@@ -946,26 +946,15 @@ std::enable_if_t<
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  using binary_op_t =
+      std::remove_cv_t<std::remove_reference_t<decltype(*first)>>;
   static_assert(
-      (std::is_same_v<BinaryOperation,
-                      sycl::logical_or<std::remove_cv_t<
-                          std::remove_reference_t<decltype(*first)>>>> ||
-       std::is_same_v<BinaryOperation,
-                      sycl::logical_and<std::remove_cv_t<
-                          std::remove_reference_t<decltype(*first)>>>>)
-          ? std::is_same_v<decltype(binary_op(
-                               std::remove_cv_t<
-                                   std::remove_reference_t<decltype(*first)>>(),
-                               std::remove_cv_t<std::remove_reference_t<
-                                   decltype(*first)>>())),
+      (std::is_same_v<BinaryOperation, sycl::logical_or<binary_op_t>> ||
+       std::is_same_v<BinaryOperation, sycl::logical_and<binary_op_t>>)
+          ? std::is_same_v<decltype(binary_op(binary_op_t(), binary_op_t())),
                            bool>
-          : std::is_same_v<
-                decltype(binary_op(
-                    std::remove_cv_t<
-                        std::remove_reference_t<decltype(*first)>>(),
-                    std::remove_cv_t<
-                        std::remove_reference_t<decltype(*first)>>())),
-                std::remove_cv_t<std::remove_reference_t<decltype(*first)>>>,
+          : std::is_same_v<decltype(binary_op(binary_op_t(), binary_op_t())),
+                           binary_op_t>,
       "Result type of binary_op must match scan accumulation type.");
 #else
   static_assert(std::is_same_v<decltype(binary_op(*first, *first)),
@@ -1188,26 +1177,15 @@ std::enable_if_t<
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  using binary_op_t =
+      std::remove_cv_t<std::remove_reference_t<decltype(*first)>>;
   static_assert(
-      (std::is_same_v<BinaryOperation,
-                      sycl::logical_or<std::remove_cv_t<
-                          std::remove_reference_t<decltype(*first)>>>> ||
-       std::is_same_v<BinaryOperation,
-                      sycl::logical_and<std::remove_cv_t<
-                          std::remove_reference_t<decltype(*first)>>>>)
-          ? std::is_same_v<decltype(binary_op(
-                               std::remove_cv_t<
-                                   std::remove_reference_t<decltype(*first)>>(),
-                               std::remove_cv_t<std::remove_reference_t<
-                                   decltype(*first)>>())),
+      (std::is_same_v<BinaryOperation, sycl::logical_or<binary_op_t>> ||
+       std::is_same_v<BinaryOperation, sycl::logical_and<binary_op_t>>)
+          ? std::is_same_v<decltype(binary_op(binary_op_t(), binary_op_t())),
                            bool>
-          : std::is_same_v<
-                decltype(binary_op(
-                    std::remove_cv_t<
-                        std::remove_reference_t<decltype(*first)>>(),
-                    std::remove_cv_t<
-                        std::remove_reference_t<decltype(*first)>>())),
-                std::remove_cv_t<std::remove_reference_t<decltype(*first)>>>,
+          : std::is_same_v<decltype(binary_op(binary_op_t(), binary_op_t())),
+                           binary_op_t>,
       "Result type of binary_op must match scan accumulation type.");
 #else
   static_assert(std::is_same_v<decltype(binary_op(*first, *first)),
