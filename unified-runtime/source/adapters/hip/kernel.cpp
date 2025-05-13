@@ -176,6 +176,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
+  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
+
   try {
     hKernel->setKernelArg(argIndex, argSize, pArgValue);
   } catch (ur_result_t Err) {
