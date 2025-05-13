@@ -129,7 +129,7 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
 
 DEVICE_EXTERN_C
 void _invalid_parameter(wchar_t const *, wchar_t const *, wchar_t const *,
-                        unsigned int, uintptr_t) {
+		        unsigned int, uintptr_t) {
   // Do nothing
 }
 #endif
