@@ -24,12 +24,9 @@ details:
     - "Multiple calls to this function will return identical platforms handles, in the same order."
     - "The application may call this function from simultaneous threads, the implementation must be thread-safe"
 params:
-    - type: "$x_adapter_handle_t*"
-      name: "phAdapters"
-      desc: "[in][range(0, NumAdapters)] array of adapters to query for platforms."
-    - type: "uint32_t"
-      name: "NumAdapters"
-      desc: "[in] number of adapters pointed to by phAdapters"
+    - type: "$x_adapter_handle_t"
+      name: "hAdapter"
+      desc: "[in] adapter to query for platforms."
     - type: "uint32_t"
       name: NumEntries
       desc: |

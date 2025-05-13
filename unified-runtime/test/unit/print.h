@@ -45,19 +45,16 @@ struct UrLoaderInitParamsInvalidFlags : UrLoaderInitParams {
 
 struct UrPlatformGet {
   ur_platform_get_params_t params;
-  uint32_t num_adapters;
-  ur_adapter_handle_t *phAdapters;
+  ur_adapter_handle_t adapter;
   uint32_t num_entries;
   uint32_t *pNumPlatforms;
   ur_platform_handle_t *pPlatforms;
   UrPlatformGet() {
-    num_adapters = 0;
-    phAdapters = nullptr;
+    adapter = nullptr;
     num_entries = 0;
     pPlatforms = nullptr;
     pNumPlatforms = nullptr;
-    params.pNumAdapters = &num_adapters;
-    params.pphAdapters = &phAdapters;
+    params.phAdapter = &adapter;
     params.pNumEntries = &num_entries;
     params.pphPlatforms = &pPlatforms;
     params.ppNumPlatforms = &pNumPlatforms;
@@ -72,7 +69,7 @@ struct UrPlatformGet {
 struct UrPlatformGetEmptyArray : UrPlatformGet {
   UrPlatformGetEmptyArray() : UrPlatformGet() {}
   const char *get_expected() {
-    return ".phAdapters = nullptr, .NumAdapters = 0, .NumEntries = 0, "
+    return ".hAdapter = nullptr, .NumEntries = 0, "
            ".phPlatforms = nullptr, .pNumPlatforms = "
            "nullptr";
   };
@@ -89,7 +86,7 @@ struct UrPlatformGetTwoPlatforms : UrPlatformGet {
     pNumPlatforms = &num_platforms;
   }
   const char *get_expected() {
-    return ".phAdapters = nullptr, .NumAdapters = 0, .NumEntries = 2, "
+    return ".hAdapter = nullptr, .NumEntries = 2, "
            ".phPlatforms = .+ \\{.+, .+\\}, "
            ".pNumPlatforms = .+ \\(2\\)";
   };

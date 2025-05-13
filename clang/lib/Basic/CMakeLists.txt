@@ -108,6 +108,7 @@ add_clang_library(clangBasic
   Targets/MSP430.cpp
   Targets/Mips.cpp
   Targets/NVPTX.cpp
+  Targets/NativeCPU.cpp
   Targets/OSTargets.cpp
   Targets/PNaCl.cpp
   Targets/PPC.cpp

@@ -81,9 +81,6 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
   const std::string linker_error_program_name = "linker_error";
 
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
     // TODO: This should use a query for urProgramCreateWithIL support or
     // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.

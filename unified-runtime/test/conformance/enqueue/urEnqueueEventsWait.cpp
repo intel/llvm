@@ -38,6 +38,33 @@ struct urEnqueueEventsWaitTest : uur::urMultiQueueTest {
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueEventsWaitTest);
 
+TEST_P(urEnqueueEventsWaitTest, SuccessWithEmptyWaitList) {
+  void *ptr1, *ptr2;
+  size_t size = 1024;
+  size_t count = size / sizeof(int);
+
+  ASSERT_SUCCESS(
+      urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &ptr1));
+  ASSERT_SUCCESS(
+      urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &ptr2));
+
+  std::vector<int> input(count, 99);
+  std::vector<int> output(count, 0);
+
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue1, false, ptr1, input.data(), size, 0,
+                                    nullptr, nullptr));
+  ASSERT_SUCCESS(
+      urEnqueueUSMMemcpy(queue1, false, ptr2, ptr1, size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue1, false, output.data(), ptr2, size, 0,
+                                    nullptr, nullptr));
+
+  ur_event_handle_t event;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 0, nullptr, &event));
+  ASSERT_SUCCESS(urEventWait(1, &event));
+
+  ASSERT_EQ(input, output);
+}
+
 TEST_P(urEnqueueEventsWaitTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
 

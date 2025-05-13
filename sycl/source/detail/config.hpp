@@ -558,34 +558,6 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_ENABLE_FUSION_CACHING> {
-  using BaseT = SYCLConfigBase<SYCL_ENABLE_FUSION_CACHING>;
-
-public:
-  static bool get() {
-    constexpr bool DefaultValue = true;
-
-    const char *ValStr = getCachedValue();
-
-    if (!ValStr)
-      return DefaultValue;
-
-    return ValStr[0] == '1';
-  }
-
-  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
-
-  static const char *getName() { return BaseT::MConfigName; }
-
-private:
-  static const char *getCachedValue(bool ResetCache = false) {
-    static const char *ValStr = BaseT::getRawValue();
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
-    return ValStr;
-  }
-};
-
 template <> class SYCLConfig<SYCL_CACHE_IN_MEM> {
   using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
 

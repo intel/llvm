@@ -16,58 +16,24 @@
 
 #include <common/cuda-hip/stream_queue.hpp>
 
-/// UR queue mapping on to hipStream_t objects.
-///
-struct ur_queue_handle_t_ : stream_queue_t<hipStream_t, 64, 16> {
-  using stream_queue_t<hipStream_t, DefaultNumComputeStreams,
-                       DefaultNumTransferStreams>::stream_queue_t;
+using hip_stream_queue = stream_queue_t<hipStream_t, 64, 16, hipEvent_t>;
+struct ur_queue_handle_t_ : ur::hip::handle_base, public hip_stream_queue {};
 
-  hipEvent_t BarrierEvent = nullptr;
-  hipEvent_t BarrierTmpEvent = nullptr;
+using InteropGuard = hip_stream_queue::interop_guard;
 
-  void computeStreamWaitForBarrierIfNeeded(hipStream_t Strean,
-                                           uint32_t StreamI) override;
-  void transferStreamWaitForBarrierIfNeeded(hipStream_t Stream,
-                                            uint32_t StreamI) override;
-  ur_queue_handle_t getEventQueue(const ur_event_handle_t) override;
-  uint32_t getEventComputeStreamToken(const ur_event_handle_t) override;
-  hipStream_t getEventStream(const ur_event_handle_t) override;
+template <>
+inline void hip_stream_queue::createStreamWithPriority(hipStream_t *Stream,
+                                                       unsigned int Flags,
+                                                       int Priority) {
+  UR_CHECK_ERROR(hipStreamCreateWithPriority(Stream, Flags, Priority));
+}
 
-  // Function which creates the profiling stream. Called only from makeNative
-  // event when profiling is required.
-  void createHostSubmitTimeStream() {
-    static std::once_flag HostSubmitTimeStreamFlag;
-    std::call_once(HostSubmitTimeStreamFlag, [&]() {
-      UR_CHECK_ERROR(hipStreamCreateWithFlags(&HostSubmitTimeStream,
-                                              hipStreamNonBlocking));
-    });
-  }
-
-  void createStreamWithPriority(hipStream_t *Stream, unsigned int Flags,
-                                int Priority) override {
-    UR_CHECK_ERROR(hipStreamCreateWithPriority(Stream, Flags, Priority));
-  }
-};
-
-// RAII object to make hQueue stream getter methods all return the same stream
-// within the lifetime of this object.
-//
-// This is useful for urEnqueueNativeCommandExp where we want guarantees that
-// the user submitted native calls will be dispatched to a known stream, which
-// must be "got" within the user submitted function.
-//
-// TODO: Add a test that this scoping works
-class ScopedStream {
-  ur_queue_handle_t hQueue;
-
-public:
-  ScopedStream(ur_queue_handle_t hQueue, uint32_t NumEventsInWaitList,
-               const ur_event_handle_t *EventWaitList)
-      : hQueue{hQueue} {
-    ur_stream_guard Guard;
-    hQueue->getThreadLocalStream() =
-        hQueue->getNextComputeStream(NumEventsInWaitList, EventWaitList, Guard);
-  }
-  hipStream_t getStream() { return hQueue->getThreadLocalStream(); }
-  ~ScopedStream() { hQueue->getThreadLocalStream() = hipStream_t{0}; }
-};
+// Function which creates the profiling stream. Called only from makeNative
+// event when profiling is required.
+template <> inline void hip_stream_queue::createHostSubmitTimeStream() {
+  static std::once_flag HostSubmitTimeStreamFlag;
+  std::call_once(HostSubmitTimeStreamFlag, [&]() {
+    UR_CHECK_ERROR(
+        hipStreamCreateWithFlags(&HostSubmitTimeStream, hipStreamNonBlocking));
+  });
+}

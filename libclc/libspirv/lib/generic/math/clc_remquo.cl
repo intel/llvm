@@ -10,7 +10,7 @@
 
 #include <clc/clcmacro.h>
 #include <clc/math/clc_subnormal_config.h>
-#include <math/clc_remainder.h>
+#include <clc/math/clc_remainder.h>
 #include <clc/math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_remquo(float x, float y,

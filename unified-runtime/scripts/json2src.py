@@ -1,25 +1,24 @@
 #! /usr/bin/env python3
-"""
-Copyright (C) 2019-2021 Intel Corporation
 
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# Copyright (C) 2019-2021 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""
 import argparse
 import util
 import generate_code
-import os, sys
+import os
+import sys
 import time
 import json
 
-"""
-    helper for adding mutually-exclusive boolean arguments "--name" and "--skip-name"
-"""
-
 
 def add_argument(parser, name, help, default=False):
+    """
+    helper for adding mutually-exclusive boolean arguments "--name" and "--skip-name"
+    """
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument(
         "--" + name, dest=name, help="Enable " + help, action="store_true"

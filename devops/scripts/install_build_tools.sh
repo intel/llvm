@@ -10,6 +10,7 @@ apt update && apt install -yqq \
       python3-psutil \
       python-is-python3 \
       python3-pip \
+      python3-venv \
       ocl-icd-opencl-dev \
       vim \
       libffi-dev \

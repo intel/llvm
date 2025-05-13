@@ -25,7 +25,7 @@ struct UsmPool {
   EnqueuedPool AsyncPool;
 };
 
-struct ur_usm_pool_handle_t_ : _ur_object {
+struct ur_usm_pool_handle_t_ : ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc, bool IsProxy = false);
   ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
@@ -77,8 +77,8 @@ protected:
   virtual ur_result_t allocateImpl(void **, size_t, uint32_t) = 0;
 
 public:
-  virtual void get_last_native_error(const char **ErrMsg, int32_t *ErrCode) {
-    std::ignore = ErrMsg;
+  virtual void get_last_native_error(const char ** /*ErrMsg*/,
+                                     int32_t *ErrCode) {
     *ErrCode = static_cast<int32_t>(getLastStatusRef());
   };
   virtual umf_result_t initialize(ur_context_handle_t, ur_device_handle_t) {
@@ -187,17 +187,13 @@ public:
     return UMF_RESULT_SUCCESS;
   }
   void *malloc(size_t Size) noexcept { return aligned_malloc(Size, 0); }
-  void *calloc(size_t Num, size_t Size) noexcept {
-    std::ignore = Num;
-    std::ignore = Size;
+  void *calloc(size_t /*Num*/, size_t /*Size*/) noexcept {
 
     // Currently not needed
     umf::getPoolLastStatusRef<USMProxyPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
     return nullptr;
   }
-  void *realloc(void *Ptr, size_t Size) noexcept {
-    std::ignore = Ptr;
-    std::ignore = Size;
+  void *realloc(void * /*Ptr*/, size_t /*Size*/) noexcept {
 
     // Currently not needed
     umf::getPoolLastStatusRef<USMProxyPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
@@ -211,8 +207,7 @@ public:
     }
     return Ptr;
   }
-  size_t malloc_usable_size(void *Ptr) noexcept {
-    std::ignore = Ptr;
+  size_t malloc_usable_size(void * /*Ptr*/) noexcept {
 
     // Currently not needed
     return 0;

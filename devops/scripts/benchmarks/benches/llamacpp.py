@@ -29,7 +29,7 @@ class LlamaCppBench(Suite):
         return "https://github.com/ggerganov/llama.cpp"
 
     def git_hash(self) -> str:
-        return "1ee9eea094fe5846c7d8d770aa7caa749d246b23"
+        return "916c83bfe7f8b08ada609c3b8e583cf5301e594b"
 
     def setup(self):
         if options.sycl is None:
@@ -47,9 +47,9 @@ class LlamaCppBench(Suite):
 
         self.model = download(
             self.models_dir,
-            "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
-            "Phi-3-mini-4k-instruct-q4.gguf",
-            checksum="fc4f45c9729874a33a527465b2ec78189a18e5726b7121182623feeae38632ace4f280617b01d4a04875acf49d263ee4",
+            "https://huggingface.co/ggml-org/DeepSeek-R1-Distill-Qwen-1.5B-Q4_0-GGUF/resolve/main/deepseek-r1-distill-qwen-1.5b-q4_0.gguf",
+            "deepseek-r1-distill-qwen-1.5b-q4_0.gguf",
+            checksum="791f6091059b653a24924b9f2b9c3141c8f892ae13fff15725f77a2bf7f9b1b6b71c85718f1e9c0f26c2549aba44d191",
         )
 
         self.oneapi = get_oneapi()
@@ -64,10 +64,11 @@ class LlamaCppBench(Suite):
             f"-DGGML_SYCL=ON",
             f"-DCMAKE_C_COMPILER=clang",
             f"-DCMAKE_CXX_COMPILER=clang++",
-            f"-DDNNL_DIR={self.oneapi.dnn_cmake()}",
+            f"-DDNNL_GPU_VENDOR=INTEL",
             f"-DTBB_DIR={self.oneapi.tbb_cmake()}",
-            f'-DCMAKE_CXX_FLAGS=-I"{self.oneapi.mkl_include()}"',
-            f"-DCMAKE_SHARED_LINKER_FLAGS=-L{self.oneapi.compiler_lib()} -L{self.oneapi.mkl_lib()}",
+            f"-DDNNL_DIR={self.oneapi.dnn_cmake()}",
+            f"-DSYCL_COMPILER=ON",
+            f"-DMKL_DIR={self.oneapi.mkl_cmake()}",
         ]
 
         run(configure_command, add_sycl=True)
@@ -96,14 +97,17 @@ class LlamaBench(Benchmark):
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.build_path, "bin", "llama-bench")
 
+    def model(self):
+        return "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
+
     def name(self):
-        return f"llama.cpp"
+        return f"llama.cpp {self.model()}"
 
     def description(self) -> str:
         return (
             "Performance testing tool for llama.cpp that measures LLM inference speed in tokens per second. "
             "Runs both prompt processing (initial context processing) and text generation benchmarks with "
-            "different batch sizes. Higher values indicate better performance. Uses the Phi-3-mini-4k-instruct "
+            f"different batch sizes. Higher values indicate better performance. Uses the {self.model()} "
             "quantized model and leverages SYCL with oneDNN for acceleration."
         )
 
@@ -122,12 +126,18 @@ class LlamaBench(Benchmark):
             "128",
             "-p",
             "512",
-            "-b",
-            "128,256,512",
+            "-pg",
+            "0,0",
+            "-sm",
+            "none",
+            "-ngl",
+            "99",
             "--numa",
             "isolate",
             "-t",
-            "56",  # TODO: use only as many threads as numa node 0 has cpus
+            "8",
+            "--mmap",
+            "0",
             "--model",
             f"{self.bench.model}",
         ]

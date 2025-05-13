@@ -41,7 +41,7 @@ public:
     this->ostream = &std::cerr;
   }
 
-  virtual void print([[maybe_unused]] logger::Level level,
+  virtual void print([[maybe_unused]] ur_logger_level_t level,
                      const std::string &msg) override {
     fprintf(stderr, "%s", msg.c_str());
   }
@@ -163,7 +163,7 @@ ur_result_t initPlatforms(PlatformVec &platforms,
     ZE2UR_CALL(zeDriverGet, (&ZeDriverGetCount, ZeDriverGetHandles.data()));
   }
   if (ZeDriverGetCount == 0 && GlobalAdapter->ZeInitDriversCount == 0) {
-    logger::error("\nNo Valid L0 Drivers found.\n");
+    UR_LOG(ERR, "\nNo Valid L0 Drivers found.\n");
     return UR_RESULT_SUCCESS;
   }
 
@@ -188,9 +188,10 @@ ur_result_t initPlatforms(PlatformVec &platforms,
           // newer drivers.
           if (ZeDriverGetProperties.driverVersion !=
               ZeInitDriverProperties.driverVersion) {
-            logger::debug("\nzeDriverHandle {} added to the zeInitDrivers list "
-                          "of possible handles.\n",
-                          ZeDriverGetHandles[Y]);
+            UR_LOG(DEBUG,
+                   "\nzeDriverHandle {} added to the zeInitDrivers list "
+                   "of possible handles.\n",
+                   ZeDriverGetHandles[Y]);
             ZeDrivers.push_back(ZeDriverGetHandles[Y]);
           }
         }
@@ -201,7 +202,7 @@ ur_result_t initPlatforms(PlatformVec &platforms,
     ZeDrivers.assign(ZeDriverGetHandles.begin(), ZeDriverGetHandles.end());
   }
   ZeDriverCount = ZeDrivers.size();
-  logger::debug("\n{} L0 Drivers found.\n", ZeDriverCount);
+  UR_LOG(DEBUG, "\n{} L0 Drivers found.\n", ZeDriverCount);
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
     // Keep track of the first platform init for this Driver
     bool DriverPlatformInit = false;
@@ -295,7 +296,7 @@ Behavior Summary:
   SysMan initialization is skipped.
 */
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(logger::get_logger("level_zero")) {
+    : handle_base(), logger(logger::get_logger("level_zero")) {
   ZeInitDriversResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
@@ -308,6 +309,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    setEnvVar("ZEL_ENABLE_LOADER_LOGGING", "1");
+    setEnvVar("ZEL_LOADER_LOGGING_LEVEL", "trace");
+    setEnvVar("ZEL_LOADER_LOG_CONSOLE", "1");
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+#endif
   };
 
   if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
@@ -315,19 +322,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
-  PlatformCache.Compute = [](Result<PlatformVec> &result) {
-    static std::once_flag ZeCallCountInitialized;
-    try {
-      std::call_once(ZeCallCountInitialized, []() {
-        if (UrL0LeaksDebug) {
-          ZeCallCount = new std::map<std::string, int>;
-        }
-      });
-    } catch (...) {
-      result = exceptionToResult(std::current_exception());
-      return;
-    }
+  if (UrL0LeaksDebug) {
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+    setEnvVar("ZEL_ENABLE_BASIC_LEAK_CHECKER", "1");
+  }
 
+  PlatformCache.Compute = [](Result<PlatformVec> &result) {
     uint32_t UserForcedSysManInit = 0;
     // Check if the user has disabled the default L0 Env initialization.
     const int UrSysManEnvInitEnabled = [&UserForcedSysManInit] {
@@ -359,7 +359,8 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       }
 
       if (getenv("SYCL_ENABLE_PCI") != nullptr) {
-        logger::warning(
+        UR_LOG(
+            WARN,
             "WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
       }
 
@@ -381,13 +382,13 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       if (UrL0InitAllDrivers) {
         L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
       }
-      logger::debug("\nzeInit with flags value of {}\n",
-                    static_cast<int>(L0InitFlags));
+      UR_LOG(DEBUG, "\nzeInit with flags value of {}\n",
+             static_cast<int>(L0InitFlags));
       GlobalAdapter->ZeInitResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
       if (GlobalAdapter->ZeInitResult != ZE_RESULT_SUCCESS) {
         const char *ErrorString = "Unknown";
         zeParseError(GlobalAdapter->ZeInitResult, ErrorString);
-        logger::error("\nzeInit failed with {}\n", ErrorString);
+        UR_LOG(ERR, "\nzeInit failed with {}\n", ErrorString);
       }
 
       bool useInitDrivers = false;
@@ -403,9 +404,9 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
             if (strncmp(versions[i].component_name, "loader",
                         strlen("loader")) == 0) {
               loader_version = versions[i].component_lib_version;
-              logger::debug("\nLevel Zero Loader Version: {}.{}.{}\n",
-                            loader_version.major, loader_version.minor,
-                            loader_version.patch);
+              UR_LOG(DEBUG, "\nLevel Zero Loader Version: {}.{}.{}\n",
+                     loader_version.major, loader_version.minor,
+                     loader_version.patch);
               break;
             }
           }
@@ -417,6 +418,17 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
              loader_version.patch >= 2)) {
           useInitDrivers = true;
         }
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+        if ((loader_version.major == 1 && loader_version.minor < 21) ||
+            (loader_version.major == 1 && loader_version.minor == 21 &&
+             loader_version.patch < 2)) {
+          UR_LOG(
+              WARN,
+              "WARNING: Level Zero Loader version is older than 1.21.2. "
+              "Please update to the latest version for API logging support.\n");
+        }
+#endif
       }
 
       if (useInitDrivers) {
@@ -428,8 +440,8 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
                 GlobalAdapter->processHandle, "zeInitDrivers");
 #endif
         if (GlobalAdapter->initDriversFunctionPtr) {
-          logger::debug("\nzeInitDrivers with flags value of {}\n",
-                        static_cast<int>(GlobalAdapter->InitDriversDesc.flags));
+          UR_LOG(DEBUG, "\nzeInitDrivers with flags value of {}\n",
+                 static_cast<int>(GlobalAdapter->InitDriversDesc.flags));
           GlobalAdapter->ZeInitDriversResult =
               ZE_CALL_NOCHECK(GlobalAdapter->initDriversFunctionPtr,
                               (&GlobalAdapter->ZeInitDriversCount, nullptr,
@@ -439,7 +451,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
           } else {
             const char *ErrorString = "Unknown";
             zeParseError(GlobalAdapter->ZeInitDriversResult, ErrorString);
-            logger::error("\nzeInitDrivers failed with {}\n", ErrorString);
+            UR_LOG(ERR, "\nzeInitDrivers failed with {}\n", ErrorString);
           }
         }
       }
@@ -457,12 +469,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
     // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
     if (*GlobalAdapter->ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-      logger::error("Level Zero Uninitialized\n");
+      UR_LOG(ERR, "Level Zero Uninitialized\n");
       result = std::move(platforms);
       return;
     }
     if (*GlobalAdapter->ZeResult != ZE_RESULT_SUCCESS) {
-      logger::error("Level Zero initialization failure\n");
+      UR_LOG(ERR, "Level Zero initialization failure\n");
       result = ze2urResult(*GlobalAdapter->ZeResult);
 
       return;
@@ -509,8 +521,8 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
         GlobalAdapter->getSysManDriversFunctionPtr &&
         GlobalAdapter->sysManInitFunctionPtr) {
       ze_init_flags_t L0ZesInitFlags = 0;
-      logger::debug("\nzesInit with flags value of {}\n",
-                    static_cast<int>(L0ZesInitFlags));
+      UR_LOG(DEBUG, "\nzesInit with flags value of {}\n",
+             static_cast<int>(L0ZesInitFlags));
       GlobalAdapter->ZesResult = ZE_CALL_NOCHECK(
           GlobalAdapter->sysManInitFunctionPtr, (L0ZesInitFlags));
     } else {
@@ -533,97 +545,6 @@ void globalAdapterOnDemandCleanup() {
 }
 
 ur_result_t adapterStateTeardown() {
-  // Print the balance of various create/destroy native calls.
-  // The idea is to verify if the number of create(+) and destroy(-) calls are
-  // matched.
-  if (ZeCallCount && (UrL0LeaksDebug) != 0) {
-    bool LeakFound = false;
-    // clang-format off
-    //
-    // The format of this table is such that each row accounts for a
-    // specific type of objects, and all elements in the raw except the last
-    // one are allocating objects of that type, while the last element is known
-    // to deallocate objects of that type.
-    //
-    std::vector<std::vector<std::string>> CreateDestroySet = {
-      {"zeContextCreate",      "zeContextDestroy"},
-      {"zeCommandQueueCreate", "zeCommandQueueDestroy"},
-      {"zeModuleCreate",       "zeModuleDestroy"},
-      {"zeKernelCreate",       "zeKernelDestroy"},
-      {"zeEventPoolCreate",    "zeEventPoolDestroy"},
-      {"zeCommandListCreateImmediate", "zeCommandListCreate", "zeCommandListDestroy"},
-      {"zeEventCreate",        "zeEventDestroy"},
-      {"zeFenceCreate",        "zeFenceDestroy"},
-      {"zeImageCreate","zeImageViewCreateExt",        "zeImageDestroy"},
-      {"zeSamplerCreate",      "zeSamplerDestroy"},
-      {"zeMemAllocDevice", "zeMemAllocHost", "zeMemAllocShared", "zeMemFree"},
-    };
-
-    // A sample output aimed below is this:
-    // ------------------------------------------------------------------------
-    //                zeContextCreate = 1     \--->        zeContextDestroy = 1
-    //           zeCommandQueueCreate = 1     \--->   zeCommandQueueDestroy = 1
-    //                 zeModuleCreate = 1     \--->         zeModuleDestroy = 1
-    //                 zeKernelCreate = 1     \--->         zeKernelDestroy = 1
-    //              zeEventPoolCreate = 1     \--->      zeEventPoolDestroy = 1
-    //   zeCommandListCreateImmediate = 1     |
-    //            zeCommandListCreate = 1     \--->    zeCommandListDestroy = 1  ---> LEAK = 1
-    //                  zeEventCreate = 2     \--->          zeEventDestroy = 2
-    //                  zeFenceCreate = 1     \--->          zeFenceDestroy = 1
-    //                  zeImageCreate = 0     \--->          zeImageDestroy = 0
-    //                zeSamplerCreate = 0     \--->        zeSamplerDestroy = 0
-    //               zeMemAllocDevice = 0     |
-    //                 zeMemAllocHost = 1     |
-    //               zeMemAllocShared = 0     \--->               zeMemFree = 1
-    //
-    // clang-format on
-    // TODO: use logger to print this messages
-    std::cerr << "Check balance of create/destroy calls\n";
-    std::cerr << "----------------------------------------------------------\n";
-    std::stringstream ss;
-    for (const auto &Row : CreateDestroySet) {
-      int diff = 0;
-      for (auto I = Row.begin(); I != Row.end();) {
-        const char *ZeName = (*I).c_str();
-        const auto &ZeCount = (*ZeCallCount)[*I];
-
-        bool First = (I == Row.begin());
-        bool Last = (++I == Row.end());
-
-        if (Last) {
-          ss << " \\--->";
-          diff -= ZeCount;
-        } else {
-          diff += ZeCount;
-          if (!First) {
-            ss << " | ";
-            std::cerr << ss.str() << "\n";
-            ss.str("");
-            ss.clear();
-          }
-        }
-        ss << std::setw(30) << std::right << ZeName;
-        ss << " = ";
-        ss << std::setw(5) << std::left << ZeCount;
-      }
-
-      if (diff) {
-        LeakFound = true;
-        ss << " ---> LEAK = " << diff;
-      }
-
-      std::cerr << ss.str() << '\n';
-      ss.str("");
-      ss.clear();
-    }
-
-    ZeCallCount->clear();
-    delete ZeCallCount;
-    ZeCallCount = nullptr;
-    if (LeakFound)
-      return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
-  }
-
   // Due to multiple DLLMain definitions with SYCL, register to cleanup the
   // Global Adapter after refcnt is 0
 #if defined(_WIN32)
@@ -712,7 +633,7 @@ ur_result_t urAdapterGetLastError(
   *Message = ErrorMessage;
   *Error = ErrorAdapterNativeCode;
 
-  return ErrorMessageCode;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
@@ -739,4 +660,26 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
 
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urAdapterSetLoggerCallback(
+    ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
+    void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
+
+  if (GlobalAdapter) {
+    GlobalAdapter->logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t,
+                                            ur_logger_level_t level) {
+
+  if (GlobalAdapter) {
+    GlobalAdapter->logger.setCallbackLevel(level);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace ur::level_zero

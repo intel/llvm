@@ -7,11 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <libspirv/spirv.h>
+#include <clc/math/clc_tanpi.h>
 
-#include <math/clc_tanpi.h>
+#define FUNCTION __spirv_ocl_tanpi
+#define __CLC_FUNCTION(x) __clc_tanpi
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-#define __CLC_FUNC __spirv_ocl_tanpi
-#define __CLC_SW_FUNC __clc_tanpi
-#define __CLC_BODY <clc_sw_unary.inc>
 #include <clc/math/gentype.inc>
-#undef __CLC_SW_FUNC

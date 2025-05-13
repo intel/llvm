@@ -190,7 +190,8 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps) {
+                                     const GlobalBinImageProps &GlobProps,
+                                     bool AllowDeviceImageDependencies) {
 
   PropSetRegTy PropSet;
   {
@@ -286,7 +287,8 @@ PropSetRegTy computeModuleProperties(const Module &M,
       if (F.hasFnAttribute("indirectly-callable"))
         continue;
 
-      if (module_split::canBeImportedFunction(F)) {
+      if (module_split::canBeImportedFunction(F,
+                                              AllowDeviceImageDependencies)) {
         // StripDeadPrototypes is called during module splitting
         // cleanup.  At this point all function decls should have uses.
         assert(!F.use_empty() && "Function F has no uses");

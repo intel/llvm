@@ -2,7 +2,6 @@ atomic/loadstore_helpers_unordered.ll
 atomic/loadstore_helpers_release.ll
 atomic/loadstore_helpers_acquire.ll
 atomic/loadstore_helpers_seq_cst.ll
-float16.cl
 subnormal_config.cl
 subnormal_helper_func.ll
 async/async_work_group_strided_copy.cl
@@ -27,9 +26,6 @@ common/radians.cl
 common/sign.cl
 common/smoothstep.cl
 common/step.cl
-core/integer/clc_add_sat.cl
-core/integer/clc_mad_sat.cl
-core/integer/clc_sub_sat.cl
 geometric/cross.cl
 geometric/distance.cl
 geometric/dot.cl
@@ -70,17 +66,13 @@ math/atanpi.cl
 math/cbrt.cl
 math/ceil.cl
 math/clc_exp10.cl
-math/clc_fma.cl
 math/clc_fmod.cl
-math/clc_hypot.cl
-math/clc_ldexp.cl
 math/clc_pow.cl
 math/clc_pown.cl
 math/clc_powr.cl
 math/clc_remainder.cl
 math/clc_remquo.cl
 math/clc_rootn.cl
-math/clc_sqrt.cl
 math/clc_tan.cl
 math/clc_tanpi.cl
 math/copysign.cl

@@ -1907,6 +1907,11 @@ public:
   bool isLoop() const {
     return getIntrinsicID() == Intrinsic::experimental_convergence_loop;
   }
+
+  static ConvergenceControlInst *CreateAnchor(BasicBlock &BB);
+  static ConvergenceControlInst *CreateEntry(BasicBlock &BB);
+  static ConvergenceControlInst *CreateLoop(BasicBlock &BB,
+                                            ConvergenceControlInst *Parent);
 };
 
 /// This represents the llvm.sycl.alloca intrinsic.

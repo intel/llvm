@@ -610,7 +610,11 @@ public:
     // clear platform cache in case subsequent tests want a different backend,
     // this forces platforms to be reconstructed (and thus queries about UR
     // backend info to be called again)
-    detail::GlobalHandler::instance().getPlatformCache().clear();
+    //
+    // This also erases each platform's devices (normally done in the library
+    // shutdown) so that platforms/devices' lifetimes could work in unittests
+    // scenario.
+    detail::GlobalHandler::instance().clearPlatforms();
     mock::getCallbacks().resetCallbacks();
   }
 

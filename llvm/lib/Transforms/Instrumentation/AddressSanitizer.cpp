@@ -74,6 +74,7 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
+#include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 #include "llvm/Transforms/Utils/ASanStackFrameLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
@@ -194,13 +195,6 @@ constexpr size_t kAccessSizeIndexShift = 1;
 constexpr size_t kAccessSizeIndexMask = 0xf;
 constexpr size_t kIsWriteShift = 5;
 constexpr size_t kIsWriteMask = 0x1;
-
-// Spir memory address space
-static constexpr unsigned kSpirOffloadPrivateAS = 0;
-static constexpr unsigned kSpirOffloadGlobalAS = 1;
-static constexpr unsigned kSpirOffloadConstantAS = 2;
-static constexpr unsigned kSpirOffloadLocalAS = 3;
-static constexpr unsigned kSpirOffloadGenericAS = 4;
 
 // Command-line flags.
 
@@ -646,6 +640,45 @@ void getAddressSanitizerParams(const Triple &TargetTriple, int LongSize,
   *OrShadowOffset = Mapping.OrShadowOffset;
 }
 
+void removeASanIncompatibleFnAttributes(Function &F, bool ReadsArgMem) {
+  // Sanitizer checks read from shadow, which invalidates memory(argmem: *).
+  //
+  // This is not only true for sanitized functions, because AttrInfer can
+  // infer those attributes on libc functions, which is not true if those
+  // are instrumented (Android) or intercepted.
+  //
+  // We might want to model ASan shadow memory more opaquely to get rid of
+  // this problem altogether, by hiding the shadow memory write in an
+  // intrinsic, essentially like in the AArch64StackTagging pass. But that's
+  // for another day.
+
+  // The API is weird. `onlyReadsMemory` actually means "does not write", and
+  // `onlyWritesMemory` actually means "does not read". So we reconstruct
+  // "accesses memory" && "does not read" <=> "writes".
+  bool Changed = false;
+  if (!F.doesNotAccessMemory()) {
+    bool WritesMemory = !F.onlyReadsMemory();
+    bool ReadsMemory = !F.onlyWritesMemory();
+    if ((WritesMemory && !ReadsMemory) || F.onlyAccessesArgMemory()) {
+      F.removeFnAttr(Attribute::Memory);
+      Changed = true;
+    }
+  }
+  if (ReadsArgMem) {
+    for (Argument &A : F.args()) {
+      if (A.hasAttribute(Attribute::WriteOnly)) {
+        A.removeAttr(Attribute::WriteOnly);
+        Changed = true;
+      }
+    }
+  }
+  if (Changed) {
+    // nobuiltin makes sure later passes don't restore assumptions about
+    // the function.
+    F.addFnAttr(Attribute::NoBuiltin);
+  }
+}
+
 ASanAccessInfo::ASanAccessInfo(int32_t Packed)
     : Packed(Packed),
       AccessSizeIndex((Packed >> kAccessSizeIndexShift) & kAccessSizeIndexMask),
@@ -778,7 +811,7 @@ struct AddressSanitizer {
     IntptrTy = Type::getIntNTy(*C, LongSize);
     PtrTy = PointerType::getUnqual(*C);
     Int32Ty = Type::getInt32Ty(*C);
-    TargetTriple = Triple(M.getTargetTriple());
+    TargetTriple = M.getTargetTriple();
 
     Mapping = getShadowMapping(TargetTriple, LongSize, this->CompileKernel);
 
@@ -954,7 +987,7 @@ public:
     int LongSize = M.getDataLayout().getPointerSizeInBits();
     IntptrTy = Type::getIntNTy(*C, LongSize);
     PtrTy = PointerType::getUnqual(*C);
-    TargetTriple = Triple(M.getTargetTriple());
+    TargetTriple = M.getTargetTriple();
     Mapping = getShadowMapping(TargetTriple, LongSize, this->CompileKernel);
 
     if (ClOverrideDestructorKind != AsanDtorKind::Invalid)
@@ -1099,10 +1132,10 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
         IntptrPtrTy(PointerType::get(IntptrTy->getContext(), 0)),
         Mapping(ASan.Mapping),
         PoisonStack(
-            Triple(F.getParent()->getTargetTriple()).isSPIROrSPIRV()
-                ? ClSpirOffloadPrivates
-                : (ClStack &&
-                   !Triple(F.getParent()->getTargetTriple()).isAMDGPU())) {}
+          F.getParent()->getTargetTriple().isSPIROrSPIRV()
+          ? ClSpirOffloadPrivates
+          : (ClStack &&
+             !F.getParent()->getTargetTriple().isAMDGPU())) {}
 
   bool runOnFunction() {
     if (!PoisonStack)
@@ -1507,7 +1540,9 @@ void AddressSanitizerPass::printPipeline(
       OS, MapClassName2PassName);
   OS << '<';
   if (Options.CompileKernel)
-    OS << "kernel";
+    OS << "kernel;";
+  if (Options.UseAfterScope)
+    OS << "use-after-scope";
   OS << '>';
 }
 
@@ -1555,6 +1590,16 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   }
 
   for (Function &F : M) {
+    if (F.empty())
+      continue;
+    if (F.getLinkage() == GlobalValue::AvailableExternallyLinkage)
+      continue;
+    if (!ClDebugFunc.empty() && ClDebugFunc == F.getName())
+      continue;
+    if (F.getName().starts_with("__asan_"))
+      continue;
+    if (F.isPresplitCoroutine())
+      continue;
     AddressSanitizer FunctionSanitizer(
         M, SSGI, Options.InstrumentationWithCallsThreshold,
         Options.MaxInlinePoisoningSize, Options.CompileKernel, Options.Recover,
@@ -1612,49 +1657,6 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
-static TargetExtType *getTargetExtType(Type *Ty) {
-  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
-    return TargetTy;
-
-  if (Ty->isVectorTy())
-    return getTargetExtType(Ty->getScalarType());
-
-  if (Ty->isArrayTy())
-    return getTargetExtType(Ty->getArrayElementType());
-
-  if (auto *STy = dyn_cast<StructType>(Ty)) {
-    for (unsigned int i = 0; i < STy->getNumElements(); i++)
-      if (auto *TargetTy = getTargetExtType(STy->getElementType(i)))
-        return TargetTy;
-    return nullptr;
-  }
-
-  return nullptr;
-}
-
-// Skip pointer operand that is sycl joint matrix access since it isn't from
-// user code, e.g. %call:
-// clang-format off
-// %a = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
-// %0 = getelementptr inbounds %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", ptr %a, i64 0, i32 0
-// %call = call spir_func ptr
-// @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
-// %1 = load float, ptr %call, align 4
-// store float %1, ptr %call, align 4
-// clang-format on
-static bool isJointMatrixAccess(Value *V) {
-  auto *ActualV = V->stripInBoundsOffsets();
-  if (auto *CI = dyn_cast<CallInst>(ActualV)) {
-    for (Value *Op : CI->args()) {
-      if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
-        if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
-          return TargetTy->getName().starts_with("spirv.") &&
-                 TargetTy->getName().contains("Matrix");
-    }
-  }
-  return false;
-}
-
 static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   // Non image scope device globals are implemented by device USM, and the
   // out-of-bounds check for them will be done by sanitizer USM part. So we
@@ -1667,7 +1669,7 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
     return true;
 
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
-    return true;
+    return !ClSpirOffloadLocals;
 
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
@@ -1854,10 +1856,10 @@ void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI,
 
 /// Check if we want (and can) handle this alloca.
 bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
-  auto PreviouslySeenAllocaInfo = ProcessedAllocas.find(&AI);
+  auto [It, Inserted] = ProcessedAllocas.try_emplace(&AI);
 
-  if (PreviouslySeenAllocaInfo != ProcessedAllocas.end())
-    return PreviouslySeenAllocaInfo->getSecond();
+  if (!Inserted)
+    return It->getSecond();
 
   bool IsInteresting =
       (AI.getAllocatedType()->isSized() &&
@@ -1877,7 +1879,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        // size it is.
        !getTargetExtType(AI.getAllocatedType()));
 
-  ProcessedAllocas[&AI] = IsInteresting;
+  It->second = IsInteresting;
   return IsInteresting;
 }
 
@@ -2865,6 +2867,10 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
     if (isUnsupportedDeviceGlobal(&G))
       continue;
 
+    // This case is handled by instrumentSyclStaticLocalMemory
+    if (G.getAddressSpace() == kSpirOffloadLocalAS)
+      continue;
+
     Type *Ty = G.getValueType();
     const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
     const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
@@ -3481,7 +3487,7 @@ ModuleAddressSanitizer::getRedzoneSizeForGlobal(uint64_t SizeInBytes) const {
 
 int ModuleAddressSanitizer::GetAsanVersion() const {
   int LongSize = M.getDataLayout().getPointerSizeInBits();
-  bool isAndroid = Triple(M.getTargetTriple()).isAndroid();
+  bool isAndroid = M.getTargetTriple().isAndroid();
   int Version = 8;
   // 32-bit Android is one version ahead because of the switch to dynamic
   // shadow.
@@ -3502,6 +3508,9 @@ GlobalVariable *ModuleAddressSanitizer::getOrCreateModuleName() {
 
 bool ModuleAddressSanitizer::instrumentModule() {
   initializeCallbacks();
+
+  for (Function &F : M)
+    removeASanIncompatibleFnAttributes(F, /*ReadsArgMem=*/false);
 
   // Create a module constructor. A destructor is created lazily because not all
   // platforms, and not all modules need it.
@@ -3802,14 +3811,6 @@ bool AddressSanitizer::suppressInstrumentationSiteForDebug(int &Instrumented) {
 
 bool AddressSanitizer::instrumentFunction(Function &F,
                                           const TargetLibraryInfo *TLI) {
-  if (F.empty())
-    return false;
-  if (F.getLinkage() == GlobalValue::AvailableExternallyLinkage) return false;
-  if (!ClDebugFunc.empty() && ClDebugFunc == F.getName()) return false;
-  if (F.getName().starts_with("__asan_")) return false;
-  if (F.isPresplitCoroutine())
-    return false;
-
   bool FunctionModified = false;
 
   // Do not apply any instrumentation for naked functions.
@@ -4278,6 +4279,30 @@ static void findStoresToUninstrumentedArgAllocas(
   }
 }
 
+static StringRef getAllocaName(AllocaInst *AI) {
+  // Alloca could have been renamed for uniqueness. Its true name will have been
+  // recorded as an annotation.
+  if (AI->hasMetadata(LLVMContext::MD_annotation)) {
+    MDTuple *AllocaAnnotations =
+        cast<MDTuple>(AI->getMetadata(LLVMContext::MD_annotation));
+    for (auto &Annotation : AllocaAnnotations->operands()) {
+      if (!isa<MDTuple>(Annotation))
+        continue;
+      auto AnnotationTuple = cast<MDTuple>(Annotation);
+      for (unsigned Index = 0; Index < AnnotationTuple->getNumOperands();
+           Index++) {
+        // All annotations are strings
+        auto MetadataString =
+            cast<MDString>(AnnotationTuple->getOperand(Index));
+        if (MetadataString->getString() == "alloca_name_altered")
+          return cast<MDString>(AnnotationTuple->getOperand(Index + 1))
+              ->getString();
+      }
+    }
+  }
+  return AI->getName();
+}
+
 void FunctionStackPoisoner::processStaticAllocas() {
   if (AllocaVec.empty()) {
     assert(StaticAllocaPoisonCallVec.empty());
@@ -4318,7 +4343,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
   SmallVector<ASanStackVariableDescription, 16> SVD;
   SVD.reserve(AllocaVec.size());
   for (AllocaInst *AI : AllocaVec) {
-    ASanStackVariableDescription D = {AI->getName().data(),
+    StringRef Name = getAllocaName(AI);
+    ASanStackVariableDescription D = {Name.data(),
                                       ASan.getAllocaSizeInBytes(*AI),
                                       0,
                                       AI->getAlign().value(),

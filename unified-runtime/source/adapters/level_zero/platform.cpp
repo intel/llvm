@@ -15,7 +15,7 @@
 namespace ur::level_zero {
 
 ur_result_t urPlatformGet(
-    ur_adapter_handle_t *, uint32_t,
+    ur_adapter_handle_t,
     /// [in] the number of platforms to be added to phPlatforms. If phPlatforms
     /// is not NULL, then NumEntries should be greater than zero, otherwise
     /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
@@ -102,7 +102,7 @@ ur_result_t urPlatformGetInfo(
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(GlobalAdapter);
   default:
-    logger::debug("urPlatformGetInfo: unrecognized ParamName");
+    UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -111,10 +111,9 @@ ur_result_t urPlatformGetInfo(
 
 ur_result_t urPlatformGetApiVersion(
     /// [in] handle of the platform
-    ur_platform_handle_t Driver,
+    ur_platform_handle_t /*Driver*/,
     /// [out] api version
     ur_api_version_t *Version) {
-  std::ignore = Driver;
   *Version = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
@@ -133,20 +132,19 @@ ur_result_t urPlatformCreateWithNativeHandle(
     /// [in] the native handle of the platform.
     ur_native_handle_t NativePlatform, ur_adapter_handle_t,
     /// [in][optional] pointer to native platform properties struct.
-    const ur_platform_native_properties_t *Properties,
+    const ur_platform_native_properties_t * /*Properties*/,
     /// [out] pointer to the handle of the platform object created.
     ur_platform_handle_t *Platform) {
-  std::ignore = Properties;
   auto ZeDriver = ur_cast<ze_driver_handle_t>(NativePlatform);
 
   uint32_t NumPlatforms = 0;
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, 0, nullptr,
-                                        &NumPlatforms));
+  UR_CALL(
+      ur::level_zero::urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms));
 
   if (NumPlatforms) {
     std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumPlatforms,
+    UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumPlatforms,
                                           Platforms.data(), nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for
@@ -173,13 +171,12 @@ ur_result_t urPlatformCreateWithNativeHandle(
 // frontend_option=-ftarget-compile-fast.
 ur_result_t urPlatformGetBackendOption(
     /// [in] handle of the platform instance.
-    ur_platform_handle_t Platform,
+    ur_platform_handle_t /*Platform*/,
     /// [in] string containing the frontend option.
     const char *FrontendOption,
     /// [out] returns the correct platform specific compiler option based on
     /// the frontend option.
     const char **PlatformOption) {
-  std::ignore = Platform;
   using namespace std::literals;
   if (FrontendOption == nullptr) {
     return UR_RESULT_SUCCESS;
@@ -546,7 +543,45 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
 
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeImageGetDeviceOffsetExp",
+                   reinterpret_cast<void **>(
+                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+
+  ZeImageGetDeviceOffsetExt.Supported =
+      ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeMemGetPitchFor2dImage",
+                   reinterpret_cast<void **>(
+                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+
+  ZeMemGetPitchFor2dImageExt.Supported =
+      ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
+
   return UR_RESULT_SUCCESS;
+}
+
+bool ur_platform_handle_t_::allowDriverInOrderLists(bool OnlyIfRequested) {
+  // Use in-order lists implementation from L0 driver instead
+  // of adapter's implementation.
+
+  // The following driver version is known to be passing and only this or newer
+  // drivers should be allowed by default for in order lists.
+#define L0_DRIVER_INORDER_MINOR_VERSION 6
+#define L0_DRIVER_INORDER_PATCH_VERSION 32149
+
+  static const bool UseEnvVarDriverInOrderLists = [&] {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
+    return UrRet ? std::atoi(UrRet) != 0 : false;
+  }();
+  static const bool UseDriverInOrderLists = [this] {
+    bool CompatibleDriver = this->isDriverVersionNewerOrSimilar(
+        1, L0_DRIVER_INORDER_MINOR_VERSION, L0_DRIVER_INORDER_PATCH_VERSION);
+    return CompatibleDriver || UseEnvVarDriverInOrderLists;
+  }();
+
+  return OnlyIfRequested ? UseEnvVarDriverInOrderLists : UseDriverInOrderLists;
 }
 
 /// Checks the version of the level-zero driver.

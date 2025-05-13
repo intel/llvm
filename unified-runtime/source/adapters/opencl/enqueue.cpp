@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
@@ -64,12 +65,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  CL_RETURN_ON_FAILURE(clEnqueueNDRangeKernel(
+  auto Err = clEnqueueNDRangeKernel(
       hQueue->CLQueue, hKernel->CLKernel, workDim, pGlobalWorkOffset,
       pGlobalWorkSize,
       compiledLocalWorksize.empty() ? pLocalWorkSize
                                     : compiledLocalWorksize.data(),
-      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event));
+  if (Err == CL_INVALID_KERNEL_ARGS) {
+    UR_LOG_L(ur::cl::getAdapter()->log, ERR,
+             "Kernel called with invalid arguments");
+  }
+  CL_RETURN_ON_FAILURE(Err);
 
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;
@@ -400,7 +406,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   cl_ext::clEnqueueWriteGlobalVariable_fn F = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, cl_ext::ExtFuncPtrCache->clEnqueueWriteGlobalVariableCache,
+      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueWriteGlobalVariableCache,
       cl_ext::EnqueueWriteGlobalVariableName, &F));
 
   cl_int Res = F(hQueue->CLQueue, hProgram->CLProgram, name, blockingWrite,
@@ -422,7 +428,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   cl_ext::clEnqueueReadGlobalVariable_fn F = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, cl_ext::ExtFuncPtrCache->clEnqueueReadGlobalVariableCache,
+      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueReadGlobalVariableCache,
       cl_ext::EnqueueReadGlobalVariableName, &F));
 
   cl_int Res = F(hQueue->CLQueue, hProgram->CLProgram, name, blockingRead,
@@ -446,7 +452,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
   cl_ext::clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clEnqueueReadHostPipeINTEL_fn>(
-          CLContext, cl_ext::ExtFuncPtrCache->clEnqueueReadHostPipeINTELCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clEnqueueReadHostPipeINTELCache,
           cl_ext::EnqueueReadHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
@@ -474,7 +481,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   cl_ext::clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clEnqueueWriteHostPipeINTEL_fn>(
-          CLContext, cl_ext::ExtFuncPtrCache->clEnqueueWriteHostPipeINTELCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clEnqueueWriteHostPipeINTELCache,
           cl_ext::EnqueueWriteHostPipeName, &FuncPtr));
 
   if (FuncPtr) {

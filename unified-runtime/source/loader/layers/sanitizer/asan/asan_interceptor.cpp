@@ -49,7 +49,6 @@ AsanInterceptor::~AsanInterceptor() {
 
   for (auto &[_, ShadowMemory] : m_ShadowMap) {
     ShadowMemory->Destory();
-    getContext()->urDdiTable.Context.pfnRelease(ShadowMemory->Context);
   }
 
   for (auto Adapter : m_Adapters) {
@@ -117,7 +116,7 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
     UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
         Context, Device, Properties, Pool, NeededSize, &Allocated));
   } else {
-    getContext()->logger.error("Unsupport memory type");
+    UR_LOG_L(getContext()->logger, ERR, "Unsupport memory type");
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
 
@@ -225,7 +224,8 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
   // If quarantine is disabled, USM is freed immediately
   if (!m_Quarantine) {
-    getContext()->logger.debug("Free: {}", (void *)AllocInfo->AllocBegin);
+    UR_LOG_L(getContext()->logger, DEBUG, "Free: {}",
+             (void *)AllocInfo->AllocBegin);
 
     ContextInfo->Stats.UpdateUSMRealFreed(AllocInfo->AllocSize,
                                           AllocInfo->getRedzoneSize());
@@ -243,8 +243,8 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
     std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     for (auto &It : ReleaseList) {
       auto ToFreeAllocInfo = It->second;
-      getContext()->logger.info("Quarantine Free: {}",
-                                (void *)ToFreeAllocInfo->AllocBegin);
+      UR_LOG_L(getContext()->logger, INFO, "Quarantine Free: {}",
+               (void *)ToFreeAllocInfo->AllocBegin);
 
       ContextInfo->Stats.UpdateUSMRealFreed(ToFreeAllocInfo->AllocSize,
                                             ToFreeAllocInfo->getRedzoneSize());
@@ -271,7 +271,7 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ManagedQueue InternalQueue(Context, Device);
   if (!InternalQueue) {
-    getContext()->logger.error("Failed to create internal queue");
+    UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
     return UR_RESULT_ERROR_INVALID_QUEUE;
   }
 
@@ -323,17 +323,11 @@ AsanInterceptor::getOrCreateShadowMemory(ur_device_handle_t Device,
                                          DeviceType Type) {
   std::scoped_lock<ur_shared_mutex> Guard(m_ShadowMapMutex);
   if (m_ShadowMap.find(Type) == m_ShadowMap.end()) {
-    ur_context_handle_t InternalContext;
-    auto Res = getContext()->urDdiTable.Context.pfnCreate(1, &Device, nullptr,
-                                                          &InternalContext);
-    if (Res != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Failed to create shadow context");
-      return nullptr;
-    }
-    std::shared_ptr<ContextInfo> CI;
-    insertContext(InternalContext, CI);
-    m_ShadowMap[Type] = GetShadowMemory(InternalContext, Device, Type);
+    m_ShadowMap[Type] = CreateShadowMemory(Device, Type);
     m_ShadowMap[Type]->Setup();
+    UR_LOG_L(getContext()->logger, INFO, "ShadowMemory(Global, {} ~ {})",
+             (void *)m_ShadowMap[Type]->ShadowBegin,
+             (void *)m_ShadowMap[Type]->ShadowEnd);
   }
   return m_ShadowMap[Type];
 }
@@ -440,13 +434,13 @@ AsanInterceptor::updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
 ur_result_t AsanInterceptor::registerProgram(ur_program_handle_t Program) {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
-  getContext()->logger.info("registerSpirKernels");
+  UR_LOG_L(getContext()->logger, INFO, "registerSpirKernels");
   Result = registerSpirKernels(Program);
   if (Result != UR_RESULT_SUCCESS) {
     return Result;
   }
 
-  getContext()->logger.info("registerDeviceGlobals");
+  UR_LOG_L(getContext()->logger, INFO, "registerDeviceGlobals");
   Result = registerDeviceGlobals(Program);
   if (Result != UR_RESULT_SUCCESS) {
     return Result;
@@ -496,8 +490,8 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
         Queue, true, &SKInfo[0], MetadataPtr,
         sizeof(SpirKernelInfo) * NumOfSpirKernel, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Can't read the value of <{}>: {}",
-                                 kSPIR_AsanSpirKernelMetadata, Result);
+      UR_LOG_L(getContext()->logger, ERR, "Can't read the value of <{}>: {}",
+               kSPIR_AsanSpirKernelMetadata, Result);
       return Result;
     }
 
@@ -512,20 +506,21 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
           Queue, true, KernelNameV.data(), (void *)SKI.KernelName,
           sizeof(char) * SKI.Size, 0, nullptr, nullptr);
       if (Result != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("Can't read kernel name: {}", Result);
+        UR_LOG_L(getContext()->logger, ERR, "Can't read kernel name: {}",
+                 Result);
         return Result;
       }
 
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
 
-      getContext()->logger.info("SpirKernel(name='{}', isInstrumented={})",
-                                KernelName, true);
+      UR_LOG_L(getContext()->logger, INFO,
+               "SpirKernel(name='{}', isInstrumented={})", KernelName, true);
 
       PI->InstrumentedKernels.insert(std::move(KernelName));
     }
-    getContext()->logger.info("Number of sanitized kernel: {}",
-                              PI->InstrumentedKernels.size());
+    UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
+             PI->InstrumentedKernels.size());
   }
 
   return UR_RESULT_SUCCESS;
@@ -549,7 +544,7 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         Device, Program, kSPIR_AsanDeviceGlobalMetadata, &MetadataSize,
         &MetadataPtr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.info("No device globals");
+      UR_LOG_L(getContext()->logger, INFO, "No device globals");
       continue;
     }
 
@@ -561,8 +556,8 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         Queue, true, &GVInfos[0], MetadataPtr,
         sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Device Global[{}] Read Failed: {}",
-                                 kSPIR_AsanDeviceGlobalMetadata, Result);
+      UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
+               kSPIR_AsanDeviceGlobalMetadata, Result);
       return Result;
     }
 
@@ -728,11 +723,11 @@ ur_result_t AsanInterceptor::prepareLaunch(
   auto PrivateMemoryUsage =
       GetKernelPrivateMemorySize(Kernel, DeviceInfo->Handle);
 
-  getContext()->logger.info(
-      "KernelInfo {} (Name={}, ArgNums={}, IsInstrumented={}, "
-      "LocalMemory={}, PrivateMemory={})",
-      (void *)Kernel, GetKernelName(Kernel), ArgNums, KernelInfo.IsInstrumented,
-      LocalMemoryUsage, PrivateMemoryUsage);
+  UR_LOG_L(getContext()->logger, INFO,
+           "KernelInfo {} (Name={}, ArgNums={}, IsInstrumented={}, "
+           "LocalMemory={}, PrivateMemory={})",
+           (void *)Kernel, GetKernelName(Kernel), ArgNums,
+           KernelInfo.IsInstrumented, LocalMemoryUsage, PrivateMemoryUsage);
 
   // Validate pointer arguments
   if (getContext()->Options.DetectKernelArguments) {
@@ -759,9 +754,10 @@ ur_result_t AsanInterceptor::prepareLaunch(
     ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
         Kernel, ArgIndex, nullptr, ArgPointer);
     if (URes != UR_RESULT_SUCCESS) {
-      getContext()->logger.error(
-          "Failed to set buffer {} as the {} arg to kernel {}: {}",
-          ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel, URes);
+      UR_LOG_L(getContext()->logger, ERR,
+               "Failed to set buffer {} as the {} arg to kernel {}: {}",
+               ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
+               URes);
     }
   }
 
@@ -779,7 +775,8 @@ ur_result_t AsanInterceptor::prepareLaunch(
     ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
         Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
     if (URes != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Failed to set launch info: {}", URes);
+      UR_LOG_L(getContext()->logger, ERR, "Failed to set launch info: {}",
+               URes);
       return URes;
     }
   }
@@ -819,18 +816,18 @@ ur_result_t AsanInterceptor::prepareLaunch(
     if (DeviceInfo->Shadow->AllocLocalShadow(
             Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
             LaunchInfo.Data.Host.LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
-      getContext()->logger.warning(
-          "Failed to allocate shadow memory for local "
-          "memory, maybe the number of workgroup ({}) is too "
-          "large",
-          NumWG);
-      getContext()->logger.warning("Skip checking local memory of kernel <{}>",
-                                   GetKernelName(Kernel));
+      UR_LOG_L(getContext()->logger, WARN,
+               "Failed to allocate shadow memory for local memory, "
+               "maybe the number of workgroup ({}) is too large",
+               NumWG);
+      UR_LOG_L(getContext()->logger, WARN,
+               "Skip checking local memory of kernel <{}>",
+               GetKernelName(Kernel));
     } else {
-      getContext()->logger.info(
-          "ShadowMemory(Local, WorkGroup{}, {} - {})", NumWG,
-          (void *)LaunchInfo.Data.Host.LocalShadowOffset,
-          (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
+      UR_LOG_L(getContext()->logger, INFO,
+               "ShadowMemory(Local, WorkGroup{}, {} - {})", NumWG,
+               (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+               (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
     }
   }
 
@@ -839,18 +836,18 @@ ur_result_t AsanInterceptor::prepareLaunch(
     if (DeviceInfo->Shadow->AllocPrivateShadow(
             Queue, NumWG, LaunchInfo.Data.Host.PrivateShadowOffset,
             LaunchInfo.Data.Host.PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
-      getContext()->logger.warning(
-          "Failed to allocate shadow memory for private "
-          "memory, maybe the number of workgroup ({}) is too "
-          "large",
-          NumWG);
-      getContext()->logger.warning(
-          "Skip checking private memory of kernel <{}>", GetKernelName(Kernel));
+      UR_LOG_L(getContext()->logger, WARN,
+               "Failed to allocate shadow memory for private memory, "
+               "maybe the number of workgroup ({}) is too large",
+               NumWG);
+      UR_LOG_L(getContext()->logger, WARN,
+               "Skip checking private memory of kernel <{}>",
+               GetKernelName(Kernel));
     } else {
-      getContext()->logger.info(
-          "ShadowMemory(Private, WorkGroup{}, {} - {})", NumWG,
-          (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
-          (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
+      UR_LOG_L(getContext()->logger, INFO,
+               "ShadowMemory(Private, WorkGroup{}, {} - {})", NumWG,
+               (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+               (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
     }
   }
 
@@ -859,9 +856,9 @@ ur_result_t AsanInterceptor::prepareLaunch(
     std::vector<LocalArgsInfo> LocalArgsInfo;
     for (auto [ArgIndex, ArgInfo] : KernelInfo.LocalArgs) {
       LocalArgsInfo.push_back(ArgInfo);
-      getContext()->logger.debug(
-          "local_args (argIndex={}, size={}, sizeWithRZ={})", ArgIndex,
-          ArgInfo.Size, ArgInfo.SizeWithRedZone);
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "local_args (argIndex={}, size={}, sizeWithRZ={})", ArgIndex,
+               ArgInfo.Size, ArgInfo.SizeWithRedZone);
     }
     UR_CALL(LaunchInfo.Data.importLocalArgsInfo(Queue, LocalArgsInfo));
   }
@@ -869,12 +866,12 @@ ur_result_t AsanInterceptor::prepareLaunch(
   // sync asan runtime data to device side
   UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
-  getContext()->logger.info(
-      "LaunchInfo {} (device={}, debug={}, numLocalArgs={}, localArgs={})",
-      (void *)LaunchInfo.Data.getDevicePtr(),
-      ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug,
-      LaunchInfo.Data.Host.NumLocalArgs,
-      (void *)LaunchInfo.Data.Host.LocalArgs);
+  UR_LOG_L(getContext()->logger, INFO,
+           "LaunchInfo {} (device={}, debug={}, numLocalArgs={}, localArgs={})",
+           (void *)LaunchInfo.Data.getDevicePtr(),
+           ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug,
+           LaunchInfo.Data.Host.NumLocalArgs,
+           (void *)LaunchInfo.Data.Host.LocalArgs);
 
   return UR_RESULT_SUCCESS;
 }
@@ -947,10 +944,10 @@ ur_usm_pool_handle_t ContextInfo::getUSMPool() {
         getContext()->urDdiTable.USM.pfnPoolCreate(Handle, &Desc, &USMPool);
     if (URes != UR_RESULT_SUCCESS &&
         URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      getContext()->logger.warning(
-          "Failed to create USM pool, the memory overhead "
-          "may increase: {}",
-          URes);
+      UR_LOG_L(getContext()->logger, WARN,
+               "Failed to create USM pool, the memory overhead "
+               "may increase: {}",
+               URes);
     }
   });
   return USMPool;

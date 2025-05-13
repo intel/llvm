@@ -61,7 +61,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1},
       NextSyncPoint{0} {
   urContextRetain(Context);
-  urDeviceRetain(Device);
 }
 
 /// The ur_exp_command_buffer_handle_t_ destructor releases
@@ -69,9 +68,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release the memory allocated to the Context stored in the command_buffer
   UR_CALL_NOCHECK(urContextRelease(Context));
-
-  // Release the device
-  UR_CALL_NOCHECK(urDeviceRelease(Device));
 }
 
 // This may throw so it must be called from within a try...catch
@@ -104,16 +100,12 @@ ur_result_t ur_exp_command_buffer_handle_t_::addWaitNodes(
   return Err;
 }
 
-kernel_command_handle::kernel_command_handle(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-    CUgraphNode Node, CUDA_KERNEL_NODE_PARAMS Params, uint32_t WorkDim,
+kernel_command_data::kernel_command_data(
+    ur_kernel_handle_t Kernel, CUDA_KERNEL_NODE_PARAMS Params, uint32_t WorkDim,
     const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
     const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
-    ur_kernel_handle_t *KernelAlternatives, CUgraphNode SignalNode,
-    const std::vector<CUgraphNode> &WaitNodes)
-    : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                              WaitNodes),
-      Kernel(Kernel), Params(Params), WorkDim(WorkDim) {
+    ur_kernel_handle_t *KernelAlternatives)
+    : Kernel(Kernel), Params(Params), WorkDim(WorkDim) {
   const size_t CopySize = sizeof(size_t) * WorkDim;
   std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
   std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
@@ -195,8 +187,8 @@ static void setCopyParams(const void *SrcPtr, const CUmemorytype_enum SrcType,
 }
 
 // Helper function for enqueuing memory fills. Templated on the CommandType
-// enum class for the type of fill being created.
-template <class T>
+// variant for the type of fill being created.
+template <CommandType CT>
 static ur_result_t enqueueCommandBufferFillHelper(
     ur_exp_command_buffer_handle_t CommandBuffer, void *DstDevice,
     const CUmemorytype_enum DstType, const void *Pattern, size_t PatternSize,
@@ -335,8 +327,9 @@ static ur_result_t enqueueCommandBufferFillHelper(
 
   std::vector<CUgraphNode> WaitNodes =
       NumEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<T>(CommandBuffer, GraphNode, SignalNode,
-                                        WaitNodes, std::move(DecomposedNodes));
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CT, CommandBuffer, GraphNode, SignalNode, WaitNodes,
+      fill_command_data{std::move(DecomposedNodes)});
   if (RetCommand) {
     *RetCommand = NewCommand.get();
   }
@@ -532,10 +525,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
     std::vector<CUgraphNode> WaitNodes =
         numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-    auto NewCommand = std::make_unique<kernel_command_handle>(
-        hCommandBuffer, hKernel, GraphNode, NodeParams, workDim,
-        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-        numKernelAlternatives, phKernelAlternatives, SignalNode, WaitNodes);
+    auto KernelData = kernel_command_data{hKernel,
+                                          NodeParams,
+                                          workDim,
+                                          pGlobalWorkOffset,
+                                          pGlobalWorkSize,
+                                          pLocalWorkSize,
+                                          numKernelAlternatives,
+                                          phKernelAlternatives};
+    auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+        CommandType::Kernel, hCommandBuffer, GraphNode, SignalNode, WaitNodes,
+        KernelData);
 
     if (phCommand) {
       *phCommand = NewCommand.get();
@@ -589,8 +589,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<usm_memcpy_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::USMMemcpy, hCommandBuffer, GraphNode, SignalNode, WaitNodes);
   if (phCommand) {
     *phCommand = NewCommand.get();
   }
@@ -654,8 +654,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<buffer_copy_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::MemBufferCopy, hCommandBuffer, GraphNode, SignalNode,
+      WaitNodes);
 
   if (phCommand) {
     *phCommand = NewCommand.get();
@@ -717,8 +718,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<buffer_copy_rect_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::MemBufferCopyRect, hCommandBuffer, GraphNode, SignalNode,
+      WaitNodes);
 
   if (phCommand) {
     *phCommand = NewCommand.get();
@@ -776,8 +778,9 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<buffer_write_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::MemBufferWrite, hCommandBuffer, GraphNode, SignalNode,
+      WaitNodes);
   if (phCommand) {
     *phCommand = NewCommand.get();
   }
@@ -833,8 +836,9 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<buffer_read_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::MemBufferRead, hCommandBuffer, GraphNode, SignalNode,
+      WaitNodes);
   if (phCommand) {
     *phCommand = NewCommand.get();
   }
@@ -894,8 +898,9 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<buffer_write_rect_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::MemBufferWriteRect, hCommandBuffer, GraphNode, SignalNode,
+      WaitNodes);
 
   if (phCommand) {
     *phCommand = NewCommand.get();
@@ -956,8 +961,9 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<buffer_read_rect_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::MemBufferReadRect, hCommandBuffer, GraphNode, SignalNode,
+      WaitNodes);
 
   if (phCommand) {
     *phCommand = NewCommand.get();
@@ -1010,8 +1016,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<usm_prefetch_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::USMPrefetch, hCommandBuffer, GraphNode, SignalNode,
+      WaitNodes);
 
   if (phCommand) {
     *phCommand = NewCommand.get();
@@ -1064,8 +1071,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = std::make_unique<usm_advise_command_handle>(
-      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+      CommandType::USMAdvise, hCommandBuffer, GraphNode, SignalNode, WaitNodes);
 
   if (phCommand) {
     *phCommand = NewCommand.get();
@@ -1100,7 +1107,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
   auto DstDevice = std::get<BufferMem>(hBuffer->Mem)
                        .getPtrWithOffset(hCommandBuffer->Device, offset);
 
-  return enqueueCommandBufferFillHelper<buffer_fill_command_handle>(
+  return enqueueCommandBufferFillHelper<CommandType::MemBufferFill>(
       hCommandBuffer, &DstDevice, CU_MEMORYTYPE_DEVICE, pPattern, patternSize,
       size, numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
       phEventWaitList, pSyncPoint, phEvent, phCommand);
@@ -1120,7 +1127,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
                             (patternSize > 0); // is a positive power of two
 
   UR_ASSERT(PatternIsValid && PatternSizeIsValid, UR_RESULT_ERROR_INVALID_SIZE);
-  return enqueueCommandBufferFillHelper<usm_fill_command_handle>(
+  return enqueueCommandBufferFillHelper<CommandType::USMFill>(
       hCommandBuffer, pPtr, CU_MEMORYTYPE_UNIFIED, pPattern, patternSize, size,
       numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
       phEventWaitList, pSyncPoint, phEvent, phCommand);
@@ -1169,12 +1176,12 @@ ur_result_t
 validateCommandDesc(ur_exp_command_buffer_handle_t CommandBuffer,
                     const ur_exp_command_buffer_update_kernel_launch_desc_t
                         &UpdateCommandDesc) {
-  if (UpdateCommandDesc.hCommand->getCommandType() != CommandType::Kernel) {
+  if (UpdateCommandDesc.hCommand->Type != CommandType::Kernel) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  auto Command =
-      static_cast<kernel_command_handle *>(UpdateCommandDesc.hCommand);
+  auto *Command = UpdateCommandDesc.hCommand;
+  auto &KernelData = std::get<kernel_command_data>(Command->CommandData);
   if (CommandBuffer != Command->CommandBuffer) {
     return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP;
   }
@@ -1184,14 +1191,14 @@ validateCommandDesc(ur_exp_command_buffer_handle_t CommandBuffer,
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  if (UpdateCommandDesc.newWorkDim != Command->WorkDim &&
+  if (UpdateCommandDesc.newWorkDim != KernelData.WorkDim &&
       (!UpdateCommandDesc.pNewGlobalWorkOffset ||
        !UpdateCommandDesc.pNewGlobalWorkSize)) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   if (UpdateCommandDesc.hNewKernel &&
-      !Command->ValidKernelHandles.count(UpdateCommandDesc.hNewKernel)) {
+      !KernelData.ValidKernelHandles.count(UpdateCommandDesc.hNewKernel)) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -1206,9 +1213,9 @@ validateCommandDesc(ur_exp_command_buffer_handle_t CommandBuffer,
 ur_result_t
 updateKernelArguments(const ur_exp_command_buffer_update_kernel_launch_desc_t
                           &UpdateCommandDesc) {
-  auto Command =
-      static_cast<kernel_command_handle *>(UpdateCommandDesc.hCommand);
-  ur_kernel_handle_t Kernel = Command->Kernel;
+  auto *Command = UpdateCommandDesc.hCommand;
+  auto &KernelData = std::get<kernel_command_data>(Command->CommandData);
+  ur_kernel_handle_t Kernel = KernelData.Kernel;
   ur_device_handle_t Device = Command->CommandBuffer->Device;
 
   // Update pointer arguments to the kernel
@@ -1288,29 +1295,29 @@ updateKernelArguments(const ur_exp_command_buffer_update_kernel_launch_desc_t
 ur_result_t
 updateCommand(const ur_exp_command_buffer_update_kernel_launch_desc_t
                   &UpdateCommandDesc) {
-  auto Command =
-      static_cast<kernel_command_handle *>(UpdateCommandDesc.hCommand);
+  auto *Command = UpdateCommandDesc.hCommand;
+  auto &KernelData = std::get<kernel_command_data>(Command->CommandData);
   if (UpdateCommandDesc.hNewKernel) {
-    Command->Kernel = UpdateCommandDesc.hNewKernel;
+    KernelData.Kernel = UpdateCommandDesc.hNewKernel;
   }
 
   if (UpdateCommandDesc.newWorkDim) {
-    Command->WorkDim = UpdateCommandDesc.newWorkDim;
+    KernelData.WorkDim = UpdateCommandDesc.newWorkDim;
   }
 
   if (UpdateCommandDesc.pNewGlobalWorkOffset) {
-    Command->setGlobalOffset(UpdateCommandDesc.pNewGlobalWorkOffset);
+    KernelData.setGlobalOffset(UpdateCommandDesc.pNewGlobalWorkOffset);
   }
 
   if (UpdateCommandDesc.pNewGlobalWorkSize) {
-    Command->setGlobalSize(UpdateCommandDesc.pNewGlobalWorkSize);
+    KernelData.setGlobalSize(UpdateCommandDesc.pNewGlobalWorkSize);
     if (!UpdateCommandDesc.pNewLocalWorkSize) {
-      Command->setNullLocalSize();
+      KernelData.setNullLocalSize();
     }
   }
 
   if (UpdateCommandDesc.pNewLocalWorkSize) {
-    Command->setLocalSize(UpdateCommandDesc.pNewLocalWorkSize);
+    KernelData.setLocalSize(UpdateCommandDesc.pNewLocalWorkSize);
   }
 
   return UR_RESULT_SUCCESS;
@@ -1338,27 +1345,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
     // If no work-size is provided make sure we pass nullptr to setKernelParams
     // so it can guess the local work size.
-    auto KernelCommandHandle =
-        static_cast<kernel_command_handle *>(UpdateCommandDesc.hCommand);
-    const bool ProvidedLocalSize = !KernelCommandHandle->isNullLocalSize();
+    auto *KernelCommandHandle = UpdateCommandDesc.hCommand;
+    auto &KernelData =
+        std::get<kernel_command_data>(KernelCommandHandle->CommandData);
+    const bool ProvidedLocalSize = !KernelData.isNullLocalSize();
     size_t *LocalWorkSize =
-        ProvidedLocalSize ? KernelCommandHandle->LocalWorkSize : nullptr;
+        ProvidedLocalSize ? KernelData.LocalWorkSize : nullptr;
 
     // Set the number of threads per block to the number of threads per warp
     // by default unless user has provided a better number.
     size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
     size_t BlocksPerGrid[3] = {1u, 1u, 1u};
-    CUfunction CuFunc = KernelCommandHandle->Kernel->get();
+    CUfunction CuFunc = KernelData.Kernel->get();
     auto Result = setKernelParams(
-        hCommandBuffer->Context, hCommandBuffer->Device,
-        KernelCommandHandle->WorkDim, KernelCommandHandle->GlobalWorkOffset,
-        KernelCommandHandle->GlobalWorkSize, LocalWorkSize,
-        KernelCommandHandle->Kernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+        hCommandBuffer->Context, hCommandBuffer->Device, KernelData.WorkDim,
+        KernelData.GlobalWorkOffset, KernelData.GlobalWorkSize, LocalWorkSize,
+        KernelData.Kernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
     if (Result != UR_RESULT_SUCCESS) {
       return Result;
     }
 
-    CUDA_KERNEL_NODE_PARAMS &Params = KernelCommandHandle->Params;
+    CUDA_KERNEL_NODE_PARAMS &Params = KernelData.Params;
 
     Params.func = CuFunc;
     Params.gridDimX = BlocksPerGrid[0];
@@ -1367,9 +1374,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     Params.blockDimX = ThreadsPerBlock[0];
     Params.blockDimY = ThreadsPerBlock[1];
     Params.blockDimZ = ThreadsPerBlock[2];
-    Params.sharedMemBytes = KernelCommandHandle->Kernel->getLocalSize();
-    Params.kernelParams = const_cast<void **>(
-        KernelCommandHandle->Kernel->getArgPointers().data());
+    Params.sharedMemBytes = KernelData.Kernel->getLocalSize();
+    Params.kernelParams =
+        const_cast<void **>(KernelData.Kernel->getArgPointers().data());
 
     CUgraphNode Node = KernelCommandHandle->Node;
     CUgraphExec CudaGraphExec = hCommandBuffer->CudaGraphExec;

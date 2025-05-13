@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "kernel.hpp"
+#include "adapter.hpp"
 #include "common.hpp"
 #include "device.hpp"
 #include "memory.hpp"
@@ -66,6 +67,13 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     cl_int CLResult;
     cl_kernel Kernel =
         clCreateKernel(hProgram->CLProgram, pKernelName, &CLResult);
+
+    if (CLResult == CL_INVALID_KERNEL_DEFINITION) {
+      cl_adapter::setErrorMessage(
+          "clCreateKernel failed with CL_INVALID_KERNEL_DEFINITION", CLResult);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
     CL_RETURN_ON_FAILURE(CLResult);
     auto URKernel = std::make_unique<ur_kernel_handle_t_>(Kernel, hProgram,
                                                           hProgram->Context);
@@ -99,8 +107,13 @@ urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
   return UR_RESULT_SUCCESS;
 }
 
-static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
+// Querying the number of registers that a kernel uses is supported unofficially
+// on some devices.
+#ifndef CL_KERNEL_REGISTER_COUNT_INTEL
+#define CL_KERNEL_REGISTER_COUNT_INTEL 0x425B
+#endif
 
+static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
   switch (static_cast<uint32_t>(URPropName)) {
   case UR_KERNEL_INFO_FUNCTION_NAME:
     return CL_KERNEL_FUNCTION_NAME;
@@ -114,9 +127,10 @@ static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
     return CL_KERNEL_PROGRAM;
   case UR_KERNEL_INFO_ATTRIBUTES:
     return CL_KERNEL_ATTRIBUTES;
-  // NUM_REGS doesn't have a CL equivalent
-  case UR_KERNEL_INFO_NUM_REGS:
   case UR_KERNEL_INFO_SPILL_MEM_SIZE:
+    return CL_KERNEL_SPILL_MEM_SIZE_INTEL;
+  case UR_KERNEL_INFO_NUM_REGS:
+    return CL_KERNEL_REGISTER_COUNT_INTEL;
   default:
     return -1;
   }
@@ -131,10 +145,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
-  // OpenCL doesn't have a way to support this.
-  case UR_KERNEL_INFO_NUM_REGS: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   case UR_KERNEL_INFO_PROGRAM: {
     return ReturnValue(hKernel->Program);
   }
@@ -144,9 +154,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   case UR_KERNEL_INFO_REFERENCE_COUNT: {
     return ReturnValue(hKernel->getReferenceCount());
   }
-  case UR_KERNEL_INFO_SPILL_MEM_SIZE: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   default: {
     size_t CheckPropSize = 0;
     cl_int ClResult =
@@ -154,6 +161,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                         propSize, pPropValue, &CheckPropSize);
     if (pPropValue && CheckPropSize != propSize) {
       return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    if (ClResult == CL_INVALID_VALUE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
     CL_RETURN_ON_FAILURE(ClResult);
     if (pPropSizeRet) {
@@ -280,7 +290,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     CL_RETURN_ON_FAILURE(clGetKernelInfo(hKernel->CLKernel, CL_KERNEL_CONTEXT,
                                          sizeof(Context), &Context, nullptr));
     UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext(
-        Context, cl_ext::ExtFuncPtrCache->clGetKernelSubGroupInfoKHRCache,
+        Context, ur::cl::getAdapter()->fnCache.clGetKernelSubGroupInfoKHRCache,
         cl_ext::GetKernelSubGroupInfoName, &GetKernelSubGroupInfo));
   } else {
     GetKernelSubGroupInfo = clGetKernelSubGroupInfo;
@@ -364,7 +374,7 @@ static ur_result_t usmSetIndirectAccess(ur_kernel_handle_t hKernel) {
                                        nullptr));
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clHostMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
       cl_ext::HostMemAllocName, &HFunc));
 
   if (HFunc) {
@@ -374,7 +384,7 @@ static ur_result_t usmSetIndirectAccess(ur_kernel_handle_t hKernel) {
   }
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clDeviceMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clDeviceMemAllocINTELCache,
       cl_ext::DeviceMemAllocName, &DFunc));
 
   if (DFunc) {
@@ -384,7 +394,7 @@ static ur_result_t usmSetIndirectAccess(ur_kernel_handle_t hKernel) {
   }
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clSharedMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clSharedMemAllocINTELCache,
       cl_ext::SharedMemAllocName, &SFunc));
 
   if (SFunc) {
@@ -427,25 +437,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
 
-  cl_context CLContext;
-  CL_RETURN_ON_FAILURE(clGetKernelInfo(hKernel->CLKernel, CL_KERNEL_CONTEXT,
-                                       sizeof(cl_context), &CLContext,
-                                       nullptr));
-
-  clSetKernelArgMemPointerINTEL_fn FuncPtr = nullptr;
-  UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
-          CLContext,
-          cl_ext::ExtFuncPtrCache->clSetKernelArgMemPointerINTELCache,
-          cl_ext::SetKernelArgMemPointerName, &FuncPtr));
-
-  if (FuncPtr) {
-    CL_RETURN_ON_FAILURE(
-        FuncPtr(hKernel->CLKernel, static_cast<cl_uint>(argIndex), pArgValue));
+  if (hKernel->clSetKernelArgMemPointerINTEL == nullptr) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+
+  CL_RETURN_ON_FAILURE(hKernel->clSetKernelArgMemPointerINTEL(
+      hKernel->CLKernel, static_cast<cl_uint>(argIndex), pArgValue));
 
   return UR_RESULT_SUCCESS;
 }
+
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
 

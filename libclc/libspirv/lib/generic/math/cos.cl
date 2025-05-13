@@ -10,6 +10,7 @@
 
 #include "sincos_helpers.h"
 #include <clc/clcmacro.h>
+#include <clc/math/clc_sincos_helpers.h>
 #include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cos(float x)

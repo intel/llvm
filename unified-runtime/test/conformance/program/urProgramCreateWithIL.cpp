@@ -9,9 +9,6 @@
 
 struct urProgramCreateWithILTest : uur::urContextTest {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
     // TODO: This should use a query for urProgramCreateWithIL support or
     // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.
@@ -21,7 +18,8 @@ struct urProgramCreateWithILTest : uur::urContextTest {
     if (backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
-    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+    UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+        "foo", platform, il_binary));
   }
 
   void TearDown() override {

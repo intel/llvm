@@ -5,9 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/UrMock.hpp>

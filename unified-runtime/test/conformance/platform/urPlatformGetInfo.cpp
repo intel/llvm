@@ -128,6 +128,31 @@ TEST_P(urPlatformGetInfoTest, SuccessAdapter) {
   ASSERT_NE(adapter_found, uur::AdapterEnvironment::instance->adapters.end());
 }
 
+TEST_P(urPlatformGetInfoTest, SuccessRoundtripAdapter) {
+  const ur_platform_info_t property_name = UR_PLATFORM_INFO_ADAPTER;
+  size_t property_size = sizeof(ur_adapter_handle_t);
+
+  ur_adapter_handle_t adapter = nullptr;
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
+                        sizeof(ur_adapter_handle_t), &adapter, nullptr),
+      UR_PLATFORM_INFO_ADAPTER);
+
+  ur_native_handle_t native_platform;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urPlatformGetNativeHandle(platform, &native_platform));
+
+  ur_platform_handle_t from_native_platform;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urPlatformCreateWithNativeHandle(
+      native_platform, adapter, nullptr, &from_native_platform));
+
+  ur_adapter_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urPlatformGetInfo(from_native_platform, property_name,
+                                   property_size, &property_value, nullptr));
+
+  ASSERT_EQ(adapter, property_value);
+}
+
 TEST_P(urPlatformGetInfoTest, InvalidNullHandlePlatform) {
   size_t property_size = 0;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,

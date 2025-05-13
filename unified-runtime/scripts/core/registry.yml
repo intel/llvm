@@ -643,6 +643,24 @@ etors:
 - name: USM_POOL_SET_INFO_EXP
   desc: Enumerator for $xUSMPoolSetInfoExp
   value: '265'
+- name: ADAPTER_SET_LOGGER_CALLBACK
+  desc: Enumerator for $xAdapterSetLoggerCallback
+  value: '266'
+- name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
+  desc: Enumerator for $xAdapterSetLoggerCallbackLevel
+  value: '267'
+- name: BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageUnsampledHandleSupportExp
+  value: '268'
+- name: BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageSampledHandleSupportExp
+  value: '269'
+- name: BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageMemoryHandleTypeSupportExp
+  value: '270'
+- name: BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesFreeMappedLinearMemoryExp
+  value: '271'
 ---
 type: enum
 desc: Defines structure types
@@ -753,3 +771,6 @@ etors:
 - name: USM_ALLOC_LOCATION_DESC
   desc: $x_usm_alloc_location_desc_t
   value: '35'
+- name: USM_POOL_BUFFER_DESC
+  desc: $x_usm_pool_buffer_desc_t
+  value: '36'

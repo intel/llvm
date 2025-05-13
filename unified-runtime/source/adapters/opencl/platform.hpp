@@ -10,16 +10,19 @@
 #pragma once
 
 #include "common.hpp"
-#include "device.hpp"
 
 #include <vector>
 
-struct ur_platform_handle_t_ {
+struct ur_device_handle_t_;
+
+struct ur_platform_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_platform_id;
   native_type CLPlatform = nullptr;
   std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
+  std::map<cl_device_id, ur_device_handle_t> SubDevices;
+  std::mutex SubDevicesLock;
 
-  ur_platform_handle_t_(native_type Plat) : CLPlatform(Plat) {}
+  ur_platform_handle_t_(native_type Plat) : handle_base(), CLPlatform(Plat) {}
 
   ~ur_platform_handle_t_() {
     for (auto &Dev : Devices) {
@@ -42,45 +45,7 @@ struct ur_platform_handle_t_ {
     return UR_RESULT_SUCCESS;
   }
 
-  ur_result_t InitDevices() {
-    if (Devices.empty()) {
-      cl_uint DeviceNum = 0;
-      cl_int Res = clGetDeviceIDs(CLPlatform, CL_DEVICE_TYPE_ALL, 0, nullptr,
-                                  &DeviceNum);
-
-      // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
-      if (Res == CL_DEVICE_NOT_FOUND) {
-        return UR_RESULT_SUCCESS;
-      }
-
-      CL_RETURN_ON_FAILURE(Res);
-
-      std::vector<cl_device_id> CLDevices(DeviceNum);
-      Res = clGetDeviceIDs(CLPlatform, CL_DEVICE_TYPE_ALL, DeviceNum,
-                           CLDevices.data(), nullptr);
-
-      // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
-      if (Res == CL_DEVICE_NOT_FOUND) {
-        return UR_RESULT_SUCCESS;
-      }
-
-      CL_RETURN_ON_FAILURE(Res);
-
-      try {
-        Devices.resize(DeviceNum);
-        for (size_t i = 0; i < DeviceNum; i++) {
-          Devices[i] = std::make_unique<ur_device_handle_t_>(CLDevices[i], this,
-                                                             nullptr);
-        }
-      } catch (std::bad_alloc &) {
-        return UR_RESULT_ERROR_OUT_OF_RESOURCES;
-      } catch (...) {
-        return UR_RESULT_ERROR_UNKNOWN;
-      }
-    }
-
-    return UR_RESULT_SUCCESS;
-  }
+  ur_result_t InitDevices();
 
   ur_result_t getPlatformVersion(oclv::OpenCLVersion &Version) {
     size_t PlatVerSize = 0;

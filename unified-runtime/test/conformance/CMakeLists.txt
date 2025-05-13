@@ -47,8 +47,7 @@ function(add_conformance_test name)
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::testing
         ${PROJECT_NAME}::common
-        GTest::gtest_main
-        unit_tests_helpers)
+        GTest::gtest_main)
 
     if(UR_USE_CFI)
         target_compile_definitions(${TEST_TARGET_NAME} PRIVATE UR_USE_CFI)
@@ -118,7 +117,7 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "usm"
 )
 
-if(UR_DPCXX)
+if(UR_FOUND_DPCXX)
     add_custom_target(generate_device_binaries)
 
     set(UR_CONFORMANCE_DEVICE_BINARIES_DIR

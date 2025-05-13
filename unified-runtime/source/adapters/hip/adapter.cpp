@@ -10,16 +10,14 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
-#include "logger/ur_logger.hpp"
 
-#include <atomic>
 #include <ur_api.h>
 
-struct ur_adapter_handle_t_ {
-  std::atomic<uint32_t> RefCount = 0;
-  logger::Logger &logger;
-  ur_adapter_handle_t_();
-};
+#include <memory>
+
+namespace ur::hip {
+ur_adapter_handle_t adapter;
+}
 
 class ur_legacy_sink : public logger::Sink {
 public:
@@ -28,7 +26,7 @@ public:
     this->ostream = &std::cerr;
   }
 
-  virtual void print([[maybe_unused]] logger::Level level,
+  virtual void print([[maybe_unused]] ur_logger_level_t level,
                      const std::string &msg) override {
     std::cerr << msg << std::endl;
   }
@@ -40,9 +38,10 @@ public:
 // through UR entry points.
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(
-          logger::get_logger("hip", /*default_log_level*/ logger::Level::ERR)) {
-
+    : handle_base(),
+      logger(logger::get_logger("hip",
+                                /*default_log_level*/ UR_LOGGER_LEVEL_ERROR)) {
+  Platform = std::make_unique<ur_platform_handle_t_>();
   if (std::getenv("UR_LOG_HIP") != nullptr)
     return;
 
@@ -52,13 +51,15 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   }
 }
 
-ur_adapter_handle_t_ adapter{};
-
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     uint32_t, ur_adapter_handle_t *phAdapters, uint32_t *pNumAdapters) {
   if (phAdapters) {
-    adapter.RefCount++;
-    *phAdapters = &adapter;
+    static std::once_flag InitFlag;
+    std::call_once(InitFlag,
+                   [=]() { ur::hip::adapter = new ur_adapter_handle_t_; });
+
+    ur::hip::adapter->RefCount++;
+    *phAdapters = ur::hip::adapter;
   }
   if (pNumAdapters) {
     *pNumAdapters = 1;
@@ -68,13 +69,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  // No state to clean up so we don't need to check for 0 references
-  adapter.RefCount--;
+  if (--ur::hip::adapter->RefCount == 0) {
+    delete ur::hip::adapter;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  adapter.RefCount++;
+  ur::hip::adapter->RefCount++;
   return UR_RESULT_SUCCESS;
 }
 
@@ -96,12 +99,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_HIP);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(adapter.RefCount.load());
+    return ReturnValue(ur::hip::adapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
+    void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
+
+  ur::hip::adapter->logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t, ur_logger_level_t level) {
+
+  ur::hip::adapter->logger.setCallbackLevel(level);
 
   return UR_RESULT_SUCCESS;
 }

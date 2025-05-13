@@ -27,6 +27,25 @@ TEST_P(urQueueGetInfoTest, SuccessContext) {
   ASSERT_EQ(context, property_value);
 }
 
+TEST_P(urQueueGetInfoTest, SuccessRoundtripContext) {
+  const ur_queue_info_t property_name = UR_QUEUE_INFO_CONTEXT;
+  size_t property_size = sizeof(ur_context_handle_t);
+
+  ur_native_handle_t native_queue;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urQueueGetNativeHandle(queue, nullptr, &native_queue));
+
+  ur_queue_handle_t from_native_queue;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urQueueCreateWithNativeHandle(
+      native_queue, context, device, nullptr, &from_native_queue));
+
+  ur_context_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urQueueGetInfo(from_native_queue, property_name, property_size,
+                                &property_value, nullptr));
+
+  ASSERT_EQ(property_value, context);
+}
+
 TEST_P(urQueueGetInfoTest, SuccessDevice) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
@@ -43,6 +62,66 @@ TEST_P(urQueueGetInfoTest, SuccessDevice) {
                                 &property_value, nullptr));
 
   ASSERT_EQ(device, property_value);
+}
+
+TEST_P(urQueueGetInfoTest, SuccessRoundtripDevice) {
+  // Segfaults
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
+  const ur_queue_info_t property_name = UR_QUEUE_INFO_DEVICE;
+  size_t property_size = 0;
+
+  ur_native_handle_t native_queue;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urQueueGetNativeHandle(queue, nullptr, &native_queue));
+
+  ur_queue_handle_t from_native_queue;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urQueueCreateWithNativeHandle(
+      native_queue, context, device, nullptr, &from_native_queue));
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(urQueueGetInfo(from_native_queue,
+                                                  property_name, 0, nullptr,
+                                                  &property_size),
+                                   property_name);
+  ASSERT_EQ(property_size, sizeof(ur_device_handle_t));
+
+  ur_device_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urQueueGetInfo(from_native_queue, property_name, property_size,
+                                &property_value, nullptr));
+
+  ASSERT_EQ(property_value, device);
+}
+
+TEST_P(urQueueGetInfoTest, SuccessRoundtripNullDevice) {
+  // Segfaults
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
+  const ur_queue_info_t property_name = UR_QUEUE_INFO_DEVICE;
+  size_t property_size = 0;
+
+  ur_native_handle_t native_queue;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urQueueGetNativeHandle(queue, nullptr, &native_queue));
+
+  ur_queue_handle_t from_native_queue;
+  auto result = urQueueCreateWithNativeHandle(native_queue, context, nullptr,
+                                              nullptr, &from_native_queue);
+  if (result == UR_RESULT_ERROR_INVALID_NULL_HANDLE) {
+    GTEST_SKIP() << "Implementation requires a valid device";
+  }
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(result);
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(urQueueGetInfo(from_native_queue,
+                                                  property_name, 0, nullptr,
+                                                  &property_size),
+                                   property_name);
+  ASSERT_EQ(property_size, sizeof(ur_device_handle_t));
+
+  ur_device_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urQueueGetInfo(from_native_queue, property_name, property_size,
+                                &property_value, nullptr));
+
+  ASSERT_EQ(property_value, device);
 }
 
 TEST_P(urQueueGetInfoTest, SuccessFlags) {

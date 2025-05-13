@@ -24,11 +24,7 @@
 
 // See vec::DataType definitions for more details
 #ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
-#else
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
-#endif
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE !__SYCL_USE_LIBSYCL8_VEC_IMPL
 #endif
 
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
@@ -232,6 +228,7 @@ protected:
   template <typename DataT_, typename T> class FlattenVecArg {
     template <std::size_t... Is>
     static constexpr auto helper(const T &V, std::index_sequence<Is...>) {
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
       // FIXME: Swizzle's `operator[]` for expression trees seems to be broken
       // and returns values of the underlying vector of some of the operands. On
       // the other hand, `getValue()` gives correct results. This can be changed
@@ -239,6 +236,7 @@ protected:
       if constexpr (is_swizzle_v<T>)
         return std::array{static_cast<DataT_>(V.getValue(Is))...};
       else
+#endif
         return std::array{static_cast<DataT_>(V[Is])...};
     }
 
@@ -289,7 +287,7 @@ template <typename DataT> class vec_base<DataT, 1> {
 
 protected:
   static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
-  alignas(alignment) DataType m_Data{};
+  alignas(alignment) DataType m_Data;
 
 public:
   constexpr vec_base() = default;
@@ -300,17 +298,178 @@ public:
 
   // Not `explicit` on purpose, differs from NumElements > 1.
   constexpr vec_base(const DataT &arg) : m_Data{{arg}} {}
-
-  // FIXME: Temporary workaround because swizzle's `operator DataT` is a
-  // template.
-  template <typename Swizzle,
-            typename = std::enable_if_t<is_swizzle_v<Swizzle>>,
-            typename = std::enable_if_t<Swizzle::size() == 1>,
-            typename = std::enable_if<
-                std::is_convertible_v<typename Swizzle::element_type, DataT>>>
-  constexpr vec_base(const Swizzle &other)
-      : vec_base(static_cast<DataT>(other)) {}
 };
+
+template <typename Self> class ConversionToVecMixin {
+  using vec_ty = typename from_incomplete<Self>::result_vec_ty;
+
+public:
+  operator vec_ty() const {
+    auto &self = *static_cast<const Self *>(this);
+    if constexpr (vec_ty::size() == 1)
+      // Avoid recursion by explicitly going through `vec(const DataT &)` ctor.
+      return vec_ty{static_cast<typename vec_ty::element_type>(self)};
+    else
+      // Uses `vec`'s variadic ctor.
+      return vec_ty{self};
+  }
+};
+
+template <typename Self, typename = void> class SwizzleBase {
+  using VecT = typename from_incomplete<Self>::vec_ty;
+
+public:
+  explicit SwizzleBase(VecT &Vec) : Vec(Vec) {}
+
+  const Self &operator=(const Self &) = delete;
+
+protected:
+  VecT &Vec;
+};
+
+template <typename Self>
+class SwizzleBase<Self,
+                  std::enable_if_t<from_incomplete<Self>::is_assignable>> {
+  using VecT = typename from_incomplete<Self>::vec_ty;
+  using ResultVecT = typename from_incomplete<Self>::result_vec_ty;
+
+  using DataT = typename from_incomplete<Self>::element_type;
+  static constexpr int N = from_incomplete<Self>::size();
+
+public:
+  explicit SwizzleBase(VecT &Vec) : Vec(Vec) {}
+
+  template <access::address_space AddressSpace, access::decorated IsDecorated>
+  void load(size_t offset,
+            multi_ptr<const DataT, AddressSpace, IsDecorated> ptr) const {
+    ResultVecT v;
+    v.load(offset, ptr);
+    *static_cast<Self *>(this) = v;
+  }
+
+  template <bool OtherIsConstVec, int OtherVecSize, int... OtherIndexes>
+  std::enable_if_t<sizeof...(OtherIndexes) == N, const Self &>
+  operator=(const detail::hide_swizzle_from_adl::Swizzle<
+            OtherIsConstVec, DataT, OtherVecSize, OtherIndexes...> &rhs) {
+    return (*this = static_cast<ResultVecT>(rhs));
+  }
+
+  const Self &operator=(const ResultVecT &rhs) const {
+    for (int i = 0; i < N; ++i)
+      (*static_cast<const Self *>(this))[i] = rhs[i];
+
+    return *static_cast<const Self *>(this);
+  }
+
+  template <typename T,
+            typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&
+                                        !is_swizzle_v<T>>>
+  const Self &operator=(const T &rhs) const {
+    for (int i = 0; i < N; ++i)
+      (*static_cast<const Self *>(this))[i] = static_cast<DataT>(rhs);
+
+    return *static_cast<const Self *>(this);
+  }
+
+  // Default copy-assignment. Self's implicitly generated copy-assignment uses
+  // this.
+  //
+  // We're templated on "Self", so each swizzle has its own SwizzleBase and the
+  // following is ok (1-to-1 bidirectional mapping between Self and its
+  // SwizzleBase instantiation) even if a bit counterintuitive.
+  const SwizzleBase &operator=(const SwizzleBase &rhs) const {
+    const Self &self = (*static_cast<const Self *>(this));
+    self = static_cast<ResultVecT>(static_cast<const Self &>(rhs));
+    return self;
+  }
+
+protected:
+  VecT &Vec;
+};
+
+namespace hide_swizzle_from_adl {
+// Can't have sycl::vec anywhere in template parameters because that would bring
+// its hidden friends into ADL. Put it in a dedicated namespace to avoid
+// anything extra via ADL as well.
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+class __SYCL_EBO Swizzle
+    : public SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>,
+      public SwizzleOperators<
+          Swizzle<IsConstVec, DataT, VecSize, Indexes...>>::Combined,
+      public ApplyIf<sizeof...(Indexes) == 1,
+                     ScalarConversionOperatorsMixIn<
+                         Swizzle<IsConstVec, DataT, VecSize, Indexes...>>>,
+      public ConversionToVecMixin<
+          Swizzle<IsConstVec, DataT, VecSize, Indexes...>>,
+      public NamedSwizzlesMixinBoth<
+          Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
+  using Base = SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>;
+
+  static constexpr int NumElements = sizeof...(Indexes);
+  using ResultVec = vec<DataT, NumElements>;
+
+  // Get underlying vec index for (*this)[idx] access.
+  static constexpr auto get_vec_idx(int idx) {
+    int counter = 0;
+    int result = -1;
+    ((result = counter++ == idx ? Indexes : result), ...);
+    return result;
+  }
+
+public:
+  using Base::Base;
+  using Base::operator=;
+
+  using element_type = DataT;
+  using value_type = DataT;
+
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
+#ifdef __SYCL_DEVICE_ONLY__
+  using vector_t = typename vec<DataT, NumElements>::vector_t;
+#endif // __SYCL_DEVICE_ONLY__
+#endif
+
+  Swizzle() = delete;
+  Swizzle(const Swizzle &) = delete;
+
+  static constexpr size_t byte_size() noexcept {
+    return ResultVec::byte_size();
+  }
+  static constexpr size_t size() noexcept { return ResultVec::size(); }
+
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  size_t get_size() const { return static_cast<ResultVec>(*this).get_size(); }
+
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const {
+    return static_cast<ResultVec>(*this).get_count();
+  };
+
+  template <typename ConvertT,
+            rounding_mode RoundingMode = rounding_mode::automatic>
+  vec<ConvertT, NumElements> convert() const {
+    return static_cast<ResultVec>(*this)
+        .template convert<ConvertT, RoundingMode>();
+  }
+
+  template <typename asT> asT as() const {
+    return static_cast<ResultVec>(*this).template as<asT>();
+  }
+
+  template <access::address_space AddressSpace, access::decorated IsDecorated>
+  void store(size_t offset,
+             multi_ptr<DataT, AddressSpace, IsDecorated> ptr) const {
+    return static_cast<ResultVec>(*this).store(offset, ptr);
+  }
+
+  template <int... swizzleIndexes> auto swizzle() const {
+    return this->Vec.template swizzle<get_vec_idx(swizzleIndexes)...>();
+  }
+
+  auto &operator[](int index) const { return this->Vec[get_vec_idx(index)]; }
+};
+} // namespace hide_swizzle_from_adl
 #endif
 } // namespace detail
 
@@ -340,6 +499,7 @@ class __SYCL_EBO vec :
 
   using Base = detail::vec_base<DataT, NumElements>;
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 #ifdef __SYCL_DEVICE_ONLY__
   using element_type_for_vector_t = typename detail::map_type<
       DataT,
@@ -384,7 +544,9 @@ public:
 
 private:
 #endif // __SYCL_DEVICE_ONLY__
+#endif
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
   template <int... Indexes>
   using Swizzle =
       detail::SwizzleOp<vec, detail::GetOp<DataT>, detail::GetOp<DataT>,
@@ -394,6 +556,17 @@ private:
   using ConstSwizzle =
       detail::SwizzleOp<const vec, detail::GetOp<DataT>, detail::GetOp<DataT>,
                         detail::GetOp, Indexes...>;
+#else
+  template <int... Indexes>
+  using Swizzle =
+      detail::hide_swizzle_from_adl::Swizzle<false, DataT, NumElements,
+                                             Indexes...>;
+
+  template <int... Indexes>
+  using ConstSwizzle =
+      detail::hide_swizzle_from_adl::Swizzle<true, DataT, NumElements,
+                                             Indexes...>;
+#endif
 
   // Element type for relational operator return value.
   using rel_t = detail::fixed_width_signed<sizeof(DataT)>;
@@ -449,6 +622,7 @@ public:
   static constexpr size_t get_size() { return byte_size(); }
   static constexpr size_t byte_size() noexcept { return sizeof(Base); }
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 private:
   // getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
@@ -471,6 +645,8 @@ private:
   }
 
 public:
+#endif
+
   // Out-of-class definition is in `sycl/detail/vector_convert.hpp`
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
@@ -479,12 +655,20 @@ public:
   template <typename asT> asT as() const { return sycl::bit_cast<asT>(*this); }
 
   template <int... SwizzleIndexes> Swizzle<SwizzleIndexes...> swizzle() {
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
     return this;
+#else
+    return Swizzle<SwizzleIndexes...>{*this};
+#endif
   }
 
   template <int... SwizzleIndexes>
   ConstSwizzle<SwizzleIndexes...> swizzle() const {
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
     return this;
+#else
+    return ConstSwizzle<SwizzleIndexes...>{*this};
+#endif
   }
 
   const DataT &operator[](int i) const { return this->m_Data[i]; }
@@ -563,6 +747,7 @@ template <class T, class... U,
 vec(T, U...) -> vec<T, sizeof...(U) + 1>;
 #endif
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 namespace detail {
 
 // Special type for working SwizzleOp with scalars, stores a scalar and gives
@@ -1398,5 +1583,6 @@ private:
 };
 ///////////////////////// class SwizzleOp /////////////////////////
 } // namespace detail
+#endif
 } // namespace _V1
 } // namespace sycl

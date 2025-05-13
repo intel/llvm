@@ -8,9 +8,6 @@
 
 // All these tests are temporarily disabled, since they need to be rewrited
 // after the sycl::program class removal to use the kernel_bundle instead.
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include "sycl/detail/ur.hpp"

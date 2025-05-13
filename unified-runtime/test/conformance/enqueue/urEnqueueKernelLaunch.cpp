@@ -153,27 +153,6 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
               result == UR_RESULT_SUCCESS);
 }
 
-TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
-  // Cuda and hip both lack any way to validate kernel args
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-
-  ur_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_backend_t), &backend, nullptr));
-
-  if (backend == UR_BACKEND_CUDA || backend == UR_BACKEND_HIP ||
-      backend == UR_BACKEND_LEVEL_ZERO) {
-    GTEST_FAIL() << "AMD, L0 and Nvidia can't check kernel arguments.";
-  }
-
-  // Enqueue kernel without setting any args
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         &global_offset, &global_size, nullptr,
-                                         0, nullptr, nullptr),
-                   UR_RESULT_ERROR_INVALID_KERNEL_ARGS);
-}
-
 TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
@@ -525,7 +504,8 @@ struct urEnqueueKernelLaunchMultiDeviceTest
     auto kernelName =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
-    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+    UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+        "foo", platform, il_binary));
 
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::KernelsEnvironment::instance->CreateProgram(
@@ -653,10 +633,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
 
 TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
-  if (use_pool) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
   ur_device_usm_access_capability_flags_t shared_usm_flags = 0;
   ASSERT_SUCCESS(
       uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));

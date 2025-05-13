@@ -44,9 +44,10 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--no-assertions --add_security_flags=sanitize --hip --cuda'
+      build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       build_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
+      pack_release: 'true'
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
@@ -105,7 +106,8 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
-      build_configure_extra_args: '--no-assertions --add_security_flags=sanitize'
+      build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize'
+      pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
@@ -165,7 +167,7 @@ jobs:
 
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
-    if: always()
+    if: always() && ${{ needs.cuda-aws-start.result != 'skipped' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
@@ -214,9 +216,25 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
-      repo_ref: ${{ github.sha }}
+      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       devops_ref: sycl
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
       sycl_cts_artifact: sycl_cts_bin_linux
+
+  hardening-check:
+    needs: [ubuntu2204_build, build-win]
+    if: |
+      always()
+      && !cancelled()
+      && needs.ubuntu2204_build.outputs.build_conclusion == 'success'
+      && needs.build-win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-hardening-check.yml
+    with:
+      sycl_linux_artifact: sycl_linux_release
+      sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+      sycl_windows_artifact: sycl_windows_release
+      sycl_windows_archive: ${{ needs.build-win.outputs.artifact_archive_name }}

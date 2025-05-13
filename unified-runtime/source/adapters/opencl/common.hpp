@@ -154,9 +154,15 @@ extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *Message,
-                                      ur_result_t ErrorCode);
+[[maybe_unused]] void setErrorMessage(const char *Message, int32_t ErrorCode);
 } // namespace cl_adapter
+
+namespace ur::opencl {
+struct ddi_getter {
+  const static ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ur::opencl::ddi_getter>;
+} // namespace ur::opencl
 
 namespace cl_ext {
 // Older versions of GCC don't like "const" here
@@ -201,6 +207,8 @@ CONSTFIX char CommandCopyBufferRectName[] = "clCommandCopyBufferRectKHR";
 CONSTFIX char CommandFillBufferName[] = "clCommandFillBufferKHR";
 CONSTFIX char CommandBarrierWithWaitListName[] =
     "clCommandBarrierWithWaitListKHR";
+CONSTFIX char CommandSVMMemcpyName[] = "clCommandSVMMemcpyKHR";
+CONSTFIX char CommandSVMMemFillName[] = "clCommandSVMMemFillKHR";
 CONSTFIX char EnqueueCommandBufferName[] = "clEnqueueCommandBufferKHR";
 CONSTFIX char GetCommandBufferInfoName[] = "clGetCommandBufferInfoKHR";
 CONSTFIX char UpdateMutableCommandsName[] = "clUpdateMutableCommandsKHR";
@@ -296,6 +304,21 @@ using clCommandBarrierWithWaitListKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     const cl_sync_point_khr *sync_point_wait_list,
     cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
 
+using clCommandSVMMemcpyKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
+    const cl_command_properties_khr *properties, void *dst_ptr,
+    const void *src_ptr, size_t size, cl_uint num_sync_points_in_wait_list,
+    const cl_sync_point_khr *sync_point_wait_list,
+    cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
+
+using clCommandSVMMemFillKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
+    const cl_command_properties_khr *properties, void *svm_ptr,
+    const void *pattern, size_t pattern_size, size_t size,
+    cl_uint num_sync_points_in_wait_list,
+    const cl_sync_point_khr *sync_point_wait_list,
+    cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
+
 using clEnqueueCommandBufferKHR_fn = CL_API_ENTRY
 cl_int(CL_API_CALL *)(cl_uint num_queues, cl_command_queue *queues,
                       cl_command_buffer_khr command_buffer,
@@ -349,11 +372,6 @@ struct ExtFuncPtrCacheT {
 #undef CL_EXTENSION_FUNC
   }
 };
-// A raw pointer is used here since the lifetime of this map has to be tied to
-// piTeardown to avoid issues with static destruction order (a user application
-// might have static objects that indirectly access this cache in their
-// destructor).
-inline ExtFuncPtrCacheT *ExtFuncPtrCache;
 
 // USM helper function to get an extension function pointer
 template <typename T>

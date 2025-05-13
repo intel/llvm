@@ -24,9 +24,46 @@ extern "C" {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterSetLoggerCallback
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterSetLoggerCallback_t)(
+    ur_adapter_handle_t, ur_logger_callback_t, void *, ur_logger_level_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterSetLoggerCallbackLevel
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterSetLoggerCallbackLevel_t)(
+    ur_adapter_handle_t, ur_logger_level_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of Adapter functions pointers
+typedef struct ur_adapter_dditable_t {
+  ur_pfnAdapterSetLoggerCallback_t pfnSetLoggerCallback;
+  ur_pfnAdapterSetLoggerCallbackLevel_t pfnSetLoggerCallbackLevel;
+} ur_adapter_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Adapter table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_adapter_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetAdapterProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetAdapterProcAddrTable_t)(
+    ur_api_version_t, ur_adapter_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformGet
-typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(ur_adapter_handle_t *,
-                                                     uint32_t, uint32_t,
+typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(ur_adapter_handle_t,
+                                                     uint32_t,
                                                      ur_platform_handle_t *,
                                                      uint32_t *);
 
@@ -1445,6 +1482,29 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageGetInfoExp_t)(
     void *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for
+/// urBindlessImagesGetImageMemoryHandleTypeSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageMemoryHandleTypeSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, ur_exp_image_mem_type_t, ur_bool_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageUnsampledHandleSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, ur_exp_image_mem_type_t, ur_bool_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesGetImageSampledHandleSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageSampledHandleSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, ur_exp_image_mem_type_t, ur_bool_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapGetLevelExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t,
@@ -1479,6 +1539,12 @@ typedef ur_result_t(
 /// @brief Function-pointer for urBindlessImagesReleaseExternalMemoryExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseExternalMemoryExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_exp_external_mem_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesFreeMappedLinearMemoryExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesFreeMappedLinearMemoryExp_t)(
+    ur_context_handle_t, ur_device_handle_t, void *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImportExternalSemaphoreExp
@@ -1520,6 +1586,12 @@ typedef struct ur_bindless_images_exp_dditable_t {
   ur_pfnBindlessImagesSampledImageCreateExp_t pfnSampledImageCreateExp;
   ur_pfnBindlessImagesImageCopyExp_t pfnImageCopyExp;
   ur_pfnBindlessImagesImageGetInfoExp_t pfnImageGetInfoExp;
+  ur_pfnBindlessImagesGetImageMemoryHandleTypeSupportExp_t
+      pfnGetImageMemoryHandleTypeSupportExp;
+  ur_pfnBindlessImagesGetImageUnsampledHandleSupportExp_t
+      pfnGetImageUnsampledHandleSupportExp;
+  ur_pfnBindlessImagesGetImageSampledHandleSupportExp_t
+      pfnGetImageSampledHandleSupportExp;
   ur_pfnBindlessImagesMipmapGetLevelExp_t pfnMipmapGetLevelExp;
   ur_pfnBindlessImagesMipmapFreeExp_t pfnMipmapFreeExp;
   ur_pfnBindlessImagesImportExternalMemoryExp_t pfnImportExternalMemoryExp;
@@ -1527,6 +1599,7 @@ typedef struct ur_bindless_images_exp_dditable_t {
   ur_pfnBindlessImagesMapExternalLinearMemoryExp_t
       pfnMapExternalLinearMemoryExp;
   ur_pfnBindlessImagesReleaseExternalMemoryExp_t pfnReleaseExternalMemoryExp;
+  ur_pfnBindlessImagesFreeMappedLinearMemoryExp_t pfnFreeMappedLinearMemoryExp;
   ur_pfnBindlessImagesImportExternalSemaphoreExp_t
       pfnImportExternalSemaphoreExp;
   ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t
@@ -1966,6 +2039,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetDeviceProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all DDI tables
 typedef struct ur_dditable_t {
+  ur_adapter_dditable_t Adapter;
   ur_platform_dditable_t Platform;
   ur_context_dditable_t Context;
   ur_event_dditable_t Event;

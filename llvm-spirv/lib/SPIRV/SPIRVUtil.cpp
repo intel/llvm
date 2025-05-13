@@ -608,6 +608,21 @@ static Type *parsePrimitiveType(LLVMContext &Ctx, StringRef Name) {
 
 } // namespace SPIRV
 
+namespace {
+
+// Return the value for when the dimension index of a builtin is out of range.
+uint64_t getBuiltinOutOfRangeValue(StringRef VarName) {
+  assert(VarName.starts_with("__spirv_BuiltIn"));
+  return StringSwitch<uint64_t>(VarName)
+      .EndsWith("GlobalSize", 1)
+      .EndsWith("NumWorkgroups", 1)
+      .EndsWith("WorkgroupSize", 1)
+      .EndsWith("EnqueuedWorkgroupSize", 1)
+      .Default(0);
+}
+
+} // anonymous namespace
+
 // The demangler node hierarchy doesn't use LLVM's RTTI helper functions (as it
 // also needs to live in libcxxabi). By specializing this implementation here,
 // we can add support for these functions.
@@ -1325,6 +1340,8 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_FLOAT));
   if (Ty->isDoubleTy())
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_DOUBLE));
+  if (Ty->isBFloatTy())
+    return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_BFLOAT));
   if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     return SPIR::RefParamType(new SPIR::VectorType(
         transTypeDesc(VecTy->getElementType(), Info), VecTy->getNumElements()));
@@ -2190,7 +2207,23 @@ bool lowerBuiltinCallsToVariables(Module *M) {
       Value *NewValue = Builder.CreateLoad(GVType, BV);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue = Builder.CreateExtractElement(NewValue, CI->getArgOperand(0));
+        auto *GVVecTy = cast<FixedVectorType>(GVType);
+        ConstantInt *Bound = Builder.getInt32(GVVecTy->getNumElements());
+        // Create a select on the index first, to avoid undefined behaviour
+        // due to exceeding the vector size by the extractelement.
+        Value *IndexCmp = Builder.CreateICmpULT(CI->getArgOperand(0), Bound);
+        Constant *ZeroIndex =
+            ConstantInt::get(CI->getArgOperand(0)->getType(), 0);
+        Value *ExtractIndex =
+            Builder.CreateSelect(IndexCmp, CI->getArgOperand(0), ZeroIndex);
+
+        // Extract from builtin variable.
+        NewValue = Builder.CreateExtractElement(NewValue, ExtractIndex);
+
+        // Clamp to out-of-range value.
+        Constant *OutOfRangeVal = ConstantInt::get(
+            F.getReturnType(), getBuiltinOutOfRangeValue(BuiltinVarName));
+        NewValue = Builder.CreateSelect(IndexCmp, NewValue, OutOfRangeVal);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
       }
       NewValue->takeName(CI);
@@ -2381,8 +2414,13 @@ public:
       addUnsignedArg(0);
       addUnsignedArg(3);
       break;
+    case OpGroupAsyncCopy:
+      addUnsignedArg(3);
+      addUnsignedArg(4);
+      break;
     case OpGroupUMax:
     case OpGroupUMin:
+    case OpGroupBroadcast:
     case OpGroupNonUniformBroadcast:
     case OpGroupNonUniformBallotBitCount:
     case OpGroupNonUniformShuffle:
@@ -2577,6 +2615,15 @@ public:
       break;
     case OpenCLLIB::S_Upsample:
       addUnsignedArg(1);
+      break;
+    case OpenCLLIB::Nan:
+      addUnsignedArg(0);
+      break;
+    case OpenCLLIB::Shuffle:
+      addUnsignedArg(1);
+      break;
+    case OpenCLLIB::Shuffle2:
+      addUnsignedArg(2);
       break;
     default:;
       // No special handling is needed

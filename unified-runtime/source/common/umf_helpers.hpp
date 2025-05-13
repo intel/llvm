@@ -296,7 +296,7 @@ inline ur_result_t umf2urResult(umf_result_t umfResult) {
     umfMemoryProviderGetLastNativeError(hProvider, &Msg, &Err);
 
     if (Msg) {
-      logger::error("UMF failed with: {}", Msg);
+      UR_LOG(ERR, "UMF failed with: {}", Msg);
     }
 
     return getProviderNativeError(umfMemoryProviderGetName(hProvider), Err);

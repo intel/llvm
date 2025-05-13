@@ -17,7 +17,7 @@
 /// Includes an observer pointer to the platform,
 /// and implements the reference counting semantics since
 /// HIP objects are not refcounted.
-struct ur_device_handle_t_ {
+struct ur_device_handle_t_ : ur::hip::handle_base {
 private:
   using native_type = hipDevice_t;
 
@@ -39,8 +39,8 @@ private:
 public:
   ur_device_handle_t_(native_type HipDevice, hipEvent_t EvBase,
                       ur_platform_handle_t Platform, uint32_t DeviceIndex)
-      : HIPDevice(HipDevice), RefCount{1}, Platform(Platform), EvBase(EvBase),
-        DeviceIndex(DeviceIndex) {
+      : handle_base(), HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
+        EvBase(EvBase), DeviceIndex(DeviceIndex) {
 
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &MaxWorkGroupSize, hipDeviceAttributeMaxThreadsPerBlock, HIPDevice));
@@ -62,7 +62,7 @@ public:
     int Ret{};
     UR_CHECK_ERROR(
         hipDeviceGetAttribute(&Ret, hipDeviceAttributeImageSupport, HIPDevice));
-    detail::ur::assertion(Ret == 0 || Ret == 1);
+    assert(Ret == 0 || Ret == 1);
     HardwareImageSupport = Ret == 1;
   }
 

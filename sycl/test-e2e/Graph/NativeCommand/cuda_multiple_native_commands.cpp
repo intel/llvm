@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %cuda_options %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
-// REQUIRES: cuda, cuda_dev_kit
+// REQUIRES: target-nvidia, cuda_dev_kit
 // REQUIRES: aspect-usm_shared_allocations
 
 // Test that when a host-task splits a graph into multiple backend UR

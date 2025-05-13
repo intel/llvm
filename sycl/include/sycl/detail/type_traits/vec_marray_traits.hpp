@@ -15,11 +15,7 @@
 
 #ifndef __SYCL_USE_LIBSYCL8_VEC_IMPL
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-// Several specification changes need to be implemented together to keep CTS
-// passing. We'll switch to `0` once they all land.
-// `__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE` needs to be changed to use this
-// `__SYCL_USE_LIBSYCL8_VEC_IMPL` at that time as well.
-#define __SYCL_USE_LIBSYCL8_VEC_IMPL 1
+#define __SYCL_USE_LIBSYCL8_VEC_IMPL 0
 #else
 #define __SYCL_USE_LIBSYCL8_VEC_IMPL 1
 #endif
@@ -32,9 +28,16 @@ template <typename DataT, int NumElements> class __SYCL_EBO vec;
 template <typename DataT, std::size_t N> class marray;
 
 namespace detail {
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp;
+#else
+namespace hide_swizzle_from_adl {
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+class __SYCL_EBO Swizzle;
+}
+#endif
 
 // Utility for converting a swizzle to a vector or preserve the type if it isn't
 // a swizzle.
@@ -42,12 +45,20 @@ template <typename T> struct simplify_if_swizzle {
   using type = T;
 };
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct simplify_if_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                      OperationCurrentT, Indexes...>> {
   using type = vec<typename VecT::element_type, sizeof...(Indexes)>;
 };
+#else
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct simplify_if_swizzle<detail::hide_swizzle_from_adl::Swizzle<
+    IsConstVec, DataT, VecSize, Indexes...>> {
+  using type = vec<DataT, sizeof...(Indexes)>;
+};
+#endif
 
 template <typename T>
 using simplify_if_swizzle_t = typename simplify_if_swizzle<T>::type;
@@ -79,10 +90,17 @@ inline constexpr bool is_valid_type_for_ext_vector_v =
     is_valid_type_for_ext_vector<T>::value;
 
 template <typename> struct is_swizzle : std::false_type {};
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                             OperationCurrentT, Indexes...>> : std::true_type {};
+#else
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct is_swizzle<detail::hide_swizzle_from_adl::Swizzle<IsConstVec, DataT,
+                                                         VecSize, Indexes...>>
+    : std::true_type {};
+#endif
 template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
 
 template <typename T>
@@ -108,11 +126,18 @@ struct num_elements<T __attribute__((ext_vector_type(N)))>
     : std::integral_constant<std::size_t, N> {};
 #endif
 #endif
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct num_elements<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                               OperationCurrentT, Indexes...>>
     : std::integral_constant<std::size_t, sizeof...(Indexes)> {};
+#else
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct num_elements<detail::hide_swizzle_from_adl::Swizzle<IsConstVec, DataT,
+                                                           VecSize, Indexes...>>
+    : std::integral_constant<std::size_t, sizeof...(Indexes)> {};
+#endif
 
 template <typename T>
 inline constexpr std::size_t num_elements_v = num_elements<T>::value;

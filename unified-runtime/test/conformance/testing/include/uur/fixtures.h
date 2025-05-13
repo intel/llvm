@@ -367,9 +367,6 @@ struct urQueueTest : urContextTest {
 
 struct urHostPipeTest : urQueueTest {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     // The host pipe support query isn't implement on l0
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
@@ -1215,9 +1212,6 @@ std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
 
 struct urProgramTest : urQueueTest {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
     ur_backend_t backend;
@@ -1254,9 +1248,6 @@ struct urProgramTest : urQueueTest {
 
 template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam<T>::SetUp());
 
     ur_backend_t backend;
@@ -1303,9 +1294,6 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
 // instead.
 struct urBaseKernelTest : urProgramTest {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
     auto kernel_names =
         uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);

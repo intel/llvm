@@ -1,27 +1,15 @@
-/*
- * Copyright (c) 2014 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
+#include <clc/clc_convert.h>
 #include <clc/clcmacro.h>
+#include <clc/math/clc_fma.h>
 #include <clc/math/clc_mad.h>
 #include <clc/math/clc_subnormal_config.h>
 #include <clc/math/math.h>
@@ -71,7 +59,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_exp10(float x) {
   int return_inf = x > X_MAX;
   int return_zero = x < X_MIN;
 
-  int n = __spirv_ConvertFToS_Rint(x * R_64_BY_LOG10_2);
+  int n = __clc_convert_int(x * R_64_BY_LOG10_2);
 
   float fn = (float)n;
   int j = n & 0x3f;
@@ -116,7 +104,8 @@ _CLC_DEF _CLC_OVERLOAD double __clc_exp10(double x) {
   // ln(10)
   const double R_LN10 = 0x1.26bb1bbb55516p+1;
 
-  int n = __spirv_ConvertFToS_Rint(x * R_64_BY_LOG10_2);
+  int n = __clc_convert_int(x * R_64_BY_LOG10_2);
+
   double dn = (double)n;
 
   int j = n & 0x3f;
@@ -142,7 +131,9 @@ _CLC_DEF _CLC_OVERLOAD double __clc_exp10(double x) {
                   0x1.0000000000000p-1),
               1.0);
 
-  double2 tv = USE_TABLE(two_to_jby64_ep_tbl, j);
+  double2 tv;
+  tv.s0 = USE_TABLE(two_to_jby64_ep_tbl_head, j);
+  tv.s1 = USE_TABLE(two_to_jby64_ep_tbl_tail, j);
   z2 = __spirv_ocl_fma(tv.s0 + tv.s1, z2, tv.s1) + tv.s0;
 
   int small_value = (m < -1022) || ((m == -1022) && (z2 < 1.0));

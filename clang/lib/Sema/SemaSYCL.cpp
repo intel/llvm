@@ -15,10 +15,9 @@
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/AST/TemplateArgumentVisitor.h"
-#include "clang/AST/Mangle.h"
 #include "clang/AST/SYCLKernelInfo.h"
 #include "clang/AST/StmtSYCL.h"
+#include "clang/AST/TemplateArgumentVisitor.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Analysis/CallGraph.h"
@@ -27,7 +26,6 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
-#include "clang/AST/SYCLKernelInfo.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -1161,8 +1159,6 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type and be declared at file
-// scope, outside any namespaces.
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
@@ -1170,12 +1166,6 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
     for (const auto &NameValuePair : NameValuePairs) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
           NameValuePair.first == "sycl-single-task-kernel") {
-        if (!FD->getReturnType()->isVoidType()) {
-          llvm::report_fatal_error(
-              "Only functions at file scope with void return "
-              "type are permitted as free functions");
-          return false;
-        }
         return true;
       }
     }
@@ -2789,7 +2779,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   void handleNoAliasProperty(ParmVarDecl *Param, QualType PropTy,
                              SourceLocation Loc) {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    Param->addAttr(RestrictAttr::CreateImplicit(Ctx, Loc));
+    Param->addAttr(
+        RestrictAttr::CreateImplicit(Ctx, nullptr, ParamIdx(1, Param), Loc));
   }
 
   // Obtain an integer value stored in a template parameter of buffer_location
@@ -5792,8 +5783,29 @@ void SemaSYCL::MarkDevices() {
   }
 }
 
+static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
+  if (FD->isVariadic()) {
+    return S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
+  }
+
+  if (!FD->getReturnType()->isVoidType()) {
+    return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
+  }
+
+  for (ParmVarDecl *Param : FD->parameters()) {
+    if (Param->hasDefaultArg()) {
+      return S.Diag(Param->getLocation(),
+                    diag::err_free_function_with_default_arg)
+             << Param->getSourceRange();
+    }
+  }
+  return false;
+}
+
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
+    if (CheckFreeFunctionDiagnostics(SemaRef, FD))
+      return;
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
@@ -6425,6 +6437,228 @@ static void EmitPragmaDiagnosticPop(raw_ostream &O) {
   O << "\n";
 }
 
+template <typename BeforeFn, typename AfterFn>
+static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
+                          const DeclContext *DC) {
+  if (DC->isTranslationUnit())
+    return;
+
+  const auto *CurDecl = cast<Decl>(DC);
+  // Ensure we are in the canonical version, so that we know we have the 'full'
+  // name of the thing.
+  CurDecl = CurDecl->getCanonicalDecl();
+
+  // We are intentionally skipping linkage decls and record decls.  Namespaces
+  // can appear in a linkage decl, but not a record decl, so we don't have to
+  // worry about the names getting messed up from that.  We handle record decls
+  // later when printing the name of the thing.
+  const auto *NS = dyn_cast<NamespaceDecl>(CurDecl);
+  if (NS)
+    Before(OS, NS);
+
+  if (const DeclContext *NewDC = CurDecl->getDeclContext())
+    PrintNSHelper(Before, After, OS, NewDC);
+
+  if (NS)
+    After(OS, NS);
+}
+
+static void PrintNamespaces(raw_ostream &OS, const DeclContext *DC,
+                            bool isPrintNamesOnly = false) {
+  PrintNSHelper([](raw_ostream &OS, const NamespaceDecl *NS) {},
+                [isPrintNamesOnly](raw_ostream &OS, const NamespaceDecl *NS) {
+                  if (!isPrintNamesOnly) {
+                    if (NS->isInline())
+                      OS << "inline ";
+                    OS << "namespace ";
+                  }
+                  if (!NS->isAnonymousNamespace()) {
+                    OS << NS->getName();
+                    if (isPrintNamesOnly)
+                      OS << "::";
+                    else
+                      OS << " ";
+                  }
+                  if (!isPrintNamesOnly) {
+                    OS << "{\n";
+                  }
+                },
+                OS, DC);
+}
+
+static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
+  PrintNSHelper(
+      [](raw_ostream &OS, const NamespaceDecl *NS) {
+        OS << "} // ";
+        if (NS->isInline())
+          OS << "inline ";
+
+        OS << "namespace ";
+        if (!NS->isAnonymousNamespace())
+          OS << NS->getName();
+
+        OS << '\n';
+      },
+      [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
+}
+
+class FreeFunctionPrinter {
+  raw_ostream &O;
+  PrintingPolicy &Policy;
+  bool NSInserted = false;
+
+public:
+  FreeFunctionPrinter(raw_ostream &O, PrintingPolicy &PrintPolicy)
+      : O(O), Policy(PrintPolicy) {}
+
+  /// Emits the function declaration of template free function.
+  /// \param FTD The function declaration to print.
+  /// \param S Sema object.
+  void printFreeFunctionDeclaration(FunctionTemplateDecl *FTD,
+                                    clang::SemaSYCL &S) {
+    const FunctionDecl *TemplatedDecl = FTD->getTemplatedDecl();
+    if (!TemplatedDecl)
+      return;
+    const std::string TemplatedDeclParams =
+        getTemplatedParamList(TemplatedDecl->parameters(), Policy);
+    const std::string TemplateParams =
+        getTemplateParameters(FTD->getTemplateParameters(), S);
+    printFreeFunctionDeclaration(TemplatedDecl, TemplatedDeclParams,
+                                 TemplateParams);
+  }
+
+  /// Emits the function declaration of a free function.
+  /// \param FD The function declaration to print.
+  /// \param Args The arguments of the function.
+  /// \param TemplateParameters The template parameters of the function.
+  void printFreeFunctionDeclaration(const FunctionDecl *FD,
+                                    const std::string &Args,
+                                    std::string_view TemplateParameters = "") {
+    const DeclContext *DC = FD->getDeclContext();
+    if (DC) {
+      // if function in namespace, print namespace
+      if (isa<NamespaceDecl>(DC)) {
+        PrintNamespaces(O, FD);
+        // Set flag to print closing braces for namespaces and namespace in shim
+        // function
+        NSInserted = true;
+      }
+      O << TemplateParameters;
+      O << FD->getReturnType().getAsString() << " ";
+      O << FD->getNameAsString() << "(" << Args << ");";
+      if (NSInserted) {
+        O << "\n";
+        PrintNSClosingBraces(O, FD);
+      }
+      O << "\n";
+    }
+  }
+
+  /// Emits free function shim function.
+  /// \param FD The function declaration to print.
+  /// \param ShimCounter The counter for the shim function.
+  /// \param ParmList The parameter list of the function.
+  void printFreeFunctionShim(const FunctionDecl *FD, const unsigned ShimCounter,
+                             const std::string &ParmList) {
+    // Generate a shim function that returns the address of the free function.
+    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
+    O << "  return (void (*)(" << ParmList << "))";
+
+    if (NSInserted)
+      PrintNamespaces(O, FD, /*isPrintNamesOnly=*/true);
+    O << FD->getIdentifier()->getName().data();
+    if (FD->getPrimaryTemplate()) {
+      std::string Buffer;
+      llvm::raw_string_ostream StringStream(Buffer);
+      const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
+      ArrayRef<TemplateArgument> A = TAL->asArray();
+      bool FirstParam = true;
+      for (const auto &X : A) {
+        if (FirstParam)
+          FirstParam = false;
+        else if (X.getKind() == TemplateArgument::Pack) {
+          for (const auto &PackArg : X.pack_elements()) {
+            StringStream << ", ";
+            PackArg.print(Policy, StringStream, true);
+          }
+          continue;
+        } else {
+          StringStream << ", ";
+        }
+
+        X.print(Policy, StringStream, true);
+      }
+      StringStream.flush();
+      if (Buffer.front() != '<')
+        Buffer = "<" + Buffer + ">";
+      O << Buffer;
+    }
+  }
+
+private:
+  /// Helper method to get arguments of templated function as a string
+  /// \param Parameters Array of parameters of the function.
+  /// \param Policy Printing policy.
+  /// returned string Example:
+  /// \code
+  ///  template <typename T1, typename T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "T1 a, T2 b"
+  std::string
+  getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> Parameters,
+                        PrintingPolicy Policy) {
+    bool FirstParam = true;
+    llvm::SmallString<128> ParamList;
+    llvm::raw_svector_ostream ParmListOstream{ParamList};
+    Policy.SuppressTagKeyword = true;
+    for (ParmVarDecl *Param : Parameters) {
+      if (FirstParam)
+        FirstParam = false;
+      else
+        ParmListOstream << ", ";
+      ParmListOstream << Param->getType().getAsString(Policy);
+      ParmListOstream << " " << Param->getNameAsString();
+    }
+    return ParamList.str().str();
+  }
+
+  /// Helper method to get text representation of the template parameters.
+  /// Throws an error if the last parameter is a pack.
+  /// \param TPL The template parameter list.
+  /// \param S The SemaSYCL object.
+  /// Example:
+  /// \code
+  ///  template <typename T1, class T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "template <typename T1, class T2> "
+  std::string getTemplateParameters(const clang::TemplateParameterList *TPL,
+                                    SemaSYCL &S) {
+    std::string TemplateParams{"template <"};
+    bool FirstParam{true};
+    for (NamedDecl *Param : *TPL) {
+      if (!FirstParam)
+        TemplateParams += ", ";
+      FirstParam = false;
+      if (const auto *TemplateParam = dyn_cast<TemplateTypeParmDecl>(Param)) {
+        TemplateParams +=
+            TemplateParam->wasDeclaredWithTypename() ? "typename " : "class ";
+        if (TemplateParam->isParameterPack())
+          TemplateParams += "... ";
+        TemplateParams += TemplateParam->getNameAsString();
+      } else if (const auto *NonTypeParam =
+                     dyn_cast<NonTypeTemplateParmDecl>(Param)) {
+        TemplateParams += NonTypeParam->getType().getAsString();
+        TemplateParams += " ";
+        TemplateParams += NonTypeParam->getNameAsString();
+      }
+    }
+    TemplateParams += "> ";
+    return TemplateParams;
+  }
+};
+
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
@@ -6713,16 +6947,30 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
     std::string ParmList;
+    std::string ParmListWithNames;
     bool FirstParam = true;
     Policy.SuppressDefaultTemplateArgs = false;
     Policy.PrintCanonicalTypes = true;
+    llvm::raw_string_ostream ParmListWithNamesOstream{ParmListWithNames};
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
         FirstParam = false;
-      else
+      else {
         ParmList += ", ";
-      ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+        ParmListWithNamesOstream << ", ";
+      }
+      if (Param->isParameterPack()) {
+        ParmListWithNamesOstream << "Args... args";
+        ParmList += "Args ...";
+      } else {
+        Policy.SuppressTagKeyword = true;
+        Param->getType().print(ParmListWithNamesOstream, Policy);
+        Policy.SuppressTagKeyword = false;
+        ParmListWithNamesOstream << " " << Param->getNameAsString();
+        ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+      }
     }
+    ParmListWithNamesOstream.flush();
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintCanonicalTypes = false;
     Policy.SuppressDefinition = true;
@@ -6756,32 +7004,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // template arguments that match default template arguments while printing
     // template-ids, even if the source code doesn't reference them.
     Policy.EnforceDefaultTemplateArgs = true;
+    FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
-      FTD->print(O, Policy);
+      FFPrinter.printFreeFunctionDeclaration(FTD, S);
     } else {
-      K.SyclKernel->print(O, Policy);
+      FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
-    O << ";\n";
 
-    // Generate a shim function that returns the address of the free function.
-    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
-    O << "  return (void (*)(" << ParmList << "))"
-      << K.SyclKernel->getIdentifier()->getName().data();
-    if (FTD) {
-      const TemplateArgumentList *TAL =
-          K.SyclKernel->getTemplateSpecializationArgs();
-      ArrayRef<TemplateArgument> A = TAL->asArray();
-      bool FirstParam = true;
-      O << "<";
-      for (const auto &X : A) {
-        if (FirstParam)
-          FirstParam = false;
-        else
-          O << ", ";
-        X.print(Policy, O, true);
-      }
-      O << ">";
-    }
+    FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     O << ";\n";
     O << "}\n";
     Policy.SuppressDefaultTemplateArgs = true;
@@ -6933,61 +7163,6 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   }
   llvm::raw_fd_ostream Out(IntHeaderFD, true /*close in destructor*/);
   return emit(Out);
-}
-
-template <typename BeforeFn, typename AfterFn>
-static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
-                          const DeclContext *DC) {
-  if (DC->isTranslationUnit())
-    return;
-
-  const auto *CurDecl = cast<Decl>(DC);
-  // Ensure we are in the canonical version, so that we know we have the 'full'
-  // name of the thing.
-  CurDecl = CurDecl->getCanonicalDecl();
-
-  // We are intentionally skipping linkage decls and record decls.  Namespaces
-  // can appear in a linkage decl, but not a record decl, so we don't have to
-  // worry about the names getting messed up from that.  We handle record decls
-  // later when printing the name of the thing.
-  const auto *NS = dyn_cast<NamespaceDecl>(CurDecl);
-  if (NS)
-    Before(OS, NS);
-
-  if (const DeclContext *NewDC = CurDecl->getDeclContext())
-    PrintNSHelper(Before, After, OS, NewDC);
-
-  if (NS)
-    After(OS, NS);
-}
-
-static void PrintNamespaces(raw_ostream &OS, const DeclContext *DC) {
-  PrintNSHelper([](raw_ostream &OS, const NamespaceDecl *NS) {},
-                [](raw_ostream &OS, const NamespaceDecl *NS) {
-                  if (NS->isInline())
-                    OS << "inline ";
-                  OS << "namespace ";
-                  if (!NS->isAnonymousNamespace())
-                    OS << NS->getName() << " ";
-                  OS << "{\n";
-                },
-                OS, DC);
-}
-
-static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
-  PrintNSHelper(
-      [](raw_ostream &OS, const NamespaceDecl *NS) {
-        OS << "} // ";
-        if (NS->isInline())
-          OS << "inline ";
-
-        OS << "namespace ";
-        if (!NS->isAnonymousNamespace())
-          OS << NS->getName();
-
-        OS << '\n';
-      },
-      [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
 }
 
 static std::string EmitShim(raw_ostream &OS, unsigned &ShimCounter,

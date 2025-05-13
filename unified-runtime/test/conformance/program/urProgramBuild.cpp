@@ -34,8 +34,8 @@ TEST_P(urProgramBuildTest, BuildFailure) {
 
   ur_program_handle_t program = nullptr;
   std::shared_ptr<std::vector<char>> il_binary;
-  uur::KernelsEnvironment::instance->LoadSource("build_failure", platform,
-                                                il_binary);
+  UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+      "build_failure", platform, il_binary));
   if (!il_binary) {
     // The build failure we are testing for happens at SYCL compile time on
     // AMD and Nvidia, so no binary exists to check for a build failure

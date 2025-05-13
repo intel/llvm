@@ -8,6 +8,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <string>
 
 #include "ur_api.h"
 #include "ur_filesystem_resolved.hpp"
@@ -80,12 +81,12 @@ uur::PlatformEnvironment::PlatformEnvironment() : AdapterEnvironment() {
 void uur::PlatformEnvironment::populatePlatforms() {
   for (auto a : adapters) {
     uint32_t count = 0;
-    ASSERT_SUCCESS(urPlatformGet(&a, 1, 0, nullptr, &count));
+    ASSERT_SUCCESS(urPlatformGet(a, 0, nullptr, &count));
     if (count == 0) {
       continue;
     }
     std::vector<ur_platform_handle_t> platform_list(count);
-    ASSERT_SUCCESS(urPlatformGet(&a, 1, count, platform_list.data(), nullptr));
+    ASSERT_SUCCESS(urPlatformGet(a, count, platform_list.data(), nullptr));
 
     for (auto p : platform_list) {
       platforms.push_back(p);
@@ -190,15 +191,13 @@ KernelsEnvironment::parseKernelOptions(int argc, char **argv,
   return options;
 }
 
-std::string KernelsEnvironment::getTargetName(ur_platform_handle_t platform) {
-  std::stringstream IL;
-
+std::string
+KernelsEnvironment::getDefaultTargetName(ur_platform_handle_t platform) {
   if (instance->GetDevices().size() == 0) {
     error = "no devices available on the platform";
     return {};
   }
 
-  // special case for AMD as it doesn't support IL.
   ur_backend_t backend;
   if (urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, sizeof(backend),
                         &backend, nullptr)) {
@@ -206,7 +205,6 @@ std::string KernelsEnvironment::getTargetName(ur_platform_handle_t platform) {
     return {};
   }
 
-  std::string target = "";
   switch (backend) {
   case UR_BACKEND_OPENCL:
   case UR_BACKEND_LEVEL_ZERO:
@@ -226,29 +224,32 @@ std::string KernelsEnvironment::getTargetName(ur_platform_handle_t platform) {
 
 std::string
 KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
-                                        ur_platform_handle_t platform) {
+                                        const std::string &target_name) {
   std::stringstream path;
-  path << kernel_options.kernel_directory << "/" << kernel_name;
-
-  std::string target_name = getTargetName(platform);
-  if (target_name.empty()) {
-    return {};
-  }
-
-  path << "/" << target_name << ".bin.0";
-
+  path << kernel_options.kernel_directory << "/" << kernel_name << "/"
+       << target_name << ".bin.0";
   return path.str();
 }
 
 void KernelsEnvironment::LoadSource(
     const std::string &kernel_name, ur_platform_handle_t platform,
     std::shared_ptr<std::vector<char>> &binary_out) {
-  std::string source_path =
-      instance->getKernelSourcePath(kernel_name, platform);
+  // We don't have a way to build device code for native cpu yet.
+  UUR_KNOWN_FAILURE_ON_PARAM(platform, uur::NativeCPU{});
 
-  if (source_path.empty()) {
+  std::string target_name = getDefaultTargetName(platform);
+  if (target_name.empty()) {
     FAIL() << error;
   }
+
+  return LoadSource(kernel_name, target_name, binary_out);
+}
+
+void KernelsEnvironment::LoadSource(
+    const std::string &kernel_name, const std::string &target_name,
+    std::shared_ptr<std::vector<char>> &binary_out) {
+  std::string source_path =
+      instance->getKernelSourcePath(kernel_name, target_name);
 
   if (cached_kernels.find(source_path) != cached_kernels.end()) {
     binary_out = cached_kernels[source_path];
@@ -260,7 +261,10 @@ void KernelsEnvironment::LoadSource(
                    std::ios::binary | std::ios::in | std::ios::ate);
 
   if (!source_file.is_open()) {
-    FAIL() << "failed opening kernel path: " + source_path;
+    FAIL() << "failed opening kernel path: " + source_path
+           << "\nNote: make sure that UR_CONFORMANCE_TARGET_TRIPLES includes "
+           << '\'' << target_name << '\''
+           << " and that device binaries have been built.";
   }
 
   size_t source_size = static_cast<size_t>(source_file.tellg());

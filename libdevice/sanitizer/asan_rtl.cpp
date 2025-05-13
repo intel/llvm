@@ -330,6 +330,19 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 static __SYCL_CONSTANT__ const char __mem_sanitizer_report[] =
     "[kernel] SanitizerReport (ErrorType=%d, IsRecover=%d)\n";
 
+void __asan_exit(ErrorType error_type) {
+  // Exit the kernel when we really need it
+  switch (error_type) {
+  case ErrorType::UNKNOWN:
+  case ErrorType::UNKNOWN_DEVICE:
+  case ErrorType::NULL_POINTER:
+    __devicelib_exit();
+    break;
+  default:
+    break;
+  }
+}
+
 void __asan_internal_report_save(ErrorType error_type) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
@@ -359,7 +372,7 @@ void __asan_internal_report_save(ErrorType error_type) {
                                   SanitizerReport.ErrorTy,
                                   SanitizerReport.IsRecover));
   }
-  __devicelib_exit();
+  __asan_exit(error_type);
 }
 
 void __asan_internal_report_save(
@@ -435,7 +448,7 @@ void __asan_internal_report_save(
                                   SanitizerReport.ErrorTy,
                                   SanitizerReport.IsRecover));
   }
-  __devicelib_exit();
+  __asan_exit(error_type);
 }
 
 ///

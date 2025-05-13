@@ -16,9 +16,7 @@
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_kernel_handle_t_> RetKernel{nullptr};
-
   try {
     ScopedDevice Active(hProgram->getDevice());
 
@@ -45,7 +43,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
         new ur_kernel_handle_t_{HIPFunc, HIPFuncWithOffsetParam, pKernelName,
                                 hProgram, hProgram->getContext()});
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -53,7 +51,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   }
 
   *phKernel = RetKernel.release();
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -169,43 +167,35 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
-    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
-    uint32_t *pGroupCountRet) {
-  std::ignore = hKernel;
-  std::ignore = hDevice;
-  std::ignore = workDim;
-  std::ignore = pLocalWorkSize;
-  std::ignore = dynamicSharedMemorySize;
-  std::ignore = pGroupCountRet;
+    ur_kernel_handle_t /*hKernel*/, ur_device_handle_t /*hDevice*/,
+    uint32_t /*workDim*/, const size_t * /*pLocalWorkSize*/,
+    size_t /*dynamicSharedMemorySize*/, uint32_t * /*pGroupCountRet*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
+  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
+
   try {
     hKernel->setKernelArg(argIndex, argSize, pArgValue);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  std::ignore = pProperties;
+    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     hKernel->setKernelLocalArg(argIndex, argSize);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
@@ -308,7 +298,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *Properties,
                      ur_mem_handle_t hArgValue) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     // Below sets kernel arg when zero-sized buffers are handled.
     // In such case the corresponding memory is null.
@@ -328,8 +317,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
       if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
           Format != HIP_AD_FORMAT_SIGNED_INT32 &&
           Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        die("UR HIP kernels only support images with channel types int32, "
-            "uint32, float, and half.");
+        return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
       }
       hipSurfaceObject_t hipSurf =
           std::get<SurfaceMem>(hArgValue->Mem).getSurface(Device);
@@ -339,22 +327,22 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
       hKernel->setKernelArg(argIndex, sizeof(void *), (void *)&HIPPtr);
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_sampler_properties_t *, ur_sampler_handle_t hArgValue) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     uint32_t SamplerProps = hArgValue->Props;
     hKernel->setKernelArg(argIndex, sizeof(uint32_t), (void *)&SamplerProps);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 // A NOP for the HIP backend
@@ -385,8 +373,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
             UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
-            UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   size_t MaxThreadsPerBlock[3];
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
