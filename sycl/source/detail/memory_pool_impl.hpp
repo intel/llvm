@@ -49,6 +49,7 @@ public:
   void set_new_threshold(size_t newThreshold);
   void reset_reserved_size_high();
   void reset_used_size_high();
+  void trim_to(size_t minBytesToKeep);
 
 private:
   std::shared_ptr<sycl::detail::context_impl> MContextImplPtr;

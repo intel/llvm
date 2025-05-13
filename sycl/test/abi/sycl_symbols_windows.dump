@@ -4436,6 +4436,7 @@
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
 ?throwOnKernelParameterMisuseHelper@handler@_V1@sycl@@AEBAXHP6A?AUkernel_param_desc_t@detail@23@H@Z@Z
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
+?trim_to@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAAX_K@Z
 ?unmap@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
 ?unmap_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@W4image_type@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?unmap_external_linear_memory@experimental@oneapi@ext@_V1@sycl@@YAXPEAXAEBVdevice@45@AEBVcontext@45@@Z
