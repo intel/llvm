@@ -27,7 +27,7 @@
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_DEBUG)
 
-#include <cstdint>                            // For uintptr_t
+#include <cstdint> // For uintptr_t
 
 extern "C" inline void __cdecl _invalid_parameter(wchar_t const *,
                                                   wchar_t const *,
