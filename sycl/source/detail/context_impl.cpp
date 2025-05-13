@@ -600,7 +600,9 @@ context_impl::get_default_memory_pool(const context &Context,
   auto MemPoolImplPtr = std::make_shared<
       sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
       Context, Device, sycl::usm::alloc::device, PoolHandle,
-      true /*Default pool*/, property_list{});
+      true /*Default pool*/,
+      std::pair<std::tuple<bool, bool, bool, bool>,
+                std::tuple<size_t, size_t, bool, bool>>() /*Empty Properties*/);
 
   // Hold onto a weak_ptr of the memory_pool_impl. Prevents circular
   // dependencies between the context_impl and memory_pool_impl.
