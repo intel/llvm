@@ -118,7 +118,7 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
 }
 
 DEVICE_EXTERN_C
-void __cdecl _invalid_parameter(wchar_t const *wexpr, wchar_t const *wfunc,
+void _invalid_parameter(wchar_t const *wexpr, wchar_t const *wfunc,
                         wchar_t const *wfile, unsigned int line, uintptr_t) {
   // Paths and expressions that are longer than 256 characters are going to be
   // truncated.
