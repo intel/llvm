@@ -7527,6 +7527,38 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesFreeMappedLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+  auto pfnFreeMappedLinearMemoryExp =
+      dditable->ur.BindlessImagesExp.pfnFreeMappedLinearMemoryExp;
+  if (nullptr == pfnFreeMappedLinearMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+  // convert loader handle to platform handle
+  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
+  // forward to device-platform
+  result = pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -10294,6 +10326,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
           ur_loader::urBindlessImagesMapExternalLinearMemoryExp;
       pDdiTable->pfnReleaseExternalMemoryExp =
           ur_loader::urBindlessImagesReleaseExternalMemoryExp;
+      pDdiTable->pfnFreeMappedLinearMemoryExp =
+          ur_loader::urBindlessImagesFreeMappedLinearMemoryExp;
       pDdiTable->pfnImportExternalSemaphoreExp =
           ur_loader::urBindlessImagesImportExternalSemaphoreExp;
       pDdiTable->pfnReleaseExternalSemaphoreExp =

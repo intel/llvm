@@ -177,6 +177,13 @@ separated from comma-separated list of target devices with colon. Example:
 -DSYCL_TEST_E2E_TARGETS="opencl:cpu;level_zero:gpu;cuda:gpu;hip:gpu"
 ```
 
+In addition, device architecture as shown in sycl-ls is accepted with the
+"arch-" prefix. Example:
+
+```bash
+-DSYCL_TEST_E2E_TARGETS="cuda:arch-nvidia_gpu_sm_61;level_zero:arch-intel_gpu_bmg_b21"
+```
+
 ***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
 interoperability tests require OpenCL ICD loader to be linked with. For such
 tests OpenCL ICD loader library should be installed in the system or available
@@ -273,7 +280,9 @@ configure specific single test execution in the command line:
 * **dpcpp_compiler** - full path to dpcpp compiler;
 * **sycl_devices** - `"backend0:device0[;backendN:deviceN]*"` where `backend` is
   one of `opencl`, `hip`, `cuda`, `level_zero` and `device` is one of `cpu`,
-  `gpu` or `acc`.
+  `gpu` or `acc`. Device may also be device architecture as listed in
+  `sycl-ls --verbose` prefixed with `arch-`. Example:
+  `level_zero:arch-intel_gpu_bmg_g21`
 * **dump_ir** - if IR dumping is supported for compiler (True, False);
 * **compatibility_testing** - forces LIT infra to skip the tests compilation to
   support compatibility testing (a SYCL application is built with one version of

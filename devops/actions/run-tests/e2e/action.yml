@@ -10,7 +10,8 @@ inputs:
   extra_cmake_args:
     required: false
   target_devices:
-    required: true
+    required: false
+    default: all
   extra_lit_opts:
     required: false
   retention-days:

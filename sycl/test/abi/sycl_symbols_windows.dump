@@ -4251,6 +4251,7 @@
 ?is_in_order@queue@_V1@sycl@@QEBA_NXZ
 ?is_specialization_constant_set@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NPEBD@Z
 ?join_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$vector@V?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@V?$allocator@V?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@2@@5@W4bundle_state@23@@Z
+?khr_empty@queue@_V1@sycl@@QEBA_NXZ
 ?khr_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?lgamma_r_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@PEAH@Z
 ?lgamma_r_impl@detail@_V1@sycl@@YAMMPEAH@Z
@@ -4436,6 +4437,8 @@
 ?throwOnKernelParameterMisuseHelper@handler@_V1@sycl@@AEBAXHP6A?AUkernel_param_desc_t@detail@23@H@Z@Z
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
 ?unmap@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
+?unmap_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@W4image_type@12345@AEBVdevice@45@AEBVcontext@45@@Z
+?unmap_external_linear_memory@experimental@oneapi@ext@_V1@sycl@@YAXPEAXAEBVdevice@45@AEBVcontext@45@@Z
 ?unsampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@W4mode@access@23@PEBXIAEBUcode_location@123@@Z
 ?unsampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@@Z
 ?unsampledImageDestructorNotification@image_plain@detail@_V1@sycl@@IEAAXPEAX@Z

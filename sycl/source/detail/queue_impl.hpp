@@ -114,20 +114,12 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     verifyProps(PropList);
     if (has_property<property::queue::enable_profiling>()) {
-      if (has_property<ext::oneapi::property::queue::discard_events>())
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Queue cannot be constructed with both of "
-                              "discard_events and enable_profiling.");
-
       if (!MDevice.has(aspect::queue_profiling)) {
-
         throw sycl::exception(make_error_code(errc::feature_not_supported),
                               "Cannot enable profiling, the associated device "
                               "does not have the queue_profiling aspect");
@@ -214,8 +206,6 @@ public:
         }()),
         MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
         MQueue(UrQueue), MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
@@ -288,9 +278,6 @@ public:
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
 
-  /// \return true if the discard event property was set at time of creation.
-  bool hasDiscardEventsProperty() const { return MDiscardEvents; }
-
   /// \return true if this queue allows for discarded events.
   bool supportsDiscardingPiEvents() const { return MIsInorder; }
 
@@ -362,7 +349,7 @@ public:
     event ResEvent =
         submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
-    return discard_or_return(ResEvent);
+    return ResEvent;
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
@@ -431,11 +418,6 @@ public:
     if (PropList.has_property<
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
-    }
-    if (PropList.has_property<ext::oneapi::property::queue::discard_events>()) {
-      // Pass this flag to the Level Zero adapter to be able to check it from
-      // queue property.
-      CreationFlags |= UR_QUEUE_FLAG_DISCARD_EVENTS;
     }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
@@ -592,7 +574,7 @@ public:
     MStreamsServiceEvents.push_back(Event);
   }
 
-  bool ext_oneapi_empty() const;
+  bool queue_empty() const;
 
   event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                              void *DeviceGlobalPtr, const void *Src,
@@ -688,8 +670,6 @@ public:
 #endif
 
 protected:
-  event discard_or_return(const event &Event);
-
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
@@ -1007,8 +987,6 @@ protected:
   CheckLockCheck<std::optional<event>> MInOrderExternalEvent;
 
 public:
-  // Queue constructed with the discard_events property
-  const bool MDiscardEvents;
   const bool MIsProfilingEnabled;
 
 protected:
