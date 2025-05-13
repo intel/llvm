@@ -170,6 +170,13 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
   uptr ShadowBegin = MemToShadow(Ptr);
   uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
   assert(ShadowBegin <= ShadowEnd);
+
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "EnqueuePoisonShadow(addr={}, count={}, value={})",
+           (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+           (void *)(size_t)Value);
+
+  // Make sure the shadow memory is mapped to physical memory
   {
     static const size_t PageSize = GetVirtualMemGranularity(Context, Device);
 
@@ -217,12 +224,12 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
 
   auto URes = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
                                     ShadowEnd - ShadowBegin + 1);
-  UR_LOG_L(getContext()->logger, DEBUG,
-           "EnqueuePoisonShadow (addr={}, count={}, value={}): {}",
-           (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-           (void *)(size_t)Value, URes);
+
   if (URes != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}", URes);
+    UR_LOG_L(getContext()->logger, ERR,
+             "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
+             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+             (void *)(size_t)Value, URes);
     return URes;
   }
 

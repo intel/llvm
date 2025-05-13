@@ -565,6 +565,14 @@ class MemcpyExecute(ComputeBenchmark):
             + (" without copy offload" if not self.useCopyOffload else "")
         )
 
+    def explicit_group(self):
+        return (
+            "MemcpyExecute opsPerThread: "
+            + str(self.numOpsPerThread)
+            + " numThreads: "
+            + str(self.numThreads)
+        )
+
     def description(self) -> str:
         src_type = "device" if self.srcUSM == 1 else "host"
         dst_type = "device" if self.dstUSM == 1 else "host"

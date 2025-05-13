@@ -417,12 +417,26 @@ CTS Environment Variables
 
 The following environment variables are used by the CTS runner and can be used to specify the platform that the test
 framework should run on. This can be used during development and testing to run CTS tests in case multiple platforms
-are available. Conformance tests will be skipped if there are no valid platforms.
+are available. If both filters are specified, then they both must match a platform for it to be selected. If there are
+no valid platforms, then the tests will fail. Command line arguments take priority over these variables.
 
-.. envvar:: ONEAPI_DEVICE_SELECTOR
+.. envvar:: UR_CTS_ADAPTER_PLATFORM
 
-   If ``ONEAPI_DEVICE_SELECTOR`` is set in the environment, only devices
-   matched by the selector will be tested.
+    A specifier list in the form of `[(backend):](platform name)[;[(backend)]:(platform name)]...`. If a backend
+    specific specifier is present in the list and the test is running for that backend, the device with the given name
+    is chosen. Otherwise, it must match the name of the specifier from the list with no backend. Backend names are case-
+    insensitive, however platform names must match exactly.
+
+    For example, if the test device has multiple platforms and you want to run tests on the "ABC Corp" backend when
+    testing OpenCL and "XYZ Org" when testing level zero, you'd use `OPENCL:ABC Corp;LEVEL_ZERO:XYZ Org`. This form is
+    useful when running the `build` target with a build with multiple backends.
+
+    For testing only one platform, the backend can be omitted. For example, just `ABC Corp` is sufficient if the tests
+    are only going to be testing OpenCL.
+
+.. envvar:: UR_CTS_BACKEND
+
+    A (case insensitive) backend to force the test to use. For example, `opencl`, `level_zero`, `hip` and so on.
 
 .. envvar:: UR_CTS_ALSO_RUN_KNOWN_FAILURES
 

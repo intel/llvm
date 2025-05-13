@@ -17,7 +17,6 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #include "ur_api.h"
-#include "ur_ldrddi.hpp"
 #endif // !NOMINMAX
 
 #include "logger/ur_logger.hpp"

@@ -240,7 +240,7 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
 #else
       setErrorMessage("The UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS "
                       "feature requires cuda 11.6 or later.",
-                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 #endif
     }
@@ -1002,7 +1002,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
       break;
     default:
       setErrorMessage("Unexpected NumChannels returned by CUDA",
-                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                      UR_RESULT_ERROR_INVALID_VALUE);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
     if (pPropValue) {
@@ -1597,6 +1597,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
   try {
     ScopedContext Active(hDevice);
     UR_CHECK_ERROR(cuDestroyExternalMemory((CUexternalMemory)hExternalMem));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, void *pMem) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  try {
+    ScopedContext Active(hDevice);
+    UR_CHECK_ERROR(cuMemFree(reinterpret_cast<CUdeviceptr>(pMem)));
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
