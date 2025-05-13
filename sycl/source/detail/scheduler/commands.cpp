@@ -2401,28 +2401,29 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
 
   if (KernelFuncPtr && !KernelHasSpecialCaptures) {
-    // TODO: Refactor to avoid SetArgBasedOnType duplication
-    // TODO: Find a way to use the built-ins instead of variables.
-    for (int I = 0; I < KernelNumArgs; ++I) {
-      auto ParamDesc = KernelParamDescGetter(I);
+    auto setFunc = [&Adapter, Kernel,
+                    KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
+                                   size_t NextTrueIndex) {
       const void *ArgPtr = (const char *)KernelFuncPtr + ParamDesc.offset;
       switch (ParamDesc.kind) {
       case kernel_param_kind_t::kind_std_layout: {
         int Size = ParamDesc.info;
-        Adapter->call<UrApiKind::urKernelSetArgValue>(Kernel, I, Size, nullptr,
-                                                      ArgPtr);
+        Adapter->call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
+                                                      Size, nullptr, ArgPtr);
         break;
       }
       case kernel_param_kind_t::kind_pointer: {
         const void *Ptr = *static_cast<const void *const *>(ArgPtr);
-        Adapter->call<UrApiKind::urKernelSetArgPointer>(Kernel, I, nullptr,
-                                                        Ptr);
+        Adapter->call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
+                                                        nullptr, Ptr);
         break;
       }
       default:
         throw std::runtime_error("Direct kernel argument copy failed.");
       }
-    }
+    };
+    applyFuncOnFilteredArgs(EliminatedArgMask, KernelFuncPtr, KernelNumArgs,
+                            KernelParamDescGetter, setFunc);
   } else {
     auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                     &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {

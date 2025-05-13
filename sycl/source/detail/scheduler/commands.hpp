@@ -783,6 +783,28 @@ void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,
   }
 }
 
+template <typename FuncT>
+void applyFuncOnFilteredArgs(
+    const KernelArgMask *EliminatedArgMask, void *KernelFuncPtr,
+    int KernelNumArgs,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int), FuncT Func) {
+  if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
+    for (int I = 0; I < KernelNumArgs; ++I) {
+      const detail::kernel_param_desc_t &Param = KernelParamDescGetter(I);
+      Func(Param, I);
+    }
+  } else {
+    size_t NextTrueIndex = 0;
+    for (int I = 0; I < KernelNumArgs; ++I) {
+      const detail::kernel_param_desc_t &Param = KernelParamDescGetter(I);
+      if ((*EliminatedArgMask)[I])
+        continue;
+      Func(Param, NextTrueIndex);
+      ++NextTrueIndex;
+    }
+  }
+}
+
 void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
 
 } // namespace detail
