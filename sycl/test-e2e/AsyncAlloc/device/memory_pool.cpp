@@ -100,14 +100,19 @@ int main() {
 
     size_t ReleaseThresholdGet = MemPool1.get_threshold();
     size_t ReservedSizeCurrent = MemPool1.get_reserved_size_current();
+    size_t ReservedSizeHigh = MemPool1.get_reserved_size_high();
     size_t UsedSizeCurrent = MemPool1.get_used_size_current();
+    size_t UsedSizeHigh = MemPool1.get_used_size_high();
 #ifdef VERBOSE_PRINT
     std::cout << "Memory pool release threshold: " << ReleaseThresholdGet
               << std::endl;
     std::cout << "Memory pool current reserved size: " << ReservedSizeCurrent
               << std::endl;
+    std::cout << "Memory pool high reserved size: " << ReservedSizeHigh
+              << std::endl;
     std::cout << "Memory pool current used size: " << UsedSizeCurrent
               << std::endl;
+    std::cout << "Memory pool high used size: " << UsedSizeHigh << std::endl;
 #endif
 
     // Set new threshold -- then check getter
@@ -123,24 +128,49 @@ int main() {
     void *dummyPtr = syclexp::async_malloc_from_pool(Q, 2048, MemPool1);
 
     ReservedSizeCurrent = MemPool1.get_reserved_size_current();
+    ReservedSizeHigh = MemPool1.get_reserved_size_high();
     UsedSizeCurrent = MemPool1.get_used_size_current();
+    UsedSizeHigh = MemPool1.get_used_size_high();
 #ifdef VERBOSE_PRINT
     std::cout << "Memory pool current reserved size: " << ReservedSizeCurrent
               << std::endl;
+    std::cout << "Memory pool high reserved size: " << ReservedSizeHigh
+              << std::endl;
     std::cout << "Memory pool current used size: " << UsedSizeCurrent
               << std::endl;
+    std::cout << "Memory pool high used size: " << UsedSizeHigh << std::endl;
 #endif
 
     // We don't know what the exact sizes of each could be - but they must each
     // be greater than 0
     assert(ReservedSizeCurrent > 0 &&
            "Pool reserved size has not increased despite allocating memory!");
+    assert(ReservedSizeHigh > 0 && "Pool reserved size high has not increased "
+                                   "despite allocating memory!");
     assert(UsedSizeCurrent > 0 &&
            "Pool used size has not increased despite allocating memory!");
+    assert(UsedSizeHigh > 0 &&
+           "Pool used size high has not increased despite allocating memory!");
 
     // Free that allocation and wait to release back to OS
     syclexp::async_free(Q, dummyPtr);
     Q.wait_and_throw();
+
+    // Reset high watermarks and check
+    MemPool1.reset_reserved_size_high();
+    MemPool1.reset_used_size_high();
+
+    ReservedSizeHigh = MemPool1.get_reserved_size_high();
+    UsedSizeHigh = MemPool1.get_used_size_high();
+#ifdef VERBOSE_PRINT
+    std::cout << "Memory pool high reserved size: " << ReservedSizeHigh
+              << std::endl;
+    std::cout << "Memory pool high used size: " << UsedSizeHigh << std::endl;
+#endif
+    assert(ReservedSizeHigh == 0 &&
+           "Pool reserved size high not equal to zero despite resetting!");
+    assert(UsedSizeHigh == 0 &&
+           "Pool used size high not equal to zero despite resetting!");
 
     // Default memory pool
     syclexp::memory_pool DefaultPool =

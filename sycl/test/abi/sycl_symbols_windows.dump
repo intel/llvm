@@ -4195,6 +4195,7 @@
 ?get_range@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$02@34@XZ
 ?get_required_mem_size@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?get_reserved_size_current@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
+?get_reserved_size_high@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?get_root_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_size@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?get_size@stream@_V1@sycl@@QEBA_KXZ
@@ -4205,6 +4206,7 @@
 ?get_type@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_type@23456@XZ
 ?get_type@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4node_type@23456@XZ
 ?get_used_size_current@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
+?get_used_size_high@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?get_wait_list@event@_V1@sycl@@QEAA?AV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@XZ
 ?get_width@stream@_V1@sycl@@QEBA_KXZ
 ?get_work_item_buffer_size@stream@_V1@sycl@@QEBA_KXZ
@@ -4357,6 +4359,8 @@
 ?reserve_virtual_mem@experimental@oneapi@ext@_V1@sycl@@YA_K_K0AEBVcontext@45@@Z
 ?reset@filter_selector@ONEAPI@_V1@sycl@@QEBAXXZ
 ?reset@filter_selector@oneapi@ext@_V1@sycl@@QEBAXXZ
+?reset_reserved_size_high@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAAXXZ
+?reset_used_size_high@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAAXXZ
 ?sampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@PEBXIAEBUcode_location@123@@Z
 ?sampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@AEBUimage_sampler@34@@Z
 ?sampledImageDestructorNotification@image_plain@detail@_V1@sycl@@IEAAXPEAX@Z
