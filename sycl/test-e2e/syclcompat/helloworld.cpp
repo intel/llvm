@@ -23,8 +23,16 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
-#include <syclcompat/syclcompat.hpp>
+#include <sycl/detail/core.hpp>
+
+// The example uses specific headers but the user can
+// simple include <syclcompat/syclcompat.hpp> to get all the
+// functionality with a single header
+
+#include <syclcompat/device.hpp>
+#include <syclcompat/id_query.hpp>
+#include <syclcompat/launch.hpp>
+#include <syclcompat/memory.hpp>
 
 #include <cstdlib>
 #include <iostream>
