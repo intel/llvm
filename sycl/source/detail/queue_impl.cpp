@@ -611,7 +611,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
 #endif
 
-  if (MGraph.lock()) {
+  if (!MGraph.expired()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait cannot be called for a queue which is "
                           "recording to a command graph.");
