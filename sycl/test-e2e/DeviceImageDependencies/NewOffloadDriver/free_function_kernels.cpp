@@ -1,6 +1,6 @@
 // Ensure -fsycl-allow-device-dependencies can work with free function kernels.
 
-// REQUIRES: aspect-usm_shared_allocations
+// REQUIRES: aspect-usm_shared_allocations, pdtracker
 // RUN: %{build} -o %t.out --offload-new-driver -fsycl-allow-device-image-dependencies
 // RUN: %{run} %t.out
 

@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: pdtracker
 // Separate kernel sources and host code sources
 // Test with `--offload-new-driver`
 // RUN: %{build} --offload-new-driver -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL

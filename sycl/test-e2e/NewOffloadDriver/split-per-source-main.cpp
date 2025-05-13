@@ -1,3 +1,4 @@
+// REQUIRES: pdtracker
 // RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-device-code-split=per_source -I %S/Inputs -o %t.out %S/Inputs/split-per-source-second-file.cpp \
 // RUN: --offload-new-driver -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
