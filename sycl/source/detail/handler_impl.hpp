@@ -204,6 +204,7 @@ public:
   int MKernelNumArgs = 0;
   detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
   bool MKernelIsESIMD = false;
+  bool MKernelHasSpecialCaptures = false;
 };
 
 } // namespace detail

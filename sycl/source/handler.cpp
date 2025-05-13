@@ -2266,11 +2266,12 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
 void handler::setKernelInfo(
     void *KernelFuncPtr, int KernelNumArgs,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
-    bool KernelIsESIMD) {
+    bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
   impl->MKernelFuncPtr = KernelFuncPtr;
   impl->MKernelNumArgs = KernelNumArgs;
   impl->MKernelParamDescGetter = KernelParamDescGetter;
   impl->MKernelIsESIMD = KernelIsESIMD;
+  impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {

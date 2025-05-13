@@ -799,7 +799,8 @@ private:
       setKernelInfo((void *)MHostKernel->getPtr(),
                     detail::getKernelNumParams<KernelName>(),
                     &(detail::getKernelParamDesc<KernelName>),
-                    detail::isKernelESIMD<KernelName>());
+                    detail::isKernelESIMD<KernelName>(),
+                    detail::hasSpecialCaptures<KernelName>());
 
       MKernelName = detail::getKernelName<KernelName>();
     } else {
@@ -3763,7 +3764,7 @@ private:
 
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
-                     bool KernelIsESIMD);
+                     bool KernelIsESIMD, bool KernelHasSpecialCaptures);
 
   friend class detail::HandlerAccess;
 
