@@ -5292,11 +5292,13 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   // STL headers in their programs (e.g., <complex>).
   SmallString<128> STLWrappersDir(SYCLDir);
   llvm::sys::path::append(STLWrappersDir, "stl_wrappers");
-  HostCompileArgs.push_back("-I");
+  // Add the SYCL specific header directories as system directories for non
+  // MSVC compilers.
+  HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-isystem");
   HostCompileArgs.push_back(TCArgs.MakeArgString(SYCLDir));
-  HostCompileArgs.push_back("-I");
+  HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-isystem");
   HostCompileArgs.push_back(TCArgs.MakeArgString(STLWrappersDir));
-  HostCompileArgs.push_back("-I");
+  HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-isystem");
   HostCompileArgs.push_back(TCArgs.MakeArgString(BaseDir));
 
   if (!OutputAdded) {
