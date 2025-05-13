@@ -127,13 +127,4 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
       __spirv_LocalInvocationId_z());
 }
 #endif
-
-#if defined(__SYCL_DEVICE_ONLY__) && defined (_DEBUG)
-DEVICE_EXTERN_C
-void _invalid_parameter(wchar_t const *, wchar_t const *, wchar_t const *,
-		        unsigned int, uintptr_t) {
-  // Do nothing
-}
-#endif
-
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
