@@ -28,14 +28,13 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
   const AdapterPtr &Adapter = Platform.getAdapter();
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  MType = get_info_impl<ur_device_type_t, UR_DEVICE_INFO_TYPE>();
+  MType = get_info_impl<UR_DEVICE_INFO_TYPE>();
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
   // TODO: Is get_info aligned with this?
   if (!Platform.MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    MRootDevice =
-        get_info_impl<ur_device_handle_t, UR_DEVICE_INFO_PARENT_DEVICE>();
+    MRootDevice = get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>();
   }
 
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -43,8 +42,7 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
   // urDeviceCreateWithNativeHandle.
   Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
 
-  MUseNativeAssert =
-      get_info_impl<ur_bool_t, UR_DEVICE_INFO_USE_NATIVE_ASSERT>();
+  MUseNativeAssert = get_info_impl<UR_DEVICE_INFO_USE_NATIVE_ASSERT>();
 }
 
 device_impl::~device_impl() {
@@ -119,8 +117,7 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 #endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames =
-      get_info_impl<std::string, UR_DEVICE_INFO_EXTENSIONS>();
+  std::string AllExtensionNames = get_info_impl<UR_DEVICE_INFO_EXTENSIONS>();
 
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
@@ -370,14 +367,12 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_cuda_cluster_group:
     return get_info<info::device::ext_oneapi_cuda_cluster_group>();
   case aspect::usm_atomic_host_allocations:
-    return (get_info_impl<ur_device_usm_access_capability_flags_t,
-                          UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
+    return (get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return (get_info_impl<ur_device_usm_access_capability_flags_t,
-                          UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
+    return (get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
@@ -422,129 +417,113 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_native_assert:
     return useNativeAssert();
   case aspect::ext_oneapi_cuda_async_barrier: {
-    return get_info_impl_nocheck<ur_bool_t, UR_DEVICE_INFO_ASYNC_BARRIER>()
-        .value_or(0);
+    return get_info_impl_nocheck<UR_DEVICE_INFO_ASYNC_BARRIER>().value_or(0);
   }
   case aspect::ext_intel_legacy_image: {
-    return get_info_impl_nocheck<ur_bool_t, UR_DEVICE_INFO_IMAGE_SUPPORT>()
-        .value_or(0);
+    return get_info_impl_nocheck<UR_DEVICE_INFO_IMAGE_SUPPORT>().value_or(0);
   }
   case aspect::ext_oneapi_bindless_images: {
-    return get_info_impl_nocheck<ur_bool_t,
-                                 UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP>()
+    return get_info_impl_nocheck<UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_images_shared_usm: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_images_1d_usm: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP>()
+               UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_images_2d_usm: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP>()
+               UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_external_memory_import: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP>()
+               UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_external_semaphore_import: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_mipmap: {
-    return get_info_impl_nocheck<ur_bool_t, UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP>()
-        .value_or(0);
+    return get_info_impl_nocheck<UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP>().value_or(
+        0);
   }
   case aspect::ext_oneapi_mipmap_anisotropy: {
-    return get_info_impl_nocheck<ur_bool_t,
-                                 UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP>()
+    return get_info_impl_nocheck<UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_mipmap_level_reference: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP>()
+               UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_1d: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_2d_usm: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_2d: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_3d: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_images_gather: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP>()
+               UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_cubemap: {
-    return get_info_impl_nocheck<ur_bool_t,
-                                 UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP>()
-        .value_or(0);
+    return get_info_impl_nocheck<UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP>().value_or(
+        0);
   }
   case aspect::ext_oneapi_cubemap_seamless_filtering: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_image_array: {
-    return get_info_impl_nocheck<ur_bool_t,
-                                 UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP>()
+    return get_info_impl_nocheck<UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_unique_addressing_per_dim: {
     return get_info_impl_nocheck<
-               ur_bool_t,
                UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_images_sample_1d_usm: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP>()
+               UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_bindless_images_sample_2d_usm: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP>()
+               UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_intel_esimd: {
-    return get_info_impl_nocheck<ur_bool_t, UR_DEVICE_INFO_ESIMD_SUPPORT>()
-        .value_or(0);
+    return get_info_impl_nocheck<UR_DEVICE_INFO_ESIMD_SUPPORT>().value_or(0);
   }
   case aspect::ext_oneapi_ballot_group:
   case aspect::ext_oneapi_fixed_size_group:
@@ -587,9 +566,8 @@ bool device_impl::has(aspect Aspect) const {
     return components.size() >= 2;
   }
   case aspect::ext_oneapi_is_component: {
-    return get_info_impl_nocheck<ur_device_handle_t,
-                                 UR_DEVICE_INFO_COMPOSITE_DEVICE>()
-               .value_or(nullptr) != nullptr;
+    return get_info_impl_nocheck<UR_DEVICE_INFO_COMPOSITE_DEVICE>().value_or(
+               nullptr) != nullptr;
   }
   case aspect::ext_oneapi_graph: {
     ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
@@ -635,12 +613,11 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_oneapi_queue_profiling_tag: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP>()
+               UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP>()
         .value_or(0);
   }
   case aspect::ext_oneapi_virtual_mem: {
-    return get_info_impl_nocheck<ur_bool_t,
-                                 UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT>()
+    return get_info_impl_nocheck<UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT>()
         .value_or(0);
   }
   case aspect::ext_intel_fpga_task_sequence: {
@@ -664,7 +641,7 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_oneapi_async_memory_alloc: {
     return get_info_impl_nocheck<
-               ur_bool_t, UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
+               UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
         .value_or(0);
   }
   }
