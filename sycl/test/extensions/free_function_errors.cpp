@@ -38,10 +38,10 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))
 void ff(union U u) {}
 
-// expected-error@+3 {{'Sacc' cannot be used as the type of a kernel parameter}}
+// expected-error@+3 {{'struct Sacc' cannot be used as the type of a kernel parameter}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (ext::oneapi::experimental::single_task_kernel)) 
-void ff(Sacc acc_struct) {}
+    (ext::oneapi::experimental::single_task_kernel))
+void ff(struct Sacc s) {}
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))
