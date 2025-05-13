@@ -209,8 +209,8 @@ public:
     // device_traits.def
 
     CASE(info::device::max_work_item_sizes<3>) {
-      auto result = get_info_impl<std::array<size_t, 3>>(
-          UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES);
+      auto result = get_info_impl<std::array<size_t, 3>,
+                                  UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES>();
       return range<3>{result[2], result[1], result[0]};
     }
     CASE(info::device::max_work_item_sizes<2>) {
@@ -223,8 +223,9 @@ public:
     }
 
     CASE(info::device::sub_group_sizes) {
-      std::vector<uint32_t> ur_result = get_info_impl<std::vector<uint32_t>>(
-          UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL);
+      std::vector<uint32_t> ur_result =
+          get_info_impl<std::vector<uint32_t>,
+                        UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL>();
       std::vector<size_t> result;
       result.reserve(ur_result.size());
       std::copy(ur_result.begin(), ur_result.end(), std::back_inserter(result));
@@ -232,32 +233,34 @@ public:
     }
 
     CASE(info::device::single_fp_config) {
-      return get_fp_config(UR_DEVICE_INFO_SINGLE_FP_CONFIG);
+      return get_fp_config<UR_DEVICE_INFO_SINGLE_FP_CONFIG>();
     }
     CASE(info::device::half_fp_config) {
-      return get_fp_config(UR_DEVICE_INFO_HALF_FP_CONFIG);
+      return get_fp_config<UR_DEVICE_INFO_HALF_FP_CONFIG>();
     }
     CASE(info::device::double_fp_config) {
-      return get_fp_config(UR_DEVICE_INFO_DOUBLE_FP_CONFIG);
+      return get_fp_config<UR_DEVICE_INFO_DOUBLE_FP_CONFIG>();
     }
 
     CASE(info::device::atomic_memory_order_capabilities) {
       return readMemoryOrderBitfield(
-          get_info_impl<ur_memory_order_capability_flag_t>(
-              UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES));
+          get_info_impl<ur_memory_order_capability_flag_t,
+                        UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES>());
     }
     CASE(info::device::atomic_fence_order_capabilities) {
       return readMemoryOrderBitfield(
-          get_info_impl<ur_memory_order_capability_flag_t>(
-              UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES));
+          get_info_impl<ur_memory_order_capability_flag_t,
+                        UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES>());
     }
     CASE(info::device::atomic_memory_scope_capabilities) {
-      return readMemoryScopeBitfield(get_info_impl<size_t>(
-          UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES));
+      return readMemoryScopeBitfield(
+          get_info_impl<size_t,
+                        UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES>());
     }
     CASE(info::device::atomic_fence_scope_capabilities) {
-      return readMemoryScopeBitfield(get_info_impl<size_t>(
-          UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES));
+      return readMemoryScopeBitfield(
+          get_info_impl<size_t,
+                        UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES>());
     }
 
     CASE(info::device::execution_capabilities) {
@@ -267,8 +270,8 @@ public:
                         "backend::opencl only");
 
       ur_device_exec_capability_flag_t bits =
-          get_info_impl<ur_device_exec_capability_flag_t>(
-              UR_DEVICE_INFO_EXECUTION_CAPABILITIES);
+          get_info_impl<ur_device_exec_capability_flag_t,
+                        UR_DEVICE_INFO_EXECUTION_CAPABILITIES>();
       std::vector<info::execution_capability> result;
       if (bits & UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL)
         result.push_back(info::execution_capability::exec_kernel);
@@ -282,13 +285,14 @@ public:
       // profiling, urDeviceGetGlobalTimestamps is not supported,
       // command_submit, command_start, command_end will be calculated. See
       // MFallbackProfiling
-      return get_info_impl<ur_queue_flags_t>(UR_DEVICE_INFO_QUEUE_PROPERTIES) &
+      return get_info_impl<ur_queue_flags_t,
+                           UR_DEVICE_INFO_QUEUE_PROPERTIES>() &
              UR_QUEUE_FLAG_PROFILING_ENABLE;
     }
 
     CASE(info::device::built_in_kernels) {
       return split_string(
-          get_info_impl<std::string>(UR_DEVICE_INFO_BUILT_IN_KERNELS), ';');
+          get_info_impl<std::string, UR_DEVICE_INFO_BUILT_IN_KERNELS>(), ';');
     }
     CASE(info::device::built_in_kernel_ids) {
       auto names = CALL_GET_INFO<info::device::built_in_kernels>();
@@ -306,7 +310,7 @@ public:
     CASE(info::device::platform) {
       return createSyclObjFromImpl<platform>(
           platform_impl::getOrMakePlatformImpl(
-              get_info_impl<ur_platform_handle_t>(UR_DEVICE_INFO_PLATFORM),
+              get_info_impl<ur_platform_handle_t, UR_DEVICE_INFO_PLATFORM>(),
               getAdapter()));
     }
 
@@ -316,12 +320,12 @@ public:
                               "the info::device::profile info descriptor can "
                               "only be queried with an OpenCL backend");
 
-      return get_info_impl<std::string>(UR_DEVICE_INFO_PROFILE);
+      return get_info_impl<std::string, UR_DEVICE_INFO_PROFILE>();
     }
 
     CASE(info::device::extensions) {
-      return split_string(get_info_impl<std::string>(UR_DEVICE_INFO_EXTENSIONS),
-                          ' ');
+      return split_string(
+          get_info_impl<std::string, UR_DEVICE_INFO_EXTENSIONS>(), ' ');
     }
 
     CASE(info::device::preferred_interop_user_sync) {
@@ -331,14 +335,14 @@ public:
             "the info::device::preferred_interop_user_sync info descriptor can "
             "only be queried with an OpenCL backend");
 
-      return get_info_impl<ur_bool_t>(
-          UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC);
+      return get_info_impl<ur_bool_t,
+                           UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC>();
     }
 
     CASE(info::device::partition_properties) {
       std::vector<ur_device_partition_t> ur_dev_partitions =
-          get_info_impl<std::vector<ur_device_partition_t>>(
-              UR_DEVICE_INFO_SUPPORTED_PARTITIONS);
+          get_info_impl<std::vector<ur_device_partition_t>,
+                        UR_DEVICE_INFO_SUPPORTED_PARTITIONS>();
       std::vector<info::partition_property> result;
       result.reserve(ur_dev_partitions.size());
       for (auto &entry : ur_dev_partitions) {
@@ -359,8 +363,8 @@ public:
     }
     CASE(info::device::partition_affinity_domains) {
       ur_device_affinity_domain_flags_t bits =
-          get_info_impl<ur_device_affinity_domain_flags_t>(
-              UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN);
+          get_info_impl<ur_device_affinity_domain_flags_t,
+                        UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN>();
       std::vector<info::partition_affinity_domain> result;
       using domain = info::partition_affinity_domain;
       constexpr std::pair<ur_device_affinity_domain_flags_t, domain> mapping[] =
@@ -379,8 +383,8 @@ public:
     }
     CASE(info::device::partition_type_property) {
       std::vector<ur_device_partition_property_t> PartitionProperties =
-          get_info_impl<std::vector<ur_device_partition_property_t>>(
-              UR_DEVICE_INFO_PARTITION_TYPE);
+          get_info_impl<std::vector<ur_device_partition_property_t>,
+                        UR_DEVICE_INFO_PARTITION_TYPE>();
       if (PartitionProperties.empty())
         return info::partition_property::no_partition;
       // The old UR implementation also just checked the first element, is that
@@ -389,8 +393,8 @@ public:
     }
     CASE(info::device::partition_type_affinity_domain) {
       std::vector<ur_device_partition_property_t> PartitionProperties =
-          get_info_impl<std::vector<ur_device_partition_property_t>>(
-              UR_DEVICE_INFO_PARTITION_TYPE);
+          get_info_impl<std::vector<ur_device_partition_property_t>,
+                        UR_DEVICE_INFO_PARTITION_TYPE>();
       if (PartitionProperties.empty())
         return info::partition_affinity_domain::not_applicable;
       for (const auto &PartitionProp : PartitionProperties) {
@@ -404,7 +408,7 @@ public:
 
     CASE(info::device::parent_device) {
       auto ur_parent_dev =
-          get_info_impl<ur_device_handle_t>(UR_DEVICE_INFO_PARENT_DEVICE);
+          get_info_impl<ur_device_handle_t, UR_DEVICE_INFO_PARENT_DEVICE>();
       if (ur_parent_dev == nullptr)
         throw exception(make_error_code(errc::invalid),
                         "No parent for device because it is not a subdevice");
@@ -435,27 +439,27 @@ public:
     }
 
     CASE(info::device::usm_device_allocations) {
-      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t>(
-                 UR_DEVICE_INFO_USM_DEVICE_SUPPORT)
+      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
+                                   UR_DEVICE_INFO_USM_DEVICE_SUPPORT>()
                  .value_or(0) &
              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
     CASE(info::device::usm_host_allocations) {
-      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t>(
-                 UR_DEVICE_INFO_USM_HOST_SUPPORT)
+      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
+                                   UR_DEVICE_INFO_USM_HOST_SUPPORT>()
                  .value_or(0) &
              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
     CASE(info::device::usm_shared_allocations) {
-      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t>(
-                 UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT)
+      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
+                                   UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>()
                  .value_or(0) &
              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
     CASE(info::device::usm_restricted_shared_allocations) {
       auto cap_flags =
-          get_info_impl_nocheck<ur_device_usm_access_capability_flags_t>(
-              UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT);
+          get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
+                                UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
       if (!cap_flags.has_val())
         return false;
       // Check that we don't support any cross device sharing
@@ -464,8 +468,8 @@ public:
                 UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
     }
     CASE(info::device::usm_system_allocations) {
-      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t>(
-                 UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT)
+      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
+                                   UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>()
                  .value_or(0) &
              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
@@ -481,7 +485,7 @@ public:
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_max_mem_bandwidth aspect");
-      return get_info_impl<uint64_t>(UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
+      return get_info_impl<uint64_t, UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH>();
     }
 
     CASE(info::device::ext_oneapi_max_global_work_groups) {
@@ -509,8 +513,8 @@ public:
       if (getBackend() != backend::ext_oneapi_cuda)
         return false;
 
-      return get_info_impl_nocheck<ur_bool_t>(
-                 UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP)
+      return get_info_impl_nocheck<ur_bool_t,
+                                   UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP>()
           .value_or(0);
     }
 
@@ -590,8 +594,8 @@ public:
     }
 
     CASE(ext::oneapi::experimental::info::device::component_devices) {
-      auto Devs = get_info_impl_nocheck<std::vector<ur_device_handle_t>>(
-          UR_DEVICE_INFO_COMPONENT_DEVICES);
+      auto Devs = get_info_impl_nocheck<std::vector<ur_device_handle_t>,
+                                        UR_DEVICE_INFO_COMPONENT_DEVICES>();
       if (!Devs.has_val()) {
         ur_result_t Err = Devs.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
@@ -614,8 +618,9 @@ public:
             "Only devices with aspect::ext_oneapi_is_component "
             "can call this function.");
 
-      if (ur_device_handle_t Result = get_info_impl<ur_device_handle_t>(
-              UR_DEVICE_INFO_COMPOSITE_DEVICE))
+      if (ur_device_handle_t Result =
+              get_info_impl<ur_device_handle_t,
+                            UR_DEVICE_INFO_COMPOSITE_DEVICE>())
         return createSyclObjFromImpl<device>(
             MPlatform->getOrMakeDeviceImpl(Result));
 
@@ -631,56 +636,57 @@ public:
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_device_id aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_DEVICE_ID);
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_DEVICE_ID>();
     }
     CASE(ext::intel::info::device::pci_address) {
       if (!has(aspect::ext_intel_pci_address))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_pci_address aspect");
-      return get_info_impl<std::string>(UR_DEVICE_INFO_PCI_ADDRESS);
+      return get_info_impl<std::string, UR_DEVICE_INFO_PCI_ADDRESS>();
     }
     CASE(ext::intel::info::device::gpu_eu_count) {
       if (!has(aspect::ext_intel_gpu_eu_count))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_gpu_eu_count aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_GPU_EU_COUNT);
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_EU_COUNT>();
     }
     CASE(ext::intel::info::device::gpu_eu_simd_width) {
       if (!has(aspect::ext_intel_gpu_eu_simd_width))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_gpu_eu_simd_width aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH);
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH>();
     }
     CASE(ext::intel::info::device::gpu_slices) {
       if (!has(aspect::ext_intel_gpu_slices))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_gpu_slices aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_GPU_EU_SLICES);
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_EU_SLICES>();
     }
     CASE(ext::intel::info::device::gpu_subslices_per_slice) {
       if (!has(aspect::ext_intel_gpu_subslices_per_slice))
         throw exception(make_error_code(errc::feature_not_supported),
                         "The device does not have the "
                         "ext_intel_gpu_subslices_per_slice aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE);
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE>();
     }
     CASE(ext::intel::info::device::gpu_eu_count_per_subslice) {
       if (!has(aspect::ext_intel_gpu_eu_count_per_subslice))
         throw exception(make_error_code(errc::feature_not_supported),
                         "The device does not have the "
                         "ext_intel_gpu_eu_count_per_subslice aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE);
+      return get_info_impl<uint32_t,
+                           UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE>();
     }
     CASE(ext::intel::info::device::gpu_hw_threads_per_eu) {
       if (!has(aspect::ext_intel_gpu_hw_threads_per_eu))
         throw exception(make_error_code(errc::feature_not_supported),
                         "The device does not have the "
                         "ext_intel_gpu_hw_threads_per_eu aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU);
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU>();
     }
     CASE(ext::intel::info::device::uuid) {
       if (!has(aspect::ext_intel_device_info_uuid))
@@ -689,35 +695,35 @@ public:
             "The device does not have the ext_intel_device_info_uuid aspect");
       // TODO: we're essentially memcpy'ing here...
       static_assert(std::is_same_v<uuid_type, std::array<unsigned char, 16>>);
-      return get_info_impl<uuid_type>(UR_DEVICE_INFO_UUID);
+      return get_info_impl<uuid_type, UR_DEVICE_INFO_UUID>();
     }
     CASE(ext::intel::info::device::free_memory) {
       if (!has(aspect::ext_intel_free_memory))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_free_memory aspect");
-      return get_info_impl<uint64_t>(UR_DEVICE_INFO_GLOBAL_MEM_FREE);
+      return get_info_impl<uint64_t, UR_DEVICE_INFO_GLOBAL_MEM_FREE>();
     }
     CASE(ext::intel::info::device::memory_clock_rate) {
       if (!has(aspect::ext_intel_memory_clock_rate))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_memory_clock_rate aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_MEMORY_CLOCK_RATE);
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_MEMORY_CLOCK_RATE>();
     }
     CASE(ext::intel::info::device::memory_bus_width) {
       if (!has(aspect::ext_intel_memory_bus_width))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_memory_bus_width aspect");
-      return get_info_impl<uint32_t>(UR_DEVICE_INFO_MEMORY_BUS_WIDTH);
+      return get_info_impl<uint32_t, UR_DEVICE_INFO_MEMORY_BUS_WIDTH>();
     }
     CASE(ext::intel::esimd::info::device::has_2d_block_io_support) {
       if (!has(aspect::ext_intel_esimd))
         return false;
       ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities =
-          get_info_impl<ur_exp_device_2d_block_array_capability_flags_t>(
-              UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP);
+          get_info_impl<ur_exp_device_2d_block_array_capability_flags_t,
+                        UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP>();
       return (BlockArrayCapabilities &
               UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) &&
              (BlockArrayCapabilities &
@@ -730,8 +736,8 @@ public:
                         "ext_intel_current_clock_throttle_reasons aspect");
 
       ur_device_throttle_reasons_flags_t UrThrottleReasons =
-          get_info_impl<ur_device_throttle_reasons_flags_t>(
-              UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS);
+          get_info_impl<ur_device_throttle_reasons_flags_t,
+                        UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS>();
       std::vector<ext::intel::throttle_reason> ThrottleReasons;
       using reason = ext::intel::throttle_reason;
       constexpr std::pair<ur_device_throttle_reasons_flags_t, reason>
@@ -758,25 +764,25 @@ public:
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_fan_speed aspect");
-      return get_info_impl<int32_t>(UR_DEVICE_INFO_FAN_SPEED);
+      return get_info_impl<int32_t, UR_DEVICE_INFO_FAN_SPEED>();
     }
     CASE(ext::intel::info::device::max_power_limit) {
       if (!has(aspect::ext_intel_power_limits))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_power_limits aspect");
-      return get_info_impl<int32_t>(UR_DEVICE_INFO_MAX_POWER_LIMIT);
+      return get_info_impl<int32_t, UR_DEVICE_INFO_MAX_POWER_LIMIT>();
     }
     CASE(ext::intel::info::device::min_power_limit) {
       if (!has(aspect::ext_intel_power_limits))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_power_limits aspect");
-      return get_info_impl<int32_t>(UR_DEVICE_INFO_MIN_POWER_LIMIT);
+      return get_info_impl<int32_t, UR_DEVICE_INFO_MIN_POWER_LIMIT>();
     }
     else {
-      auto Desc = UrInfoCode<Param>::value;
-      return get_info_impl<return_type>(Desc);
+      constexpr auto Desc = UrInfoCode<Param>::value;
+      return get_info_impl<return_type, Desc>();
     }
 #undef CASE
   }
@@ -924,13 +930,12 @@ private:
     E error() const { return std::get<1>(*static_cast<const base *>(this)); }
   };
 
-  template <typename ReturnT>
-  expected<ReturnT, ur_result_t>
-  get_info_impl_nocheck(ur_device_info_t Desc) const {
+  template <typename ReturnT, ur_device_info_t Desc>
+  expected<ReturnT, ur_result_t> get_info_impl_nocheck() const {
     static_assert(!std::is_same_v<ReturnT, std::string>,
                   "Wasn't needed before.");
     if constexpr (std::is_same_v<ReturnT, bool>) {
-      return get_info_impl_nocheck<ur_bool_t>(Desc);
+      return get_info_impl_nocheck<ur_bool_t, Desc>();
     } else if constexpr (is_std_vector_v<ReturnT>) {
       static_assert(
           !check_type_in_v<typename ReturnT::value_type, bool, std::string>);
@@ -961,10 +966,10 @@ private:
     }
   }
 
-  template <typename ReturnT>
-  ReturnT get_info_impl(ur_device_info_t Desc) const {
+  template <typename ReturnT, ur_device_info_t Desc>
+  ReturnT get_info_impl() const {
     if constexpr (std::is_same_v<ReturnT, bool>) {
-      return get_info_impl<ur_bool_t>(Desc);
+      return get_info_impl<ur_bool_t, Desc>();
     } else if constexpr (std::is_same_v<ReturnT, std::string>) {
       return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
     } else if constexpr (is_std_vector_v<ReturnT>) {
@@ -986,14 +991,15 @@ private:
     }
   }
 
-  std::vector<info::fp_config> get_fp_config(ur_device_info_t Desc) const {
+  template <ur_device_info_t Desc>
+  std::vector<info::fp_config> get_fp_config() const {
     if (Desc == UR_DEVICE_INFO_HALF_FP_CONFIG &&
         !get_info<info::device::native_vector_width_half>())
       return {};
     if (Desc == UR_DEVICE_INFO_DOUBLE_FP_CONFIG &&
         !get_info<info::device::native_vector_width_double>())
       return {};
-    auto bits = get_info_impl<ur_device_fp_capability_flags_t>(Desc);
+    auto bits = get_info_impl<ur_device_fp_capability_flags_t, Desc>();
 
     std::vector<info::fp_config> result;
     using cfg = info::fp_config;
@@ -1169,7 +1175,7 @@ private:
     auto LookupIPVersion = [&, this](auto &ArchList)
         -> std::optional<ext::oneapi::experimental::architecture> {
       auto DeviceIp =
-          get_info_impl_nocheck<uint32_t>(UR_DEVICE_INFO_IP_VERSION);
+          get_info_impl_nocheck<uint32_t, UR_DEVICE_INFO_IP_VERSION>();
       if (!DeviceIp.has_val()) {
         ur_result_t Err = DeviceIp.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
@@ -1201,7 +1207,8 @@ private:
         return ext::oneapi::experimental::architecture::unknown;
       };
       std::string DeviceArch =
-          get_info_impl<std::string>(UrInfoCode<info::device::version>::value);
+          get_info_impl<std::string,
+                        UrInfoCode<info::device::version>::value>();
       std::string_view DeviceArchSubstr =
           std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
       return MapArchIDToArchName(DeviceArchSubstr.data());
