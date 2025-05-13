@@ -250,13 +250,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 uint32_t NumEntries,
                                 ur_device_handle_t *phDevices,
                                 uint32_t *pNumDevices) {
-  constexpr std::pair<const ur_platform_backend_t, const char *> adapters[6] = {
-      {UR_PLATFORM_BACKEND_UNKNOWN, "*"},
-      {UR_PLATFORM_BACKEND_LEVEL_ZERO, "level_zero"},
-      {UR_PLATFORM_BACKEND_OPENCL, "opencl"},
-      {UR_PLATFORM_BACKEND_CUDA, "cuda"},
-      {UR_PLATFORM_BACKEND_HIP, "hip"},
-      {UR_PLATFORM_BACKEND_NATIVE_CPU, "native_cpu"}};
+  constexpr std::pair<const ur_backend_t, const char *> adapters[6] = {
+      {UR_BACKEND_UNKNOWN, "*"},     {UR_BACKEND_LEVEL_ZERO, "level_zero"},
+      {UR_BACKEND_OPENCL, "opencl"}, {UR_BACKEND_CUDA, "cuda"},
+      {UR_BACKEND_HIP, "hip"},       {UR_BACKEND_NATIVE_CPU, "native_cpu"}};
 
   if (!hPlatform) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
@@ -393,38 +390,6 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                         sizeof(ur_backend_t), &platformBackend, 0)) {
     return UR_RESULT_ERROR_INVALID_PLATFORM;
   }
-<<<<<<< HEAD
-  const std::string platformBackendName = // hPlatform->get_backend_name();
-      [&platformBackend]() constexpr {
-        switch (platformBackend) {
-        case UR_BACKEND_UNKNOWN:
-          return "*"; // the only ODS string that matches
-          break;
-        case UR_BACKEND_LEVEL_ZERO:
-          return "level_zero";
-          break;
-        case UR_BACKEND_OPENCL:
-          return "opencl";
-          break;
-        case UR_BACKEND_CUDA:
-          return "cuda";
-          break;
-        case UR_BACKEND_HIP:
-          return "hip";
-          break;
-        case UR_BACKEND_NATIVE_CPU:
-          return "*"; // the only ODS string that matches
-          break;
-        case UR_BACKEND_FORCE_UINT32:
-          return ""; // no ODS string matches this
-          break;
-        default:
-          return ""; // no ODS string matches this
-          break;
-        }
-      }();
-=======
->>>>>>> sycl
 
   using DeviceHardwareType = ur_device_type_t;
 
