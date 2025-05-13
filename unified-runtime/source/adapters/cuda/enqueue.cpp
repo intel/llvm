@@ -46,9 +46,8 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
   }
 }
 
-ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
-                           ur_usm_advice_flags_t URAdviceFlags,
-                           CUdevice Device) {
+void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
+                    ur_usm_advice_flags_t URAdviceFlags, CUdevice Device) {
   std::unordered_map<ur_usm_advice_flags_t, CUmem_advise>
       URToCUMemAdviseDeviceFlagsMap = {
           {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY, CU_MEM_ADVISE_SET_READ_MOSTLY},
@@ -99,11 +98,8 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
     if (URAdviceFlags & UnmappedFlag) {
       UR_LOG(WARN, "Memory advice ignored because the CUDA backend does not "
                    "support some of the specified flags.");
-      return UR_RESULT_SUCCESS;
     }
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 // Determine local work sizes that result in uniform work groups.
@@ -165,7 +161,6 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
                 const size_t *LocalWorkSize, ur_kernel_handle_t &Kernel,
                 CUfunction &CuFunc, size_t (&ThreadsPerBlock)[3],
                 size_t (&BlocksPerGrid)[3]) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   size_t MaxWorkGroupSize = 0u;
   bool ProvidedLocalWorkGroupSize = LocalWorkSize != nullptr;
   uint32_t LocalSize = Kernel->getLocalSize();
@@ -255,7 +250,7 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
 
     if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
       setErrorMessage("Excessive allocation of local memory on the device",
-                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                      UR_RESULT_ERROR_OUT_OF_RESOURCES);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
 
@@ -268,7 +263,7 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
                                             "UR_CUDA_MAX_LOCAL_MEM_SIZE"
                                           : "Invalid value specified for "
                                             "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                        UR_RESULT_ERROR_INVALID_VALUE);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
       if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
@@ -282,7 +277,7 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
                 : "Local memory for kernel exceeds the amount requested using "
                   "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the the "
                   "value of SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
-            UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+            UR_RESULT_ERROR_OUT_OF_RESOURCES);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
       UR_CHECK_ERROR(cuFuncSetAttribute(
@@ -297,9 +292,9 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
     }
 
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 /// Enqueues a wait on the given CUstream for all specified events (See
@@ -653,7 +648,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #else
   [[maybe_unused]] auto _ = launchPropList;
   setErrorMessage("This feature requires cuda 11.8 or later.",
-                  UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                  UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 #endif // CUDA_VERSION >= 11080
 }
@@ -849,11 +844,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
   try {
     ScopedContext Active(hQueue->getDevice());
-    ur_result_t Result = UR_RESULT_SUCCESS;
-
     auto Stream = hQueue->getNextTransferStream();
-    Result =
-        enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
+                                     phEventWaitList));
 
     if (phEvent) {
       RetImplEvent =
@@ -873,13 +866,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
-
-    return Result;
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
@@ -889,7 +882,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   CUdeviceptr SrcPtr =
       std::get<BufferMem>(hBufferSrc->Mem).getPtr(hQueue->getDevice());
   CUdeviceptr DstPtr =
@@ -899,8 +891,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     if (phEvent) {
       RetImplEvent =
@@ -909,10 +901,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result = commonEnqueueMemBufferCopyRect(
+    UR_CHECK_ERROR(commonEnqueueMemBufferCopyRect(
         CuStream, region, &SrcPtr, CU_MEMORYTYPE_DEVICE, srcOrigin, srcRowPitch,
         srcSlicePitch, &DstPtr, CU_MEMORYTYPE_DEVICE, dstOrigin, dstRowPitch,
-        dstSlicePitch);
+        dstSlicePitch));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -920,9 +912,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     }
 
   } catch (ur_result_t err) {
-    Result = err;
+    return err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 // CUDA has no memset functions that allow setting values more than 4 bytes. UR
@@ -1074,7 +1067,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
     return 4;
   default:
     setErrorMessage("Invalid CUDA format specifier",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
   return 0;
@@ -1235,13 +1228,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   if (!Image.HostPtr)
     Image.HostPtr = pSrc;
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     CUarray Array = Image.getArray(hQueue->getDevice());
 
@@ -1270,13 +1261,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
                                          region.depth};
       ur_rect_offset_t DstOffset = {ByteOffsetX, origin.y, origin.z};
 
-      Result = commonEnqueueMemImageNDCopy(
+      UR_CHECK_ERROR(commonEnqueueMemImageNDCopy(
           CuStream, ImgType, AdjustedRegion, pSrc, CU_MEMORYTYPE_HOST,
-          ur_rect_offset_t{}, &Array, CU_MEMORYTYPE_ARRAY, DstOffset);
-
-      if (Result != UR_RESULT_SUCCESS) {
-        return Result;
-      }
+          ur_rect_offset_t{}, &Array, CU_MEMORYTYPE_ARRAY, DstOffset));
     }
 
     if (phEvent) {
@@ -1289,7 +1276,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
@@ -1304,13 +1291,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
                 std::get<SurfaceMem>(hImageDst->Mem).getType(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     CUarray SrcArray =
         std::get<SurfaceMem>(hImageSrc->Mem).getArray(hQueue->getDevice());
@@ -1351,12 +1336,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ur_rect_offset_t SrcOffset = {SrcByteOffsetX, srcOrigin.y, srcOrigin.z};
     ur_rect_offset_t DstOffset = {DstByteOffsetX, dstOrigin.y, dstOrigin.z};
 
-    Result = commonEnqueueMemImageNDCopy(
+    UR_CHECK_ERROR(commonEnqueueMemImageNDCopy(
         CuStream, ImgType, AdjustedRegion, &SrcArray, CU_MEMORYTYPE_ARRAY,
-        SrcOffset, &DstArray, CU_MEMORYTYPE_ARRAY, DstOffset);
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
+        SrcOffset, &DstArray, CU_MEMORYTYPE_ARRAY, DstOffset));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -1368,7 +1350,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 /// Implements mapping on the host using a BufferRead operation.
@@ -1477,7 +1459,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
@@ -1521,24 +1502,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
     if (phEvent) {
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
@@ -1557,9 +1537,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
@@ -1573,14 +1554,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
   ur_device_handle_t Device = hQueue->getDevice();
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
-
   try {
     ScopedContext Active(hQueue->getDevice());
     CUstream CuStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
     if (phEvent) {
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
@@ -1617,9 +1596,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     UR_CHECK_ERROR(
         cuMemPrefetchAsync((CUdeviceptr)pMem, size, Device->get(), CuStream));
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 /// USM: memadvise API to govern behavior of automatic migration mechanisms
@@ -1631,9 +1611,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
-
   try {
     ScopedContext Active(hQueue->getDevice());
 
@@ -1696,15 +1674,16 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                                  CU_MEM_ADVISE_UNSET_ACCESSED_BY,
                                  hQueue->getDevice()->get()));
     } else {
-      Result = setCuMemAdvise((CUdeviceptr)pMem, size, advice,
-                              hQueue->getDevice()->get());
+      setCuMemAdvise((CUdeviceptr)pMem, size, advice,
+                     hQueue->getDevice()->get());
     }
   } catch (ur_result_t err) {
-    Result = err;
+    return err;
   } catch (...) {
-    Result = UR_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 // TODO: Implement this. Remember to return true for
@@ -1720,13 +1699,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const void *pSrc, size_t srcPitch, size_t width, size_t height,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext active(hQueue->getDevice());
     CUstream cuStream = hQueue->getNextTransferStream();
-    result = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
@@ -1761,9 +1738,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
     }
   } catch (ur_result_t err) {
-    result = err;
+    return err;
   }
-  return result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
@@ -1952,8 +1930,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   try {
     ScopedContext Active(hQueue->getDevice());
@@ -1974,7 +1950,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 
     *phEvent = RetImplEvent.release();
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
