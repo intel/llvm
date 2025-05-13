@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define __CLC_FUNCTION ilogb
-#define __CLC_BODY <clc/math/unary_decl_with_int_return.inc>
+#include <clc/clc_convert.h>
+#include <clc/clcmacro.h>
+#include <clc/float/definitions.h>
+#include <clc/integer/clc_clz.h>
+#include <clc/internal/clc.h>
+#include <clc/math/math.h>
 
+#define __CLC_BODY <clc_ilogb.inc>
 #include <clc/math/gentype.inc>
-
-#undef __CLC_FUNCTION
