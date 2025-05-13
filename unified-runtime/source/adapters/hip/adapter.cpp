@@ -38,7 +38,8 @@ public:
 // through UR entry points.
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(logger::get_logger("hip",
+    : handle_base(),
+      logger(logger::get_logger("hip",
                                 /*default_log_level*/ UR_LOGGER_LEVEL_ERROR)) {
   Platform = std::make_unique<ur_platform_handle_t_>();
   if (std::getenv("UR_LOG_HIP") != nullptr)

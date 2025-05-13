@@ -37,12 +37,19 @@ extern thread_local char ErrorMessage[MaxMessageSize];
            __FUNCTION__)                                                       \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
+namespace ur::native_cpu {
+struct ddi_getter {
+  static const ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ddi_getter>;
+} // namespace ur::native_cpu
+
 // Todo: replace this with a common helper once it is available
-struct RefCounted {
+struct RefCounted : ur::native_cpu::handle_base {
   std::atomic_uint32_t _refCount;
   uint32_t incrementReferenceCount() { return ++_refCount; }
   uint32_t decrementReferenceCount() { return --_refCount; }
-  RefCounted() : _refCount{1} {}
+  RefCounted() : handle_base(), _refCount{1} {}
   uint32_t getReferenceCount() const { return _refCount; }
 };
 
