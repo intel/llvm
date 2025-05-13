@@ -589,33 +589,27 @@ public:
     }
 
     CASE(info::device::usm_device_allocations) {
-      return get_info_impl_nocheck<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>()
-                 .value_or(0) &
+      return get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
     CASE(info::device::usm_host_allocations) {
-      return get_info_impl_nocheck<UR_DEVICE_INFO_USM_HOST_SUPPORT>().value_or(
-                 0) &
+      return get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
     CASE(info::device::usm_shared_allocations) {
-      return get_info_impl_nocheck<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>()
-                 .value_or(0) &
+      return get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
     CASE(info::device::usm_restricted_shared_allocations) {
-      auto cap_flags =
-          get_info_impl_nocheck<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
-      if (!cap_flags.has_val())
-        return false;
+      ur_device_usm_access_capability_flags_t cap_flags =
+          get_info_impl<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
       // Check that we don't support any cross device sharing
-      return !(cap_flags.value() &
+      return !(cap_flags &
                (UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
                 UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
     }
     CASE(info::device::usm_system_allocations) {
-      return get_info_impl_nocheck<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>()
-                 .value_or(0) &
+      return get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
 
