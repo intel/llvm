@@ -199,8 +199,6 @@ TEST_P(urKernelGetInfoTest, SuccessAttributes) {
 }
 
 TEST_P(urKernelGetInfoTest, SuccessNumRegs) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{});
-
   const ur_kernel_info_t property_name = UR_KERNEL_INFO_NUM_REGS;
   size_t property_size = 0;
 
@@ -217,7 +215,7 @@ TEST_P(urKernelGetInfoTest, SuccessNumRegs) {
 }
 
 TEST_P(urKernelGetInfoTest, SuccessSpillMemSize) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::OpenCL{});
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
 
   ur_kernel_info_t property_name = UR_KERNEL_INFO_SPILL_MEM_SIZE;
   size_t property_size = 0;

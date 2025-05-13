@@ -260,7 +260,7 @@ ur_result_t urTextureCreate(const ur_sampler_desc_t *pSamplerDesc,
 #else
           setErrorMessage("The UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS "
                           "feature requires cuda 11.6 or later.",
-                          UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                          UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
           return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 #endif
         }
@@ -1041,7 +1041,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
       break;
     default:
       setErrorMessage("Unexpected NumChannels returned by CUDA",
-                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                      UR_RESULT_ERROR_INVALID_VALUE);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
     if (pPropValue) {
