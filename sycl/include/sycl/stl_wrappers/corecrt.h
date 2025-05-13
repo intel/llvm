@@ -28,9 +28,8 @@
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_DEBUG)
 
 #include <cstdint>                            // For uintptr_t
-#include <sycl/detail/defines_elementary.hpp> // For __DPCPP_SYCL_EXTERNAL
 
-extern "C" __DPCPP_SYCL_EXTERNAL void __cdecl _invalid_parameter(
+extern "C" inline void __cdecl _invalid_parameter(
     wchar_t const *, wchar_t const *, wchar_t const *, unsigned int,
     uintptr_t) {
   // Do nothing when called in device code
