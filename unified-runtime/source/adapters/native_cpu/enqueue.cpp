@@ -52,20 +52,27 @@ struct NDRDescT {
 };
 
 namespace {
-struct WaitInfo {
-  std::vector<ur_event_handle_t> events;
+class WaitInfo {
+  std::vector<ur_event_handle_t> *const events;
   static_assert(std::is_pointer_v<ur_event_handle_t>);
+
+public:
   WaitInfo(uint32_t numEvents, const ur_event_handle_t *WaitList)
-      : events(WaitList, WaitList + numEvents) {}
-  void wait() const { urEventWait(events.size(), events.data()); }
+      : events(numEvents ? new std::vector<ur_event_handle_t>(
+                               WaitList, WaitList + numEvents)
+                         : nullptr) {}
+  void wait() const {
+    if (events)
+      urEventWait(events->size(), events->data());
+  }
+  std::unique_ptr<std::vector<ur_event_handle_t>> getUniquePtr() {
+    return std::unique_ptr<std::vector<ur_event_handle_t>>(events);
+  }
 };
 
-inline static std::unique_ptr<WaitInfo>
-getWaitInfo(uint32_t numEventsInWaitList,
-            const ur_event_handle_t *phEventWaitList) {
-  return (numEventsInWaitList) ? std::make_unique<native_cpu::WaitInfo>(
-                                     numEventsInWaitList, phEventWaitList)
-                               : nullptr;
+inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList) {
+  return native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList);
 }
 
 } // namespace
@@ -203,15 +210,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     for (size_t t = 0; t < numParallelThreads;) {
       IndexT first = {t, 0, 0};
       IndexT last = {++t, numWG1, numWG2};
-      futures.emplace_back(
-          tp.schedule_task([ndr, itemsPerThread, &kernel = *kernel, first, last,
-                            InEvents = InEvents.get()](size_t) {
-            native_cpu::state resized_state =
-                getResizedState(ndr, itemsPerThread);
-            if (InEvents)
-              InEvents->wait();
-            execute_range(resized_state, kernel, first, last);
-          }));
+      futures.emplace_back(tp.schedule_task([ndr, itemsPerThread,
+                                             &kernel = *kernel, first, last,
+                                             InEvents](size_t) {
+        native_cpu::state resized_state = getResizedState(ndr, itemsPerThread);
+        InEvents.wait();
+        execute_range(resized_state, kernel, first, last);
+      }));
     }
 
     size_t start_wg0_remainder = new_num_work_groups_0 * itemsPerThread;
@@ -220,11 +225,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       // over the work groups.
       futures.emplace_back(
           tp.schedule_task([ndr, &kernel = *kernel, start_wg0_remainder, numWG0,
-                            numWG1, numWG2, InEvents = InEvents.get()](size_t) {
+                            numWG1, numWG2, InEvents](size_t) {
             IndexT first = {start_wg0_remainder, 0, 0};
             IndexT last = {numWG0, numWG1, numWG2};
-            if (InEvents)
-              InEvents->wait();
+            InEvents.wait();
             native_cpu::state state = getState(ndr);
             execute_range(state, kernel, first, last);
           }));
@@ -250,11 +254,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         first[dim] = wg_start;
         wg_start += groupsPerThread[dim];
         last[dim] = wg_start;
-        futures.emplace_back(tp.schedule_task(
-            [ndr, numParallelThreads, &kernel = *kernel, first, last,
-             InEvents = InEvents.get()](size_t threadId) {
-              if (InEvents)
-                InEvents->wait();
+        futures.emplace_back(
+            tp.schedule_task([ndr, numParallelThreads, &kernel = *kernel, first,
+                              last, InEvents](size_t threadId) {
+              InEvents.wait();
               native_cpu::state state = getState(ndr);
               execute_range(state, kernel,
                             kernel.getArgs(numParallelThreads, threadId), first,
@@ -267,9 +270,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       last[dim] = numWG[dim];
       futures.emplace_back(
           tp.schedule_task([ndr, numParallelThreads, &kernel = *kernel, first,
-                            last, InEvents = InEvents.get()](size_t threadId) {
-            if (InEvents)
-              InEvents->wait();
+                            last, InEvents](size_t threadId) {
+            InEvents.wait();
             native_cpu::state state = getState(ndr);
             execute_range(state, kernel,
                           kernel.getArgs(numParallelThreads, threadId), first,
@@ -285,7 +287,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     *phEvent = event;
   }
   event->set_callback([kernel = std::move(kernel), hKernel, event,
-                       InEvents = std::move(InEvents)]() {
+                       InEvents = InEvents.getUniquePtr()]() {
     event->tick_end();
     // TODO: avoid calling clear() here.
     hKernel->_localArgInfo.clear();
@@ -318,15 +320,13 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
     std::vector<std::future<void>> futures;
     auto InEvents =
         native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
-    futures.emplace_back(
-        tp.schedule_task([f, InEvents = InEvents.get()](size_t) {
-          if (InEvents)
-            InEvents->wait();
-          f();
-        }));
+    futures.emplace_back(tp.schedule_task([f, InEvents](size_t) {
+      InEvents.wait();
+      f();
+    }));
     event->set_futures(futures);
     event->set_callback(
-        [event, InEvents = std::move(InEvents)]() { event->tick_end(); });
+        [event, InEvents = InEvents.getUniquePtr()]() { event->tick_end(); });
     return UR_RESULT_SUCCESS;
   }
   urEventWait(numEventsInWaitList, phEventWaitList);
