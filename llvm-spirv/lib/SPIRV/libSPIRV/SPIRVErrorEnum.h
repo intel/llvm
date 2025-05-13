@@ -28,6 +28,8 @@ _SPIRV_OP(UnspecifiedMemoryModel, "Unspecified Memory Model.")
 _SPIRV_OP(RepeatedMemoryModel, "Expects a single OpMemoryModel instruction.")
 _SPIRV_OP(UnsupportedVarArgFunction,
           "Variadic functions other than 'printf' are not supported in SPIR-V.")
+_SPIRV_OP(DeprecatedExtension,
+          "Feature requires the following deprecated SPIR-V extension:\n")
 
 /* This is the last error code to have a maximum valid value to compare to */
 _SPIRV_OP(InternalMaxErrorCode, "Unknown error code")

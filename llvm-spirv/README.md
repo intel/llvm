@@ -273,7 +273,8 @@ should disable support for forward translation of the extension in the main bran
 (this will prevent new SPIR-V modules from being generated using the extension).
 Meanwhile support reverse translation for the extension should be continued
 (this retains compatibility with existing SPIR-V modules).
-  * Addition of deprecation warning for the extension is not required.
+  * Addition of deprecation warning for the extension is not required, yet recommended for extensions adding
+    instructions representable in LLVM IR only via SPIR-V friendly LLVM IR.
   * We encourage backporting the changes to other branches to speed up removal, but this is not required.
 
 After at least one release cycle one may remove support for reverse translation in the main branch as well,
