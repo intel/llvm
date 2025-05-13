@@ -291,8 +291,6 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MGraph.expired() && !MDefaultGraphDeps.LastEventPtr)
     return std::nullopt;
-  if (MDiscardEvents)
-    return createDiscardedEvent();
   if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
     return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
   return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
@@ -473,8 +471,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
                                 ExpandedDepEvents, MContext)) {
-      if ((MDiscardEvents || !CallerNeedsEvent) &&
-          supportsDiscardingPiEvents()) {
+      if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr);
@@ -518,7 +515,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         EventToStoreIn = EventImpl;
       }
 
-      return discard_or_return(ResEvent);
+      return ResEvent;
     }
   }
   return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
@@ -759,7 +756,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 bool queue_impl::queue_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.
-  if (isInOrder() && !MDiscardEvents) {
+  if (isInOrder()) {
     std::lock_guard<std::mutex> Lock(MMutex);
     // If there is no last event we know that no work has been submitted, so it
     // must be trivially empty.
@@ -797,12 +794,6 @@ bool queue_impl::queue_empty() const {
   // If we didn't exit early above then it means that all events in the queue
   // are completed.
   return true;
-}
-
-event queue_impl::discard_or_return(const event &Event) {
-  if (!(MDiscardEvents))
-    return Event;
-  return createDiscardedEvent();
 }
 
 void queue_impl::revisitUnenqueuedCommandsState(
@@ -851,10 +842,13 @@ void queue_impl::doUnenqueuedCommandCleanup(
 
 void queue_impl::verifyProps(const property_list &Props) const {
   auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP_DEPRECATED_ALIAS(NS_QUALIFIER, PROP_NAME,        \
+                                               ENUM_VAL, WARNING)              \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   case NS_QUALIFIER::PROP_NAME::getKind():                                     \
     return true;
-#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
     switch (PropertyKind) {
 #include <sycl/properties/queue_properties.def>
     default:
@@ -862,7 +856,6 @@ void queue_impl::verifyProps(const property_list &Props) const {
     }
   };
   auto CheckPropertiesWithData = [](int PropertyKind) {
-#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   case NS_QUALIFIER::PROP_NAME::getKind():                                     \
     return true;

@@ -24,7 +24,7 @@ inline void memcpy_no_adl(T1 *Dst, const T2 *Src, size_t Size) {
 #ifdef __SYCL_DEVICE_ONLY__
   __builtin_memcpy(Dst, Src, Size);
 #else
-  std::memcpy(Dst, Src, Size);
+  std::memcpy(static_cast<void *>(Dst), static_cast<const void *>(Src), Size);
 #endif
 }
 } // namespace detail
