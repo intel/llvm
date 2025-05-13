@@ -30,7 +30,7 @@ int main() {
 // CHECK: call spir_func void @_ZZ4mainENKUlvE_clEv{{.*}} !dbg [[LINE_B0:![0-9]+]]
 // CHECK: ret void, !dbg [[LINE_C0:![0-9]+]]
 // CHECK: !DIFile(filename: "{{.*}}debug-info-srcpos-kernel.cpp"{{.*}})
-// CHECK: [[FILE:![0-9]+]] = !DIFile(filename: "{{.*}}clang/test/CodeGenSYCL/debug-info-srcpos-kernel.cpp"{{.*}})
+// CHECK: [[FILE:![0-9]+]] = !DIFile(filename: "{{.*}}debug-info-srcpos-kernel.cpp"{{.*}})
 // CHECK: [[KERNEL]] = {{.*}}!DISubprogram(name: "{{.*}}19use_kernel_for_test"
 // CHECK-SAME: scope: [[FILE]],
 // CHECK-SAME: file: [[FILE]],
