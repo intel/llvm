@@ -102,10 +102,10 @@ static_assert(__cplusplus >= 201703L,
 // MSVC doesn't support #warning and we cannot use other methods to report a
 // warning from inside a system header (which SYCL is considered to be).
 #if defined(SYCL_FALLBACK_ASSERT) && (!defined(_MSC_VER) || defined(__clang__))
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#warning "SYCL_FALLBACK_ASSERT is deprecated."
-#else
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #warning "SYCL_FALLBACK_ASSERT has been removed and no longer has any effect."
+#else
+#warning "SYCL_FALLBACK_ASSERT is deprecated."
 #endif
 #endif
 

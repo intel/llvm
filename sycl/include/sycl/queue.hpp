@@ -377,12 +377,12 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return submit_with_event(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 #else
-    return submit_with_event(
+    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 #endif
@@ -403,12 +403,12 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return submit_with_event(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
 #else
-    return submit_with_event(
+    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
 #endif
@@ -3635,10 +3635,10 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  template <bool UseFallbackAssert, typename PropertiesT>
-#else
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename PropertiesT>
+#else
+  template <bool UseFallbackAssert, typename PropertiesT>
 #endif
   event submit_with_event(
       PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
@@ -3680,10 +3680,10 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  template <bool UseFallbackAssert, typename PropertiesT>
-#else
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename PropertiesT>
+#else
+  template <bool UseFallbackAssert, typename PropertiesT>
 #endif
   event submit_with_event(
       PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
@@ -3720,10 +3720,10 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  template <bool UseFallbackAssert, typename PropertiesT>
-#else
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename PropertiesT>
+#else
+  template <bool UseFallbackAssert, typename PropertiesT>
 #endif
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,

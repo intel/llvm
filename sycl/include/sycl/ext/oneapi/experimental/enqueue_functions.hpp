@@ -99,11 +99,11 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  Q.submit_without_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+#else
   Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT>(
       Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
-#else
-  Q.submit_without_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 #endif
 }
 
@@ -111,12 +111,12 @@ template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-      Props, detail::type_erased_cgfo_ty{CGF}, nullptr, CodeLoc);
-#else
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return Q.submit_with_event(Props, detail::type_erased_cgfo_ty{CGF}, nullptr,
                              CodeLoc);
+#else
+  return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+      Props, detail::type_erased_cgfo_ty{CGF}, nullptr, CodeLoc);
 #endif
 }
 } // namespace detail
