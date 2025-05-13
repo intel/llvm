@@ -722,8 +722,8 @@ ur_result_t urCommandBufferUpdateSignalEventExp(
   // TODO: Move synchronization to command buffer enqueue
   // similarly to kernel update
   UR_CALL(commandBuffer->awaitExecution());
-  zeCommandListUpdateMutableCommandSignalEventExp(
-      ZeCommandList, hCommand->commandId, (*phEvent)->getZeEvent());
+  ZE2UR_CALL(zeCommandListUpdateMutableCommandSignalEventExp,
+             (ZeCommandList, hCommand->commandId, (*phEvent)->getZeEvent()));
 
   ZE2UR_CALL(zeCommandListClose, (ZeCommandList));
   return UR_RESULT_SUCCESS;
