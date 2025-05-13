@@ -422,7 +422,7 @@ event handler::finalize() {
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
   if (type == detail::CGType::Kernel && impl->MKernelFuncPtr &&
-      !(KernelFastPath && impl->MKernelHasSpecialCaptures)) {
+      (!KernelFastPath || impl->MKernelHasSpecialCaptures)) {
     clearArgs();
     extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
                                  impl->MKernelParamDescGetter,
