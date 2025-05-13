@@ -26,7 +26,7 @@ union U {
 using accType = accessor<int, 1, access::mode::read_write>;
 
 struct Sacc {
-    accType acc;
+  accType acc;
 };
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
