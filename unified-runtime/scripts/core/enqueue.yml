@@ -97,7 +97,7 @@ params:
       desc: "[in] size of the launch prop list"
     - type: const $x_kernel_launch_property_t*
       name: launchPropList
-      desc: "[in][range(0, numPropsInLaunchPropList)] pointer to a list of launch properties"
+      desc: "[in][optional][range(0, numPropsInLaunchPropList)] pointer to a list of launch properties"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"

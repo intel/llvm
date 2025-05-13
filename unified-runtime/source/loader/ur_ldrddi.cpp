@@ -2585,8 +2585,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const size_t *pLocalWorkSize,
     /// [in] size of the launch prop list
     uint32_t numPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
     const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
