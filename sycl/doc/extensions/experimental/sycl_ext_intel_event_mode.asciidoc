@@ -73,9 +73,6 @@ only wake up occasionally to check if the event has finished. This reduces the
 time the CPU spends checking finish condition of the wait, at the cost of
 latency.
 
-This extension exists to solve a specific problem, and a general solution is
-still being evaluated.  It is not recommended for general usage.
-
 
 == Specification
 
