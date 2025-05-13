@@ -471,7 +471,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetEnqueueExpProcAddrTable(version, &pDdiTable->EnqueueExp);
   urGetEventProcAddrTable(version, &pDdiTable->Event);
   urGetKernelProcAddrTable(version, &pDdiTable->Kernel);
-  urGetKernelExpProcAddrTable(version, &pDdiTable->KernelExp);
   urGetMemProcAddrTable(version, &pDdiTable->Mem);
   urGetPhysicalMemProcAddrTable(version, &pDdiTable->PhysicalMem);
   urGetPlatformProcAddrTable(version, &pDdiTable->Platform);

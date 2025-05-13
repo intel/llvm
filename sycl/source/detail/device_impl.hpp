@@ -513,8 +513,8 @@ public:
       if (getBackend() != backend::ext_oneapi_cuda)
         return false;
 
-      return get_info_impl_nocheck<ur_bool_t>(
-                 UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT)
+      return get_info_impl_nocheck<ur_bool_t,
+                                   UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT>()
           .value_or(0);
     }
 
