@@ -3474,7 +3474,7 @@ public:
 
 ## Sample Code
 
-The file [helloworld.cpp](sycl/test-e2e/syclcompat/helloworld.cpp) contains
+The file [helloworld.cpp](../../test-e2e/syclcompat/helloworld.cpp) contains
 a simple example which computes `y = mx + b` implemented using this library.
 
 ## Maintainers
