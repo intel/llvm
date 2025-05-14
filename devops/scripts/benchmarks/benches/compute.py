@@ -49,7 +49,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "5e4e39cabd0f74422754890ff8e362789c714543"
+        return "015019f815f73e308171145a48b63d57c1263e45"
 
     def setup(self):
         if options.sycl is None:
@@ -563,6 +563,14 @@ class MemcpyExecute(ComputeBenchmark):
             f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
             + (" without events" if not self.useEvents else "")
             + (" without copy offload" if not self.useCopyOffload else "")
+        )
+
+    def explicit_group(self):
+        return (
+            "MemcpyExecute opsPerThread: "
+            + str(self.numOpsPerThread)
+            + " numThreads: "
+            + str(self.numThreads)
         )
 
     def description(self) -> str:

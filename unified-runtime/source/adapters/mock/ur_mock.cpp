@@ -81,6 +81,15 @@ ur_result_t mock_urDeviceGetInfo(void *pParams) {
       **params.ppPropSizeRet = sizeof(deviceName);
     }
   } break;
+  case UR_DEVICE_INFO_PLATFORM:
+    if (*params.ppPropValue != nullptr) {
+      *reinterpret_cast<ur_platform_handle_t *>(*params.ppPropValue) =
+          driver::d_context.platform;
+    }
+    if (*params.ppPropSizeRet != nullptr) {
+      **params.ppPropSizeRet = sizeof(ur_platform_handle_t);
+    }
+    break;
   default:
     return UR_RESULT_SUCCESS;
   }
@@ -89,6 +98,28 @@ ur_result_t mock_urDeviceGetInfo(void *pParams) {
 
 //////////////////////////////////////////////////////////////////////////
 context_t::context_t() {
+  urGetGlobalProcAddrTable(version, &urDdiTable.Global);
+  urGetBindlessImagesExpProcAddrTable(version, &urDdiTable.BindlessImagesExp);
+  urGetCommandBufferExpProcAddrTable(version, &urDdiTable.CommandBufferExp);
+  urGetContextProcAddrTable(version, &urDdiTable.Context);
+  urGetEnqueueProcAddrTable(version, &urDdiTable.Enqueue);
+  urGetEnqueueExpProcAddrTable(version, &urDdiTable.EnqueueExp);
+  urGetEventProcAddrTable(version, &urDdiTable.Event);
+  urGetKernelProcAddrTable(version, &urDdiTable.Kernel);
+  urGetKernelExpProcAddrTable(version, &urDdiTable.KernelExp);
+  urGetMemProcAddrTable(version, &urDdiTable.Mem);
+  urGetPhysicalMemProcAddrTable(version, &urDdiTable.PhysicalMem);
+  urGetPlatformProcAddrTable(version, &urDdiTable.Platform);
+  urGetProgramProcAddrTable(version, &urDdiTable.Program);
+  urGetProgramExpProcAddrTable(version, &urDdiTable.ProgramExp);
+  urGetQueueProcAddrTable(version, &urDdiTable.Queue);
+  urGetSamplerProcAddrTable(version, &urDdiTable.Sampler);
+  urGetUSMProcAddrTable(version, &urDdiTable.USM);
+  urGetUSMExpProcAddrTable(version, &urDdiTable.USMExp);
+  urGetUsmP2PExpProcAddrTable(version, &urDdiTable.UsmP2PExp);
+  urGetVirtualMemProcAddrTable(version, &urDdiTable.VirtualMem);
+  urGetDeviceProcAddrTable(version, &urDdiTable.Device);
+
   mock::getCallbacks().set_replace_callback("urPlatformGetApiVersion",
                                             &mock_urPlatformGetApiVersion);
   // Set the default info stuff as before overrides, this way any application

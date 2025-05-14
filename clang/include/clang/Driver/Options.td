@@ -7300,6 +7300,8 @@ defm sycl_allow_device_image_dependencies: BoolOptionWithoutMarshalling<"f", "sy
 def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
   Flags<[NoXarchOption]>,
   HelpText<"Dump device code into the user provided directory.">;
+def fsyclbin : Flag<["-"], "fsyclbin">,
+  HelpText<"Create a SYCLBIN file">;
 } // let Group = sycl_Group
 
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.

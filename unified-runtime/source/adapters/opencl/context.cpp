@@ -158,9 +158,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
     void *pUserData) {
   if (!ur::cl::getAdapter()->clSetContextDestructorCallback) {
-    ur::cl::getAdapter()->log.warning(
-        "clSetContextDestructorCallback not found, consider upgrading the "
-        "OpenCL-ICD-Loader to the latest version.");
+    UR_LOG_L(ur::cl::getAdapter()->log, WARN,
+             "clSetContextDestructorCallback not found, consider upgrading the "
+             "OpenCL-ICD-Loader to the latest version.");
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
