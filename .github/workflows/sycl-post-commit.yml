@@ -37,7 +37,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       cxx: icx
-      build_configure_extra_args: -DCMAKE_C_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_CXX_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch"
+      build_configure_extra_args: -DCMAKE_C_FLAGS="/clang:-Wno-cast-function-type-mismatch" -DCMAKE_CXX_FLAGS="/clang:-Wno-cast-function-type-mismatch"
       build_cache_suffix: icx
 
   e2e-win:
