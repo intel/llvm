@@ -1499,9 +1499,8 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
-    BundleObjs =
-        sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, ExecCG.MKernelName);
+    BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
+        ContextImpl, DeviceImpl, ExecCG.MKernelName);
   }
 
   // Remove eliminated args
@@ -1696,8 +1695,8 @@ void exec_graph_impl::updateURImpl(
   std::vector<sycl::detail::NDRDescT> NDRDescList(NumUpdatableNodes);
   std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> UpdateDescList(
       NumUpdatableNodes);
-  std::vector<KernelProgramCache::KernelFastCacheValTPtr>
-      KernelBundleObjList(NumUpdatableNodes);
+  std::vector<KernelProgramCache::KernelFastCacheValTPtr> KernelBundleObjList(
+      NumUpdatableNodes);
 
   size_t StructListIndex = 0;
   for (auto &Node : Nodes) {

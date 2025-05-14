@@ -235,26 +235,28 @@ public:
 
   struct KernelFastCacheValT {
     ur_kernel_handle_t MKernelHandle;    /* UR kernel handle pointer. */
-    std::mutex *MMutex;          /* Mutex guarding this kernel. */
+    std::mutex *MMutex;                  /* Mutex guarding this kernel. */
     const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
-    ur_program_handle_t MProgramHandle;/* UR program handle corresponding to this
-                                     kernel. */
+    ur_program_handle_t MProgramHandle;  /* UR program handle corresponding to
+                                       this kernel. */
     std::weak_ptr<Adapter> MAdapterWeakPtr; /* Weak pointer to the adapter. */
 
-    KernelFastCacheValT(ur_kernel_handle_t KernelHandle,
-                        std::mutex *Mutex,
+    KernelFastCacheValT(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
                         const KernelArgMask *KernelArgMask,
                         ur_program_handle_t ProgramHandle,
                         const AdapterPtr &Adapter)
-        : MKernelHandle(KernelHandle), MMutex(Mutex), MKernelArgMask(KernelArgMask),
-          MProgramHandle(ProgramHandle), MAdapterWeakPtr(Adapter) { }
+        : MKernelHandle(KernelHandle), MMutex(Mutex),
+          MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle),
+          MAdapterWeakPtr(Adapter) { }
 
     ~KernelFastCacheValT() {
       if (AdapterPtr Adapter = MAdapterWeakPtr.lock()) {
         if (MKernelHandle)
-          Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(MKernelHandle);
+          Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(
+              MKernelHandle);
         if (MProgramHandle)
-          Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(MProgramHandle);
+          Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(
+              MProgramHandle);
       }
     }
   };
@@ -267,7 +269,8 @@ public:
   // higher overhead of insertion that comes with unordered_flat_map is more
   // of an issue there. For that reason, those use regular unordered maps.
   using KernelFastCacheT =
-      ::boost::unordered_flat_map<KernelFastCacheKeyT, std::shared_ptr<KernelFastCacheValT>>;
+      ::boost::unordered_flat_map<KernelFastCacheKeyT,
+                                  std::shared_ptr<KernelFastCacheValT>>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -459,7 +462,7 @@ public:
   }
 
   void saveKernel(const KernelProgramCache::KernelFastCacheKeyT &CacheKey,
-       const KernelProgramCache::KernelFastCacheValTPtr &CacheVal) {
+                  const KernelProgramCache::KernelFastCacheValTPtr &CacheVal) {
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
             isProgramCacheEvictionEnabled()) {
 
@@ -473,7 +476,8 @@ public:
     }
     // Save reference between the program and the fast cache key.
     KernelFastCacheWriteLockT Lock(MKernelFastCacheMutex);
-    MProgramToKernelFastCacheKeyMap[CacheVal->MProgramHandle].emplace_back(CacheKey);
+    MProgramToKernelFastCacheKeyMap[CacheVal->MProgramHandle].emplace_back(
+        CacheKey);
 
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache

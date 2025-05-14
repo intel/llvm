@@ -1107,11 +1107,9 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 }
 // When caching is enabled, the returned UrProgram and UrKernel will
 // already have their ref count incremented.
-KernelProgramCache::KernelFastCacheValTPtr
-ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
-                                  device_impl &DeviceImpl,
-                                  KernelNameStrRefT KernelName,
-                                  const NDRDescT &NDRDesc) {
+KernelProgramCache::KernelFastCacheValTPtr ProgramManager::getOrCreateKernel(
+    const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
+    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -1186,9 +1184,8 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   assert(BuildResult != nullptr && "Invalid build result");
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
   auto ret_val = std::make_shared<KernelProgramCache::KernelFastCacheValT>(
-                                 KernelArgMaskPair.first,
-                                 &(BuildResult->MBuildResultMutex),
-                                 KernelArgMaskPair.second, Program, ContextImpl->getAdapter());
+      KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
+      KernelArgMaskPair.second, Program, ContextImpl->getAdapter());
 
   // If caching is enabled, one copy of the kernel handle will be
   // stored in KernelProgramCache::KernelFastCacheT, and one is in
