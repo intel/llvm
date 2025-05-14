@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected -verify-ignore-unexpected=note -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected -fsycl-int-header=%t.h %s
 
 #include "sycl.hpp"
 
@@ -10,6 +10,7 @@ foo(int start, ...) { // expected-error {{free function kernel cannot be a varia
 foo1(int start, ...) { // expected-error {{free function kernel cannot be a variadic function}}
 }
 
+// expected-note@+1 {{conflicting attribute is here}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 1)]] void
 foo2(int start);
 
@@ -18,9 +19,10 @@ foo2(int start);
 foo2(int start) {
 }
 
-// expected-error@+1 {{the first occurrence of kernel free function should be declared with attribute}}
+// expected-note@+1 {{previous declaration is here}}
 void foo3(int start, int *ptr);
 
+// expected-error@+2 {{the first occurrence of kernel free function should be declared with attribute add_ir_attributes_function with 'sycl-nd-range-kernel' or 'sycl-single-task-kernel'}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
 foo3(int start, int *ptr){}
 

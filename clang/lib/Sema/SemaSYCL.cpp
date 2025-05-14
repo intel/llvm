@@ -1160,35 +1160,34 @@ static target getAccessTarget(QualType FieldTy,
 }
 
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
-  llvm::SmallVector<clang::FunctionDecl *, 4> Redecls;
-  for (clang::FunctionDecl *Redecl : FD->redecls()) {
-    Redecls.push_back(Redecl);
-  }
-  bool FirstDecl = true;
   clang::SourceLocation Loc = FD->getLocation();
-  while (!Redecls.empty()) {
-    auto *Redecl = Redecls.back();
-    Redecls.pop_back();
-    if (FirstDecl)
-      Loc = Redecl->getLocation(); // Save the location of the first decl to use
-                                   // in diagnostics.
+  bool NextDeclaredWithAttr = false;
+  for (clang::FunctionDecl *Redecl : FD->redecls()) {
+    bool IsFreeFunctionAttr = false;
     for (auto *IRAttr :
          Redecl->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
       SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
           IRAttr->getAttributeNameValuePairs(getASTContext());
-      for (const auto &NameValuePair : NameValuePairs) {
-        if (NameValuePair.first == "sycl-nd-range-kernel" ||
-            NameValuePair.first == "sycl-single-task-kernel") {
-          if (FirstDecl)
-            return true;
-          else {
-            Diag(Loc, diag::err_free_function_first_occurrence_missing_attr);
-            return false;
-          }
-        }
-      }
+      const auto it = std::find_if(
+          NameValuePairs.begin(), NameValuePairs.end(),
+          [](const auto &NameValuePair) {
+            return NameValuePair.first == "sycl-nd-range-kernel" ||
+                   NameValuePair.first == "sycl-single-task-kernel";
+          });
+      IsFreeFunctionAttr = it != NameValuePairs.end();
     }
-    FirstDecl = false;
+    if (Redecl->isFirstDecl()) {
+      if (IsFreeFunctionAttr)
+        return true;
+      if (NextDeclaredWithAttr) {
+        Diag(Loc, diag::err_free_function_first_occurrence_missing_attr);
+        Diag(Redecl->getLocation(), diag::note_previous_declaration);
+        return false;
+      }
+    } else {
+      Loc = Redecl->getLocation();
+      NextDeclaredWithAttr = IsFreeFunctionAttr;
+    }
   }
   return false;
 }
