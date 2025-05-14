@@ -77,34 +77,38 @@ jobs:
           git fetch origin ${{ env.TARGET }}:${{ env.TARGET }}
           git checkout -b backport/pr-${{ github.event.issue.number }}-to-${{ env.TARGET }} origin/${{ env.TARGET }}
 
-      - name: Get list of PR commits
+      - name: Get commit sha
         id: commits
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            const { data } = await github.rest.pulls.listCommits({
+            const pr = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            return data.map(c => c.sha).join(' ');
+            # FIXME: handle PRs that are merged with "Rebase and Merge" strategy
+            const sha = pr.data.merge_commit_sha;
+            if (!sha) {
+              throw new Error(`No merge_commit_sha found.`);
+            }
+            return sha;
 
-      - name: Cherry-pick commits
+      - name: Cherry-pick commit
         id: cherry
         run: |
           conflict=false
-          for sha in ${{ steps.commits.outputs.result }}; do
-            echo "Cherry-picking $sha"
-            if git cherry-pick "$sha"; then
-              echo "$sha"
-            else
-              echo "Conflict on $sha"
-              conflict=true
-              echo "CONFLICT_SHA=$sha" >> $GITHUB_ENV
-              break
-            fi
-          done
+          SHA="${{ steps.merge_sha.outputs.result }}"
+          echo "Cherry-picking squash-merge commit $SHA"
+          if git cherry-pick "$SHA"; then
+            echo "Cherry-picked $SHA"
+          else
+            echo "Conflict on $SHA"
+            conflict=true
+            echo "CONFLICT_SHA=$SHA" >> $GITHUB_ENV
+          fi
           echo "CONFLICT=$conflict" >> $GITHUB_ENV
 
       - name: Notify conflict
