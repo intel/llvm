@@ -5282,6 +5282,12 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     HostCompileArgs.push_back(TCArgs.MakeArgString(*CWD));
   }
 
+  // Add /external:W0 for MSVC based compilation. We are using /external:I
+  // which requires /external:Wn upon usage. Use of /external:W0 disables
+  // warnings from headers that are included with /external:I.
+  if (IsMSVCHostCompiler)
+    HostCompileArgs.push_back("/external:W0");
+
   // Add default header search directories.
   SmallString<128> BaseDir(C.getDriver().Dir);
   llvm::sys::path::append(BaseDir, "..", "include");
@@ -5294,11 +5300,11 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   llvm::sys::path::append(STLWrappersDir, "stl_wrappers");
   // Add the SYCL specific header directories as system directories for non
   // MSVC compilers.
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-isystem");
+  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
   HostCompileArgs.push_back(TCArgs.MakeArgString(SYCLDir));
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-isystem");
+  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
   HostCompileArgs.push_back(TCArgs.MakeArgString(STLWrappersDir));
-  HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-isystem");
+  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/external:I" : "-isystem");
   HostCompileArgs.push_back(TCArgs.MakeArgString(BaseDir));
 
   if (!OutputAdded) {

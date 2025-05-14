@@ -16,9 +16,10 @@
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_CL %s
 // HOST_COMPILER_CL: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
 // HOST_COMPILER_CL: cl{{.*}} "-c" "-Fo[[HOSTOBJ:.+\.obj]]" "-FI" "[[INTHEADER]]"
-// HOST_COMPILER_CL-SAME: "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// HOST_COMPILER_CL-SAME: "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
-// HOST_COMPILER_CL-SAME: "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
+// HOST_COMPILER_CL-SAME: "/external:W0"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // HOST_COMPILER_CL: link{{.*}} "[[HOSTOBJ]]"
 
 /// check for additional host options
