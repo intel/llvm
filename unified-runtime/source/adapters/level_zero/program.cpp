@@ -446,7 +446,7 @@ ur_result_t urProgramLinkExp(
 
     ZeStruct<ze_module_desc_t> ZeModuleDesc;
     ZeModuleDesc.pNext = &ZeExtModuleDesc;
-    switch(CommonCodeFormat) {
+    switch (CommonCodeFormat) {
     case ur_program_handle_t_::CodeFormat::SPIRV:
       ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
       break;
