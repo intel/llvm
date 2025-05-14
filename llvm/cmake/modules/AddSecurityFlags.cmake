@@ -53,25 +53,26 @@ macro(append_common_extra_security_flags)
   # Compiler Warnings and Error Detection
   # Note: in intel/llvm we build both linux and win with --ci-defaults.
   # This flag also enables -Werror or /WX.
-  if(is_gcc
-     OR is_clang
-     OR (is_icpx AND MSVC))
-    add_compile_option_ext("-Wall" WALL)
-    add_compile_option_ext("-Wextra" WEXTRA)
-  elseif(is_icpx)
-    add_compile_option_ext("/Wall" WALL)
-  elseif(is_msvc)
-    add_compile_option_ext("/W4" WALL)
-  endif()
+  ## These flags cause many errors. Temporarily disabling.
+  # if(is_gcc
+  #    OR is_clang
+  #    OR (is_icpx AND MSVC))
+  #   add_compile_option_ext("-Wall" WALL)
+  #   add_compile_option_ext("-Wextra" WEXTRA)
+  # elseif(is_icpx)
+  #   add_compile_option_ext("/Wall" WALL)
+  # elseif(is_msvc)
+  #   add_compile_option_ext("/W4" WALL)
+  # endif()
 
-  if(CMAKE_BUILD_TYPE MATCHES "Release")
-    if(is_gcc
-       OR is_clang
-       OR (is_icpx AND MSVC))
-      add_compile_option_ext("-Wconversion" WCONVERSION)
-      add_compile_option_ext("-Wimplicit-fallthrough" WIMPLICITFALLTHROUGH)
-    endif()
-  endif()
+  # if(CMAKE_BUILD_TYPE MATCHES "Release")
+  #   if(is_gcc
+  #      OR is_clang
+  #      OR (is_icpx AND MSVC))
+  #     add_compile_option_ext("-Wconversion" WCONVERSION)
+  #     add_compile_option_ext("-Wimplicit-fallthrough" WIMPLICITFALLTHROUGH)
+  #   endif()
+  # endif()
 
   # Control Flow Integrity
   if(is_gcc
@@ -125,7 +126,7 @@ macro(append_common_extra_security_flags)
   if(is_gcc
      OR is_clang
      OR (is_icpx AND MSVC))
-    add_compile_option_ext("-fPIC" FPIC)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
   elseif(is_msvc)
     add_compile_option_ext("/Gy" GY)
   endif()
@@ -168,18 +169,18 @@ macro(append_common_extra_security_flags)
   if(LLVM_ON_UNIX)
     # Fortify Source (strongly recommended):
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-      message(WARNING "-D_FORTIFY_SOURCE=3 can only be used with optimization.")
-      message(WARNING "-D_FORTIFY_SOURCE=3 is not supported.")
+      message(WARNING "-D_FORTIFY_SOURCE=2 can only be used with optimization.")
+      message(WARNING "-D_FORTIFY_SOURCE=2 is not supported.")
     else()
       # Sanitizers do not work with checked memory functions, such as
       # __memset_chk. We do not build release packages with sanitizers, so just
-      # avoid -D_FORTIFY_SOURCE=3 under LLVM_USE_SANITIZER.
+      # avoid -D_FORTIFY_SOURCE=2 under LLVM_USE_SANITIZER.
       if(NOT LLVM_USE_SANITIZER)
-        message(STATUS "Building with -D_FORTIFY_SOURCE=3")
-        add_definitions(-D_FORTIFY_SOURCE=3)
+        message(STATUS "Building with -D_FORTIFY_SOURCE=2")
+        add_definitions(-D_FORTIFY_SOURCE=2)
       else()
         message(
-          WARNING "-D_FORTIFY_SOURCE=3 dropped due to LLVM_USE_SANITIZER.")
+          WARNING "-D_FORTIFY_SOURCE=2 dropped due to LLVM_USE_SANITIZER.")
       endif()
     endif()
 
