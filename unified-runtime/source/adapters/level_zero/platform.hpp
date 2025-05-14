@@ -25,9 +25,10 @@ struct ur_zes_device_handle_data_t {
   ze_bool_t SubDevice = false;
 };
 
-struct ur_platform_handle_t_ : public ur_platform {
+struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
+                               public ur_platform {
   ur_platform_handle_t_(ze_driver_handle_t Driver)
-      : ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
+      : handle_base(), ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
   // Performs initialization of a newly constructed PI platform.
   ur_result_t initialize();
 

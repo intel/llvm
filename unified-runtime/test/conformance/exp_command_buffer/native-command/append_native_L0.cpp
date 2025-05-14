@@ -14,7 +14,7 @@ struct urL0CommandBufferNativeAppendTest
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferNativeAppendTest::SetUp());
-    if (backend != UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+    if (backend != UR_BACKEND_LEVEL_ZERO) {
       GTEST_SKIP() << "Native append test is only supported on L0.";
     }
 
