@@ -50,7 +50,8 @@ private:
   const v2::raii::ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t> hDevices;
   v2::command_list_cache_t commandListCache;
-  v2::event_pool_cache eventPoolCacheImmediate, eventPoolCacheRegular;
+  v2::event_pool_cache eventPoolCacheImmediate;
+  v2::event_pool_cache eventPoolCacheRegular;
 
   // pool used for urEventCreateWithNativeHandle when native handle is NULL
   // (uses non-counter based events to allow for signaling from host)
