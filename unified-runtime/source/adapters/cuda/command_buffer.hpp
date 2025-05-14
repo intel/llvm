@@ -128,7 +128,7 @@ struct ur_exp_command_buffer_command_handle_t_ : ur::cuda::handle_base {
   command_data_type_t CommandData;
 };
 
-struct ur_exp_command_buffer_handle_t_ {
+struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
 
   ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,
                                   ur_device_handle_t Device, bool IsUpdatable);

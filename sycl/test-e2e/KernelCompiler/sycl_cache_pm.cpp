@@ -8,7 +8,8 @@
 
 // REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
-
+// XFAIL: run-mode && linux && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18416
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
