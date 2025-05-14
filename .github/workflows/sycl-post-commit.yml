@@ -53,5 +53,6 @@ jobs:
       runner: '["Windows","gen12"]'
       target_devices: "level_zero:gpu"
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+      extra_lit_opts: --param sycl_build_targets="spir"
       cxx: icx
       env: "{'LIT_FILTER':'std_array'}"
