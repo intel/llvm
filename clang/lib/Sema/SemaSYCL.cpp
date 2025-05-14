@@ -8,7 +8,7 @@
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
 
-#include "clang/Sema/SemaSYCL.h"
+#include "clang/Sema/SemaSYCL.h" 
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
 #include "clang/AST/Mangle.h"
