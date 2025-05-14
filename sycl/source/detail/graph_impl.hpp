@@ -823,7 +823,6 @@ public:
   /// Verifies the CG is valid to add to the graph and returns set of
   /// dependent nodes if so.
   /// @param CommandGroup The command group to verify and retrieve edges for.
-  /// @param CommandGroup The command group to verify and retrieve edges for.
   /// @return Set of dependent nodes in the graph.
   std::set<std::shared_ptr<node_impl>>
   getCGEdges(const std::shared_ptr<sycl::detail::CG> &CommandGroup) const;
