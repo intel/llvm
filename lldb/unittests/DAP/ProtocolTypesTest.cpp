@@ -132,3 +132,162 @@ TEST(ProtocolTypesTest, Breakpoint) {
   EXPECT_EQ(breakpoint.offset, deserialized_breakpoint->offset);
   EXPECT_EQ(breakpoint.reason, deserialized_breakpoint->reason);
 }
+
+TEST(ProtocolTypesTest, SourceBreakpoint) {
+  SourceBreakpoint source_breakpoint;
+  source_breakpoint.line = 42;
+  source_breakpoint.column = 5;
+  source_breakpoint.condition = "x > 10";
+  source_breakpoint.hitCondition = "5";
+  source_breakpoint.logMessage = "Breakpoint hit at line 42";
+  source_breakpoint.mode = "hardware";
+
+  llvm::Expected<SourceBreakpoint> deserialized_source_breakpoint =
+      roundtrip(source_breakpoint);
+  ASSERT_THAT_EXPECTED(deserialized_source_breakpoint, llvm::Succeeded());
+
+  EXPECT_EQ(source_breakpoint.line, deserialized_source_breakpoint->line);
+  EXPECT_EQ(source_breakpoint.column, deserialized_source_breakpoint->column);
+  EXPECT_EQ(source_breakpoint.condition,
+            deserialized_source_breakpoint->condition);
+  EXPECT_EQ(source_breakpoint.hitCondition,
+            deserialized_source_breakpoint->hitCondition);
+  EXPECT_EQ(source_breakpoint.logMessage,
+            deserialized_source_breakpoint->logMessage);
+  EXPECT_EQ(source_breakpoint.mode, deserialized_source_breakpoint->mode);
+}
+
+TEST(ProtocolTypesTest, FunctionBreakpoint) {
+  FunctionBreakpoint function_breakpoint;
+  function_breakpoint.name = "myFunction";
+  function_breakpoint.condition = "x == 0";
+  function_breakpoint.hitCondition = "3";
+
+  llvm::Expected<FunctionBreakpoint> deserialized_function_breakpoint =
+      roundtrip(function_breakpoint);
+  ASSERT_THAT_EXPECTED(deserialized_function_breakpoint, llvm::Succeeded());
+
+  EXPECT_EQ(function_breakpoint.name, deserialized_function_breakpoint->name);
+  EXPECT_EQ(function_breakpoint.condition,
+            deserialized_function_breakpoint->condition);
+  EXPECT_EQ(function_breakpoint.hitCondition,
+            deserialized_function_breakpoint->hitCondition);
+}
+
+TEST(ProtocolTypesTest, DataBreakpoint) {
+  DataBreakpoint data_breakpoint_info;
+  data_breakpoint_info.dataId = "variable1";
+  data_breakpoint_info.accessType = eDataBreakpointAccessTypeReadWrite;
+  data_breakpoint_info.condition = "x > 100";
+  data_breakpoint_info.hitCondition = "10";
+
+  llvm::Expected<DataBreakpoint> deserialized_data_breakpoint_info =
+      roundtrip(data_breakpoint_info);
+  ASSERT_THAT_EXPECTED(deserialized_data_breakpoint_info, llvm::Succeeded());
+
+  EXPECT_EQ(data_breakpoint_info.dataId,
+            deserialized_data_breakpoint_info->dataId);
+  EXPECT_EQ(data_breakpoint_info.accessType,
+            deserialized_data_breakpoint_info->accessType);
+  EXPECT_EQ(data_breakpoint_info.condition,
+            deserialized_data_breakpoint_info->condition);
+  EXPECT_EQ(data_breakpoint_info.hitCondition,
+            deserialized_data_breakpoint_info->hitCondition);
+}
+
+TEST(ProtocolTypesTest, Capabilities) {
+  Capabilities capabilities;
+
+  // Populate supported features.
+  capabilities.supportedFeatures.insert(eAdapterFeatureANSIStyling);
+  capabilities.supportedFeatures.insert(
+      eAdapterFeatureBreakpointLocationsRequest);
+
+  // Populate optional fields.
+  capabilities.exceptionBreakpointFilters = {
+      {{"filter1", "Filter 1", "Description 1", true, true, "Condition 1"},
+       {"filter2", "Filter 2", "Description 2", false, false, "Condition 2"}}};
+
+  capabilities.completionTriggerCharacters = {".", "->"};
+  capabilities.additionalModuleColumns = {
+      {"moduleName", "Module Name", "uppercase", eColumnTypeString, 20}};
+  capabilities.supportedChecksumAlgorithms = {eChecksumAlgorithmMD5,
+                                              eChecksumAlgorithmSHA256};
+  capabilities.breakpointModes = {{"hardware",
+                                   "Hardware Breakpoint",
+                                   "Description",
+                                   {eBreakpointModeApplicabilitySource}}};
+  capabilities.lldbExtVersion = "1.0.0";
+
+  // Perform roundtrip serialization and deserialization.
+  llvm::Expected<Capabilities> deserialized_capabilities =
+      roundtrip(capabilities);
+  ASSERT_THAT_EXPECTED(deserialized_capabilities, llvm::Succeeded());
+
+  // Verify supported features.
+  EXPECT_EQ(capabilities.supportedFeatures,
+            deserialized_capabilities->supportedFeatures);
+
+  // Verify exception breakpoint filters.
+  ASSERT_TRUE(
+      deserialized_capabilities->exceptionBreakpointFilters.has_value());
+  EXPECT_EQ(capabilities.exceptionBreakpointFilters->size(),
+            deserialized_capabilities->exceptionBreakpointFilters->size());
+  for (size_t i = 0; i < capabilities.exceptionBreakpointFilters->size(); ++i) {
+    const auto &original = capabilities.exceptionBreakpointFilters->at(i);
+    const auto &deserialized =
+        deserialized_capabilities->exceptionBreakpointFilters->at(i);
+    EXPECT_EQ(original.filter, deserialized.filter);
+    EXPECT_EQ(original.label, deserialized.label);
+    EXPECT_EQ(original.description, deserialized.description);
+    EXPECT_EQ(original.defaultState, deserialized.defaultState);
+    EXPECT_EQ(original.supportsCondition, deserialized.supportsCondition);
+    EXPECT_EQ(original.conditionDescription, deserialized.conditionDescription);
+  }
+
+  // Verify completion trigger characters.
+  ASSERT_TRUE(
+      deserialized_capabilities->completionTriggerCharacters.has_value());
+  EXPECT_EQ(capabilities.completionTriggerCharacters,
+            deserialized_capabilities->completionTriggerCharacters);
+
+  // Verify additional module columns.
+  ASSERT_TRUE(deserialized_capabilities->additionalModuleColumns.has_value());
+  EXPECT_EQ(capabilities.additionalModuleColumns->size(),
+            deserialized_capabilities->additionalModuleColumns->size());
+  for (size_t i = 0; i < capabilities.additionalModuleColumns->size(); ++i) {
+    const auto &original = capabilities.additionalModuleColumns->at(i);
+    const auto &deserialized =
+        deserialized_capabilities->additionalModuleColumns->at(i);
+    EXPECT_EQ(original.attributeName, deserialized.attributeName);
+    EXPECT_EQ(original.label, deserialized.label);
+    EXPECT_EQ(original.format, deserialized.format);
+    EXPECT_EQ(original.type, deserialized.type);
+    EXPECT_EQ(original.width, deserialized.width);
+  }
+
+  // Verify supported checksum algorithms.
+  ASSERT_TRUE(
+      deserialized_capabilities->supportedChecksumAlgorithms.has_value());
+  EXPECT_EQ(capabilities.supportedChecksumAlgorithms,
+            deserialized_capabilities->supportedChecksumAlgorithms);
+
+  // Verify breakpoint modes.
+  ASSERT_TRUE(deserialized_capabilities->breakpointModes.has_value());
+  EXPECT_EQ(capabilities.breakpointModes->size(),
+            deserialized_capabilities->breakpointModes->size());
+  for (size_t i = 0; i < capabilities.breakpointModes->size(); ++i) {
+    const auto &original = capabilities.breakpointModes->at(i);
+    const auto &deserialized =
+        deserialized_capabilities->breakpointModes->at(i);
+    EXPECT_EQ(original.mode, deserialized.mode);
+    EXPECT_EQ(original.label, deserialized.label);
+    EXPECT_EQ(original.description, deserialized.description);
+    EXPECT_EQ(original.appliesTo, deserialized.appliesTo);
+  }
+
+  // Verify lldb extension version.
+  ASSERT_TRUE(deserialized_capabilities->lldbExtVersion.has_value());
+  EXPECT_EQ(capabilities.lldbExtVersion,
+            deserialized_capabilities->lldbExtVersion);
+}
