@@ -93,6 +93,17 @@ urPrintRectRegion(const struct ur_rect_region_t params, char *buffer,
                   const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_backend_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBackend(enum ur_backend_t value,
+                                                   char *buffer,
+                                                   const size_t buff_size,
+                                                   size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_init_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -133,16 +144,6 @@ urPrintAdapterInfo(enum ur_adapter_info_t value, char *buffer,
                    const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_adapter_backend_t enum
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL
-urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
-                      const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_logger_level_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -181,16 +182,6 @@ urPrintApiVersion(enum ur_api_version_t value, char *buffer,
 UR_APIEXPORT ur_result_t UR_APICALL urPrintPlatformNativeProperties(
     const struct ur_platform_native_properties_t params, char *buffer,
     const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_platform_backend_t enum
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL
-urPrintPlatformBackend(enum ur_platform_backend_t value, char *buffer,
-                       const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_binary_t struct

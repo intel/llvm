@@ -630,7 +630,11 @@ ur_result_t urQueueRelease(
       UR_CALL(Queue->synchronize());
 
     // Cleanup the allocations from 'AsyncPool' made by this queue.
+
     Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+    for (auto &Pool : Queue->Context->UsmPoolHandles) {
+      Pool->cleanupPoolsForQueue(Queue);
+    }
 
     // Destroy all the fences created associated with this queue.
     for (auto it = Queue->CommandListMap.begin();
@@ -909,6 +913,9 @@ ur_result_t urQueueFinish(
   }
 
   Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+  for (auto &Pool : Queue->Context->UsmPoolHandles) {
+    Pool->cleanupPoolsForQueue(Queue);
+  }
 
   return UR_RESULT_SUCCESS;
 }

@@ -176,7 +176,6 @@ EXPORTS
 	urPlatformGetBackendOption
 	urPlatformGetInfo
 	urPlatformGetNativeHandle
-	urPrintAdapterBackend
 	urPrintAdapterGetInfoParams
 	urPrintAdapterGetLastErrorParams
 	urPrintAdapterGetParams
@@ -186,6 +185,7 @@ EXPORTS
 	urPrintAdapterSetLoggerCallbackLevelParams
 	urPrintAdapterSetLoggerCallbackParams
 	urPrintApiVersion
+	urPrintBackend
 	urPrintBaseDesc
 	urPrintBaseProperties
 	urPrintBindlessImagesFreeMappedLinearMemoryExpParams
@@ -423,7 +423,6 @@ EXPORTS
 	urPrintPhysicalMemProperties
 	urPrintPhysicalMemReleaseParams
 	urPrintPhysicalMemRetainParams
-	urPrintPlatformBackend
 	urPrintPlatformCreateWithNativeHandleParams
 	urPrintPlatformGetApiVersionParams
 	urPrintPlatformGetBackendOptionParams

@@ -39,7 +39,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t PlatformInfoType,
     return ReturnValue("");
   }
   case UR_PLATFORM_INFO_BACKEND: {
-    return ReturnValue(UR_PLATFORM_BACKEND_CUDA);
+    return ReturnValue(UR_BACKEND_CUDA);
   }
   case UR_PLATFORM_INFO_ADAPTER: {
     return ReturnValue(ur::cuda::adapter);

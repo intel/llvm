@@ -291,6 +291,7 @@ operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_rect_region_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_backend_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_init_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -299,8 +300,6 @@ inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_code_location_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_adapter_backend_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_logger_level_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_platform_info_t value);
@@ -308,8 +307,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value);
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_platform_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_platform_backend_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_device_binary_t params);
@@ -2082,6 +2079,36 @@ inline std::ostream &operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_backend_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_backend_t value) {
+  switch (value) {
+  case UR_BACKEND_UNKNOWN:
+    os << "UR_BACKEND_UNKNOWN";
+    break;
+  case UR_BACKEND_LEVEL_ZERO:
+    os << "UR_BACKEND_LEVEL_ZERO";
+    break;
+  case UR_BACKEND_OPENCL:
+    os << "UR_BACKEND_OPENCL";
+    break;
+  case UR_BACKEND_CUDA:
+    os << "UR_BACKEND_CUDA";
+    break;
+  case UR_BACKEND_HIP:
+    os << "UR_BACKEND_HIP";
+    break;
+  case UR_BACKEND_NATIVE_CPU:
+    os << "UR_BACKEND_NATIVE_CPU";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_init_flag_t type
 /// @returns
 ///     std::ostream &
@@ -2300,10 +2327,10 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
   switch (value) {
   case UR_ADAPTER_INFO_BACKEND: {
-    const ur_adapter_backend_t *tptr = (const ur_adapter_backend_t *)ptr;
-    if (sizeof(ur_adapter_backend_t) > size) {
+    const ur_backend_t *tptr = (const ur_backend_t *)ptr;
+    if (sizeof(ur_backend_t) > size) {
       os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_adapter_backend_t) << ")";
+         << ", expected: >=" << sizeof(ur_backend_t) << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -2346,37 +2373,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 }
 } // namespace ur::details
 
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_backend_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_adapter_backend_t value) {
-  switch (value) {
-  case UR_ADAPTER_BACKEND_UNKNOWN:
-    os << "UR_ADAPTER_BACKEND_UNKNOWN";
-    break;
-  case UR_ADAPTER_BACKEND_LEVEL_ZERO:
-    os << "UR_ADAPTER_BACKEND_LEVEL_ZERO";
-    break;
-  case UR_ADAPTER_BACKEND_OPENCL:
-    os << "UR_ADAPTER_BACKEND_OPENCL";
-    break;
-  case UR_ADAPTER_BACKEND_CUDA:
-    os << "UR_ADAPTER_BACKEND_CUDA";
-    break;
-  case UR_ADAPTER_BACKEND_HIP:
-    os << "UR_ADAPTER_BACKEND_HIP";
-    break;
-  case UR_ADAPTER_BACKEND_NATIVE_CPU:
-    os << "UR_ADAPTER_BACKEND_NATIVE_CPU";
-    break;
-  default:
-    os << "unknown enumerator";
-    break;
-  }
-  return os;
-}
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_logger_level_t type
 /// @returns
@@ -2476,10 +2472,10 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     printPtr(os, tptr);
   } break;
   case UR_PLATFORM_INFO_BACKEND: {
-    const ur_platform_backend_t *tptr = (const ur_platform_backend_t *)ptr;
-    if (sizeof(ur_platform_backend_t) > size) {
+    const ur_backend_t *tptr = (const ur_backend_t *)ptr;
+    if (sizeof(ur_backend_t) > size) {
       os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_platform_backend_t) << ")";
+         << ", expected: >=" << sizeof(ur_backend_t) << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -2541,37 +2537,6 @@ operator<<(std::ostream &os,
   os << (params.isNativeHandleOwned);
 
   os << "}";
-  return os;
-}
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_platform_backend_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_platform_backend_t value) {
-  switch (value) {
-  case UR_PLATFORM_BACKEND_UNKNOWN:
-    os << "UR_PLATFORM_BACKEND_UNKNOWN";
-    break;
-  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
-    os << "UR_PLATFORM_BACKEND_LEVEL_ZERO";
-    break;
-  case UR_PLATFORM_BACKEND_OPENCL:
-    os << "UR_PLATFORM_BACKEND_OPENCL";
-    break;
-  case UR_PLATFORM_BACKEND_CUDA:
-    os << "UR_PLATFORM_BACKEND_CUDA";
-    break;
-  case UR_PLATFORM_BACKEND_HIP:
-    os << "UR_PLATFORM_BACKEND_HIP";
-    break;
-  case UR_PLATFORM_BACKEND_NATIVE_CPU:
-    os << "UR_PLATFORM_BACKEND_NATIVE_CPU";
-    break;
-  default:
-    os << "unknown enumerator";
-    break;
-  }
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
