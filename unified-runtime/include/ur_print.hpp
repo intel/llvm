@@ -529,6 +529,8 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_external_mem_type_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_external_semaphore_type_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_mem_type_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
@@ -1244,6 +1246,19 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL:
     os << "UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL";
     break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_"
+          "EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1822,9 +1837,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     break;
   case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
     os << "UR_RESULT_ERROR_INVALID_WORK_DIMENSION";
-    break;
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    os << "UR_RESULT_ERROR_INVALID_KERNEL_ARGS";
     break;
   case UR_RESULT_ERROR_INVALID_KERNEL:
     os << "UR_RESULT_ERROR_INVALID_KERNEL";
@@ -11186,6 +11198,25 @@ inline std::ostream &operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_image_mem_type_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_mem_type_t value) {
+  switch (value) {
+  case UR_EXP_IMAGE_MEM_TYPE_USM_POINTER:
+    os << "UR_EXP_IMAGE_MEM_TYPE_USM_POINTER";
+    break;
+  case UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE:
+    os << "UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_file_descriptor_t type
 /// @returns
 ///     std::ostream &
@@ -18264,6 +18295,131 @@ inline std::ostream &operator<<(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
+/// ur_bindless_images_get_image_memory_handle_type_support_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_get_image_memory_handle_type_support_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pImageDesc = ";
+
+  ur::details::printPtr(os, *(params->ppImageDesc));
+
+  os << ", ";
+  os << ".pImageFormat = ";
+
+  ur::details::printPtr(os, *(params->ppImageFormat));
+
+  os << ", ";
+  os << ".imageMemHandleType = ";
+
+  os << *(params->pimageMemHandleType);
+
+  os << ", ";
+  os << ".pSupportedRet = ";
+
+  ur::details::printPtr(os, *(params->ppSupportedRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_bindless_images_get_image_unsampled_handle_support_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_get_image_unsampled_handle_support_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pImageDesc = ";
+
+  ur::details::printPtr(os, *(params->ppImageDesc));
+
+  os << ", ";
+  os << ".pImageFormat = ";
+
+  ur::details::printPtr(os, *(params->ppImageFormat));
+
+  os << ", ";
+  os << ".imageMemHandleType = ";
+
+  os << *(params->pimageMemHandleType);
+
+  os << ", ";
+  os << ".pSupportedRet = ";
+
+  ur::details::printPtr(os, *(params->ppSupportedRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_bindless_images_get_image_sampled_handle_support_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os, [[maybe_unused]] const struct
+    ur_bindless_images_get_image_sampled_handle_support_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pImageDesc = ";
+
+  ur::details::printPtr(os, *(params->ppImageDesc));
+
+  os << ", ";
+  os << ".pImageFormat = ";
+
+  ur::details::printPtr(os, *(params->ppImageFormat));
+
+  os << ", ";
+  os << ".imageMemHandleType = ";
+
+  os << *(params->pimageMemHandleType);
+
+  os << ", ";
+  os << ".pSupportedRet = ";
+
+  ur::details::printPtr(os, *(params->ppSupportedRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
 /// ur_bindless_images_mipmap_get_level_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -18470,6 +18626,32 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
   os << ".hExternalMem = ";
 
   ur::details::printPtr(os, *(params->phExternalMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_bindless_images_free_mapped_linear_memory_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_free_mapped_linear_memory_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
 
   return os;
 }
@@ -21223,6 +21405,21 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP: {
     os << (const struct ur_bindless_images_image_get_info_exp_params_t *)params;
   } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP: {
+    os << (const struct
+           ur_bindless_images_get_image_memory_handle_type_support_exp_params_t
+               *)params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP: {
+    os << (const struct
+           ur_bindless_images_get_image_unsampled_handle_support_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP: {
+    os << (const struct
+           ur_bindless_images_get_image_sampled_handle_support_exp_params_t *)
+            params;
+  } break;
   case UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP: {
     os << (const struct ur_bindless_images_mipmap_get_level_exp_params_t *)
             params;
@@ -21245,6 +21442,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP: {
     os << (const struct ur_bindless_images_release_external_memory_exp_params_t
                *)params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP: {
+    os << (const struct
+           ur_bindless_images_free_mapped_linear_memory_exp_params_t *)params;
   } break;
   case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
     os << (const struct

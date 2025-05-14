@@ -82,7 +82,7 @@ jobs:
       # lldb.  Using this setup-python action to make 3.10 the default
       # python fixes this.
       - name: Setup Python
-        uses: actions/setup-python@v5.5.0
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: ${{ inputs.python_version }}
       - name: Install Ninja
@@ -95,7 +95,7 @@ jobs:
         with:
           fetch-depth: 250
       - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@a1209f81afb8c005c13b4296c32e363431bffea5 # v1.2.17
+        uses: hendrikmuhs/ccache-action@63069e3931dedbf3b63792097479563182fe70d1 # v1.2.18
         with:
           # A full build of llvm, clang, lld, and lldb takes about 250MB
           # of ccache space. There's not much reason to have more than this,

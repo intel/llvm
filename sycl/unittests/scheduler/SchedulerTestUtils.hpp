@@ -54,17 +54,6 @@ public:
     EXPECT_CALL(*this, enqueue).Times(AnyNumber());
   }
 
-  // This Mock will fail to enqueue.
-  MockCommand(
-      bool, sycl::detail::QueueImplPtr Queue,
-      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {
-    using namespace testing;
-    ON_CALL(*this, enqueue)
-        .WillByDefault(Invoke(this, &MockCommand::enqueueFail));
-    EXPECT_CALL(*this, enqueue).Times(AnyNumber());
-  }
-
   void printDot(std::ostream &) const override {}
   void emitInstrumentationData() override {}
 
@@ -81,14 +70,6 @@ public:
                      sycl::detail::BlockingT Blocking,
                      std::vector<sycl::detail::Command *> &ToCleanUp) {
     return sycl::detail::Command::enqueue(EnqueueResult, Blocking, ToCleanUp);
-  }
-  bool enqueueFail(sycl::detail::EnqueueResultT &EnqueueResult,
-                   sycl::detail::BlockingT Blocking,
-                   std::vector<sycl::detail::Command *> &ToCleanUp) {
-    this->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueFailed;
-    EnqueueResult = {sycl::detail::EnqueueResultT::SyclEnqueueFailed, this};
-    ToCleanUp.push_back(this);
-    return false;
   }
 
   ur_result_t MRetVal = UR_RESULT_SUCCESS;
@@ -277,7 +258,7 @@ public:
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
   }
-  std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
+  const std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
 
   void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 

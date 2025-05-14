@@ -46,7 +46,7 @@ def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
         config[platform_tag]["igc_dev"]["version"] = igcdevver
         config[platform_tag]["igc_dev"]["updated_at"] = igc_dev["updated_at"]
         config[platform_tag]["igc_dev"]["url"] = get_artifacts_download_url(
-            "intel/intel-graphics-compiler", "IGC_Ubuntu24.04_llvm14_clang-" + igcdevver
+            "intel/intel-graphics-compiler", "IGC_Ubuntu24.04_llvm15_clang-" + igcdevver
         )
         return config
 

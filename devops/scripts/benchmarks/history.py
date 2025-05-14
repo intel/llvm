@@ -60,7 +60,6 @@ class BenchmarkHistory:
         self.runs = benchmark_runs
 
     def create_run(self, name: str, results: list[Result]) -> BenchmarkRun:
-
         def git_info_from_path(path: Path) -> (str, str):
             """
             Derives git repo, commit information from git repo located in path.
@@ -121,7 +120,7 @@ class BenchmarkHistory:
             )
 
         compute_runtime = (
-            options.compute_runtime_tag if options.build_compute_runtime else None
+            options.compute_runtime_tag if options.build_compute_runtime else ""
         )
 
         return BenchmarkRun(

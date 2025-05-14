@@ -3,9 +3,6 @@
 // UNSUPPORTED-INTENDED: ze_debug UR emits summary of leaks that contains
 // function names that we match in the test.
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18067
-
 // RUN: %{build} -Wno-error=deprecated-declarations %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 SYCL_EAGER_INIT=1 %{run} %t.out 2>&1 | FileCheck %s
 //

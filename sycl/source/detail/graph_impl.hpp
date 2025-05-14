@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "detail/queue_impl.hpp"
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -17,6 +18,7 @@
 #include <detail/accessor_impl.hpp>
 #include <detail/cg.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/graph_memory_pool.hpp>
 #include <detail/host_task.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
@@ -73,6 +75,11 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
     return node_type::subgraph;
   case sycl::detail::CGType::EnqueueNativeCommand:
     return node_type::native_command;
+  case sycl::detail::CGType::AsyncAlloc:
+    return node_type::async_malloc;
+  case sycl::detail::CGType::AsyncFree:
+    return node_type::async_free;
+
   default:
     assert(false && "Invalid Graph Node Type");
     return node_type::empty;
@@ -470,6 +477,21 @@ public:
 
     default:
       return false;
+    }
+  }
+
+  /// Returns true if this node should be enqueued to the backend, if not only
+  /// its dependencies are considered.
+  bool requiresEnqueue() const {
+    switch (MNodeType) {
+    case node_type::empty:
+    case node_type::ext_oneapi_barrier:
+    case node_type::async_malloc:
+    case node_type::async_free:
+      return false;
+
+    default:
+      return true;
     }
   }
 
@@ -919,11 +941,15 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
+  /// Query for the context impl tied to this graph.
+  /// @return shared_ptr ref for the context impl associated with graph.
+  const std::shared_ptr<sycl::detail::context_impl> &getContextImplPtr() const {
+    return sycl::detail::getSyclObjImpl(MContext);
+  }
+
   /// Query for the device_impl tied to this graph.
   /// @return device_impl shared ptr reference associated with graph.
-  const DeviceImplPtr &getDeviceImplPtr() const {
-    return getSyclObjImpl(MDevice);
-  }
+  device_impl &getDeviceImpl() const { return *getSyclObjImpl(MDevice); }
 
   /// Query for the device tied to this graph.
   /// @return Device associated with graph.
@@ -1139,6 +1165,32 @@ public:
 
   unsigned long long getID() const { return MID; }
 
+  /// Get the memory pool used for graph-owned allocations.
+  graph_mem_pool &getMemPool() { return MGraphMemPool; }
+
+  /// Mark that an executable graph was created from this modifiable graph, used
+  /// for tracking live graphs for graph-owned allocations.
+  void markExecGraphCreated() { MExecGraphCount++; }
+
+  /// Mark that an executable graph created from this modifiable graph was
+  /// destroyed, used for tracking live graphs for graph-owned allocations.
+  void markExecGraphDestroyed() {
+    while (true) {
+      size_t CurrentVal = MExecGraphCount;
+      if (CurrentVal == 0) {
+        break;
+      }
+      if (MExecGraphCount.compare_exchange_strong(CurrentVal, CurrentVal - 1) ==
+          false) {
+        continue;
+      }
+    }
+  }
+
+  /// Get the number of unique executable graph instances currently alive for
+  /// this graph.
+  size_t getExecGraphCount() const { return MExecGraphCount; }
+
 private:
   /// Check the graph for cycles by performing a depth-first search of the
   /// graph. If a node is visited more than once in a given path through the
@@ -1206,10 +1258,17 @@ private:
   std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MBarrierDependencyMap;
+  /// Graph memory pool for handling graph-owned memory allocations for this
+  /// graph.
+  graph_mem_pool MGraphMemPool;
 
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
+
+  // The number of live executable graphs that have been created from this
+  // modifiable graph
+  std::atomic<size_t> MExecGraphCount = 0;
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -1334,17 +1393,22 @@ public:
 
   unsigned long long getID() const { return MID; }
 
+  /// Do any work required during finalization to finalize graph-owned memory
+  /// allocations.
+  void finalizeMemoryAllocations() {
+    // This call allocates physical memory and maps all virtual device
+    // allocations
+    MGraphImpl->getMemPool().allocateAndMapAll();
+  }
+
 private:
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
-  /// @param Ctx Context to use.
-  /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
-  enqueueNode(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
-              ur_exp_command_buffer_handle_t CommandBuffer,
+  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
               std::shared_ptr<node_impl> Node);
 
   /// Enqueue a node directly to the command-buffer without going through the
@@ -1355,7 +1419,7 @@ private:
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
-  enqueueNodeDirect(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
+  enqueueNodeDirect(sycl::context Ctx, sycl::detail::device_impl &DeviceImpl,
                     ur_exp_command_buffer_handle_t CommandBuffer,
                     std::shared_ptr<node_impl> Node);
 
@@ -1442,6 +1506,8 @@ private:
   std::unordered_map<std::shared_ptr<node_impl>,
                      ur_exp_command_buffer_sync_point_t>
       MSyncPoints;
+  /// Sycl queue impl ptr associated with this graph.
+  std::shared_ptr<sycl::detail::queue_impl> MQueueImpl;
   /// Map of nodes in the exec graph to the partition number to which they
   /// belong.
   std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
@@ -1485,23 +1551,19 @@ private:
 
 class dynamic_parameter_impl {
 public:
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
-      : MGraph(GraphImpl),
-        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
+  dynamic_parameter_impl()
+      : MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
 
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
-                         size_t ParamSize, const void *Data)
-      : MGraph(GraphImpl), MValueStorage(ParamSize),
+  dynamic_parameter_impl(size_t ParamSize, const void *Data)
+      : MValueStorage(ParamSize),
         MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     std::memcpy(MValueStorage.data(), Data, ParamSize);
   }
 
   /// sycl_ext_oneapi_raw_kernel_arg constructor
   /// Parameter size is taken from member of raw_kernel_arg object.
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl, size_t,
-                         raw_kernel_arg *Data)
-      : MGraph(GraphImpl),
-        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
+  dynamic_parameter_impl(size_t, raw_kernel_arg *Data)
+      : MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     size_t RawArgSize = Data->MArgSize;
     const void *RawArgData = Data->MArgData;
     MValueStorage.reserve(RawArgSize);
@@ -1594,8 +1656,6 @@ public:
   std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
   // Dynamic command-groups which will be updated
   std::vector<DynamicCGInfo> MDynCGs;
-
-  std::weak_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
 
 private:

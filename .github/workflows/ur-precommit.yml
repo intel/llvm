@@ -52,27 +52,51 @@ jobs:
     if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
-        # Extra native CPU jobs are here to force the loader to be used.
-        # UR will not use the loader if there is only one target.
-        adapter: [
-          {name: L0, runner: UR_L0},
-          {name: L0_V2, runner: UR_L0},
-          {name: L0, runner: UR_L0, static: ON},
-          {name: OPENCL, runner: UR_OPENCL, platform: "Intel(R) OpenCL"},
-          {name: CUDA, runner: UR_CUDA},
-          {name: HIP, runner: UR_HIP},
-          {name: NATIVE_CPU, runner: UR_NATIVE_CPU},
-          {name: OPENCL, runner: UR_OPENCL, other_adapter: NATIVE_CPU, platform: "OPENCL:Intel(R) OpenCL"},
-          {name: L0, runner: UR_L0, other_adapter: NATIVE_CPU},
-        ]
+      # Extra native CPU jobs are here to force the loader to be used.
+      # UR will not use the loader if there is only one target.
+        include:
+          - name: L0
+            runner: UR_L0
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0_V2
+            runner: UR_L0
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0
+            runner: UR_L0
+            static: ON
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0
+            runner: UR_L0
+            other_adapter: NATIVE_CPU
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: HIP
+            runner: UR_HIP
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --cap-add=SYS_ADMIN 
+          - name: CUDA
+            runner: UR_CUDA
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
+          - name: OPENCL
+            runner: UR_OPENCL
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
+          - name: OPENCL
+            runner: UR_OPENCL
+            other_adapter: NATIVE_CPU
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
+          - name: NATIVE_CPU
+            runner: UR_NATIVE_CPU
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
     uses: ./.github/workflows/ur-build-hw.yml
     with:
-      adapter_name: ${{ matrix.adapter.name }}
-      runner_name: ${{ matrix.adapter.runner }}
-      static_loader: ${{ matrix.adapter.static || 'OFF' }}
-      static_adapter: ${{ matrix.adapter.static || 'OFF' }}
-      platform: ${{ matrix.adapter.platform || '' }}
-      other_adapter_name: ${{ matrix.adapter.other_adapter || '' }}
+      adapter_name: ${{ matrix.name }}
+      runner_name: ${{ matrix.runner }}
+      static_loader: ${{ matrix.static || 'OFF' }}
+      static_adapter: ${{ matrix.static || 'OFF' }}
+      other_adapter_name: ${{ matrix.other_adapter || '' }}
+      docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      image_options: ${{ matrix.image_options || '' }}
 
   macos:
     name: MacOS build only
@@ -87,7 +111,7 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.0.0
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.0.0
       with:
         python-version: "3.10"
 

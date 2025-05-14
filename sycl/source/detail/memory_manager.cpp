@@ -501,8 +501,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              QueueImplPtr TgtQueue, unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<ur_event_handle_t> DepEvents,
-             ur_event_handle_t &OutEvent,
-             const detail::EventImplPtr &OutEventImpl) {
+             ur_event_handle_t &OutEvent) {
   (void)SrcAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   assert(TgtQueue && "Destination mem object queue must be not nullptr");
@@ -523,8 +522,6 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueMemBufferWrite>(
           Queue, DstMem,
           /*blocking_write=*/false, DstXOffBytes, DstAccessRangeWidthBytes,
@@ -544,8 +541,6 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
       ur_rect_region_t RectRegion{DstAccessRangeWidthBytes,
                                   DstAccessRange[DstPos.YTerm],
                                   DstAccessRange[DstPos.ZTerm]};
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueMemBufferWriteRect>(
           Queue, DstMem,
           /*blocking_write=*/false, BufferOffset, HostOffset, RectRegion,
@@ -562,8 +557,6 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     ur_rect_region_t Region{DstAccessRange[DstPos.XTerm],
                             DstAccessRange[DstPos.YTerm],
                             DstAccessRange[DstPos.ZTerm]};
-    if (OutEventImpl != nullptr)
-      OutEventImpl->setHostEnqueueTime();
     Adapter->call<UrApiKind::urEnqueueMemImageWrite>(
         Queue, DstMem,
         /*blocking_write=*/false, Origin, Region, InputRowPitch,
@@ -578,8 +571,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<ur_event_handle_t> DepEvents,
-             ur_event_handle_t &OutEvent,
-             const detail::EventImplPtr &OutEventImpl) {
+             ur_event_handle_t &OutEvent) {
   (void)DstAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   assert(SrcQueue && "Source mem object queue is expected to be not nullptr");
@@ -606,8 +598,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueMemBufferRead>(
           Queue, SrcMem,
           /*blocking_read=*/false, SrcXOffBytes, SrcAccessRangeWidthBytes,
@@ -627,8 +617,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
       ur_rect_region_t RectRegion{SrcAccessRangeWidthBytes,
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueMemBufferReadRect>(
           Queue, SrcMem,
           /*blocking_read=*/false, BufferOffset, HostOffset, RectRegion,
@@ -645,8 +633,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
     ur_rect_region_t Region{SrcAccessRange[SrcPos.XTerm],
                             SrcAccessRange[SrcPos.YTerm],
                             SrcAccessRange[SrcPos.ZTerm]};
-    if (OutEventImpl != nullptr)
-      OutEventImpl->setHostEnqueueTime();
     Adapter->call<UrApiKind::urEnqueueMemImageRead>(
         Queue, SrcMem, false, Offset, Region, RowPitch, SlicePitch, DstMem,
         DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -660,8 +646,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
              unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3>,
              sycl::id<3> DstOffset, unsigned int DstElemSize,
              std::vector<ur_event_handle_t> DepEvents,
-             ur_event_handle_t &OutEvent,
-             const detail::EventImplPtr &OutEventImpl) {
+             ur_event_handle_t &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   assert(SrcQueue && "Source mem object and target mem object queues are "
                      "expected to be not nullptr");
@@ -682,8 +667,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueMemBufferCopy>(
           Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes,
           SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
@@ -708,8 +691,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
       ur_rect_region_t Region{SrcAccessRangeWidthBytes,
                               SrcAccessRange[SrcPos.YTerm],
                               SrcAccessRange[SrcPos.ZTerm]};
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, SrcOrigin, DstOrigin, Region, SrcRowPitch,
           SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
@@ -723,8 +704,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
     ur_rect_region_t Region{SrcAccessRange[SrcPos.XTerm],
                             SrcAccessRange[SrcPos.YTerm],
                             SrcAccessRange[SrcPos.ZTerm]};
-    if (OutEventImpl != nullptr)
-      OutEventImpl->setHostEnqueueTime();
     Adapter->call<UrApiKind::urEnqueueMemImageCopy>(
         Queue, SrcMem, DstMem, SrcOrigin, DstOrigin, Region, DepEvents.size(),
         DepEvents.data(), &OutEvent);
@@ -738,7 +717,7 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
                     unsigned int DimDst, sycl::range<3> DstSize,
                     sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
                     unsigned int DstElemSize, std::vector<ur_event_handle_t>,
-                    ur_event_handle_t &, const detail::EventImplPtr &) {
+                    ur_event_handle_t &) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -759,40 +738,42 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
 
 // Copies memory between: host and device, host and host,
 // device and device if memory objects bound to the one context.
-void MemoryManager::copy(
-    SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
-    unsigned int DimSrc, sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-    sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
-    QueueImplPtr TgtQueue, unsigned int DimDst, sycl::range<3> DstSize,
-    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-    unsigned int DstElemSize, std::vector<ur_event_handle_t> DepEvents,
-    ur_event_handle_t &OutEvent, const detail::EventImplPtr &OutEventImpl) {
+void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
+                         QueueImplPtr SrcQueue, unsigned int DimSrc,
+                         sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
+                         sycl::id<3> SrcOffset, unsigned int SrcElemSize,
+                         void *DstMem, QueueImplPtr TgtQueue,
+                         unsigned int DimDst, sycl::range<3> DstSize,
+                         sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                         unsigned int DstElemSize,
+                         std::vector<ur_event_handle_t> DepEvents,
+                         ur_event_handle_t &OutEvent) {
 
   if (!SrcQueue) {
     if (!TgtQueue)
       copyH2H(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem, nullptr,
               DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
-              std::move(DepEvents), OutEvent, OutEventImpl);
+              std::move(DepEvents), OutEvent);
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, nullptr, DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
               ur::cast<ur_mem_handle_t>(DstMem), std::move(TgtQueue), DimDst,
               DstSize, DstAccessRange, DstOffset, DstElemSize,
-              std::move(DepEvents), OutEvent, OutEventImpl);
+              std::move(DepEvents), OutEvent);
   } else {
     if (!TgtQueue)
       copyD2H(SYCLMemObj, ur::cast<ur_mem_handle_t>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, (char *)DstMem, nullptr, DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
-              OutEvent, OutEventImpl);
+              OutEvent);
     else
       copyD2D(SYCLMemObj, ur::cast<ur_mem_handle_t>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, ur::cast<ur_mem_handle_t>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
-              DstElemSize, std::move(DepEvents), OutEvent, OutEventImpl);
+              DstElemSize, std::move(DepEvents), OutEvent);
   }
 }
 
@@ -802,16 +783,13 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          sycl::range<3> AccRange, sycl::id<3> Offset,
                          unsigned int ElementSize,
                          std::vector<ur_event_handle_t> DepEvents,
-                         ur_event_handle_t &OutEvent,
-                         const detail::EventImplPtr &OutEventImpl) {
+                         ur_event_handle_t &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   assert(Queue && "Fill should be called only with a valid device queue");
 
   const AdapterPtr &Adapter = Queue->getAdapter();
 
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::Buffer) {
-    if (OutEventImpl != nullptr)
-      OutEventImpl->setHostEnqueueTime();
 
     // 2D and 3D buffers accessors can't have custom range or the data will
     // likely be discontiguous.
@@ -833,8 +811,6 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     throw exception(make_error_code(errc::runtime),
                     "Not supported configuration of fill requested");
   } else {
-    if (OutEventImpl != nullptr)
-      OutEventImpl->setHostEnqueueTime();
     // We don't have any backend implementations that support enqueueing a fill
     // on non-buffer mem objects like this. The old UR function was a stub with
     // an abort.
@@ -910,13 +886,10 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<ur_event_handle_t> DepEvents,
-                             ur_event_handle_t *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
+                             ur_event_handle_t *OutEvent) {
   assert(SrcQueue && "USM copy must be called with a valid device queue");
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       SrcQueue->getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
           SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
           OutEvent);
@@ -929,8 +902,6 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                     "NULL pointer argument in memory copy operation.");
 
   const AdapterPtr &Adapter = SrcQueue->getAdapter();
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   Adapter->call<UrApiKind::urEnqueueUSMMemcpy>(SrcQueue->getHandleRef(),
                                                /* blocking */ false, DstMem,
                                                SrcMem, Len, DepEvents.size(),
@@ -940,13 +911,10 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              const std::vector<unsigned char> &Pattern,
                              std::vector<ur_event_handle_t> DepEvents,
-                             ur_event_handle_t *OutEvent,
-                             const detail::EventImplPtr &OutEventImpl) {
+                             ur_event_handle_t *OutEvent) {
   assert(Queue && "USM fill must be called with a valid device queue");
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Queue->getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -956,8 +924,6 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (!Mem)
     throw exception(make_error_code(errc::invalid),
                     "NULL pointer argument in memory fill operation.");
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   const AdapterPtr &Adapter = Queue->getAdapter();
   Adapter->call<UrApiKind::urEnqueueUSMFill>(
       Queue->getHandleRef(), Mem, Pattern.size(), Pattern.data(), Length,
@@ -966,12 +932,9 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 
 void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                                  std::vector<ur_event_handle_t> DepEvents,
-                                 ur_event_handle_t *OutEvent,
-                                 const detail::EventImplPtr &OutEventImpl) {
+                                 ur_event_handle_t *OutEvent) {
   assert(Queue && "USM prefetch must be called with a valid device queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   Adapter->call<UrApiKind::urEnqueueUSMPrefetch>(Queue->getHandleRef(), Mem,
                                                  Length, 0, DepEvents.size(),
                                                  DepEvents.data(), OutEvent);
@@ -980,12 +943,9 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                size_t Length, ur_usm_advice_flags_t Advice,
                                std::vector<ur_event_handle_t> /*DepEvents*/,
-                               ur_event_handle_t *OutEvent,
-                               const detail::EventImplPtr &OutEventImpl) {
+                               ur_event_handle_t *OutEvent) {
   assert(Queue && "USM advise must be called with a valid device queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   Adapter->call<UrApiKind::urEnqueueUSMAdvise>(Queue->getHandleRef(), Mem,
                                                Length, Advice, OutEvent);
 }
@@ -994,14 +954,11 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
                                 QueueImplPtr Queue, void *DstMem,
                                 size_t DstPitch, size_t Width, size_t Height,
                                 std::vector<ur_event_handle_t> DepEvents,
-                                ur_event_handle_t *OutEvent,
-                                const detail::EventImplPtr &OutEventImpl) {
+                                ur_event_handle_t *OutEvent) {
   assert(Queue && "USM copy 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Queue->getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -1021,8 +978,6 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
       nullptr);
 
   if (SupportsUSMMemcpy2D) {
-    if (OutEventImpl != nullptr)
-      OutEventImpl->setHostEnqueueTime();
     // Direct memcpy2D is supported so we use this function.
     Adapter->call<UrApiKind::urEnqueueUSMMemcpy2D>(
         Queue->getHandleRef(),
@@ -1049,8 +1004,6 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   CopyEventsManaged.reserve(Height);
   // We'll need continuous range of events for a wait later as well.
   std::vector<ur_event_handle_t> CopyEvents(Height);
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
 
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
@@ -1062,8 +1015,6 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     CopyEventsManaged.emplace_back(CopyEvents[I], Adapter,
                                    /*TakeOwnership=*/true);
   }
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   // Then insert a wait to coalesce the copy events.
   Queue->getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
       Queue->getHandleRef(), CopyEvents.size(), CopyEvents.data(), OutEvent);
@@ -1073,14 +1024,11 @@ void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                                 size_t Width, size_t Height,
                                 const std::vector<unsigned char> &Pattern,
                                 std::vector<ur_event_handle_t> DepEvents,
-                                ur_event_handle_t *OutEvent,
-                                const detail::EventImplPtr &OutEventImpl) {
+                                ur_event_handle_t *OutEvent) {
   assert(Queue && "USM fill 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Queue->getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -1090,8 +1038,6 @@ void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
   if (!DstMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory fill operation.");
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   const AdapterPtr &Adapter = Queue->getAdapter();
   Adapter->call<UrApiKind::urEnqueueUSMFill2D>(
       Queue->getHandleRef(), DstMem, Pitch, Pattern.size(), Pattern.data(),
@@ -1102,14 +1048,11 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
                                   size_t Pitch, size_t Width, size_t Height,
                                   char Value,
                                   std::vector<ur_event_handle_t> DepEvents,
-                                  ur_event_handle_t *OutEvent,
-                                  const detail::EventImplPtr &OutEventImpl) {
+                                  ur_event_handle_t *OutEvent) {
   assert(Queue && "USM memset 2d must be called with a valid device queue");
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      if (OutEventImpl != nullptr)
-        OutEventImpl->setHostEnqueueTime();
       Queue->getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -1120,18 +1063,17 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "NULL pointer argument in 2D memory memset operation.");
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height,
                              {static_cast<unsigned char>(Value)}, DepEvents,
-                             OutEvent, nullptr);
+                             OutEvent);
 }
 
-static void memcpyToDeviceGlobalUSM(
-    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
-    size_t NumBytes, size_t Offset, const void *Src,
-    const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+static void
+memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
+                        DeviceGlobalMapEntry *DeviceGlobalEntry,
+                        size_t NumBytes, size_t Offset, const void *Src,
+                        const std::vector<ur_event_handle_t> &DepEvents,
+                        ur_event_handle_t *OutEvent) {
   assert(Queue &&
          "Copy to device global USM must be called with a valid device queue");
   // Get or allocate USM memory for the device_global.
@@ -1158,14 +1100,15 @@ static void memcpyToDeviceGlobalUSM(
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
                           reinterpret_cast<char *>(Dest) + Offset,
-                          ActualDepEvents, OutEvent, OutEventImpl);
+                          ActualDepEvents, OutEvent);
 }
 
-static void memcpyFromDeviceGlobalUSM(
-    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
-    size_t NumBytes, size_t Offset, void *Dest,
-    const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+static void
+memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
+                          DeviceGlobalMapEntry *DeviceGlobalEntry,
+                          size_t NumBytes, size_t Offset, void *Dest,
+                          const std::vector<ur_event_handle_t> &DepEvents,
+                          ur_event_handle_t *OutEvent) {
   assert(Queue && "Copying from device global USM must be called with a valid "
                   "device queue");
   // Get or allocate USM memory for the device_global. Since we are reading from
@@ -1192,8 +1135,7 @@ static void memcpyFromDeviceGlobalUSM(
   }
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
-                          NumBytes, Dest, ActualDepEvents, OutEvent,
-                          OutEventImpl);
+                          NumBytes, Dest, ActualDepEvents, OutEvent);
 }
 
 static ur_program_handle_t
@@ -1223,8 +1165,8 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img =
-      PM.getDeviceImage(DeviceGlobalEntry->MImages, ContextImpl, Device);
+  RTDeviceBinaryImage &Img = PM.getDeviceImage(
+      DeviceGlobalEntry->MImages, ContextImpl, getSyclObjImpl(Device).get());
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =
@@ -1271,7 +1213,7 @@ void MemoryManager::copy_to_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, const void *SrcMem,
     const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+    ur_event_handle_t *OutEvent) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
@@ -1286,14 +1228,14 @@ void MemoryManager::copy_to_device_global(
                                DepEvents, OutEvent);
   else
     memcpyToDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, SrcMem, DepEvents,
-                            OutEvent, OutEventImpl);
+                            OutEvent);
 }
 
 void MemoryManager::copy_from_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, void *DstMem,
     const std::vector<ur_event_handle_t> &DepEvents,
-    ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+    ur_event_handle_t *OutEvent) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
@@ -1308,7 +1250,7 @@ void MemoryManager::copy_from_device_global(
                                  DepEvents, OutEvent);
   else
     memcpyFromDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, DstMem,
-                              DepEvents, OutEvent, OutEventImpl);
+                              DepEvents, OutEvent);
 }
 
 // Command buffer methods
@@ -1567,9 +1509,17 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
                     "NULL pointer argument in memory fill operation.");
 
   const AdapterPtr &Adapter = Context->getAdapter();
-  Adapter->call<UrApiKind::urCommandBufferAppendUSMFillExp>(
-      CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
-      Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
+  ur_result_t Result =
+      Adapter->call_nocheck<UrApiKind::urCommandBufferAppendUSMFillExp>(
+          CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len,
+          Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
+  if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "USM fill command not supported by graph backend");
+  } else {
+    Adapter->checkUrResult(Result);
+  }
 }
 
 void MemoryManager::ext_oneapi_fill_cmd_buffer(

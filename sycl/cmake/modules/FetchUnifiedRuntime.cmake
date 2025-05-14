@@ -29,9 +29,9 @@ set(UR_BUILD_TESTS "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 
 # Here we override the defaults to unified-runtime
-set(UR_BUILD_XPTI_LIBS OFF)
+set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
-set(UR_ENABLE_TRACING ON)
+set(UR_ENABLE_TRACING ON CACHE BOOL "")
 
 set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE STRING
   "List of external CMake targets for executables/libraries to depend on" FORCE)

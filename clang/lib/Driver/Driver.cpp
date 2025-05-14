@@ -1221,9 +1221,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // We need to generate a SYCL toolchain if the user specified -fsycl.
   // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
+  // Use of -fsyclbin enables SYCL device compilation.
   bool IsSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                          options::OPT_fno_sycl, false) ||
-                C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
+                C.getInputArgs().hasArgNoClaim(options::OPT_fsycl_device_only,
+                                               options::OPT_fsyclbin);
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!IsSYCL)
@@ -2708,7 +2710,11 @@ int Driver::ExecuteCompilation(
     // Remove result files if we're not saving temps.
     if (!isSaveTempsEnabled()) {
       const JobAction *JA = cast<JobAction>(&FailingCommand->getSource());
-      C.CleanupFileMap(C.getResultFiles(), JA, true);
+      // When performing offload compilations, the result files may not match
+      // the JobAction that fails.  In that case, do not pass in the JobAction
+      // to allow for the proper resulting file to be removed upon failure.
+      C.CleanupFileMap(C.getResultFiles(),
+                       C.getActiveOffloadKinds() ? nullptr : JA, true);
 
       // Failure result files are valid unless we crashed.
       if (CommandRes < 0)
@@ -3460,7 +3466,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   Arg *InputTypeArg = nullptr;
   bool IsSYCL =
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
-      Args.hasArg(options::OPT_fsycl_device_only);
+      Args.hasArgNoClaim(options::OPT_fsycl_device_only, options::OPT_fsyclbin);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,
@@ -4710,9 +4716,12 @@ class OffloadingActionBuilder final {
             // compiler phases, including backend and assemble phases.
             ActionList AL;
             Action *BackendAction = nullptr;
-            if (ToolChains.front()->getTriple().isSPIROrSPIRV()) {
+            if (ToolChains.front()->getTriple().isSPIRV() ||
+                (ToolChains.front()->getTriple().isAMDGCN() &&
+                 GpuArchList[I] == StringRef("amdgcnspirv"))) {
               // Emit LLVM bitcode for SPIR-V targets. SPIR-V device tool chain
-              // (HIPSPVToolChain) runs post-link LLVM IR passes.
+              // (HIPSPVToolChain or HIPAMDToolChain) runs post-link LLVM IR
+              // passes.
               types::ID Output = Args.hasArg(options::OPT_S)
                                      ? types::TY_LLVM_IR
                                      : types::TY_LLVM_BC;
@@ -5159,19 +5168,6 @@ class OffloadingActionBuilder final {
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
           SYCLInstallation(C.getDriver()) {}
 
-    void withBoundArchForToolChain(const ToolChain *TC,
-                                   llvm::function_ref<void(const char *)> Op) {
-      for (auto &A : GpuArchList) {
-        if (TC->getTriple() == A.first) {
-          Op(A.second ? Args.MakeArgString(A.second) : nullptr);
-          return;
-        }
-      }
-
-      // no bound arch for this toolchain
-      Op(nullptr);
-    }
-
     void pushForeignAction(Action *A) override {
       // Accept a foreign action from the CudaActionBuilder for compiling CUDA
       // sources
@@ -5454,10 +5450,13 @@ class OffloadingActionBuilder final {
         return;
 
       OffloadAction::DeviceDependences Dep;
-      withBoundArchForToolChain(ToolChains.front(), [&](const char *BoundArch) {
-        Dep.add(*SYCLLinkBinary, *ToolChains.front(), BoundArch,
-                Action::OFK_SYCL);
-      });
+      for (auto &TripleAndArchPair : GpuArchList) {
+        if (ToolChains.front()->getTriple() == TripleAndArchPair.first) {
+          Dep.add(*SYCLLinkBinary, *ToolChains.front(),
+                  TripleAndArchPair.second, Action::OFK_SYCL);
+        }
+      }
+
       AL.push_back(C.MakeAction<OffloadAction>(Dep, SYCLLinkBinary->getType()));
       SYCLLinkBinary = nullptr;
     }
@@ -5901,9 +5900,7 @@ class OffloadingActionBuilder final {
           }
           if (SkipWrapper) {
             // Wrapper step not requested.
-            withBoundArchForToolChain(TC, [&](const char *BoundArch) {
-              addDeps(WrapperInputs.front(), TC, BoundArch);
-            });
+            addDeps(WrapperInputs.front(), TC, BoundArch);
             continue;
           }
 
@@ -5917,9 +5914,7 @@ class OffloadingActionBuilder final {
                  BoundArch != nullptr);
             addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
           } else {
-            withBoundArchForToolChain(TC, [&](const char *BoundArch) {
-              addDeps(DeviceWrappingAction, TC, BoundArch);
-            });
+            addDeps(DeviceWrappingAction, TC, BoundArch);
           }
         }
       }
@@ -6440,14 +6435,20 @@ class OffloadingActionBuilder final {
               SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
             } else {
               const char *OffloadArch = nullptr;
-              for (auto &A : GpuArchList) {
-                if (TT == A.first) {
-                  OffloadArch = A.second;
-                  break;
+              for (auto &TargetTripleArchPair : GpuArchList) {
+                if (TT == TargetTripleArchPair.first) {
+                  OffloadArch = TargetTripleArchPair.second;
+                  // Add an arch to the SYCLTargetInfoList
+                  // only if it is not already present in the list.
+                  auto Arch = llvm::find_if(
+                      SYCLTargetInfoList, [&](auto &DeviceTargetInfo) {
+                        return OffloadArch == DeviceTargetInfo.BoundArch;
+                      });
+
+                  if (Arch == SYCLTargetInfoList.end())
+                    SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
                 }
               }
-              assert(OffloadArch && "Failed to find matching arch.");
-              SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
             }
           }
         }
@@ -7930,6 +7931,19 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         C.MakeAction<LinkJobAction>(OffloadActions, types::TY_HIP_FATBIN);
     DDep.add(*FatbinAction, *C.getSingleOffloadToolChain<Action::OFK_HIP>(),
              nullptr, Action::OFK_HIP);
+  } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
+             Args.hasArg(options::OPT_fsyclbin)) {
+    // With '-fsyclbin', package all the offloading actions into a single output
+    // that is sent to the clang-linker-wrapper.
+    Action *PackagerAction =
+        C.MakeAction<OffloadPackagerJobAction>(OffloadActions, types::TY_Image);
+    ActionList PackagerActions;
+    PackagerActions.push_back(PackagerAction);
+    Action *LinkAction =
+        C.MakeAction<LinkerWrapperJobAction>(PackagerActions, types::TY_Image);
+    DDep.add(*LinkAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+             nullptr, C.getActiveOffloadKinds());
+    return C.MakeAction<OffloadAction>(DDep, types::TY_Nothing);
   } else {
     // Package all the offloading actions into a single output that can be
     // embedded in the host and linked.
@@ -9337,8 +9351,10 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
-    // Output to destination for -fsycl-device-only and Windows -o
-    if (offloadDeviceOnly() && JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
+    // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
+    if ((offloadDeviceOnly() ||
+         C.getArgs().hasArgNoClaim(options::OPT_fsyclbin)) &&
+        JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
   }
@@ -9506,6 +9522,20 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     BaseName = BasePath;
   else
     BaseName = llvm::sys::path::filename(BasePath);
+
+  // When compiling with -fsyclbin, maintain a simple output file name for the
+  // resulting image.  A '.syclbin' extension is used to represent the resulting
+  // output file.
+  if (JA.getOffloadingDeviceKind() == Action::OFK_SYCL &&
+      C.getArgs().hasArgNoClaim(options::OPT_fsyclbin) &&
+      JA.getType() == types::TY_Image) {
+    SmallString<128> SYCLBinOutput(getDefaultImageName());
+    if (IsCLMode())
+      // Use BaseName for the syclbin output name.
+      SYCLBinOutput = BaseName;
+    llvm::sys::path::replace_extension(SYCLBinOutput, ".syclbin");
+    return C.addResultFile(C.getArgs().MakeArgString(SYCLBinOutput), &JA);
+  }
 
   // Determine what the derived output name should be.
   const char *NamedOutput;

@@ -3,7 +3,7 @@ set(EMHASH_REPO https://github.com/ktprime/emhash)
 message(STATUS "Will fetch emhash from ${EMHASH_REPO}")
 FetchContent_Declare(emhash-headers
   GIT_REPOSITORY    ${EMHASH_REPO}
-  GIT_TAG           96dcae6fac2f5f90ce97c9efee61a1d702ddd634
+  GIT_TAG           4fc20c7c9b048651c03258460e4662c8d3a04520
 )
 
 FetchContent_GetProperties(emhash-headers)
