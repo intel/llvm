@@ -10,9 +10,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple amdgcn-amd-amdhsa -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-AMDGCN %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple nvptx-nvidia-cuda -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-NVPTX %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple nvptx64-nvidia-cuda -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-NVPTX %s
-// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple spir-unknown-unknown -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-SPIR %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple spir64-unknown-unknown -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-SPIR %s
-// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple spirv32-unknown-unknown -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-SPIR %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-pc-windows-msvc -triple spirv64-unknown-unknown -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-SPIR %s
 // RUN: %clang_cc1 -fsycl-is-host -emit-llvm -triple x86_64-uefi -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-HOST,CHECK-HOST-WINDOWS %s
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -aux-triple x86_64-uefi -triple amdgcn-amd-amdhsa -std=c++17 %s -o - | FileCheck --check-prefixes=CHECK-DEVICE,CHECK-AMDGCN %s
@@ -99,12 +97,6 @@ int main() {
 // CHECK-HOST-WINDOWS-NEXT: }
 
 // Verify that SYCL kernel caller functions are emitted for each device target.
-//
-// FIXME: The following set of matches are used to skip over the declaration of
-// main(). main() shouldn't be emitted in device code, but that pruning isn't
-// performed yet.
-// CHECK-DEVICE:      Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
-// CHECK-DEVICE-NEXT: define {{[a-z_ ]*}}noundef i32 @main() #0
 
 // IR for the SYCL kernel caller function generated for
 // single_purpose_kernel_task with single_purpose_kernel_name as the SYCL kernel
@@ -182,11 +174,11 @@ int main() {
 // CHECK-SPIR-NEXT:   }
 // CHECK-SPIR:        define internal spir_func void @_ZZ4mainENKUlT_E_clIiEEDaS_
 
-// CHECK-AMDGCN: #[[AMDGCN_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+// CHECK-AMDGCN: #[[AMDGCN_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-optlevel"="0" }
 // CHECK-AMDGCN: #[[AMDGCN_ATTR1]] = { convergent nounwind }
 //
-// CHECK-NVPTX: #[[NVPTX_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+ptx32" }
+// CHECK-NVPTX: #[[NVPTX_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-optlevel"="0" "target-features"="+ptx32" }
 // CHECK-NVPTX: #[[NVPTX_ATTR1]] = { convergent nounwind }
 //
-// CHECK-SPIR: #[[SPIR_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+// CHECK-SPIR: #[[SPIR_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-optlevel"="0" }
 // CHECK-SPIR: #[[SPIR_ATTR1]] = { convergent nounwind }
