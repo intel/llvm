@@ -257,8 +257,9 @@ KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
   static std::vector<std::unique_ptr<KernelNameBasedCacheT>>
       &KernelNameBasedCaches = getOrCreate(MKernelNameBasedCaches);
   LockGuard LG{MKernelNameBasedCaches.Lock};
-  KernelNameBasedCaches.push_back(std::make_unique<KernelNameBasedCacheT>());
-  return KernelNameBasedCaches.back().get();
+  return KernelNameBasedCaches
+      .emplace_back(std::make_unique<KernelNameBasedCacheT>())
+      .get();
 }
 
 void GlobalHandler::releaseDefaultContexts() {
