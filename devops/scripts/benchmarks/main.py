@@ -142,7 +142,7 @@ def collect_metadata(suites):
     metadata = {}
 
     for s in suites:
-        metadata.update(s.additionalMetadata())
+        metadata.update(s.additional_metadata())
         suite_benchmarks = s.benchmarks()
         for benchmark in suite_benchmarks:
             metadata[benchmark.name()] = benchmark.get_metadata()

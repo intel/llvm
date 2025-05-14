@@ -724,7 +724,7 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
 
   switch (PropName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_LEVEL_ZERO);
+    return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(GlobalAdapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION: {
