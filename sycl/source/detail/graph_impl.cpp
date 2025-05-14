@@ -139,7 +139,7 @@ void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
 /// @param HostTaskList List of host tasks that have already been processed and
 /// are encountered as successors to the node Node.
 void propagatePartitionDown(
-    std::shared_ptr<node_impl> Node, int PartitionNum,
+    const std::shared_ptr<node_impl> &Node, int PartitionNum,
     std::list<std::shared_ptr<node_impl>> &HostTaskList) {
   if (Node->MCGType == sycl::detail::CGType::CodeplayHostTask) {
     if (Node->MPartitionNum != -1) {
@@ -753,7 +753,7 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
 }
 
 void graph_impl::beginRecording(
-    std::shared_ptr<sycl::detail::queue_impl> Queue) {
+    const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
   graph_impl::WriteLock Lock(MMutex);
   if (!Queue->hasCommandGraph()) {
     Queue->setCommandGraph(shared_from_this());
@@ -1024,7 +1024,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
                MExecutionEvents.begin();
            It != MExecutionEvents.end();) {
-        auto Event = *It;
+        std::shared_ptr<event_impl> &Event = *It;
         if (!Event->isCompleted()) {
           auto &AttachedEventsList = Event->getPostCompleteEvents();
           CGData.MEvents.reserve(CGData.MEvents.size() +
