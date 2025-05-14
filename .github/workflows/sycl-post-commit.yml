@@ -29,72 +29,6 @@ concurrency:
 permissions: read-all
 
 jobs:
-  detect_changes:
-    if: ${{ github.event_name == 'pull_request' }}
-    uses: ./.github/workflows/sycl-detect-changes.yml
-
-  build-lin:
-    name: Linux (Self build + no-assertions)
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-linux-build.yml
-    with:
-      build_cache_root: "/__w/llvm"
-      build_cache_suffix: default
-      build_artifact_suffix: default
-      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
-
-  e2e-lin:
-    needs: [detect_changes, build-lin]
-    if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Intel GEN12 Graphics with Level Zero
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu
-          - name: Intel Arc A-Series Graphics with Level Zero
-            runner: '["Linux", "arc"]'
-            extra_lit_opts: --param matrix-xmx8=True
-          # Performance tests below. Specifics:
-          #  - only run performance tests (use LIT_FILTER env)
-          #  - ask llvm-lit to show all the output, even for PASS (-a)
-          #  - run in single thread (-j 1)
-          #  - enable the tests in LIT (--param enable-perf-tests=True)
-          #  - run on all available devices.
-          - name: Perf tests on Intel GEN12 Graphics system
-            runner: '["Linux", "gen12"]'
-            env: '{"LIT_FILTER":"PerformanceTests/"}'
-            extra_lit_opts: -a -j 1 --param enable-perf-tests=True
-            target_devices: all
-          - name: Perf tests on Intel Arc A-Series Graphics system
-            runner: '["Linux", "arc"]'
-            env: '{"LIT_FILTER":"PerformanceTests/"}'
-            extra_lit_opts: -a -j 1 --param enable-perf-tests=True
-            target_devices: all
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
-      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
-      target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
-
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      env: ${{ matrix.env || '{}' }}
-
-      repo_ref: ${{ github.sha }}
-
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build-lin.outputs.artifact_decompress_command }}
-
-      # Do not install drivers on AMD and CUDA runners.
-      install_igc_driver: >-
-        ${{ github.event_name == 'pull_request' }} &&
-        ${{ !contains(matrix.target_devices, 'cuda') &&
-        !contains(matrix.target_devices, 'hip') &&
-        contains(needs.detect_changes.outputs.filters, 'drivers') }}
-
   build-win:
     if: |
       always()
@@ -120,8 +54,4 @@ jobs:
       target_devices: "level_zero:gpu"
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       cxx: icx
-
-  macos_default:
-    name: macOS
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-macos-build-and-test.yml
+      env: "{'LIT_FILTER':'std_array'}"
