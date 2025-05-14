@@ -754,7 +754,8 @@ bool queue_impl::queue_empty() const {
   // If we have in-order queue with non-empty last event, just check its status.
   if (isInOrder()) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    if (MDefaultGraphDeps.LastEventPtr)
+    if (MDefaultGraphDeps.LastEventPtr &&
+        !MDefaultGraphDeps.LastEventPtr->isDiscarded())
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==
              info::event_command_status::complete;
