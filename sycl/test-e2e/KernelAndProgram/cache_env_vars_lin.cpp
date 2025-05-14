@@ -1,8 +1,8 @@
 // No JITing for host devices and diffrent environment variables on linux and
 // windows.
 // REQUIRES: (level_zero || opencl) && linux
-// XFAIL: run-mode && linux && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18416
+// UNSUPPORTED: run-mode && linux && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18416
 // RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{build} -o %t.out -DTARGET_IMAGE=INC100
 
