@@ -1103,6 +1103,16 @@ ur_result_t urBindlessImagesImageAllocateExp(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t
+urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
+                             [[maybe_unused]] ur_device_handle_t hDevice,
+                             ur_exp_image_mem_native_handle_t hImageMem) {
+  ur_bindless_mem_handle_t *urImg =
+      reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
+  delete urImg;
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_native_handle_t hImageMem,
@@ -1307,8 +1317,6 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
   UR_CALL(createUrImgFromZeImage(hContext->getZeHandle(), hDevice->ZeDevice,
                                  ZeImageDesc, phImageMem));
 
-  externalMemoryData->urMemoryHandle =
-      reinterpret_cast<ur_mem_handle_t>(*phImageMem);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1321,8 +1329,6 @@ ur_result_t urBindlessImagesReleaseExternalMemoryExp(
 
   struct ur_ze_external_memory_data *externalMemoryData =
       reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
-
-  UR_CALL(ur::level_zero::urMemRelease(externalMemoryData->urMemoryHandle));
 
   switch (externalMemoryData->type) {
   case UR_ZE_EXTERNAL_OPAQUE_FD:
@@ -1504,7 +1510,7 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
     uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
   UR_ASSERT(hContext && hDevice && hExternalMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(offset && size, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
+  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
   struct ur_ze_external_memory_data *externalMemoryData =
       reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
@@ -1517,9 +1523,9 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   allocDesc.pNext = externalMemoryData->importExtensionDesc;
   void *mappedMemory;
 
-  ze_result_t zeResult =
-      zeMemAllocDevice(hContext->getZeHandle(), &allocDesc, size, 1,
-                       hDevice->ZeDevice, &mappedMemory);
+  ze_result_t zeResult = ZE_CALL_NOCHECK(
+      zeMemAllocDevice, (hContext->getZeHandle(), &allocDesc, size, 0,
+                         hDevice->ZeDevice, &mappedMemory));
   if (zeResult != ZE_RESULT_SUCCESS) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -1527,15 +1533,23 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   zeResult = zeContextMakeMemoryResident(hContext->getZeHandle(),
                                          hDevice->ZeDevice, mappedMemory, size);
   if (zeResult != ZE_RESULT_SUCCESS) {
-    zeMemFree(hContext->getZeHandle(), mappedMemory);
+    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), mappedMemory));
     return UR_RESULT_ERROR_UNKNOWN;
   }
+
   *phRetMem = reinterpret_cast<void *>(
       reinterpret_cast<uintptr_t>(mappedMemory) + offset);
 
-  externalMemoryData->urMemoryHandle =
-      reinterpret_cast<ur_mem_handle_t>(*phRetMem);
+  return UR_RESULT_SUCCESS;
+}
 
+ur_result_t urBindlessImagesFreeMappedLinearMemoryExp(
+    ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
+    void *pMem) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pMem));
   return UR_RESULT_SUCCESS;
 }
 

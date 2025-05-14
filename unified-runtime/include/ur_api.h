@@ -467,6 +467,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP = 269,
   /// Enumerator for ::urBindlessImagesGetImageMemoryHandleTypeSupportExp
   UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP = 270,
+  /// Enumerator for ::urBindlessImagesFreeMappedLinearMemoryExp
+  UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP = 271,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -936,6 +938,27 @@ typedef struct ur_rect_region_t {
 
 } ur_rect_region_t;
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Defines known backends.
+typedef enum ur_backend_t {
+  /// The backend is not a recognized one
+  UR_BACKEND_UNKNOWN = 0,
+  /// The backend is Level Zero
+  UR_BACKEND_LEVEL_ZERO = 1,
+  /// The backend is OpenCL
+  UR_BACKEND_OPENCL = 2,
+  /// The backend is CUDA
+  UR_BACKEND_CUDA = 3,
+  /// The backend is HIP
+  UR_BACKEND_HIP = 4,
+  /// The backend is Native CPU
+  UR_BACKEND_NATIVE_CPU = 5,
+  /// @cond
+  UR_BACKEND_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_backend_t;
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -1351,8 +1374,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported adapter info
 typedef enum ur_adapter_info_t {
-  /// [::ur_adapter_backend_t] Identifies the native backend supported by
-  /// the adapter.
+  /// [::ur_backend_t] Identifies the native backend supported by the
+  /// adapter.
   UR_ADAPTER_INFO_BACKEND = 0,
   /// [uint32_t] Reference count of the adapter.
   /// The reference count returned should be considered immediately stale.
@@ -1412,27 +1435,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(
     /// [out][optional] pointer to the actual number of bytes being queried by
     /// pPropValue.
     size_t *pPropSizeRet);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Identifies backend of the adapter
-typedef enum ur_adapter_backend_t {
-  /// The backend is not a recognized one
-  UR_ADAPTER_BACKEND_UNKNOWN = 0,
-  /// The backend is Level Zero
-  UR_ADAPTER_BACKEND_LEVEL_ZERO = 1,
-  /// The backend is OpenCL
-  UR_ADAPTER_BACKEND_OPENCL = 2,
-  /// The backend is CUDA
-  UR_ADAPTER_BACKEND_CUDA = 3,
-  /// The backend is HIP
-  UR_ADAPTER_BACKEND_HIP = 4,
-  /// The backend is Native CPU
-  UR_ADAPTER_BACKEND_NATIVE_CPU = 5,
-  /// @cond
-  UR_ADAPTER_BACKEND_FORCE_UINT32 = 0x7fffffff
-  /// @endcond
-
-} ur_adapter_backend_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Minimum level of messages to be processed by the logger.
@@ -1572,8 +1574,8 @@ typedef enum ur_platform_info_t {
   /// [char[]] The null-terminated string denoting profile of the platform.
   /// The size of the info needs to be dynamically queried.
   UR_PLATFORM_INFO_PROFILE = 5,
-  /// [::ur_platform_backend_t] The backend of the platform. Identifies the
-  /// native backend adapter implementing this platform.
+  /// [::ur_backend_t] The backend of the platform. Identifies the native
+  /// backend adapter implementing this platform.
   UR_PLATFORM_INFO_BACKEND = 6,
   /// [::ur_adapter_handle_t] The adapter handle associated with the
   /// platform.
@@ -1791,27 +1793,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     /// [out] returns the correct platform specific compiler option based on
     /// the frontend option.
     const char **ppPlatformOption);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Identifies native backend adapters
-typedef enum ur_platform_backend_t {
-  /// The backend is not a recognized one
-  UR_PLATFORM_BACKEND_UNKNOWN = 0,
-  /// The backend is Level Zero
-  UR_PLATFORM_BACKEND_LEVEL_ZERO = 1,
-  /// The backend is OpenCL
-  UR_PLATFORM_BACKEND_OPENCL = 2,
-  /// The backend is CUDA
-  UR_PLATFORM_BACKEND_CUDA = 3,
-  /// The backend is HIP
-  UR_PLATFORM_BACKEND_HIP = 4,
-  /// The backend is Native CPU
-  UR_PLATFORM_BACKEND_NATIVE_CPU = 5,
-  /// @cond
-  UR_PLATFORM_BACKEND_FORCE_UINT32 = 0x7fffffff
-  /// @endcond
-
-} ur_platform_backend_t;
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -10522,6 +10503,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_exp_external_mem_handle_t hExternalMem);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Free a linear memory region mapped using MapExternalLinearMemoryExp
+///
+/// @remarks
+///   _Analogues_
+///     - **cuMemFree**
+///     - **zeMemFree**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMem == NULL`
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Import an external semaphore
 ///
 /// @remarks
@@ -14914,6 +14922,16 @@ typedef struct ur_bindless_images_release_external_memory_exp_params_t {
   ur_device_handle_t *phDevice;
   ur_exp_external_mem_handle_t *phExternalMem;
 } ur_bindless_images_release_external_memory_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urBindlessImagesFreeMappedLinearMemoryExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_bindless_images_free_mapped_linear_memory_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  void **ppMem;
+} ur_bindless_images_free_mapped_linear_memory_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesImportExternalSemaphoreExp
