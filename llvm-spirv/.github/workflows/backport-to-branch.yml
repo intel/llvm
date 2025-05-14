@@ -78,7 +78,7 @@ jobs:
           git checkout -b backport/pr-${{ github.event.issue.number }}-to-${{ env.TARGET }} origin/${{ env.TARGET }}
 
       - name: Get commit sha
-        id: commits
+        id: merge_sha
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -89,7 +89,7 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            # FIXME: handle PRs that are merged with "Rebase and Merge" strategy
+            // FIXME: handle PRs that are merged with "Rebase and Merge" strategy
             const sha = pr.data.merge_commit_sha;
             if (!sha) {
               throw new Error(`No merge_commit_sha found.`);
