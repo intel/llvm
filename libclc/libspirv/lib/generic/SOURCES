@@ -2,7 +2,6 @@ atomic/loadstore_helpers_unordered.ll
 atomic/loadstore_helpers_release.ll
 atomic/loadstore_helpers_acquire.ll
 atomic/loadstore_helpers_seq_cst.ll
-float16.cl
 subnormal_config.cl
 subnormal_helper_func.ll
 async/async_work_group_strided_copy.cl

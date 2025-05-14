@@ -224,7 +224,7 @@ Enqueueing Command-Buffers
 --------------------------------------------------------------------------------
 
 Command-buffers are submitted for execution on a ${x}_queue_handle_t with an
-optional list of dependent events. An event is returned which tracks the
+optional list of dependent events. An event can be returned which tracks the
 execution of the command-buffer, and will be complete when all appended commands
 have finished executing.
 
@@ -238,16 +238,17 @@ of the same command-buffer is still awaiting completion. That is, the user is no
 required to do a blocking wait on the completion of the first command-buffer
 submission before making a second submission of the command-buffer.
 
-Submissions of the same command-buffer should be synchronized to prevent
-concurrent execution. For example, by using events, barriers, or in-order queue
-dependencies. The behavior of multiple submissions of the same command-buffer
-that can execute concurrently is undefined.
+Each submissions of a command-buffer is ordered behind previous submissions of
+the same command-buffer. As well as respecting the other synchronization
+dependencies set by the user, such as events, barriers, or in-order queue
+dependencies.
 
 .. parsed-literal::
-    // Valid usage if hQueue is in-order but undefined behavior is out-of-order
-    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
+    // Submission of hCommandBuffer to hQueueB as an implicit dependency on
+    // prior submission to hQueueA.
+    ${x}EnqueueCommandBufferExp(hQueueA, hCommandBuffer, 0, nullptr,
                                 nullptr);
-    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
+    ${x}EnqueueCommandBufferExp(hQueueB, hCommandBuffer, 0, nullptr,
                                 nullptr);
 
 

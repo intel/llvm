@@ -29,7 +29,7 @@ void printZeEventList(const ur_ze_event_list_t &UrZeEventList) {
     for (uint32_t I = 0; I < UrZeEventList.Length; I++) {
       ss << " " << ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]);
     }
-    logger::debug(ss.str().c_str());
+    UR_LOG(DEBUG, ss.str().c_str());
   }
 }
 
@@ -114,35 +114,33 @@ ur_result_t urEnqueueEventsWait(
                                      false /*OKToBatchCommand*/);
   }
 
-  {
-    // If wait-list is empty, then this particular command should wait until
-    // all previous enqueued commands to the command-queue have completed.
-    //
-    // TODO: find a way to do that without blocking the host.
+  // If wait-list is empty, then this particular command should wait until
+  // all previous enqueued commands to the command-queue have completed.
+  //
+  // TODO: find a way to do that without blocking the host.
 
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+  // Lock automatically releases when this goes out of scope.
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-    if (OutEvent) {
-      UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
-                                           UR_COMMAND_EVENTS_WAIT,
-                                           Queue->CommandListMap.end(), false,
-                                           /* IsInternal */ false));
-    }
+  if (OutEvent) {
+    UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
+                                         UR_COMMAND_EVENTS_WAIT,
+                                         Queue->CommandListMap.end(), false,
+                                         /* IsInternal */ false));
+  }
 
-    UR_CALL(Queue->synchronize());
+  UR_CALL(Queue->executeAllOpenCommandLists());
+  UR_CALL(Queue->synchronize());
 
-    if (OutEvent) {
-      Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
+  if (OutEvent) {
+    Queue->LastCommandEvent = reinterpret_cast<ur_event_handle_t>(*OutEvent);
 
-      if (!(*OutEvent)->CounterBasedEventsEnabled)
-        ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
-      (*OutEvent)->Completed = true;
-    }
+    if (!(*OutEvent)->CounterBasedEventsEnabled)
+      ZE2UR_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
+    (*OutEvent)->Completed = true;
   }
 
   if (!Queue->UsingImmCmdLists) {
-    std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
 
@@ -496,7 +494,7 @@ ur_result_t urEventGetInfo(
     auto HostVisibleEvent = Event->HostVisibleEvent;
     if (Event->Completed) {
       Result = UR_EVENT_STATUS_COMPLETE;
-    } else if (HostVisibleEvent) {
+    } else if (HostVisibleEvent && checkL0LoaderTeardown()) {
       ze_result_t ZeResult;
       ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
@@ -510,9 +508,8 @@ ur_result_t urEventGetInfo(
     return ReturnValue(Event->RefCount.load());
   }
   default:
-    logger::error(
-        "Unsupported ParamName in urEventGetInfo: ParamName=ParamName={}(0x{})",
-        PropName, logger::toHex(PropName));
+    UR_LOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
+           PropName, logger::toHex(PropName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -597,11 +594,11 @@ ur_result_t urEventGetProfilingInfo(
       return ReturnValue(ContextEndTime);
     }
     case UR_PROFILING_INFO_COMMAND_COMPLETE:
-      logger::error("urEventGetProfilingInfo: "
-                    "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
+      UR_LOG(ERR, "urEventGetProfilingInfo: "
+                  "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
-      logger::error("urEventGetProfilingInfo: not supported ParamName");
+      UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -664,11 +661,11 @@ ur_result_t urEventGetProfilingInfo(
         return ReturnValue(ContextEndTime);
       }
       case UR_PROFILING_INFO_COMMAND_COMPLETE:
-        logger::error("urEventGetProfilingInfo: "
-                      "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
+        UR_LOG(ERR, "urEventGetProfilingInfo: "
+                    "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
         return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       default:
-        logger::error("urEventGetProfilingInfo: not supported ParamName");
+        UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else {
@@ -711,11 +708,11 @@ ur_result_t urEventGetProfilingInfo(
     //
     return ReturnValue(uint64_t{0});
   case UR_PROFILING_INFO_COMMAND_COMPLETE:
-    logger::error("urEventGetProfilingInfo: UR_PROFILING_INFO_COMMAND_COMPLETE "
-                  "not supported");
+    UR_LOG(ERR, "urEventGetProfilingInfo: UR_PROFILING_INFO_COMMAND_COMPLETE "
+                "not supported");
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
-    logger::error("urEventGetProfilingInfo: not supported ParamName");
+    UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -830,7 +827,7 @@ urEventWait(uint32_t NumEvents,
             die("The host-visible proxy event missing");
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-          logger::debug("ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
+          UR_LOG(DEBUG, "ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
           // If this event was an inner batched event, then sync with
           // the Queue instead of waiting on the event.
           if (HostVisibleEvent->IsInnerBatchedEvent && Event->ZeBatchedQueue) {
@@ -890,13 +887,14 @@ urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
       (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
        Event->CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER) &&
       Event->Completed;
-  UR_CALL(urEventReleaseInternal(Event));
+  bool isEventDeleted = false;
+  UR_CALL(urEventReleaseInternal(Event, &isEventDeleted));
   // If this is a Completed Event Wait Out Event, then we need to cleanup the
   // event at user release and not at the time of completion.
   // If the event is labelled as completed and no additional references are
   // removed, then we still need to decrement the event, but not mark as
   // completed.
-  if (isEventsWaitCompleted) {
+  if (isEventsWaitCompleted & !isEventDeleted) {
     if (Event->CleanedUp) {
       UR_CALL(urEventReleaseInternal(Event));
     } else {
@@ -1010,7 +1008,8 @@ ur_result_t urEventSetCallback(
     ur_event_callback_t /*Notify*/,
     /// [in][out][optional] pointer to data to be passed to callback.
     void * /*UserData*/) {
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1087,12 +1086,13 @@ ur_event_handle_t_::~ur_event_handle_t_() {
   }
 }
 
-ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
+ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
+                                   bool *isEventDeleted) {
   if (!Event->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (Event->OriginAllocEvent) {
-    urEventReleaseInternal(Event->OriginAllocEvent);
+    urEventReleaseInternal(Event->OriginAllocEvent, isEventDeleted);
   }
 
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
@@ -1133,7 +1133,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // and release a reference to it.
   if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
     // Decrement ref-count of the host-visible proxy event.
-    UR_CALL(urEventReleaseInternal(Event->HostVisibleEvent));
+    UR_CALL(urEventReleaseInternal(Event->HostVisibleEvent, isEventDeleted));
   }
 
   // Save pointer to the queue before deleting/resetting event.
@@ -1162,6 +1162,9 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // must released later.
   if (DisableEventsCaching || !Event->OwnNativeHandle) {
     delete Event;
+    if (isEventDeleted) {
+      *isEventDeleted = true;
+    }
   } else {
     Event->Context->addEventToContextCache(Event);
   }

@@ -164,7 +164,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                           SYCL_STREAM_NAME, "memory_transfer_node::memset");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(MDevice->getHandleRef()));
+                      reinterpret_cast<size_t>(MDevice.getHandleRef()));
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
@@ -212,7 +212,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                           SYCL_STREAM_NAME, "memory_transfer_node::memcpy");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(MDevice->getHandleRef()));
+                      reinterpret_cast<size_t>(MDevice.getHandleRef()));
     xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
@@ -291,8 +291,6 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MGraph.expired() && !MDefaultGraphDeps.LastEventPtr)
     return std::nullopt;
-  if (MDiscardEvents)
-    return createDiscardedEvent();
   if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
     return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
   return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
@@ -312,18 +310,86 @@ void queue_impl::addEvent(const event &Event) {
 
 event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const std::shared_ptr<queue_impl> &Self,
+                              queue_impl *SecondaryQueue, bool CallerNeedsEvent,
+                              const detail::code_location &Loc,
+                              bool IsTopCodeLoc,
+                              const v1::SubmissionInfo &SubmitInfo) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
+  detail::handler_impl *HandlerImpl = &HandlerImplVal;
+  handler Handler(HandlerImpl, Self);
+#else
+  handler Handler(Self, SecondaryQueue, CallerNeedsEvent);
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+#endif
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    Handler.saveCodeLoc(Loc, IsTopCodeLoc);
+  }
+#endif
+
+  {
+    NestedCallsTracker tracker;
+    CGF(Handler);
+  }
+
+  // Scheduler will later omit events, that are not required to execute tasks.
+  // Host and interop tasks, however, are not submitted to low-level runtimes
+  // and require separate dependency management.
+  const CGType Type = HandlerImpl->MCGType;
+  std::vector<StreamImplPtr> Streams;
+  if (Type == CGType::Kernel)
+    Streams = std::move(Handler.MStreamStorage);
+
+  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+
+  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+
+  addEvent(Event);
+
+  const auto &EventImpl = detail::getSyclObjImpl(Event);
+  for (auto &Stream : Streams) {
+    // We don't want stream flushing to be blocking operation that is why submit
+    // a host task to print stream buffer. It will fire up as soon as the kernel
+    // finishes execution.
+    auto L = [&](handler &ServiceCGH) {
+      Stream->generateFlushCommand(ServiceCGH);
+    };
+    detail::type_erased_cgfo_ty CGF{L};
+    event FlushEvent =
+        submit_impl(CGF, Self, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
+                    IsTopCodeLoc, {});
+    EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
+    registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
+  }
+
+  return Event;
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                              const std::shared_ptr<queue_impl> &Self,
                               const std::shared_ptr<queue_impl> &PrimaryQueue,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(),
-                  CallerNeedsEvent);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImplVal(PrimaryQueue.get(), CallerNeedsEvent);
+  detail::handler_impl *HandlerImpl = &HandlerImplVal;
+  handler Handler(HandlerImpl, Self);
+#else
+  handler Handler(Self, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+#endif
+
+#if XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
   }
+#endif
 
   {
     NestedCallsTracker tracker;
@@ -362,13 +428,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   return Event;
 }
+#endif
 
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
-  SubmissionInfo SI{};
+  v1::SubmissionInfo SI{};
   auto L = [&](handler &CGH) {
     CGH.depends_on(DepEvents);
     HandlerFunc(CGH);
@@ -404,11 +471,10 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
                                 ExpandedDepEvents, MContext)) {
-      if ((MDiscardEvents || !CallerNeedsEvent) &&
-          supportsDiscardingPiEvents()) {
+      if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
-                  /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
+                  /*PiEvent*/ nullptr);
 
         event DiscardedEvent = createDiscardedEvent();
         if (isInOrder()) {
@@ -426,8 +492,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       {
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
-        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent,
-                  EventImpl);
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent);
         EventImpl->setHandle(UREvent);
         EventImpl->setEnqueued();
         // connect returned event with dependent events
@@ -439,7 +504,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
             ExpandedDepEventImplPtrs.push_back(
                 detail::getSyclObjImpl(DepEvent));
 
-          EventImpl->cleanDepEventsThroughOneLevel();
+          // EventImpl is local for current thread, no need to lock.
+          EventImpl->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
 
@@ -449,7 +515,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         EventToStoreIn = EventImpl;
       }
 
-      return discard_or_return(ResEvent);
+      return ResEvent;
     }
   }
   return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
@@ -534,14 +600,18 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
 void queue_impl::wait(const detail::code_location &CodeLoc) {
   (void)CodeLoc;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  const bool xptiEnabled = xptiTraceEnabled();
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+  int32_t StreamID = xpti::invalid_id;
+  if (xptiEnabled) {
+    StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+    TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+  }
 #endif
 
-  if (MGraph.lock()) {
+  if (!MGraph.expired()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait cannot be called for a queue which is "
                           "recording to a command graph.");
@@ -606,7 +676,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     Event->wait(Event);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  if (xptiEnabled) {
+    instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  }
 #endif
 }
 
@@ -634,11 +706,9 @@ void queue_impl::constructorNotification() {
 
       xpti::addMetadata(TEvent, "sycl_context",
                         reinterpret_cast<size_t>(MContext->getHandleRef()));
-      if (MDevice) {
-        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
-        xpti::addMetadata(TEvent, "sycl_device",
-                          reinterpret_cast<size_t>(MDevice->getHandleRef()));
-      }
+      xpti::addMetadata(TEvent, "sycl_device_name", MDevice.getDeviceName());
+      xpti::addMetadata(TEvent, "sycl_device",
+                        reinterpret_cast<size_t>(MDevice.getHandleRef()));
       xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
       xpti::addMetadata(TEvent, "queue_id", MQueueID);
       xpti::addMetadata(TEvent, "queue_handle",
@@ -683,10 +753,10 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   return Handle;
 }
 
-bool queue_impl::ext_oneapi_empty() const {
+bool queue_impl::queue_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.
-  if (isInOrder() && !MDiscardEvents) {
+  if (isInOrder()) {
     std::lock_guard<std::mutex> Lock(MMutex);
     // If there is no last event we know that no work has been submitted, so it
     // must be trivially empty.
@@ -724,12 +794,6 @@ bool queue_impl::ext_oneapi_empty() const {
   // If we didn't exit early above then it means that all events in the queue
   // are completed.
   return true;
-}
-
-event queue_impl::discard_or_return(const event &Event) {
-  if (!(MDiscardEvents))
-    return Event;
-  return createDiscardedEvent();
 }
 
 void queue_impl::revisitUnenqueuedCommandsState(
@@ -778,10 +842,13 @@ void queue_impl::doUnenqueuedCommandCleanup(
 
 void queue_impl::verifyProps(const property_list &Props) const {
   auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP_DEPRECATED_ALIAS(NS_QUALIFIER, PROP_NAME,        \
+                                               ENUM_VAL, WARNING)              \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   case NS_QUALIFIER::PROP_NAME::getKind():                                     \
     return true;
-#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
     switch (PropertyKind) {
 #include <sycl/properties/queue_properties.def>
     default:
@@ -789,7 +856,6 @@ void queue_impl::verifyProps(const property_list &Props) const {
     }
   };
   auto CheckPropertiesWithData = [](int PropertyKind) {
-#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   case NS_QUALIFIER::PROP_NAME::getKind():                                     \
     return true;

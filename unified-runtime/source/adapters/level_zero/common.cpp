@@ -76,8 +76,9 @@ bool setEnvVar(const char *name, const char *value) {
   int Res = setenv(name, value, 1);
 #endif
   if (Res != 0) {
-    logger::debug(
-        "UR L0 Adapter was unable to set the environment variable: {}", name);
+    UR_LOG(DEBUG,
+           "UR L0 Adapter was unable to set the environment variable: {}",
+           name);
     return false;
   }
   return true;
@@ -138,7 +139,7 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
 
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
-  logger::debug("ZE ---> {}{}", ZeName, ZeArgs);
+  UR_LOG(DEBUG, "ZE ---> {}{}", ZeName, ZeArgs);
 
   if (ZeResult == ZE_RESULT_SUCCESS) {
     if (UrL0LeaksDebug) {
@@ -150,7 +151,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (TraceError) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    logger::error("Error ({}) in {}", ErrorString, ZeName);
+    UR_LOG(ERR, "Error ({}) in {}", ErrorString, ZeName);
   }
   return ZeResult;
 }
@@ -342,13 +343,12 @@ getZeStructureType<ze_intel_device_block_array_exp_properties_t>() {
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
-thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
+thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize]{};
 thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode) {
   assert(strlen(pMessage) < MaxMessageSize);
   // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
@@ -356,9 +356,4 @@ thread_local int32_t ErrorAdapterNativeCode;
   strncpy(ErrorMessage, pMessage, MaxMessageSize - 1);
   ErrorMessageCode = ErrorCode;
   ErrorAdapterNativeCode = AdapterErrorCode;
-}
-
-ur_result_t zerPluginGetLastError(char **message) {
-  *message = &ErrorMessage[0];
-  return ErrorMessageCode;
 }

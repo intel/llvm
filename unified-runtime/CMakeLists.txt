@@ -59,6 +59,7 @@ set(UR_EXTERNAL_DEPENDENCIES "" CACHE STRING
     "List of external CMake targets for executables/libraries to depend on")
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
+set(UR_DEVICE_CODE_EXTRACTOR "" CACHE PATH "Path to clang-offload-extract")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
     "Path of the SYCL runtime library directory")
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
@@ -141,6 +142,28 @@ if(NOT MSVC)
         # is available we still need to link this library.
         link_libraries(stdc++fs)
     endif()
+endif()
+
+if(NOT UR_STANDALONE_BUILD AND "${UR_DPCXX}" STREQUAL "")
+    set(UR_FOUND_DPCXX "$<TARGET_FILE:clang>")
+    set(UR_FOUND_DEVICE_CODE_EXTRACTOR "$<TARGET_FILE:clang-offload-extract>")
+    set(UR_DPCXX_DEPS "sycl-toolchain;")
+else()
+    set(UR_FOUND_DPCXX "${UR_DPCXX}")
+    if(UR_DEVICE_CODE_EXTRACTOR)
+        set(UR_FOUND_DEVICE_CODE_EXTRACTOR "${UR_DEVICE_CODE_EXTRACTOR}")
+    else()
+        cmake_path(GET UR_FOUND_DPCXX EXTENSION EXE)
+        cmake_path(REPLACE_FILENAME UR_FOUND_DPCXX "clang-offload-extract${EXE}" OUTPUT_VARIABLE UR_FOUND_DEVICE_CODE_EXTRACTOR)
+    endif()
+    set(UR_DPCXX_DEPS "")
+endif()
+
+if(NOT UR_STANDALONE_BUILD AND
+    UR_ENABLE_TRACING AND
+    DEFINED LLVM_EXTERNAL_PROJECTS AND
+    (NOT "xpti" IN_LIST LLVM_EXTERNAL_PROJECTS OR NOT "xptifw" IN_LIST LLVM_EXTERNAL_PROJECTS))
+  message(FATAL_ERROR "UR_ENABLE_TRACING=ON but XPTI is not going to be built")
 endif()
 
 if(UR_ENABLE_TRACING)

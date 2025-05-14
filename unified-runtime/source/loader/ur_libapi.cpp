@@ -5052,6 +5052,9 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a kernel
 ///
+/// @details
+///     - Providing invalid kernel arguments is Undefined Behavior.
+///
 /// @remarks
 ///   _Analogues_
 ///     - **clEnqueueNDRangeKernel**
@@ -5079,8 +5082,6 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
-///     have not been specified."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urEnqueueKernelLaunch(
@@ -6790,6 +6791,9 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6839,6 +6843,9 @@ ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
 ///         + `NULL == ppMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6889,6 +6896,9 @@ ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -6936,6 +6946,9 @@ ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
 ur_result_t UR_APICALL urEnqueueUSMFreeExp(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -7736,6 +7749,148 @@ ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Query support for allocating a given image backing memory handle type
+///        with specific image properties
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageDesc`
+///         + `NULL == pImageFormat`
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+ur_result_t UR_APICALL urBindlessImagesGetImageMemoryHandleTypeSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for allocating the given image
+    /// backing memory handle type
+    ur_bool_t *pSupportedRet) try {
+  auto pfnGetImageMemoryHandleTypeSupportExp =
+      ur_lib::getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageMemoryHandleTypeSupportExp;
+  if (nullptr == pfnGetImageMemoryHandleTypeSupportExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetImageMemoryHandleTypeSupportExp(hContext, hDevice, pImageDesc,
+                                               pImageFormat, imageMemHandleType,
+                                               pSupportedRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query support for creating an unsampled image handle with specific
+///        image properties
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageDesc`
+///         + `NULL == pImageFormat`
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+ur_result_t UR_APICALL urBindlessImagesGetImageUnsampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating unsampled image
+    /// handles
+    ur_bool_t *pSupportedRet) try {
+  auto pfnGetImageUnsampledHandleSupportExp =
+      ur_lib::getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageUnsampledHandleSupportExp;
+  if (nullptr == pfnGetImageUnsampledHandleSupportExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetImageUnsampledHandleSupportExp(hContext, hDevice, pImageDesc,
+                                              pImageFormat, imageMemHandleType,
+                                              pSupportedRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query support for creating an sampled image handle with specific
+/// image
+///        properties
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageDesc`
+///         + `NULL == pImageFormat`
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+ur_result_t UR_APICALL urBindlessImagesGetImageSampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating sampled image
+    /// handles
+    ur_bool_t *pSupportedRet) try {
+  auto pfnGetImageSampledHandleSupportExp =
+      ur_lib::getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageSampledHandleSupportExp;
+  if (nullptr == pfnGetImageSampledHandleSupportExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetImageSampledHandleSupportExp(hContext, hDevice, pImageDesc,
+                                            pImageFormat, imageMemHandleType,
+                                            pSupportedRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieve individual image from mipmap
 ///
 /// @remarks
@@ -7983,6 +8138,43 @@ ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   return pfnReleaseExternalMemoryExp(hContext, hDevice, hExternalMem);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Free a linear memory region mapped using MapExternalLinearMemoryExp
+///
+/// @remarks
+///   _Analogues_
+///     - **cuMemFree**
+///     - **zeMemFree**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMem == NULL`
+ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) try {
+  auto pfnFreeMappedLinearMemoryExp =
+      ur_lib::getContext()
+          ->urDdiTable.BindlessImagesExp.pfnFreeMappedLinearMemoryExp;
+  if (nullptr == pfnFreeMappedLinearMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

@@ -397,7 +397,8 @@ ModuleDesc extractCallGraph(
   collectFunctionsAndGlobalVariablesToExtract(
       GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
-  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
+  ModuleDesc SplitM =
+      extractSubModule(MD, std::move(GVs), std::move(ModuleEntryPoints));
   // TODO: cleanup pass is now called for each output module at the end of
   // sycl-post-link. This call is redundant. However, we subsequently run
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
@@ -425,7 +426,8 @@ ModuleDesc extractESIMDSubModule(
   collectFunctionsAndGlobalVariablesToExtract(
       GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
-  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
+  ModuleDesc SplitM =
+      extractSubModule(MD, std::move(GVs), std::move(ModuleEntryPoints));
   // TODO: cleanup pass is now called for each output module at the end of
   // sycl-post-link. This call is redundant. However, we subsequently run
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call

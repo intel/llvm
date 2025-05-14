@@ -113,7 +113,7 @@ bool run_sycl(InteropHandleT inputInteropMemHandle, size_t imgPitchBytes,
     q.wait_and_throw();
 
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
-    sycl::free(handles.imgMem, ctxt);
+    syclexp::unmap_external_linear_memory(handles.imgMem, dev, ctxt);
     syclexp::release_external_memory(handles.inputInteropMemHandle, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;

@@ -16,6 +16,8 @@
 
 #include "../common/latency_tracker.hpp"
 #include "../helpers/kernel_helpers.hpp"
+#include "../image_common.hpp"
+
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
 
@@ -29,7 +31,7 @@ wait_list_view ur_queue_immediate_in_order_t::getWaitListView(
                                       additionalWaitEvent);
 }
 
-static int32_t getZeOrdinal(ur_device_handle_t hDevice) {
+static uint32_t getZeOrdinal(ur_device_handle_t hDevice) {
   return hDevice->QueueGroup[queue_group_type::Compute].ZeOrdinal;
 }
 
@@ -68,8 +70,9 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
       commandListManager(
           hContext, hDevice,
           hContext->getCommandListCache().getImmediateCommandList(
-              hDevice->ZeDevice, true, getZeOrdinal(hDevice),
-              true /* always enable copy offload */,
+              hDevice->ZeDevice,
+              {true, getZeOrdinal(hDevice),
+               true /* always enable copy offload */},
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
               getZePriority(pProps ? pProps->flags : ur_queue_flags_t{}),
               getZeIndex(pProps)),
@@ -129,9 +132,10 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
     }
   }
   default:
-    logger::error("Unsupported ParamName in urQueueGetInfo: "
-                  "ParamName=ParamName={}(0x{})",
-                  propName, logger::toHex(propName));
+    UR_LOG(ERR,
+           "Unsupported ParamName in urQueueGetInfo: "
+           "ParamName=ParamName={}(0x{})",
+           propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -178,7 +182,7 @@ ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
   try {
     UR_CALL_THROWS(queueFinish());
   } catch (...) {
-    logger::error("Failed to finish queue on destruction");
+    // Ignore errors during destruction
   }
 }
 
@@ -729,17 +733,26 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFreeExp(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
-    const void * /*pSrc*/, void * /*pDst*/,
-    const ur_image_desc_t * /*pSrcImageDesc*/,
-    const ur_image_desc_t * /*pDstImageDesc*/,
-    const ur_image_format_t * /*pSrcImageFormat*/,
-    const ur_image_format_t * /*pDstImageFormat*/,
-    ur_exp_image_copy_region_t * /*pCopyRegion*/,
-    ur_exp_image_copy_flags_t /*imageCopyFlags*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+    const ur_image_desc_t *pDstImageDesc,
+    const ur_image_format_t *pSrcImageFormat,
+    const ur_image_format_t *pDstImageFormat,
+    ur_exp_image_copy_region_t *pCopyRegion,
+    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  auto commandListMgr = commandListManager.lock();
+
+  auto zeSignalEvent =
+      getSignalEvent(commandListMgr, phEvent, UR_COMMAND_MEM_IMAGE_COPY);
+  auto waitListView =
+      getWaitListView(commandListMgr, phEventWaitList, numEventsInWaitList);
+
+  return bindlessImagesHandleCopyFlags(
+      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
+      pDstImageFormat, pCopyRegion, imageCopyFlags,
+      commandListMgr->getZeCommandList(), zeSignalEvent, waitListView.num,
+      waitListView.handles);
 }
 
 ur_result_t
@@ -798,6 +811,16 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
     waitListView.clear();
   };
 
+  // If the offset is {0, 0, 0}, pass NULL instead.
+  // This allows us to skip setting the offset.
+  bool hasOffset = false;
+  for (uint32_t i = 0; i < workDim; ++i) {
+    hasOffset |= pGlobalWorkOffset[i];
+  }
+  if (!hasOffset) {
+    pGlobalWorkOffset = NULL;
+  }
+
   UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
                                         workDim, WG[0], WG[1], WG[2],
                                         memoryMigrate));
@@ -810,6 +833,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
               waitListView.handles));
 
   recordSubmittedKernel(hKernel);
+
+  postSubmit(hZeKernel, pGlobalWorkOffset);
 
   return UR_RESULT_SUCCESS;
 }
@@ -908,6 +933,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
+  UR_LOG_LEGACY(
+      ERR, logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace v2

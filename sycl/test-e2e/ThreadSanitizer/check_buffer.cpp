@@ -7,7 +7,7 @@
 
 #include <sycl/detail/core.hpp>
 
-static const int N = 16;
+static const int N = 128;
 
 int main() {
   sycl::queue q;

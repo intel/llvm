@@ -421,7 +421,7 @@ public:
         assert(HostTask.MQueue &&
                "Host task submissions should have an associated queue");
         interop_handle IH{MReqToMem, HostTask.MQueue,
-                          HostTask.MQueue->getDeviceImplPtr(),
+                          HostTask.MQueue->getDeviceImpl().shared_from_this(),
                           HostTask.MQueue->getContextImplPtr()};
         // TODO: should all the backends that support this entry point use this
         // for host task?
@@ -545,8 +545,6 @@ void Command::waitForEvents(QueueImplPtr Queue,
       flushCrossQueueDeps(EventImpls, MWorkerQueue);
       const AdapterPtr &Adapter = Queue->getAdapter();
 
-      if (MEvent != nullptr)
-        MEvent->setHostEnqueueTime();
       Adapter->call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
@@ -1458,7 +1456,7 @@ bool UnMapMemObject::producesPiEvent() const {
   // an event waitlist and Level Zero adapter attempts to batch these commands,
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
-  return MQueue && (MQueue->getDeviceImplPtr()->getBackend() !=
+  return MQueue && (MQueue->getDeviceImpl().getBackend() !=
                         backend::ext_oneapi_level_zero ||
                     MEvent->getHandle() != nullptr);
 }
@@ -1565,7 +1563,7 @@ bool MemCpyCommand::producesPiEvent() const {
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
   return !MQueue ||
-         MQueue->getDeviceImplPtr()->getBackend() !=
+         MQueue->getDeviceImpl().getBackend() !=
              backend::ext_oneapi_level_zero ||
          MEvent->getHandle() != nullptr;
 }
@@ -1585,8 +1583,7 @@ ur_result_t MemCpyCommand::enqueueImp() {
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
           MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(), MQueue,
           MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-          MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), UREvent,
-          MEvent);
+          MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1747,7 +1744,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
           MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
           MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-          MDstReq.MElemSize, std::move(RawEvents), UREvent, MEvent);
+          MDstReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1992,28 +1989,26 @@ void instrumentationAddExtraKernelMetadata(
   auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
     Args.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
   };
-  ur_program_handle_t Program = nullptr;
   ur_kernel_handle_t Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  if (auto SyclKernelImpl = KernelBundleImplPtr
-                                ? KernelBundleImplPtr->tryGetKernel(
-                                      KernelName, KernelBundleImplPtr)
-                                : std::shared_ptr<kernel_impl>{nullptr}) {
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
-  } else if (nullptr != SyclKernel) {
-    Program = SyclKernel->getProgramRef();
+  if (nullptr != SyclKernel) {
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
+  } else if (auto SyclKernelImpl =
+                 KernelBundleImplPtr ? KernelBundleImplPtr->tryGetKernel(
+                                           KernelName, KernelBundleImplPtr)
+                                     : std::shared_ptr<kernel_impl>{nullptr}) {
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Queue) {
     // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
     //       by graph API, when a modifiable graph is finalized.
+    ur_program_handle_t Program = nullptr;
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName);
+            Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2385,8 +2380,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
-    std::vector<ur_event_handle_t> &RawEvents,
-    const detail::EventImplPtr &OutEventImpl,
+    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
@@ -2422,7 +2416,7 @@ static ur_result_t SetKernelParamsAndLaunch(
         Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
   }
 
-  adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
+  adjustNDRangePerKernel(NDRDesc, Kernel, Queue->getDeviceImpl());
 
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
@@ -2436,7 +2430,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     LocalSize = &NDRDesc.LocalSize[0];
   else {
     Adapter->call<UrApiKind::urKernelGetGroupInfo>(
-        Kernel, Queue->getDeviceImplPtr()->getHandleRef(),
+        Kernel, Queue->getDeviceImpl().getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
         /* pPropSizeRet = */ nullptr);
@@ -2447,8 +2441,6 @@ static ur_result_t SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
@@ -2512,7 +2504,7 @@ namespace {
 std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
            const KernelArgMask *>
 getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
-                DeviceImplPtr DeviceImpl,
+                device_impl &DeviceImpl,
                 std::vector<ur_kernel_handle_t> &UrKernelsToRelease,
                 std::vector<ur_program_handle_t> &UrProgramsToRelease) {
 
@@ -2521,17 +2513,17 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   const KernelArgMask *EliminatedArgMask = nullptr;
   auto &KernelBundleImplPtr = CommandGroup.MKernelBundle;
 
-  if (auto SyclKernelImpl =
-          KernelBundleImplPtr
-              ? KernelBundleImplPtr->tryGetKernel(CommandGroup.MKernelName,
-                                                  KernelBundleImplPtr)
-              : std::shared_ptr<kernel_impl>{nullptr}) {
+  if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
+    UrKernel = Kernel->getHandleRef();
+    EliminatedArgMask = Kernel->getKernelArgMask();
+  } else if (auto SyclKernelImpl =
+                 KernelBundleImplPtr
+                     ? KernelBundleImplPtr->tryGetKernel(
+                           CommandGroup.MKernelName, KernelBundleImplPtr)
+                     : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-  } else if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
-    UrKernel = Kernel->getHandleRef();
-    EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
@@ -2545,7 +2537,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
 } // anonymous namespace
 
 ur_result_t enqueueImpCommandBufferKernel(
-    context Ctx, DeviceImplPtr DeviceImpl,
+    context Ctx, device_impl &DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const CGExecKernel &CommandGroup,
     std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints,
@@ -2610,7 +2602,7 @@ ur_result_t enqueueImpCommandBufferKernel(
     LocalSize = &NDRDesc.LocalSize[0];
   else {
     Adapter->call<UrApiKind::urKernelGetGroupInfo>(
-        UrKernel, DeviceImpl->getHandleRef(),
+        UrKernel, DeviceImpl.getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
         /* pPropSizeRet = */ nullptr);
@@ -2648,8 +2640,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   }
 
   if (Res != UR_RESULT_SUCCESS) {
-    const device_impl &DeviceImplem = *(DeviceImpl);
-    detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImplem,
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImpl,
                                                         UrKernel, NDRDesc);
   }
 
@@ -2659,9 +2650,8 @@ ur_result_t enqueueImpCommandBufferKernel(
 void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
-    const detail::EventImplPtr &OutEventImpl,
+    const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
+    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
@@ -2669,7 +2659,7 @@ void enqueueImpKernel(
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto &ContextImpl = Queue->getContextImplPtr();
-  auto &DeviceImpl = Queue->getDeviceImplPtr();
+  device_impl &DeviceImpl = Queue->getDeviceImpl();
   ur_kernel_handle_t Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   ur_program_handle_t Program = nullptr;
@@ -2678,18 +2668,7 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  if ((SyclKernelImpl = KernelBundleImplPtr
-                            ? KernelBundleImplPtr->tryGetKernel(
-                                  KernelName, KernelBundleImplPtr)
-                            : std::shared_ptr<kernel_impl>{nullptr})) {
-    Kernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
-
-    Program = DeviceImageImpl->get_ur_program_ref();
-
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    KernelMutex = SyclKernelImpl->getCacheMutex();
-  } else if (nullptr != MSyclKernel) {
+  if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
@@ -2703,6 +2682,17 @@ void enqueueImpKernel(
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
+  } else if ((SyclKernelImpl = KernelBundleImplPtr
+                                   ? KernelBundleImplPtr->tryGetKernel(
+                                         KernelName, KernelBundleImplPtr)
+                                   : std::shared_ptr<kernel_impl>{nullptr})) {
+    Kernel = SyclKernelImpl->getHandleRef();
+    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+
+    Program = DeviceImageImpl->get_ur_program_ref();
+
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
@@ -2760,7 +2750,7 @@ void enqueueImpKernel(
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong
-    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, *DeviceImpl,
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
                                                         Kernel, NDRDesc);
   }
 }
@@ -2769,7 +2759,7 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
                                      const std::string &PipeName, bool blocking,
                                      void *ptr, size_t size,
                                      std::vector<ur_event_handle_t> &RawEvents,
-                                     const detail::EventImplPtr &OutEventImpl,
+                                     detail::event_impl *OutEventImpl,
                                      bool read) {
   assert(Queue &&
          "ReadWrite host pipe submissions should have an associated queue");
@@ -2802,8 +2792,6 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
 
   ur_event_handle_t UREvent = nullptr;
   auto OutEvent = OutEventImpl ? &UREvent : nullptr;
-  if (OutEventImpl != nullptr)
-    OutEventImpl->setHostEnqueueTime();
   if (read) {
     Error = Adapter->call_nocheck<UrApiKind::urEnqueueReadHostPipe>(
         ur_q, Program, PipeName.c_str(), blocking, ptr, size, RawEvents.size(),
@@ -2859,7 +2847,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     };
 
     auto result = enqueueImpCommandBufferKernel(
-        MQueue->get_context(), MQueue->getDeviceImplPtr(), MCommandBuffer,
+        MQueue->get_context(), MQueue->getDeviceImpl(), MCommandBuffer,
         *ExecKernel, MSyncPointDeps, &OutSyncPoint, &OutCommand,
         getMemAllocationFunc);
     MEvent->setSyncPoint(OutSyncPoint);
@@ -3002,7 +2990,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     // scheduler.
     const AdapterPtr &Adapter = MQueue->getAdapter();
     auto ContextImpl = MQueue->getContextImplPtr();
-    auto DeviceImpl = MQueue->getDeviceImplPtr();
+    device_impl &DeviceImpl = MQueue->getDeviceImpl();
 
     // The CUDA & HIP backends don't have the equivalent of barrier
     // commands that can be appended to the native UR command-buffer
@@ -3018,7 +3006,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     // urCommandBufferAppendNativeCommandExp.
     ur_bool_t DeviceHasSubgraphSupport = false;
     Adapter->call<UrApiKind::urDeviceGetInfo>(
-        DeviceImpl->getHandleRef(),
+        DeviceImpl.getHandleRef(),
         UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP, sizeof(ur_bool_t),
         &DeviceHasSubgraphSupport, nullptr);
 
@@ -3030,7 +3018,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
           false /* profilable*/
       };
       Adapter->call<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
-          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
+          ContextImpl->getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &ChildCommandBuffer);
     }
 
@@ -3064,7 +3052,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 
     ur_exp_command_buffer_handle_t InteropCommandBuffer =
         ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer;
-    interop_handle IH{std::move(ReqToMem), MQueue, DeviceImpl, ContextImpl,
+    interop_handle IH{std::move(ReqToMem), MQueue,
+                      DeviceImpl.shared_from_this(), ContextImpl,
                       InteropCommandBuffer};
     CommandBufferNativeCommandData CustomOpData{
         std::move(IH), HostTask->MHostTask->MInteropTask};
@@ -3121,17 +3110,16 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  // We can omit creating a UR event and create a "discarded" event if either
-  // the queue has the discard property or the command has been explicitly
-  // marked as not needing an event, e.g. if the user did not ask for one, and
-  // if the queue supports discarded UR event and there are no requirements.
-  bool DiscardUrEvent = MQueue && (MQueue->MDiscardEvents || !MEventNeeded) &&
+  // We can omit creating a UR event and create a "discarded" event if the
+  // command has been explicitly marked as not needing an event, e.g. if the
+  // user did not ask for one, and there are no requirements.
+  bool DiscardUrEvent = MQueue && !MEventNeeded &&
                         MQueue->supportsDiscardingPiEvents() &&
                         MCommandGroup->getRequirements().size() == 0;
 
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
-  detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
+  detail::event_impl *EventImpl = DiscardUrEvent ? nullptr : MEvent.get();
 
   auto SetEventHandleOrDiscard = [&]() {
     if (Event)
@@ -3158,7 +3146,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
             Copy->getDst(), nullptr, Req->MDims, Req->MAccessRange,
             Req->MAccessRange, /*DstOffset=*/sycl::id<3>{0, 0, 0},
-            Req->MElemSize, std::move(RawEvents), UREvent, MEvent);
+            Req->MElemSize, std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3177,7 +3165,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             /*SrcOffset*/ sycl::id<3>{0, 0, 0}, Req->MElemSize,
             AllocaCmd->getMemAllocation(), MQueue, Req->MDims,
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-            std::move(RawEvents), UREvent, MEvent);
+            std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3198,8 +3186,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             ReqSrc->MMemoryRange, ReqSrc->MAccessRange, ReqSrc->MOffset,
             ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(), MQueue,
             ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
-            ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), UREvent,
-            MEvent);
+            ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3216,7 +3203,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             AllocaCmd->getMemAllocation(), MQueue, Fill->MPattern.size(),
             Fill->MPattern.data(), Req->MDims, Req->MMemoryRange,
             Req->MAccessRange, Req->MOffset, Req->MElemSize,
-            std::move(RawEvents), UREvent, MEvent);
+            std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3247,7 +3234,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(KernelName);
       if (KernelUsesAssert) {
-        EventImpl = MEvent;
+        EventImpl = MEvent.get();
       }
     }
 
@@ -3258,7 +3245,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
-                     SyclKernel, KernelName, RawEvents, EventImpl,
+                     SyclKernel.get(), KernelName, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
                      ExecKernel->MKernelUsesClusterLaunch,
@@ -3270,7 +3257,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(MemoryManager::copy_usm, Copy->getSrc(),
                                       MQueue, Copy->getLength(), Copy->getDst(),
-                                      std::move(RawEvents), Event, MEvent);
+                                      std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3281,7 +3268,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::fill_usm, Fill->getDst(), MQueue, Fill->getLength(),
-            Fill->getPattern(), std::move(RawEvents), Event, MEvent);
+            Fill->getPattern(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3292,7 +3279,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), MQueue,
-            Prefetch->getLength(), std::move(RawEvents), Event, MEvent);
+            Prefetch->getLength(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3304,7 +3291,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result =
             callMemOpHelper(MemoryManager::advise_usm, Advise->getDst(), MQueue,
                             Advise->getLength(), Advise->getAdvice(),
-                            std::move(RawEvents), Event, MEvent);
+                            std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3316,7 +3303,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_2d_usm, Copy->getSrc(), Copy->getSrcPitch(),
             MQueue, Copy->getDst(), Copy->getDstPitch(), Copy->getWidth(),
-            Copy->getHeight(), std::move(RawEvents), Event, MEvent);
+            Copy->getHeight(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3328,7 +3315,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::fill_2d_usm, Fill->getDst(), MQueue,
             Fill->getPitch(), Fill->getWidth(), Fill->getHeight(),
-            Fill->getPattern(), std::move(RawEvents), Event, MEvent);
+            Fill->getPattern(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3340,7 +3327,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::memset_2d_usm, Memset->getDst(), MQueue,
             Memset->getPitch(), Memset->getWidth(), Memset->getHeight(),
-            Memset->getValue(), std::move(RawEvents), Event, MEvent);
+            Memset->getValue(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3471,7 +3458,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     EnqueueNativeCommandData CustomOpData{
         interop_handle{std::move(ReqToMem), HostTask->MQueue,
-                       HostTask->MQueue->getDeviceImplPtr(),
+                       HostTask->MQueue->getDeviceImpl().shared_from_this(),
                        HostTask->MQueue->getContextImplPtr()},
         HostTask->MHostTask->MInteropTask};
 
@@ -3509,8 +3496,18 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
+    // User can specify explicit dependencies via depends_on call that we should
+    // honor here. It is very important for cross queue dependencies. We wait
+    // them explicitly since barrier w/o wait list waits for all commands
+    // submitted before and we can't add new dependencies to its wait list.
+    // Output event for wait operation is not requested since barrier is
+    // submitted immediately after and should synchronize it internally.
+    if (RawEvents.size()) {
+      auto Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+          MQueue->getHandleRef(), RawEvents.size(), &RawEvents[0], nullptr);
+      if (Result != UR_RESULT_SUCCESS)
+        return Result;
+    }
     if (auto Result =
             Adapter->call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, 0, nullptr, Event);
@@ -3543,8 +3540,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
+    // User can specify explicit dependencies via depends_on call that we should
+    // honor here. It is very important for cross queue dependencies. Adding
+    // them to the barrier wait list since barrier w/ wait list waits only for
+    // the events provided in wait list and we can just extend the list.
+    UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
+
     if (auto Result =
             Adapter->call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
@@ -3611,8 +3612,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_to_device_global, Copy->getDeviceGlobalPtr(),
             Copy->isDeviceImageScoped(), MQueue, Copy->getNumBytes(),
-            Copy->getOffset(), Copy->getSrc(), std::move(RawEvents), Event,
-            MEvent);
+            Copy->getOffset(), Copy->getSrc(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3625,8 +3625,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_from_device_global, Copy->getDeviceGlobalPtr(),
             Copy->isDeviceImageScoped(), MQueue, Copy->getNumBytes(),
-            Copy->getOffset(), Copy->getDest(), std::move(RawEvents), Event,
-            MEvent);
+            Copy->getOffset(), Copy->getDest(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3643,7 +3642,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     bool read = ExecReadWriteHostPipe->isReadHostPipe();
 
     if (!EventImpl) {
-      EventImpl = MEvent;
+      EventImpl = MEvent.get();
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, EventImpl, read);
@@ -3653,8 +3652,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
            "Command buffer submissions should have an associated queue");
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
-    if (MEvent != nullptr)
-      MEvent->setHostEnqueueTime();
     if (auto Result =
             MQueue->getAdapter()
                 ->call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(

@@ -14,6 +14,7 @@ from enum import Enum
 
 
 class RUNTIMES(Enum):
+    SYCL_PREVIEW = "syclpreview"
     SYCL = "sycl"
     LEVEL_ZERO = "l0"
     UR = "ur"
@@ -21,6 +22,7 @@ class RUNTIMES(Enum):
 
 def runtime_to_name(runtime: RUNTIMES) -> str:
     return {
+        RUNTIMES.SYCL_PREVIEW: "SYCL Preview",
         RUNTIMES.SYCL: "SYCL",
         RUNTIMES.LEVEL_ZERO: "Level Zero",
         RUNTIMES.UR: "Unified Runtime",
@@ -29,6 +31,7 @@ def runtime_to_name(runtime: RUNTIMES) -> str:
 
 def runtime_to_tag_name(runtime: RUNTIMES) -> str:
     return {
+        RUNTIMES.SYCL_PREVIEW: "SYCL",
         RUNTIMES.SYCL: "SYCL",
         RUNTIMES.LEVEL_ZERO: "L0",
         RUNTIMES.UR: "UR",
@@ -46,7 +49,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "420842fc3f0c01aac7b328bf192c25d3e7b9fd9e"
+        return "015019f815f73e308171145a48b63d57c1263e45"
 
     def setup(self):
         if options.sycl is None:
@@ -107,9 +110,15 @@ class ComputeBench(Suite):
             ),
         }
 
-    def enabled_runtimes(self, supported_runtimes=None):
+    def enabled_runtimes(self, supported_runtimes=None, extra_runtimes=None):
         # all runtimes in the RUNTIMES enum
         runtimes = supported_runtimes or list(RUNTIMES)
+
+        # filter out SYCL_PREVIEW which is not supported by default in all benchmarks
+        runtimes = [r for r in runtimes if r != RUNTIMES.SYCL_PREVIEW]
+
+        if extra_runtimes is not None:
+            runtimes.extend(extra_runtimes)
 
         # Filter out UR if not available
         if options.ur is None:
@@ -131,21 +140,17 @@ class ComputeBench(Suite):
         benches = []
 
         # Add SubmitKernel benchmarks using loops
-        for runtime in self.enabled_runtimes():
+        for runtime in self.enabled_runtimes(extra_runtimes=[RUNTIMES.SYCL_PREVIEW]):
             for in_order_queue in [0, 1]:
                 for measure_completion in [0, 1]:
-                    for enqueue_functions in [0, 1]:
-                        # only SYCL backend supports enqueue functions
-                        if enqueue_functions == 1 and runtime != RUNTIMES.SYCL:
-                            continue
-
+                    for use_events in [0, 1]:
                         benches.append(
                             SubmitKernel(
                                 self,
                                 runtime,
                                 in_order_queue,
                                 measure_completion,
-                                enqueue_functions,
+                                use_events,
                             )
                         )
 
@@ -163,7 +168,7 @@ class ComputeBench(Suite):
             benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
         # Add GraphApiSubmitGraph benchmarks
-        for runtime in self.enabled_runtimes([RUNTIMES.SYCL, RUNTIMES.UR]):
+        for runtime in self.enabled_runtimes():
             for in_order_queue in [0, 1]:
                 for num_kernels in [4, 10, 32]:
                     for measure_completion_time in [0, 1]:
@@ -191,9 +196,11 @@ class ComputeBench(Suite):
         # Add UR-specific benchmarks
         if options.ur is not None:
             benches += [
-                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
-                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
-                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
+                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1, 1),
+                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1, 1),
+                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 1),
+                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 0),
+                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0, 1),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
                 UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
@@ -305,13 +312,11 @@ class ComputeBenchmark(Benchmark):
 
 
 class SubmitKernel(ComputeBenchmark):
-    def __init__(
-        self, bench, runtime: RUNTIMES, ioq, MeasureCompletion=0, EnqueueFunctions=0
-    ):
+    def __init__(self, bench, runtime: RUNTIMES, ioq, MeasureCompletion=0, UseEvents=0):
         self.ioq = ioq
         self.runtime = runtime
         self.MeasureCompletion = MeasureCompletion
-        self.EnqueueFunctions = EnqueueFunctions
+        self.UseEvents = UseEvents
         super().__init__(
             bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel"
         )
@@ -322,25 +327,30 @@ class SubmitKernel(ComputeBenchmark):
     def name(self):
         order = "in order" if self.ioq else "out of order"
         completion_str = " with measure completion" if self.MeasureCompletion else ""
-        enqueue_str = " using eventless SYCL enqueue" if self.EnqueueFunctions else ""
-        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{enqueue_str}"
+
+        # this needs to be inversed (i.e., using events is empty string)
+        # to match the existing already stored results
+        events_str = " not using events" if not self.UseEvents else ""
+
+        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{events_str}"
 
     def explicit_group(self):
-        # make eventless enqueue its own group, since only SYCL supports this mode
-        if self.EnqueueFunctions:
-            return "Submit Kernel using eventless SYCL enqueue"
-
         order = "In Order" if self.ioq else "Out Of Order"
         completion_str = " With Completion" if self.MeasureCompletion else ""
-        return f"SubmitKernel {order}{completion_str}"
+
+        # this needs to be inversed (i.e., using events is empty string)
+        # to match the existing already stored results
+        events_str = " not using events" if not self.UseEvents else ""
+
+        return f"SubmitKernel {order}{completion_str}{events_str}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
         runtime_name = runtime_to_name(self.runtime)
 
-        completion_desc = ""
-        if self.runtime == RUNTIMES.UR:
-            completion_desc = f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
+        completion_desc = completion_desc = (
+            f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
+        )
 
         return (
             f"Measures CPU time overhead of submitting {order} kernels through {runtime_name} API{completion_desc}. "
@@ -353,13 +363,12 @@ class SubmitKernel(ComputeBenchmark):
     def bin_args(self) -> list[str]:
         return [
             f"--Ioq={self.ioq}",
-            "--DiscardEvents=0",
             f"--MeasureCompletion={self.MeasureCompletion}",
             "--iterations=100000",
             "--Profiling=0",
             "--NumKernels=10",
             "--KernelExecTime=1",
-            f"--EnqueueFunctions={self.EnqueueFunctions}",
+            f"--UseEvents={self.UseEvents}",
         ]
 
 
@@ -531,6 +540,7 @@ class MemcpyExecute(ComputeBenchmark):
         srcUSM,
         dstUSM,
         useEvent,
+        useCopyOffload,
     ):
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
@@ -539,22 +549,39 @@ class MemcpyExecute(ComputeBenchmark):
         self.srcUSM = srcUSM
         self.dstUSM = dstUSM
         self.useEvents = useEvent
+        self.useCopyOffload = useCopyOffload
         super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
+
+    def extra_env_vars(self) -> dict:
+        if not self.useCopyOffload:
+            return {"UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD": "1"}
+        else:
+            return {}
 
     def name(self):
         return (
             f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
             + (" without events" if not self.useEvents else "")
+            + (" without copy offload" if not self.useCopyOffload else "")
+        )
+
+    def explicit_group(self):
+        return (
+            "MemcpyExecute opsPerThread: "
+            + str(self.numOpsPerThread)
+            + " numThreads: "
+            + str(self.numThreads)
         )
 
     def description(self) -> str:
         src_type = "device" if self.srcUSM == 1 else "host"
         dst_type = "device" if self.dstUSM == 1 else "host"
         events = "with" if self.useEvents else "without"
+        copy_offload = "with" if self.useCopyOffload else "without"
         return (
             f"Measures multithreaded memory copy performance with {self.numThreads} threads "
             f"each performing {self.numOpsPerThread} operations on {self.allocSize} bytes "
-            f"from {src_type} to {dst_type} memory {events} events."
+            f"from {src_type} to {dst_type} memory {events} events {copy_offload} driver copy offload."
         )
 
     def get_tags(self):
@@ -620,6 +647,9 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
         ]
 
 
+# TODO: once L0 SubmitGraph exists, this needs to be cleaned up split benchmarks into more groups,
+# set all the parameters (UseEvents 0/1) and
+# unify the benchmark naming scheme with SubmitKernel.
 class GraphApiSubmitGraph(ComputeBenchmark):
     def __init__(
         self, bench, runtime: RUNTIMES, inOrderQueue, numKernels, measureCompletionTime
@@ -659,6 +689,8 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--InOrderQueue={self.inOrderQueue}",
             "--Profiling=0",
             "--KernelExecutionTime=1",
+            "--UseEvents=0",  # not all implementations support UseEvents=1
+            "--UseExplicit=0",
         ]
 
 

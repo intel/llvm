@@ -54,29 +54,28 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 273
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 257
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
 //
 // CHECK: Adapters/enqueue-arg-order-image.cpp
-// CHECK-NEXT: Adapters/interop-l0-direct.cpp
-// CHECK-NEXT: Adapters/interop-level-zero-buffer-ownership.cpp
-// CHECK-NEXT: Adapters/interop-level-zero-buffer.cpp
-// CHECK-NEXT: Adapters/interop-level-zero-get-native-mem.cpp
-// CHECK-NEXT: Adapters/interop-level-zero-image-get-native-mem.cpp
-// CHECK-NEXT: Adapters/interop-level-zero-image-ownership.cpp
-// CHECK-NEXT: Adapters/interop-level-zero-image-ownership.cpp
-// CHECK-NEXT: Adapters/interop-level-zero-image.cpp
-// CHECK-NEXT: Adapters/interop-level-zero.cpp
-// CHECK-NEXT: Adapters/level_zero_batch_event_status.cpp
-// CHECK-NEXT: Adapters/level_zero_batch_test.cpp
-// CHECK-NEXT: Adapters/level_zero_batch_test_copy_with_compute.cpp
-// CHECK-NEXT: Adapters/level_zero_device_scope_events.cpp
-// CHECK-NEXT: Adapters/level_zero_dynamic_batch_test.cpp
-// CHECK-NEXT: Adapters/level_zero_imm_cmdlist_per_thread.cpp
-// CHECK-NEXT: Adapters/level_zero_queue_profiling.cpp
-// CHECK-NEXT: Adapters/level_zero_usm_device_read_only.cpp
+// CHECK-NEXT: Adapters/level_zero/batch_event_status.cpp
+// CHECK-NEXT: Adapters/level_zero/batch_test.cpp
+// CHECK-NEXT: Adapters/level_zero/batch_test_copy_with_compute.cpp
+// CHECK-NEXT: Adapters/level_zero/device_scope_events.cpp
+// CHECK-NEXT: Adapters/level_zero/dynamic_batch_test.cpp
+// CHECK-NEXT: Adapters/level_zero/imm_cmdlist_per_thread.cpp
+// CHECK-NEXT: Adapters/level_zero/interop-buffer-ownership.cpp
+// CHECK-NEXT: Adapters/level_zero/interop-buffer.cpp
+// CHECK-NEXT: Adapters/level_zero/interop-direct.cpp
+// CHECK-NEXT: Adapters/level_zero/interop-image-get-native-mem.cpp
+// CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
+// CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
+// CHECK-NEXT: Adapters/level_zero/interop-image.cpp
+// CHECK-NEXT: Adapters/level_zero/interop.cpp
+// CHECK-NEXT: Adapters/level_zero/queue_profiling.cpp
+// CHECK-NEXT: Adapters/level_zero/usm_device_read_only.cpp
 // CHECK-NEXT: Adapters/max_malloc.cpp
 // CHECK-NEXT: AddressCast/dynamic_address_cast.cpp
 // CHECK-NEXT: AmdNvidiaJIT/kernel_and_bundle.cpp
@@ -92,6 +91,7 @@
 // CHECK-NEXT: Basic/image/image_accessor_range.cpp
 // CHECK-NEXT: Basic/kernel_info_attr.cpp
 // CHECK-NEXT: Basic/submit_time.cpp
+// CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: DeviceImageDependencies/dynamic.cpp
 // CHECK-NEXT: DeviceImageDependencies/math_device_lib.cpp
 // CHECK-NEXT: DeviceImageDependencies/objects.cpp
@@ -119,8 +119,6 @@
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
 // CHECK-NEXT: DeviceLib/std_complex_math_fp64_test.cpp
 // CHECK-NEXT: DeviceLib/std_complex_math_test.cpp
-// CHECK-NEXT: DiscardEvents/discard_events_check_images.cpp
-// CHECK-NEXT: DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/Stencil.cpp
@@ -159,17 +157,11 @@
 // CHECK-NEXT: Graph/Explicit/buffer_copy_target2host_offset.cpp
 // CHECK-NEXT: Graph/Explicit/host_task2_multiple_roots.cpp
 // CHECK-NEXT: Graph/Explicit/host_task_multiple_roots.cpp
-// CHECK-NEXT: Graph/Explicit/interop-level-zero-get-native-mem.cpp
 // CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: Graph/Explicit/memadvise.cpp
 // CHECK-NEXT: Graph/Explicit/prefetch.cpp
 // CHECK-NEXT: Graph/Explicit/spec_constants_handler_api.cpp
 // CHECK-NEXT: Graph/Explicit/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/Explicit/usm_copy.cpp
-// CHECK-NEXT: Graph/Explicit/usm_fill.cpp
-// CHECK-NEXT: Graph/Explicit/usm_fill_host.cpp
-// CHECK-NEXT: Graph/Explicit/usm_fill_shared.cpp
-// CHECK-NEXT: Graph/Explicit/usm_memset.cpp
 // CHECK-NEXT: Graph/Explicit/work_group_size_prop.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target_2d.cpp
@@ -179,19 +171,11 @@
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host_offset.cpp
 // CHECK-NEXT: Graph/RecordReplay/host_task2_multiple_roots.cpp
 // CHECK-NEXT: Graph/RecordReplay/host_task_multiple_roots.cpp
-// CHECK-NEXT: Graph/RecordReplay/interop-level-zero-get-native-mem.cpp
 // CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: Graph/RecordReplay/memadvise.cpp
 // CHECK-NEXT: Graph/RecordReplay/prefetch.cpp
 // CHECK-NEXT: Graph/RecordReplay/spec_constants_handler_api.cpp
 // CHECK-NEXT: Graph/RecordReplay/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_copy.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_copy_in_order.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_fill.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_fill_host.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_fill_shared.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_memset.cpp
-// CHECK-NEXT: Graph/RecordReplay/usm_memset_shortcut.cpp
 // CHECK-NEXT: Graph/RecordReplay/work_group_size_prop.cpp
 // CHECK-NEXT: Graph/UnsupportedDevice/device_query.cpp
 // CHECK-NEXT: GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp

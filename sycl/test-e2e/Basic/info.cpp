@@ -342,8 +342,12 @@ int main() {
   print_info<info::device::version, std::string>(dev, "Version");
   print_info<info::device::backend_version, std::string>(dev,
                                                          "Backend version");
-  print_info<info::device::opencl_c_version, std::string>(dev,
-                                                          "OpenCL C version");
+  try {
+    print_info<info::device::opencl_c_version, std::string>(dev,
+                                                            "OpenCL C version");
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::feature_not_supported);
+  }
   print_info<info::device::extensions, std::vector<std::string>>(dev,
                                                                  "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,

@@ -125,7 +125,7 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
 }
 
 static ::jit_compiler::BinaryFormat getTargetFormat(const QueueImplPtr &Queue) {
-  auto Backend = Queue->getDeviceImplPtr()->getBackend();
+  auto Backend = Queue->getDeviceImpl().getBackend();
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
   case backend::opencl:

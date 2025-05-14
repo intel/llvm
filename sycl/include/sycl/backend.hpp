@@ -305,16 +305,6 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeDevice == true,
                  device>
 make_device(const typename backend_traits<Backend>::template input_type<device>
                 &BackendObject) {
-  for (auto p : platform::get_platforms()) {
-    if (p.get_backend() != Backend)
-      continue;
-
-    for (auto d : p.get_devices()) {
-      if (get_native<Backend>(d) == BackendObject)
-        return d;
-    }
-  }
-
   return detail::make_device(
       detail::ur::cast<ur_native_handle_t>(BackendObject), Backend);
 }

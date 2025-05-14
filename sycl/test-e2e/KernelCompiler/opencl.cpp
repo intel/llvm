@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: ocloc && (opencl || level_zero)
+// XFAIL: run-mode && linux && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18416
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
@@ -103,7 +105,7 @@ void test_build_and_run() {
   sycl::queue q{ctx, d};
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::opencl);
+      q.get_device().ext_oneapi_can_build(syclex::source_language::opencl);
   if (!ok) {
     std::cout << "Apparently this device does not support OpenCL C source "
                  "kernel bundle extension: "
@@ -164,7 +166,7 @@ void test_error() {
   sycl::queue q{ctx, d};
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::opencl);
+      q.get_device().ext_oneapi_can_build(syclex::source_language::opencl);
   if (!ok) {
     return;
   }

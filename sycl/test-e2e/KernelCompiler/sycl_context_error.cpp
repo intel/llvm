@@ -41,7 +41,7 @@ int main() {
       return false;
     }
     for (auto dev : devices) {
-      if (!dev.ext_oneapi_can_compile(syclexp::source_language::sycl)) {
+      if (!dev.ext_oneapi_can_build(syclexp::source_language::sycl)) {
         return false;
       }
     }

@@ -374,9 +374,9 @@ class SYCLBuffer(SYCLValue):
 class SYCLDevice(SYCLValue):
     """Provides information about a sycl::device from a gdb.Value."""
 
-    IMPL_OFFSET_TO_DEVICE_TYPE = 0x8
-    IMPL_OFFSET_TO_PLATFORM = 0x18
-    PLATFORM_OFFSET_TO_BACKEND = 0x10
+    IMPL_OFFSET_TO_DEVICE_TYPE = 0x18
+    IMPL_OFFSET_TO_PLATFORM = 0x28
+    PLATFORM_OFFSET_TO_BACKEND = 0x20
 
     def __init__(self, gdb_value):
         super().__init__(gdb_value)
