@@ -838,8 +838,8 @@ namespace ur {
 * A manifest requires the following scalar fields: {`name`, `backend`}
   - `name` must be a string unique to the adapter.
   - `name` should be identical to how the name appears in the adapter's library name. E.g. `libur_adapter_my_adapter` should have the name string `my_adapter`.
-  - `backend` must be an etor of `$x_adapter_backend_t`.
-  - `backend` must not be `$X_ADAPTER_BACKEND_UNKNOWN`.
+  - `backend` must be an etor of `$x_backend_t`.
+  - `backend` must not be `$X_BACKEND_UNKNOWN`.
 * a manifest requires the following sequence of scalars: {`device_types`}
   - `device_types` must be an etor of `$x_device_type_t`
 

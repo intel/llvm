@@ -1,10 +1,11 @@
+// Check that std::array is supported on device in debug mode on Windows.
+
 // REQUIRES: windows
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18458
 
-// RUN: not clang-cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc 2>&1 | FileCheck %s
-
-// FIXME: This code should have compiled cleanly.
-// CHECK: error: SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute
-// CHECK: note: '_invalid_parameter' declared here
+// RUN: %clangxx --driver-mode=cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc
+// RUN: %{run} %t.exe
 
 #include <sycl/queue.hpp>
 

@@ -76,9 +76,11 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
     return ReturnValue("");
 
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_NATIVE_CPU);
+    return ReturnValue(UR_BACKEND_NATIVE_CPU);
+
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(&Adapter);
+
   default:
     DIE_NO_IMPLEMENTATION;
   }
