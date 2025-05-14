@@ -1207,12 +1207,17 @@ ur_usm_pool_handle_t_::getPoolByHandle(const umf_memory_pool_handle_t UmfPool) {
 }
 
 void ur_usm_pool_handle_t_::cleanupPools() {
-  PoolManager.forEachPool([&](UsmPool *p) { return p->AsyncPool.cleanup(); });
+  PoolManager.forEachPool([&](UsmPool *p) {
+    p->AsyncPool.cleanup();
+    return true;
+  });
 }
 
 void ur_usm_pool_handle_t_::cleanupPoolsForQueue(ur_queue_handle_t Queue) {
-  PoolManager.forEachPool(
-      [&](UsmPool *p) { return p->AsyncPool.cleanupForQueue(Queue); });
+  PoolManager.forEachPool([&](UsmPool *p) {
+    p->AsyncPool.cleanupForQueue(Queue);
+    return true;
+  });
 }
 
 bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t Pool) {

@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "common.hpp"
 #include <ur_api.h>
 #include <ur_ddi.h>
 
@@ -461,6 +462,43 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
+                                                   ur_dditable_t *pDdiTable) {
+  urGetGlobalProcAddrTable(version, &pDdiTable->Global);
+  urGetBindlessImagesExpProcAddrTable(version, &pDdiTable->BindlessImagesExp);
+  urGetCommandBufferExpProcAddrTable(version, &pDdiTable->CommandBufferExp);
+  urGetContextProcAddrTable(version, &pDdiTable->Context);
+  urGetEnqueueProcAddrTable(version, &pDdiTable->Enqueue);
+  urGetEnqueueExpProcAddrTable(version, &pDdiTable->EnqueueExp);
+  urGetEventProcAddrTable(version, &pDdiTable->Event);
+  urGetKernelProcAddrTable(version, &pDdiTable->Kernel);
+  urGetKernelExpProcAddrTable(version, &pDdiTable->KernelExp);
+  urGetMemProcAddrTable(version, &pDdiTable->Mem);
+  urGetPhysicalMemProcAddrTable(version, &pDdiTable->PhysicalMem);
+  urGetPlatformProcAddrTable(version, &pDdiTable->Platform);
+  urGetProgramProcAddrTable(version, &pDdiTable->Program);
+  urGetProgramExpProcAddrTable(version, &pDdiTable->ProgramExp);
+  urGetQueueProcAddrTable(version, &pDdiTable->Queue);
+  urGetSamplerProcAddrTable(version, &pDdiTable->Sampler);
+  urGetUSMProcAddrTable(version, &pDdiTable->USM);
+  urGetUSMExpProcAddrTable(version, &pDdiTable->USMExp);
+  urGetUsmP2PExpProcAddrTable(version, &pDdiTable->UsmP2PExp);
+  urGetVirtualMemProcAddrTable(version, &pDdiTable->VirtualMem);
+  urGetDeviceProcAddrTable(version, &pDdiTable->Device);
+  urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
+
+  return UR_RESULT_SUCCESS;
+}
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
+
+const ur_dditable_t *ur::opencl::ddi_getter::value() {
+  static std::once_flag flag;
+  static ur_dditable_t table;
+
+  std::call_once(flag,
+                 []() { urAllAddrTable(UR_API_VERSION_CURRENT, &table); });
+  return &table;
+}

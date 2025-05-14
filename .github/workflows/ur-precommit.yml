@@ -77,12 +77,10 @@ jobs:
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
           - name: OPENCL
             runner: UR_OPENCL
-            platform: "Intel(R) OpenCL"
             docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
           - name: OPENCL
             runner: UR_OPENCL
-            platform: "OPENCL:Intel(R) OpenCL"
             other_adapter: NATIVE_CPU
             docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
@@ -96,7 +94,6 @@ jobs:
       runner_name: ${{ matrix.runner }}
       static_loader: ${{ matrix.static || 'OFF' }}
       static_adapter: ${{ matrix.static || 'OFF' }}
-      platform: ${{ matrix.platform || '' }}
       other_adapter_name: ${{ matrix.other_adapter || '' }}
       docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       image_options: ${{ matrix.image_options || '' }}
