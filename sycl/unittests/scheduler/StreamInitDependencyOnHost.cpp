@@ -29,8 +29,7 @@ public:
     switch (getType()) {
     case detail::CGType::Kernel: {
       CommandGroup.reset(new detail::CGExecKernel(
-          getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(impl->MKernelBundle),
+          getNDRDesc(), getKernel(), std::move(impl->MKernelBundle),
           detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
                                         getSharedPtrStorage(),
                                         getRequirements(), getEvents()),
