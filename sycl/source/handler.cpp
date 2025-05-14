@@ -521,8 +521,8 @@ event handler::finalize() {
       const detail::EventImplPtr &LastEventImpl =
           detail::getSyclObjImpl(MLastEvent);
 
-      bool DiscardEvent = (MQueue->MDiscardEvents || !impl->MEventNeeded) &&
-                          MQueue->supportsDiscardingPiEvents();
+      bool DiscardEvent =
+          !impl->MEventNeeded && MQueue->supportsDiscardingPiEvents();
       if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
