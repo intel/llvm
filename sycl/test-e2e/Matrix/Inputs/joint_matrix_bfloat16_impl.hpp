@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-template <typename T, typename TAcc, typename TResult, size_t TM, size_t TN, size_t TK> class imatrix;
+template <typename T, typename TAcc, typename TResult, size_t TM, size_t TN,
+          size_t TK>
+class imatrix;
 
-template <typename T, typename TAcc, typename TResult, size_t M, size_t N, size_t K, size_t TM,
-          size_t TN, size_t TK>
-void matrix_multiply(big_matrix<TResult, M, N> &D, big_matrix<TAcc, M, N> &C, big_matrix<T, M, K> &A,
-                     big_matrix<T, K, N> &B) {
+template <typename T, typename TAcc, typename TResult, size_t M, size_t N,
+          size_t K, size_t TM, size_t TN, size_t TK>
+void matrix_multiply(big_matrix<TResult, M, N> &D, big_matrix<TAcc, M, N> &C,
+                     big_matrix<T, M, K> &A, big_matrix<T, K, N> &B) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
   buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
@@ -57,7 +59,6 @@ void matrix_multiply(big_matrix<TResult, M, N> &D, big_matrix<TAcc, M, N> &C, bi
                    (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
 
-
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
                  sg, sub_a,
@@ -69,7 +70,8 @@ void matrix_multiply(big_matrix<TResult, M, N> &D, big_matrix<TAcc, M, N> &C, bi
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK) * (N) + sg_starty / sg_size * TN,
                  N);
-             joint_matrix_mad<sub_group, T, T, TAcc, TResult>(sg, sub_d, sub_a, sub_b, sub_c);
+             joint_matrix_mad<sub_group, T, T, TAcc, TResult>(sg, sub_d, sub_a,
+                                                              sub_b, sub_c);
              joint_matrix_copy(sg, sub_d, sub_c);
            }
 
@@ -99,13 +101,12 @@ void test() {
   TResult DRef[MATRIX_M][MATRIX_N];
 
   if (std::is_same_v<TAcc, bfloat16> || std::is_same_v<TResult, bfloat16>) {
-    matrix_rand<T>(MATRIX_M, MATRIX_K, (T*)A, T(1));
-    matrix_rand<T>(MATRIX_K, MATRIX_N, (T*)B, T(1));
+    matrix_rand<T>(MATRIX_M, MATRIX_K, (T *)A, T(1));
+    matrix_rand<T>(MATRIX_K, MATRIX_N, (T *)B, T(1));
   } else {
     matrix_fill(MATRIX_M, MATRIX_K, (T *)A,
-                [](int i, int j) { return (i==j) ? T(1) : T(0); });
-    matrix_fill(MATRIX_K, MATRIX_N, (T *)B,
-                [](int i, int j) { return i; });
+                [](int i, int j) { return (i == j) ? T(1) : T(0); });
+    matrix_fill(MATRIX_K, MATRIX_N, (T *)B, [](int i, int j) { return i; });
   }
 
   matrix_fill(MATRIX_M, MATRIX_N, (TAcc *)C, TAcc(0));
@@ -116,11 +117,11 @@ void test() {
   big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
   big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
   big_matrix<T, MATRIX_K, MATRIX_N> MB((T *)&B);
-  matrix_multiply<T, TAcc, TResult, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(MD, MC, MA,
-                                                                     MB);
-  
+  matrix_multiply<T, TAcc, TResult, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(
+      MD, MC, MA, MB);
+
   matrix_multiply_ref<T, T, TResult>((T *)A, (T *)B, (TResult *)DRef, MATRIX_M,
-                                        MATRIX_N, MATRIX_K);
+                                     MATRIX_N, MATRIX_K);
   assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)D, (TResult *)DRef));
 }
 
@@ -140,8 +141,8 @@ int main() {
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
       test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
 
-      // These combinations are not currently supported for sub group size = 32 in
-      // IGC
+      // These combinations are not currently supported for sub group size = 32
+      // in IGC
 #if (!defined(SG_SZ) || SG_SZ != 32)
 #if (!defined(ACC_BFLOAT16))
       test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
@@ -152,40 +153,40 @@ int main() {
 #endif
 #if (defined(ACC_BFLOAT16))
       // 8x16x16
-      test<bfloat16, bfloat16, float,    /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
-      test<bfloat16, float,    bfloat16, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, bfloat16, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, bfloat16, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
       test<bfloat16, bfloat16, bfloat16, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
-      test<bfloat16, float,    float,    /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
 
       // 16x16x16
-      test<bfloat16, bfloat16, float,    /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
-      test<bfloat16, float,    bfloat16, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, bfloat16, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, bfloat16, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       test<bfloat16, bfloat16, bfloat16, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
-      test<bfloat16, float,     float,   /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
 
       // 1x64x16
-      test<bfloat16, bfloat16, float,    /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
-      test<bfloat16, float,    bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, float, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
       test<bfloat16, bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
-      test<bfloat16, float,    float,    /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
 
       // 1x64x32
-      test<bfloat16, bfloat16, float,    /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
-      test<bfloat16, float,    bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      test<bfloat16, bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      test<bfloat16, float, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
       test<bfloat16, bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
-      test<bfloat16, float,    float,    /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      test<bfloat16, float, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
 
       // 32x64x16
-      test<bfloat16, bfloat16, float,    /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      test<bfloat16, float,    bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, float, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
       test<bfloat16, bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      test<bfloat16, float,    float,    /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
 
       // 32x64x32
-      test<bfloat16, bfloat16, float,    /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
-      test<bfloat16, float,    bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      test<bfloat16, bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      test<bfloat16, float, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
       test<bfloat16, bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
-      test<bfloat16, float,    float,    /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      test<bfloat16, float, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
 #endif
 #endif
       break;
