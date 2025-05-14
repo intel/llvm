@@ -2326,16 +2326,9 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
   /// [::ur_bool_t] support for native bfloat16 conversions
   UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
-  /// [::ur_bool_t] return true if the device supports use of
-  /// ::UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and
-  /// ::urKernelSuggestMaxCooperativeGroupCount.
-  UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT = 128,
-  /// [::ur_bool_t] return true if the device supports use of
-  /// ::UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION.
-  UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT = 129,
-  /// [::ur_bool_t] return true if the device supports use of
-  /// ::UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY.
-  UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT = 130,
+  /// [::ur_kernel_launch_properties_support_flags_t] Bitfield of supported
+  /// kernel launch properties.
+  UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT = 128,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -3011,6 +3004,25 @@ typedef enum ur_device_throttle_reasons_flag_t {
 } ur_device_throttle_reasons_flag_t;
 /// @brief Bit Mask for validating ur_device_throttle_reasons_flags_t
 #define UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK 0xffffff80
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Kernel launch properties support
+typedef uint32_t ur_kernel_launch_properties_support_flags_t;
+typedef enum ur_kernel_launch_properties_support_flag_t {
+  /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and
+  /// ::urKernelSuggestMaxCooperativeGroupCount
+  UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE = UR_BIT(0),
+  /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION
+  UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION = UR_BIT(1),
+  /// Supports ::ur_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY
+  UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_WORK_GROUP_MEMORY = UR_BIT(2),
+  /// @cond
+  UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_kernel_launch_properties_support_flag_t;
+/// @brief Bit Mask for validating ur_kernel_launch_properties_support_flags_t
+#define UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAGS_MASK 0xfffffff8
 
 #if !defined(__GNUC__)
 #pragma endregion

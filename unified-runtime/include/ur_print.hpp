@@ -107,6 +107,11 @@ inline ur_result_t
 printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
+inline ur_result_t
+printFlag<ur_kernel_launch_properties_support_flag_t>(std::ostream &os,
+                                                      uint32_t flag);
+
+template <>
 inline ur_result_t printFlag<ur_context_flag_t>(std::ostream &os,
                                                 uint32_t flag);
 
@@ -339,6 +344,9 @@ inline std::ostream &
 operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_throttle_reasons_flag_t value);
+inline std::ostream &
+operator<<(std::ostream &os,
+           enum ur_kernel_launch_properties_support_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
@@ -3011,14 +3019,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
     os << "UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE";
     break;
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT:
-    os << "UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT";
-    break;
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT:
-    os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT";
-    break;
-  case UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT:
-    os << "UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT";
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT:
+    os << "UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4756,42 +4758,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT: {
-    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-    if (sizeof(ur_bool_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT: {
+    const ur_kernel_launch_properties_support_flags_t *tptr =
+        (const ur_kernel_launch_properties_support_flags_t *)ptr;
+    if (sizeof(ur_kernel_launch_properties_support_flags_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >="
+         << sizeof(ur_kernel_launch_properties_support_flags_t) << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
 
-    os << *tptr;
-
-    os << ")";
-  } break;
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT: {
-    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-    if (sizeof(ur_bool_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_bool_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
-  case UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT: {
-    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-    if (sizeof(ur_bool_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_bool_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
+    ur::details::printFlag<ur_kernel_launch_properties_support_flag_t>(os,
+                                                                       *tptr);
 
     os << ")";
   } break;
@@ -6220,6 +6198,85 @@ printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag) {
       first = false;
     }
     os << UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_launch_properties_support_flag_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           enum ur_kernel_launch_properties_support_flag_t value) {
+  switch (value) {
+  case UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE:
+    os << "UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE";
+    break;
+  case UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION:
+    os << "UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION";
+    break;
+  case UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_WORK_GROUP_MEMORY:
+    os << "UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_WORK_GROUP_MEMORY";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_launch_properties_support_flag_t flag
+template <>
+inline ur_result_t
+printFlag<ur_kernel_launch_properties_support_flag_t>(std::ostream &os,
+                                                      uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE) ==
+      (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE;
+  }
+
+  if ((val & UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION) ==
+      (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION;
+  }
+
+  if ((val & UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_WORK_GROUP_MEMORY) ==
+      (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_WORK_GROUP_MEMORY) {
+    val ^= (uint32_t)UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_WORK_GROUP_MEMORY;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_WORK_GROUP_MEMORY;
   }
   if (val != 0) {
     std::bitset<32> bits(val);

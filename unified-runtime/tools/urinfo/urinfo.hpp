@@ -344,13 +344,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT);
-  std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT);
-  std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_IMPLICIT_WORK_GROUP_MEMORY_SUPPORT);
+  printDeviceInfo<ur_kernel_launch_properties_support_flags_t>(
+      hDevice, UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);

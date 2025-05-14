@@ -86,43 +86,30 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(backend), &backend, nullptr));
 
-  if (backend == UR_PLATFORM_BACKEND_CUDA) {
-    size_t returned_size = 0;
-    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_VERSION, 0, nullptr,
-                                   &returned_size));
+  ur_kernel_launch_properties_support_flags_t supported_properties = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(
+      device, UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT,
+      sizeof(supported_properties), &supported_properties, nullptr));
 
-    std::unique_ptr<char[]> returned_compute_capability(
-        new char[returned_size]);
-
-    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_VERSION,
-                                   returned_size,
-                                   returned_compute_capability.get(), nullptr));
-
-    auto compute_capability =
-        std::stof(std::string(returned_compute_capability.get()));
-
-    if (compute_capability >= 6.0) {
-      ur_kernel_launch_property_t coop_prop;
-      coop_prop.id = UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE;
-      coop_prop.value.cooperative = 1;
-      props.push_back(coop_prop);
-    }
-
-    ur_bool_t cluster_launch_supported = false;
-    ASSERT_SUCCESS(
-        urDeviceGetInfo(device, UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT,
-                        sizeof(ur_bool_t), &cluster_launch_supported, nullptr));
-
-    if (cluster_launch_supported) {
-      ur_kernel_launch_property_t cluster_dims_prop;
-      cluster_dims_prop.id = UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION;
-      cluster_dims_prop.value.clusterDim[0] = 16;
-      cluster_dims_prop.value.clusterDim[1] = 1;
-      cluster_dims_prop.value.clusterDim[2] = 1;
-
-      props.push_back(cluster_dims_prop);
-    }
+  if (supported_properties &
+      UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE) {
+    ur_kernel_launch_property_t coop_prop;
+    coop_prop.id = UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE;
+    coop_prop.value.cooperative = 1;
+    props.push_back(coop_prop);
   }
+
+  if (supported_properties &
+      UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION) {
+    ur_kernel_launch_property_t cluster_dims_prop;
+    cluster_dims_prop.id = UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION;
+    cluster_dims_prop.value.clusterDim[0] = 16;
+    cluster_dims_prop.value.clusterDim[1] = 1;
+    cluster_dims_prop.value.clusterDim[2] = 1;
+
+    props.push_back(cluster_dims_prop);
+  }
+
   ur_mem_handle_t buffer = nullptr;
   AddBuffer1DArg(sizeof(val) * global_size, &buffer);
   AddPodArg(val);

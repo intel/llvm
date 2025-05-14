@@ -300,6 +300,14 @@ urPrintDeviceThrottleReasonsFlags(enum ur_device_throttle_reasons_flag_t value,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintKernelLaunchPropertiesSupportFlags(
+    enum ur_kernel_launch_properties_support_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintContextFlags(enum ur_context_flag_t value, char *buffer,
                                 const size_t buff_size, size_t *out_size) {
   std::stringstream ss;

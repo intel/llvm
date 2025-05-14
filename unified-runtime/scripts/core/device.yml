@@ -462,12 +462,8 @@ etors:
       desc: "[int32_t][optional-query] return max power limit in milliwatts."
     - name: BFLOAT16_CONVERSIONS_NATIVE
       desc: "[$x_bool_t] support for native bfloat16 conversions"
-    - name: COOPERATIVE_KERNEL_SUPPORT
-      desc: "[$x_bool_t] return true if the device supports use of $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and $xKernelSuggestMaxCooperativeGroupCount."
-    - name: CLUSTER_LAUNCH_SUPPORT
-      desc: "[$x_bool_t] return true if the device supports use of $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION."
-    - name: IMPLICIT_WORK_GROUP_MEMORY_SUPPORT
-      desc: "[$x_bool_t] return true if the device supports use of $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY."
+    - name: KERNEL_LAUNCH_PROPERTIES_SUPPORT
+      desc: "[$x_kernel_launch_properties_support_flags_t] Bitfield of supported kernel launch properties."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -977,3 +973,18 @@ etors:
     - name: OTHER
       desc: "The clock frequency is throttled due to other reason."
       value: "$X_BIT(6)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Kernel launch properties support"
+class: $xDevice
+name: $x_kernel_launch_properties_support_flags_t
+etors:
+    - name: COOPERATIVE
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and $xKernelSuggestMaxCooperativeGroupCount"
+      value: "$X_BIT(0)"
+    - name: CLUSTER_DIMENSION
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION"
+      value: "$X_BIT(1)"
+    - name: WORK_GROUP_MEMORY
+      desc: "Supports $x_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY"
+      value: "$X_BIT(2)"

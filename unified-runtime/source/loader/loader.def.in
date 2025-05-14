@@ -373,6 +373,7 @@ EXPORTS
 	urPrintKernelGetSuggestedLocalWorkSizeParams
 	urPrintKernelGroupInfo
 	urPrintKernelInfo
+	urPrintKernelLaunchPropertiesSupportFlags
 	urPrintKernelLaunchProperty
 	urPrintKernelLaunchPropertyId
 	urPrintKernelNativeProperties

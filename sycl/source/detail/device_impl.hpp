@@ -510,12 +510,12 @@ public:
     }
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
-      if (getBackend() != backend::ext_oneapi_cuda)
-        return false;
-
-      return get_info_impl_nocheck<ur_bool_t,
-                                   UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT>()
-          .value_or(0);
+      auto SupportFlags =
+          get_info_impl<ur_kernel_launch_properties_support_flags_t,
+                        UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT>();
+      return static_cast<bool>(
+          SupportFlags &
+          UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION);
     }
 
     // ext_codeplay_device_traits.def

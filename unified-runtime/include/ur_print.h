@@ -353,6 +353,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintDeviceThrottleReasonsFlags(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_launch_properties_support_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelLaunchPropertiesSupportFlags(
+    enum ur_kernel_launch_properties_support_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_context_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
