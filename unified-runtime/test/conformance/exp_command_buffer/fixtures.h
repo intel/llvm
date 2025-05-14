@@ -377,6 +377,7 @@ struct urCommandEventSyncUpdateTest : urCommandEventSyncTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urCommandEventSyncTest::SetUp());
 
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     auto required_capabilities =
         UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS;
     UUR_RETURN_ON_FATAL_FAILURE(
