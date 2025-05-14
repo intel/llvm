@@ -163,5 +163,5 @@ class Suite(ABC):
     def setup(self):
         return
 
-    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+    def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {}
