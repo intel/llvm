@@ -766,6 +766,7 @@ protected:
 
     auto Event = Handler.finalize();
     EventToBuildDeps = getSyclObjImpl(Event);
+    assert(!EventToBuildDeps->isDiscarded());
     return Event;
   }
 
@@ -800,7 +801,9 @@ protected:
 
     auto EventRet = Handler.finalize();
 
-    if (!getSyclObjImpl(EventRet)->isDiscarded()) {
+    if (getSyclObjImpl(EventRet)->isDiscarded()) {
+      EventToBuildDeps = nullptr;
+    } else {
       MNoEventMode = false;
       EventToBuildDeps = getSyclObjImpl(EventRet);
 

@@ -756,17 +756,14 @@ bool queue_impl::queue_empty() const {
   // If we have in-order queue with non-empty last event, just check its status.
   if (isInOrder()) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    if (MDefaultGraphDeps.LastEventPtr)
+    if (MEmpty)
+      return true;
+
+    if (MDefaultGraphDeps.LastEventPtr &&
+        !MDefaultGraphDeps.LastEventPtr->isDiscarded())
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==
              info::event_command_status::complete;
-    else if (getContextImplPtr()->getBackend() == backend::opencl) {
-      assert(!MNoEventMode);
-      // openCL does not support urQueueGetInfo and will never have
-      // MNoEventMode set, so if there is no last event, the queue
-      // must be empty.
-      return true;
-    }
   }
 
   // Check the status of the backend queue if this is not a host queue.
