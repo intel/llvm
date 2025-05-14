@@ -986,5 +986,5 @@ etors:
       desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION"
       value: "$X_BIT(1)"
     - name: WORK_GROUP_MEMORY
-      desc: "Supports $x_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY"
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY"
       value: "$X_BIT(2)"

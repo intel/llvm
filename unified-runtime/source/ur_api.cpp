@@ -3862,7 +3862,9 @@ ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 ///         + `NULL == pGroupCountRet`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If ::UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT query is false
+///         + If ::UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT returns a
+///         value without the
+///         ::UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE bit set.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///         + `workDim < 1 || workDim > 3`
 ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(

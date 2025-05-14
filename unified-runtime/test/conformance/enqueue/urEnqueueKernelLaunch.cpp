@@ -82,10 +82,6 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
   std::vector<ur_kernel_launch_property_t> props(1);
   props[0].id = UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE;
 
-  ur_platform_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(backend), &backend, nullptr));
-
   ur_kernel_launch_properties_support_flags_t supported_properties = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(
       device, UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT,
