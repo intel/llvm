@@ -57,7 +57,7 @@ ur_result_t commandHandleDestroy(
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t Context, ur_device_handle_t Device, bool IsUpdatable)
-    : Context(Context), Device(Device), IsUpdatable(IsUpdatable),
+    : handle_base(), Context(Context), Device(Device), IsUpdatable(IsUpdatable),
       CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1},
       NextSyncPoint{0} {
   urContextRetain(Context);

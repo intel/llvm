@@ -250,13 +250,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 uint32_t NumEntries,
                                 ur_device_handle_t *phDevices,
                                 uint32_t *pNumDevices) {
-  constexpr std::pair<const ur_platform_backend_t, const char *> adapters[6] = {
-      {UR_PLATFORM_BACKEND_UNKNOWN, "*"},
-      {UR_PLATFORM_BACKEND_LEVEL_ZERO, "level_zero"},
-      {UR_PLATFORM_BACKEND_OPENCL, "opencl"},
-      {UR_PLATFORM_BACKEND_CUDA, "cuda"},
-      {UR_PLATFORM_BACKEND_HIP, "hip"},
-      {UR_PLATFORM_BACKEND_NATIVE_CPU, "native_cpu"}};
+  constexpr std::pair<const ur_backend_t, const char *> adapters[6] = {
+      {UR_BACKEND_UNKNOWN, "*"},     {UR_BACKEND_LEVEL_ZERO, "level_zero"},
+      {UR_BACKEND_OPENCL, "opencl"}, {UR_BACKEND_CUDA, "cuda"},
+      {UR_BACKEND_HIP, "hip"},       {UR_BACKEND_NATIVE_CPU, "native_cpu"}};
 
   if (!hPlatform) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
@@ -387,10 +384,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
       ")$",
       std::regex_constants::icase);
 
-  ur_platform_backend_t platformBackend;
+  ur_backend_t platformBackend;
   if (UR_RESULT_SUCCESS !=
       urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
-                        sizeof(ur_platform_backend_t), &platformBackend, 0)) {
+                        sizeof(ur_backend_t), &platformBackend, 0)) {
     return UR_RESULT_ERROR_INVALID_PLATFORM;
   }
 

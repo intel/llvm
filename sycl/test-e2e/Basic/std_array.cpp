@@ -1,6 +1,8 @@
 // Check that std::array is supported on device in debug mode on Windows.
 
 // REQUIRES: windows
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18458
 
 // RUN: %clangxx --driver-mode=cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc
 // RUN: %{run} %t.exe
