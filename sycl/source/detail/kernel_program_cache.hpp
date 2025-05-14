@@ -247,7 +247,7 @@ public:
                         const AdapterPtr &Adapter)
         : MKernelHandle(KernelHandle), MMutex(Mutex),
           MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle),
-          MAdapterWeakPtr(Adapter) { }
+          MAdapterWeakPtr(Adapter) {}
 
     ~KernelFastCacheValT() {
       if (AdapterPtr Adapter = MAdapterWeakPtr.lock()) {
