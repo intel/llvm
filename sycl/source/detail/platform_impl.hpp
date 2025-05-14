@@ -43,10 +43,10 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
                          const std::shared_ptr<Adapter> &AAdapter)
       : MPlatform(APlatform), MAdapter(AAdapter) {
     // Find out backend of the platform
-    ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
+    ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
     AAdapter->call_nocheck<UrApiKind::urPlatformGetInfo>(
-        APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
-        &UrBackend, nullptr);
+        APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
+        nullptr);
     MBackend = convertUrBackend(UrBackend);
   }
 
