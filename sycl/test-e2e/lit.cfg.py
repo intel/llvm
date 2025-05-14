@@ -529,8 +529,6 @@ if cl_options:
         + " /I"
         + config.hip_include
     )
-if platform.system() == "Windows":
-    hip_options += " --rocm-path=" + os.path.dirname(config.hip_libs_dir) + f'"'
 with test_env():
     sp = subprocess.getstatusoutput(
         config.dpcpp_compiler + " -fsycl  " + check_hip_file + hip_options
