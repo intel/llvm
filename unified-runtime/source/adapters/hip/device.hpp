@@ -32,6 +32,7 @@ private:
   int MaxBlockDimY{0};
   int MaxBlockDimZ{0};
   int DeviceMaxLocalMem{0};
+  int MaxChosenLocalMem{0};
   int ManagedMemSupport{0};
   int ConcurrentManagedAccess{0};
   bool HardwareImageSupport{false};
@@ -64,6 +65,27 @@ public:
         hipDeviceGetAttribute(&Ret, hipDeviceAttributeImageSupport, HIPDevice));
     assert(Ret == 0 || Ret == 1);
     HardwareImageSupport = Ret == 1;
+
+    // Set local mem max size if env var is present
+    static const char *LocalMemSzPtrUR =
+        std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSzPtrPI =
+        std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSzPtr =
+        LocalMemSzPtrUR ? LocalMemSzPtrUR
+                        : (LocalMemSzPtrPI ? LocalMemSzPtrPI : nullptr);
+
+    if (LocalMemSzPtr) {
+      MaxChosenLocalMem = std::atoi(LocalMemSzPtr);
+      if (MaxChosenLocalMem <= 0 || MaxChosenLocalMem > DeviceMaxLocalMem) {
+        setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
+                                          "UR_HIP_MAX_LOCAL_MEM_SIZE"
+                                        : "Invalid value specified for "
+                                          "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
+                        UR_RESULT_ERROR_OUT_OF_RESOURCES);
+        throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+    }
   }
 
   ~ur_device_handle_t_() noexcept(false) {}
@@ -89,6 +111,8 @@ public:
   int getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
 
   int getDeviceMaxLocalMem() const noexcept { return DeviceMaxLocalMem; };
+
+  int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
 
   int getManagedMemSupport() const noexcept { return ManagedMemSupport; };
 

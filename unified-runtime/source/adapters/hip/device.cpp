@@ -382,12 +382,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to HIP's "shared memory".
     // HIP has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    int LocalMemSize = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &LocalMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock,
-        hDevice->get()));
-    assert(LocalMemSize >= 0);
-    return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    if (hDevice->getMaxChosenLocalMem()) {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
+    } else {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getDeviceMaxLocalMem()));
+    }
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int EccEnabled = 0;

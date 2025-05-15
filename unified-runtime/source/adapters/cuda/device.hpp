@@ -34,7 +34,6 @@ private:
   int MaxRegsPerBlock{0};
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
-  bool MaxLocalMemSizeChosen{false};
   uint32_t NumComputeUnits{0};
   std::once_flag NVMLInitFlag;
   std::optional<nvmlDevice_t> NVMLDevice;
@@ -74,7 +73,14 @@ public:
 
     if (LocalMemSizePtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
-      MaxLocalMemSizeChosen = true;
+      if (MaxChosenLocalMem <= 0) {
+        setErrorMessage(LocalMemSizePtrUR ? "Invalid value specified for "
+                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
+                                          : "Invalid value specified for "
+                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+                        UR_RESULT_ERROR_INVALID_VALUE);
+        throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
     }
 
     // Max size of memory object allocation in bytes.
@@ -150,8 +156,6 @@ public:
   int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
   int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
-
-  bool maxLocalMemSizeChosen() { return MaxLocalMemSizeChosen; };
 
   uint32_t getNumComputeUnits() const noexcept { return NumComputeUnits; };
 

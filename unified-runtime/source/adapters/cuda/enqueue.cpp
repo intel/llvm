@@ -254,36 +254,21 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
 
-    if (Device->maxLocalMemSizeChosen()) {
-      // Set up local memory requirements for kernel.
-      if (Device->getMaxChosenLocalMem() < 0) {
-        bool EnvVarHasURPrefix =
-            std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
-        setErrorMessage(EnvVarHasURPrefix ? "Invalid value specified for "
-                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
-                                          : "Invalid value specified for "
-                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_INVALID_VALUE);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
-      if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
-        bool EnvVarHasURPrefix =
-            std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
+    if (int MaxLocalMem = Device->getMaxChosenLocalMem()) {
+      if (LocalSize > static_cast<uint32_t>(MaxLocalMem)) {
         setErrorMessage(
-            EnvVarHasURPrefix
-                ? "Local memory for kernel exceeds the amount requested using "
-                  "UR_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value of "
-                  "UR_CUDA_MAX_LOCAL_MEM_SIZE."
-                : "Local memory for kernel exceeds the amount requested using "
-                  "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the the "
-                  "value of SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
+            "Local memory for kernel exceeds the amount requested using "
+            "UR_CUDA_MAX_LOCAL_MEM_SIZE (or deprecated "
+            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE). Try increasing the maximum "
+            "local memory.",
             UR_RESULT_ERROR_OUT_OF_RESOURCES);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
+
+      // Set up local memory requirements for kernel.
       UR_CHECK_ERROR(cuFuncSetAttribute(
           CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
-          Device->getMaxChosenLocalMem()));
-
+          MaxLocalMem));
     } else if (LocalSize > 48 * 1024) {
       // CUDA requires explicit carveout of dynamic shared memory size if larger
       // than 48 kB, otherwise cuLaunchKernel fails.
