@@ -39,7 +39,7 @@ template <backend BE> const AdapterPtr &getAdapter();
 } // namespace ur
 
 // Convert from UR backend to SYCL backend enum
-backend convertUrBackend(ur_platform_backend_t UrBackend);
+backend convertUrBackend(ur_backend_t UrBackend);
 
 template <auto ApiKind, typename SyclImplTy, typename DescTy>
 std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {

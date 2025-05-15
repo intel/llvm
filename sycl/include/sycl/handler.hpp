@@ -426,8 +426,23 @@ private:
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  handler(const std::shared_ptr<detail::queue_impl> &Queue,
+          bool CallerNeedsEvent);
+#else
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
+#endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs SYCL handler from the pre-constructed handler_impl and the
+  /// associated queue. Inside of Graph implementation, the Queue value is not
+  /// used, for those cases it can be initialized with an empty shared_ptr.
+  ///
+  /// \param HandlerImpl is a pre-constructed handler_impl.
+  /// \param Queue is a SYCL queue.
+  handler(detail::handler_impl *HandlerImpl,
+          const std::shared_ptr<detail::queue_impl> &Queue);
+#else
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -449,7 +464,9 @@ private:
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
                            detail::queue_impl *SecondaryQueue,
                            bool CallerNeedsEvent);
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from Graph.
   ///
   /// The handler will add the command-group as a node to the graph rather than
@@ -457,6 +474,7 @@ private:
   ///
   /// \param Graph is a SYCL command_graph
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
+#endif
 
   void *storeRawArg(const void *Ptr, size_t Size);
 
@@ -676,6 +694,8 @@ private:
     addArg(detail::kernel_param_kind_t::kind_sampler, StoredArg,
            sizeof(sampler), ArgIndex);
   }
+
+  void setArgHelper(int ArgIndex, stream &&Str);
 
   // setArgHelper for graph dynamic_parameters
   template <typename T>
@@ -1743,7 +1763,8 @@ public:
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value;         // Interop
+        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<stream, T>::value;         // Stream
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -3272,8 +3293,18 @@ public:
       uint64_t SignalValue);
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // In some cases we need to construct handler_impl in heap. Sole propose
+  // of MImplOwner is to destroy handler_impl in destructor of handler.
+  // Can't use unique_ptr because declaration of handler_impl is not available
+  // in this header.
+  std::shared_ptr<detail::handler_impl> MImplOwner;
+  detail::handler_impl *impl;
+  const std::shared_ptr<detail::queue_impl> &MQueue;
+#else
   std::shared_ptr<detail::handler_impl> impl;
   std::shared_ptr<detail::queue_impl> MQueue;
+#endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::ABINeutralKernelNameStrT MKernelName;
@@ -3735,6 +3766,11 @@ private:
 
   friend class detail::HandlerAccess;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
+#else
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
+#endif
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
   ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
