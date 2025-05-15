@@ -88,6 +88,11 @@ std::optional<graph_mem_pool::alloc_info>
 graph_mem_pool::tryReuseExistingAllocation(
     size_t Size, usm::alloc AllocType, bool ReadOnly,
     const std::vector<std::shared_ptr<node_impl>> &DepNodes) {
+  // If we have no dependencies this is a no-op because allocations must connect
+  // to a free node for reuse to be possible.
+  // if (DepNodes.empty()) {
+  //   return std::nullopt;
+  // }
 
   std::vector<alloc_info> CompatibleAllocs;
   // Compatible allocs can only be as big as MFreeAllocations
