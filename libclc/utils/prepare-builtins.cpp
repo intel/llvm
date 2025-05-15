@@ -143,9 +143,11 @@ int main(int argc, char **argv) {
   //
   // NativeCPU uses the same builtins for multiple host targets and should
   // likewise not have features that limit the builtins to any particular
-  // target.
+  // target. It does not record any target triple so as to not confuse opt.
+  // TODO If this gets upstreamed into LLVM, it should be recognized in
+  // llvm::Triple.
   if (M->getTargetTriple().str().find("amdgcn") != std::string::npos ||
-      M->getTargetTriple().str() != "native_cpu") {
+      M->getTargetTriple().str() == "") {
     AttributeMask AM;
     AM.addAttribute("target-features");
     AM.addAttribute("target-cpu");
