@@ -53,8 +53,3 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       compiler: icx
-
-  macos_default:
-    name: macOS
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-macos-build-and-test.yml

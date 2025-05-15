@@ -128,7 +128,7 @@ jobs:
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
-          -t Debug
+          -t Debug ^
           --ci-defaults %ARGS% ^
           "-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
           "-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
