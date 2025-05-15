@@ -4000,8 +4000,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [in] sampler to be used
-    ur_sampler_handle_t hSampler,
+    /// [in] pointer to sampler description to be used
+    const ur_sampler_desc_t *pSamplerDesc,
     /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage) {
 
@@ -4014,7 +4014,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
   // forward to device-platform
   return pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                  pImageDesc, hSampler, phImage);
+                                  pImageDesc, pSamplerDesc, phImage);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
