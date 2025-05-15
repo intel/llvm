@@ -438,8 +438,10 @@ unsigned AMDGPUTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
 
 void AMDGPUTargetCodeGenInfo::setOCLKernelStubCallingConvention(
     const FunctionType *&FT) const {
+  bool IsSYCL = getABIInfo().getContext().getLangOpts().isSYCL();
   FT = getABIInfo().getContext().adjustFunctionType(
-      FT, FT->getExtInfo().withCallingConv(CC_AMDGPUKernelCall));
+      FT,
+      FT->getExtInfo().withCallingConv(!IsSYCL ? CC_C : CC_AMDGPUKernelCall));
 }
 
 // Currently LLVM assumes null pointers always have value 0,
