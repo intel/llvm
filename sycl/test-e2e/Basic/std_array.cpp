@@ -2,7 +2,8 @@
 
 // REQUIRES: windows
 
-// RUN: %clangxx --driver-mode=cl -fsycl -o %t.exe %s 
+// RUN: %clangxx --driver-mode=cl -fsycl -o %t.exe %s /Od /MDd /Zi
+
 // RUN: %{run} %t.exe
 
 #include <sycl/queue.hpp>
@@ -17,6 +18,5 @@ int main() {
     // arr[2] = 3;
   });
 
-///Od /MDd /Zi /EHsc
-  return 0;
+//  return 0;
 }
