@@ -697,6 +697,8 @@ private:
            sizeof(sampler), ArgIndex);
   }
 
+  void setArgHelper(int ArgIndex, stream &&Str);
+
   // setArgHelper for graph dynamic_parameters
   template <typename T>
   void
@@ -1796,7 +1798,8 @@ public:
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value;         // Interop
+        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<stream, T>::value;         // Stream
   };
 
   /// Sets argument for OpenCL interoperability kernels.

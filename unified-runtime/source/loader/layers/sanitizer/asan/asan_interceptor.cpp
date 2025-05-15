@@ -805,6 +805,11 @@ ur_result_t AsanInterceptor::prepareLaunch(
              LocalWorkSize[Dim];
   }
 
+  uint64_t NumWI = 1;
+  for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+    NumWI *= LaunchInfo.GlobalWorkSize[Dim];
+  }
+
   // Prepare asan runtime data
   LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
@@ -825,7 +830,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
                GetKernelName(Kernel));
     } else {
       UR_LOG_L(getContext()->logger, INFO,
-               "ShadowMemory(Local, WorkGroup{}, {} - {})", NumWG,
+               "ShadowMemory(Local, WorkGroup={}, {} - {})", NumWG,
                (void *)LaunchInfo.Data.Host.LocalShadowOffset,
                (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
     }
@@ -834,7 +839,8 @@ ur_result_t AsanInterceptor::prepareLaunch(
   // Write shadow memory offset for private memory
   if (getContext()->Options.DetectPrivates) {
     if (DeviceInfo->Shadow->AllocPrivateShadow(
-            Queue, NumWG, LaunchInfo.Data.Host.PrivateShadowOffset,
+            Queue, NumWI, NumWG, LaunchInfo.Data.Host.PrivateBase,
+            LaunchInfo.Data.Host.PrivateShadowOffset,
             LaunchInfo.Data.Host.PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, WARN,
                "Failed to allocate shadow memory for private memory, "
@@ -843,9 +849,10 @@ ur_result_t AsanInterceptor::prepareLaunch(
       UR_LOG_L(getContext()->logger, WARN,
                "Skip checking private memory of kernel <{}>",
                GetKernelName(Kernel));
+      LaunchInfo.Data.Host.PrivateShadowOffset = 0;
     } else {
       UR_LOG_L(getContext()->logger, INFO,
-               "ShadowMemory(Private, WorkGroup{}, {} - {})", NumWG,
+               "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
                (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
                (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
     }
@@ -867,11 +874,17 @@ ur_result_t AsanInterceptor::prepareLaunch(
   UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
   UR_LOG_L(getContext()->logger, INFO,
-           "LaunchInfo {} (device={}, debug={}, numLocalArgs={}, localArgs={})",
+           "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
+           "PrivateShadow={}, LocalArgs={}, NumLocalArgs={}, "
+           "Device={}, Debug={})",
            (void *)LaunchInfo.Data.getDevicePtr(),
-           ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug,
+           (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
+           (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+           (void *)LaunchInfo.Data.Host.PrivateBase,
+           (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+           (void *)LaunchInfo.Data.Host.LocalArgs,
            LaunchInfo.Data.Host.NumLocalArgs,
-           (void *)LaunchInfo.Data.Host.LocalArgs);
+           ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
   return UR_RESULT_SUCCESS;
 }

@@ -86,17 +86,17 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest, CheckCompileAndLink) {
   // Level Zero and link only programs in Object state. OpenCL allows to compile
   // and link programs created from native binaries, so probably we should align
   // those two.
-  ur_platform_backend_t backend;
+  ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(backend), &backend, nullptr));
-  if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+  if (backend == UR_BACKEND_LEVEL_ZERO) {
     ASSERT_EQ(urProgramCompile(context, binary_program, nullptr),
               UR_RESULT_ERROR_INVALID_OPERATION);
     uur::raii::Program linked_program;
     ASSERT_EQ(urProgramLink(context, 1, &binary_program, nullptr,
                             linked_program.ptr()),
               UR_RESULT_ERROR_INVALID_OPERATION);
-  } else if (backend == UR_PLATFORM_BACKEND_OPENCL) {
+  } else if (backend == UR_BACKEND_OPENCL) {
     ASSERT_SUCCESS(urProgramCompile(context, binary_program, nullptr));
     uur::raii::Program linked_program;
     ASSERT_SUCCESS(urProgramLink(context, 1, &binary_program, nullptr,
@@ -124,10 +124,10 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
 // context.
 TEST_P(urMultiDeviceProgramCreateWithBinaryTest, MultipleBuildCalls) {
   // Run test only for level zero backend which supports urProgramBuildExp.
-  ur_platform_backend_t backend;
+  ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(backend), &backend, nullptr));
-  if (backend != UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+  if (backend != UR_BACKEND_LEVEL_ZERO) {
     GTEST_SKIP();
   }
   auto first_subset = std::vector<ur_device_handle_t>(

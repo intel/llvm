@@ -1141,6 +1141,12 @@ void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
          impl->MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
 }
 
+void handler::setArgHelper(int ArgIndex, stream &&Str) {
+  void *StoredArg = storePlainArg(Str);
+  addArg(detail::kernel_param_kind_t::kind_stream, StoredArg, sizeof(stream),
+         ArgIndex);
+}
+
 // The argument can take up more space to store additional information about
 // MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
 // We use the worst-case estimate because the lifetime of the vector is short.
