@@ -55,7 +55,7 @@ set(compile_opts
 set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 
 if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
-  list(APPEND compile_opts "--gcc-toolchain=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+  list(APPEND compile_opts "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
 endif()
 
 if (WIN32)
@@ -503,6 +503,10 @@ set(imf_host_cxx_flags -c
   --target=${LLVM_HOST_TRIPLE}
   -D__LIBDEVICE_HOST_IMPL__
 )
+if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
+  list(APPEND imf_host_cxx_flags "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
+
 
 macro(mangle_name str output)
   string(STRIP "${str}" strippedStr)
