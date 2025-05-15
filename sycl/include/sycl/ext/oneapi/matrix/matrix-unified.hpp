@@ -431,8 +431,7 @@ template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
     sycl::detail::convertTypeToMatrixTypeString<Tc>(),
     sycl::detail::convertTypeToMatrixTypeString<Td>(), M, K, N)]]
 #endif // defined(__SYCL_DEVICE_ONLY__)
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_mad(
+inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
     Group,
     joint_matrix<Group, Td, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
@@ -462,9 +461,9 @@ joint_matrix_mad(
   }
 #else
   constexpr uint32_t MatrixOperand =
-      sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc>();
-  D.spvm =
-      __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm, MatrixOperand);
+      sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc, Td>();
+  D.spvm = __spirv_CooperativeMatrixMulAddKHR<Ta, Tb, Tc, Td>(
+      A.spvm, B.spvm, C.spvm, MatrixOperand);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = A;
