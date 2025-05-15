@@ -4819,11 +4819,9 @@ public:
       int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
 
       SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
-          SYCLIntegrationHeader::kind_accessor;
-
-      if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)) {
-        ParamKind = SYCLIntegrationHeader::kind_dynamic_accessor;
-      }
+          SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
+              ? SYCLIntegrationHeader::kind_dynamic_accessor
+              : SYCLIntegrationHeader::kind_accessor;
 
       Header.addParamDesc(ParamKind, Info,
                           CurOffset +
@@ -4852,11 +4850,9 @@ public:
       int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
 
       SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
-          SYCLIntegrationHeader::kind_accessor;
-
-      if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)) {
-        ParamKind = SYCLIntegrationHeader::kind_dynamic_accessor;
-      }
+          SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
+              ? SYCLIntegrationHeader::kind_dynamic_accessor
+              : SYCLIntegrationHeader::kind_accessor;
 
       Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {

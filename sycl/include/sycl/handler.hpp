@@ -1837,8 +1837,7 @@ public:
   // set_arg for graph dynamic_parameters
   template <typename T>
   void set_arg(int argIndex,
-               [[maybe_unused]] ext::oneapi::experimental::dynamic_parameter<T>
-                   &dynamicParam) {
+               ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
     setArgHelper(argIndex, dynamicParam);
   }
 

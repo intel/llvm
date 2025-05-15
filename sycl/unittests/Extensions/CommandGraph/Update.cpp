@@ -28,7 +28,7 @@ TEST_F(CommandGraphTest, UpdatableException) {
 
 TEST_F(CommandGraphTest, DynamicObjRegister) {
   // Check that registering a dynamic object with a node from a graph that was
-  // not passed to its constructor throws.
+  // not passed to its constructor does not throw.
 
   auto CheckRegisterWrongGraph = [&](auto &DynObj) {
     auto OtherGraph =

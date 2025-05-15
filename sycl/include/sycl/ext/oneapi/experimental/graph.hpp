@@ -609,15 +609,15 @@ public:
   dynamic_work_group_memory() = default;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __SYCL_DEVICE_ONLY__
   /// Constructs a new dynamic_work_group_memory object.
   /// @param Num Number of elements in the unbounded array DataT.
   dynamic_work_group_memory(size_t Num)
-#ifndef __SYCL_DEVICE_ONLY__
       : detail::dynamic_work_group_memory_base(
-            Num * sizeof(std::remove_extent_t<DataT>))
+            Num * sizeof(std::remove_extent_t<DataT>)) {}
+#else
+  dynamic_work_group_memory(size_t /*Num*/) {}
 #endif
-  {
-  }
 #endif
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -625,19 +625,21 @@ public:
                     "object have been deprecated "
                     "and will be removed in the next ABI breaking window.")
 #endif
+
+#ifndef __SYCL_DEVICE_ONLY__
   /// Constructs a new dynamic_work_group_memory object.
   /// @param Graph The graph associated with this object.
   /// @param Num Number of elements in the unbounded array DataT.
   dynamic_work_group_memory(
-      [[maybe_unused]] experimental::command_graph<graph_state::modifiable>
-          Graph,
-      [[maybe_unused]] size_t Num)
-#ifndef __SYCL_DEVICE_ONLY__
+      experimental::command_graph<graph_state::modifiable> Graph, size_t Num)
       : detail::dynamic_work_group_memory_base(
-            Graph, Num * sizeof(std::remove_extent_t<DataT>))
+            Graph, Num * sizeof(std::remove_extent_t<DataT>)) {}
+
+#else
+  dynamic_work_group_memory(experimental::command_graph<graph_state::modifiable>
+                            /* Graph */,
+                            size_t /* Num */) {}
 #endif
-  {
-  }
 
   work_group_memory<DataT, PropertyListT> get() const {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -666,9 +668,7 @@ private:
       value_type, access::address_space::local_space>::type *;
 
   void __init(decoratedPtr Ptr) { this->WorkGroupMem.__init(Ptr); }
-#endif
 
-#ifdef __SYCL_DEVICE_ONLY__
   [[maybe_unused]] unsigned char
       Padding[sizeof(detail::dynamic_work_group_memory_base)];
 #endif
@@ -692,22 +692,23 @@ public:
   // closed.
   dynamic_local_accessor() = default;
 
+#ifndef __SYCL_DEVICE_ONLY__
   /// Constructs a new dynamic_local_accessor object.
   /// @param Graph The graph associated with this object.
   /// @param AllocationSize The size of the local accessor.
   /// @param PropList List of properties for the underlying accessor.
   dynamic_local_accessor(
-      [[maybe_unused]] experimental::command_graph<graph_state::modifiable>
-          Graph,
-      [[maybe_unused]] range<Dimensions> AllocationSize,
-      [[maybe_unused]] const property_list &PropList = {})
-#ifndef __SYCL_DEVICE_ONLY__
+      experimental::command_graph<graph_state::modifiable> /* Graph */,
+      range<Dimensions> AllocationSize, const property_list &PropList = {})
       : detail::dynamic_local_accessor_base(
             detail::convertToArrayOfN<3, 1>(AllocationSize), Dimensions,
-            sizeof(DataT), PropList)
+            sizeof(DataT), PropList) {}
+#else
+  dynamic_local_accessor(experimental::command_graph<graph_state::modifiable>
+                         /* Graph */,
+                         range<Dimensions> /* AllocationSize */,
+                         const property_list & /*PropList */ = {}) {}
 #endif
-  {
-  }
 
   local_accessor<DataT, Dimensions> get() const {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -736,9 +737,7 @@ private:
               id<Dimensions> id) {
     this->LocalAccessor.__init(Ptr, AccessRange, range, id);
   }
-#endif
 
-#ifdef __SYCL_DEVICE_ONLY__
   [[maybe_unused]] unsigned char
       Padding[sizeof(detail::dynamic_local_accessor_base)];
 #endif

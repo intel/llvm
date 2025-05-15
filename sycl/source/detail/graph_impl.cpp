@@ -2040,7 +2040,7 @@ dynamic_work_group_memory_base::dynamic_work_group_memory_base(
 #endif
 
 dynamic_work_group_memory_base::dynamic_work_group_memory_base(
-    [[maybe_unused]] experimental::command_graph<graph_state::modifiable> Graph,
+    experimental::command_graph<graph_state::modifiable> /* Graph */,
     size_t BufferSizeInBytes)
     : dynamic_parameter_base(
           std::make_shared<dynamic_work_group_memory_impl>(BufferSizeInBytes)) {

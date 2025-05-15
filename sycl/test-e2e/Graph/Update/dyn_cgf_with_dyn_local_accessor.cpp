@@ -5,7 +5,7 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// Tests using a dynamic command-group object with dynamic_work_group_memory.
+// Tests using a dynamic command-group object with dynamic_local_accessor.
 
 #include "../graph_common.hpp"
 #include <sycl/group_barrier.hpp>
