@@ -1079,10 +1079,8 @@ _Constraints:_
 
 
 
-_Preconditions:_
-
-* Valid `command_graph`
-  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
+_Preconditions:_ Valid `command_graph` constructor properties are listed in Section
+<<graph-properties, Graph Properties>>.
 
 _Throws:_
 
