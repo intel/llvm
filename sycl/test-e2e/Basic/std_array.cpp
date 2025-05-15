@@ -11,8 +11,8 @@ int main() {
   sycl::queue q;
 
   q.single_task([=]() {
-    std::array<int, 5> arr = {1, 2, 0, 4, 5};
-	int tmp = arr[0];
+    std::array<int, 5> arr;// = {1, 2, 0, 4, 5};
+	//int tmp = arr[0];
     // arr[2] = 3;
   });
 
