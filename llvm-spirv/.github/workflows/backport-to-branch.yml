@@ -177,3 +177,10 @@ jobs:
               issue_number: context.issue.number,
               body: `Success. Backport PR created: ${process.env.PR_URL}`
             });
+
+      - name: Notify workflows
+        if: env.CONFLICT == 'false'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: backport-complete
