@@ -12,7 +12,7 @@ int main() {
 
   q.single_task([=]() {
     std::array<int, 5> arr = {1, 2, 0, 4, 5};
-    arr[2] = 3;
+    // arr[2] = 3;
   });
 
   return 0;
