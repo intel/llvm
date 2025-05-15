@@ -6986,8 +6986,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [in] sampler to be used
-    ur_sampler_handle_t hSampler,
+    /// [in] pointer to sampler description to be used
+    const ur_sampler_desc_t *pSamplerDesc,
     /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage) {
   auto pfnSampledImageCreateExp =
@@ -6997,8 +6997,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_bindless_images_sampled_image_create_exp_params_t params = {
-      &hContext,   &hDevice,  &hImageMem, &pImageFormat,
-      &pImageDesc, &hSampler, &phImage};
+      &hContext,   &hDevice,      &hImageMem, &pImageFormat,
+      &pImageDesc, &pSamplerDesc, &phImage};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
       "urBindlessImagesSampledImageCreateExp", &params);
@@ -7008,7 +7008,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
   ur_result_t result =
       pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                               pImageDesc, hSampler, phImage);
+                               pImageDesc, pSamplerDesc, phImage);
 
   getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
                            "urBindlessImagesSampledImageCreateExp", &params,

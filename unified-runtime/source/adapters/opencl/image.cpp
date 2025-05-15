@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     [[maybe_unused]] ur_context_handle_t hContext,
@@ -69,7 +70,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] ur_sampler_handle_t hSampler,
+    [[maybe_unused]] const ur_sampler_desc_t *pSamplerDesc,
     [[maybe_unused]] ur_exp_image_native_handle_t *phImage) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
