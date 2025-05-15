@@ -18125,9 +18125,9 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
   ur::details::printPtr(os, *(params->ppImageDesc));
 
   os << ", ";
-  os << ".hSampler = ";
+  os << ".pSamplerDesc = ";
 
-  ur::details::printPtr(os, *(params->phSampler));
+  ur::details::printPtr(os, *(params->ppSamplerDesc));
 
   os << ", ";
   os << ".phImage = ";
