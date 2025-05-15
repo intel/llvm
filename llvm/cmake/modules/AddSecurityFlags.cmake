@@ -32,6 +32,12 @@ macro(add_link_option_ext flag name)
 endmacro()
 
 macro(append_common_extra_security_flags)
+  if(is_msvc)
+    add_compile_option_ext("/guard:cf" GUARDCF)
+    add_link_option_ext("/CETCOMPAT" CETCOMPAT CMAKE_EXE_LINKER_FLAGS
+                        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+  endif()
+
   if( LLVM_ON_UNIX )
     # Fortify Source (strongly recommended):
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
