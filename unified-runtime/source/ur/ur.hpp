@@ -369,6 +369,8 @@ template <class T> struct ZeCache : private T {
   T *operator->() { return &get(); }
 };
 
+struct ur_dditable_t;
+
 // TODO: populate with target agnostic handling of UR platforms
 struct ur_platform {};
 
@@ -378,6 +380,11 @@ extern bool PrintTrace;
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
 namespace ur {
+template <typename getddi> struct handle_base {
+  handle_base() { ddi_table = getddi::value(); };
+  const ur_dditable_t *ddi_table = nullptr;
+};
+
 template <typename T, typename Assign>
 ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
                         size_t *param_value_size_ret, T value,
