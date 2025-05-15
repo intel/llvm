@@ -1160,9 +1160,9 @@ static target getAccessTarget(QualType FieldTy,
 }
 
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
-  clang::SourceLocation Loc = FD->getLocation();
+  SourceLocation Loc = FD->getLocation();
   bool NextDeclaredWithAttr = false;
-  for (clang::FunctionDecl *Redecl : FD->redecls()) {
+  for (FunctionDecl *Redecl : FD->redecls()) {
     bool IsFreeFunctionAttr = false;
     for (auto *IRAttr :
          Redecl->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
