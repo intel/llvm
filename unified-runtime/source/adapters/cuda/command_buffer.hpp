@@ -131,7 +131,8 @@ struct ur_exp_command_buffer_command_handle_t_ : ur::cuda::handle_base {
 struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
 
   ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,
-                                  ur_device_handle_t Device, bool IsUpdatable);
+                                  ur_device_handle_t Device, bool IsUpdatable,
+                                  bool IsInOrder);
 
   ~ur_exp_command_buffer_handle_t_();
 
@@ -182,6 +183,8 @@ struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
   ur_device_handle_t Device;
   // Whether commands in the command-buffer can be updated
   bool IsUpdatable;
+  // Whether commands in the command-buffer are in-order.
+  bool IsInOrder;
   // Cuda Graph handle
   CUgraph CudaGraph;
   // Cuda Graph Exec handle
@@ -190,9 +193,9 @@ struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
   // using std::atomic prevents data race when incrementing/decrementing.
   std::atomic_uint32_t RefCount;
 
-  // Map of sync_points to ur_events
-  std::unordered_map<ur_exp_command_buffer_sync_point_t, CUgraphNode>
-      SyncPoints;
+  // Ordered map of sync_points to ur_events, so that we can find the last
+  // node added to an in-order command-buffer.
+  std::map<ur_exp_command_buffer_sync_point_t, CUgraphNode> SyncPoints;
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;

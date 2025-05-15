@@ -56,10 +56,11 @@ ur_result_t commandHandleDestroy(
 } // end anonymous namespace
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
-    ur_context_handle_t Context, ur_device_handle_t Device, bool IsUpdatable)
+    ur_context_handle_t Context, ur_device_handle_t Device, bool IsUpdatable,
+    bool IsInOrder)
     : handle_base(), Context(Context), Device(Device), IsUpdatable(IsUpdatable),
-      CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1},
-      NextSyncPoint{0} {
+      IsInOrder(IsInOrder), CudaGraph{nullptr}, CudaGraphExec{nullptr},
+      RefCount{1}, NextSyncPoint{0} {
   urContextRetain(Context);
 }
 
@@ -151,11 +152,24 @@ static ur_result_t getNodesFromSyncPoints(
   // the event associated with each sync-point
   auto SyncPoints = CommandBuffer->SyncPoints;
 
+  // If command-buffer is in-order use last node in ordered map, and return
+  // early as other user passed sync-points will be redundant for scheduling.
+  if (CommandBuffer->IsInOrder && !SyncPoints.empty()) {
+    auto LastNode = std::prev(SyncPoints.end());
+    CuNodesList.push_back(LastNode->second);
+    return UR_RESULT_SUCCESS;
+  }
+
   // For each sync-point add associated CUDA graph node to the return list.
   for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
     if (auto NodeHandle = SyncPoints.find(SyncPointWaitList[i]);
         NodeHandle != SyncPoints.end()) {
-      CuNodesList.push_back(NodeHandle->second);
+      auto DepNode = NodeHandle->second;
+      // Cuda driver API won't let you add duplicates to the dependency list
+      if (std::find(CuNodesList.begin(), CuNodesList.end(), DepNode) ==
+          CuNodesList.end()) {
+        CuNodesList.push_back(DepNode);
+      }
     } else {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -346,9 +360,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
   const bool IsUpdatable = pCommandBufferDesc->isUpdatable;
+  const bool IsInOrder = pCommandBufferDesc->isInOrder;
   try {
-    *phCommandBuffer =
-        new ur_exp_command_buffer_handle_t_(hContext, hDevice, IsUpdatable);
+    *phCommandBuffer = new ur_exp_command_buffer_handle_t_(
+        hContext, hDevice, IsUpdatable, IsInOrder);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {

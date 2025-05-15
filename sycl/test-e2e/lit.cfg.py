@@ -541,6 +541,10 @@ with test_env():
     else:
         config.substitutions.append(("%hip_options", ""))
 
+# Add ROCM_PATH from system environment, this is used by clang to find ROCm
+# libraries in non-standard installation locations.
+llvm_config.with_system_environment("ROCM_PATH")
+
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
