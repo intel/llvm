@@ -531,8 +531,12 @@ static ur_result_t redefinedurProgramGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+#if defined(__linux__)
+extern char **environ;
+#endif
+
 // https://github.com/intel/llvm/issues/18122
-TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
+TEST_P(MultipleDevsKernelBundleTest, PersistentCache) {
   // Create temporary directory for the persistent cache in the directory of the
   // test binary.
   std::string PersistentCachePath = sycl::detail::OSUtil::getCurrentDSODir() +
@@ -543,7 +547,14 @@ TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
                     SYCLConfig<SYCL_CACHE_PERSISTENT>::reset);
   ScopedEnvVar var2("SYCL_CACHE_DIR", PersistentCachePath.c_str(),
                     SYCLConfig<SYCL_CACHE_DIR>::reset);
+  ScopedEnvVar cach_trace_var("SYCL_CACHE_TRACE", "1",
+                              SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::reset);
 
+#if defined(__linux__)
+  for (char **env = environ; *env != nullptr; ++env) {
+    std::cout << *env << std::endl;
+  }
+#endif
   // Disable in-memory cache in this test case, as we are interested in
   // persistent cache usage.
   ScopedEnvVar var3("SYCL_CACHE_IN_MEM", "0",
