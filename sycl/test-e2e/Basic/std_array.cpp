@@ -1,5 +1,3 @@
-// Check that std::array is supported on device in debug mode on Windows.
-
 // REQUIRES: windows
 
 // RUN: %clangxx --driver-mode=cl -fsycl -o %t.exe %s /Od /Zi /EHsc
