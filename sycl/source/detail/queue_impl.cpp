@@ -492,6 +492,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       {
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
+        EventImpl->setSubmissionTime();
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent);
         EventImpl->setHandle(UREvent);
         EventImpl->setEnqueued();
