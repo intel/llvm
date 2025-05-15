@@ -424,6 +424,8 @@ node is part of until it is passed to the executable graph's update function.
 See <<executable-graph-update, Executable Graph Update>> for more information
 about updating kernel nodes.
 
+_Constraints_: Available only when `Dimensions` is 1, 2, or 3.
+
 _Throws:_
 
 * An `exception` with error code `invalid` if `Dimensions` does not match the
@@ -443,6 +445,8 @@ _Effects:_ Updates the execution range for this node with a new value
 node is part of until it is passed to the executable graph's update function.
 See <<executable-graph-update, Executable Graph Update>> for more information
 about updating kernel nodes.
+
+_Constraints_: Available only when `Dimensions` is 1, 2, or 3.
 
 _Throws:_
 
@@ -492,7 +496,7 @@ about updating node parameters.
 
 The `dynamic_parameter` class provides the {crs}[common reference semantics].
 
-===== Member functions of the `dynamic_parameter` class.
+===== Member functions of the `dynamic_parameter` class
 
 [source,c++]
 ----
@@ -571,7 +575,7 @@ any calls to `handler.depends_on()` must be identical for all the command-group 
 in a dynamic command-group. The dependencies created by buffer accessors must also create
 identical node dependencies across all of the command-group functions.
 
-===== Member functions of the `dynamic_command_group` class.
+===== Member functions of the `dynamic_command_group` class
 
 [source,c++]
 ----
@@ -581,8 +585,8 @@ const std::vector<std::function<void(handler &)>>& cgfList);
 ----
 
 _Effects:_ Constructs a dynamic command-group object that can be added as a
-node to a `command_graph`. `graph` to be associated with this `dynamic_command_group`.
-The list of command-group functions `cgfList` that can be activated for this dynamic command-group.
+node to `graph`.
+`cgfList` is the list of command-group functions that can be activated for this dynamic command-group.
 The command-group function at index 0 will be active by default.
 
 _Throws:_
@@ -1065,15 +1069,17 @@ command_graph(const context& syclContext,
 _Effects:_ Creates a SYCL `command_graph` object in the modifiable state for context
 `syclContext` and device `syclDevice`. Zero or more properties can be provided
 to the constructed SYCL `command_graph` via an instance of `property_list`.
+`syclContext` is an immutable characteristic of the graph.
 
 _Constraints:_
 
 * This constructor is only available when the `command_graph` state is
   `graph_state::modifiable`.
 
-* `syclContext` is an immutable characteristic of the graph.
 
-* `syclDevice` must be associated with `syclContext`.
+
+
+_Preconditions:_
 
 * Valid `command_graph`
   constructor properties are listed in Section <<graph-properties, Graph Properties>>.
@@ -1096,23 +1102,21 @@ _Effects:_ Simplified constructor form where `syclQueue` provides the device and
 Zero or more properties can be provided to the constructed SYCL `command_graph`
 via an instance of `property_list`.
 
-_Constraints:_
-
-* This constructor is only available when the `command_graph` state is
-  `graph_state::modifiable`.
-
 * Queue only provides the SYCL device and context for the graph,
   which are immutable characteristics of the graph. All other properties of the
   queue are ignored for the purposes of graph creation. See the
   <<Queue Properties, Queue Properties>> section for more general information
   about how queue properties interact with command_graph objects.
 
+_Constraints:_ This constructor is only available when the `command_graph` state is
+`graph_state::modifiable`.
+
 _Throws:_
 
 * Synchronously with error code `invalid` if the device associated with
  `syclQueue` <<device-info-query, reports this extension as unsupported>>.
 
-===== Member functions of the `command_graph` class.
+===== Member functions of the `command_graph` class
 
 [source,c++]
 ----
@@ -1413,6 +1417,11 @@ _Effects:_ Synchronously changes the state of `recordingQueue` to the
 `queue_state::recording` state. This operation is an error if `recordingQueue`
 is already in the `queue_state::recording` state.
 
+_Preconditions:_ 
+`propList` is an optional parameter for passing properties.
+Properties for the `command_graph` class are defined in
+<<graph-properties, Graph Properties>>.
+
 _Throws:_
 
 * Synchronously with error code `invalid` if `recordingQueue` is
@@ -1666,8 +1675,10 @@ The command status of the event returned will be
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
 
-The queue should be associated with a device and context that are the same
+_Preconditions:_ The queue should be associated with a device and context that are the same
 as the device and context used on creation of the graph.
+
+_Returns:_ An event which represents the command which is submitted to the queue.
 
 [source,c++]
 ----
@@ -1685,8 +1696,10 @@ The command status of the event returned will be
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
 
-The queue should be associated with a device and context that are the same
+_Preconditions:_ The queue should be associated with a device and context that are the same
 as the device and context used on creation of the graph.
+
+_Returns:_ An event which represents the command which is submitted to the queue.
 
 [source,c++]
 ----
@@ -1704,12 +1717,14 @@ The command status of the event returned will be
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
 
-The queue should be associated with a device and context that are the same
+_Preconditions:_ The queue should be associated with a device and context that are the same
 as the device and context used on creation of the graph.
+
+_Returns:_ An event which represents the command which is submitted to the queue.
 
 ==== New Handler Member Functions
 
-===== Additional member functions of the `sycl::handler` class.
+===== Additional member functions of the `sycl::handler` class
 
 [source,c++]
 ----
