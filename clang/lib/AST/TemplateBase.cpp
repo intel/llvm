@@ -66,7 +66,7 @@ static void printIntegral(const TemplateArgument &TemplArg, raw_ostream &Out,
         if (llvm::APSInt::isSameValue(ECD->getInitVal(), Val)) {
           PrintingPolicy NewPolicy = Policy;
           if (Policy.UseFullyQualifiedEnumerators)
-            NewPolicy.PrintCanonicalTypes = true;
+            NewPolicy.PrintAsCanonical = true;
           ECD->printQualifiedName(Out, NewPolicy);
           return;
         }
