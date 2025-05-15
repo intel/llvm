@@ -66,6 +66,7 @@ endif()
 add_custom_target(libsycldevice)
 
 set(filetypes obj obj-new-offload spv bc)
+set(filetypes_no_spv obj obj-new-offload bc)
 
 foreach(filetype IN LISTS filetypes)
   add_custom_target(libsycldevice-${filetype})
@@ -193,10 +194,14 @@ function(add_devicelibs filename)
   cmake_parse_arguments(ARG
     ""
     ""
-    "SRC;EXTRA_OPTS;DEPENDENCIES;SKIP_ARCHS"
+    "SRC;EXTRA_OPTS;DEPENDENCIES;SKIP_ARCHS;FILETYPES"
     ${ARGN})
-
-  foreach(filetype IN LISTS filetypes)
+  if(ARG_FILETYPES)
+    set(devicelib_filetypes "${ARG_FILETYPES}")
+  else()
+    set(devicelib_filetypes "${filetypes}")
+  endif()
+  foreach(filetype IN LISTS devicelib_filetypes)
     compile_lib(${filename}
       FILETYPE ${filetype}
       SRC ${ARG_SRC}
@@ -387,15 +392,15 @@ else()
       DEPENDENCIES ${asan_obj_deps}
       SKIP_ARCHS nvptx64-nvidia-cuda
                  amdgcn-amd-amdhsa
+      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
 
     # asan aot
-    set(sanitizer_filetypes obj obj-new-offload bc)
     set(asan_devicetypes pvc cpu dg2)
 
-    foreach(asan_ft IN LISTS sanitizer_filetypes)
+    foreach(asan_ft IN LISTS filetypes_no_spv)
       foreach(asan_device IN LISTS asan_devicetypes)
         compile_lib_ext(libsycl-asan-${asan_device}
                         SRC sanitizer/asan_rtl.cpp
@@ -409,6 +414,9 @@ else()
     add_devicelibs(libsycl-msan
       SRC sanitizer/msan_rtl.cpp
       DEPENDENCIES ${msan_obj_deps}
+      SKIP_ARCHS nvptx64-nvidia-cuda
+                 amdgcn-amd-amdhsa
+      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
@@ -416,7 +424,7 @@ else()
     # msan aot
     set(msan_devicetypes pvc cpu)
 
-    foreach(msan_ft IN LISTS sanitizer_filetypes)
+    foreach(msan_ft IN LISTS filetypes_no_spv)
       foreach(msan_device IN LISTS msan_devicetypes)
         compile_lib_ext(libsycl-msan-${msan_device}
                         SRC sanitizer/msan_rtl.cpp
@@ -430,13 +438,16 @@ else()
     add_devicelibs(libsycl-tsan
       SRC sanitizer/tsan_rtl.cpp
       DEPENDENCIES ${tsan_obj_deps}
+      SKIP_ARCHS nvptx64-nvidia-cuda
+                 amdgcn-amd-amdhsa
+      FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
 
     set(tsan_devicetypes pvc cpu)
 
-    foreach(tsan_ft IN LISTS sanitizer_filetypes)
+    foreach(tsan_ft IN LISTS filetypes_no_spv)
       foreach(tsan_device IN LISTS tsan_devicetypes)
         compile_lib_ext(libsycl-tsan-${tsan_device}
                         SRC sanitizer/tsan_rtl.cpp
@@ -470,9 +481,11 @@ add_devicelibs(libsycl-fallback-cmath-fp64
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-fallback-bfloat16
   SRC fallback-bfloat16.cpp
+  FILETYPES "${filetypes_no_spv}"
   DEPENDENCIES ${bfloat16_obj_deps})
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
+  FILETYPES "${filetypes_no_spv}"
   DEPENDENCIES ${bfloat16_obj_deps})
 
 # Create dependency and source lists for Intel math function libraries.
