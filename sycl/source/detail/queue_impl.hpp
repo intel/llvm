@@ -705,10 +705,6 @@ protected:
     if (MNoEventMode.load(std::memory_order_relaxed))
       return true;
 
-    // opencl does not support UR_QUEUE_INFO_EMPTY query
-    if (MContext->getBackend() == backend::opencl)
-      return false;
-
     if (!MGraph.expired() || !isInOrder())
       return false;
 
@@ -726,14 +722,24 @@ protected:
   event finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
     assert(MGraph.expired());
-    assert(MDefaultGraphDeps.LastEventPtr == nullptr);
+    assert(MDefaultGraphDeps.LastEventPtr == nullptr ||
+           MContext->getBackend() == backend::opencl);
     assert(MNoEventMode);
 
     MEmpty = false;
 
     synchronizeWithExternalEvent(Handler);
 
-    return Handler.finalize();
+    if (MContext->getBackend() == backend::opencl && MGraph.expired()) {
+      // This is needed to support queue_empty() call
+      auto event = Handler.finalize();
+      if (!getSyclObjImpl(event)->isDiscarded()) {
+        MDefaultGraphDeps.LastEventPtr = getSyclObjImpl(event);
+      }
+      return event;
+    } else {
+      return Handler.finalize();
+    }
   }
 
   template <typename HandlerType = handler>
@@ -744,12 +750,6 @@ protected:
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
 
-    if (MNoEventMode) {
-      // There might be some operations submitted to the queue
-      // but the LastEventPtr is not set. If we are to run a host_task,
-      // we need to insert a barrier to ensure proper synchronization.
-      Handler.depends_on(insertHelperBarrier(Handler));
-    }
     if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
       // We are not in no-event mode, so we can use the last event.
       // depends_on after an async alloc is explicitly disallowed. Async alloc
@@ -757,6 +757,11 @@ protected:
       // Note: This could be improved by moving the handling of dependencies
       // to before calling the CGF.
       Handler.depends_on(EventToBuildDeps);
+    } else if (MNoEventMode) {
+      // There might be some operations submitted to the queue
+      // but the LastEventPtr is not set. If we are to run a host_task,
+      // we need to insert a barrier to ensure proper synchronization.
+      Handler.depends_on(insertHelperBarrier(Handler));
     }
 
     MEmpty = false;
