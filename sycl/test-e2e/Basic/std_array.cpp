@@ -2,7 +2,7 @@
 
 // REQUIRES: windows
 
-// RUN: %clangxx --driver-mode=cl -fsycl -g -o %t.exe %s /Od /MDd /Zi
+// RUN: %clangxx --driver-mode=cl -fsycl -g -o %t.exe %s /MDd
 
 // RUN: %{run} %t.exe
 
