@@ -146,8 +146,8 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
 
   template <ur_device_info_t Desc, bool InitializingCache = false>
   decltype(auto) get_info_impl() const {
-    if constexpr (decltype(MURInfoCache)::has<Desc>() && !InitializingCache) {
-      return MURInfoCache.get<Desc>();
+    if constexpr (decltype(MCache)::has<Desc>() && !InitializingCache) {
+      return MCache.get<Desc>();
     } else {
       using ur_ret_t = ur_ret_type<Desc>;
       if constexpr (std::is_same_v<ur_ret_t, std::string>) {
@@ -172,149 +172,148 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     }
   }
 
-  template <ur_device_info_t Desc> struct UREagerCached {
-    const ur_ret_type<Desc> value;
-  };
+  // Define some helpers to cache properties. We use the same template
+  // implementation for both SYCL information descriptors and raw calls to
+  // `urDeviceGetInfo` by wrapping latter's `ur_device_info_t Desc` into a
+  // wrapper class (to go from values to types, as we don't have universal
+  // template parameters yet).
+  //
+  // Note that some modifications are also done in `get_info` and
+  // `get_info_impl` so this caching is a part of device_impl implementation and
+  // all the infrastructure should legitimally be as a class member.
+  //
+  // See `MCache` data member below for instruction how to make a property
+  // cached.
 
-  template <ur_device_info_t... Descs>
-  struct UREagerCache : public UREagerCached<Descs>... {
-    UREagerCache(device_impl &device)
-        : UREagerCached<Descs>{
-              device.get_info_impl<Descs, true /* InitializingCache */>()}... {}
-    template <ur_device_info_t Desc> static constexpr bool has() {
-      return (((Desc == Descs) || ...));
-    }
-
-    template <ur_device_info_t Desc, typename = std::enable_if_t<has<Desc>()>>
-    auto &get() const {
-      return static_cast<const UREagerCached<Desc> *>(this)->value;
-    }
-  };
-
-  template <ur_device_info_t Desc> struct URCallOnceCached {
-    std::once_flag flag;
-    ur_ret_type<Desc> value;
-  };
-
-  template <ur_device_info_t... Descs>
-  struct URCallOnceCache : public URCallOnceCached<Descs>... {
-    device_impl &device;
-
-    URCallOnceCache(device_impl &device) : device(device) {}
-    template <ur_device_info_t Desc> static constexpr bool has() {
-      return (((Desc == Descs) || ...));
-    }
-
-    template <ur_device_info_t Desc, typename = std::enable_if_t<has<Desc>()>>
-    auto &get() const {
-      auto &Entry = *static_cast<URCallOnceCached<Desc> *>(
-          const_cast<URCallOnceCache *>(this));
-      std::call_once(Entry.flag, [&]() {
-        Entry.value =
-            device.get_info_impl<Desc, true /* InitializingCache */>();
-      });
-      return Entry.value;
-    }
-  };
-
-  template <typename EagerCache, typename CallOnceCache>
-  struct URInfoCache : public EagerCache, public CallOnceCache {
-    URInfoCache(device_impl &device)
-        : EagerCache(device), CallOnceCache(device) {}
-
-    template <ur_device_info_t Desc> static constexpr bool has() {
-      return EagerCache::template has<Desc>() ||
-             CallOnceCache::template has<Desc>();
-    }
-
-    template <ur_device_info_t Desc> decltype(auto) get() const {
-      if constexpr (EagerCache::template has<Desc>()) {
-        return EagerCache::template get<Desc>();
-      } else if constexpr (CallOnceCache::template has<Desc>()) {
-        return CallOnceCache::template get<Desc>();
-      } else {
-        static_assert(has<Desc>());
-      }
-    }
-  };
-
-  template <typename Desc> struct InfoEagerCached {
+  // Eager - initialize the value right in the device_impl's ctor.
+  template <typename Desc> struct EagerCached {
     const typename Desc::return_type value;
   };
 
-  template <typename... Descs>
-  struct InfoEagerCache : public InfoEagerCached<Descs>... {
-    InfoEagerCache(device_impl &device)
-        : InfoEagerCached<Descs>{
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-              device.get_info<Descs, true /* InitializingCache */>()
-#else
-              device.get_info_abi_workaround<Descs,
-                                             true /* InitializingCache */>()
-#endif
-          }... {
-    }
+  template <typename Initializer, typename... Descs>
+  struct EagerCache : EagerCached<Descs>... {
+    EagerCache(device_impl &device)
+        : EagerCached<Descs>{[&]() {
+            // We optimize `init` signature so that it could be immediately
+            // passed to `std::call_once` in the `CallOnceCached` below with an
+            // expectation that it's easier to inline this lambda than outline a
+            // creation of lambda in `CallOnceCached` if we'd be forced to have
+            // one if `init` returned by value.
+            typename Descs::return_type res;
+            Initializer::template init<Descs>(device, res);
+            return res;
+          }()}... {}
+
     template <typename Desc> static constexpr bool has() {
       return ((std::is_same_v<Desc, Descs> || ...));
     }
-    template <typename Desc, typename = std::enable_if_t<has<Desc>()>>
-    auto &get() const {
-      return static_cast<const InfoEagerCached<Desc> *>(this)->value;
+
+    template <typename Desc> decltype(auto) get() const {
+      // Extra parentheses to return as reference (see `decltype(auto)`).
+      return (static_cast<const EagerCached<Desc> *>(this)->value);
     }
   };
 
-  template <typename Desc> struct InfoCallOnceCached {
+  // CallOnce - initialize on first query, but exactly once so that we could
+  // return cached values by reference. Important for `std::vector` /
+  // `std::string` values where returning cached values by value would cause
+  // heap allocations.
+  template <typename Desc> struct CallOnceCached {
     std::once_flag flag;
     typename Desc::return_type value;
   };
 
-  template <typename... Descs>
-  struct InfoCallOnceCache : public InfoCallOnceCached<Descs>... {
+  template <typename Initializer, typename... Descs>
+  struct CallOnceCache : public CallOnceCached<Descs>... {
     device_impl &device;
 
-    InfoCallOnceCache(device_impl &device) : device(device) {}
+    CallOnceCache(device_impl &device) : device(device) {}
 
     template <typename Desc> static constexpr bool has() {
       return ((std::is_same_v<Desc, Descs> || ...));
     }
 
-    template <typename Desc, typename = std::enable_if_t<has<Desc>()>>
-    auto &get() const {
-      auto &Entry = *static_cast<InfoCallOnceCached<Desc> *>(
-          const_cast<InfoCallOnceCache *>(this));
-      std::call_once(Entry.flag, [&]() {
-        Entry.value = device.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-                      get_info
-#else
-                          get_info_abi_workaround
-#endif
-                      <Desc, true /* InitializingCache */>();
-      });
-      return Entry.value;
+    template <typename Desc> decltype(auto) get() {
+      auto &Entry = *static_cast<CallOnceCached<Desc> *>(this);
+      std::call_once(Entry.flag, Initializer::template init<Desc>, device,
+                     Entry.value);
+      // Extra parentheses to return as reference (see `decltype(auto)`).
+      return (std::as_const(Entry.value));
     }
   };
 
-  template <typename EagerCache, typename CallOnceCache>
-  struct InfoCache : public EagerCache, public CallOnceCache {
-    InfoCache(device_impl &device)
-        : EagerCache(device), CallOnceCache(device) {}
+  // get_info and get_info_impl need to know if a particular query is cacheable.
+  // It's easier if all the cache instances (eager/call-once * UR/SYCL) are
+  // merged into a single object.
+  template <typename... Caches> struct JointCache : public Caches... {
+    JointCache(device_impl &device) : Caches(device)... {}
 
     template <typename Desc> static constexpr bool has() {
-      return EagerCache::template has<Desc>() ||
-             CallOnceCache::template has<Desc>();
+      return ((Caches::template has<Desc>() || ...));
     }
 
-    template <typename Desc> decltype(auto) get() const {
-      if constexpr (EagerCache::template has<Desc>()) {
-        return EagerCache::template get<Desc>();
-      } else if constexpr (CallOnceCache::template has<Desc>()) {
-        return CallOnceCache::template get<Desc>();
-      } else {
-        static_assert(has<Desc>());
-      }
+    template <ur_device_info_t Desc> static constexpr bool has() {
+      return has<URDesc<Desc>>();
+    }
+
+    template <typename Desc> decltype(auto) get() {
+      // Couldn't find a smarter way for this...
+      constexpr auto N = sizeof...(Caches);
+      if constexpr (N >= 1 && nth_type_t<0, Caches...>::template has<Desc>())
+        return nth_type_t<0, Caches...>::template get<Desc>();
+      else if constexpr (N >= 2 &&
+                         nth_type_t<1, Caches...>::template has<Desc>())
+        return nth_type_t<1, Caches...>::template get<Desc>();
+      else if constexpr (N >= 3 &&
+                         nth_type_t<2, Caches...>::template has<Desc>())
+        return nth_type_t<2, Caches...>::template get<Desc>();
+      else if constexpr (N >= 4 &&
+                         nth_type_t<3, Caches...>::template has<Desc>())
+        return nth_type_t<3, Caches...>::template get<Desc>();
+      else
+        static_assert(N <= 4 && N > 0);
+    }
+    template <ur_device_info_t Desc> decltype(auto) get() {
+      return get<URDesc<Desc>>();
     }
   };
+
+  // With generic infrastructure above finished, provide the customization
+  // points:
+
+  struct InfoInitializer {
+    template <typename Desc>
+    static void init(device_impl &device, typename Desc::return_type &value) {
+      value = device.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+              get_info
+#else
+              get_info_abi_workaround
+#endif
+              <Desc, true /* InitializingCache */>();
+    }
+  };
+
+  template <ur_device_info_t Desc> struct URDesc {
+    using return_type = ur_ret_type<Desc>;
+    static constexpr ur_device_info_t UR_DESC = Desc;
+  };
+
+  struct URInfoInitializer {
+    template <typename Desc>
+    static void init(device_impl &device, typename Desc::return_type &value) {
+      value =
+          device.get_info_impl<Desc::UR_DESC, true /* InitializingCache */>();
+    }
+  };
+
+  template <template <typename...> typename Cache, ur_device_info_t... Descs>
+  using URCache = Cache<URInfoInitializer, URDesc<Descs>...>;
+
+  template <ur_device_info_t... Descs>
+  using UREagerCache = URCache<EagerCache, Descs...>;
+  template <ur_device_info_t... Descs>
+  using URCallOnceCache = URCache<CallOnceCache, Descs...>;
 
 public:
   /// Constructs a SYCL device instance using the provided
@@ -476,8 +475,8 @@ public:
 #endif
     using execution_scope = ext::oneapi::experimental::execution_scope;
 
-    if constexpr (decltype(MInfoCache)::has<Param>() && !InitializingCache) {
-      return MInfoCache.get<Param>();
+    if constexpr (decltype(MCache)::has<Param>() && !InitializingCache) {
+      return MCache.get<Param>();
     }
 #define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
     // device_traits.def
@@ -1750,18 +1749,19 @@ private:
 
   const ur_device_handle_t MRootDevice;
 
-  // This must come before `MInfoCache` below, so that eager initialization of
-  // this cache would happen before its potential use in the initialization of
-  // `MInfoCache`.
-  URInfoCache<
-      UREagerCache<UR_DEVICE_INFO_TYPE, UR_DEVICE_INFO_USE_NATIVE_ASSERT>,
-      URCallOnceCache<UR_DEVICE_INFO_NAME>>
-      MURInfoCache;
+  // Order of caches matters! UR must come before SYCL info descriptors (because
+  // get_info calls get_info_impl but the opposite never happens).
+  //
+  // To make an addition property cacheable just expand one of the caches below
+  // with that property, no other changes should be necessary.
+  mutable JointCache<
+      UREagerCache<UR_DEVICE_INFO_TYPE, UR_DEVICE_INFO_USE_NATIVE_ASSERT>, //
+      URCallOnceCache<UR_DEVICE_INFO_NAME>,                                //
+      EagerCache<InfoInitializer>,                                         //
+      CallOnceCache<InfoInitializer,
+                    ext::oneapi::experimental::info::device::architecture>>
+      MCache;
 
-  InfoCache<
-      InfoEagerCache<>,
-      InfoCallOnceCache<ext::oneapi::experimental::info::device::architecture>>
-      MInfoCache;
 }; // class device_impl
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

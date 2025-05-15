@@ -29,7 +29,7 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                       ? nullptr
                       : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
       // TODO catch an exception and put it to list of asynchronous exceptions:
-      MURInfoCache{*this}, MInfoCache{*this} {
+      MCache{*this} {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
   getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
