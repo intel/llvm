@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sycl/accessor.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/graph_impl.hpp>
@@ -32,16 +33,16 @@ getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
 }
 
 std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
-    const std::shared_ptr<detail::handler_impl> &Handler,
-    const std::shared_ptr<detail::queue_impl> &Queue,
+    sycl::handler &Handler, const std::shared_ptr<detail::queue_impl> &Queue,
     const std::shared_ptr<detail::graph_impl> &Graph,
     const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
+  auto HandlerImpl = detail::getSyclObjImpl(Handler);
   // Get dependent graph nodes from any events
   auto DepNodes = Graph->getNodesForEvents(DepEvents);
   // If this node was added explicitly we may have node deps in the handler as
   // well, so add them to the list
-  DepNodes.insert(DepNodes.end(), Handler->MNodeDeps.begin(),
-                  Handler->MNodeDeps.end());
+  DepNodes.insert(DepNodes.end(), HandlerImpl->MNodeDeps.begin(),
+                  HandlerImpl->MNodeDeps.end());
   // If this is being recorded from an in-order queue we need to get the last
   // in-order node if any, since this will later become a dependency of the
   // node being processed here.
@@ -77,8 +78,7 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
   ur_event_handle_t Event = nullptr;
   // If a graph is present do the allocation from the graph memory pool instead.
   if (auto Graph = h.getCommandGraph(); Graph) {
-    auto DepNodes = getDepGraphNodes(sycl::detail::getSyclObjImpl(h), h.MQueue,
-                                     Graph, DepEvents);
+    auto DepNodes = getDepGraphNodes(h, h.MQueue, Graph, DepEvents);
     alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
   } else {
     auto &Q = h.MQueue->getHandleRef();
@@ -128,8 +128,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
   ur_event_handle_t Event = nullptr;
   // If a graph is present do the allocation from the graph memory pool instead.
   if (auto Graph = h.getCommandGraph(); Graph) {
-    auto DepNodes = getDepGraphNodes(sycl::detail::getSyclObjImpl(h), h.MQueue,
-                                     Graph, DepEvents);
+    auto DepNodes = getDepGraphNodes(h, h.MQueue, Graph, DepEvents);
 
     // Memory pool is passed as the graph may use some properties of it.
     alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(), DepNodes,
