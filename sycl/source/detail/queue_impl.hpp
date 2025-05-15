@@ -1046,7 +1046,7 @@ protected:
   // tasks submitted to the queue.
   std::atomic<bool> MNoEventMode = false;
 
-  // Used exclusively in getLastEvent implementation
+  // Used exclusively in getLastEvent and queue_empty() implementations
   bool MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;

@@ -10,6 +10,17 @@
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
+bool checkBarrierEvent(sycl::backend backend, sycl::event LastEvent,
+                       sycl::event BarrierEvent, bool noEventMode) {
+  // In noEventMode or when using opencl backend,
+  // barrier will always return last event
+  if (backend == sycl::backend::opencl || !noEventMode) {
+    return BarrierEvent == LastEvent;
+  } else {
+    return BarrierEvent != LastEvent;
+  }
+}
+
 int main() {
   sycl::queue Q({sycl::property::queue::in_order{}});
   int *Res = sycl::malloc_host<int>(1, Q);
@@ -21,11 +32,13 @@ int main() {
       cgh.single_task<class kernel1>([=]() { *Res += 9; });
     });
     auto BarrierEvent1 = Q.ext_oneapi_submit_barrier();
+    assert(checkBarrierEvent(Q.get_backend(), Event1, BarrierEvent1, true));
     auto Event2 = Q.submit([&](sycl::handler &cgh) {
       cgh.single_task<class kernel2>([=]() { *Res *= 2; });
     });
 
     auto BarrierEvent2 = Q.ext_oneapi_submit_barrier();
+    assert(checkBarrierEvent(Q.get_backend(), Event2, BarrierEvent2, true));
     BarrierEvent2.wait();
 
     // Check that kernel events are completed after waiting for barrier event.
@@ -43,6 +56,8 @@ int main() {
     auto Event1 = Q.submit(
         [&](sycl::handler &CGH) { CGH.host_task([&] { *Res += 1; }); });
     auto BarrierEvent1 = Q.ext_oneapi_submit_barrier();
+    assert(checkBarrierEvent(Q.get_backend(), Event1, BarrierEvent1,
+                             false /* host tasks used */));
     auto Event2 = Q.submit([&](sycl::handler &CGH) { CGH.fill(Res, 10, 1); });
 
     Q.wait();
@@ -74,6 +89,8 @@ int main() {
         cgh.single_task<class kernel3>([=]() { *Res += 9; });
       });
       auto Barrier = GQueue.ext_oneapi_submit_barrier();
+      assert(checkBarrierEvent(Q.get_backend(), BeforeBarrierEvent, Barrier,
+                               false /* graphs used */));
       GQueue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class kernel4>([=]() { *Res *= 2; });
       });
