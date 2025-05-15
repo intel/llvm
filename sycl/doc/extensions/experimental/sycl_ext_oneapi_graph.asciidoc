@@ -407,10 +407,8 @@ a submission to a queue in the recording state.
 _Returns:_ Graph node that was created when the command that returned
 `nodeEvent` was submitted.
 
-_Throws:_
-
-* An `exception` with error code `invalid` if `nodeEvent` is not associated with a
-  graph node.
+_Throws:_ An `exception` with error code `invalid` if `nodeEvent` is not
+associated with a graph node.
 
 [source, c++]
 ----
@@ -623,18 +621,15 @@ _Effects:_ Sets the command-group function with index `cgfIndex` as active.
 The index of the command-group function in a `dynamic_command_group` is
 identical to its index in the `cgfList` vector when it was passed to the
 `dynamic_command_group` constructor.
-
 This change will be reflected immediately in the modifiable graph which contains this
 `dynamic_command_group`. The new value will not be reflected in any executable graphs
 created from that modifiable graph until `command_graph::update()` is called, passing
 the modified nodes, or a new executable graph is finalized from the modifiable graph.
-
 Setting `cgfIndex` to the index of the currently active command-group function is
 a no-op.
 
-_Throws:_
-
-* An `exception` with error code `invalid` if `cgfIndex` is not a valid index.
+_Throws:_ An `exception` with error code `invalid` if `cgfIndex` is not a
+valid index.
 
 ==== Depends-On Property
 
@@ -966,7 +961,7 @@ conditions:
    APIs.
 
 Attempting to use whole-graph update with source or target graphs which do not
-satisfy the conditions of topological identity results in undefined behaviour,
+satisfy the conditions of topological identity results in undefined behavior,
 as it may prevent the runtime from pairing nodes in the source and target
 graphs.
 
@@ -1071,23 +1066,18 @@ _Effects:_ Creates a SYCL `command_graph` object in the modifiable state for con
 to the constructed SYCL `command_graph` via an instance of `property_list`.
 `syclContext` is an immutable characteristic of the graph.
 
-_Constraints:_
+_Constraints:_ This constructor is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
-* This constructor is only available when the `command_graph` state is
-  `graph_state::modifiable`.
-
-
-
-
-_Preconditions:_ Valid `command_graph` constructor properties are listed in Section
-<<graph-properties, Graph Properties>>.
+_Preconditions:_ Valid `command_graph` constructor properties are listed in
+Section <<graph-properties, Graph Properties>>.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if `syclDevice` is not
+* Synchronously `exception` with error code `invalid` if `syclDevice` is not
 associated with `syclContext`.
 
-* Synchronously with error code `invalid` if `syclDevice`
+* Synchronously `exception` with error code `invalid` if `syclDevice`
   <<device-info-query, reports this extension as unsupported>>.
 
 [source,c++]
@@ -1096,23 +1086,20 @@ command_graph(const queue& syclQueue,
               const property_list& propList = {});
 ----
 
-_Effects:_ Simplified constructor form where `syclQueue` provides the device and context.
+_Effects:_ Simplified constructor form where `syclQueue` provides only
+the device and context which become immutable characteristics of the graph.
 Zero or more properties can be provided to the constructed SYCL `command_graph`
-via an instance of `property_list`.
-
-* Queue only provides the SYCL device and context for the graph,
-  which are immutable characteristics of the graph. All other properties of the
-  queue are ignored for the purposes of graph creation. See the
-  <<Queue Properties, Queue Properties>> section for more general information
-  about how queue properties interact with command_graph objects.
+via an instance of `property_list`. All other properties of the queue are
+ignored for the purposes of graph creation. See the
+<<Queue Properties, Queue Properties>> section for more general information
+about how queue properties interact with command_graph objects.
 
 _Constraints:_ This constructor is only available when the `command_graph` state is
 `graph_state::modifiable`.
 
-_Throws:_
-
-* Synchronously with error code `invalid` if the device associated with
- `syclQueue` <<device-info-query, reports this extension as unsupported>>.
+_Throws:_ Synchronously `exception` with error code `invalid` if the device
+associated with
+`syclQueue` <<device-info-query, reports this extension as unsupported>>.
 
 ===== Member functions of the `command_graph` class
 
@@ -1125,17 +1112,13 @@ _Effects:_ This creates an empty node which contains no command. Its intended us
 to make a connection point inside a graph between groups of nodes, and can
 significantly reduce the number of edges ( O(n) vs. O(n^2^) ).
 
-_Constraints:_
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
 _Returns:_ The empty node which has been added to the graph.
 
-_Throws:_
-
-* Synchronously with error code `invalid` if a queue is recording
-  commands to the graph.
+_Throws:_ Synchronously `exception` with error code `invalid` if a queue is
+recording commands to the graph.
 
 [source,c++]
 ----
@@ -1153,20 +1136,18 @@ into the graph and executed asynchronously when the graph is submitted to a
 queue. The requisites of `cgf` will be used to identify any dependent nodes in
 the graph to form edges with.
 
-_Constraints:_
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
 _Returns:_ The command-group function object node which has been added to the graph.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if a queue is recording
+* Synchronously `exception` with error code `invalid` if a queue is recording
   commands to the graph.
-* Synchronously with error code `invalid` if the graph wasn't created with
-  the `property::graph::assume_buffer_outlives_graph` property and this command
-  uses a buffer. See the
+* Synchronously `exception` with error code `invalid` if the graph wasn't
+  created with the `property::graph::assume_buffer_outlives_graph` property
+  and this command uses a buffer. See the
   <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
   property for more information.
 * An `exception` with error code `invalid` if the type of the command-group is
@@ -1180,7 +1161,6 @@ node add(dynamic_command_group& dynamicCG, const property_list& propList = {});
 _Effects:_ Adds the dynamic command-group `dynamicCG` as a node to the graph and sets the
 current active command-group function in `dynamicCG` as the executable for future
 executions of this graph node.
-
 The current active command-group function in `dynamicCG` will be executed asynchronously
 when the graph is submitted to a queue. The requisites of this command-group
 function will be used to identify any dependent nodes in the graph
@@ -1188,19 +1168,17 @@ to form edges with. The other command-group functions in `dynamicCG` will be cap
 into the graph but will not be executed in a graph submission unless they are
 set to active.
 
-_Constraints:_
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
 _Returns:_ The dynamic command-group object node which has been added to the graph.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if a queue is recording
+* Synchronously `exception` with error code `invalid` if a queue is recording
   commands to the graph.
 
-* Synchronously with error code `invalid` if the graph does not match
+* Synchronously `exception` with error code `invalid` if the graph does not match
   the graph used on construction of `dynamicCG`.
 
 * An `exception` with error code `invalid` if the command-group functions in
@@ -1212,27 +1190,26 @@ _Throws:_
 void make_edge(node& src, node& dest);
 ----
 
-_Effects:_ Creates a dependency between two nodes representing a happens-before relationship.
-Node `dest` will be dependent on `src`
+_Effects:_ Creates a dependency between two nodes representing a happens-before
+relationship. Node `dest` will be dependent on `src`
 
-_Constraints:_
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if a queue is recording
+* Synchronously `exception` with error code `invalid` if a queue is recording
   commands to the graph object.
 
-* Synchronously with error code `invalid` if `src` or `dest`
+* Synchronously `exception` with error code `invalid` if `src` or `dest`
   are not valid nodes assigned to the graph object.
 
-* Synchronously with error code `invalid` if `src` and `dest`
+* Synchronously `exception` with error code `invalid` if `src` and `dest`
   are the same node.
 
-* Synchronously with error code `invalid` if the resulting dependency would
-  lead to a cycle. This error is omitted when `property::graph::no_cycle_check` is set.
+* Synchronously `exception` with error code `invalid` if the resulting
+  dependency would lead to a cycle. This error is omitted when
+  `property::graph::no_cycle_check` is set.
 
 [source,c++]
 ----
@@ -1247,17 +1224,13 @@ to create subsequent executable graphs. It is also valid to continue to add new
 nodes to the modifiable graph instance after calling this function. It is valid
 to finalize an empty graph instance with no recorded commands.
 
-_Constraints:_
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
 _Returns:_ A new executable graph object which can be submitted to a queue.
 
-_Throws:_
-
-* Synchronously with error code `feature_not_supported` if the graph
-  contains a command that is not supported by the device.
+_Throws:_ Synchronously `exception` with error code `feature_not_supported` if
+the graph contains a command that is not supported by the device.
 
 [source,c++]
 ----
@@ -1273,10 +1246,8 @@ such as kernel arguments, copy source, and destination addresses.
 At the moment DOT format is the only supported format. The name of the output file
 must therefore match this extension, i.e. "<filename>.dot".
 
-_Throws:_
-
-* Synchronously with error code `invalid` if the path is invalid or
-the file extension is not supported or if the write operation failed.
+_Throws:_ Synchronously `exception` with error code `invalid` if the path is
+invalid or the file extension is not supported or if the write operation failed.
 
 [source,c++]
 ----
@@ -1290,6 +1261,7 @@ were added.
 ----
 std::vector<node> get_root_nodes() const;
 ----
+
 _Returns:_ A list of all nodes in the graph which have no dependencies.
 
 =====  Member functions of the `command_graph` class for graph update.
@@ -1303,26 +1275,22 @@ _Effects:_ Updates an executable graph node that corresponds to `node`.
 `node` must be a kernel execution node. The command-group function of the node
 will be updated, inside the executable graph, to reflect the current values
 in `node`. This includes the kernel function, the kernel nd-range and
-the kernel parameters.
-
-Updating these values will not change the structure of the graph.
-
+the kernel parameters. Updating these values will not change the structure of
+the graph.
 The implementation may perform a blocking wait during this call on any
 in-flight executions of that same graph if required by the backend.
 
-_Constraints:_
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::executable`.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if
+* Synchronously `exception` with error code `invalid` if
   `property::graph::updatable` was not set when the executable graph was
   created.
 * An `exception` with error code `invalid` if `node` is not part of the
   graph.
-* If any other exception is thrown the state of the graph node is undefined.
+* If any other `exception` is thrown the state of the graph node is undefined.
 
 [source,c++]
 ----
@@ -1334,24 +1302,20 @@ _Effects:_ Updates all executable graph nodes that corresponds to the nodes cont
 will be updated, inside the executable graph, to reflect the current values in
 `nodes`. This includes the kernel function, the kernel nd-range and the kernel
 parameters".
-
 Updating these values will not change the structure of the graph.
-
 The implementation may perform a blocking wait during this call on any
 in-flight executions of that same graph if required by the backend.
 
-_Constraints:_
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::executable`.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if
+* Synchronously `exception` with error code `invalid` if
   `property::graph::updatable` was not set when the executable graph was created.
 * An `exception` with error code `invalid` if any node in `nodes` is not part of the
   graph.
-* If any other exception is thrown the state of the graph nodes is undefined.
+* If any other `exception` is thrown the state of the graph nodes is undefined.
 
 [source, c++]
 ----
@@ -1363,44 +1327,38 @@ _Effects:_ Updates all of the nodes in the target graph with parameters from a
 topologically identical graph `source` in the modifiable state. The full
 definition of what constitutes a topologically identical graph can be found in
 the <<whole-graph-update, Whole-Graph Update>> section. Violating any of these
-topology requirements results in undefined behaviour.
-
+topology requirements results in undefined behavior.
 The characteristics in the executable graph which will be updated are detailed
 in the section on <<executable-graph-update, Executable Graph Update>>.
-
 It is not an error to update an executable graph such that all parameters of
 nodes in `source` are identical to the arguments of the executable graph prior to
 the update.
-
 The implementation may perform a blocking wait during this call on
 any in-flight executions of that same graph if required by the backend.
-
 This function may only be called if the graph was created with the `updatable`
 property.
 
-_Constraints:_
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::executable`.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if `source` contains any node
-  which is not one of the following types:
+* Synchronously `exception` with error code `invalid` if `source` contains any
+  node which is not one of the following types:
 
 ** `node_type::empty`
 ** `node_type::ext_oneapi_barrier`
 ** `node_type::kernel`
 
-* Synchronously with error code `invalid` if the context or device
+* Synchronously `exception` with error code `invalid` if the context or device
   associated with `source` does not match that of the `command_graph` being
   updated.
 
-* Synchronously with error code `invalid` if
+* Synchronously `exception` with error code `invalid` if
   `property::graph::updatable` was not set when the executable graph was
   created.
 
-* If any other exception is thrown the state of the graph nodes is undefined.
+* If any other `exception` is thrown the state of the graph nodes is undefined.
 
 ===== Member functions of the `command_graph` class for queue recording.
 
@@ -1422,10 +1380,10 @@ Properties for the `command_graph` class are defined in
 
 _Throws:_
 
-* Synchronously with error code `invalid` if `recordingQueue` is
+* Synchronously `exception` with error code `invalid` if `recordingQueue` is
   already recording to a graph.
 
-* Synchronously with error code `invalid` if `recordingQueue` is
+* Synchronously `exception` with error code `invalid` if `recordingQueue` is
   associated with a device or context that is different from the device
   and context used on creation of the graph.
 
@@ -1443,10 +1401,10 @@ is already in the `queue_state::recording` state.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if any queue in
+* Synchronously `exception` with error code `invalid` if any queue in
   `recordingQueues` is already recording to a graph.
 
-* Synchronously with error code `invalid` if any of `recordingQueues`
+* Synchronously `exception` with error code `invalid` if any of `recordingQueues`
   is associated with a device or context that is different from the device
   and context used on creation of the graph.
 
@@ -1469,10 +1427,8 @@ _Effects:_ Synchronously changes the state of `recordingQueue` to the
 `queue_state::executing` state. This operation is a no-op if `recordingQueue`
 is already in the `queue_state::executing` state.
 
-_Throws:_
-
-* Synchronously with error code `invalid` if `recordingQueue` is
-  recording to a different graph.
+_Throws:_ Synchronously `exception` with error code `invalid` if
+`recordingQueue` is recording to a different graph.
 
 [source, c++]
 ----
@@ -1483,10 +1439,8 @@ _Effects:_ Synchronously changes the state of each queue in `recordingQueues` to
 `queue_state::executing` state. This operation is a no-op for any queue in
 `recordingQueues` that is already in the `queue_state::executing` state.
 
-_Throws:_
-
-* Synchronously with error code `invalid` if any queue in
-  `recordingQueues` is recording to a different graph.
+_Throws:_ Synchronously `exception` with error code `invalid` if any queue in
+`recordingQueues` is recording to a different graph.
 
 === Queue Class Modifications
 
@@ -1654,10 +1608,8 @@ _Effects:_ Query the underlying command graph of a queue when recording.
 
 _Returns:_ The graph object that the queue is recording commands into.
 
-_Throws:_
-
-* Synchronously with error code `invalid` if the queue is not in `queue_state::recording`
-state.
+_Throws:_ Synchronously `exception` with error code `invalid` if the queue is
+not in `queue_state::recording` state.
 
 [source,c++]
 ----
@@ -1667,7 +1619,6 @@ queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 
 _Effects:_ Queue shortcut function that is equivalent to submitting a command-group
 containing `handler::ext_oneapi_graph(graph)`.
-
 The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
@@ -1688,14 +1639,13 @@ queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
 _Effects:_ Queue shortcut function that is equivalent to submitting a command-group
 containing `handler::depends_on(depEvent)` and
 `handler::ext_oneapi_graph(graph)`.
-
 The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
 
-_Preconditions:_ The queue should be associated with a device and context that are the same
-as the device and context used on creation of the graph.
+_Preconditions:_ The queue should be associated with a device and context that
+are the same as the device and context used on creation of the graph.
 
 _Returns:_ An event which represents the command which is submitted to the queue.
 
@@ -1709,14 +1659,13 @@ queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
 _Effects:_ Queue shortcut function that is equivalent to submitting a command-group
 containing `handler::depends_on(depEvents)` and
 `handler::ext_oneapi_graph(graph)`.
-
 The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
 
-_Preconditions:_ The queue should be associated with a device and context that are the same
-as the device and context used on creation of the graph.
+_Preconditions:_ The queue should be associated with a device and context that
+are the same as the device and context used on creation of the graph.
 
 _Returns:_ An event which represents the command which is submitted to the queue.
 
@@ -1735,11 +1684,9 @@ execute at any time. If `graph` is submitted multiple times, dependencies
 are automatically added by the runtime to prevent concurrent executions of 
 an identical graph.
 
-_Throws:_
-
-* Synchronously with error code `invalid` if the handler is submitted
-  to a queue which is associated with a device or context that is different
-  from the device and context used on creation of the graph.
+_Throws:_ Synchronously `exception` with error code `invalid` if the handler
+is submitted to a queue which is associated with a device or context that is
+different from the device and context used on creation of the graph.
 
 [source,c++]
 ----
@@ -1755,10 +1702,10 @@ dynamic parameter `dynamicParamAcc`.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if this function is called from
+* Synchronously `exception` with error code `invalid` if this function is called from
 a command-group submitted to a queue with is currently recording to a graph.
 
-* Synchronously with error code `invalid` if this function is called from
+* Synchronously `exception` with error code `invalid` if this function is called from
 a normal SYCL command-group submission.
 
 [source,c++]
@@ -1774,10 +1721,10 @@ submission of the command-group that calls this function.
 
 _Throws:_
 
-* Synchronously with error code `invalid` if this function is called from
+* Synchronously `exception` with error code `invalid` if this function is called from
 a command-group submitted to a queue with is currently recording to a graph.
 
-* Synchronously with error code `invalid` if this function is called from
+* Synchronously `exception` with error code `invalid` if this function is called from
 a normal SYCL command-group submission.
 
 === Thread Safety
