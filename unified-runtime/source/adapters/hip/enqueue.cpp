@@ -1818,7 +1818,7 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
       Kernel->setImplicitOffsetArg(sizeof(ImplicitOffset), ImplicitOffset);
     }
 
-    if (Device->getMaxChosenLocalMem()) {
+    if (Device->hasMaxChosenLocalMem()) {
       UR_CHECK_ERROR(hipFuncSetAttribute(
           HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize,
           Device->getMaxChosenLocalMem()));

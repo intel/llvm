@@ -33,6 +33,7 @@ private:
   int MaxBlockDimZ{0};
   int DeviceMaxLocalMem{0};
   int MaxChosenLocalMem{0};
+  bool HasMaxChosenLocalMem{false};
   int ManagedMemSupport{0};
   int ConcurrentManagedAccess{0};
   bool HardwareImageSupport{false};
@@ -77,7 +78,8 @@ public:
 
     if (LocalMemSzPtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSzPtr);
-      if (MaxChosenLocalMem <= 0 || MaxChosenLocalMem > DeviceMaxLocalMem) {
+      HasMaxChosenLocalMem = true;
+      if (MaxChosenLocalMem < 0 || MaxChosenLocalMem > DeviceMaxLocalMem) {
         setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
                                           "UR_HIP_MAX_LOCAL_MEM_SIZE"
                                         : "Invalid value specified for "
@@ -113,6 +115,8 @@ public:
   int getDeviceMaxLocalMem() const noexcept { return DeviceMaxLocalMem; };
 
   int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
+
+  int hasMaxChosenLocalMem() const noexcept { return HasMaxChosenLocalMem; };
 
   int getManagedMemSupport() const noexcept { return ManagedMemSupport; };
 
