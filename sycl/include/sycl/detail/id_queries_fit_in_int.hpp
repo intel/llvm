@@ -51,8 +51,7 @@ checkValueRangeImpl(ValT V) {
 inline void checkMulOverflow(size_t a, size_t b) {
 #ifndef _MSC_VER
   int Product;
-  // Since we must fit in SIGNED int, we can ignore the upper 32 bits.
-  if (__builtin_mul_overflow(unsigned(a), unsigned(b), &Product)) {
+  if (__builtin_mul_overflow(a, b, &Product)) {
     throw sycl::exception(make_error_code(errc::nd_range), Msg);
   }
 #else
@@ -66,9 +65,8 @@ inline void checkMulOverflow(size_t a, size_t b) {
 inline void checkMulOverflow(size_t a, size_t b, size_t c) {
 #ifndef _MSC_VER
   int Product;
-  // Since we must fit in SIGNED int, we can ignore the upper 32 bits.
-  if (__builtin_mul_overflow(unsigned(a), unsigned(b), &Product) ||
-      __builtin_mul_overflow(Product, unsigned(c), &Product)) {
+  if (__builtin_mul_overflow(a, b, &Product) ||
+      __builtin_mul_overflow(Product, c, &Product)) {
     throw sycl::exception(make_error_code(errc::nd_range), Msg);
   }
 #else

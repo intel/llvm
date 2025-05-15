@@ -116,8 +116,6 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 
 struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -147,12 +145,11 @@ struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   }
 
   ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
-  ur_platform_backend_t backend{};
+  ur_backend_t backend{};
 };
 
 struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
@@ -183,7 +180,7 @@ struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::TearDown());
   }
 
-  ur_platform_backend_t backend{};
+  ur_backend_t backend{};
   ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
 };
 
@@ -231,7 +228,7 @@ struct TestKernel {
     std::shared_ptr<std::vector<char>> ILBinary;
     std::vector<ur_program_metadata_t> Metadatas{};
 
-    ur_platform_backend_t Backend;
+    ur_backend_t Backend;
     ASSERT_SUCCESS(urPlatformGetInfo(Platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(Backend), &Backend, nullptr));
 

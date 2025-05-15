@@ -11,6 +11,8 @@
 #include "common.hpp"
 #include "logger/ur_logger.hpp"
 
+#include "umf_helpers.hpp"
+
 #include <cuda.h>
 #include <nvml.h>
 
@@ -168,5 +170,34 @@ ur_result_t getProviderNativeError(const char *providerName, int32_t error) {
   }
 
   return UR_RESULT_ERROR_UNKNOWN;
+}
+
+ur_result_t CreateProviderPool(int cuDevice, void *cuContext,
+                               umf_usm_memory_type_t type,
+                               umf_memory_provider_handle_t *provider,
+                               umf_memory_pool_handle_t *pool) {
+  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
+  UMF_RETURN_UR_ERROR(
+      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams));
+  OnScopeExit Cleanup(
+      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
+
+  // Setup memory provider parameters
+  UMF_RETURN_UR_ERROR(
+      umfCUDAMemoryProviderParamsSetContext(CUMemoryProviderParams, cuContext));
+  UMF_RETURN_UR_ERROR(
+      umfCUDAMemoryProviderParamsSetDevice(CUMemoryProviderParams, cuDevice));
+  UMF_RETURN_UR_ERROR(
+      umfCUDAMemoryProviderParamsSetMemoryType(CUMemoryProviderParams, type));
+
+  // Create memory provider
+  UMF_RETURN_UR_ERROR(umfMemoryProviderCreate(
+      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, provider));
+
+  // Create memory pool
+  UMF_RETURN_UR_ERROR(
+      umfPoolCreate(umfProxyPoolOps(), *provider, nullptr, 0, pool));
+
+  return UR_RESULT_SUCCESS;
 }
 } // namespace umf

@@ -94,7 +94,6 @@ jobs:
       runner_name: ${{ matrix.runner }}
       static_loader: ${{ matrix.static || 'OFF' }}
       static_adapter: ${{ matrix.static || 'OFF' }}
-      platform: ${{ matrix.platform || '' }}
       other_adapter_name: ${{ matrix.other_adapter || '' }}
       docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       image_options: ${{ matrix.image_options || '' }}

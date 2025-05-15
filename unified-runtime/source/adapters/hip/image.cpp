@@ -637,7 +637,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                  CopyExtentBytes, Stream));
 #else
           UR_CHECK_ERROR(hipMemcpyHtoA(
-              (hipArray_t)pDst, pCopyRegion->dstOffset.x * PixelSizeBytes,
+              static_cast<hipArray_t>(pDst),
+              pCopyRegion->dstOffset.x * PixelSizeBytes,
               static_cast<const void *>(SrcWithOffset), CopyExtentBytes));
 #endif
         } else if (memType == hipMemoryTypeDevice) {
@@ -645,7 +646,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
               static_cast<void *>(static_cast<char *>(pDst) +
                                   (PixelSizeBytes * pCopyRegion->dstOffset.x));
           UR_CHECK_ERROR(hipMemcpyHtoDAsync(
-              (hipDeviceptr_t)DstWithOffset,
+              static_cast<hipDeviceptr_t>(DstWithOffset),
               const_cast<void *>(static_cast<const void *>(SrcWithOffset)),
               CopyExtentBytes, Stream));
         } else {
@@ -1002,7 +1003,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
       break;
     default:
       setErrorMessage("Unexpected NumChannels returned by HIP",
-                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                      UR_RESULT_ERROR_INVALID_VALUE);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
     if (pPropValue) {
@@ -1422,6 +1423,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ScopedDevice Active(hDevice);
     UR_CHECK_ERROR(hipDestroyExternalMemory(
         reinterpret_cast<hipExternalMemory_t>(hExternalMem)));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, void *pMem) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  try {
+    ScopedDevice Active(hDevice);
+    UR_CHECK_ERROR(hipFree(static_cast<hipDeviceptr_t>(pMem)));
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
