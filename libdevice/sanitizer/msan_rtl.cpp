@@ -219,6 +219,14 @@ inline void __msan_exit() {
     __devicelib_exit();
 }
 
+template <typename dataT>
+void GroupAsyncCopy(dataT *Dest, const dataT *Src, size_t NumElements,
+                    size_t Stride) {
+  for (size_t i = 0; i < NumElements; i++) {
+    Dest[i] = Src[i * Stride];
+  }
+}
+
 } // namespace
 
 #define MSAN_MAYBE_WARNING(type, size)                                         \
@@ -587,6 +595,47 @@ __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
   SubGroupBarrier();
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
+}
+
+static __SYCL_CONSTANT__ const char __msan_print_strided_copy_unsupport_type[] =
+    "[kernel] __msan_unpoison_strided_copy: unsupport type(%d)\n";
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
+                             uint32_t src_as, uint32_t element_size,
+                             uptr counts, uptr stride) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
+                                "__msan_unpoison_strided_copy"));
+
+  uptr shadow_dest = (uptr)__msan_get_shadow(dest, dest_as);
+  uptr shadow_src = (uptr)__msan_get_shadow(src, src_as);
+
+  switch (element_size) {
+  case 1:
+    GroupAsyncCopy<int8_t>((int8_t *)shadow_dest, (int8_t *)shadow_src, counts,
+                           stride);
+    break;
+  case 2:
+    GroupAsyncCopy<int16_t>((int16_t *)shadow_dest, (int16_t *)shadow_src,
+                            counts, stride);
+    break;
+  case 4:
+    GroupAsyncCopy<int32_t>((int32_t *)shadow_dest, (int32_t *)shadow_src,
+                            counts, stride);
+    break;
+  case 8:
+    GroupAsyncCopy<int64_t>((int64_t *)shadow_dest, (int64_t *)shadow_src,
+                            counts, stride);
+    break;
+  default:
+    __spirv_ocl_printf(__msan_print_strided_copy_unsupport_type, element_size);
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
+                                "__msan_unpoison_strided_copy"));
 }
 
 #endif // __SPIR__ || __SPIRV__
