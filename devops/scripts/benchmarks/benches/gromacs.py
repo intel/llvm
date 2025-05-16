@@ -202,7 +202,6 @@ class GromacsBenchmark(Benchmark):
             ld_library=self.suite.oneapi.ld_libraries(),
         )
 
-        # if self.type == "pme" and not self._validate_correctness(
         if not self._validate_correctness(options.benchmark_cwd + "/md.log"):
             raise ValueError(
                 f"Validation failed: Conserved energy drift exceeds threshold in {model_dir / 'md.log'}"
