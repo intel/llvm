@@ -111,7 +111,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   MPM.addPass(compiler::utils::ReplaceLocalModuleScopeVariablesPass());
   MPM.addPass(AlwaysInlinerPass());
 #endif
-  MPM.addPass(PrepareSYCLNativeCPUPass());
+  MPM.addPass(PrepareSYCLNativeCPUPass(OptLevel == OptimizationLevel::O3));
 #ifdef NATIVECPU_USE_OCK
   MPM.addPass(compiler::utils::DefineMuxBuiltinsPass());
 #endif
