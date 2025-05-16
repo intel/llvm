@@ -117,7 +117,7 @@ urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
 
   switch (propName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_OPENCL);
+    return ReturnValue(UR_BACKEND_OPENCL);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(hAdapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION:

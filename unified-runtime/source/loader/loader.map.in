@@ -179,7 +179,6 @@
 		urPlatformGetBackendOption;
 		urPlatformGetInfo;
 		urPlatformGetNativeHandle;
-		urPrintAdapterBackend;
 		urPrintAdapterGetInfoParams;
 		urPrintAdapterGetLastErrorParams;
 		urPrintAdapterGetParams;
@@ -189,6 +188,7 @@
 		urPrintAdapterSetLoggerCallbackLevelParams;
 		urPrintAdapterSetLoggerCallbackParams;
 		urPrintApiVersion;
+		urPrintBackend;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
 		urPrintBindlessImagesFreeMappedLinearMemoryExpParams;
@@ -427,7 +427,6 @@
 		urPrintPhysicalMemProperties;
 		urPrintPhysicalMemReleaseParams;
 		urPrintPhysicalMemRetainParams;
-		urPrintPlatformBackend;
 		urPrintPlatformCreateWithNativeHandleParams;
 		urPrintPlatformGetApiVersionParams;
 		urPrintPlatformGetBackendOptionParams;
