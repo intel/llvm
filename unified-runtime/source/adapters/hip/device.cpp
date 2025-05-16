@@ -382,7 +382,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to HIP's "shared memory".
     // HIP has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    if (hDevice->hasMaxChosenLocalMem()) {
+    if (hDevice->getMaxChosenLocalMem()) {
       return ReturnValue(
           static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
     } else {
