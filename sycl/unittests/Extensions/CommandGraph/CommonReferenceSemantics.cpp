@@ -100,6 +100,28 @@ TEST_F(CommandGraphTest, DynamicParamSemantics) {
       testSemantics<experimental::dynamic_parameter<int>>(Factory));
 }
 
+TEST_F(CommandGraphTest, DynamicWorkGroupMemorySemantics) {
+  sycl::queue Queue;
+  experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
+
+  auto Factory = [&]() {
+    return experimental::dynamic_work_group_memory<int[]>(Graph, 1);
+  };
+  ASSERT_NO_FATAL_FAILURE(
+      testSemantics<experimental::dynamic_work_group_memory<int[]>>(Factory));
+}
+
+TEST_F(CommandGraphTest, DynamicLocalAccessorSemantics) {
+  sycl::queue Queue;
+  experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
+
+  auto Factory = [&]() {
+    return experimental::dynamic_local_accessor<int, 1>(Graph, 1);
+  };
+  ASSERT_NO_FATAL_FAILURE(
+      (testSemantics<experimental::dynamic_local_accessor<int, 1>>(Factory)));
+}
+
 /**
  * Checks for potential hash collisions in the hash implementations of graph
  * related classes.
