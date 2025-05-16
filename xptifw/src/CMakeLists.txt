@@ -1,4 +1,5 @@
 # Fetch third party headers
+include(FetchContent)
 set(EMHASH_REPO https://github.com/ktprime/emhash)
 message(STATUS "Will fetch emhash from ${EMHASH_REPO}")
 FetchContent_Declare(emhash-headers

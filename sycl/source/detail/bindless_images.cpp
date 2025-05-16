@@ -265,7 +265,7 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem_handle memHandle, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  return create_image(reinterpret_cast<void*>(memHandle.raw_handle),
+  return create_image(reinterpret_cast<void *>(memHandle.raw_handle),
                       0 /*pitch*/, sampler, desc, syclDevice, syclContext);
 }
 
@@ -280,14 +280,14 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem &imgMem, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  return create_image(reinterpret_cast<void*>(imgMem.get_handle().raw_handle),
+  return create_image(reinterpret_cast<void *>(imgMem.get_handle().raw_handle),
                       0 /*pitch*/, sampler, desc, syclDevice, syclContext);
 }
 
 __SYCL_EXPORT sampled_image_handle
 create_image(image_mem &imgMem, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::queue &syclQueue) {
-  return create_image(reinterpret_cast<void*>(imgMem.get_handle().raw_handle),
+  return create_image(reinterpret_cast<void *>(imgMem.get_handle().raw_handle),
                       0 /*pitch*/, sampler, desc, syclQueue.get_device(),
                       syclQueue.get_context());
 }
@@ -367,10 +367,6 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
       translate_cubemap_filter_mode(sampler.cubemap_filtering)};
   UrAddrModes.pNext = &UrCubemapProps;
 
-  ur_sampler_handle_t urSampler = nullptr;
-  Adapter->call<sycl::errc::runtime, sycl::detail::UrApiKind::urSamplerCreate>(
-      urCtx, &UrSamplerProps, &urSampler);
-
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
   populate_ur_structs(desc, urDesc, urFormat, pitch);
@@ -381,7 +377,7 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
                 sycl::detail::UrApiKind::urBindlessImagesSampledImageCreateExp>(
       urCtx, urDevice,
       reinterpret_cast<ur_exp_image_mem_native_handle_t>(devPtr), &urFormat,
-      &urDesc, urSampler, &urImageHandle);
+      &urDesc, &UrSamplerProps, &urImageHandle);
 
   return sampled_image_handle{urImageHandle};
 }
@@ -650,7 +646,7 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
       urCtx, urDevice, urHandleType, &urExternalSemDesc, &urExternalSemaphore);
 
   return external_semaphore{urExternalSemaphore,
-                                  externalSemaphoreDesc.handle_type};
+                            externalSemaphoreDesc.handle_type};
 }
 
 template <>
