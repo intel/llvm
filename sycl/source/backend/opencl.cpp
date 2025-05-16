@@ -47,11 +47,8 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
         "has_extension can only be used with an OpenCL backend");
   }
 
-  std::string ExtensionsString = urGetInfoString<UrApiKind::urDeviceGetInfo>(
-      *getSyclObjImpl(SyclDevice), UR_DEVICE_INFO_EXTENSIONS);
-
-  return ExtensionsString.find(std::string_view{Extension.data()}) !=
-         std::string::npos;
+  return getSyclObjImpl(SyclDevice)
+      ->has_extension(std::string_view{Extension.data()});
 }
 } // namespace detail
 

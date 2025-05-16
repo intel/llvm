@@ -97,16 +97,17 @@ static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Mock{}, Plt{sycl::platform()} {}
+  BufferTest()
+      : Mock{}, Plt([]() {
+          // Make sure these are re-defined before we create device hierarchy.
+          mock::getCallbacks().set_before_callback(
+              "urMemBufferCreate", &redefinedMemBufferCreateBefore);
+          mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                                  &redefinedDeviceGetInfoAfter);
+          return sycl::platform{};
+        }()) {}
 
 protected:
-  void SetUp() override {
-    mock::getCallbacks().set_before_callback("urMemBufferCreate",
-                                             &redefinedMemBufferCreateBefore);
-    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                            &redefinedDeviceGetInfoAfter);
-  }
-
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
