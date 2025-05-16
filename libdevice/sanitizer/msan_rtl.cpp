@@ -631,8 +631,7 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
                             counts, stride);
     break;
   default:
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_strided_copy_unsupport_type,
-                                  element_size));
+    __spirv_ocl_printf(__msan_print_strided_copy_unsupport_type, element_size);
   }
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
