@@ -9,6 +9,16 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fcf-protection -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64_x86_64 -DOPT=-fcf-protection
 
+// Check to make sure -gline-tables-only is passed to -fsycl-is-host invocation only.
+// RUN: %clangxx -### -fsycl -gline-tables-only %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-gline-tables-only \
+// RUN:    -DOPT_CC1=-debug-info-kind=line-tables-only \
+// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
+// RUN: %clang_cl -### -fsycl -gline-tables-only %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-gline-tables-only \
+// RUN:    -DOPT_CC1=-debug-info-kind=line-tables-only \
+// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
+
 // RUN: %clangxx -fsycl -fprofile-instr-generate -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fprofile-instr-generate \
 // RUN:    -DOPT_CC1=-fprofile-instrument=clang \
@@ -46,11 +56,11 @@
 // RUN:    -DOPT_CC1=-fprofile-instrument=clang \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 
-// CHECK: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}' [-Woption-ignored]
+// CHECK: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}';only supported for host compilation [-Woption-ignored]
 // CHECK-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT]]{{.*}}"
 // CHECK: clang{{.*}} "-fsycl-is-host"{{.*}} "[[OPT]]{{.*}}"
 
-// UNSUPPORTED_OPT_DIAG: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}' [-Woption-ignored]
+// UNSUPPORTED_OPT_DIAG: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}';only supported for host compilation [-Woption-ignored]
 // UNSUPPORTED_OPT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT_CC1]]{{.*}}"
 // UNSUPPORTED_OPT: clang{{.*}} "-fsycl-is-host"{{.*}} "[[OPT_CC1]]{{.*}}"
 
