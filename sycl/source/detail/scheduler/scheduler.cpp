@@ -188,9 +188,14 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
       try {
         bool Enqueued = GraphProcessor::enqueueCommand(
             NewCmd, Lock, Res, ToCleanUp, NewCmd, Blocking);
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw exception(make_error_code(errc::runtime),
-                          "Enqueue process failed.");
+        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+          throw sycl::detail::set_ur_error(
+              sycl::exception(sycl::make_error_code(errc::runtime),
+                              std::string("Enqueue process failed.\n") +
+                                  __SYCL_UR_ERROR_REPORT +
+                                  sycl::detail::codeToString(Res.MErrCode)),
+              Res.MErrCode);
+        }
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
