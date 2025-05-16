@@ -1237,6 +1237,7 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
     if (SYCL().hasSyclIntegrationHeader())
       SYCL().getSyclIntegrationHeader().emit(getLangOpts().SYCLIntHeader);
     SYCL().MarkDevices();
+    SYCL().checkFunctionWithAddressTaken();
   }
 
   emitDeferredDiags();
