@@ -895,7 +895,7 @@ public:
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
-                       std::shared_ptr<node_impl> NodeImpl) {
+                       const std::shared_ptr<node_impl> &NodeImpl) {
     if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
     MEventsMap[EventImpl] = NodeImpl;
@@ -1145,7 +1145,7 @@ public:
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
   /// @param[in] Queue The queue to be recorded from.
-  void beginRecording(std::shared_ptr<sycl::detail::queue_impl> Queue);
+  void beginRecording(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
 
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.
@@ -1212,7 +1212,7 @@ private:
   /// added as a root node.
   /// @param Node The node to add deps for
   /// @param Deps List of dependent nodes
-  void addDepsToNode(std::shared_ptr<node_impl> Node,
+  void addDepsToNode(const std::shared_ptr<node_impl> &Node,
                      std::vector<std::shared_ptr<node_impl>> &Deps) {
     if (!Deps.empty()) {
       for (auto &N : Deps) {
