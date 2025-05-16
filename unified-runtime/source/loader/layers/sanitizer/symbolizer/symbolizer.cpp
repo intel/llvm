@@ -48,8 +48,9 @@ static uintptr_t GetModuleBase(const char *ModuleName) {
 
 extern "C" {
 
-void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
-                   char *ResultString, size_t ResultSize, size_t *RetSize) {
+__attribute__((visibility("default"))) void
+SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset, char *ResultString,
+              size_t ResultSize, size_t *RetSize) {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
   llvm::symbolize::Request Request{ModuleName, ModuleOffset};
