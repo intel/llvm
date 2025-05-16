@@ -1052,7 +1052,7 @@ event from a graph submission that was created without this property.
 
 ==== Graph Member Functions
 
-===== Constructor of the `command_graph` class.
+===== Constructor of the `command_graph` class
 
 [source,c++]
 ----
@@ -1096,6 +1096,9 @@ about how queue properties interact with command_graph objects.
 
 _Constraints:_ This constructor is only available when the `command_graph` state is
 `graph_state::modifiable`.
+
+_Preconditions:_ Valid `command_graph` constructor properties are listed in
+Section <<graph-properties, Graph Properties>>.
 
 _Throws:_ Synchronously `exception` with error code `invalid` if the device
 associated with
@@ -1191,7 +1194,7 @@ void make_edge(node& src, node& dest);
 ----
 
 _Effects:_ Creates a dependency between two nodes representing a happens-before
-relationship. Node `dest` will be dependent on `src`
+relationship. Node `dest` will be dependent on `src`.
 
 _Constraints:_ This member function is only available when the `command_graph`
 state is `graph_state::modifiable`.
@@ -1264,7 +1267,7 @@ std::vector<node> get_root_nodes() const;
 
 _Returns:_ A list of all nodes in the graph which have no dependencies.
 
-=====  Member functions of the `command_graph` class for graph update.
+=====  Member functions of the `command_graph` class for graph update
 
 [source,c++]
 ----
@@ -1360,7 +1363,7 @@ _Throws:_
 
 * If any other `exception` is thrown the state of the graph nodes is undefined.
 
-===== Member functions of the `command_graph` class for queue recording.
+===== Member functions of the `command_graph` class for queue recording
 
 [source, c++]
 ----
@@ -1398,6 +1401,11 @@ _Effects:_ Synchronously changes the state of each queue in `recordingQueues`
 to the `queue_state::recording` state and start recording commands to the graph
 instance. This operation is an error for any queue in `recordingQueues` that
 is already in the `queue_state::recording` state.
+
+_Preconditions:_ 
+`propList` is an optional parameter for passing properties.
+Properties for the `command_graph` class are defined in
+<<graph-properties, Graph Properties>>.
 
 _Throws:_
 
@@ -1583,7 +1591,7 @@ ways:
 
 ==== New Queue Member Functions
 
-===== Additional member functions of the `sycl::queue` class.
+===== Additional member functions of the `sycl::queue` class
 
 [source,c++]
 ----
