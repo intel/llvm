@@ -53,7 +53,7 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t Queue, hipStream_t Stream,
 // dimension.
 void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
                         const size_t *GlobalWorkSize, const uint32_t WorkDim,
-                        const size_t MaxThreadsPerBlock[3]) {
+                        ur_kernel_handle_t Kernel) {
   assert(ThreadsPerBlock != nullptr);
   assert(GlobalWorkSize != nullptr);
 
@@ -64,13 +64,13 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
-  size_t MaxBlockDim[3];
-  MaxBlockDim[0] = MaxThreadsPerBlock[0];
-  MaxBlockDim[1] = Device->getMaxBlockDimY();
-  MaxBlockDim[2] = Device->getMaxBlockDimZ();
+  int MinGrid, MaxBlockSize;
+  UR_CHECK_ERROR(hipModuleOccupancyMaxPotentialBlockSize(
+      &MinGrid, &MaxBlockSize, Kernel->get(), Kernel->getLocalSize(),
+      Device->getMaxBlockDim(0)));
 
   roundToHighestFactorOfGlobalSizeIn3d(ThreadsPerBlock, GlobalSizeNormalized,
-                                       MaxBlockDim, MaxThreadsPerBlock[0]);
+                                       Device->getMaxBlockDim(), MaxBlockSize);
 }
 
 namespace {
@@ -1753,50 +1753,30 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                 const size_t *LocalWorkSize, ur_kernel_handle_t &Kernel,
                 hipFunction_t &HIPFunc, size_t (&ThreadsPerBlock)[3],
                 size_t (&BlocksPerGrid)[3]) {
-  size_t MaxWorkGroupSize = 0;
   try {
     ScopedDevice Active(Device);
-    {
-      size_t MaxThreadsPerBlock[3] = {
-          static_cast<size_t>(Device->getMaxBlockDimX()),
-          static_cast<size_t>(Device->getMaxBlockDimY()),
-          static_cast<size_t>(Device->getMaxBlockDimZ())};
-
-      auto &ReqdThreadsPerBlock = Kernel->ReqdThreadsPerBlock;
-      MaxWorkGroupSize = Device->getMaxWorkGroupSize();
-
-      if (LocalWorkSize != nullptr) {
-        auto isValid = [&](int dim) {
-          UR_ASSERT(ReqdThreadsPerBlock[dim] == 0 ||
-                        LocalWorkSize[dim] == ReqdThreadsPerBlock[dim],
-                    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
-          UR_ASSERT(LocalWorkSize[dim] <= MaxThreadsPerBlock[dim],
-                    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
-          // Checks that local work sizes are a divisor of the global work
-          // sizes which includes that the local work sizes are neither larger
-          // than the global work sizes and not 0.
-          UR_ASSERT(LocalWorkSize != 0,
-                    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
-          UR_ASSERT((GlobalWorkSize[dim] % LocalWorkSize[dim]) == 0,
-                    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
-          ThreadsPerBlock[dim] = LocalWorkSize[dim];
-          return UR_RESULT_SUCCESS;
-        };
-
-        for (size_t dim = 0; dim < WorkDim; dim++) {
-          auto err = isValid(dim);
-          if (err != UR_RESULT_SUCCESS)
-            return err;
-        }
-      } else {
-        guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
-                           MaxThreadsPerBlock);
+    if (LocalWorkSize != nullptr) {
+      for (size_t dim = 0; dim < WorkDim; dim++) {
+        UR_ASSERT(Kernel->ReqdThreadsPerBlock[dim] == 0 ||
+                      LocalWorkSize[dim] == Kernel->ReqdThreadsPerBlock[dim],
+                  UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+        UR_ASSERT(LocalWorkSize[dim] <= Device->getMaxBlockDim(dim),
+                  UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+        // Checks that local work sizes are a divisor of the global work
+        // sizes which includes that the local work sizes are neither larger
+        // than the global work sizes and not 0.
+        UR_ASSERT(LocalWorkSize != 0, UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+        UR_ASSERT((GlobalWorkSize[dim] % LocalWorkSize[dim]) == 0,
+                  UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+        ThreadsPerBlock[dim] = LocalWorkSize[dim];
       }
+    } else {
+      guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
+                         Kernel);
     }
 
-    UR_ASSERT(MaxWorkGroupSize >=
-                  size_t(ThreadsPerBlock[0] * ThreadsPerBlock[1] *
-                         ThreadsPerBlock[2]),
+    UR_ASSERT(size_t(Device->getMaxWorkGroupSize()) >=
+                  ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2],
               UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
 
     for (size_t i = 0; i < WorkDim; i++) {

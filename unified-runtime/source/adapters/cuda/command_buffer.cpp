@@ -502,9 +502,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t LocalSize = hKernel->getLocalSize();
     CUfunction CuFunc = hKernel->get();
     UR_CHECK_ERROR(setKernelParams(
-        hCommandBuffer->Context, hCommandBuffer->Device, workDim,
-        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, hKernel, CuFunc,
-        ThreadsPerBlock, BlocksPerGrid));
+        hCommandBuffer->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid));
 
     // Set node param structure with the kernel related data
     auto &ArgPointers = hKernel->getArgPointers();
@@ -1373,9 +1372,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     size_t BlocksPerGrid[3] = {1u, 1u, 1u};
     CUfunction CuFunc = KernelData.Kernel->get();
     auto Result = setKernelParams(
-        hCommandBuffer->Context, hCommandBuffer->Device, KernelData.WorkDim,
-        KernelData.GlobalWorkOffset, KernelData.GlobalWorkSize, LocalWorkSize,
-        KernelData.Kernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+        hCommandBuffer->Device, KernelData.WorkDim, KernelData.GlobalWorkOffset,
+        KernelData.GlobalWorkSize, LocalWorkSize, KernelData.Kernel, CuFunc,
+        ThreadsPerBlock, BlocksPerGrid);
     if (Result != UR_RESULT_SUCCESS) {
       return Result;
     }
