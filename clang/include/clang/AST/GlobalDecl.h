@@ -164,7 +164,8 @@ public:
   }
 
   static KernelReferenceKind getDefaultKernelReference(const FunctionDecl *D) {
-    return (D->hasAttr<OpenCLKernelAttr>() || D->getLangOpts().CUDAIsDevice)
+    return (D->hasAttr<OpenCLKernelAttr>() || D->getLangOpts().CUDAIsDevice ||
+            D->hasAttr<SYCLKernelAttr>())
                ? KernelReferenceKind::Kernel
                : KernelReferenceKind::Stub;
   }

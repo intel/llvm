@@ -1,3 +1,4 @@
+// UNSUPPORTED: system-windows
 // RUN: echo "dxv" > %T/dxv && chmod 754 %T/dxv
 
 // RUN: env PATH="" %clang_dxc -T cs_6_0 %s -metal -Fo %t.mtl -### 2>&1 | FileCheck --check-prefix=NO_DXV %s
