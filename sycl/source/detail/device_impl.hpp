@@ -59,6 +59,17 @@ template <typename> static constexpr bool is_std_vector_v = false;
 template <typename T>
 static constexpr bool is_std_vector_v<std::vector<T>> = true;
 
+template <ur_device_info_t Desc> static constexpr auto ur_ret_type_impl() {
+  if constexpr (false) {
+  }
+#define MAP(VALUE, ...) else if constexpr (Desc == VALUE) return __VA_ARGS__{};
+#include "ur_device_info_ret_types.inc"
+#undef MAP
+}
+
+template <ur_device_info_t Desc>
+using ur_ret_type = decltype(ur_ret_type_impl<Desc>());
+
 // TODO: Make code thread-safe
 class device_impl : public std::enable_shared_from_this<device_impl> {
   struct private_tag {
@@ -71,17 +82,6 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
                MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
   }
-
-  template <ur_device_info_t Desc> static constexpr auto ur_ret_type_impl() {
-    if constexpr (false) {
-    }
-#define MAP(VALUE, ...) else if constexpr (Desc == VALUE) return __VA_ARGS__{};
-#include "ur_device_info_ret_types.inc"
-#undef MAP
-  }
-
-  template <ur_device_info_t Desc>
-  using ur_ret_type = decltype(ur_ret_type_impl<Desc>());
 
   // This should really be
   //   std::expected<ReturnT, ur_result_t>
@@ -144,28 +144,177 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     }
   }
 
-  template <ur_device_info_t Desc> ur_ret_type<Desc> get_info_impl() const {
-    using ur_ret_t = ur_ret_type<Desc>;
-    if constexpr (std::is_same_v<ur_ret_t, std::string>) {
-      return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
-    } else if constexpr (is_std_vector_v<ur_ret_t>) {
-      size_t ResultSize = 0;
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
-                                                     nullptr, &ResultSize);
-      if (ResultSize == 0)
-        return {};
-
-      ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
-      return Result;
+  template <ur_device_info_t Desc, bool InitializingCache = false>
+  decltype(auto) get_info_impl() const {
+    if constexpr (decltype(MURInfoCache)::has<Desc>() && !InitializingCache) {
+      return MURInfoCache.get<Desc>();
     } else {
-      ur_ret_t Result;
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
-      return Result;
+      using ur_ret_t = ur_ret_type<Desc>;
+      if constexpr (std::is_same_v<ur_ret_t, std::string>) {
+        return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
+      } else if constexpr (is_std_vector_v<ur_ret_t>) {
+        size_t ResultSize = 0;
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
+                                                       nullptr, &ResultSize);
+        if (ResultSize == 0)
+          return ur_ret_t{};
+
+        ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+            getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
+        return Result;
+      } else {
+        ur_ret_t Result;
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+            getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+        return Result;
+      }
     }
   }
+
+  template <ur_device_info_t Desc> struct UREagerCached {
+    const ur_ret_type<Desc> value;
+  };
+
+  template <ur_device_info_t... Descs>
+  struct UREagerCache : public UREagerCached<Descs>... {
+    UREagerCache(device_impl &device)
+        : UREagerCached<Descs>{
+              device.get_info_impl<Descs, true /* InitializingCache */>()}... {}
+    template <ur_device_info_t Desc> static constexpr bool has() {
+      return (((Desc == Descs) || ...));
+    }
+
+    template <ur_device_info_t Desc, typename = std::enable_if_t<has<Desc>()>>
+    auto &get() const {
+      return static_cast<const UREagerCached<Desc> *>(this)->value;
+    }
+  };
+
+  template <ur_device_info_t Desc> struct URCallOnceCached {
+    std::once_flag flag;
+    ur_ret_type<Desc> value;
+  };
+
+  template <ur_device_info_t... Descs>
+  struct URCallOnceCache : public URCallOnceCached<Descs>... {
+    device_impl &device;
+
+    URCallOnceCache(device_impl &device) : device(device) {}
+    template <ur_device_info_t Desc> static constexpr bool has() {
+      return (((Desc == Descs) || ...));
+    }
+
+    template <ur_device_info_t Desc, typename = std::enable_if_t<has<Desc>()>>
+    auto &get() const {
+      auto &Entry = *static_cast<URCallOnceCached<Desc> *>(
+          const_cast<URCallOnceCache *>(this));
+      std::call_once(Entry.flag, [&]() {
+        Entry.value =
+            device.get_info_impl<Desc, true /* InitializingCache */>();
+      });
+      return Entry.value;
+    }
+  };
+
+  template <typename EagerCache, typename CallOnceCache>
+  struct URInfoCache : public EagerCache, public CallOnceCache {
+    URInfoCache(device_impl &device)
+        : EagerCache(device), CallOnceCache(device) {}
+
+    template <ur_device_info_t Desc> static constexpr bool has() {
+      return EagerCache::template has<Desc>() ||
+             CallOnceCache::template has<Desc>();
+    }
+
+    template <ur_device_info_t Desc> decltype(auto) get() const {
+      if constexpr (EagerCache::template has<Desc>()) {
+        return EagerCache::template get<Desc>();
+      } else if constexpr (CallOnceCache::template has<Desc>()) {
+        return CallOnceCache::template get<Desc>();
+      } else {
+        static_assert(has<Desc>());
+      }
+    }
+  };
+
+  template <typename Desc> struct InfoEagerCached {
+    const typename Desc::return_type value;
+  };
+
+  template <typename... Descs>
+  struct InfoEagerCache : public InfoEagerCached<Descs>... {
+    InfoEagerCache(device_impl &device)
+        : InfoEagerCached<Descs>{
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+              device.get_info<Descs, true /* InitializingCache */>()
+#else
+              device.get_info_abi_workaround<Descs,
+                                             true /* InitializingCache */>()
+#endif
+          }... {
+    }
+    template <typename Desc> static constexpr bool has() {
+      return ((std::is_same_v<Desc, Descs> || ...));
+    }
+    template <typename Desc, typename = std::enable_if_t<has<Desc>()>>
+    auto &get() const {
+      return static_cast<const InfoEagerCached<Desc> *>(this)->value;
+    }
+  };
+
+  template <typename Desc> struct InfoCallOnceCached {
+    std::once_flag flag;
+    typename Desc::return_type value;
+  };
+
+  template <typename... Descs>
+  struct InfoCallOnceCache : public InfoCallOnceCached<Descs>... {
+    device_impl &device;
+
+    InfoCallOnceCache(device_impl &device) : device(device) {}
+
+    template <typename Desc> static constexpr bool has() {
+      return ((std::is_same_v<Desc, Descs> || ...));
+    }
+
+    template <typename Desc, typename = std::enable_if_t<has<Desc>()>>
+    auto &get() const {
+      auto &Entry = *static_cast<InfoCallOnceCached<Desc> *>(
+          const_cast<InfoCallOnceCache *>(this));
+      std::call_once(Entry.flag, [&]() {
+        Entry.value = device.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+                      get_info
+#else
+                          get_info_abi_workaround
+#endif
+                      <Desc, true /* InitializingCache */>();
+      });
+      return Entry.value;
+    }
+  };
+
+  template <typename EagerCache, typename CallOnceCache>
+  struct InfoCache : public EagerCache, public CallOnceCache {
+    InfoCache(device_impl &device)
+        : EagerCache(device), CallOnceCache(device) {}
+
+    template <typename Desc> static constexpr bool has() {
+      return EagerCache::template has<Desc>() ||
+             CallOnceCache::template has<Desc>();
+    }
+
+    template <typename Desc> decltype(auto) get() const {
+      if constexpr (EagerCache::template has<Desc>()) {
+        return EagerCache::template get<Desc>();
+      } else if constexpr (CallOnceCache::template has<Desc>()) {
+        return CallOnceCache::template get<Desc>();
+      } else {
+        static_assert(has<Desc>());
+      }
+    }
+  };
 
 public:
   /// Constructs a SYCL device instance using the provided
@@ -178,126 +327,6 @@ public:
 
   ~device_impl();
 
-  /// Get instance of OpenCL device
-  ///
-  /// \return a valid cl_device_id instance in accordance with the
-  /// requirements described in 4.3.1.
-  cl_device_id get() const;
-
-  /// Get reference to UR device
-  ///
-  /// For host device an exception is thrown
-  ///
-  /// \return non-constant reference to UR device
-  ur_device_handle_t &getHandleRef() { return MDevice; }
-
-  /// Get constant reference to UR device
-  ///
-  /// For host device an exception is thrown
-  ///
-  /// \return constant reference to UR device
-  const ur_device_handle_t &getHandleRef() const { return MDevice; }
-
-  /// Check if device is a CPU device
-  ///
-  /// \return true if SYCL device is a CPU device
-  bool is_cpu() const { return MType == UR_DEVICE_TYPE_CPU; }
-
-  /// Check if device is a GPU device
-  ///
-  /// \return true if SYCL device is a GPU device
-  bool is_gpu() const { return MType == UR_DEVICE_TYPE_GPU; }
-
-  /// Check if device is an accelerator device
-  ///
-  /// \return true if SYCL device is an accelerator device
-  bool is_accelerator() const { return MType == UR_DEVICE_TYPE_FPGA; }
-
-  /// Return device type
-  ///
-  /// \return the type of the device
-  ur_device_type_t get_device_type() const { return MType; }
-
-  /// Get associated SYCL platform
-  ///
-  /// If this SYCL device is an OpenCL device then the SYCL platform
-  /// must encapsulate the OpenCL cl_plaform_id associated with the
-  /// underlying OpenCL cl_device_id of this SYCL device. If this SYCL device
-  /// is a host device then the SYCL platform must be a host platform.
-  /// The value returned must be equal to that returned
-  /// by get_info<info::device::platform>().
-  ///
-  /// \return The associated SYCL platform.
-  platform get_platform() const;
-
-  /// \return the associated adapter with this device.
-  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
-
-  /// Check SYCL extension support by device
-  ///
-  /// \param ExtensionName is a name of queried extension.
-  /// \return true if SYCL device supports the extension.
-  bool has_extension(const std::string &ExtensionName) const;
-
-  std::vector<device>
-  create_sub_devices(const ur_device_partition_properties_t *Properties,
-                     size_t SubDevicesCount) const;
-
-  /// Partition device into sub devices
-  ///
-  /// If this SYCL device does not support
-  /// info::partition_property::partition_equally a feature_not_supported
-  /// exception must be thrown.
-  ///
-  /// \param ComputeUnits is a desired count of compute units in each sub
-  /// device.
-  /// \return A vector class of sub devices partitioned equally from this
-  /// SYCL device based on the ComputeUnits parameter.
-  std::vector<device> create_sub_devices(size_t ComputeUnits) const;
-
-  /// Partition device into sub devices
-  ///
-  /// If this SYCL device does not support
-  /// info::partition_property::partition_by_counts a feature_not_supported
-  /// exception must be thrown.
-  ///
-  /// \param Counts is a std::vector of desired compute units in sub devices.
-  /// \return a std::vector of sub devices partitioned from this SYCL device
-  /// by count sizes based on the Counts parameter.
-  std::vector<device>
-  create_sub_devices(const std::vector<size_t> &Counts) const;
-
-  /// Partition device into sub devices
-  ///
-  /// If this SYCL device does not support
-  /// info::partition_property::partition_by_affinity_domain or the SYCL
-  /// device does not support info::affinity_domain provided a
-  /// feature_not_supported exception must be thrown.
-  ///
-  /// \param AffinityDomain is one of the values described in Table 4.20 of
-  /// SYCL Spec
-  /// \return a vector class of sub devices partitioned from this SYCL device
-  /// by affinity domain based on the AffinityDomain parameter
-  std::vector<device>
-  create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
-
-  /// Partition device into sub devices
-  ///
-  /// If this SYCL device does not support
-  /// info::partition_property::ext_intel_partition_by_cslice a
-  /// feature_not_supported exception must be thrown.
-  ///
-  /// \return a vector class of sub devices partitioned from this SYCL
-  /// device at a granularity of "cslice" (compute slice).
-  std::vector<device> create_sub_devices() const;
-
-  /// Check if desired partition property supported by device
-  ///
-  /// \param Prop is one of info::partition_property::(partition_equally,
-  /// partition_by_counts, partition_by_affinity_domain)
-  /// \return true if Prop is supported by device.
-  bool is_partition_supported(info::partition_property Prop) const;
-
   /// Queries this SYCL device for information requested by the template
   /// parameter param
   ///
@@ -306,9 +335,9 @@ public:
   /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  template <typename Param> typename Param::return_type get_info() const {
+  template <typename Param, bool InitializingCache = false>
+  decltype(auto) get_info() const {
 #define CALL_GET_INFO get_info
 #else
   // We've been exporting
@@ -320,14 +349,32 @@ public:
   // `get_info_abi_workaround` for which we need this ugly macro:
 #define CALL_GET_INFO get_info_abi_workaround
   template <typename Param> typename Param::return_type get_info() const;
-  template <typename Param>
-  typename Param::return_type get_info_abi_workaround() const {
+  template <typename Param, bool InitializingCache = false>
+  decltype(auto) get_info_abi_workaround() const {
 #endif
     using execution_scope = ext::oneapi::experimental::execution_scope;
-#define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
-    if constexpr (false) {
-    }
 
+    // With the return type of this function being automatically
+    // deduced we can't simply do
+    //
+    //    CASE(Desc1) { return get_info<Desc2>(); }
+    //
+    // because the function isn't defined yet and we can't auto-deduce the
+    // return type for `Desc2` yet. The solution here is to make that delegation
+    // template-parameter-dependent. We use the `InitializingCache` parameter
+    // for that out of convenience.
+    //
+    // Note that for "eager" cache it's the programmer's responsibility that
+    // the descriptor we delegate to is initialized first (by referencing that
+    // descriptor first when defining the cache data member). For "CallOnce"
+    // cache we want to be querying cached value so "false" is the right
+    // template parameter for such delegation.
+    constexpr bool DependentFalse = InitializingCache && false;
+
+    if constexpr (decltype(MInfoCache)::has<Param>() && !InitializingCache) {
+      return MInfoCache.get<Param>();
+    }
+#define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
     // device_traits.def
 
     CASE(info::device::device_type) {
@@ -359,11 +406,13 @@ public:
       return range<3>{result[2], result[1], result[0]};
     }
     CASE(info::device::max_work_item_sizes<2>) {
-      range<3> r3 = CALL_GET_INFO<info::device::max_work_item_sizes<3>>();
+      range<3> r3 =
+          CALL_GET_INFO<info::device::max_work_item_sizes<3>, DependentFalse>();
       return range<2>{r3[1], r3[2]};
     }
     CASE(info::device::max_work_item_sizes<1>) {
-      range<3> r3 = CALL_GET_INFO<info::device::max_work_item_sizes<3>>();
+      range<3> r3 =
+          CALL_GET_INFO<info::device::max_work_item_sizes<3>, DependentFalse>();
       return range<1>{r3[2]};
     }
 
@@ -444,8 +493,9 @@ public:
       // profiling, urDeviceGetGlobalTimestamps is not supported,
       // command_submit, command_start, command_end will be calculated. See
       // MFallbackProfiling
-      return get_info_impl<UR_DEVICE_INFO_QUEUE_PROPERTIES>() &
-             UR_QUEUE_FLAG_PROFILING_ENABLE;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_QUEUE_PROPERTIES>() &
+          UR_QUEUE_FLAG_PROFILING_ENABLE);
     }
 
     CASE(info::device::built_in_kernels) {
@@ -453,7 +503,8 @@ public:
                           ';');
     }
     CASE(info::device::built_in_kernel_ids) {
-      auto names = CALL_GET_INFO<info::device::built_in_kernels>();
+      auto names =
+          CALL_GET_INFO<info::device::built_in_kernels, DependentFalse>();
 
       std::vector<kernel_id> ids;
       ids.reserve(names.size());
@@ -491,7 +542,8 @@ public:
             "the info::device::preferred_interop_user_sync info descriptor can "
             "only be queried with an OpenCL backend");
 
-      return get_info_impl<UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC>());
     }
 
     CASE(info::device::partition_properties) {
@@ -589,16 +641,19 @@ public:
     }
 
     CASE(info::device::usm_device_allocations) {
-      return get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_host_allocations) {
-      return get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_shared_allocations) {
-      return get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_restricted_shared_allocations) {
       ur_device_usm_access_capability_flags_t cap_flags =
@@ -609,14 +664,16 @@ public:
                 UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
     }
     CASE(info::device::usm_system_allocations) {
-      return get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
 
     CASE(info::device::opencl_c_version) {
       throw sycl::exception(errc::feature_not_supported,
                             "Deprecated interface that hasn't been working for "
                             "some time already");
+      return std::string{}; // for return type deduction.
     }
 
     CASE(ext::intel::info::device::max_mem_bandwidth) {
@@ -630,22 +687,26 @@ public:
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_global_work_groups>();
+          ext::oneapi::experimental::info::device::max_global_work_groups,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_1d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<1>>();
+          ext::oneapi::experimental::info::device::max_work_groups<1>,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_2d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<2>>();
+          ext::oneapi::experimental::info::device::max_work_groups<2>,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_3d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
     }
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
@@ -653,7 +714,7 @@ public:
         return false;
 
       return get_info_impl_nocheck<UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP>()
-          .value_or(0);
+                 .value_or(0) != 0;
     }
 
     // ext_codeplay_device_traits.def
@@ -670,7 +731,8 @@ public:
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
       size_t Limit = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_global_work_groups>();
+          ext::oneapi::experimental::info::device::max_global_work_groups,
+          DependentFalse>();
 
       // TODO: std::array<size_t, 3> ?
       size_t result[3];
@@ -682,12 +744,14 @@ public:
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<2>) {
       id<3> max_3d = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
       return id<2>{max_3d[1], max_3d[2]};
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<1>) {
       id<3> max_3d = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
       return id<1>{max_3d[2]};
     }
 
@@ -732,8 +796,8 @@ public:
     }
 
     CASE(ext::oneapi::experimental::info::device::mipmap_max_anisotropy) {
-      // Implicit conversion:
-      return get_info_impl<UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP>();
+      return static_cast<float>(
+          get_info_impl<UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP>());
     }
 
     CASE(ext::oneapi::experimental::info::device::component_devices) {
@@ -742,7 +806,7 @@ public:
       if (!Devs.has_val()) {
         ur_result_t Err = Devs.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
-          return {};
+          return std::vector<sycl::device>{};
         getAdapter()->checkUrResult(Err);
       }
 
@@ -771,8 +835,8 @@ public:
                             "must have a composite device.");
     }
     CASE(ext::oneapi::info::device::num_compute_units) {
-      // uint32_t -> size_t
-      return get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>();
+      return static_cast<size_t>(
+          get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>());
     }
 
     // ext_intel_device_traits.def
@@ -864,8 +928,8 @@ public:
       return get_info_impl<UR_DEVICE_INFO_MEMORY_BUS_WIDTH>();
     }
     CASE(ext::intel::info::device::max_compute_queue_indices) {
-      // uint32_t->int implicit conversion.
-      return get_info_impl<UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES>();
+      return static_cast<int>(
+          get_info_impl<UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES>());
     }
     CASE(ext::intel::esimd::info::device::has_2d_block_io_support) {
       if (!has(aspect::ext_intel_esimd))
@@ -929,10 +993,131 @@ public:
     }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
-      return get_info_impl<Desc>();
+      return static_cast<typename Param::return_type>(get_info_impl<Desc>());
     }
 #undef CASE
   }
+
+  /// Get instance of OpenCL device
+  ///
+  /// \return a valid cl_device_id instance in accordance with the
+  /// requirements described in 4.3.1.
+  cl_device_id get() const;
+
+  /// Get reference to UR device
+  ///
+  /// For host device an exception is thrown
+  ///
+  /// \return non-constant reference to UR device
+  ur_device_handle_t &getHandleRef() { return MDevice; }
+
+  /// Get constant reference to UR device
+  ///
+  /// For host device an exception is thrown
+  ///
+  /// \return constant reference to UR device
+  const ur_device_handle_t &getHandleRef() const { return MDevice; }
+
+  /// Check if device is a CPU device
+  ///
+  /// \return true if SYCL device is a CPU device
+  bool is_cpu() const {
+    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_CPU;
+  }
+
+  /// Check if device is a GPU device
+  ///
+  /// \return true if SYCL device is a GPU device
+  bool is_gpu() const {
+    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_GPU;
+  }
+
+  /// Check if device is an accelerator device
+  ///
+  /// \return true if SYCL device is an accelerator device
+  bool is_accelerator() const {
+    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_FPGA;
+  }
+
+  /// Get associated SYCL platform
+  ///
+  /// If this SYCL device is an OpenCL device then the SYCL platform
+  /// must encapsulate the OpenCL cl_plaform_id associated with the
+  /// underlying OpenCL cl_device_id of this SYCL device. If this SYCL device
+  /// is a host device then the SYCL platform must be a host platform.
+  /// The value returned must be equal to that returned
+  /// by get_info<info::device::platform>().
+  ///
+  /// \return The associated SYCL platform.
+  platform get_platform() const;
+
+  /// \return the associated adapter with this device.
+  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
+
+  /// Check SYCL extension support by device
+  ///
+  /// \param ExtensionName is a name of queried extension.
+  /// \return true if SYCL device supports the extension.
+  bool has_extension(const std::string &ExtensionName) const;
+
+  std::vector<device>
+  create_sub_devices(const ur_device_partition_properties_t *Properties,
+                     size_t SubDevicesCount) const;
+
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support
+  /// info::partition_property::partition_equally a feature_not_supported
+  /// exception must be thrown.
+  ///
+  /// \param ComputeUnits is a desired count of compute units in each sub
+  /// device.
+  /// \return A vector class of sub devices partitioned equally from this
+  /// SYCL device based on the ComputeUnits parameter.
+  std::vector<device> create_sub_devices(size_t ComputeUnits) const;
+
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support
+  /// info::partition_property::partition_by_counts a feature_not_supported
+  /// exception must be thrown.
+  ///
+  /// \param Counts is a std::vector of desired compute units in sub devices.
+  /// \return a std::vector of sub devices partitioned from this SYCL device
+  /// by count sizes based on the Counts parameter.
+  std::vector<device>
+  create_sub_devices(const std::vector<size_t> &Counts) const;
+
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support
+  /// info::partition_property::partition_by_affinity_domain or the SYCL
+  /// device does not support info::affinity_domain provided a
+  /// feature_not_supported exception must be thrown.
+  ///
+  /// \param AffinityDomain is one of the values described in Table 4.20 of
+  /// SYCL Spec
+  /// \return a vector class of sub devices partitioned from this SYCL device
+  /// by affinity domain based on the AffinityDomain parameter
+  std::vector<device>
+  create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
+
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support
+  /// info::partition_property::ext_intel_partition_by_cslice a
+  /// feature_not_supported exception must be thrown.
+  ///
+  /// \return a vector class of sub devices partitioned from this SYCL
+  /// device at a granularity of "cslice" (compute slice).
+  std::vector<device> create_sub_devices() const;
+
+  /// Check if desired partition property supported by device
+  ///
+  /// \param Prop is one of info::partition_property::(partition_equally,
+  /// partition_by_counts, partition_by_affinity_domain)
+  /// \return true if Prop is supported by device.
+  bool is_partition_supported(info::partition_property Prop) const;
 
   /// Queries SYCL queue for SYCL backend-specific information.
   ///
@@ -962,20 +1147,18 @@ public:
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
 
-  /// Indicates the SYCL device prefers to use its native assert
-  /// implementation.
-  ///
-  /// If this is false we will use the fallback assert implementation,
-  /// as detailed in doc/design/Assert.md
-  bool useNativeAssert() const;
-
   bool isRootDevice() const { return MRootDevice == nullptr; }
-
-  std::string getDeviceName() const;
 
   bool
   extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
-    return Arch == getDeviceArch();
+
+    return Arch ==
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+           get_info
+#else
+           get_info_abi_workaround
+#endif
+           <ext::oneapi::experimental::info::device::architecture>();
   }
 
   bool extOneapiArchitectureIs(
@@ -984,9 +1167,16 @@ public:
         get_category_min_architecture(Category);
     std::optional<ext::oneapi::experimental::architecture> CategoryMaxArch =
         get_category_max_architecture(Category);
-    if (CategoryMinArch.has_value() && CategoryMaxArch.has_value())
-      return CategoryMinArch <= getDeviceArch() &&
-             getDeviceArch() <= CategoryMaxArch;
+    if (CategoryMinArch.has_value() && CategoryMaxArch.has_value()) {
+      auto Arch =
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+          get_info
+#else
+          get_info_abi_workaround
+#endif
+          <ext::oneapi::experimental::info::device::architecture>();
+      return CategoryMinArch <= Arch && Arch <= CategoryMaxArch;
+    }
     return false;
   }
 
@@ -1040,9 +1230,6 @@ public:
 
   /// @brief  Get the platform impl serving this device
   platform_impl &getPlatformImpl() const { return *MPlatform; }
-
-  /// Get device architecture
-  ext::oneapi::experimental::architecture getDeviceArch() const;
 
   template <ur_device_info_t Desc>
   std::vector<info::fp_config> get_fp_config() const {
@@ -1588,15 +1775,26 @@ public:
 
 private:
   ur_device_handle_t MDevice = 0;
-  ur_device_type_t MType;
-  ur_device_handle_t MRootDevice = nullptr;
+  // This is used for getAdapter so should be above other properties.
   std::shared_ptr<platform_impl> MPlatform;
-  bool MUseNativeAssert = false;
-  mutable std::string MDeviceName;
-  mutable std::once_flag MDeviceNameFlag;
-  mutable ext::oneapi::experimental::architecture MDeviceArch{};
-  mutable std::once_flag MDeviceArchFlag;
+
+  // TODO: Does this have a race?
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
+
+  const ur_device_handle_t MRootDevice;
+
+  // This must come before `MInfoCache` below, so that eager initialization of
+  // this cache would happen before its potential use in the initialization of
+  // `MInfoCache`.
+  URInfoCache<
+      UREagerCache<UR_DEVICE_INFO_TYPE, UR_DEVICE_INFO_USE_NATIVE_ASSERT>,
+      URCallOnceCache<UR_DEVICE_INFO_NAME>>
+      MURInfoCache;
+
+  InfoCache<
+      InfoEagerCache<>,
+      InfoCallOnceCache<ext::oneapi::experimental::info::device::architecture>>
+      MInfoCache;
 }; // class device_impl
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
