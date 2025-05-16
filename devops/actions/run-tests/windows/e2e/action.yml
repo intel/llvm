@@ -113,3 +113,8 @@ runs:
       name: ${{ inputs.binaries_artifact }}
       path: e2e_bin.tar.gz
       retention-days: ${{ inputs.retention-days }}
+  - name: Memes
+    if: ${{ always() && !cancelled() && inputs.binaries_artifact != ''}}
+    shell: bash
+    run: |
+		echo $PATH
