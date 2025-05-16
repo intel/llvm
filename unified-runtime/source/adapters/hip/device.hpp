@@ -31,7 +31,7 @@ private:
   int MaxBlockDimX{0};
   int MaxBlockDimY{0};
   int MaxBlockDimZ{0};
-  int DeviceMaxLocalMem{0};
+  int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
   int ManagedMemSupport{0};
   int ConcurrentManagedAccess{0};
@@ -52,7 +52,7 @@ public:
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &MaxBlockDimZ, hipDeviceAttributeMaxBlockDimZ, HIPDevice));
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
+        &MaxCapacityLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
         HIPDevice));
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &ManagedMemSupport, hipDeviceAttributeManagedMemory, HIPDevice));
@@ -114,7 +114,7 @@ public:
 
   int getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
 
-  int getDeviceMaxLocalMem() const noexcept { return DeviceMaxLocalMem; };
+  int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
   int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
 
