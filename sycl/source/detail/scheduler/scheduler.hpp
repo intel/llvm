@@ -834,6 +834,8 @@ protected:
     /// \param EnqueueResult is set to specific status if enqueue failed.
     /// \param ToCleanUp container for commands that can be cleaned up.
     /// \param RootCommand top level command enqueueCommand is called for.
+    /// \param RecursionDepth is the current depth of the recursive enqueuing of
+    /// command dependencies.
     /// \return true if the command is successfully enqueued.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
@@ -842,7 +844,8 @@ protected:
                                EnqueueResultT &EnqueueResult,
                                std::vector<Command *> &ToCleanUp,
                                Command *RootCommand,
-                               BlockingT Blocking = NON_BLOCKING);
+                               BlockingT Blocking = NON_BLOCKING,
+                               uint32_t RecursionDepth = 0);
 
     /// Check if successfully enqueued command is expected to be blocking for
     /// the dependent commands before its completion.
