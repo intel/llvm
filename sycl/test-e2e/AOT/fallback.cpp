@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: ocloc, any-device-is-gpu, target-spir
-// UNSUPPORTED: arch-intel_gpu_tgl
+// REQUIRES: ocloc, gpu, target-spir
+// UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-INTENDED: Remove support for platform used as compile target
 // since AOT image should be not applicable.
 
