@@ -1,10 +1,8 @@
 // REQUIRES: cuda || hip
 
-// DEFINE: %{env_var} = %if cuda %{UR_CUDA_MAX_LOCAL_MEM_SIZE %} %else %{UR_HIP_MAX_LOCAL_MEM_SIZE%}
-
 // RUN: %{build} -o %t.out
-// RUN: %{run} %{env_var}=0 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ZERO %s
-// RUN: %{run} %{env_var}=100000000 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-OVERALLOCATE %s
+// RUN: %{run} %if cuda %{UR_CUDA_MAX_LOCAL_MEM_SIZE%} %else %{UR_HIP_MAX_LOCAL_MEM_SIZE%}=0 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ZERO %s
+// RUN: %{run} %if cuda %{UR_CUDA_MAX_LOCAL_MEM_SIZE%} %else %{UR_HIP_MAX_LOCAL_MEM_SIZE%}=100000000 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-OVERALLOCATE %s
 
 //==------------------------ max-local-mem-size.cpp -----------------------===//
 //==--- SYCL test to test UR_{CUDA,HIP}_MAX_LOCAL_MEM_SIZE env var---------===//
