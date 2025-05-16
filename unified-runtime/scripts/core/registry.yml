@@ -508,12 +508,6 @@ etors:
 - name: LOADER_TEAR_DOWN
   desc: Enumerator for $xLoaderTearDown
   value: '202'
-- name: ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP
-  desc: Enumerator for $xEnqueueCooperativeKernelLaunchExp
-  value: '214'
-- name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP
-  desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCountExp
-  value: '215'
 - name: PROGRAM_GET_GLOBAL_VARIABLE_POINTER
   desc: Enumerator for $xProgramGetGlobalVariablePointer
   value: '216'
@@ -529,9 +523,6 @@ etors:
 - name: ENQUEUE_TIMESTAMP_RECORDING_EXP
   desc: Enumerator for $xEnqueueTimestampRecordingExp
   value: '223'
-- name: ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP
-  desc: Enumerator for $xEnqueueKernelLaunchCustomExp
-  value: '224'
 - name: KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE
   desc: Enumerator for $xKernelGetSuggestedLocalWorkSize
   value: '225'
@@ -661,6 +652,9 @@ etors:
 - name: BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP
   desc: Enumerator for $xBindlessImagesFreeMappedLinearMemoryExp
   value: '271'
+- name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT
+  desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCount
+  value: '272'
 ---
 type: enum
 desc: Defines structure types
