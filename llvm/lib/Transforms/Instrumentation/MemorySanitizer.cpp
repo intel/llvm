@@ -6351,10 +6351,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       auto *Func = CB.getCalledFunction();
       if (Func) {
         auto FuncName = Func->getName();
-        outs() << "!!!! " << FuncName << "\n";
         if (FuncName.contains("__spirv_GroupAsyncCopy")) {
-          // Like "_Z22__spirv_GroupAsyncCopyiPU3AS3dPU3AS1dllP13__spirv_Event"
-          // "__spirv_GroupAsyncCopy(int, double AS3*, double AS1*, long, long, __spirv_Event*)"
+          // clang-format off
+          // Handle functions like "_Z22__spirv_GroupAsyncCopyiPU3AS3dPU3AS1dllP13__spirv_Event", 
+          // its demangled name is "__spirv_GroupAsyncCopy(int, double AS3* dst, double AS1* src, long, long, __spirv_Event*)"
+          // The type of "src" and "dst" should always be same.
+          // clang-format on
 
           auto *Dest = CB.getArgOperand(1);
           auto *Src = CB.getArgOperand(2);
