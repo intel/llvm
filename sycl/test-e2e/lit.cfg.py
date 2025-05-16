@@ -541,6 +541,10 @@ with test_env():
     else:
         config.substitutions.append(("%hip_options", ""))
 
+# Add ROCM_PATH from system environment, this is used by clang to find ROCm
+# libraries in non-standard installation locations.
+llvm_config.with_system_environment("ROCM_PATH")
+
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
@@ -873,7 +877,7 @@ def get_sycl_ls_verbose(sycl_device, env):
 # matches that architecture using the backend:device-num device selection
 # scheme.
 filtered_sycl_devices = []
-for sycl_device in remove_level_zero_suffix(config.sycl_devices):
+for sycl_device in config.sycl_devices:
     backend, device_arch = sycl_device.split(":", 1)
 
     if not "arch-" in device_arch:
@@ -887,7 +891,9 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
     detected_architectures = []
 
-    for line in get_sycl_ls_verbose(backend + ":*", env):
+    platform_devices = remove_level_zero_suffix(backend + ":*")
+
+    for line in get_sycl_ls_verbose(platform_devices, env):
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             detected_architectures.append(architecture.strip())
@@ -906,7 +912,7 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
 if not filtered_sycl_devices and not config.test_mode == "build-only":
     lit_config.error(
-        "No sycl devices selected! Check your device " "architecture filters."
+        "No sycl devices selected! Check your device architecture filters."
     )
 
 config.sycl_devices = filtered_sycl_devices

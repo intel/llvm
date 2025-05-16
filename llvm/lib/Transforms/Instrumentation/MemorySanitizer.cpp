@@ -799,6 +799,7 @@ private:
   void instrumentDynamicLocalMemory(Function &F);
   void instrumentKernelsMetadata();
   void instrumentPrivateArguments(Function &F, Instruction *FnPrologueEnd);
+  void instrumentPrivateBase(Function &F);
 
   void initializeRetVecMap(Function *F);
   void initializeKernelCallerMap(Function *F);
@@ -832,6 +833,7 @@ private:
   FunctionCallee MsanUnpoisonShadowDynamicLocalFunc;
   FunctionCallee MsanBarrierFunc;
   FunctionCallee MsanUnpoisonStackFunc;
+  FunctionCallee MsanSetPrivateBaseFunc;
   FunctionCallee MsanUnpoisonStridedCopyFunc;
 };
 
@@ -899,14 +901,14 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
       M.getOrInsertFunction("__msan_unpoison_shadow_static_local",
                             IRB.getVoidTy(), IntptrTy, IntptrTy);
 
-  // __asan_poison_shadow_dynamic_local(
+  // __msan_poison_shadow_dynamic_local(
   //   uptr ptr,
   //   uint32_t num_args
   // )
   MsanPoisonShadowDynamicLocalFunc = M.getOrInsertFunction(
       "__msan_poison_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty);
 
-  // __asan_unpoison_shadow_dynamic_local(
+  // __msan_unpoison_shadow_dynamic_local(
   //   uptr ptr,
   //   uint32_t num_args
   // )
@@ -924,6 +926,20 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   MsanUnpoisonStackFunc = M.getOrInsertFunction(
       "__msan_unpoison_stack", IRB.getVoidTy(), PtrTy, IntptrTy);
 
+  // __msan_set_private_base(
+  //   as(0) void *  ptr
+  // )
+  MsanSetPrivateBaseFunc =
+      M.getOrInsertFunction("__msan_set_private_base", IRB.getVoidTy(),
+                            PointerType::get(C, kSpirOffloadPrivateAS));
+
+  // __msan_unpoison_strided_copy(
+  //   uptr dest, uint32_t dest_as,
+  //   uptr src, uint32_t src_as,
+  //   uint32_t element_size,
+  //   uptr counts,
+  //   uptr stride
+  // )
   MsanUnpoisonStridedCopyFunc = M.getOrInsertFunction(
       "__msan_unpoison_strided_copy", IRB.getVoidTy(), IntptrTy,
       IRB.getInt32Ty(), IntptrTy, IRB.getInt32Ty(), IRB.getInt32Ty(),
@@ -1105,6 +1121,16 @@ void MemorySanitizerOnSpirv::instrumentDynamicLocalMemory(Function &F) {
   InsertBarrier[&F] = true;
 }
 
+void MemorySanitizerOnSpirv::instrumentPrivateBase(Function &F) {
+  if (!ClSpirOffloadPrivates)
+    return;
+
+  IRBuilder<> IRB(&F.getEntryBlock().front());
+  AllocaInst *PrivateBase = IRB.CreateAlloca(
+      IRB.getInt8Ty(), ConstantInt::get(Int32Ty, 1), "__private_base");
+  IRB.CreateCall(MsanSetPrivateBaseFunc, {PrivateBase});
+}
+
 void MemorySanitizerOnSpirv::instrumentPrivateArguments(
     Function &F, Instruction *FnPrologueEnd) {
   if (!ClSpirOffloadPrivates)
@@ -1243,8 +1269,10 @@ void MemorySanitizerOnSpirv::afterInstrumentFunction(Function &F) {
   if (!IsSPIRV)
     return;
 
-  if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
     instrumentDynamicLocalMemory(F);
+    instrumentPrivateBase(F);
+  }
 }
 
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
@@ -1551,8 +1579,8 @@ void MemorySanitizer::initializeCallbacks(Module &M,
       "__msan_instrument_asm_store", IRB.getVoidTy(), PtrTy, IntptrTy);
 
   MsanGetShadowFn = M.getOrInsertFunction(
-      "__msan_get_shadow", IntptrTy, IntptrTy, IRB.getInt32Ty(),
-      IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+      "__msan_get_shadow", PointerType::get(*C, kSpirOffloadGlobalAS), IntptrTy,
+      IRB.getInt32Ty(), IRB.getInt8PtrTy(kSpirOffloadConstantAS));
 
   if (CompileKernel) {
     createKernelApi(M, TLI);
@@ -2126,8 +2154,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     auto DebugLoc = IRB.getCurrentDebugLocation();
 
     // SPIR constant address space
-    auto *ConstASPtrTy =
-        PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+    auto *ConstASPtrTy = PointerType::get(C, kSpirOffloadConstantAS);
 
     // file name and line number
     if (DebugLoc) {
@@ -2566,8 +2593,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         OffsetLong =
             IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
     } else { // SPIR or SPIR-V
-      auto *ConstASPtrTy = PointerType::get(Type::getInt8Ty(Addr->getContext()),
-                                            kSpirOffloadConstantAS);
+      auto *ConstASPtrTy =
+          PointerType::get(Addr->getContext(), kSpirOffloadConstantAS);
       auto *FuncNameGV = MS.Spirv.getOrCreateGlobalString(
           "__msan_func", F.getName(), kSpirOffloadConstantAS);
 

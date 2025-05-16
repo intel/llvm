@@ -15,7 +15,7 @@ struct urHipCommandBufferNativeAppendTest
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferNativeAppendTest::SetUp());
-    if (backend != UR_PLATFORM_BACKEND_HIP) {
+    if (backend != UR_BACKEND_HIP) {
       GTEST_SKIP() << "Native append test is only supported on HIP.";
     }
 
@@ -119,6 +119,63 @@ TEST_P(urHipCommandBufferNativeAppendTest, Dependencies) {
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(command_buffer));
   ASSERT_SUCCESS(
       urEnqueueCommandBufferExp(queue, command_buffer, 0, nullptr, nullptr));
+
+  urQueueFinish(queue);
+  for (auto &i : host_vec) {
+    ASSERT_EQ(i, val);
+  }
+}
+
+// Test using an in-order command-buffer
+struct urHipInOrderCommandBufferNativeAppendTest
+    : urHipCommandBufferNativeAppendTest {
+  virtual void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urHipCommandBufferNativeAppendTest::SetUp());
+
+    ur_exp_command_buffer_desc_t desc{
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, // stype
+        nullptr,                                   // pnext
+        false,                                     // isUpdatable
+        true,                                      // isInOrder
+        false,                                     // enableProfiling
+    };
+    ASSERT_SUCCESS(
+        urCommandBufferCreateExp(context, device, &desc, &in_order_cb));
+    ASSERT_NE(in_order_cb, nullptr);
+  }
+
+  virtual void TearDown() override {
+    if (in_order_cb) {
+      EXPECT_SUCCESS(urCommandBufferReleaseExp(in_order_cb));
+    }
+
+    UUR_RETURN_ON_FATAL_FAILURE(urHipCommandBufferNativeAppendTest::TearDown());
+  }
+  ur_exp_command_buffer_handle_t in_order_cb = nullptr;
+};
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urHipInOrderCommandBufferNativeAppendTest);
+
+// Test command-buffer native command with other command-buffer commands as
+// predecessors and successors, defined using in-order property rather than
+// sync-points
+TEST_P(urHipInOrderCommandBufferNativeAppendTest, Success) {
+  ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
+      in_order_cb, src_device_ptr, &val, sizeof(val), allocation_size, 0,
+      nullptr, 0, nullptr, nullptr, nullptr, nullptr));
+
+  InteropData data{child_cmd_buf, src_device_ptr, dst_device_ptr};
+  ASSERT_SUCCESS(urCommandBufferAppendNativeCommandExp(
+      in_order_cb, &interop_func, &data, child_cmd_buf, 0, nullptr, nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferAppendUSMMemcpyExp(
+      in_order_cb, host_vec.data(), dst_device_ptr, allocation_size, 0, nullptr,
+      0, nullptr, nullptr, nullptr, nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(in_order_cb));
+
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, in_order_cb, 0, nullptr, nullptr));
 
   urQueueFinish(queue);
   for (auto &i : host_vec) {
