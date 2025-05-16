@@ -73,7 +73,7 @@ public:
 
     if (LocalMemSizePtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
-      if (MaxChosenLocalMem <= 0) {
+      if (MaxChosenLocalMem <= 0 || MaxChosenLocalMem > MaxCapacityLocalMem) {
         setErrorMessage(LocalMemSizePtrUR ? "Invalid value specified for "
                                             "UR_CUDA_MAX_LOCAL_MEM_SIZE"
                                           : "Invalid value specified for "

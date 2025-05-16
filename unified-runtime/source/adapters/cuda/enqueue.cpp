@@ -163,7 +163,6 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
                 size_t (&BlocksPerGrid)[3]) {
   size_t MaxWorkGroupSize = 0u;
   bool ProvidedLocalWorkGroupSize = LocalWorkSize != nullptr;
-  uint32_t LocalSize = Kernel->getLocalSize();
 
   try {
     // Set the active context here as guessLocalWorkSize needs an active context
@@ -248,6 +247,7 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
                                    CudaImplicitOffset);
     }
 
+    uint32_t LocalSize = Kernel->getLocalSize();
     if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
       setErrorMessage("Excessive allocation of local memory on the device",
                       UR_RESULT_ERROR_OUT_OF_RESOURCES);
