@@ -548,7 +548,8 @@ ur_result_t urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_native_handle_t hImageMem,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_sampler_handle_t hSampler, ur_exp_image_native_handle_t *phImage);
+    const ur_sampler_desc_t *pSamplerDesc,
+    ur_exp_image_native_handle_t *phImage);
 ur_result_t urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, const void *pSrc, void *pDst,
     const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,

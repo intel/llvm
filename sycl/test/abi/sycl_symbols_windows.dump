@@ -4369,6 +4369,7 @@
 ?select_device@filter_selector@oneapi@ext@_V1@sycl@@UEBA?AVdevice@45@XZ
 ?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVsampler@23@@Z
+?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVstream@23@@Z
 ?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVdynamic_work_group_memory_base@detail@experimental@oneapi@ext@23@@Z
 ?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVwork_group_memory_impl@detail@23@@Z
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
