@@ -14,6 +14,10 @@ _CLC_OVERLOAD _CLC_DEF char __clc_ctz(char x) {
   return __clc_ctz(__clc_as_uchar(x));
 }
 
+_CLC_OVERLOAD _CLC_DEF schar __clc_ctz(schar x) {
+  return __clc_ctz(__clc_as_uchar(x));
+}
+
 _CLC_OVERLOAD _CLC_DEF uchar __clc_ctz(uchar x) { return __builtin_ctzg(x, 8); }
 
 _CLC_OVERLOAD _CLC_DEF short __clc_ctz(short x) {
@@ -39,6 +43,7 @@ _CLC_OVERLOAD _CLC_DEF ulong __clc_ctz(ulong x) {
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, char, __clc_ctz, char)
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, schar, __clc_ctz, schar)
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uchar, __clc_ctz, uchar)
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, short, __clc_ctz, short)
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_ctz, ushort)
