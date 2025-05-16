@@ -281,6 +281,11 @@ void event_impl::wait_and_throw(
     std::shared_ptr<sycl::detail::event_impl> Self) {
   wait(Self);
 
+  auto WaitList = getWaitList();
+  for (const auto &Event : WaitList) {
+    Event->getSubmittedQueue()->throw_asynchronous();
+  }
+
   if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
     SubmittedQueue->throw_asynchronous();
 }
