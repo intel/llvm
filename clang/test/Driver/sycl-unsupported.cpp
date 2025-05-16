@@ -56,11 +56,11 @@
 // RUN:    -DOPT_CC1=-fprofile-instrument=clang \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 
-// CHECK: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}';only supported for host compilation [-Woption-ignored]
+// CHECK: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}'; only supported for host compilation [-Woption-ignored]
 // CHECK-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT]]{{.*}}"
 // CHECK: clang{{.*}} "-fsycl-is-host"{{.*}} "[[OPT]]{{.*}}"
 
-// UNSUPPORTED_OPT_DIAG: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}';only supported for host compilation [-Woption-ignored]
+// UNSUPPORTED_OPT_DIAG: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}'; only supported for host compilation [-Woption-ignored]
 // UNSUPPORTED_OPT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT_CC1]]{{.*}}"
 // UNSUPPORTED_OPT: clang{{.*}} "-fsycl-is-host"{{.*}} "[[OPT_CC1]]{{.*}}"
 

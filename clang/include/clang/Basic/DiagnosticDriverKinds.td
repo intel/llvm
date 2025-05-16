@@ -143,7 +143,7 @@ def warn_drv_unsupported_option_for_offload_arch_req_feature : Warning<
   InGroup<OptionIgnored>;
 def warn_drv_unsupported_option_for_target
     : Warning<"ignoring '%0' option as it is not currently supported for "
-              "target '%1'%select{|;only supported for host compilation}2">,
+              "target '%1'%select{|; only supported for host compilation}2">,
       InGroup<OptionIgnored>;
 def warn_drv_unsupported_option_for_flang : Warning<
   "the argument '%0' is not supported for option '%1'. Mapping to '%1%2'">,
