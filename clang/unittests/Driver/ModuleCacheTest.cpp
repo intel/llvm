@@ -17,7 +17,7 @@ using namespace clang::driver;
 
 namespace {
 
-TEST(DriverModuleCacheTest, GetTargetAndMode) {
+TEST(ModuleCacheTest, GetTargetAndMode) {
   SmallString<128> Buf;
   Driver::getDefaultModuleCachePath(Buf);
   StringRef Path = Buf;

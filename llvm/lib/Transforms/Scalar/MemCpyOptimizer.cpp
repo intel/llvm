@@ -1212,7 +1212,7 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
     // Don't convert llvm.memcpy.inline into memmove because memmove can be
     // lowered as a call, and that is not allowed for llvm.memcpy.inline (and
     // there is no inline version of llvm.memmove)
-    if (M->isForceInlined())
+    if (isa<MemCpyInlineInst>(M))
       return false;
     UseMemMove = true;
   }
@@ -1229,18 +1229,17 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
     NewM =
         Builder.CreateMemMove(M->getDest(), M->getDestAlign(), CopySource,
                               CopySourceAlign, M->getLength(), M->isVolatile());
-  else if (M->isForceInlined())
+  else if (isa<MemCpyInlineInst>(M)) {
     // llvm.memcpy may be promoted to llvm.memcpy.inline, but the converse is
     // never allowed since that would allow the latter to be lowered as a call
     // to an external function.
     NewM = Builder.CreateMemCpyInline(M->getDest(), M->getDestAlign(),
                                       CopySource, CopySourceAlign,
                                       M->getLength(), M->isVolatile());
-  else
-    NewM = Builder.CreateMemCpy(M->getDest(), M->getDestAlign(), CopySource,
-                                CopySourceAlign, M->getLength(),
-                                M->isVolatile());
-
+  } else
+    NewM =
+        Builder.CreateMemCpy(M->getDest(), M->getDestAlign(), CopySource,
+                             CopySourceAlign, M->getLength(), M->isVolatile());
   NewM->copyMetadata(*M, LLVMContext::MD_DIAssignID);
 
   assert(isa<MemoryDef>(MSSA->getMemoryAccess(M)));
@@ -1517,8 +1516,14 @@ bool MemCpyOptPass::performStackMoveOptzn(Instruction *Load, Instruction *Store,
   // to remove them.
 
   SmallVector<Instruction *, 4> LifetimeMarkers;
-  SmallSet<Instruction *, 4> AAMetadataInstrs;
+  SmallSet<Instruction *, 4> NoAliasInstrs;
   bool SrcNotDom = false;
+
+  // Recursively track the user and check whether modified alias exist.
+  auto IsDereferenceableOrNull = [](Value *V, const DataLayout &DL) -> bool {
+    bool CanBeNull, CanBeFreed;
+    return V->getPointerDereferenceableBytes(DL, CanBeNull, CanBeFreed);
+  };
 
   auto CaptureTrackingWithModRef =
       [&](Instruction *AI,
@@ -1529,7 +1534,8 @@ bool MemCpyOptPass::performStackMoveOptzn(Instruction *Load, Instruction *Store,
     Worklist.reserve(MaxUsesToExplore);
     SmallSet<const Use *, 20> Visited;
     while (!Worklist.empty()) {
-      Instruction *I = Worklist.pop_back_val();
+      Instruction *I = Worklist.back();
+      Worklist.pop_back();
       for (const Use &U : I->uses()) {
         auto *UI = cast<Instruction>(U.getUser());
         // If any use that isn't dominated by SrcAlloca exists, we move src
@@ -1545,7 +1551,9 @@ bool MemCpyOptPass::performStackMoveOptzn(Instruction *Load, Instruction *Store,
         }
         if (!Visited.insert(&U).second)
           continue;
-        UseCaptureInfo CI = DetermineUseCaptureKind(U, AI);
+        UseCaptureInfo CI =
+            DetermineUseCaptureKind(U, AI, IsDereferenceableOrNull);
+        // TODO(captures): Make this more precise.
         if (capturesAnything(CI.UseCC))
           return false;
 
@@ -1562,8 +1570,8 @@ bool MemCpyOptPass::performStackMoveOptzn(Instruction *Load, Instruction *Store,
               continue;
             }
           }
-          AAMetadataInstrs.insert(UI);
-
+          if (UI->hasMetadata(LLVMContext::MD_noalias))
+            NoAliasInstrs.insert(UI);
           if (!ModRefCallback(UI))
             return false;
         }
@@ -1672,16 +1680,11 @@ bool MemCpyOptPass::performStackMoveOptzn(Instruction *Load, Instruction *Store,
   }
 
   // As this transformation can cause memory accesses that didn't previously
-  // alias to begin to alias one another, we remove !alias.scope, !noalias,
-  // !tbaa and !tbaa_struct metadata from any uses of either alloca.
-  // This is conservative, but more precision doesn't seem worthwhile
-  // right now.
-  for (Instruction *I : AAMetadataInstrs) {
-    I->setMetadata(LLVMContext::MD_alias_scope, nullptr);
+  // alias to begin to alias one another, we remove !noalias metadata from any
+  // uses of either alloca. This is conservative, but more precision doesn't
+  // seem worthwhile right now.
+  for (Instruction *I : NoAliasInstrs)
     I->setMetadata(LLVMContext::MD_noalias, nullptr);
-    I->setMetadata(LLVMContext::MD_tbaa, nullptr);
-    I->setMetadata(LLVMContext::MD_tbaa_struct, nullptr);
-  }
 
   LLVM_DEBUG(dbgs() << "Stack Move: Performed staack-move optimization\n");
   NumStackMove++;

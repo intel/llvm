@@ -79,7 +79,8 @@ static_assert(bar.fail1<int>()); // both-error {{constant expression}} \
 static_assert(bar.fail2<int*, 42>()); // both-error {{constant expression}} \
                                       // both-note {{in call to 'bar.fail2<int *, 42>()'}}
 static_assert(bar.fail3(3, 4UL, bar, &bar)); // both-error {{constant expression}} \
-                                             // both-note {{in call to 'bar.fail3<int, unsigned long, Bar<int>, const Bar<int> *>(3, 4, {}, &bar)'}}
+                                             // expected-note {{in call to 'bar.fail3<int, unsigned long, Bar<int>, const Bar<int> *>(3, 4, &bar, &bar)'}} \
+                                             // ref-note {{in call to 'bar.fail3<int, unsigned long, Bar<int>, const Bar<int> *>(3, 4, {}, &bar)'}}
 
 
 

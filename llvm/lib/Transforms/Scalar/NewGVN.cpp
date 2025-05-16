@@ -1074,9 +1074,10 @@ PHIExpression *NewGVN::createPHIExpression(ArrayRef<ValPair> PHIOperands,
     HasBackedge = HasBackedge || isBackedge(BB, PHIBlock);
     return lookupOperandLeader(P.first) != I;
   });
-  llvm::transform(Filtered, op_inserter(E), [&](const ValPair &P) -> Value * {
-    return lookupOperandLeader(P.first);
-  });
+  std::transform(Filtered.begin(), Filtered.end(), op_inserter(E),
+                 [&](const ValPair &P) -> Value * {
+                   return lookupOperandLeader(P.first);
+                 });
   return E;
 }
 
@@ -1266,14 +1267,14 @@ NewGVN::createAggregateValueExpression(Instruction *I) const {
         AggregateValueExpression(I->getNumOperands(), II->getNumIndices());
     setBasicExpressionInfo(I, E);
     E->allocateIntOperands(ExpressionAllocator);
-    llvm::copy(II->indices(), int_op_inserter(E));
+    std::copy(II->idx_begin(), II->idx_end(), int_op_inserter(E));
     return E;
   } else if (auto *EI = dyn_cast<ExtractValueInst>(I)) {
     auto *E = new (ExpressionAllocator)
         AggregateValueExpression(I->getNumOperands(), EI->getNumIndices());
     setBasicExpressionInfo(EI, E);
     E->allocateIntOperands(ExpressionAllocator);
-    llvm::copy(EI->indices(), int_op_inserter(E));
+    std::copy(EI->idx_begin(), EI->idx_end(), int_op_inserter(E));
     return E;
   }
   llvm_unreachable("Unhandled type of aggregate value operation");
@@ -1532,7 +1533,7 @@ NewGVN::performSymbolicLoadCoercion(Type *LoadType, Value *LoadPtr,
   // All of the below are only true if the loaded pointer is produced
   // by the dependent instruction.
   if (LoadPtr != lookupOperandLeader(DepInst) &&
-      DepInst->getType()->isPointerTy() && !AA->isMustAlias(LoadPtr, DepInst))
+      !AA->isMustAlias(LoadPtr, DepInst))
     return nullptr;
   // If this load really doesn't depend on anything, then we must be loading an
   // undef value.  This can happen when loading for a fresh allocation with no
@@ -2737,6 +2738,7 @@ NewGVN::makePossiblePHIOfOps(Instruction *I,
   if (!isCycleFree(I))
     return nullptr;
 
+  SmallPtrSet<const Value *, 8> ProcessedPHIs;
   // TODO: We don't do phi translation on memory accesses because it's
   // complicated. For a load, we'd need to be able to simulate a new memoryuse,
   // which we don't have a good way of doing ATM.
@@ -3193,7 +3195,8 @@ bool NewGVN::singleReachablePHIPath(
   };
   auto FilteredPhiArgs =
       make_filter_range(MP->operands(), ReachableOperandPred);
-  SmallVector<const Value *, 32> OperandList(FilteredPhiArgs);
+  SmallVector<const Value *, 32> OperandList;
+  llvm::copy(FilteredPhiArgs, std::back_inserter(OperandList));
   bool Okay = all_equal(OperandList);
   if (Okay)
     return singleReachablePHIPath(Visited, cast<MemoryAccess>(OperandList[0]),

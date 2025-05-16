@@ -385,7 +385,7 @@ MachineFunctionInfo *WebAssemblyTargetMachine::createMachineFunctionInfo(
 
 TargetTransformInfo
 WebAssemblyTargetMachine::getTargetTransformInfo(const Function &F) const {
-  return TargetTransformInfo(std::make_unique<WebAssemblyTTIImpl>(this, F));
+  return TargetTransformInfo(WebAssemblyTTIImpl(this, F));
 }
 
 TargetPassConfig *
@@ -401,6 +401,7 @@ using WebAssembly::WasmEnableEH;
 using WebAssembly::WasmEnableEmEH;
 using WebAssembly::WasmEnableEmSjLj;
 using WebAssembly::WasmEnableSjLj;
+using WebAssembly::WasmUseLegacyEH;
 
 static void basicCheckForEHAndSjLj(TargetMachine *TM) {
 

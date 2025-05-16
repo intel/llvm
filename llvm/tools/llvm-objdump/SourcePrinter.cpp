@@ -378,6 +378,7 @@ void SourcePrinter::printSourceLine(formatted_raw_ostream &OS,
   DILineInfo LineInfo = DILineInfo();
   Expected<DILineInfo> ExpectedLineInfo =
       Symbolizer->symbolizeCode(*Obj, Address);
+  std::string ErrorMessage;
   if (ExpectedLineInfo) {
     LineInfo = *ExpectedLineInfo;
   } else if (!WarnedInvalidDebugInfo) {

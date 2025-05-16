@@ -818,7 +818,6 @@ static bool isAllocationWithHotColdVariant(const Function *Callee,
 
 struct AllocMatchInfo {
   uint64_t TotalSize = 0;
-  size_t NumFramesMatched = 0;
   AllocationType AllocType = AllocationType::None;
   bool Matched = false;
 };
@@ -973,7 +972,7 @@ readMemprof(Module &M, Function &F, IndexedInstrProfReader *MemProfReader,
   // 'unique-internal-linkage-names' can make MemProf work better for local
   // linkage function.
   auto FuncName = F.getName();
-  auto FuncGUID = Function::getGUIDAssumingExternalLinkage(FuncName);
+  auto FuncGUID = Function::getGUID(FuncName);
   std::optional<memprof::MemProfRecord> MemProfRec;
   auto Err = MemProfReader->getMemProfRecord(FuncGUID).moveInto(MemProfRec);
   if (Err) {
@@ -1099,7 +1098,7 @@ readMemprof(Module &M, Function &F, IndexedInstrProfReader *MemProfReader,
         StringRef Name = DIL->getScope()->getSubprogram()->getLinkageName();
         if (Name.empty())
           Name = DIL->getScope()->getSubprogram()->getName();
-        auto CalleeGUID = Function::getGUIDAssumingExternalLinkage(Name);
+        auto CalleeGUID = Function::getGUID(Name);
         auto StackId = computeStackId(CalleeGUID, GetOffset(DIL),
                                       ProfileHasColumns ? DIL->getColumn() : 0);
         // Check if we have found the profile's leaf frame. If yes, collect
@@ -1153,8 +1152,7 @@ readMemprof(Module &M, Function &F, IndexedInstrProfReader *MemProfReader,
             if (ClPrintMemProfMatchInfo) {
               assert(FullStackId != 0);
               FullStackIdToAllocMatchInfo[FullStackId] = {
-                  AllocInfo->Info.getTotalSize(), InlinedCallStack.size(),
-                  AllocType, /*Matched=*/true};
+                  AllocInfo->Info.getTotalSize(), AllocType, /*Matched=*/true};
             }
           }
         }
@@ -1287,7 +1285,7 @@ PreservedAnalyses MemProfUsePass::run(Module &M, ModuleAnalysisManager &AM) {
       errs() << "MemProf " << getAllocTypeAttributeString(Info.AllocType)
              << " context with id " << Id << " has total profiled size "
              << Info.TotalSize << (Info.Matched ? " is" : " not")
-             << " matched with " << Info.NumFramesMatched << " frames\n";
+             << " matched\n";
 
     for (const auto &CallStack : MatchedCallSites) {
       errs() << "MemProf callsite match for inline call stack";

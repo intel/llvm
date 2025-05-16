@@ -493,8 +493,6 @@ static StringRef getArgAttrEnumName(CodeGenIntrinsic::ArgAttrKind Kind) {
     return "Alignment";
   case CodeGenIntrinsic::Dereferenceable:
     return "Dereferenceable";
-  case CodeGenIntrinsic::Range:
-    return "Range";
   }
   llvm_unreachable("Unknown CodeGenIntrinsic::ArgAttrKind enum");
 }
@@ -504,9 +502,7 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
                                       raw_ostream &OS) {
   OS << R"(// Add parameter attributes that are not common to all intrinsics.
 #ifdef GET_INTRINSIC_ATTRIBUTES
-static AttributeSet getIntrinsicArgAttributeSet(LLVMContext &C, unsigned ID,
-                                                Type *ArgType) {
-  unsigned BitWidth = ArgType->getScalarSizeInBits();
+static AttributeSet getIntrinsicArgAttributeSet(LLVMContext &C, unsigned ID) {
   switch (ID) {
   default: llvm_unreachable("Invalid attribute set number");)";
   // Compute unique argument attribute sets.
@@ -539,17 +535,6 @@ static AttributeSet getIntrinsicArgAttributeSet(LLVMContext &C, unsigned ID,
             Attr.Kind == CodeGenIntrinsic::Dereferenceable)
           OS << formatv("      Attribute::get(C, Attribute::{}, {}),\n",
                         AttrName, Attr.Value);
-        else if (Attr.Kind == CodeGenIntrinsic::Range)
-          // This allows implicitTrunc because the range may only fit the
-          // type based on rules implemented in the IR verifier. E.g. the
-          // [-1, 1] range for ucmp/scmp intrinsics requires a minimum i2 type.
-          // Give the verifier a chance to diagnose this instead of asserting
-          // here.
-          OS << formatv("      Attribute::get(C, Attribute::{}, "
-                        "ConstantRange(APInt(BitWidth, {}, /*isSigned=*/true, "
-                        "/*implicitTrunc=*/true), APInt(BitWidth, {}, "
-                        "/*isSigned=*/true, /*implicitTrunc=*/true))),\n",
-                        AttrName, (int64_t)Attr.Value, (int64_t)Attr.Value2);
         else
           OS << formatv("      Attribute::get(C, Attribute::{}),\n", AttrName);
       }
@@ -650,8 +635,7 @@ static constexpr uint16_t IntrinsicsToAttributesMap[] = {)";
   OS << R"(
 };
 
-AttributeList Intrinsic::getAttributes(LLVMContext &C, ID id,
-                                       FunctionType *FT) {)";
+AttributeList Intrinsic::getAttributes(LLVMContext &C, ID id) {)";
 
   OS << formatv(R"(
   if (id == 0)
@@ -685,9 +669,8 @@ AttributeList Intrinsic::getAttributes(LLVMContext &C, ID id,
 
       unsigned ArgAttrID = UniqArgAttributes.find(Attrs)->second;
       OS << LS
-         << formatv("      {{{}, getIntrinsicArgAttributeSet(C, {}, "
-                    "FT->getContainedType({}))}",
-                    AttrIdx, ArgAttrID, AttrIdx);
+         << formatv("      {{{}, getIntrinsicArgAttributeSet(C, {})}", AttrIdx,
+                    ArgAttrID);
     }
 
     if (hasFnAttributes(Int)) {

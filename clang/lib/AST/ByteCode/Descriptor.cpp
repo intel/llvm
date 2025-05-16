@@ -22,7 +22,7 @@ using namespace clang;
 using namespace clang::interp;
 
 template <typename T>
-static void ctorTy(Block *, std::byte *Ptr, bool, bool, bool, bool, bool,
+static void ctorTy(Block *, std::byte *Ptr, bool, bool, bool, bool,
                    const Descriptor *) {
   new (Ptr) T();
 }
@@ -41,7 +41,7 @@ static void moveTy(Block *, std::byte *Src, std::byte *Dst,
 }
 
 template <typename T>
-static void ctorArrayTy(Block *, std::byte *Ptr, bool, bool, bool, bool, bool,
+static void ctorArrayTy(Block *, std::byte *Ptr, bool, bool, bool, bool,
                         const Descriptor *D) {
   new (Ptr) InitMapPtr(std::nullopt);
 
@@ -82,8 +82,8 @@ static void moveArrayTy(Block *, std::byte *Src, std::byte *Dst,
 }
 
 static void ctorArrayDesc(Block *B, std::byte *Ptr, bool IsConst,
-                          bool IsMutable, bool IsVolatile, bool IsActive,
-                          bool InUnion, const Descriptor *D) {
+                          bool IsMutable, bool IsActive, bool InUnion,
+                          const Descriptor *D) {
   const unsigned NumElems = D->getNumElems();
   const unsigned ElemSize =
       D->ElemDesc->getAllocSize() + sizeof(InlineDescriptor);
@@ -104,10 +104,9 @@ static void ctorArrayDesc(Block *B, std::byte *Ptr, bool IsConst,
     Desc->IsFieldMutable = IsMutable || D->IsMutable;
     Desc->InUnion = InUnion;
     Desc->IsArrayElement = true;
-    Desc->IsVolatile = IsVolatile;
 
     if (auto Fn = D->ElemDesc->CtorFn)
-      Fn(B, ElemLoc, Desc->IsConst, Desc->IsFieldMutable, IsVolatile, IsActive,
+      Fn(B, ElemLoc, Desc->IsConst, Desc->IsFieldMutable, IsActive,
          Desc->InUnion || SD->isUnion(), D->ElemDesc);
   }
 }
@@ -150,8 +149,8 @@ static void moveArrayDesc(Block *B, std::byte *Src, std::byte *Dst,
 }
 
 static void initField(Block *B, std::byte *Ptr, bool IsConst, bool IsMutable,
-                      bool IsVolatile, bool IsActive, bool IsUnionField,
-                      bool InUnion, const Descriptor *D, unsigned FieldOffset) {
+                      bool IsActive, bool IsUnionField, bool InUnion,
+                      const Descriptor *D, unsigned FieldOffset) {
   auto *Desc = reinterpret_cast<InlineDescriptor *>(Ptr + FieldOffset) - 1;
   Desc->Offset = FieldOffset;
   Desc->Desc = D;
@@ -161,17 +160,15 @@ static void initField(Block *B, std::byte *Ptr, bool IsConst, bool IsMutable,
   Desc->InUnion = InUnion;
   Desc->IsConst = IsConst || D->IsConst;
   Desc->IsFieldMutable = IsMutable || D->IsMutable;
-  Desc->IsVolatile = IsVolatile || D->IsVolatile;
 
   if (auto Fn = D->CtorFn)
     Fn(B, Ptr + FieldOffset, Desc->IsConst, Desc->IsFieldMutable,
-       Desc->IsVolatile, Desc->IsActive, InUnion || D->isUnion(), D);
+       Desc->IsActive, InUnion || D->isUnion(), D);
 }
 
 static void initBase(Block *B, std::byte *Ptr, bool IsConst, bool IsMutable,
-                     bool IsVolatile, bool IsActive, bool InUnion,
-                     const Descriptor *D, unsigned FieldOffset,
-                     bool IsVirtualBase) {
+                     bool IsActive, bool InUnion, const Descriptor *D,
+                     unsigned FieldOffset, bool IsVirtualBase) {
   assert(D);
   assert(D->ElemRecord);
   assert(!D->ElemRecord->isUnion()); // Unions cannot be base classes.
@@ -186,32 +183,28 @@ static void initBase(Block *B, std::byte *Ptr, bool IsConst, bool IsMutable,
   Desc->IsConst = IsConst || D->IsConst;
   Desc->IsFieldMutable = IsMutable || D->IsMutable;
   Desc->InUnion = InUnion;
-  Desc->IsVolatile = false;
 
   for (const auto &V : D->ElemRecord->bases())
-    initBase(B, Ptr + FieldOffset, IsConst, IsMutable, IsVolatile, IsActive,
-             InUnion, V.Desc, V.Offset, false);
+    initBase(B, Ptr + FieldOffset, IsConst, IsMutable, IsActive, InUnion,
+             V.Desc, V.Offset, false);
   for (const auto &F : D->ElemRecord->fields())
-    initField(B, Ptr + FieldOffset, IsConst, IsMutable, IsVolatile, IsActive,
-              InUnion, InUnion, F.Desc, F.Offset);
+    initField(B, Ptr + FieldOffset, IsConst, IsMutable, IsActive, InUnion,
+              InUnion, F.Desc, F.Offset);
 }
 
 static void ctorRecord(Block *B, std::byte *Ptr, bool IsConst, bool IsMutable,
-                       bool IsVolatile, bool IsActive, bool InUnion,
-                       const Descriptor *D) {
+                       bool IsActive, bool InUnion, const Descriptor *D) {
   for (const auto &V : D->ElemRecord->bases())
-    initBase(B, Ptr, IsConst, IsMutable, IsVolatile, IsActive, InUnion, V.Desc,
-             V.Offset,
-             /*IsVirtualBase=*/false);
+    initBase(B, Ptr, IsConst, IsMutable, IsActive, InUnion, V.Desc, V.Offset,
+             false);
   for (const auto &F : D->ElemRecord->fields()) {
     bool IsUnionField = D->isUnion();
-    initField(B, Ptr, IsConst, IsMutable, IsVolatile, IsActive, IsUnionField,
+    initField(B, Ptr, IsConst, IsMutable, IsActive, IsUnionField,
               InUnion || IsUnionField, F.Desc, F.Offset);
   }
   for (const auto &V : D->ElemRecord->virtual_bases())
-    initBase(B, Ptr, IsConst, IsMutable, IsVolatile, IsActive, InUnion, V.Desc,
-             V.Offset,
-             /*IsVirtualBase=*/true);
+    initBase(B, Ptr, IsConst, IsMutable, IsActive, InUnion, V.Desc, V.Offset,
+             true);
 }
 
 static void destroyField(Block *B, std::byte *Ptr, const Descriptor *D,
@@ -339,12 +332,12 @@ static BlockMoveFn getMoveArrayPrim(PrimType Type) {
 /// Primitives.
 Descriptor::Descriptor(const DeclTy &D, const Type *SourceTy, PrimType Type,
                        MetadataSize MD, bool IsConst, bool IsTemporary,
-                       bool IsMutable, bool IsVolatile)
+                       bool IsMutable)
     : Source(D), SourceType(SourceTy), ElemSize(primSize(Type)), Size(ElemSize),
       MDSize(MD.value_or(0)), AllocSize(align(Size + MDSize)), PrimT(Type),
       IsConst(IsConst), IsMutable(IsMutable), IsTemporary(IsTemporary),
-      IsVolatile(IsVolatile), CtorFn(getCtorPrim(Type)),
-      DtorFn(getDtorPrim(Type)), MoveFn(getMovePrim(Type)) {
+      CtorFn(getCtorPrim(Type)), DtorFn(getDtorPrim(Type)),
+      MoveFn(getMovePrim(Type)) {
   assert(AllocSize >= Size);
   assert(Source && "Missing source");
 }
@@ -365,13 +358,13 @@ Descriptor::Descriptor(const DeclTy &D, PrimType Type, MetadataSize MD,
 
 /// Primitive unknown-size arrays.
 Descriptor::Descriptor(const DeclTy &D, PrimType Type, MetadataSize MD,
-                       bool IsTemporary, bool IsConst, UnknownSize)
+                       bool IsTemporary, UnknownSize)
     : Source(D), ElemSize(primSize(Type)), Size(UnknownSizeMark),
       MDSize(MD.value_or(0)),
-      AllocSize(MDSize + sizeof(InitMapPtr) + alignof(void *)),
-      IsConst(IsConst), IsMutable(false), IsTemporary(IsTemporary),
-      IsArray(true), CtorFn(getCtorArrayPrim(Type)),
-      DtorFn(getDtorArrayPrim(Type)), MoveFn(getMoveArrayPrim(Type)) {
+      AllocSize(MDSize + sizeof(InitMapPtr) + alignof(void *)), IsConst(true),
+      IsMutable(false), IsTemporary(IsTemporary), IsArray(true),
+      CtorFn(getCtorArrayPrim(Type)), DtorFn(getDtorArrayPrim(Type)),
+      MoveFn(getMoveArrayPrim(Type)) {
   assert(Source && "Missing source");
 }
 
@@ -403,13 +396,12 @@ Descriptor::Descriptor(const DeclTy &D, const Descriptor *Elem, MetadataSize MD,
 
 /// Composite records.
 Descriptor::Descriptor(const DeclTy &D, const Record *R, MetadataSize MD,
-                       bool IsConst, bool IsTemporary, bool IsMutable,
-                       bool IsVolatile)
+                       bool IsConst, bool IsTemporary, bool IsMutable)
     : Source(D), ElemSize(std::max<size_t>(alignof(void *), R->getFullSize())),
       Size(ElemSize), MDSize(MD.value_or(0)), AllocSize(Size + MDSize),
       ElemRecord(R), IsConst(IsConst), IsMutable(IsMutable),
-      IsTemporary(IsTemporary), IsVolatile(IsVolatile), CtorFn(ctorRecord),
-      DtorFn(dtorRecord), MoveFn(moveRecord) {
+      IsTemporary(IsTemporary), CtorFn(ctorRecord), DtorFn(dtorRecord),
+      MoveFn(moveRecord) {
   assert(Source && "Missing source");
 }
 

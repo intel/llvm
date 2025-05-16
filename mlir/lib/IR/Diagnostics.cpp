@@ -661,9 +661,7 @@ struct ExpectedDiag {
 };
 
 struct SourceMgrDiagnosticVerifierHandlerImpl {
-  SourceMgrDiagnosticVerifierHandlerImpl(
-      SourceMgrDiagnosticVerifierHandler::Level level)
-      : status(success()), level(level) {}
+  SourceMgrDiagnosticVerifierHandlerImpl() : status(success()) {}
 
   /// Returns the expected diagnostics for the given source file.
   std::optional<MutableArrayRef<ExpectedDiag>>
@@ -673,10 +671,6 @@ struct SourceMgrDiagnosticVerifierHandlerImpl {
   MutableArrayRef<ExpectedDiag>
   computeExpectedDiags(raw_ostream &os, llvm::SourceMgr &mgr,
                        const llvm::MemoryBuffer *buf);
-
-  SourceMgrDiagnosticVerifierHandler::Level getVerifyLevel() const {
-    return level;
-  }
 
   /// The current status of the verifier.
   LogicalResult status;
@@ -691,10 +685,6 @@ struct SourceMgrDiagnosticVerifierHandlerImpl {
   llvm::Regex expected =
       llvm::Regex("expected-(error|note|remark|warning)(-re)? "
                   "*(@([+-][0-9]+|above|below|unknown))? *{{(.*)}}$");
-
-  /// Verification level.
-  SourceMgrDiagnosticVerifierHandler::Level level =
-      SourceMgrDiagnosticVerifierHandler::Level::All;
 };
 } // namespace detail
 } // namespace mlir
@@ -813,9 +803,9 @@ SourceMgrDiagnosticVerifierHandlerImpl::computeExpectedDiags(
 }
 
 SourceMgrDiagnosticVerifierHandler::SourceMgrDiagnosticVerifierHandler(
-    llvm::SourceMgr &srcMgr, MLIRContext *ctx, raw_ostream &out, Level level)
+    llvm::SourceMgr &srcMgr, MLIRContext *ctx, raw_ostream &out)
     : SourceMgrDiagnosticHandler(srcMgr, ctx, out),
-      impl(new SourceMgrDiagnosticVerifierHandlerImpl(level)) {
+      impl(new SourceMgrDiagnosticVerifierHandlerImpl()) {
   // Compute the expected diagnostics for each of the current files in the
   // source manager.
   for (unsigned i = 0, e = mgr.getNumBuffers(); i != e; ++i)
@@ -833,8 +823,8 @@ SourceMgrDiagnosticVerifierHandler::SourceMgrDiagnosticVerifierHandler(
 }
 
 SourceMgrDiagnosticVerifierHandler::SourceMgrDiagnosticVerifierHandler(
-    llvm::SourceMgr &srcMgr, MLIRContext *ctx, Level level)
-    : SourceMgrDiagnosticVerifierHandler(srcMgr, ctx, llvm::errs(), level) {}
+    llvm::SourceMgr &srcMgr, MLIRContext *ctx)
+    : SourceMgrDiagnosticVerifierHandler(srcMgr, ctx, llvm::errs()) {}
 
 SourceMgrDiagnosticVerifierHandler::~SourceMgrDiagnosticVerifierHandler() {
   // Ensure that all expected diagnostics were handled.
@@ -907,9 +897,6 @@ void SourceMgrDiagnosticVerifierHandler::process(LocationAttr loc,
       nearMiss = &e;
     }
   }
-
-  if (impl->getVerifyLevel() == Level::OnlyExpected)
-    return;
 
   // Otherwise, emit an error for the near miss.
   if (nearMiss)

@@ -1959,11 +1959,9 @@ static Constant *getFPClassConstant(Type *Ty, FPClassTest Mask) {
   }
 }
 
-Value *InstCombinerImpl::SimplifyDemandedUseFPClass(Value *V,
-                                                    FPClassTest DemandedMask,
-                                                    KnownFPClass &Known,
-                                                    unsigned Depth,
-                                                    Instruction *CxtI) {
+Value *InstCombinerImpl::SimplifyDemandedUseFPClass(
+    Value *V, const FPClassTest DemandedMask, KnownFPClass &Known,
+    unsigned Depth, Instruction *CxtI) {
   assert(Depth <= MaxAnalysisRecursionDepth && "Limit Search Depth");
   Type *VTy = V->getType();
 
@@ -1987,12 +1985,7 @@ Value *InstCombinerImpl::SimplifyDemandedUseFPClass(Value *V,
   if (!I->hasOneUse())
     return nullptr;
 
-  if (auto *FPOp = dyn_cast<FPMathOperator>(I)) {
-    if (FPOp->hasNoNaNs())
-      DemandedMask &= ~fcNan;
-    if (FPOp->hasNoInfs())
-      DemandedMask &= ~fcInf;
-  }
+  // TODO: Should account for nofpclass/FastMathFlags on current instruction
   switch (I->getOpcode()) {
   case Instruction::FNeg: {
     if (SimplifyDemandedFPClass(I, 0, llvm::fneg(DemandedMask), Known,
@@ -2020,13 +2013,13 @@ Value *InstCombinerImpl::SimplifyDemandedUseFPClass(Value *V,
       if (SimplifyDemandedFPClass(I, 0, DemandedMaskAnySign, Known, Depth + 1))
         return I;
 
-      if ((DemandedMask & fcNegative) == DemandedMask) {
+      if ((DemandedMask & fcPositive) == fcNone) {
         // Roundabout way of replacing with fneg(fabs)
         I->setOperand(1, ConstantFP::get(VTy, -1.0));
         return I;
       }
 
-      if ((DemandedMask & fcPositive) == DemandedMask) {
+      if ((DemandedMask & fcNegative) == fcNone) {
         // Roundabout way of replacing with fabs
         I->setOperand(1, ConstantFP::getZero(VTy));
         return I;

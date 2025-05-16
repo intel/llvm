@@ -114,7 +114,6 @@ public:
     std::memset(rawData(), 0, Desc->getAllocSize());
     if (Desc->CtorFn) {
       Desc->CtorFn(this, data(), Desc->IsConst, Desc->IsMutable,
-                   Desc->IsVolatile,
                    /*isActive=*/true, /*InUnion=*/false, Desc);
     }
     IsInitialized = true;

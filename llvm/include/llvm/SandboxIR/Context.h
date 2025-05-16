@@ -25,7 +25,6 @@ class Argument;
 class BBIterator;
 class Constant;
 class Module;
-class Region;
 class Value;
 class Use;
 
@@ -131,7 +130,6 @@ protected:
   }
   /// Get or create a sandboxir::Constant from an existing LLVM IR \p LLVMC.
   Constant *getOrCreateConstant(llvm::Constant *LLVMC);
-  friend class ConstantDataSequential; // For getOrCreateConstant().
   friend class Utils; // For getMemoryBase
 
   void runEraseInstrCallbacks(Instruction *I);

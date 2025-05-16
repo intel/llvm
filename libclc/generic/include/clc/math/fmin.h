@@ -11,5 +11,6 @@
 
 #include <clc/math/gentype.inc>
 
+#undef __CLC_BODY
 #undef __CLC_FUNCTION
 

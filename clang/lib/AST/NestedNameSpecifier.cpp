@@ -221,8 +221,7 @@ NestedNameSpecifierDependence NestedNameSpecifier::getDependence() const {
     NestedNameSpecifierDependence Dep =
         toNestedNameSpecifierDependendence(getAsType()->getDependence());
     if (NestedNameSpecifier *Prefix = getPrefix())
-      Dep |=
-          Prefix->getDependence() & ~NestedNameSpecifierDependence::Dependent;
+      Dep |= Prefix->getDependence();
     return Dep;
   }
   }

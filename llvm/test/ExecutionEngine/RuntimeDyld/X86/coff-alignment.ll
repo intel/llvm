@@ -1,4 +1,5 @@
-; REQUIRES: system-windows, target=x86_64-{{.*}}-windows-{{.*}}
+; XFAIL: target=aarch64-pc-windows-{{.*}}
+; REQUIRES: system-windows
 ; RUN: opt -mtriple=x86_64-pc-win32-coff %s -o - | lli
 
 @o = common global i32 0, align 4

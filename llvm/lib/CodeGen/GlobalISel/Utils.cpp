@@ -1027,50 +1027,39 @@ llvm::ConstantFoldCountZeros(Register Src, const MachineRegisterInfo &MRI,
 
 std::optional<SmallVector<APInt>>
 llvm::ConstantFoldICmp(unsigned Pred, const Register Op1, const Register Op2,
-                       unsigned DstScalarSizeInBits, unsigned ExtOp,
                        const MachineRegisterInfo &MRI) {
-  assert(ExtOp == TargetOpcode::G_SEXT || ExtOp == TargetOpcode::G_ZEXT ||
-         ExtOp == TargetOpcode::G_ANYEXT);
+  LLT Ty = MRI.getType(Op1);
+  if (Ty != MRI.getType(Op2))
+    return std::nullopt;
 
-  const LLT Ty = MRI.getType(Op1);
-
-  auto GetICmpResultCst = [&](bool IsTrue) {
-    if (IsTrue)
-      return ExtOp == TargetOpcode::G_SEXT
-                 ? APInt::getAllOnes(DstScalarSizeInBits)
-                 : APInt::getOneBitSet(DstScalarSizeInBits, 0);
-    return APInt::getZero(DstScalarSizeInBits);
-  };
-
-  auto TryFoldScalar = [&](Register LHS, Register RHS) -> std::optional<APInt> {
-    auto RHSCst = getIConstantVRegVal(RHS, MRI);
-    if (!RHSCst)
-      return std::nullopt;
+  auto TryFoldScalar = [&MRI, Pred](Register LHS,
+                                    Register RHS) -> std::optional<APInt> {
     auto LHSCst = getIConstantVRegVal(LHS, MRI);
-    if (!LHSCst)
+    auto RHSCst = getIConstantVRegVal(RHS, MRI);
+    if (!LHSCst || !RHSCst)
       return std::nullopt;
 
     switch (Pred) {
     case CmpInst::Predicate::ICMP_EQ:
-      return GetICmpResultCst(LHSCst->eq(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->eq(*RHSCst));
     case CmpInst::Predicate::ICMP_NE:
-      return GetICmpResultCst(LHSCst->ne(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->ne(*RHSCst));
     case CmpInst::Predicate::ICMP_UGT:
-      return GetICmpResultCst(LHSCst->ugt(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->ugt(*RHSCst));
     case CmpInst::Predicate::ICMP_UGE:
-      return GetICmpResultCst(LHSCst->uge(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->uge(*RHSCst));
     case CmpInst::Predicate::ICMP_ULT:
-      return GetICmpResultCst(LHSCst->ult(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->ult(*RHSCst));
     case CmpInst::Predicate::ICMP_ULE:
-      return GetICmpResultCst(LHSCst->ule(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->ule(*RHSCst));
     case CmpInst::Predicate::ICMP_SGT:
-      return GetICmpResultCst(LHSCst->sgt(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->sgt(*RHSCst));
     case CmpInst::Predicate::ICMP_SGE:
-      return GetICmpResultCst(LHSCst->sge(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->sge(*RHSCst));
     case CmpInst::Predicate::ICMP_SLT:
-      return GetICmpResultCst(LHSCst->slt(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->slt(*RHSCst));
     case CmpInst::Predicate::ICMP_SLE:
-      return GetICmpResultCst(LHSCst->sle(*RHSCst));
+      return APInt(/*numBits=*/1, LHSCst->sle(*RHSCst));
     default:
       return std::nullopt;
     }
@@ -1396,8 +1385,7 @@ bool llvm::isBuildVectorConstantSplat(const Register Reg,
                                       const MachineRegisterInfo &MRI,
                                       int64_t SplatValue, bool AllowUndef) {
   if (auto SplatValAndReg = getAnyConstantSplat(Reg, MRI, AllowUndef))
-    return SplatValAndReg->Value.getSExtValue() == SplatValue;
-
+    return mi_match(SplatValAndReg->VReg, MRI, m_SpecificICst(SplatValue));
   return false;
 }
 

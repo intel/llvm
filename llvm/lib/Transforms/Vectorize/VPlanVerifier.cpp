@@ -97,18 +97,6 @@ bool VPlanVerifier::verifyPhiRecipes(const VPBasicBlock *VPBB) {
       return false;
     }
 
-    // Check if the recipe operands match the number of predecessors.
-    // TODO Extend to other phi-like recipes.
-    if (auto *PhiIRI = dyn_cast<VPIRPhi>(&*RecipeI)) {
-      if (PhiIRI->getNumOperands() != VPBB->getNumPredecessors()) {
-        errs() << "Phi-like recipe with different number of operands and "
-                  "predecessors.\n";
-        // TODO: Print broken recipe. At the moment printing an ill-formed
-        // phi-like recipe may crash.
-        return false;
-      }
-    }
-
     RecipeI++;
   }
 
@@ -159,8 +147,8 @@ bool VPlanVerifier::verifyEVLRecipe(const VPInstruction &EVL) const {
             [&](const VPRecipeBase *S) { return VerifyEVLUse(*S, 2); })
         .Case<VPWidenLoadEVLRecipe, VPVectorEndPointerRecipe>(
             [&](const VPRecipeBase *R) { return VerifyEVLUse(*R, 1); })
-        .Case<VPInstructionWithType>(
-            [&](const VPInstructionWithType *S) { return VerifyEVLUse(*S, 0); })
+        .Case<VPScalarCastRecipe>(
+            [&](const VPScalarCastRecipe *S) { return VerifyEVLUse(*S, 0); })
         .Case<VPInstruction>([&](const VPInstruction *I) {
           if (I->getOpcode() == Instruction::PHI)
             return VerifyEVLUse(*I, 1);

@@ -138,20 +138,3 @@ JSStringRef opaque_ptr() {
 }
 
 @end
-
-namespace template_forward_declare {
-
-template<typename> class HashSet;
-
-template<typename T>
-using SingleThreadHashSet = HashSet<T>;
-
-template<typename> class HashSet { };
-
-struct Font { };
-
-struct ComplexTextController {
-    SingleThreadHashSet<const Font>* fallbackFonts { nullptr };
-};
-
-}

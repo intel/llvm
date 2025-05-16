@@ -711,10 +711,7 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
     Result->Marks = CapturedInfo.takeMarks();
     Result->StatCache = StatCache;
     Result->MainIsIncludeGuarded = CapturedInfo.isMainFileIncludeGuarded();
-    // Move the options instead of copying them. The invocation doesn't need
-    // them anymore.
-    Result->TargetOpts =
-        std::make_unique<TargetOptions>(std::move(CI.getTargetOpts()));
+    Result->TargetOpts = CI.TargetOpts;
     if (PreambleCallback) {
       trace::Span Tracer("Running PreambleCallback");
       auto Ctx = CapturedInfo.takeLife();
@@ -935,7 +932,7 @@ void PreamblePatch::apply(CompilerInvocation &CI) const {
   // ParsedASTTest.PreambleWithDifferentTarget.
   // Make sure this is a deep copy, as the same Baseline might be used
   // concurrently.
-  CI.getTargetOpts() = *Baseline->TargetOpts;
+  *CI.TargetOpts = *Baseline->TargetOpts;
 
   // No need to map an empty file.
   if (PatchContents.empty())

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Conversion/ConvertToEmitC/ToEmitCInterface.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Bufferization/IR/BufferDeallocationOpInterface.h"
@@ -74,7 +73,6 @@ void SCFDialect::initialize() {
 #include "mlir/Dialect/SCF/IR/SCFOps.cpp.inc"
       >();
   addInterfaces<SCFInlinerInterface>();
-  declarePromisedInterface<ConvertToEmitCPatternInterface, SCFDialect>();
   declarePromisedInterfaces<bufferization::BufferDeallocationOpInterface,
                             InParallelOp, ReduceReturnOp>();
   declarePromisedInterfaces<bufferization::BufferizableOpInterface, ConditionOp,
@@ -760,7 +758,7 @@ LoopNest mlir::scf::buildLoopNest(
 
   // Return the loops.
   ValueVector nestResults;
-  llvm::append_range(nestResults, loops.front().getResults());
+  llvm::copy(loops.front().getResults(), std::back_inserter(nestResults));
   return LoopNest{std::move(loops), std::move(nestResults)};
 }
 
@@ -2019,7 +2017,8 @@ IfOp::inferReturnTypes(MLIRContext *ctx, std::optional<Location> loc,
   if (!yieldOp)
     return failure();
   TypeRange types = yieldOp.getOperandTypes();
-  llvm::append_range(inferredReturnTypes, types);
+  inferredReturnTypes.insert(inferredReturnTypes.end(), types.begin(),
+                             types.end());
   return success();
 }
 
@@ -4283,7 +4282,7 @@ void IndexSwitchOp::getSuccessorRegions(
     return;
   }
 
-  llvm::append_range(successors, getRegions());
+  llvm::copy(getRegions(), std::back_inserter(successors));
 }
 
 void IndexSwitchOp::getEntrySuccessorRegions(
@@ -4294,7 +4293,7 @@ void IndexSwitchOp::getEntrySuccessorRegions(
   // If a constant was not provided, all regions are possible successors.
   auto arg = dyn_cast_or_null<IntegerAttr>(adaptor.getArg());
   if (!arg) {
-    llvm::append_range(successors, getRegions());
+    llvm::copy(getRegions(), std::back_inserter(successors));
     return;
   }
 

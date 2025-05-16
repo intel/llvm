@@ -704,15 +704,13 @@ SBValue SBValue::GetChildAtIndex(uint32_t idx,
 uint32_t SBValue::GetIndexOfChildWithName(const char *name) {
   LLDB_INSTRUMENT_VA(this, name);
 
+  uint32_t idx = UINT32_MAX;
   ValueLocker locker;
   lldb::ValueObjectSP value_sp(GetSP(locker));
   if (value_sp) {
-    if (auto idx_or_err = value_sp->GetIndexOfChildWithName(name))
-      return *idx_or_err;
-    else
-      llvm::consumeError(idx_or_err.takeError());
+    idx = value_sp->GetIndexOfChildWithName(name);
   }
-  return UINT32_MAX;
+  return idx;
 }
 
 SBValue SBValue::GetChildMemberWithName(const char *name) {

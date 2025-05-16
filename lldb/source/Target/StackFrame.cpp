@@ -538,7 +538,7 @@ ValueObjectSP StackFrame::DILGetValueForVariableExpressionPath(
   auto lex_or_err = dil::DILLexer::Create(var_expr);
   if (!lex_or_err) {
     error = Status::FromError(lex_or_err.takeError());
-    return ValueObjectConstResult::Create(nullptr, std::move(error));
+    return ValueObjectSP();
   }
 
   // Parse the expression.
@@ -547,7 +547,7 @@ ValueObjectSP StackFrame::DILGetValueForVariableExpressionPath(
       !no_synth_child, !no_fragile_ivar, check_ptr_vs_member);
   if (!tree_or_error) {
     error = Status::FromError(tree_or_error.takeError());
-    return ValueObjectConstResult::Create(nullptr, std::move(error));
+    return ValueObjectSP();
   }
 
   // Evaluate the parsed expression.
@@ -558,7 +558,7 @@ ValueObjectSP StackFrame::DILGetValueForVariableExpressionPath(
   auto valobj_or_error = interpreter.Evaluate((*tree_or_error).get());
   if (!valobj_or_error) {
     error = Status::FromError(valobj_or_error.takeError());
-    return ValueObjectConstResult::Create(nullptr, std::move(error));
+    return ValueObjectSP();
   }
 
   return *valobj_or_error;
@@ -709,17 +709,21 @@ ValueObjectSP StackFrame::LegacyGetValueForVariableExpressionPath(
       // we have a synthetic dereference specified.
       if (!valobj_sp->IsPointerType() && valobj_sp->HasSyntheticValue()) {
         Status deref_error;
-        if (ValueObjectSP synth_deref_sp =
-                valobj_sp->GetSyntheticValue()->Dereference(deref_error);
-            synth_deref_sp && deref_error.Success()) {
-          valobj_sp = std::move(synth_deref_sp);
+        if (valobj_sp->GetCompilerType().IsReferenceType()) {
+          valobj_sp = valobj_sp->GetSyntheticValue()->Dereference(deref_error);
+          if (!valobj_sp || deref_error.Fail()) {
+            error = Status::FromErrorStringWithFormatv(
+                "Failed to dereference reference type: {0}", deref_error);
+            return ValueObjectSP();
+          }
         }
+
+        valobj_sp = valobj_sp->Dereference(deref_error);
         if (!valobj_sp || deref_error.Fail()) {
           error = Status::FromErrorStringWithFormatv(
               "Failed to dereference synthetic value: {0}", deref_error);
           return ValueObjectSP();
         }
-
         // Some synthetic plug-ins fail to set the error in Dereference
         if (!valobj_sp) {
           error =
@@ -1125,12 +1129,6 @@ ValueObjectSP StackFrame::LegacyGetValueForVariableExpressionPath(
   if (valobj_sp) {
     if (deref) {
       ValueObjectSP deref_valobj_sp(valobj_sp->Dereference(error));
-      if (!deref_valobj_sp && !no_synth_child) {
-        if (ValueObjectSP synth_obj_sp = valobj_sp->GetSyntheticValue()) {
-          error.Clear();
-          deref_valobj_sp = synth_obj_sp->Dereference(error);
-        }
-      }
       valobj_sp = deref_valobj_sp;
     } else if (address_of) {
       ValueObjectSP address_of_valobj_sp(valobj_sp->AddressOf(error));
@@ -2032,7 +2030,8 @@ bool StackFrame::GetStatus(Stream &strm, bool show_frame_info, bool show_source,
   if (show_source) {
     ExecutionContext exe_ctx(shared_from_this());
     bool have_source = false, have_debuginfo = false;
-    lldb::StopDisassemblyType disasm_display = lldb::eStopDisassemblyTypeNever;
+    Debugger::StopDisassemblyType disasm_display =
+        Debugger::eStopDisassemblyTypeNever;
     Target *target = exe_ctx.GetTargetPtr();
     if (target) {
       Debugger &debugger = target->GetDebugger();
@@ -2065,20 +2064,20 @@ bool StackFrame::GetStatus(Stream &strm, bool show_frame_info, bool show_source,
         }
       }
       switch (disasm_display) {
-      case lldb::eStopDisassemblyTypeNever:
+      case Debugger::eStopDisassemblyTypeNever:
         break;
 
-      case lldb::eStopDisassemblyTypeNoDebugInfo:
+      case Debugger::eStopDisassemblyTypeNoDebugInfo:
         if (have_debuginfo)
           break;
         [[fallthrough]];
 
-      case lldb::eStopDisassemblyTypeNoSource:
+      case Debugger::eStopDisassemblyTypeNoSource:
         if (have_source)
           break;
         [[fallthrough]];
 
-      case lldb::eStopDisassemblyTypeAlways:
+      case Debugger::eStopDisassemblyTypeAlways:
         if (target) {
           const uint32_t disasm_lines = debugger.GetDisassemblyLineCount();
           if (disasm_lines > 0) {

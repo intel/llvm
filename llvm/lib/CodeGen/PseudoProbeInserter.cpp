@@ -129,7 +129,7 @@ public:
 private:
   uint64_t getFuncGUID(Module *M, DILocation *DL) {
     auto Name = DL->getSubprogramLinkageName();
-    return Function::getGUIDAssumingExternalLinkage(Name);
+    return Function::getGUID(Name);
   }
 
   bool ShouldRun = false;

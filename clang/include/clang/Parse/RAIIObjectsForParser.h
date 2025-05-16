@@ -361,11 +361,11 @@ namespace clang {
   };
 
   class OffsetOfStateRAIIObject {
-    OffsetOfKind &OffsetOfState;
-    OffsetOfKind OldValue;
+    Sema::OffsetOfKind &OffsetOfState;
+    Sema::OffsetOfKind OldValue;
 
   public:
-    OffsetOfStateRAIIObject(Parser &P, OffsetOfKind Value)
+    OffsetOfStateRAIIObject(Parser &P, Sema::OffsetOfKind Value)
         : OffsetOfState(P.OffsetOfState), OldValue(P.OffsetOfState) {
       OffsetOfState = Value;
     }

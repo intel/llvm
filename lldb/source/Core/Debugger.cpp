@@ -112,24 +112,24 @@ static llvm::DefaultThreadPool *g_thread_pool = nullptr;
 
 static constexpr OptionEnumValueElement g_show_disassembly_enum_values[] = {
     {
-        lldb::eStopDisassemblyTypeNever,
+        Debugger::eStopDisassemblyTypeNever,
         "never",
         "Never show disassembly when displaying a stop context.",
     },
     {
-        lldb::eStopDisassemblyTypeNoDebugInfo,
+        Debugger::eStopDisassemblyTypeNoDebugInfo,
         "no-debuginfo",
         "Show disassembly when there is no debug information.",
     },
     {
-        lldb::eStopDisassemblyTypeNoSource,
+        Debugger::eStopDisassemblyTypeNoSource,
         "no-source",
         "Show disassembly when there is no source information, or the source "
         "file "
         "is missing when displaying a stop context.",
     },
     {
-        lldb::eStopDisassemblyTypeAlways,
+        Debugger::eStopDisassemblyTypeAlways,
         "always",
         "Always show disassembly when displaying a stop context.",
     },
@@ -237,29 +237,26 @@ Status Debugger::SetPropertyValue(const ExecutionContext *exe_ctx,
           CommandInterpreter::eBroadcastBitResetPrompt, bytes.release());
       GetCommandInterpreter().BroadcastEvent(prompt_change_event_sp);
     } else if (property_path == g_debugger_properties[ePropertyUseColor].name) {
-      // use-color changed. set use-color, this also pings the prompt so it can
-      // reset the ansi terminal codes.
-      SetUseColor(GetUseColor());
+      // use-color changed. Ping the prompt so it can reset the ansi terminal
+      // codes.
+      SetPrompt(GetPrompt());
     } else if (property_path ==
                    g_debugger_properties[ePropertyPromptAnsiPrefix].name ||
                property_path ==
                    g_debugger_properties[ePropertyPromptAnsiSuffix].name) {
-      // Prompt color changed. set use-color, this also pings the prompt so it
-      // can reset the ansi terminal codes.
-      SetUseColor(GetUseColor());
+      // Prompt colors changed. Ping the prompt so it can reset the ansi
+      // terminal codes.
+      SetPrompt(GetPrompt());
     } else if (property_path ==
                g_debugger_properties[ePropertyShowStatusline].name) {
       // Statusline setting changed. If we have a statusline instance, update it
       // now. Otherwise it will get created in the default event handler.
-      std::lock_guard<std::mutex> guard(m_statusline_mutex);
       if (StatuslineSupported())
         m_statusline.emplace(*this);
       else
         m_statusline.reset();
     } else if (property_path ==
-                   g_debugger_properties[ePropertyStatuslineFormat].name ||
-               property_path ==
-                   g_debugger_properties[ePropertySeparator].name) {
+               g_debugger_properties[ePropertyStatuslineFormat].name) {
       // Statusline format changed. Redraw the statusline.
       RedrawStatusline();
     } else if (property_path ==
@@ -394,12 +391,8 @@ bool Debugger::SetTerminalWidth(uint64_t term_width) {
 
   if (auto handler_sp = m_io_handler_stack.Top())
     handler_sp->TerminalSizeChanged();
-
-  {
-    std::lock_guard<std::mutex> guard(m_statusline_mutex);
-    if (m_statusline)
-      m_statusline->TerminalSizeChanged();
-  }
+  if (m_statusline)
+    m_statusline->TerminalSizeChanged();
 
   return success;
 }
@@ -416,12 +409,8 @@ bool Debugger::SetTerminalHeight(uint64_t term_height) {
 
   if (auto handler_sp = m_io_handler_stack.Top())
     handler_sp->TerminalSizeChanged();
-
-  {
-    std::lock_guard<std::mutex> guard(m_statusline_mutex);
-    if (m_statusline)
-      m_statusline->TerminalSizeChanged();
-  }
+  if (m_statusline)
+    m_statusline->TerminalSizeChanged();
 
   return success;
 }
@@ -457,8 +446,6 @@ bool Debugger::GetUseColor() const {
 bool Debugger::SetUseColor(bool b) {
   const uint32_t idx = ePropertyUseColor;
   bool ret = SetPropertyAtIndex(idx, b);
-
-  GetCommandInterpreter().UpdateUseColor(b);
   SetPrompt(GetPrompt());
   return ret;
 }
@@ -495,26 +482,6 @@ bool Debugger::GetShowStatusline() const {
 const FormatEntity::Entry *Debugger::GetStatuslineFormat() const {
   constexpr uint32_t idx = ePropertyStatuslineFormat;
   return GetPropertyAtIndexAs<const FormatEntity::Entry *>(idx);
-}
-
-bool Debugger::SetStatuslineFormat(const FormatEntity::Entry &format) {
-  constexpr uint32_t idx = ePropertyStatuslineFormat;
-  bool ret = SetPropertyAtIndex(idx, format);
-  RedrawStatusline();
-  return ret;
-}
-
-llvm::StringRef Debugger::GetSeparator() const {
-  constexpr uint32_t idx = ePropertySeparator;
-  return GetPropertyAtIndexAs<llvm::StringRef>(
-      idx, g_debugger_properties[idx].default_cstr_value);
-}
-
-bool Debugger::SetSeparator(llvm::StringRef s) {
-  constexpr uint32_t idx = ePropertySeparator;
-  bool ret = SetPropertyAtIndex(idx, s);
-  RedrawStatusline();
-  return ret;
 }
 
 bool Debugger::GetUseAutosuggestion() const {
@@ -611,10 +578,10 @@ uint64_t Debugger::GetStopSourceLineCount(bool before) const {
       idx, g_debugger_properties[idx].default_uint_value);
 }
 
-lldb::StopDisassemblyType Debugger::GetStopDisassemblyDisplay() const {
+Debugger::StopDisassemblyType Debugger::GetStopDisassemblyDisplay() const {
   const uint32_t idx = ePropertyStopDisassemblyDisplay;
-  return GetPropertyAtIndexAs<lldb::StopDisassemblyType>(
-      idx, static_cast<lldb::StopDisassemblyType>(
+  return GetPropertyAtIndexAs<Debugger::StopDisassemblyType>(
+      idx, static_cast<Debugger::StopDisassemblyType>(
                g_debugger_properties[idx].default_uint_value));
 }
 
@@ -841,12 +808,6 @@ DebuggerSP Debugger::CreateInstance(lldb::LogOutputCallback log_callback,
   return debugger_sp;
 }
 
-void Debugger::DispatchClientTelemetry(
-    const lldb_private::StructuredDataImpl &entry) {
-  lldb_private::telemetry::TelemetryManager::GetInstance()
-      ->DispatchClientTelemetry(entry, this);
-}
-
 void Debugger::HandleDestroyCallback() {
   const lldb::user_id_t user_id = GetID();
   // Invoke and remove all the callbacks in an FIFO order. Callbacks which are
@@ -955,6 +916,7 @@ Debugger::Debugger(lldb::LogOutputCallback log_callback, void *baton)
           stdout, NativeFile::Unowned, m_output_mutex)),
       m_error_stream_sp(std::make_shared<LockableStreamFile>(
           stderr, NativeFile::Unowned, m_output_mutex)),
+      m_input_recorder(nullptr),
       m_broadcaster_manager_sp(BroadcasterManager::MakeBroadcasterManager()),
       m_terminal_state(), m_target_list(*this), m_platform_list(),
       m_listener_sp(Listener::MakeListener("lldb.Debugger")),
@@ -1022,16 +984,11 @@ Debugger::Debugger(lldb::LogOutputCallback log_callback, void *baton)
 
   // Turn off use-color if this is a dumb terminal.
   const char *term = getenv("TERM");
-  auto disable_color = [&]() {
-    SetUseColor(false);
-    SetSeparator("| ");
-  };
-
   if (term && !strcmp(term, "dumb"))
-    disable_color();
+    SetUseColor(false);
   // Turn off use-color if we don't write to a terminal with color support.
   if (!GetOutputFileSP()->GetIsTerminalWithColors())
-    disable_color();
+    SetUseColor(false);
 
   if (Diagnostics::Enabled()) {
     m_diagnostics_callback_id = Diagnostics::Instance().AddCallback(
@@ -1108,6 +1065,8 @@ void Debugger::SetAsyncExecution(bool async_execution) {
   m_command_interpreter_up->SetSynchronous(!async_execution);
 }
 
+repro::DataRecorder *Debugger::GetInputRecorder() { return m_input_recorder; }
+
 static inline int OpenPipe(int fds[2], std::size_t size) {
 #ifdef _WIN32
   return _pipe(fds, size, O_BINARY);
@@ -1182,11 +1141,8 @@ void Debugger::SetErrorFile(FileSP file_sp) {
 }
 
 void Debugger::SaveInputTerminalState() {
-  {
-    std::lock_guard<std::mutex> guard(m_statusline_mutex);
-    if (m_statusline)
-      m_statusline->Disable();
-  }
+  if (m_statusline)
+    m_statusline->Disable();
   int fd = GetInputFile().GetDescriptor();
   if (fd != File::kInvalidDescriptor)
     m_terminal_state.Save(fd, true);
@@ -1194,15 +1150,11 @@ void Debugger::SaveInputTerminalState() {
 
 void Debugger::RestoreInputTerminalState() {
   m_terminal_state.Restore();
-  {
-    std::lock_guard<std::mutex> guard(m_statusline_mutex);
-    if (m_statusline)
-      m_statusline->Enable();
-  }
+  if (m_statusline)
+    m_statusline->Enable();
 }
 
 void Debugger::RedrawStatusline(bool update) {
-  std::lock_guard<std::mutex> guard(m_statusline_mutex);
   if (m_statusline)
     m_statusline->Redraw(update);
 }
@@ -2031,9 +1983,6 @@ void Debugger::CancelForwardEvents(const ListenerSP &listener_sp) {
 }
 
 bool Debugger::StatuslineSupported() {
-// We have trouble with the contol codes on Windows, see
-// https://github.com/llvm/llvm-project/issues/134846.
-#ifndef _WIN32
   if (GetShowStatusline()) {
     if (lldb::LockableStreamFileSP stream_sp = GetOutputStreamSP()) {
       File &file = stream_sp->GetUnlockedFile();
@@ -2041,7 +1990,6 @@ bool Debugger::StatuslineSupported() {
              file.GetIsTerminalWithColors();
     }
   }
-#endif
   return false;
 }
 
@@ -2084,11 +2032,8 @@ lldb::thread_result_t Debugger::DefaultEventHandler() {
   // are now listening to all required events so no events get missed
   m_sync_broadcaster.BroadcastEvent(eBroadcastBitEventThreadIsListening);
 
-  if (StatuslineSupported()) {
-    std::lock_guard<std::mutex> guard(m_statusline_mutex);
-    if (!m_statusline)
-      m_statusline.emplace(*this);
-  }
+  if (!m_statusline && StatuslineSupported())
+    m_statusline.emplace(*this);
 
   bool done = false;
   while (!done) {
@@ -2149,11 +2094,8 @@ lldb::thread_result_t Debugger::DefaultEventHandler() {
     }
   }
 
-  {
-    std::lock_guard<std::mutex> guard(m_statusline_mutex);
-    if (m_statusline)
-      m_statusline.reset();
-  }
+  if (m_statusline)
+    m_statusline.reset();
 
   return {};
 }

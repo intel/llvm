@@ -220,15 +220,10 @@ LogicalResult OperationVerifier::verifyOnExit(Operation &op) {
               o.hasTrait<OpTrait::IsIsolatedFromAbove>())
             opsWithIsolatedRegions.push_back(&o);
   }
-
-  std::atomic<bool> opFailedVerify = false;
-  parallelForEach(op.getContext(), opsWithIsolatedRegions, [&](Operation *o) {
-    if (failed(verifyOpAndDominance(*o)))
-      opFailedVerify.store(true, std::memory_order_relaxed);
-  });
-  if (opFailedVerify.load(std::memory_order_relaxed))
+  if (failed(failableParallelForEach(
+          op.getContext(), opsWithIsolatedRegions,
+          [&](Operation *o) { return verifyOpAndDominance(*o); })))
     return failure();
-
   OperationName opName = op.getName();
   std::optional<RegisteredOperationName> registeredInfo =
       opName.getRegisteredInfo();

@@ -59,6 +59,8 @@ void RocmInstallationDetector::scanLibDevicePath(llvm::StringRef Path) {
       OCKL = FilePath;
     } else if (BaseName == "opencl") {
       OpenCL = FilePath;
+    } else if (BaseName == "hip") {
+      HIP = FilePath;
     } else if (BaseName == "asanrtl") {
       AsanRTL = FilePath;
     } else if (BaseName == "oclc_finite_only_off") {
@@ -933,13 +935,7 @@ bool RocmInstallationDetector::checkCommonBitcodeLibs(
     return false;
   }
   if (ABIVer.requiresLibrary() && getABIVersionPath(ABIVer).empty()) {
-    // Starting from COV6, we will report minimum ROCm version requirement in
-    // the error message.
-    if (ABIVer.getAsCodeObjectVersion() < 6)
-      D.Diag(diag::err_drv_no_rocm_device_lib) << 2 << ABIVer.toString() << 0;
-    else
-      D.Diag(diag::err_drv_no_rocm_device_lib)
-          << 2 << ABIVer.toString() << 1 << "6.3";
+    D.Diag(diag::err_drv_no_rocm_device_lib) << 2 << ABIVer.toString();
     return false;
   }
   return true;

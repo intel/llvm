@@ -106,10 +106,6 @@ r3:
 r4:
   .quad s2
 
-.bss
-bss0:
-  .zero 10
-
 .subsections_via_symbols
 
 #--- a.proftext

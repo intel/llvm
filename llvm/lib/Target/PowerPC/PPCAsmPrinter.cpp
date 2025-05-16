@@ -967,9 +967,9 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     // L1$pb:
     MCSymbol *PICBase = MF->getPICBaseSymbol();
 
-    // Emit 'bcl 20,31,.+4' so the link stack is not corrupted.
+    // Emit the 'bl'.
     EmitToStreamer(*OutStreamer,
-                   MCInstBuilder(PPC::BCLalways)
+                   MCInstBuilder(PPC::BL)
                        // FIXME: We would like an efficient form for this, so we
                        // don't have to do a lot of extra uniquing.
                        .addExpr(MCSymbolRefExpr::create(PICBase, OutContext)));
@@ -3139,8 +3139,9 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
     if (Aliasee->hasCommonLinkage()) {
       report_fatal_error("Aliases to common variables are not allowed on AIX:"
                          "\n\tAlias attribute for " +
-                             Alias.getName() + " is invalid because " +
-                             Aliasee->getName() + " is common.",
+                             Alias.getGlobalIdentifier() +
+                             " is invalid because " + Aliasee->getName() +
+                             " is common.",
                          false);
     }
 

@@ -371,12 +371,8 @@ bool Preprocessor::CheckMacroName(Token &MacroNameTok, MacroUse isDefineUndef,
   SourceLocation MacroNameLoc = MacroNameTok.getLocation();
   if (ShadowFlag)
     *ShadowFlag = false;
-  // Macro names with reserved identifiers are accepted if built-in or passed
-  // through the command line (the later may be present if -dD was used to
-  // generate the preprocessed file).
-  bool IsBuiltinOrCmd = SourceMgr.isWrittenInBuiltinFile(MacroNameLoc) ||
-                        SourceMgr.isWrittenInCommandLineFile(MacroNameLoc);
-  if (!IsBuiltinOrCmd && !SourceMgr.isInSystemHeader(MacroNameLoc)) {
+  if (!SourceMgr.isInSystemHeader(MacroNameLoc) &&
+      (SourceMgr.getBufferName(MacroNameLoc) != "<built-in>")) {
     MacroDiag D = MD_NoWarn;
     if (isDefineUndef == MU_Define) {
       D = shouldWarnOnMacroDef(*this, II);
@@ -1920,15 +1916,15 @@ void Preprocessor::EnterAnnotationToken(SourceRange Range,
 
 /// Produce a diagnostic informing the user that a #include or similar
 /// was implicitly treated as a module import.
-static void diagnoseAutoModuleImport(Preprocessor &PP, SourceLocation HashLoc,
-                                     Token &IncludeTok,
-                                     ArrayRef<IdentifierLoc> Path,
-                                     SourceLocation PathEnd) {
+static void diagnoseAutoModuleImport(
+    Preprocessor &PP, SourceLocation HashLoc, Token &IncludeTok,
+    ArrayRef<std::pair<IdentifierInfo *, SourceLocation>> Path,
+    SourceLocation PathEnd) {
   SmallString<128> PathString;
   for (size_t I = 0, N = Path.size(); I != N; ++I) {
     if (I)
       PathString += '.';
-    PathString += Path[I].getIdentifierInfo()->getName();
+    PathString += Path[I].first->getName();
   }
 
   int IncludeKind = 0;
@@ -2077,15 +2073,6 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
     return;
 
   if (FilenameTok.isNot(tok::header_name)) {
-    if (FilenameTok.is(tok::identifier) && PPOpts.SingleFileParseMode) {
-      // If we saw #include IDENTIFIER and lexing didn't turn in into a header
-      // name, it was undefined. In 'single-file-parse' mode, just skip the
-      // directive without emitting diagnostics - the identifier might be
-      // normally defined in previously-skipped include directive.
-      DiscardUntilEndOfDirective();
-      return;
-    }
-
     Diag(FilenameTok.getLocation(), diag::err_pp_expects_filename);
     if (FilenameTok.isNot(tok::eod))
       DiscardUntilEndOfDirective();
@@ -2277,12 +2264,12 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
   SourceLocation StartLoc = IsImportDecl ? IncludeTok.getLocation() : HashLoc;
 
   // Complain about attempts to #include files in an audit pragma.
-  if (PragmaARCCFCodeAuditedInfo.getLoc().isValid()) {
+  if (PragmaARCCFCodeAuditedInfo.second.isValid()) {
     Diag(StartLoc, diag::err_pp_include_in_arc_cf_code_audited) << IsImportDecl;
-    Diag(PragmaARCCFCodeAuditedInfo.getLoc(), diag::note_pragma_entered_here);
+    Diag(PragmaARCCFCodeAuditedInfo.second, diag::note_pragma_entered_here);
 
     // Immediately leave the pragma.
-    PragmaARCCFCodeAuditedInfo = IdentifierLoc();
+    PragmaARCCFCodeAuditedInfo = {nullptr, SourceLocation()};
   }
 
   // Complain about attempts to #include files in an assume-nonnull pragma.
@@ -2407,10 +2394,10 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
     // Compute the module access path corresponding to this module.
     // FIXME: Should we have a second loadModule() overload to avoid this
     // extra lookup step?
-    SmallVector<IdentifierLoc, 2> Path;
+    SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
     for (Module *Mod = ModuleToImport; Mod; Mod = Mod->Parent)
-      Path.emplace_back(FilenameTok.getLocation(),
-                        getIdentifierInfo(Mod->Name));
+      Path.push_back(std::make_pair(getIdentifierInfo(Mod->Name),
+                                    FilenameTok.getLocation()));
     std::reverse(Path.begin(), Path.end());
 
     // Warn that we're replacing the include/import with a module import.
@@ -3659,6 +3646,7 @@ void Preprocessor::HandleElifFamilyDirective(Token &ElifToken,
 std::optional<LexEmbedParametersResult>
 Preprocessor::LexEmbedParameters(Token &CurTok, bool ForHasEmbed) {
   LexEmbedParametersResult Result{};
+  SmallVector<Token, 2> ParameterTokens;
   tok::TokenKind EndTokenKind = ForHasEmbed ? tok::r_paren : tok::eod;
 
   auto DiagMismatchedBracesAndSkipToEOD =
@@ -3900,9 +3888,7 @@ Preprocessor::LexEmbedParameters(Token &CurTok, bool ForHasEmbed) {
           return std::nullopt;
       }
       if (!ForHasEmbed) {
-        Diag(ParamStartLoc, diag::err_pp_unknown_parameter) << 1 << Parameter;
-        if (CurTok.isNot(tok::eod))
-          DiscardUntilEndOfDirective(CurTok);
+        Diag(CurTok, diag::err_pp_unknown_parameter) << 1 << Parameter;
         return std::nullopt;
       }
     }
@@ -3912,7 +3898,7 @@ Preprocessor::LexEmbedParameters(Token &CurTok, bool ForHasEmbed) {
 
 void Preprocessor::HandleEmbedDirectiveImpl(
     SourceLocation HashLoc, const LexEmbedParametersResult &Params,
-    StringRef BinaryContents, StringRef FileName) {
+    StringRef BinaryContents) {
   if (BinaryContents.empty()) {
     // If we have no binary contents, the only thing we need to emit are the
     // if_empty tokens, if any.
@@ -3943,7 +3929,6 @@ void Preprocessor::HandleEmbedDirectiveImpl(
 
   EmbedAnnotationData *Data = new (BP) EmbedAnnotationData;
   Data->BinaryData = BinaryContents;
-  Data->FileName = FileName;
 
   Toks[CurIdx].startToken();
   Toks[CurIdx].setKind(tok::annot_embed);
@@ -4016,12 +4001,6 @@ void Preprocessor::HandleEmbedDirective(SourceLocation HashLoc, Token &EmbedTok,
     Diag(FilenameTok, diag::err_pp_file_not_found) << Filename;
     return;
   }
-
-  if (MaybeFileRef->isDeviceFile()) {
-    Diag(FilenameTok, diag::err_pp_embed_device_file) << Filename;
-    return;
-  }
-
   std::optional<llvm::MemoryBufferRef> MaybeFile =
       getSourceManager().getMemoryBufferForFileOrNone(*MaybeFileRef);
   if (!MaybeFile) {
@@ -4053,16 +4032,5 @@ void Preprocessor::HandleEmbedDirective(SourceLocation HashLoc, Token &EmbedTok,
   if (Callbacks)
     Callbacks->EmbedDirective(HashLoc, Filename, isAngled, MaybeFileRef,
                               *Params);
-  // getSpelling() may return a buffer from the token itself or it may use the
-  // SmallString buffer we provided. getSpelling() may also return a string that
-  // is actually longer than FilenameTok.getLength(), so we first pass a
-  // locally created buffer to getSpelling() to get the string of real length
-  // and then we allocate a long living buffer because the buffer we used
-  // previously will only live till the end of this function and we need
-  // filename info to live longer.
-  void *Mem = BP.Allocate(OriginalFilename.size(), alignof(char *));
-  memcpy(Mem, OriginalFilename.data(), OriginalFilename.size());
-  StringRef FilenameToGo =
-      StringRef(static_cast<char *>(Mem), OriginalFilename.size());
-  HandleEmbedDirectiveImpl(HashLoc, *Params, BinaryContents, FilenameToGo);
+  HandleEmbedDirectiveImpl(HashLoc, *Params, BinaryContents);
 }

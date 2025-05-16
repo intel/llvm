@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 /// \file
-/// This file a TargetTransformInfoImplBase conforming object specific to the
+/// This file a TargetTransformInfo::Concept conforming object specific to the
 /// VE target machine. It uses the target's detailed information to
 /// provide more precise answers to certain TTI queries, while letting the
 /// target independent and default TTI implementations handle the rest.
@@ -85,7 +85,7 @@ public:
       : BaseT(TM, F.getDataLayout()), ST(TM->getSubtargetImpl(F)),
         TLI(ST->getTargetLowering()) {}
 
-  unsigned getNumberOfRegisters(unsigned ClassID) const override {
+  unsigned getNumberOfRegisters(unsigned ClassID) const {
     bool VectorRegs = (ClassID == 1);
     if (VectorRegs) {
       // TODO report vregs once vector isel is stable.
@@ -95,8 +95,7 @@ public:
     return 64;
   }
 
-  TypeSize
-  getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const override {
+  TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
     switch (K) {
     case TargetTransformInfo::RGK_Scalar:
       return TypeSize::getFixed(64);
@@ -113,17 +112,17 @@ public:
   /// \returns How the target needs this vector-predicated operation to be
   /// transformed.
   TargetTransformInfo::VPLegalization
-  getVPLegalizationStrategy(const VPIntrinsic &PI) const override {
+  getVPLegalizationStrategy(const VPIntrinsic &PI) const {
     using VPLegalization = TargetTransformInfo::VPLegalization;
     return VPLegalization(VPLegalization::Legal, VPLegalization::Legal);
   }
 
-  unsigned getMinVectorRegisterBitWidth() const override {
+  unsigned getMinVectorRegisterBitWidth() const {
     // TODO report vregs once vector isel is stable.
     return 0;
   }
 
-  bool shouldBuildRelLookupTables() const override {
+  bool shouldBuildRelLookupTables() const {
     // NEC nld doesn't support relative lookup tables.  It shows following
     // errors.  So, we disable it at the moment.
     //   /opt/nec/ve/bin/nld: src/CMakeFiles/cxxabi_shared.dir/cxa_demangle.cpp
@@ -134,23 +133,23 @@ public:
   }
 
   // Load & Store {
-  bool isLegalMaskedLoad(Type *DataType, Align Alignment,
-                         unsigned /*AddressSpace*/) const override {
+  bool isLegalMaskedLoad(Type *DataType, MaybeAlign Alignment,
+                         unsigned /*AddressSpace*/) {
     return isVectorLaneType(*getLaneType(DataType));
   }
-  bool isLegalMaskedStore(Type *DataType, Align Alignment,
-                          unsigned /*AddressSpace*/) const override {
+  bool isLegalMaskedStore(Type *DataType, MaybeAlign Alignment,
+                          unsigned /*AddressSpace*/) {
     return isVectorLaneType(*getLaneType(DataType));
   }
-  bool isLegalMaskedGather(Type *DataType, Align Alignment) const override {
+  bool isLegalMaskedGather(Type *DataType, MaybeAlign Alignment) {
     return isVectorLaneType(*getLaneType(DataType));
   };
-  bool isLegalMaskedScatter(Type *DataType, Align Alignment) const override {
+  bool isLegalMaskedScatter(Type *DataType, MaybeAlign Alignment) {
     return isVectorLaneType(*getLaneType(DataType));
   }
   // } Load & Store
 
-  bool shouldExpandReduction(const IntrinsicInst *II) const override {
+  bool shouldExpandReduction(const IntrinsicInst *II) const {
     if (!enableVPU())
       return true;
     return !isSupportedReduction(II->getIntrinsicID());

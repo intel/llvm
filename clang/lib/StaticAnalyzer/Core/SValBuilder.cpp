@@ -24,7 +24,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/APSIntType.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/BasicValueFactory.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/MemRegion.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
@@ -193,22 +192,18 @@ DefinedOrUnknownSVal SValBuilder::conjureSymbolVal(const Stmt *stmt,
                                                    const LocationContext *LCtx,
                                                    QualType type,
                                                    unsigned visitCount) {
-  return conjureSymbolVal(/*symbolTag=*/nullptr, stmt, LCtx, type, visitCount);
-}
+  if (type->isNullPtrType())
+    return makeZeroVal(type);
 
-DefinedOrUnknownSVal SValBuilder::conjureSymbolVal(const CallEvent &call,
-                                                   unsigned visitCount,
-                                                   const void *symbolTag) {
-  return conjureSymbolVal(symbolTag, call.getOriginExpr(),
-                          call.getLocationContext(), visitCount);
-}
+  if (!SymbolManager::canSymbolicate(type))
+    return UnknownVal();
 
-DefinedOrUnknownSVal SValBuilder::conjureSymbolVal(const CallEvent &call,
-                                                   QualType type,
-                                                   unsigned visitCount,
-                                                   const void *symbolTag) {
-  return conjureSymbolVal(symbolTag, call.getOriginExpr(),
-                          call.getLocationContext(), type, visitCount);
+  SymbolRef sym = SymMgr.conjureSymbol(stmt, LCtx, type, visitCount);
+
+  if (Loc::isLocType(type))
+    return loc::MemRegionVal(MemMgr.getSymbolicRegion(sym));
+
+  return nonloc::SymbolVal(sym);
 }
 
 DefinedSVal SValBuilder::getConjuredHeapSymbolVal(const Expr *E,

@@ -47,7 +47,7 @@ static Error dumpSectionToFile(StringRef SecName, StringRef Filename,
       if (!BufferOrErr)
         return createFileError(Filename, BufferOrErr.takeError());
       std::unique_ptr<FileOutputBuffer> Buf = std::move(*BufferOrErr);
-      llvm::copy(Contents, Buf->getBufferStart());
+      std::copy(Contents.begin(), Contents.end(), Buf->getBufferStart());
       if (Error E = Buf->commit())
         return createFileError(Filename, std::move(E));
       return Error::success();

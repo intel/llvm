@@ -661,7 +661,6 @@ public:
   /// folded operation.
   void PHIArgMergedDebugLoc(Instruction *Inst, PHINode &PN);
 
-  Value *foldPtrToIntOfGEP(Type *IntTy, Value *Ptr);
   Instruction *foldGEPICmp(GEPOperator *GEPLHS, Value *RHS, CmpPredicate Cond,
                            Instruction &I);
   Instruction *foldSelectICmp(CmpPredicate Pred, SelectInst *SI, Value *RHS,

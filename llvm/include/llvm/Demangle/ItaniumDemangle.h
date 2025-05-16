@@ -38,10 +38,8 @@
 DEMANGLE_NAMESPACE_BEGIN
 
 template <class T, size_t N> class PODSmallVector {
-  static_assert(std::is_trivially_copyable<T>::value,
-                "T is required to be a trivially copyable type");
-  static_assert(std::is_trivially_default_constructible<T>::value,
-                "T is required to be trivially default constructible");
+  static_assert(std::is_trivial<T>::value,
+                "T is required to be a trivial type");
   T *First = nullptr;
   T *Last = nullptr;
   T *Cap = nullptr;
@@ -283,10 +281,19 @@ public:
   }
 
   void print(OutputBuffer &OB) const {
-    OB.printLeft(*this);
+    printLeft(OB);
     if (RHSComponentCache != Cache::No)
-      OB.printRight(*this);
+      printRight(OB);
   }
+
+  // Print the "left" side of this Node into OutputBuffer.
+  virtual void printLeft(OutputBuffer &) const = 0;
+
+  // Print the "right". This distinction is necessary to represent C++ types
+  // that appear on the RHS of their subtype, such as arrays or functions.
+  // Since most types don't have such a component, provide a default
+  // implementation.
+  virtual void printRight(OutputBuffer &) const {}
 
   // Print an initializer list of this type. Returns true if we printed a custom
   // representation, false if nothing has been printed and the default
@@ -303,24 +310,6 @@ public:
 #ifndef NDEBUG
   DEMANGLE_DUMP_METHOD void dump() const;
 #endif
-
-private:
-  friend class OutputBuffer;
-
-  // Print the "left" side of this Node into OutputBuffer.
-  //
-  // Note, should only be called from OutputBuffer implementations.
-  // Call \ref OutputBuffer::printLeft instead.
-  virtual void printLeft(OutputBuffer &) const = 0;
-
-  // Print the "right". This distinction is necessary to represent C++ types
-  // that appear on the RHS of their subtype, such as arrays or functions.
-  // Since most types don't have such a component, provide a default
-  // implementation.
-  //
-  // Note, should only be called from OutputBuffer implementations.
-  // Call \ref OutputBuffer::printRight instead.
-  virtual void printRight(OutputBuffer &) const {}
 };
 
 class NodeArray {
@@ -469,11 +458,11 @@ public:
   }
 
   void printLeft(OutputBuffer &OB) const override {
-    OB.printLeft(*Child);
+    Child->printLeft(OB);
     printQuals(OB);
   }
 
-  void printRight(OutputBuffer &OB) const override { OB.printRight(*Child); }
+  void printRight(OutputBuffer &OB) const override { Child->printRight(OB); }
 };
 
 class ConversionOperatorType final : public Node {
@@ -502,7 +491,7 @@ public:
   template<typename Fn> void match(Fn F) const { F(Ty, Postfix); }
 
   void printLeft(OutputBuffer &OB) const override {
-    OB.printLeft(*Ty);
+    Ty->printLeft(OB);
     OB += Postfix;
   }
 };
@@ -588,7 +577,7 @@ struct AbiTagAttr : Node {
   std::string_view getBaseName() const override { return Base->getBaseName(); }
 
   void printLeft(OutputBuffer &OB) const override {
-    OB.printLeft(*Base);
+    Base->printLeft(OB);
     OB += "[abi:";
     OB += Tag;
     OB += "]";
@@ -622,6 +611,8 @@ class ObjCProtoName : public Node {
   const Node *Ty;
   std::string_view Protocol;
 
+  friend class PointerType;
+
 public:
   ObjCProtoName(const Node *Ty_, std::string_view Protocol_)
       : Node(KObjCProtoName), Ty(Ty_), Protocol(Protocol_) {}
@@ -632,8 +623,6 @@ public:
     return Ty->getKind() == KNameType &&
            static_cast<const NameType *>(Ty)->getName() == "objc_object";
   }
-
-  std::string_view getProtocol() const { return Protocol; }
 
   void printLeft(OutputBuffer &OB) const override {
     Ty->print(OB);
@@ -663,7 +652,7 @@ public:
     // We rewrite objc_object<SomeProtocol>* into id<SomeProtocol>.
     if (Pointee->getKind() != KObjCProtoName ||
         !static_cast<const ObjCProtoName *>(Pointee)->isObjCObject()) {
-      OB.printLeft(*Pointee);
+      Pointee->printLeft(OB);
       if (Pointee->hasArray(OB))
         OB += " ";
       if (Pointee->hasArray(OB) || Pointee->hasFunction(OB))
@@ -672,7 +661,7 @@ public:
     } else {
       const auto *objcProto = static_cast<const ObjCProtoName *>(Pointee);
       OB += "id<";
-      OB += objcProto->getProtocol();
+      OB += objcProto->Protocol;
       OB += ">";
     }
   }
@@ -682,7 +671,7 @@ public:
         !static_cast<const ObjCProtoName *>(Pointee)->isObjCObject()) {
       if (Pointee->hasArray(OB) || Pointee->hasFunction(OB))
         OB += ")";
-      OB.printRight(*Pointee);
+      Pointee->printRight(OB);
     }
   }
 };
@@ -748,7 +737,7 @@ public:
     std::pair<ReferenceKind, const Node *> Collapsed = collapse(OB);
     if (!Collapsed.second)
       return;
-    OB.printLeft(*Collapsed.second);
+    Collapsed.second->printLeft(OB);
     if (Collapsed.second->hasArray(OB))
       OB += " ";
     if (Collapsed.second->hasArray(OB) || Collapsed.second->hasFunction(OB))
@@ -765,7 +754,7 @@ public:
       return;
     if (Collapsed.second->hasArray(OB) || Collapsed.second->hasFunction(OB))
       OB += ")";
-    OB.printRight(*Collapsed.second);
+    Collapsed.second->printRight(OB);
   }
 };
 
@@ -785,7 +774,7 @@ public:
   }
 
   void printLeft(OutputBuffer &OB) const override {
-    OB.printLeft(*MemberType);
+    MemberType->printLeft(OB);
     if (MemberType->hasArray(OB) || MemberType->hasFunction(OB))
       OB += "(";
     else
@@ -797,7 +786,7 @@ public:
   void printRight(OutputBuffer &OB) const override {
     if (MemberType->hasArray(OB) || MemberType->hasFunction(OB))
       OB += ")";
-    OB.printRight(*MemberType);
+    MemberType->printRight(OB);
   }
 };
 
@@ -817,7 +806,7 @@ public:
   bool hasRHSComponentSlow(OutputBuffer &) const override { return true; }
   bool hasArraySlow(OutputBuffer &) const override { return true; }
 
-  void printLeft(OutputBuffer &OB) const override { OB.printLeft(*Base); }
+  void printLeft(OutputBuffer &OB) const override { Base->printLeft(OB); }
 
   void printRight(OutputBuffer &OB) const override {
     if (OB.back() != ']')
@@ -826,7 +815,7 @@ public:
     if (Dimension)
       Dimension->print(OB);
     OB += "]";
-    OB.printRight(*Base);
+    Base->printRight(OB);
   }
 
   bool printInitListAsType(OutputBuffer &OB,
@@ -870,7 +859,7 @@ public:
   // by printing out the return types's left, then print our parameters, then
   // finally print right of the return type.
   void printLeft(OutputBuffer &OB) const override {
-    OB.printLeft(*Ret);
+    Ret->printLeft(OB);
     OB += " ";
   }
 
@@ -878,7 +867,7 @@ public:
     OB.printOpen();
     Params.printWithComma(OB);
     OB.printClose();
-    OB.printRight(*Ret);
+    Ret->printRight(OB);
 
     if (CVQuals & QualConst)
       OB += " const";
@@ -983,8 +972,6 @@ public:
   FunctionRefQual getRefQual() const { return RefQual; }
   NodeArray getParams() const { return Params; }
   const Node *getReturnType() const { return Ret; }
-  const Node *getAttrs() const { return Attrs; }
-  const Node *getRequires() const { return Requires; }
 
   bool hasRHSComponentSlow(OutputBuffer &) const override { return true; }
   bool hasFunctionSlow(OutputBuffer &) const override { return true; }
@@ -993,11 +980,10 @@ public:
 
   void printLeft(OutputBuffer &OB) const override {
     if (Ret) {
-      OB.printLeft(*Ret);
+      Ret->printLeft(OB);
       if (!Ret->hasRHSComponent(OB))
         OB += " ";
     }
-
     Name->print(OB);
   }
 
@@ -1005,9 +991,8 @@ public:
     OB.printOpen();
     Params.printWithComma(OB);
     OB.printClose();
-
     if (Ret)
-      OB.printRight(*Ret);
+      Ret->printRight(OB);
 
     if (CVQuals & QualConst)
       OB += " const";
@@ -1349,14 +1334,14 @@ public:
   template<typename Fn> void match(Fn F) const { F(Name, Type); }
 
   void printLeft(OutputBuffer &OB) const override {
-    OB.printLeft(*Type);
+    Type->printLeft(OB);
     if (!Type->hasRHSComponent(OB))
       OB += " ";
   }
 
   void printRight(OutputBuffer &OB) const override {
     Name->print(OB);
-    OB.printRight(*Type);
+    Type->printRight(OB);
   }
 };
 
@@ -1401,11 +1386,11 @@ public:
   template<typename Fn> void match(Fn F) const { F(Param); }
 
   void printLeft(OutputBuffer &OB) const override {
-    OB.printLeft(*Param);
+    Param->printLeft(OB);
     OB += "...";
   }
 
-  void printRight(OutputBuffer &OB) const override { OB.printRight(*Param); }
+  void printRight(OutputBuffer &OB) const override { Param->printRight(OB); }
 };
 
 /// An unexpanded parameter pack (either in the expression or type context). If
@@ -1470,13 +1455,13 @@ public:
     initializePackExpansion(OB);
     size_t Idx = OB.CurrentPackIndex;
     if (Idx < Data.size())
-      OB.printLeft(*Data[Idx]);
+      Data[Idx]->printLeft(OB);
   }
   void printRight(OutputBuffer &OB) const override {
     initializePackExpansion(OB);
     size_t Idx = OB.CurrentPackIndex;
     if (Idx < Data.size())
-      OB.printRight(*Data[Idx]);
+      Data[Idx]->printRight(OB);
   }
 };
 
@@ -1634,13 +1619,13 @@ struct ForwardTemplateReference : Node {
     if (Printing)
       return;
     ScopedOverride<bool> SavePrinting(Printing, true);
-    OB.printLeft(*Ref);
+    Ref->printLeft(OB);
   }
   void printRight(OutputBuffer &OB) const override {
     if (Printing)
       return;
     ScopedOverride<bool> SavePrinting(Printing, true);
-    OB.printRight(*Ref);
+    Ref->printRight(OB);
   }
 };
 
@@ -1792,7 +1777,7 @@ public:
 
   void printLeft(OutputBuffer &OB) const override {
     OB += "~";
-    OB.printLeft(*Base);
+    Base->printLeft(OB);
   }
 };
 
@@ -2072,7 +2057,7 @@ public:
     {
       ScopedOverride<unsigned> LT(OB.GtIsGt, 0);
       OB += "<";
-      OB.printLeft(*To);
+      To->printLeft(OB);
       OB += ">";
     }
     OB.printOpen();
@@ -5773,16 +5758,14 @@ struct FloatData<double>
 template <>
 struct FloatData<long double>
 {
-#if __LDBL_MANT_DIG__ == 113 || __LDBL_MANT_DIG__ == 106
-  static const size_t mangled_size = 32;
-#elif __LDBL_MANT_DIG__ == 53 || defined(_MSC_VER)
-  // MSVC doesn't define __LDBL_MANT_DIG__, but it has long double equal to
-  // regular double on all current architectures.
-  static const size_t mangled_size = 16;
-#elif __LDBL_MANT_DIG__ == 64
-  static const size_t mangled_size = 20;
+#if defined(__mips__) && defined(__mips_n64) || defined(__aarch64__) || \
+    defined(__wasm__) || defined(__riscv) || defined(__loongarch__) || \
+    defined(__ve__)
+    static const size_t mangled_size = 32;
+#elif defined(__arm__) || defined(__mips__) || defined(__hexagon__)
+    static const size_t mangled_size = 16;
 #else
-#error Unknown size for __LDBL_MANT_DIG__
+    static const size_t mangled_size = 20;  // May need to be adjusted to 16 or 24 on other platforms
 #endif
     // `-0x1.ffffffffffffffffffffffffffffp+16383` + 'L' + '\0' == 42 bytes.
     // 28 'f's * 4 bits == 112 bits, which is the number of mantissa bits.
@@ -6211,10 +6194,6 @@ struct ManglingParser : AbstractManglingParser<ManglingParser<Alloc>, Alloc> {
   using AbstractManglingParser<ManglingParser<Alloc>,
                                Alloc>::AbstractManglingParser;
 };
-
-inline void OutputBuffer::printLeft(const Node &N) { N.printLeft(*this); }
-
-inline void OutputBuffer::printRight(const Node &N) { N.printRight(*this); }
 
 DEMANGLE_NAMESPACE_END
 

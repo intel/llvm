@@ -13,6 +13,7 @@
 #include "DNBError.h"
 #include "CFString.h"
 #include "DNBLog.h"
+#include "PThreadMutex.h"
 
 #ifdef WITH_SPRINGBOARD
 #include <SpringBoardServices/SpringBoardServer.h>

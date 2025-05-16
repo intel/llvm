@@ -218,10 +218,11 @@ void PPCInstPrinter::printInst(const MCInst *MI, uint64_t Address,
 
 void PPCInstPrinter::printPredicateOperand(const MCInst *MI, unsigned OpNo,
                                            const MCSubtargetInfo &STI,
-                                           raw_ostream &O, StringRef Modifier) {
+                                           raw_ostream &O,
+                                           const char *Modifier) {
   unsigned Code = MI->getOperand(OpNo).getImm();
 
-  if (Modifier == "cc") {
+  if (StringRef(Modifier) == "cc") {
     switch ((PPC::Predicate)Code) {
     case PPC::PRED_LT_MINUS:
     case PPC::PRED_LT_PLUS:
@@ -270,7 +271,7 @@ void PPCInstPrinter::printPredicateOperand(const MCInst *MI, unsigned OpNo,
     llvm_unreachable("Invalid predicate code");
   }
 
-  if (Modifier == "pm") {
+  if (StringRef(Modifier) == "pm") {
     switch ((PPC::Predicate)Code) {
     case PPC::PRED_LT:
     case PPC::PRED_LE:
@@ -308,7 +309,7 @@ void PPCInstPrinter::printPredicateOperand(const MCInst *MI, unsigned OpNo,
     llvm_unreachable("Invalid predicate code");
   }
 
-  assert(Modifier == "reg" &&
+  assert(StringRef(Modifier) == "reg" &&
          "Need to specify 'cc', 'pm' or 'reg' as predicate op modifier!");
   printOperand(MI, OpNo + 1, STI, O);
 }

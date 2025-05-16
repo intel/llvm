@@ -485,8 +485,10 @@ void AggressiveDeadCodeElimination::markLiveBranchesFromControlDependences() {
   // which currently have dead terminators that are control
   // dependence sources of a block which is in NewLiveBlocks.
 
-  const SmallPtrSet<BasicBlock *, 16> BWDT(llvm::from_range,
-                                           BlocksWithDeadTerminators);
+  const SmallPtrSet<BasicBlock *, 16> BWDT{
+      BlocksWithDeadTerminators.begin(),
+      BlocksWithDeadTerminators.end()
+  };
   SmallVector<BasicBlock *, 32> IDFBlocks;
   ReverseIDFCalculator IDFs(PDT);
   IDFs.setDefiningBlocks(NewLiveBlocks);

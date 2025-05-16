@@ -10,14 +10,11 @@
 #define MLIR_CONVERSION_ARITHTOEMITC_ARITHTOEMITC_H
 
 namespace mlir {
-class DialectRegistry;
 class RewritePatternSet;
 class TypeConverter;
 
 void populateArithToEmitCPatterns(TypeConverter &typeConverter,
                                   RewritePatternSet &patterns);
-
-void registerConvertArithToEmitCInterface(DialectRegistry &registry);
 } // namespace mlir
 
 #endif // MLIR_CONVERSION_ARITHTOEMITC_ARITHTOEMITC_H

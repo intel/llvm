@@ -39,11 +39,7 @@ void ConvertFuncToEmitC::runOnOperation() {
   target.addIllegalOp<func::CallOp, func::FuncOp, func::ReturnOp>();
 
   RewritePatternSet patterns(&getContext());
-
-  TypeConverter typeConverter;
-  typeConverter.addConversion([](Type type) { return type; });
-
-  populateFuncToEmitCPatterns(typeConverter, patterns);
+  populateFuncToEmitCPatterns(patterns);
 
   if (failed(
           applyPartialConversion(getOperation(), target, std::move(patterns))))

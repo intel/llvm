@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file a TargetTransformInfoImplBase conforming object specific to the
+// This file a TargetTransformInfo::Concept conforming object specific to the
 // Lanai target machine. It uses the target's detailed information to
 // provide more precise answers to certain TTI queries, while letting the
 // target independent and default TTI implementations handle the rest.
@@ -41,17 +41,16 @@ public:
       : BaseT(TM, F.getDataLayout()), ST(TM->getSubtargetImpl(F)),
         TLI(ST->getTargetLowering()) {}
 
-  bool shouldBuildLookupTables() const override { return false; }
+  bool shouldBuildLookupTables() const { return false; }
 
-  TargetTransformInfo::PopcntSupportKind
-  getPopcntSupport(unsigned TyWidth) const override {
+  TargetTransformInfo::PopcntSupportKind getPopcntSupport(unsigned TyWidth) {
     if (TyWidth == 32)
       return TTI::PSK_FastHardware;
     return TTI::PSK_Software;
   }
 
   InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
-                                TTI::TargetCostKind CostKind) const override {
+                                TTI::TargetCostKind CostKind) {
     assert(Ty->isIntegerTy());
     unsigned BitSize = Ty->getPrimitiveSizeInBits();
     // There is no cost model for constants with a bit size of 0. Return
@@ -78,16 +77,16 @@ public:
     return 4 * TTI::TCC_Basic;
   }
 
-  InstructionCost
-  getIntImmCostInst(unsigned Opc, unsigned Idx, const APInt &Imm, Type *Ty,
-                    TTI::TargetCostKind CostKind,
-                    Instruction *Inst = nullptr) const override {
+  InstructionCost getIntImmCostInst(unsigned Opc, unsigned Idx,
+                                    const APInt &Imm, Type *Ty,
+                                    TTI::TargetCostKind CostKind,
+                                    Instruction *Inst = nullptr) {
     return getIntImmCost(Imm, Ty, CostKind);
   }
 
-  InstructionCost
-  getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                      Type *Ty, TTI::TargetCostKind CostKind) const override {
+  InstructionCost getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                      const APInt &Imm, Type *Ty,
+                                      TTI::TargetCostKind CostKind) {
     return getIntImmCost(Imm, Ty, CostKind);
   }
 
@@ -95,8 +94,7 @@ public:
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
       TTI::OperandValueInfo Op1Info = {TTI::OK_AnyValue, TTI::OP_None},
       TTI::OperandValueInfo Op2Info = {TTI::OK_AnyValue, TTI::OP_None},
-      ArrayRef<const Value *> Args = {},
-      const Instruction *CxtI = nullptr) const override {
+      ArrayRef<const Value *> Args = {}, const Instruction *CxtI = nullptr) {
     int ISD = TLI->InstructionOpcodeToISD(Opcode);
 
     switch (ISD) {

@@ -253,5 +253,5 @@ bool RISCVSubtarget::useLoadStorePairs() const {
 }
 
 bool RISCVSubtarget::useCCMovInsn() const {
-  return UseCCMovInsn && HasVendorXMIPSCMov;
+  return UseCCMovInsn && HasVendorXMIPSCMove;
 }

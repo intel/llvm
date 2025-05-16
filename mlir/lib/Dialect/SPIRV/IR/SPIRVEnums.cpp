@@ -94,7 +94,7 @@ SmallVector<spirv::Capability, 0>
 spirv::getRecursiveImpliedCapabilities(spirv::Capability cap) {
   ArrayRef<spirv::Capability> directCaps = getDirectImpliedCapabilities(cap);
   SetVector<spirv::Capability, SmallVector<spirv::Capability, 0>> allCaps(
-      llvm::from_range, directCaps);
+      directCaps.begin(), directCaps.end());
 
   // TODO: This is insufficient; find a better way to handle this
   // (e.g., using static lists) if this turns out to be a bottleneck.

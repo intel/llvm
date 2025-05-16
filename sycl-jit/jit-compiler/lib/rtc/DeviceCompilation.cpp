@@ -178,7 +178,8 @@ public:
     assert(!hasExecuted() && "Action should only be invoked on a single file");
 
     // Create a compiler instance to handle the actual work.
-    CompilerInstance Compiler(std::move(Invocation), std::move(PCHContainerOps));
+    CompilerInstance Compiler(std::move(PCHContainerOps));
+    Compiler.setInvocation(std::move(Invocation));
     Compiler.setFileManager(Files);
     // Suppress summary with number of warnings and errors being printed to
     // stdout.

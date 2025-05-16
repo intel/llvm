@@ -163,8 +163,9 @@ void AMDGPUAsmPrinter::emitFunctionBodyStart() {
 
   // TODO: We're checking this late, would be nice to check it earlier.
   if (STM.requiresCodeObjectV6() && CodeObjectVersion < AMDGPU::AMDHSA_COV6) {
-    reportFatalUsageError(
-        STM.getCPU() + " is only available on code object version 6 or better");
+    report_fatal_error(
+        STM.getCPU() + " is only available on code object version 6 or better",
+        /*gen_crash_diag*/ false);
   }
 
   // TODO: Which one is called first, emitStartOfAsmFile or

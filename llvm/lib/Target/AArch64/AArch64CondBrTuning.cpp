@@ -52,7 +52,9 @@ class AArch64CondBrTuning : public MachineFunctionPass {
 
 public:
   static char ID;
-  AArch64CondBrTuning() : MachineFunctionPass(ID) {}
+  AArch64CondBrTuning() : MachineFunctionPass(ID) {
+    initializeAArch64CondBrTuningPass(*PassRegistry::getPassRegistry());
+  }
   void getAnalysisUsage(AnalysisUsage &AU) const override;
   bool runOnMachineFunction(MachineFunction &MF) override;
   StringRef getPassName() const override { return AARCH64_CONDBR_TUNING_NAME; }

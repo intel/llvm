@@ -10,4 +10,4 @@
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <mul24.inc>
-#include <integer-gentype.inc>
+#include <clc/integer/integer-gentype.inc>

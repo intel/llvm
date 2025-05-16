@@ -119,7 +119,8 @@ struct AnonStructTypeKeyInfo {
   }
 
   static unsigned getHashValue(const KeyTy &Key) {
-    return hash_combine(hash_combine_range(Key.ETypes), Key.isPacked);
+    return hash_combine(
+        hash_combine_range(Key.ETypes.begin(), Key.ETypes.end()), Key.isPacked);
   }
 
   static unsigned getHashValue(const StructType *ST) {
@@ -170,8 +171,9 @@ struct FunctionTypeKeyInfo {
   }
 
   static unsigned getHashValue(const KeyTy &Key) {
-    return hash_combine(Key.ReturnType, hash_combine_range(Key.Params),
-                        Key.isVarArg);
+    return hash_combine(
+        Key.ReturnType,
+        hash_combine_range(Key.Params.begin(), Key.Params.end()), Key.isVarArg);
   }
 
   static unsigned getHashValue(const FunctionType *FT) {
@@ -217,8 +219,10 @@ struct TargetExtTypeKeyInfo {
   }
 
   static unsigned getHashValue(const KeyTy &Key) {
-    return hash_combine(Key.Name, hash_combine_range(Key.TypeParams),
-                        hash_combine_range(Key.IntParams));
+    return hash_combine(
+        Key.Name,
+        hash_combine_range(Key.TypeParams.begin(), Key.TypeParams.end()),
+        hash_combine_range(Key.IntParams.begin(), Key.IntParams.end()));
   }
 
   static unsigned getHashValue(const TargetExtType *FT) {
@@ -315,53 +319,23 @@ template <> struct MDNodeKeyImpl<DILocation> {
   Metadata *Scope;
   Metadata *InlinedAt;
   bool ImplicitCode;
-#ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
-  uint64_t AtomGroup : 61;
-  uint64_t AtomRank : 3;
-#endif
 
   MDNodeKeyImpl(unsigned Line, unsigned Column, Metadata *Scope,
-                Metadata *InlinedAt, bool ImplicitCode, uint64_t AtomGroup,
-                uint8_t AtomRank)
+                Metadata *InlinedAt, bool ImplicitCode)
       : Line(Line), Column(Column), Scope(Scope), InlinedAt(InlinedAt),
-        ImplicitCode(ImplicitCode)
-#ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
-        ,
-        AtomGroup(AtomGroup), AtomRank(AtomRank)
-#endif
-  {
-  }
-
+        ImplicitCode(ImplicitCode) {}
   MDNodeKeyImpl(const DILocation *L)
       : Line(L->getLine()), Column(L->getColumn()), Scope(L->getRawScope()),
-        InlinedAt(L->getRawInlinedAt()), ImplicitCode(L->isImplicitCode())
-#ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
-        ,
-        AtomGroup(L->getAtomGroup()), AtomRank(L->getAtomRank())
-#endif
-  {
-  }
+        InlinedAt(L->getRawInlinedAt()), ImplicitCode(L->isImplicitCode()) {}
 
   bool isKeyOf(const DILocation *RHS) const {
     return Line == RHS->getLine() && Column == RHS->getColumn() &&
            Scope == RHS->getRawScope() && InlinedAt == RHS->getRawInlinedAt() &&
-           ImplicitCode == RHS->isImplicitCode()
-#ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
-           && AtomGroup == RHS->getAtomGroup() &&
-           AtomRank == RHS->getAtomRank();
-#else
-        ;
-#endif
+           ImplicitCode == RHS->isImplicitCode();
   }
 
   unsigned getHashValue() const {
-    return hash_combine(Line, Column, Scope, InlinedAt, ImplicitCode
-#ifdef EXPERIMENTAL_KEY_INSTRUCTIONS
-                        ,
-                        AtomGroup, (uint8_t)AtomRank);
-#else
-    );
-#endif
+    return hash_combine(Line, Column, Scope, InlinedAt, ImplicitCode);
   }
 };
 
@@ -1350,7 +1324,9 @@ template <> struct MDNodeKeyImpl<DIExpression> {
     return Elements == RHS->getElements();
   }
 
-  unsigned getHashValue() const { return hash_combine_range(Elements); }
+  unsigned getHashValue() const {
+    return hash_combine_range(Elements.begin(), Elements.end());
+  }
 };
 
 template <> struct MDNodeKeyImpl<DIGlobalVariableExpression> {
@@ -1487,7 +1463,9 @@ struct DIArgListKeyInfo {
 
   bool isKeyOf(const DIArgList *RHS) const { return Args == RHS->getArgs(); }
 
-  unsigned getHashValue() const { return hash_combine_range(Args); }
+  unsigned getHashValue() const {
+    return hash_combine_range(Args.begin(), Args.end());
+  }
 };
 
 /// DenseMapInfo for DIArgList.
@@ -1718,7 +1696,8 @@ public:
 
   StringMap<std::unique_ptr<ConstantDataSequential>> CDSConstants;
 
-  DenseMap<const BasicBlock *, BlockAddress *> BlockAddresses;
+  DenseMap<std::pair<const Function *, const BasicBlock *>, BlockAddress *>
+      BlockAddresses;
 
   DenseMap<const GlobalValue *, DSOLocalEquivalent *> DSOLocalEquivalents;
 
@@ -1836,6 +1815,9 @@ public:
 
   LLVMContextImpl(LLVMContext &C);
   ~LLVMContextImpl();
+
+  /// Destroy the ConstantArrays if they are not used.
+  void dropTriviallyDeadConstantArrays();
 
   mutable OptPassGate *OPG = nullptr;
 

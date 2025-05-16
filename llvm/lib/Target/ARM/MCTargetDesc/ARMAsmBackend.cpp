@@ -65,7 +65,7 @@ ARMAsmBackendELF::getFixupKind(StringRef Name) const {
   return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
 }
 
-MCFixupKindInfo ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   const static MCFixupKindInfo InfosLE[ARM::NumTargetFixupKinds] = {
       // This table *must* be in the order that the fixup_* kinds are defined in
       // ARMFixupKinds.h.
@@ -193,7 +193,7 @@ MCFixupKindInfo ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
 
   // Fixup kinds from .reloc directive are like R_ARM_NONE. They do not require
   // any extra processing.
-  if (mc::isRelocation(Kind))
+  if (Kind >= FirstLiteralRelocationKind)
     return MCAsmBackend::getFixupKindInfo(FK_NONE);
 
   if (Kind < FirstTargetFixupKind)
@@ -335,36 +335,8 @@ const char *ARMAsmBackend::reasonForFixupRelaxation(const MCFixup &Fixup,
   return nullptr;
 }
 
-static bool needsInterworking(const MCAssembler &Asm, const MCSymbol *Sym,
-                              unsigned FixupKind) {
-  // Create relocations for unconditional branches to function symbols with
-  // different execution mode in ELF binaries.
-  if (!Sym || !Sym->isELF())
-    return false;
-  unsigned Type = cast<MCSymbolELF>(Sym)->getType();
-  if ((Type == ELF::STT_FUNC || Type == ELF::STT_GNU_IFUNC)) {
-    if (Asm.isThumbFunc(Sym) && (FixupKind == ARM::fixup_arm_uncondbranch))
-      return true;
-    if (!Asm.isThumbFunc(Sym) && (FixupKind == ARM::fixup_arm_thumb_br ||
-                                  FixupKind == ARM::fixup_arm_thumb_bl ||
-                                  FixupKind == ARM::fixup_t2_condbranch ||
-                                  FixupKind == ARM::fixup_t2_uncondbranch))
-      return true;
-  }
-  return false;
-}
-
-bool ARMAsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
-                                                 const MCFixup &Fixup,
-                                                 const MCValue &Target,
-                                                 uint64_t Value,
-                                                 bool Resolved) const {
-  const MCSymbol *Sym = Target.getAddSym();
-  if (needsInterworking(Asm, Sym, Fixup.getTargetKind()))
-    return true;
-
-  if (!Resolved)
-    return true;
+bool ARMAsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
+                                         uint64_t Value) const {
   return reasonForFixupRelaxation(Fixup, Value);
 }
 
@@ -1001,8 +973,18 @@ bool ARMAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
   }
   // Create relocations for unconditional branches to function symbols with
   // different execution mode in ELF binaries.
-  if (needsInterworking(Asm, Sym, Fixup.getTargetKind()))
-    return true;
+  if (Sym && Sym->isELF()) {
+    unsigned Type = cast<MCSymbolELF>(Sym)->getType();
+    if ((Type == ELF::STT_FUNC || Type == ELF::STT_GNU_IFUNC)) {
+      if (Asm.isThumbFunc(Sym) && (FixupKind == ARM::fixup_arm_uncondbranch))
+        return true;
+      if (!Asm.isThumbFunc(Sym) && (FixupKind == ARM::fixup_arm_thumb_br ||
+                                    FixupKind == ARM::fixup_arm_thumb_bl ||
+                                    FixupKind == ARM::fixup_t2_condbranch ||
+                                    FixupKind == ARM::fixup_t2_uncondbranch))
+        return true;
+    }
+  }
   // We must always generate a relocation for BL/BLX instructions if we have
   // a symbol to reference, as the linker relies on knowing the destination
   // symbol's thumb-ness to get interworking right.
@@ -1146,8 +1128,8 @@ void ARMAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                                MutableArrayRef<char> Data, uint64_t Value,
                                bool IsResolved,
                                const MCSubtargetInfo* STI) const {
-  auto Kind = Fixup.getKind();
-  if (mc::isRelocation(Kind))
+  unsigned Kind = Fixup.getKind();
+  if (Kind >= FirstLiteralRelocationKind)
     return;
   MCContext &Ctx = Asm.getContext();
   Value = adjustFixupValue(Asm, Fixup, Target, Value, IsResolved, Ctx, STI);

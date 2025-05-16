@@ -165,10 +165,10 @@ void polly::simplifyRegion(Region *R, DominatorTree *DT, LoopInfo *LI,
 // Split the block into two successive blocks.
 //
 // Like llvm::SplitBlock, but also preserves RegionInfo
-static BasicBlock *splitBlock(BasicBlock *Old, BasicBlock::iterator SplitPt,
+static BasicBlock *splitBlock(BasicBlock *Old, Instruction *SplitPt,
                               DominatorTree *DT, llvm::LoopInfo *LI,
                               RegionInfo *RI) {
-  assert(Old);
+  assert(Old && SplitPt);
 
   // Before:
   //
@@ -203,7 +203,7 @@ void polly::splitEntryBlockForAlloca(BasicBlock *EntryBlock, DominatorTree *DT,
     ++I;
 
   // splitBlock updates DT, LI and RI.
-  splitBlock(EntryBlock, I, DT, LI, RI);
+  splitBlock(EntryBlock, &*I, DT, LI, RI);
 }
 
 void polly::splitEntryBlockForAlloca(BasicBlock *EntryBlock, Pass *P) {
@@ -261,8 +261,8 @@ struct ScopExpander final : SCEVVisitor<ScopExpander, const SCEV *> {
         VMap(VMap), LoopMap(LoopMap), RTCBB(RTCBB), GenSE(GenSE), GenFn(GenFn) {
   }
 
-  Value *expandCodeFor(const SCEV *E, Type *Ty, BasicBlock::iterator IP) {
-    assert(isInGenRegion(&*IP) &&
+  Value *expandCodeFor(const SCEV *E, Type *Ty, Instruction *IP) {
+    assert(isInGenRegion(IP) &&
            "ScopExpander assumes to be applied to generated code region");
     const SCEV *GenE = visit(E);
     return Expander.expandCodeFor(GenE, Ty, IP);
@@ -305,7 +305,7 @@ private:
   bool isInGenRegion(Instruction *Inst) { return !isInOrigRegion(Inst); }
 
   const SCEV *visitGenericInst(const SCEVUnknown *E, Instruction *Inst,
-                               BasicBlock::iterator IP) {
+                               Instruction *IP) {
     if (!Inst || isInGenRegion(Inst))
       return E;
 
@@ -321,7 +321,7 @@ private:
     }
 
     InstClone->setName(Name + Inst->getName());
-    InstClone->insertBefore(IP);
+    InstClone->insertBefore(IP->getIterator());
     return GenSE.getSCEV(InstClone);
   }
 
@@ -341,19 +341,19 @@ private:
     }
 
     Instruction *Inst = dyn_cast<Instruction>(E->getValue());
-    BasicBlock::iterator IP;
+    Instruction *IP;
     if (Inst && isInGenRegion(Inst))
-      IP = Inst->getIterator();
+      IP = Inst;
     else if (R.getEntry()->getParent() != GenFn) {
       // RTCBB is in the original function, but we are generating for a
       // subfunction so we cannot emit to RTCBB. Usually, we land here only
       // because E->getValue() is not an instruction but a global or constant
       // which do not need to emit anything.
-      IP = GenFn->getEntryBlock().getTerminator()->getIterator();
+      IP = GenFn->getEntryBlock().getTerminator();
     } else if (Inst && RTCBB->getParent() == Inst->getFunction())
-      IP = RTCBB->getTerminator()->getIterator();
+      IP = RTCBB->getTerminator();
     else
-      IP = RTCBB->getParent()->getEntryBlock().getTerminator()->getIterator();
+      IP = RTCBB->getParent()->getEntryBlock().getTerminator();
 
     if (!Inst || (Inst->getOpcode() != Instruction::SRem &&
                   Inst->getOpcode() != Instruction::SDiv))
@@ -368,8 +368,9 @@ private:
     Value *LHS = expandCodeFor(LHSScev, E->getType(), IP);
     Value *RHS = expandCodeFor(RHSScev, E->getType(), IP);
 
-    Inst = BinaryOperator::Create((Instruction::BinaryOps)Inst->getOpcode(),
-                                  LHS, RHS, Inst->getName() + Name, IP);
+    Inst =
+        BinaryOperator::Create((Instruction::BinaryOps)Inst->getOpcode(), LHS,
+                               RHS, Inst->getName() + Name, IP->getIterator());
     return GenSE.getSCEV(Inst);
   }
 
@@ -464,7 +465,7 @@ private:
 Value *polly::expandCodeFor(Scop &S, llvm::ScalarEvolution &SE,
                             llvm::Function *GenFn, ScalarEvolution &GenSE,
                             const DataLayout &DL, const char *Name,
-                            const SCEV *E, Type *Ty, BasicBlock::iterator IP,
+                            const SCEV *E, Type *Ty, Instruction *IP,
                             ValueMapT *VMap, LoopToScevMapT *LoopMap,
                             BasicBlock *RTCBB) {
   ScopExpander Expander(S.getRegion(), SE, GenFn, GenSE, DL, Name, VMap,

@@ -1263,9 +1263,6 @@ public:
   /// MachineBranchProbabilityInfo class.
   BranchProbability getSuccProbability(const_succ_iterator Succ) const;
 
-  // Helper function for MIRPrinter.
-  bool canPredictBranchProbabilities() const;
-
 private:
   /// Return probability iterator corresponding to the I successor iterator.
   probability_iterator getProbabilityIterator(succ_iterator I);
@@ -1273,6 +1270,7 @@ private:
   getProbabilityIterator(const_succ_iterator I) const;
 
   friend class MachineBranchProbabilityInfo;
+  friend class MIPrinter;
 
   // Methods used to maintain doubly linked list of blocks...
   friend struct ilist_callback_traits<MachineBasicBlock>;

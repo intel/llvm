@@ -985,7 +985,8 @@ transform::FuseIntoContainingOp::apply(transform::TransformRewriter &rewriter,
 
   // Helper function to find the next producer that should be fused. Take any
   // producer that has a use inside the containing op.
-  SetVector<Operation *> remainingProducers(llvm::from_range, producerOps);
+  SetVector<Operation *> remainingProducers(producerOps.begin(),
+                                            producerOps.end());
   auto getNextProducer = [&]() -> FailureOr<Operation *> {
     for (const auto &it : enumerate(remainingProducers)) {
       Operation *producerOp = it.value();
@@ -2288,6 +2289,7 @@ transform::ScalarizeOp::applyToOne(transform::TransformRewriter &rewriter,
     }
     return tileSizes;
   });
+  SmallVector<int64_t> emptyTileSizes;
   rewriter.setInsertionPoint(target);
   FailureOr<scf::SCFTilingResult> maybeTilingResult = tileUsingSCF(
       rewriter, cast<TilingInterface>(target.getOperation()), tilingOptions);
@@ -2346,6 +2348,7 @@ transform::RewriteInDestinationPassingStyleOp::applyToOne(
     transform::TransformRewriter &rewriter, Operation *target,
     transform::ApplyToEachResultList &results,
     transform::TransformState &state) {
+  SmallVector<Operation *> res;
   rewriter.setInsertionPoint(target);
   FailureOr<Operation *> maybeResult =
       TypeSwitch<Operation *, FailureOr<Operation *>>(target)
@@ -3584,9 +3587,9 @@ transform::VectorizeChildrenAndApplyPatternsOp::applyToOne(
   vector::populateVectorStepLoweringPatterns(patterns);
 
   TrackingListener listener(state, *this);
-  if (failed(
-          applyPatternsGreedily(target, std::move(patterns),
-                                GreedyRewriteConfig().setListener(&listener))))
+  GreedyRewriteConfig config;
+  config.listener = &listener;
+  if (failed(applyPatternsGreedily(target, std::move(patterns), config)))
     return emitDefaultDefiniteFailure(target);
 
   results.push_back(target);

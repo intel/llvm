@@ -21,7 +21,6 @@ size_t __ovld __cnfn get_global_id(unsigned int dimindx);
 
 // CHECK-LLVM-LABEL: define spir_kernel void @mem_clobber
 // CHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} "" "~{cc},~{memory}"
-// CHECK-LLVM-LABEL: define spir_func void @__clang_ocl_kern_imp_mem_clobber
 // CHECK-LLVM: [[VALUE:%[0-9]+]] = load ptr addrspace(1), ptr
 // CHECK-LLVM-NEXT: getelementptr inbounds i32, ptr addrspace(1) [[VALUE]], i64 0
 // CHECK-LLVM-NEXT: store i32 1, ptr addrspace(1)

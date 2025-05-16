@@ -376,17 +376,9 @@ FPClassTest CallBase::getParamNoFPClass(unsigned i) const {
 }
 
 std::optional<ConstantRange> CallBase::getRange() const {
-  Attribute CallAttr = Attrs.getRetAttr(Attribute::Range);
-  Attribute FnAttr;
-  if (const Function *F = getCalledFunction())
-    FnAttr = F->getRetAttribute(Attribute::Range);
-
-  if (CallAttr.isValid() && FnAttr.isValid())
-    return CallAttr.getRange().intersectWith(FnAttr.getRange());
-  if (CallAttr.isValid())
-    return CallAttr.getRange();
-  if (FnAttr.isValid())
-    return FnAttr.getRange();
+  const Attribute RangeAttr = getRetAttr(llvm::Attribute::Range);
+  if (RangeAttr.isValid())
+    return RangeAttr.getRange();
   return std::nullopt;
 }
 
@@ -936,7 +928,7 @@ void CallBrInst::init(FunctionType *FTy, Value *Fn, BasicBlock *Fallthrough,
 
   // Set operands in order of their index to match use-list-order
   // prediction.
-  llvm::copy(Args, op_begin());
+  std::copy(Args.begin(), Args.end(), op_begin());
   NumIndirectDests = IndirectDests.size();
   setDefaultDest(Fallthrough);
   for (unsigned i = 0; i != NumIndirectDests; ++i)
@@ -1481,10 +1473,6 @@ StringRef AtomicRMWInst::getOperationName(BinOp Op) {
     return "fmax";
   case AtomicRMWInst::FMin:
     return "fmin";
-  case AtomicRMWInst::FMaximum:
-    return "fmaximum";
-  case AtomicRMWInst::FMinimum:
-    return "fminimum";
   case AtomicRMWInst::UIncWrap:
     return "uinc_wrap";
   case AtomicRMWInst::UDecWrap:

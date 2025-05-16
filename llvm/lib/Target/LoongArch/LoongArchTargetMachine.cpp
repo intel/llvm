@@ -40,7 +40,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeLoongArchTarget() {
   initializeLoongArchPreRAExpandPseudoPass(*PR);
   initializeLoongArchExpandPseudoPass(*PR);
   initializeLoongArchDAGToDAGISelLegacyPass(*PR);
-  initializeLoongArchExpandAtomicPseudoPass(*PR);
 }
 
 static cl::opt<bool> EnableLoongArchDeadRegisterElimination(
@@ -196,7 +195,7 @@ bool LoongArchPassConfig::addInstSelector() {
 
 TargetTransformInfo
 LoongArchTargetMachine::getTargetTransformInfo(const Function &F) const {
-  return TargetTransformInfo(std::make_unique<LoongArchTTIImpl>(this, F));
+  return TargetTransformInfo(LoongArchTTIImpl(this, F));
 }
 
 void LoongArchPassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }

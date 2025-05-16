@@ -714,8 +714,9 @@ printMemOperandEA(const MachineInstr *MI, int opNum, raw_ostream &O) {
   printOperand(MI, opNum+1, O);
 }
 
-void MipsAsmPrinter::printFCCOperand(const MachineInstr *MI, int opNum,
-                                     raw_ostream &O) {
+void MipsAsmPrinter::
+printFCCOperand(const MachineInstr *MI, int opNum, raw_ostream &O,
+                const char *Modifier) {
   const MachineOperand &MO = MI->getOperand(opNum);
   O << Mips::MipsFCCToString((Mips::CondCode)MO.getImm());
 }

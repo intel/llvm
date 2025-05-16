@@ -46,18 +46,8 @@ hasPublicMethodInBase(const CXXBaseSpecifier *Base, StringRef NameToMatch) {
     return std::nullopt;
 
   const CXXRecordDecl *R = T->getAsCXXRecordDecl();
-  if (!R) {
-    auto CT = Base->getType().getCanonicalType();
-    if (auto *TST = dyn_cast<TemplateSpecializationType>(CT)) {
-      auto TmplName = TST->getTemplateName();
-      if (!TmplName.isNull()) {
-        if (auto *TD = TmplName.getAsTemplateDecl())
-          R = dyn_cast_or_null<CXXRecordDecl>(TD->getTemplatedDecl());
-      }
-    }
-    if (!R)
-      return std::nullopt;
-  }
+  if (!R)
+    return std::nullopt;
   if (!R->hasDefinition())
     return std::nullopt;
 
@@ -129,22 +119,10 @@ bool isRefType(const std::string &Name) {
          Name == "RefPtr" || Name == "RefPtrAllowingPartiallyDestroyed";
 }
 
-bool isRetainPtr(const std::string &Name) {
-  return Name == "RetainPtr" || Name == "RetainPtrArc";
-}
+bool isRetainPtr(const std::string &Name) { return Name == "RetainPtr"; }
 
 bool isCheckedPtr(const std::string &Name) {
   return Name == "CheckedPtr" || Name == "CheckedRef";
-}
-
-bool isSmartPtrClass(const std::string &Name) {
-  return isRefType(Name) || isCheckedPtr(Name) || isRetainPtr(Name) ||
-         Name == "WeakPtr" || Name == "WeakPtrFactory" ||
-         Name == "WeakPtrFactoryWithBitField" || Name == "WeakPtrImplBase" ||
-         Name == "WeakPtrImplBaseSingleThread" || Name == "ThreadSafeWeakPtr" ||
-         Name == "ThreadSafeWeakOrStrongPtr" ||
-         Name == "ThreadSafeWeakPtrControlBlock" ||
-         Name == "ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr";
 }
 
 bool isCtorOfRefCounted(const clang::FunctionDecl *F) {
@@ -169,8 +147,7 @@ bool isCtorOfCheckedPtr(const clang::FunctionDecl *F) {
 bool isCtorOfRetainPtr(const clang::FunctionDecl *F) {
   const std::string &FunctionName = safeGetName(F);
   return FunctionName == "RetainPtr" || FunctionName == "adoptNS" ||
-         FunctionName == "adoptCF" || FunctionName == "retainPtr" ||
-         FunctionName == "RetainPtrArc" || FunctionName == "adoptNSArc";
+         FunctionName == "adoptCF";
 }
 
 bool isCtorOfSafePtr(const clang::FunctionDecl *F) {
@@ -203,7 +180,7 @@ bool isRefOrCheckedPtrType(const clang::QualType T) {
 }
 
 bool isRetainPtrType(const clang::QualType T) {
-  return isPtrOfType(T, [](auto Name) { return isRetainPtr(Name); });
+  return isPtrOfType(T, [](auto Name) { return Name == "RetainPtr"; });
 }
 
 bool isOwnerPtrType(const clang::QualType T) {
@@ -245,13 +222,8 @@ void RetainTypeChecker::visitTypedef(const TypedefDecl *TD) {
 
   auto PointeeQT = QT->getPointeeType();
   const RecordType *RT = PointeeQT->getAs<RecordType>();
-  if (!RT) {
-    if (TD->hasAttr<ObjCBridgeAttr>() || TD->hasAttr<ObjCBridgeMutableAttr>()) {
-      if (auto *Type = TD->getTypeForDecl())
-        RecordlessTypes.insert(Type);
-    }
+  if (!RT)
     return;
-  }
 
   for (auto *Redecl : RT->getDecl()->getMostRecentDecl()->redecls()) {
     if (Redecl->getAttr<ObjCBridgeAttr>() ||
@@ -268,17 +240,6 @@ bool RetainTypeChecker::isUnretained(const QualType QT, bool ignoreARC) {
   auto CanonicalType = QT.getCanonicalType();
   auto PointeeType = CanonicalType->getPointeeType();
   auto *RT = dyn_cast_or_null<RecordType>(PointeeType.getTypePtrOrNull());
-  if (!RT) {
-    auto *Type = QT.getTypePtrOrNull();
-    while (Type) {
-      if (RecordlessTypes.contains(Type))
-        return true;
-      auto *ET = dyn_cast_or_null<ElaboratedType>(Type);
-      if (!ET)
-        break;
-      Type = ET->desugar().getTypePtrOrNull();
-    }
-  }
   return RT && CFPointees.contains(RT);
 }
 
@@ -370,6 +331,8 @@ std::optional<bool> isUnsafePtr(const QualType T, bool IsArcEnabled) {
 std::optional<bool> isGetterOfSafePtr(const CXXMethodDecl *M) {
   assert(M);
 
+  std::optional<RetainTypeChecker> RTC;
+
   if (isa<CXXMethodDecl>(M)) {
     const CXXRecordDecl *calleeMethodsClass = M->getParent();
     auto className = safeGetName(calleeMethodsClass);
@@ -385,7 +348,7 @@ std::optional<bool> isGetterOfSafePtr(const CXXMethodDecl *M) {
          method == "impl"))
       return true;
 
-    if (isRetainPtr(className) && method == "get")
+    if (className == "RetainPtr" && method == "get")
       return true;
 
     // Ref<T> -> T conversion
@@ -406,7 +369,7 @@ std::optional<bool> isGetterOfSafePtr(const CXXMethodDecl *M) {
       }
     }
 
-    if (isRetainPtr(className)) {
+    if (className == "RetainPtr") {
       if (auto *maybeRefToRawOperator = dyn_cast<CXXConversionDecl>(M)) {
         auto QT = maybeRefToRawOperator->getConversionType();
         auto *T = QT.getTypePtrOrNull();
@@ -440,14 +403,7 @@ bool isCheckedPtr(const CXXRecordDecl *R) {
 bool isRetainPtr(const CXXRecordDecl *R) {
   assert(R);
   if (auto *TmplR = R->getTemplateInstantiationPattern())
-    return isRetainPtr(safeGetName(TmplR));
-  return false;
-}
-
-bool isSmartPtr(const CXXRecordDecl *R) {
-  assert(R);
-  if (auto *TmplR = R->getTemplateInstantiationPattern())
-    return isSmartPtrClass(safeGetName(TmplR));
+    return safeGetName(TmplR) == "RetainPtr";
   return false;
 }
 
@@ -460,7 +416,7 @@ bool isPtrConversion(const FunctionDecl *F) {
   const auto FunctionName = safeGetName(F);
   if (FunctionName == "getPtr" || FunctionName == "WeakPtr" ||
       FunctionName == "dynamicDowncast" || FunctionName == "downcast" ||
-      FunctionName == "checkedDowncast" || FunctionName == "bit_cast" ||
+      FunctionName == "checkedDowncast" ||
       FunctionName == "uncheckedDowncast" || FunctionName == "bitwise_cast" ||
       FunctionName == "bridge_cast" || FunctionName == "bridge_id_cast" ||
       FunctionName == "dynamic_cf_cast" || FunctionName == "checked_cf_cast" ||
@@ -643,10 +599,6 @@ public:
     auto *Callee = CE->getDirectCallee();
     if (!Callee)
       return false;
-
-    if (isPtrConversion(Callee))
-      return true;
-
     const auto &Name = safeGetName(Callee);
 
     if (Callee->isInStdNamespace() &&
@@ -660,7 +612,7 @@ public:
         Name == "isMainThreadOrGCThread" || Name == "isMainRunLoop" ||
         Name == "isWebThread" || Name == "isUIThread" ||
         Name == "mayBeGCThread" || Name == "compilerFenceForCrash" ||
-        isTrivialBuiltinFunction(Callee))
+        Name == "bitwise_cast" || isTrivialBuiltinFunction(Callee))
       return true;
 
     return IsFunctionTrivial(Callee);

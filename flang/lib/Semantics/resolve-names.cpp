@@ -1384,20 +1384,6 @@ public:
   void Post(const parser::AccEndBlockDirective &) {
     messageHandler().set_currStmtSource(std::nullopt);
   }
-  bool Pre(const parser::AccBeginCombinedDirective &x) {
-    AddAccSourceRange(x.source);
-    return true;
-  }
-  void Post(const parser::AccBeginCombinedDirective &) {
-    messageHandler().set_currStmtSource(std::nullopt);
-  }
-  bool Pre(const parser::AccEndCombinedDirective &x) {
-    AddAccSourceRange(x.source);
-    return true;
-  }
-  void Post(const parser::AccEndCombinedDirective &) {
-    messageHandler().set_currStmtSource(std::nullopt);
-  }
   bool Pre(const parser::AccBeginLoopDirective &x) {
     AddAccSourceRange(x.source);
     return true;
@@ -3339,19 +3325,9 @@ ModuleVisitor::SymbolRename ModuleVisitor::AddUse(
     // Privacy is not enforced in module files so that generic interfaces
     // can be resolved to private specific procedures in specification
     // expressions.
-    // Local names that contain currency symbols ('$') are created by the
-    // module file writer when a private name in another module is needed to
-    // process a local declaration.  These can show up in the output of
-    // -fdebug-unparse-with-modules, too, so go easy on them.
-    if (currScope().IsModule() &&
-        localName.ToString().find("$") != std::string::npos) {
-      Say(useName, "'%s' is PRIVATE in '%s'"_warn_en_US, MakeOpName(useName),
-          useModuleScope_->GetName().value());
-    } else {
-      Say(useName, "'%s' is PRIVATE in '%s'"_err_en_US, MakeOpName(useName),
-          useModuleScope_->GetName().value());
-      return {};
-    }
+    Say(useName, "'%s' is PRIVATE in '%s'"_err_en_US, MakeOpName(useName),
+        useModuleScope_->GetName().value());
+    return {};
   }
   auto &localSymbol{MakeSymbol(localName)};
   DoAddUse(useName, localName, localSymbol, *useSymbol);
@@ -4367,9 +4343,7 @@ bool SubprogramVisitor::Pre(const parser::PrefixSpec::Attributes &attrs) {
     }
     if (auto attrs{subp->cudaSubprogramAttrs()}) {
       if (*attrs == common::CUDASubprogramAttrs::Global ||
-          *attrs == common::CUDASubprogramAttrs::Grid_Global ||
-          *attrs == common::CUDASubprogramAttrs::Device ||
-          *attrs == common::CUDASubprogramAttrs::HostDevice) {
+          *attrs == common::CUDASubprogramAttrs::Device) {
         const Scope &scope{currScope()};
         const Scope *mod{FindModuleContaining(scope)};
         if (mod &&
@@ -6650,7 +6624,7 @@ bool DeclarationVisitor::Pre(const parser::BasedPointer &) {
 
 void DeclarationVisitor::Post(const parser::BasedPointer &bp) {
   const parser::ObjectName &pointerName{std::get<0>(bp.t)};
-  auto *pointer{FindInScope(pointerName)};
+  auto *pointer{FindSymbol(pointerName)};
   if (!pointer) {
     pointer = &MakeSymbol(pointerName, ObjectEntityDetails{});
   } else if (!ConvertToObjectEntity(*pointer)) {

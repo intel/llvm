@@ -4230,7 +4230,7 @@ enum CXErrorCode clang_createTranslationUnit2(CXIndex CIdx,
 
   CIndexer *CXXIdx = static_cast<CIndexer *>(CIdx);
   FileSystemOptions FileSystemOpts;
-  HeaderSearchOptions HSOpts;
+  auto HSOpts = std::make_shared<HeaderSearchOptions>();
 
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags =
       CompilerInstance::createDiagnostics(*llvm::vfs::getRealFileSystem(),
@@ -4694,6 +4694,7 @@ static const ExprEvalResult *evaluateExpr(Expr *expr, CXCursor C) {
   if (ER.Val.isFloat()) {
     llvm::SmallVector<char, 100> Buffer;
     ER.Val.getFloat().toString(Buffer);
+    std::string floatStr(Buffer.data(), Buffer.size());
     result->EvalType = CXEval_Float;
     bool ignored;
     llvm::APFloat apFloat = ER.Val.getFloat();
@@ -5174,7 +5175,7 @@ int clang_File_isEqual(CXFile file1, CXFile file2) {
 
   FileEntryRef FEnt1 = *cxfile::getFileEntryRef(file1);
   FileEntryRef FEnt2 = *cxfile::getFileEntryRef(file2);
-  return FEnt1 == FEnt2;
+  return FEnt1.getUniqueID() == FEnt2.getUniqueID();
 }
 
 CXString clang_File_tryGetRealPathName(CXFile SFile) {
@@ -5446,8 +5447,7 @@ CXString clang_getCursorSpelling(CXCursor C) {
 
     if (C.kind == CXCursor_BinaryOperator ||
         C.kind == CXCursor_CompoundAssignOperator) {
-      return clang_getBinaryOperatorKindSpelling(
-          clang_getCursorBinaryOperatorKind(C));
+      return clang_Cursor_getBinaryOpcodeStr(clang_Cursor_getBinaryOpcode(C));
     }
 
     const Decl *D = getDeclFromExpr(getCursorExpr(C));
@@ -9216,13 +9216,32 @@ unsigned clang_Cursor_isExternalSymbol(CXCursor C, CXString *language,
 }
 
 enum CX_BinaryOperatorKind clang_Cursor_getBinaryOpcode(CXCursor C) {
-  return static_cast<CX_BinaryOperatorKind>(
-      clang_getCursorBinaryOperatorKind(C));
+  if (C.kind != CXCursor_BinaryOperator &&
+      C.kind != CXCursor_CompoundAssignOperator) {
+    return CX_BO_Invalid;
+  }
+
+  const Expr *D = getCursorExpr(C);
+  if (const auto *BinOp = dyn_cast<BinaryOperator>(D)) {
+    switch (BinOp->getOpcode()) {
+#define BINARY_OPERATION(Name, Spelling)                                       \
+  case BO_##Name:                                                              \
+    return CX_BO_##Name;
+#include "clang/AST/OperationKinds.def"
+    }
+  }
+
+  return CX_BO_Invalid;
 }
 
 CXString clang_Cursor_getBinaryOpcodeStr(enum CX_BinaryOperatorKind Op) {
-  return clang_getBinaryOperatorKindSpelling(
-      static_cast<CXBinaryOperatorKind>(Op));
+  if (Op > CX_BO_LAST)
+    return cxstring::createEmpty();
+
+  return cxstring::createDup(
+      // BinaryOperator::getOpcodeStr has no case for CX_BO_Invalid,
+      // so subtract 1
+      BinaryOperator::getOpcodeStr(static_cast<BinaryOperatorKind>(Op - 1)));
 }
 
 CXSourceRange clang_Cursor_getCommentRange(CXCursor C) {
@@ -10097,10 +10116,7 @@ cxindex::Logger::~Logger() {
 }
 
 CXString clang_getBinaryOperatorKindSpelling(enum CXBinaryOperatorKind kind) {
-  if (kind > CXBinaryOperator_Last)
-    return cxstring::createEmpty();
-
-  return cxstring::createDup(
+  return cxstring::createRef(
       BinaryOperator::getOpcodeStr(static_cast<BinaryOperatorKind>(kind - 1)));
 }
 

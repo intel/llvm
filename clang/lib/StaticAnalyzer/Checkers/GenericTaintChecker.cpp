@@ -154,6 +154,7 @@ const NoteTag *taintOriginTrackerTag(CheckerContext &C,
   return C.getNoteTag([TaintedSymbols = std::move(TaintedSymbols),
                        TaintedArgs = std::move(TaintedArgs), CallLocation](
                           PathSensitiveBugReport &BR) -> std::string {
+    SmallString<256> Msg;
     // We give diagnostics only for taint related reports
     if (!BR.isInteresting(CallLocation) ||
         BR.getBugType().getCategory() != categories::TaintedData) {

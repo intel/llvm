@@ -17,7 +17,6 @@
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -94,6 +93,10 @@ struct FrameIndexOperand {
   }
 };
 
+} // end anonymous namespace
+
+namespace llvm {
+
 /// This class prints out the machine functions using the MIR serialization
 /// format.
 class MIRPrinter {
@@ -148,6 +151,7 @@ class MIPrinter {
   /// Synchronization scope names registered with LLVMContext.
   SmallVector<StringRef, 8> SSNs;
 
+  bool canPredictBranchProbabilities(const MachineBasicBlock &MBB) const;
   bool canPredictSuccessors(const MachineBasicBlock &MBB) const;
 
 public:
@@ -163,13 +167,14 @@ public:
   void printStackObjectReference(int FrameIndex);
   void print(const MachineInstr &MI, unsigned OpIdx,
              const TargetRegisterInfo *TRI, const TargetInstrInfo *TII,
-             bool ShouldPrintRegisterTies, SmallBitVector &PrintedTypes,
-             const MachineRegisterInfo &MRI, bool PrintDef = true);
+             bool ShouldPrintRegisterTies, LLT TypeToPrint,
+             bool PrintDef = true);
 };
 
-} // end anonymous namespace
+} // end namespace llvm
 
-namespace llvm::yaml {
+namespace llvm {
+namespace yaml {
 
 /// This struct serializes the LLVM IR module.
 template <> struct BlockScalarTraits<Module> {
@@ -183,7 +188,8 @@ template <> struct BlockScalarTraits<Module> {
   }
 };
 
-} // end namespace llvm::yaml
+} // end namespace yaml
+} // end namespace llvm
 
 static void printRegMIR(Register Reg, yaml::StringValue &Dest,
                         const TargetRegisterInfo *TRI) {
@@ -321,8 +327,9 @@ static void printRegFlags(Register Reg,
                           const MachineFunction &MF,
                           const TargetRegisterInfo *TRI) {
   auto FlagValues = TRI->getVRegFlagsOfReg(Reg, MF);
-  for (auto &Flag : FlagValues)
+  for (auto &Flag : FlagValues) {
     RegisterFlags.push_back(yaml::FlowStringValue(Flag.str()));
+  }
 }
 
 void MIRPrinter::convert(yaml::MachineFunction &YamlMF,
@@ -611,8 +618,9 @@ void MIRPrinter::convertCalledGlobals(yaml::MachineFunction &YMF,
   // Sort by position of call instructions.
   llvm::sort(YMF.CalledGlobals.begin(), YMF.CalledGlobals.end(),
              [](yaml::CalledGlobal A, yaml::CalledGlobal B) {
-               return std::tie(A.CallSite.BlockNum, A.CallSite.Offset) <
-                      std::tie(B.CallSite.BlockNum, B.CallSite.Offset);
+               if (A.CallSite.BlockNum == B.CallSite.BlockNum)
+                 return A.CallSite.Offset < B.CallSite.Offset;
+               return A.CallSite.BlockNum < B.CallSite.BlockNum;
              });
 }
 
@@ -622,10 +630,11 @@ void MIRPrinter::convert(yaml::MachineFunction &MF,
   for (const MachineConstantPoolEntry &Constant : ConstantPool.getConstants()) {
     std::string Str;
     raw_string_ostream StrOS(Str);
-    if (Constant.isMachineConstantPoolEntry())
+    if (Constant.isMachineConstantPoolEntry()) {
       Constant.Val.MachineCPVal->print(StrOS);
-    else
+    } else {
       Constant.Val.ConstVal->printAsOperand(StrOS);
+    }
 
     yaml::MachineConstantPoolValue YamlConstant;
     YamlConstant.ID = ID++;
@@ -684,6 +693,23 @@ void llvm::guessSuccessors(const MachineBasicBlock &MBB,
   IsFallthrough = I == MBB.end() || !I->isBarrier();
 }
 
+bool
+MIPrinter::canPredictBranchProbabilities(const MachineBasicBlock &MBB) const {
+  if (MBB.succ_size() <= 1)
+    return true;
+  if (!MBB.hasSuccessorProbabilities())
+    return true;
+
+  SmallVector<BranchProbability,8> Normalized(MBB.Probs.begin(),
+                                              MBB.Probs.end());
+  BranchProbability::normalizeProbabilities(Normalized.begin(),
+                                            Normalized.end());
+  SmallVector<BranchProbability,8> Equal(Normalized.size());
+  BranchProbability::normalizeProbabilities(Equal.begin(), Equal.end());
+
+  return std::equal(Normalized.begin(), Normalized.end(), Equal.begin());
+}
+
 bool MIPrinter::canPredictSuccessors(const MachineBasicBlock &MBB) const {
   SmallVector<MachineBasicBlock*,8> GuessedSuccs;
   bool GuessedFallthrough;
@@ -712,7 +738,7 @@ void MIPrinter::print(const MachineBasicBlock &MBB) {
 
   bool HasLineAttributes = false;
   // Print the successors
-  bool canPredictProbs = MBB.canPredictBranchProbabilities();
+  bool canPredictProbs = canPredictBranchProbabilities(MBB);
   // Even if the list of successors is empty, if we cannot guess it,
   // we need to print it to tell the parser that the list is empty.
   // This is needed, because MI model unreachable as empty blocks
@@ -724,12 +750,14 @@ void MIPrinter::print(const MachineBasicBlock &MBB) {
     OS.indent(2) << "successors:";
     if (!MBB.succ_empty())
       OS << " ";
-    ListSeparator LS;
     for (auto I = MBB.succ_begin(), E = MBB.succ_end(); I != E; ++I) {
-      OS << LS << printMBBReference(**I);
+      if (I != MBB.succ_begin())
+        OS << ", ";
+      OS << printMBBReference(**I);
       if (!SimplifyMIR || !canPredictProbs)
-        OS << format("(0x%08" PRIx32 ")",
-                     MBB.getSuccProbability(I).getNumerator());
+        OS << '('
+           << format("0x%08" PRIx32, MBB.getSuccProbability(I).getNumerator())
+           << ')';
     }
     OS << "\n";
     HasLineAttributes = true;
@@ -740,9 +768,12 @@ void MIPrinter::print(const MachineBasicBlock &MBB) {
   if (!MBB.livein_empty()) {
     const TargetRegisterInfo &TRI = *MRI.getTargetRegisterInfo();
     OS.indent(2) << "liveins: ";
-    ListSeparator LS;
+    bool First = true;
     for (const auto &LI : MBB.liveins_dbg()) {
-      OS << LS << printReg(LI.PhysReg, &TRI);
+      if (!First)
+        OS << ", ";
+      First = false;
+      OS << printReg(LI.PhysReg, &TRI);
       if (!LI.LaneMask.all())
         OS << ":0x" << PrintLaneMask(LI.LaneMask);
     }
@@ -783,14 +814,14 @@ void MIPrinter::print(const MachineInstr &MI) {
 
   SmallBitVector PrintedTypes(8);
   bool ShouldPrintRegisterTies = MI.hasComplexRegisterTies();
-  ListSeparator LS;
   unsigned I = 0, E = MI.getNumOperands();
-  for (; I < E; ++I) {
-    const MachineOperand MO = MI.getOperand(I);
-    if (!MO.isReg() || !MO.isDef() || MO.isImplicit())
-      break;
-    OS << LS;
-    print(MI, I, TRI, TII, ShouldPrintRegisterTies, PrintedTypes, MRI,
+  for (; I < E && MI.getOperand(I).isReg() && MI.getOperand(I).isDef() &&
+         !MI.getOperand(I).isImplicit();
+       ++I) {
+    if (I)
+      OS << ", ";
+    print(MI, I, TRI, TII, ShouldPrintRegisterTies,
+          MI.getTypeToPrint(I, PrintedTypes, MRI),
           /*PrintDef=*/false);
   }
 
@@ -838,48 +869,74 @@ void MIPrinter::print(const MachineInstr &MI) {
     OS << "samesign ";
 
   OS << TII->getName(MI.getOpcode());
-
-  LS = ListSeparator();
-
-  if (I < E) {
+  if (I < E)
     OS << ' ';
-    for (; I < E; ++I) {
-      OS << LS;
-      print(MI, I, TRI, TII, ShouldPrintRegisterTies, PrintedTypes, MRI);
-    }
+
+  bool NeedComma = false;
+  for (; I < E; ++I) {
+    if (NeedComma)
+      OS << ", ";
+    print(MI, I, TRI, TII, ShouldPrintRegisterTies,
+          MI.getTypeToPrint(I, PrintedTypes, MRI));
+    NeedComma = true;
   }
 
   // Print any optional symbols attached to this instruction as-if they were
   // operands.
   if (MCSymbol *PreInstrSymbol = MI.getPreInstrSymbol()) {
-    OS << LS << " pre-instr-symbol ";
+    if (NeedComma)
+      OS << ',';
+    OS << " pre-instr-symbol ";
     MachineOperand::printSymbol(OS, *PreInstrSymbol);
+    NeedComma = true;
   }
   if (MCSymbol *PostInstrSymbol = MI.getPostInstrSymbol()) {
-    OS << LS << " post-instr-symbol ";
+    if (NeedComma)
+      OS << ',';
+    OS << " post-instr-symbol ";
     MachineOperand::printSymbol(OS, *PostInstrSymbol);
+    NeedComma = true;
   }
   if (MDNode *HeapAllocMarker = MI.getHeapAllocMarker()) {
-    OS << LS << " heap-alloc-marker ";
+    if (NeedComma)
+      OS << ',';
+    OS << " heap-alloc-marker ";
     HeapAllocMarker->printAsOperand(OS, MST);
+    NeedComma = true;
   }
   if (MDNode *PCSections = MI.getPCSections()) {
-    OS << LS << " pcsections ";
+    if (NeedComma)
+      OS << ',';
+    OS << " pcsections ";
     PCSections->printAsOperand(OS, MST);
+    NeedComma = true;
   }
   if (MDNode *MMRA = MI.getMMRAMetadata()) {
-    OS << LS << " mmra ";
+    if (NeedComma)
+      OS << ',';
+    OS << " mmra ";
     MMRA->printAsOperand(OS, MST);
+    NeedComma = true;
   }
-  if (uint32_t CFIType = MI.getCFIType())
-    OS << LS << " cfi-type " << CFIType;
+  if (uint32_t CFIType = MI.getCFIType()) {
+    if (NeedComma)
+      OS << ',';
+    OS << " cfi-type " << CFIType;
+    NeedComma = true;
+  }
 
-  if (auto Num = MI.peekDebugInstrNum())
-    OS << LS << " debug-instr-number " << Num;
+  if (auto Num = MI.peekDebugInstrNum()) {
+    if (NeedComma)
+      OS << ',';
+    OS << " debug-instr-number " << Num;
+    NeedComma = true;
+  }
 
   if (PrintLocations) {
     if (const DebugLoc &DL = MI.getDebugLoc()) {
-      OS << LS << " debug-location ";
+      if (NeedComma)
+        OS << ',';
+      OS << " debug-location ";
       DL->printAsOperand(OS, MST);
     }
   }
@@ -888,10 +945,12 @@ void MIPrinter::print(const MachineInstr &MI) {
     OS << " :: ";
     const LLVMContext &Context = MF->getFunction().getContext();
     const MachineFrameInfo &MFI = MF->getFrameInfo();
-    LS = ListSeparator();
+    bool NeedComma = false;
     for (const auto *Op : MI.memoperands()) {
-      OS << LS;
+      if (NeedComma)
+        OS << ", ";
       Op->print(OS, MST, SSNs, Context, &MFI, TII);
+      NeedComma = true;
     }
   }
 }
@@ -912,11 +971,10 @@ static std::string formatOperandComment(std::string Comment) {
 }
 
 void MIPrinter::print(const MachineInstr &MI, unsigned OpIdx,
-                      const TargetRegisterInfo *TRI, const TargetInstrInfo *TII,
-                      bool ShouldPrintRegisterTies,
-                      SmallBitVector &PrintedTypes,
-                      const MachineRegisterInfo &MRI, bool PrintDef) {
-  LLT TypeToPrint = MI.getTypeToPrint(OpIdx, PrintedTypes, MRI);
+                      const TargetRegisterInfo *TRI,
+                      const TargetInstrInfo *TII,
+                      bool ShouldPrintRegisterTies, LLT TypeToPrint,
+                      bool PrintDef) {
   const MachineOperand &Op = MI.getOperand(OpIdx);
   std::string MOComment = TII->createMIROperandComment(MI, Op, OpIdx, TRI);
 

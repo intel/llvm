@@ -1,6 +1,5 @@
 // RUN: mlir-opt %s -generate-runtime-verification \
 // RUN: -one-shot-bufferize="bufferize-function-boundaries" \
-// RUN: -buffer-deallocation-pipeline \
 // RUN: -convert-linalg-to-loops \
 // RUN: -expand-strided-metadata \
 // RUN: -lower-affine \

@@ -330,8 +330,6 @@ llvm::Expected<FileEntryRef> FileManager::getFileRef(StringRef Filename,
   UFE->UID = NextFileUID++;
   UFE->UniqueID = Status.getUniqueID();
   UFE->IsNamedPipe = Status.getType() == llvm::sys::fs::file_type::fifo_file;
-  UFE->IsDeviceFile =
-      Status.getType() == llvm::sys::fs::file_type::character_file;
   UFE->File = std::move(F);
 
   if (UFE->File) {

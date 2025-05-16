@@ -22,6 +22,4 @@ private:
 
 A *make_anonymous_B();
 
-A *take_A(A *a);
-
 #endif

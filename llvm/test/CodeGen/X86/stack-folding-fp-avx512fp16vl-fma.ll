@@ -221,8 +221,7 @@ define <8 x half> @stack_fold_fmadd123ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmadd213ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -240,8 +239,7 @@ define <8 x half> @stack_fold_fmadd213ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmadd213ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -259,8 +257,7 @@ define <8 x half> @stack_fold_fmadd231ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmadd231ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -278,8 +275,7 @@ define <8 x half> @stack_fold_fmadd321ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmadd231ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -297,8 +293,7 @@ define <8 x half> @stack_fold_fmadd132ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmadd132ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -316,8 +311,7 @@ define <8 x half> @stack_fold_fmadd312ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmadd132ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -551,8 +545,7 @@ define <8 x half> @stack_fold_fmsub123ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmsub213ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -571,8 +564,7 @@ define <8 x half> @stack_fold_fmsub213ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmsub213ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -591,8 +583,7 @@ define <8 x half> @stack_fold_fmsub231ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmsub231ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -611,8 +602,7 @@ define <8 x half> @stack_fold_fmsub321ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmsub231ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -631,8 +621,7 @@ define <8 x half> @stack_fold_fmsub132ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmsub132ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -651,8 +640,7 @@ define <8 x half> @stack_fold_fmsub312ph_maskz(<8 x half> %a0, <8 x half> %a1, <
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfmsub132ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -887,8 +875,7 @@ define <8 x half> @stack_fold_fnmadd123ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmadd213ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -907,8 +894,7 @@ define <8 x half> @stack_fold_fnmadd213ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmadd213ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -927,8 +913,7 @@ define <8 x half> @stack_fold_fnmadd231ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmadd231ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -947,8 +932,7 @@ define <8 x half> @stack_fold_fnmadd321ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmadd231ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -967,8 +951,7 @@ define <8 x half> @stack_fold_fnmadd132ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmadd132ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -987,8 +970,7 @@ define <8 x half> @stack_fold_fnmadd312ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmadd132ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -1235,8 +1217,7 @@ define <8 x half> @stack_fold_fnmsub123ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmsub213ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -1256,8 +1237,7 @@ define <8 x half> @stack_fold_fnmsub213ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmsub213ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -1277,8 +1257,7 @@ define <8 x half> @stack_fold_fnmsub231ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmsub231ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -1298,8 +1277,7 @@ define <8 x half> @stack_fold_fnmsub321ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmsub231ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -1319,8 +1297,7 @@ define <8 x half> @stack_fold_fnmsub132ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmsub132ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()
@@ -1340,8 +1317,7 @@ define <8 x half> @stack_fold_fnmsub312ph_maskz(<8 x half> %a0, <8 x half> %a1, 
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    nop
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    movzbl (%rdi), %eax
-; CHECK-NEXT:    kmovd %eax, %k1
+; CHECK-NEXT:    kmovb (%rdi), %k1
 ; CHECK-NEXT:    vfnmsub132ph {{[-0-9]+}}(%r{{[sb]}}p), %xmm1, %xmm0 {%k1} {z} # 16-byte Folded Reload
 ; CHECK-NEXT:    retq
   %1 = tail call <2 x i64> asm sideeffect "nop", "=x,~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{xmm16},~{xmm17},~{xmm18},~{xmm19},~{xmm20},~{xmm21},~{xmm22},~{xmm23},~{xmm24},~{xmm25},~{xmm26},~{xmm27},~{xmm28},~{xmm29},~{xmm30},~{xmm31},~{flags}"()

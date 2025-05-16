@@ -2,6 +2,7 @@
 Test lldb-dap "port" configuration to "attach" request
 """
 
+
 import dap_server
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -18,7 +19,6 @@ import sys
 import socket
 
 
-@skip
 class TestDAP_attachByPortNum(lldbdap_testcase.DAPTestCaseBase):
     default_timeout = 20
 
@@ -40,6 +40,8 @@ class TestDAP_attachByPortNum(lldbdap_testcase.DAPTestCaseBase):
         args = []
         if lldbplatformutil.getPlatform() == "linux":
             args = ["gdbserver"]
+        elif lldbplatformutil.getPlatform() == "macosx":
+            args = ["--listen"]
         if lldb.remote_platform:
             args += ["*:0"]
         else:
@@ -58,7 +60,8 @@ class TestDAP_attachByPortNum(lldbdap_testcase.DAPTestCaseBase):
         """
         Tests attaching to a process by port.
         """
-        program = self.build_and_create_debug_adapter_for_attach()
+        self.build_and_create_debug_adapter()
+        program = self.getBuildArtifact("a.out")
 
         debug_server_tool = self.getBuiltinDebugServerTool()
 
@@ -89,7 +92,8 @@ class TestDAP_attachByPortNum(lldbdap_testcase.DAPTestCaseBase):
         """
         Tests attaching to a process by process ID and port number.
         """
-        program = self.build_and_create_debug_adapter_for_attach()
+        self.build_and_create_debug_adapter()
+        program = self.getBuildArtifact("a.out")
 
         # It is not necessary to launch "lldb-server" to obtain the actual port and pid for attaching.
         # However, when providing the port number and pid directly, "lldb-dap" throws an error message, which is expected.
@@ -116,7 +120,8 @@ class TestDAP_attachByPortNum(lldbdap_testcase.DAPTestCaseBase):
         """
         Tests attaching to a process by invalid port number 0.
         """
-        program = self.build_and_create_debug_adapter_for_attach()
+        self.build_and_create_debug_adapter()
+        program = self.getBuildArtifact("a.out")
 
         port = 0
         response = self.attach(
@@ -134,7 +139,8 @@ class TestDAP_attachByPortNum(lldbdap_testcase.DAPTestCaseBase):
         """
         Tests attaching to a process by illegal/greater port number 65536
         """
-        program = self.build_and_create_debug_adapter_for_attach()
+        self.build_and_create_debug_adapter()
+        program = self.getBuildArtifact("a.out")
 
         port = 65536
         args = [program]

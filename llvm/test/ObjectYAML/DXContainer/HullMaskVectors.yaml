@@ -44,8 +44,6 @@ Parts:
       AtomicInt64OnHeapResource: false
       AdvancedTextureOps: false
       WriteableMSAATextures: false
-      SampleCmpWithGradientOrBias: false
-      ExtendedCommandInfo: false
       NextUnusedBit:   false
   - Name:            ISG1
     Size:            60

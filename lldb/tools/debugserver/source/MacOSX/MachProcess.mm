@@ -522,17 +522,19 @@ static CallOpenApplicationFunction FBSCallOpenApplicationFunction =
 MachProcess::MachProcess()
     : m_pid(0), m_cpu_type(0), m_child_stdin(-1), m_child_stdout(-1),
       m_child_stderr(-1), m_path(), m_args(), m_task(this),
-      m_flags(eMachProcessFlagsNone), m_stdio_thread(0), m_stdio_mutex(),
-      m_stdout_data(), m_profile_enabled(false), m_profile_interval_usec(0),
-      m_profile_thread(0), m_profile_data_mutex(), m_profile_data(),
+      m_flags(eMachProcessFlagsNone), m_stdio_thread(0),
+      m_stdio_mutex(PTHREAD_MUTEX_RECURSIVE), m_stdout_data(),
+      m_profile_enabled(false), m_profile_interval_usec(0), m_profile_thread(0),
+      m_profile_data_mutex(PTHREAD_MUTEX_RECURSIVE), m_profile_data(),
       m_profile_events(0, eMachProcessProfileCancel), m_thread_actions(),
-      m_exception_messages(), m_exception_and_signal_mutex(), m_thread_list(),
-      m_activities(), m_state(eStateUnloaded), m_state_mutex(),
-      m_events(0, kAllEventsMask), m_private_events(0, kAllEventsMask),
-      m_breakpoints(), m_watchpoints(), m_name_to_addr_callback(NULL),
-      m_name_to_addr_baton(NULL), m_image_infos_callback(NULL),
-      m_image_infos_baton(NULL), m_sent_interrupt_signo(0),
-      m_auto_resume_signo(0), m_did_exec(false),
+      m_exception_messages(),
+      m_exception_and_signal_mutex(PTHREAD_MUTEX_RECURSIVE), m_thread_list(),
+      m_activities(), m_state(eStateUnloaded),
+      m_state_mutex(PTHREAD_MUTEX_RECURSIVE), m_events(0, kAllEventsMask),
+      m_private_events(0, kAllEventsMask), m_breakpoints(), m_watchpoints(),
+      m_name_to_addr_callback(NULL), m_name_to_addr_baton(NULL),
+      m_image_infos_callback(NULL), m_image_infos_baton(NULL),
+      m_sent_interrupt_signo(0), m_auto_resume_signo(0), m_did_exec(false),
       m_dyld_process_info_create(nullptr),
       m_dyld_process_info_for_each_image(nullptr),
       m_dyld_process_info_release(nullptr),
@@ -575,7 +577,7 @@ pid_t MachProcess::SetProcessID(pid_t pid) {
 
 nub_state_t MachProcess::GetState() {
   // If any other threads access this we will need a mutex for it
-  std::lock_guard<std::recursive_mutex> guard(m_state_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_state_mutex);
   return m_state;
 }
 
@@ -1277,7 +1279,7 @@ void MachProcess::SetState(nub_state_t new_state) {
 
   // Scope for mutex locker
   {
-    std::lock_guard<std::recursive_mutex> guard(m_state_mutex);
+    PTHREAD_MUTEX_LOCKER(locker, m_state_mutex);
     const nub_state_t old_state = m_state;
 
     if (old_state == eStateExited) {
@@ -1336,7 +1338,7 @@ void MachProcess::Clear(bool detaching) {
   m_stop_count = 0;
   m_thread_list.Clear();
   {
-    std::lock_guard<std::recursive_mutex> guard(m_exception_and_signal_mutex);
+    PTHREAD_MUTEX_LOCKER(locker, m_exception_and_signal_mutex);
     m_exception_messages.clear();
     m_sent_interrupt_signo = 0;
     m_auto_resume_signo = 0;
@@ -1576,7 +1578,7 @@ bool MachProcess::Kill(const struct timespec *timeout_abstime) {
 bool MachProcess::Interrupt() {
   nub_state_t state = GetState();
   if (IsRunning(state)) {
-    std::lock_guard<std::recursive_mutex> guard(m_exception_and_signal_mutex);
+    PTHREAD_MUTEX_LOCKER(locker, m_exception_and_signal_mutex);
     if (m_sent_interrupt_signo == 0) {
       m_sent_interrupt_signo = SIGSTOP;
       if (Signal(m_sent_interrupt_signo)) {
@@ -1734,7 +1736,7 @@ bool MachProcess::Detach() {
     m_thread_actions.Append(thread_action);
     m_thread_actions.SetDefaultThreadActionIfNeeded(eStateRunning, 0);
 
-    std::lock_guard<std::recursive_mutex> guard(m_exception_and_signal_mutex);
+    PTHREAD_MUTEX_LOCKER(locker, m_exception_and_signal_mutex);
 
     ReplyToAllExceptions();
   }
@@ -1860,7 +1862,7 @@ nub_size_t MachProcess::WriteMemory(nub_addr_t addr, nub_size_t size,
 }
 
 void MachProcess::ReplyToAllExceptions() {
-  std::lock_guard<std::recursive_mutex> guard(m_exception_and_signal_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_exception_and_signal_mutex);
   if (!m_exception_messages.empty()) {
     MachException::Message::iterator pos;
     MachException::Message::iterator begin = m_exception_messages.begin();
@@ -1894,7 +1896,7 @@ void MachProcess::ReplyToAllExceptions() {
   }
 }
 void MachProcess::PrivateResume() {
-  std::lock_guard<std::recursive_mutex> guard(m_exception_and_signal_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_exception_and_signal_mutex);
 
   m_auto_resume_signo = m_sent_interrupt_signo;
   if (m_auto_resume_signo)
@@ -2296,7 +2298,7 @@ bool MachProcess::EnableWatchpoint(nub_addr_t addr) {
 // data has already been copied.
 void MachProcess::ExceptionMessageReceived(
     const MachException::Message &exceptionMessage) {
-  std::lock_guard<std::recursive_mutex> guard(m_exception_and_signal_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_exception_and_signal_mutex);
 
   if (m_exception_messages.empty())
     m_task.Suspend();
@@ -2310,7 +2312,7 @@ void MachProcess::ExceptionMessageReceived(
 
 task_t MachProcess::ExceptionMessageBundleComplete() {
   // We have a complete bundle of exceptions for our child process.
-  std::lock_guard<std::recursive_mutex> guard(m_exception_and_signal_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_exception_and_signal_mutex);
   DNBLogThreadedIf(LOG_EXCEPTIONS, "%s: %llu exception messages.",
                    __PRETTY_FUNCTION__, (uint64_t)m_exception_messages.size());
   bool auto_resume = false;
@@ -2493,7 +2495,7 @@ void MachProcess::SetExitInfo(const char *info) {
 void MachProcess::AppendSTDOUT(char *s, size_t len) {
   DNBLogThreadedIf(LOG_PROCESS, "MachProcess::%s (<%llu> %s) ...", __FUNCTION__,
                    (uint64_t)len, s);
-  std::lock_guard<std::recursive_mutex> guard(m_stdio_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_stdio_mutex);
   m_stdout_data.append(s, len);
   m_events.SetEvents(eEventStdioAvailable);
 
@@ -2504,7 +2506,7 @@ void MachProcess::AppendSTDOUT(char *s, size_t len) {
 size_t MachProcess::GetAvailableSTDOUT(char *buf, size_t buf_size) {
   DNBLogThreadedIf(LOG_PROCESS, "MachProcess::%s (&%p[%llu]) ...", __FUNCTION__,
                    static_cast<void *>(buf), (uint64_t)buf_size);
-  std::lock_guard<std::recursive_mutex> guard(m_stdio_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_stdio_mutex);
   size_t bytes_available = m_stdout_data.size();
   if (bytes_available > 0) {
     if (bytes_available > buf_size) {
@@ -2731,7 +2733,7 @@ void *MachProcess::STDIOThread(void *arg) {
 
 void MachProcess::SignalAsyncProfileData(const char *info) {
   DNBLogThreadedIf(LOG_PROCESS, "MachProcess::%s (%s) ...", __FUNCTION__, info);
-  std::lock_guard<std::recursive_mutex> guard(m_profile_data_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_profile_data_mutex);
   m_profile_data.push_back(info);
   m_events.SetEvents(eEventProfileDataAvailable);
 
@@ -2742,7 +2744,7 @@ void MachProcess::SignalAsyncProfileData(const char *info) {
 size_t MachProcess::GetAsyncProfileData(char *buf, size_t buf_size) {
   DNBLogThreadedIf(LOG_PROCESS, "MachProcess::%s (&%p[%llu]) ...", __FUNCTION__,
                    static_cast<void *>(buf), (uint64_t)buf_size);
-  std::lock_guard<std::recursive_mutex> guard(m_profile_data_mutex);
+  PTHREAD_MUTEX_LOCKER(locker, m_profile_data_mutex);
   if (m_profile_data.empty())
     return 0;
 

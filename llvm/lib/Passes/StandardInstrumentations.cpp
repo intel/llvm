@@ -2001,12 +2001,14 @@ DotCfgDiff::DotCfgDiff(StringRef Title, const FuncDataT<DCData> &Before,
   for (auto &A : After.getData()) {
     StringRef Label = A.getKey();
     const BlockDataT<DCData> &BD = A.getValue();
-    auto It = NodePosition.find(Label);
-    if (It == NodePosition.end())
+    unsigned C = NodePosition.count(Label);
+    if (C == 0)
       // This only exists in the after IR.  Create the node.
       createNode(Label, BD, AfterColour);
-    else
-      Nodes[It->second].setCommon(BD);
+    else {
+      assert(C == 1 && "Unexpected multiple nodes.");
+      Nodes[NodePosition[Label]].setCommon(BD);
+    }
     // Add in the edges between the nodes (as common or only in after).
     for (StringMap<std::string>::const_iterator Sink = BD.getData().begin(),
                                                 E = BD.getData().end();

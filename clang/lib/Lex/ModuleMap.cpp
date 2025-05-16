@@ -1959,7 +1959,7 @@ void ModuleMapLoader::handleExportDecl(const modulemap::ExportDecl &ED) {
 }
 
 void ModuleMapLoader::handleExportAsDecl(const modulemap::ExportAsDecl &EAD) {
-  const auto &ModName = EAD.Id.front();
+  auto ModName = EAD.Id.front();
 
   if (!ActiveModule->ExportAsModule.empty()) {
     if (ActiveModule->ExportAsModule == ModName.first) {
@@ -2010,8 +2010,7 @@ void ModuleMapLoader::handleConflict(const modulemap::ConflictDecl &CD) {
   Conflict.Id = CD.Id;
   Conflict.Message = CD.Message;
 
-  // FIXME: when we move to C++20 we should consider using emplace_back
-  ActiveModule->UnresolvedConflicts.push_back(std::move(Conflict));
+  ActiveModule->UnresolvedConflicts.push_back(Conflict);
 }
 
 void ModuleMapLoader::handleInferredModuleDecl(

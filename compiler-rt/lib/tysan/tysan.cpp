@@ -102,10 +102,20 @@ static tysan_type_descriptor *getRootTD(tysan_type_descriptor *TD) {
   return RootTD;
 }
 
-// Walk up TDA to see if it reaches TDB.
-static bool walkAliasTree(tysan_type_descriptor *TDA,
-                          tysan_type_descriptor *TDB, uptr OffsetA,
-                          uptr OffsetB) {
+static bool isAliasingLegalUp(tysan_type_descriptor *TDA,
+                              tysan_type_descriptor *TDB, int TDAOffset) {
+  // Walk up the tree starting with TDA to see if we reach TDB.
+  uptr OffsetA = 0, OffsetB = 0;
+  if (TDB->Tag == TYSAN_MEMBER_TD) {
+    OffsetB = TDB->Member.Offset;
+    TDB = TDB->Member.Base;
+  }
+
+  if (TDA->Tag == TYSAN_MEMBER_TD) {
+    OffsetA = TDA->Member.Offset - TDAOffset;
+    TDA = TDA->Member.Base;
+  }
+
   do {
     if (TDA == TDB)
       return OffsetA == OffsetB;
@@ -143,50 +153,8 @@ static bool walkAliasTree(tysan_type_descriptor *TDA,
   return false;
 }
 
-// Walk up the tree starting with TDA to see if we reach TDB.
-static bool isAliasingLegalUp(tysan_type_descriptor *TDA,
-                              tysan_type_descriptor *TDB) {
-  uptr OffsetA = 0, OffsetB = 0;
-  if (TDB->Tag == TYSAN_MEMBER_TD) {
-    OffsetB = TDB->Member.Offset;
-    TDB = TDB->Member.Base;
-  }
-
-  if (TDA->Tag == TYSAN_MEMBER_TD) {
-    OffsetA = TDA->Member.Offset;
-    TDA = TDA->Member.Base;
-  }
-
-  return walkAliasTree(TDA, TDB, OffsetA, OffsetB);
-}
-
-static bool isAliasingLegalWithOffset(tysan_type_descriptor *TDA,
-                                      tysan_type_descriptor *TDB,
-                                      uptr OffsetB) {
-  // This is handled by calls to isAliasingLegalUp.
-  if (OffsetB == 0)
-    return false;
-
-  // You can't have an offset into a member.
-  if (TDB->Tag == TYSAN_MEMBER_TD)
-    return false;
-
-  uptr OffsetA = 0;
-  if (TDA->Tag == TYSAN_MEMBER_TD) {
-    OffsetA = TDA->Member.Offset;
-    TDA = TDA->Member.Base;
-  }
-
-  // Since the access was partially inside TDB (the shadow), it can be assumed
-  // that we are accessing a member in an object. This means that rather than
-  // walk up the scalar access TDA to reach an object, we should walk up the
-  // object TBD to reach the scalar we are accessing it with. The offsets will
-  // still be checked at the end to make sure this alias is legal.
-  return walkAliasTree(TDB, TDA, OffsetB, OffsetA);
-}
-
 static bool isAliasingLegal(tysan_type_descriptor *TDA,
-                            tysan_type_descriptor *TDB, uptr OffsetB = 0) {
+                            tysan_type_descriptor *TDB, int TDAOffset = 0) {
   if (TDA == TDB || !TDB || !TDA)
     return true;
 
@@ -197,8 +165,8 @@ static bool isAliasingLegal(tysan_type_descriptor *TDA,
   // TDB may have been adjusted by offset TDAOffset in the caller to point to
   // the outer type. Check for aliasing with and without adjusting for this
   // offset.
-  return isAliasingLegalUp(TDA, TDB) || isAliasingLegalUp(TDB, TDA) ||
-         isAliasingLegalWithOffset(TDA, TDB, OffsetB);
+  return isAliasingLegalUp(TDA, TDB, 0) || isAliasingLegalUp(TDB, TDA, 0) ||
+         isAliasingLegalUp(TDA, TDB, TDAOffset);
 }
 
 namespace __tysan {

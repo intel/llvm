@@ -9,15 +9,10 @@
 // CHECK-SPIRV: Capability BitInstructions
 // CHECK-SPIRV: Extension "SPV_KHR_bit_instructions"
 
-// CHECK-SPIRV: Name [[#testInsertFn:]] "testInsert"
-// CHECK-SPIRV: Name [[#testExtractSFn:]] "testExtractS"
-// CHECK-SPIRV: Name [[#testExtractUFn:]] "testExtractU"
-// CHECK-SPIRV: Name [[#testBitReverseFn:]] "testBitReverse"
-
 // CHECK-LLVM-LABEL: @testInsert
 // CHECK-LLVM: call spir_func <2 x i32> @_Z15bitfield_insertDv2_iS_jj(
 // CHECK-SPV-IR: call spir_func <2 x i32> @_Z22__spirv_BitFieldInsertDv2_iS_jj(
-// CHECK-SPIRV: Function [[#]] [[#testInsertFn]]
+// CHECK-SPIRV: Function
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[insbase:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[insins:[0-9]+]]
 // CHECK-SPIRV: BitFieldInsert {{[0-9]+}} {{[0-9]+}} [[insbase]] [[insins]]
@@ -30,7 +25,7 @@ kernel void testInsert(int2 b, int2 i, global int2 *res) {
 // CHECK-LLVM: call spir_func i16 @_Z23bitfield_extract_signedsjj(
 // CHECK-SPV-IR: call spir_func i16 @_Z24__spirv_BitFieldSExtractsjj(
 // CHECK-SPV-IR: call spir_func i16 @_Z24__spirv_BitFieldSExtractsjj(
-// CHECK-SPIRV: Function [[#]] [[#testExtractSFn]]
+// CHECK-SPIRV: Function
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[sextrbase:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[sextrbaseu:[0-9]+]]
 // CHECK-SPIRV: BitFieldSExtract {{[0-9]+}} {{[0-9]+}} [[sextrbase]]
@@ -45,7 +40,7 @@ kernel void testExtractS(short b, ushort bu, global short *res) {
 // CHECK-LLVM: call spir_func <8 x i8> @_Z25bitfield_extract_unsignedDv8_cjj(
 // CHECK-SPV-IR: call spir_func <8 x i8> @_Z24__spirv_BitFieldUExtractDv8_hjj(
 // CHECK-SPV-IR: call spir_func <8 x i8> @_Z24__spirv_BitFieldUExtractDv8_hjj(
-// CHECK-SPIRV: Function [[#]] [[#testExtractUFn]]
+// CHECK-SPIRV: Function
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[uextrbase:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[uextrbaseu:[0-9]+]]
 // CHECK-SPIRV: BitFieldUExtract {{[0-9]+}} {{[0-9]+}} [[uextrbase]]
@@ -58,7 +53,7 @@ kernel void testExtractU(char8 b, uchar8 bu, global uchar8 *res) {
 // CHECK-LLVM-LABEL: @testBitReverse
 // CHECK-LLVM: call <4 x i64> @llvm.bitreverse.v4i64(
 // CHECK-SPV-IR: call <4 x i64> @llvm.bitreverse.v4i64(
-// CHECK-SPIRV: Function [[#]] [[#testBitReverseFn]]
+// CHECK-SPIRV: Function
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[revbase:[0-9]+]]
 // CHECK-SPIRV: BitReverse {{[0-9]+}} {{[0-9]+}} [[revbase]]
 kernel void testBitReverse(ulong4 b, global ulong4 *res) {

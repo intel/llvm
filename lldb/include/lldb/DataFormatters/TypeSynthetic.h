@@ -51,7 +51,7 @@ public:
 
   virtual lldb::ValueObjectSP GetChildAtIndex(uint32_t idx) = 0;
 
-  virtual llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) = 0;
+  virtual size_t GetIndexOfChildWithName(ConstString name) = 0;
 
   /// This function is assumed to always succeed and if it fails, the front-end
   /// should know to deal with it in the correct way (most probably, by refusing
@@ -117,9 +117,8 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(uint32_t idx) override { return nullptr; }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
+  size_t GetIndexOfChildWithName(ConstString name) override {
+    return UINT32_MAX;
   }
 
   lldb::ChildCacheState Update() override {
@@ -344,7 +343,7 @@ public:
 
     bool MightHaveChildren() override { return filter->GetCount() > 0; }
 
-    llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+    size_t GetIndexOfChildWithName(ConstString name) override;
 
     typedef std::shared_ptr<SyntheticChildrenFrontEnd> SharedPointer;
 
@@ -443,7 +442,7 @@ public:
 
     bool MightHaveChildren() override;
 
-    llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+    size_t GetIndexOfChildWithName(ConstString name) override;
 
     lldb::ValueObjectSP GetSyntheticValue() override;
 

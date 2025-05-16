@@ -316,7 +316,6 @@ MachineInstrBuilder MachineIRBuilder::buildCopy(const DstOp &Res,
 
 MachineInstrBuilder MachineIRBuilder::buildConstant(const DstOp &Res,
                                                     const ConstantInt &Val) {
-  assert(!isa<VectorType>(Val.getType()) && "Unexpected vector constant!");
   LLT Ty = Res.getLLTTy(*getMRI());
   LLT EltTy = Ty.getScalarType();
   assert(EltTy.getScalarSizeInBits() == Val.getBitWidth() &&
@@ -349,7 +348,6 @@ MachineInstrBuilder MachineIRBuilder::buildConstant(const DstOp &Res,
 
 MachineInstrBuilder MachineIRBuilder::buildFConstant(const DstOp &Res,
                                                      const ConstantFP &Val) {
-  assert(!isa<VectorType>(Val.getType()) && "Unexpected vector constant!");
   LLT Ty = Res.getLLTTy(*getMRI());
   LLT EltTy = Ty.getScalarType();
 
@@ -1155,22 +1153,6 @@ MachineIRBuilder::buildAtomicRMWFMin(const DstOp &OldValRes, const SrcOp &Addr,
                                      const SrcOp &Val, MachineMemOperand &MMO) {
   return buildAtomicRMW(TargetOpcode::G_ATOMICRMW_FMIN, OldValRes, Addr, Val,
                         MMO);
-}
-
-MachineInstrBuilder
-MachineIRBuilder::buildAtomicRMWFMaximum(const DstOp &OldValRes,
-                                         const SrcOp &Addr, const SrcOp &Val,
-                                         MachineMemOperand &MMO) {
-  return buildAtomicRMW(TargetOpcode::G_ATOMICRMW_FMAXIMUM, OldValRes, Addr,
-                        Val, MMO);
-}
-
-MachineInstrBuilder
-MachineIRBuilder::buildAtomicRMWFMinimum(const DstOp &OldValRes,
-                                         const SrcOp &Addr, const SrcOp &Val,
-                                         MachineMemOperand &MMO) {
-  return buildAtomicRMW(TargetOpcode::G_ATOMICRMW_FMINIMUM, OldValRes, Addr,
-                        Val, MMO);
 }
 
 MachineInstrBuilder

@@ -134,13 +134,15 @@ static bool isSupportedTypeForConversion(Type type) {
   if (isa<LLVM::LLVMStructType, LLVM::LLVMArrayType>(type))
     return false;
 
-  if (auto vectorType = dyn_cast<VectorType>(type)) {
-    // Vectors of pointers cannot be casted.
-    if (isa<LLVM::LLVMPointerType>(vectorType.getElementType()))
-      return false;
-    // Scalable types are not supported.
+  // LLVM vector types are only used for either pointers or target specific
+  // types. These types cannot be casted in the general case, thus the memory
+  // optimizations do not support them.
+  if (isa<LLVM::LLVMFixedVectorType, LLVM::LLVMScalableVectorType>(type))
+    return false;
+
+  // Scalable types are not supported.
+  if (auto vectorType = dyn_cast<VectorType>(type))
     return !vectorType.isScalable();
-  }
   return true;
 }
 
@@ -891,7 +893,7 @@ DeletionKind LLVM::GEPOp::rewire(const DestructurableMemorySlot &slot,
   auto byteType = IntegerType::get(builder.getContext(), 8);
   auto newPtr = builder.createOrFold<LLVM::GEPOp>(
       getLoc(), getResult().getType(), byteType, newSlot.ptr,
-      ArrayRef<GEPArg>(accessInfo->subslotOffset), getNoWrapFlags());
+      ArrayRef<GEPArg>(accessInfo->subslotOffset), getInbounds());
   getResult().replaceAllUsesWith(newPtr);
   return DeletionKind::Delete;
 }

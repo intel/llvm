@@ -736,8 +736,8 @@ std::optional<Attribute> mlir::DataLayout::getDevicePropertyValue(
 //===----------------------------------------------------------------------===//
 
 void DataLayoutSpecInterface::bucketEntriesByType(
-    llvm::MapVector<TypeID, DataLayoutEntryList> &types,
-    llvm::MapVector<StringAttr, DataLayoutEntryInterface> &ids) {
+    DenseMap<TypeID, DataLayoutEntryList> &types,
+    DenseMap<StringAttr, DataLayoutEntryInterface> &ids) {
   for (DataLayoutEntryInterface entry : getEntries()) {
     if (auto type = llvm::dyn_cast_if_present<Type>(entry.getKey()))
       types[type.getTypeID()].push_back(entry);
@@ -755,8 +755,8 @@ LogicalResult mlir::detail::verifyDataLayoutSpec(DataLayoutSpecInterface spec,
 
   // Second, dispatch verifications of entry groups to types or dialects they
   // are associated with.
-  llvm::MapVector<TypeID, DataLayoutEntryList> types;
-  llvm::MapVector<StringAttr, DataLayoutEntryInterface> ids;
+  DenseMap<TypeID, DataLayoutEntryList> types;
+  DenseMap<StringAttr, DataLayoutEntryInterface> ids;
   spec.bucketEntriesByType(types, ids);
 
   for (const auto &kvp : types) {

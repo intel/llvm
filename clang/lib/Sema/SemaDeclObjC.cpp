@@ -565,7 +565,7 @@ void SemaObjC::ActOnSuperClassOfClassInterface(
     ObjCInterfaceValidatorCCC CCC(IDecl);
     if (TypoCorrection Corrected = SemaRef.CorrectTypo(
             DeclarationNameInfo(SuperName, SuperLoc), Sema::LookupOrdinaryName,
-            SemaRef.TUScope, nullptr, CCC, CorrectTypoKind::ErrorRecovery)) {
+            SemaRef.TUScope, nullptr, CCC, Sema::CTK_ErrorRecovery)) {
       SemaRef.diagnoseTypo(Corrected, PDiag(diag::err_undef_superclass_suggest)
                                           << SuperName << ClassName);
       PrevDecl = Corrected.getCorrectionDeclAs<ObjCInterfaceDecl>();
@@ -1310,26 +1310,24 @@ static bool NestedProtocolHasNoDefinition(ObjCProtocolDecl *PDecl,
 /// protocol declarations in its 'Protocols' argument.
 void SemaObjC::FindProtocolDeclaration(bool WarnOnDeclarations,
                                        bool ForObjCContainer,
-                                       ArrayRef<IdentifierLoc> ProtocolId,
+                                       ArrayRef<IdentifierLocPair> ProtocolId,
                                        SmallVectorImpl<Decl *> &Protocols) {
-  for (const IdentifierLoc &Pair : ProtocolId) {
-    ObjCProtocolDecl *PDecl =
-        LookupProtocol(Pair.getIdentifierInfo(), Pair.getLoc());
+  for (const IdentifierLocPair &Pair : ProtocolId) {
+    ObjCProtocolDecl *PDecl = LookupProtocol(Pair.first, Pair.second);
     if (!PDecl) {
       DeclFilterCCC<ObjCProtocolDecl> CCC{};
-      TypoCorrection Corrected = SemaRef.CorrectTypo(
-          DeclarationNameInfo(Pair.getIdentifierInfo(), Pair.getLoc()),
-          Sema::LookupObjCProtocolName, SemaRef.TUScope, nullptr, CCC,
-          CorrectTypoKind::ErrorRecovery);
+      TypoCorrection Corrected =
+          SemaRef.CorrectTypo(DeclarationNameInfo(Pair.first, Pair.second),
+                              Sema::LookupObjCProtocolName, SemaRef.TUScope,
+                              nullptr, CCC, Sema::CTK_ErrorRecovery);
       if ((PDecl = Corrected.getCorrectionDeclAs<ObjCProtocolDecl>()))
         SemaRef.diagnoseTypo(Corrected,
                              PDiag(diag::err_undeclared_protocol_suggest)
-                                 << Pair.getIdentifierInfo());
+                                 << Pair.first);
     }
 
     if (!PDecl) {
-      Diag(Pair.getLoc(), diag::err_undeclared_protocol)
-          << Pair.getIdentifierInfo();
+      Diag(Pair.second, diag::err_undeclared_protocol) << Pair.first;
       continue;
     }
     // If this is a forward protocol declaration, get its definition.
@@ -1339,7 +1337,7 @@ void SemaObjC::FindProtocolDeclaration(bool WarnOnDeclarations,
     // For an objc container, delay protocol reference checking until after we
     // can set the objc decl as the availability context, otherwise check now.
     if (!ForObjCContainer) {
-      (void)SemaRef.DiagnoseUseOfDecl(PDecl, Pair.getLoc());
+      (void)SemaRef.DiagnoseUseOfDecl(PDecl, Pair.second);
     }
 
     // If this is a forward declaration and we are supposed to warn in this
@@ -1349,8 +1347,7 @@ void SemaObjC::FindProtocolDeclaration(bool WarnOnDeclarations,
 
     if (WarnOnDeclarations &&
         NestedProtocolHasNoDefinition(PDecl, UndefinedProtocol)) {
-      Diag(Pair.getLoc(), diag::warn_undef_protocolref)
-          << Pair.getIdentifierInfo();
+      Diag(Pair.second, diag::warn_undef_protocolref) << Pair.first;
       Diag(UndefinedProtocol->getLocation(), diag::note_protocol_decl_undefined)
         << UndefinedProtocol;
     }
@@ -1701,7 +1698,7 @@ void SemaObjC::actOnObjCTypeArgsOrProtocolQualifiers(
     ObjCTypeArgOrProtocolValidatorCCC CCC(Context, lookupKind);
     TypoCorrection corrected = SemaRef.CorrectTypo(
         DeclarationNameInfo(identifiers[i], identifierLocs[i]), lookupKind, S,
-        nullptr, CCC, CorrectTypoKind::ErrorRecovery);
+        nullptr, CCC, Sema::CTK_ErrorRecovery);
     if (corrected) {
       // Did we find a protocol?
       if (auto proto = corrected.getCorrectionDeclAs<ObjCProtocolDecl>()) {
@@ -1787,17 +1784,17 @@ void SemaObjC::DiagnoseClassExtensionDupMethods(ObjCCategoryDecl *CAT,
 
 /// ActOnForwardProtocolDeclaration - Handle \@protocol foo;
 SemaObjC::DeclGroupPtrTy SemaObjC::ActOnForwardProtocolDeclaration(
-    SourceLocation AtProtocolLoc, ArrayRef<IdentifierLoc> IdentList,
+    SourceLocation AtProtocolLoc, ArrayRef<IdentifierLocPair> IdentList,
     const ParsedAttributesView &attrList) {
   ASTContext &Context = getASTContext();
   SmallVector<Decl *, 8> DeclsInGroup;
-  for (const IdentifierLoc &IdentPair : IdentList) {
-    IdentifierInfo *Ident = IdentPair.getIdentifierInfo();
+  for (const IdentifierLocPair &IdentPair : IdentList) {
+    IdentifierInfo *Ident = IdentPair.first;
     ObjCProtocolDecl *PrevDecl = LookupProtocol(
-        Ident, IdentPair.getLoc(), SemaRef.forRedeclarationInCurContext());
+        Ident, IdentPair.second, SemaRef.forRedeclarationInCurContext());
     ObjCProtocolDecl *PDecl =
         ObjCProtocolDecl::Create(Context, SemaRef.CurContext, Ident,
-                                 IdentPair.getLoc(), AtProtocolLoc, PrevDecl);
+                                 IdentPair.second, AtProtocolLoc, PrevDecl);
 
     SemaRef.PushOnScopeChains(PDecl, SemaRef.TUScope);
     CheckObjCDeclScope(PDecl);
@@ -2005,7 +2002,7 @@ ObjCImplementationDecl *SemaObjC::ActOnStartClassImplementation(
     ObjCInterfaceValidatorCCC CCC{};
     TypoCorrection Corrected = SemaRef.CorrectTypo(
         DeclarationNameInfo(ClassName, ClassLoc), Sema::LookupOrdinaryName,
-        SemaRef.TUScope, nullptr, CCC, CorrectTypoKind::NonError);
+        SemaRef.TUScope, nullptr, CCC, Sema::CTK_NonError);
     if (Corrected.getCorrectionDeclAs<ObjCInterfaceDecl>()) {
       // Suggest the (potentially) correct interface name. Don't provide a
       // code-modification hint or use the typo name for recovery, because
@@ -3589,6 +3586,7 @@ ObjCMethodDecl *SemaObjC::LookupMethodInGlobalPool(Selector Sel, SourceRange R,
 
   // Gather the non-hidden methods.
   ObjCMethodList &MethList = instance ? Pos->second.first : Pos->second.second;
+  SmallVector<ObjCMethodDecl *, 4> Methods;
   for (ObjCMethodList *M = &MethList; M; M = M->getNext()) {
     if (M->getMethod() && M->getMethod()->isUnconditionallyVisible())
       return M->getMethod();
@@ -3889,7 +3887,7 @@ static void DiagnoseVariableSizedIvars(Sema &S, ObjCContainerDecl *OCD) {
     if (IvarTy->isIncompleteArrayType()) {
       S.Diag(ivar->getLocation(), diag::err_flexible_array_not_at_end)
           << ivar->getDeclName() << IvarTy
-          << TagTypeKind::Class; // Use "class" for Obj-C.
+          << llvm::to_underlying(TagTypeKind::Class); // Use "class" for Obj-C.
       IsInvalidIvar = true;
     } else if (const RecordType *RecordTy = IvarTy->getAs<RecordType>()) {
       if (RecordTy->getDecl()->hasFlexibleArrayMember()) {
@@ -5438,7 +5436,7 @@ ObjCInterfaceDecl *SemaObjC::getObjCInterfaceDecl(const IdentifierInfo *&Id,
     DeclFilterCCC<ObjCInterfaceDecl> CCC{};
     if (TypoCorrection C = SemaRef.CorrectTypo(
             DeclarationNameInfo(Id, IdLoc), Sema::LookupOrdinaryName,
-            SemaRef.TUScope, nullptr, CCC, CorrectTypoKind::ErrorRecovery)) {
+            SemaRef.TUScope, nullptr, CCC, Sema::CTK_ErrorRecovery)) {
       SemaRef.diagnoseTypo(C, PDiag(diag::err_undef_interface_suggest) << Id);
       IDecl = C.getCorrectionDeclAs<ObjCInterfaceDecl>();
       Id = IDecl->getIdentifier();

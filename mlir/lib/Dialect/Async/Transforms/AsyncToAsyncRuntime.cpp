@@ -32,8 +32,8 @@
 #include <optional>
 
 namespace mlir {
-#define GEN_PASS_DEF_ASYNCTOASYNCRUNTIMEPASS
-#define GEN_PASS_DEF_ASYNCFUNCTOASYNCRUNTIMEPASS
+#define GEN_PASS_DEF_ASYNCTOASYNCRUNTIME
+#define GEN_PASS_DEF_ASYNCFUNCTOASYNCRUNTIME
 #include "mlir/Dialect/Async/Passes.h.inc"
 } // namespace mlir
 
@@ -47,7 +47,7 @@ static constexpr const char kAsyncFnPrefix[] = "async_execute_fn";
 namespace {
 
 class AsyncToAsyncRuntimePass
-    : public impl::AsyncToAsyncRuntimePassBase<AsyncToAsyncRuntimePass> {
+    : public impl::AsyncToAsyncRuntimeBase<AsyncToAsyncRuntimePass> {
 public:
   AsyncToAsyncRuntimePass() = default;
   void runOnOperation() override;
@@ -58,8 +58,7 @@ public:
 namespace {
 
 class AsyncFuncToAsyncRuntimePass
-    : public impl::AsyncFuncToAsyncRuntimePassBase<
-          AsyncFuncToAsyncRuntimePass> {
+    : public impl::AsyncFuncToAsyncRuntimeBase<AsyncFuncToAsyncRuntimePass> {
 public:
   AsyncFuncToAsyncRuntimePass() = default;
   void runOnOperation() override;
@@ -236,7 +235,7 @@ static CoroMachinery setupCoroMachinery(func::FuncOp func) {
   SmallVector<Value, 4> ret;
   if (retToken)
     ret.push_back(*retToken);
-  llvm::append_range(ret, retValues);
+  ret.insert(ret.end(), retValues.begin(), retValues.end());
   builder.create<func::ReturnOp>(ret);
 
   // `async.await` op lowering will create resume blocks for async
@@ -305,8 +304,8 @@ outlineExecuteOp(SymbolTable &symbolTable, ExecuteOp execute) {
   cloneConstantsIntoTheRegion(execute.getBodyRegion());
 
   // Collect all outlined function inputs.
-  SetVector<mlir::Value> functionInputs(llvm::from_range,
-                                        execute.getDependencies());
+  SetVector<mlir::Value> functionInputs(execute.getDependencies().begin(),
+                                        execute.getDependencies().end());
   functionInputs.insert_range(execute.getBodyOperands());
   getUsedValuesDefinedAbove(execute.getBodyRegion(), functionInputs);
 
@@ -896,4 +895,13 @@ void AsyncFuncToAsyncRuntimePass::runOnOperation() {
     signalPassFailure();
     return;
   }
+}
+
+std::unique_ptr<OperationPass<ModuleOp>> mlir::createAsyncToAsyncRuntimePass() {
+  return std::make_unique<AsyncToAsyncRuntimePass>();
+}
+
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::createAsyncFuncToAsyncRuntimePass() {
+  return std::make_unique<AsyncFuncToAsyncRuntimePass>();
 }

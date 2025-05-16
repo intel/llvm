@@ -454,6 +454,10 @@ unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S) {
   bool hasDIE = DebugInfoData.isValidOffset(Offset);
   DWARFUnitVector TypeUnitVector;
   DWARFUnitVector CompileUnitVector;
+  /// A map that tracks all references (converted absolute references) so we
+  /// can verify each reference points to a valid DIE and not an offset that
+  /// lies between to valid DIEs.
+  ReferenceMap CrossUnitReferences;
   while (hasDIE) {
     if (!verifyUnitHeader(DebugInfoData, &Offset, UnitIdx, UnitType,
                           isUnitDWARF64)) {
@@ -1385,6 +1389,7 @@ void DWARFVerifier::verifyNameIndexBuckets(const DWARFDebugNames::NameIndex &NI,
     }
     NextUncovered = std::max(NextUncovered, Idx);
   }
+  return;
 }
 
 void DWARFVerifier::verifyNameIndexAttribute(
@@ -1464,6 +1469,7 @@ void DWARFVerifier::verifyNameIndexAttribute(
     });
     return;
   }
+  return;
 }
 
 void DWARFVerifier::verifyNameIndexAbbrevs(
@@ -2062,6 +2068,7 @@ void DWARFVerifier::verifyDebugNames(const DWARFSection &AccelSection,
       }
     }
   }
+  return;
 }
 
 bool DWARFVerifier::handleAccelTables() {

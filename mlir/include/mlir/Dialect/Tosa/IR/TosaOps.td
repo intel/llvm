@@ -107,7 +107,6 @@ def Tosa_AvgPool2dOp : Tosa_InferShapedTypeOp<"avg_pool2d"> {
     LogicalResult verifyOutputZeroPoint(int64_t zp);
   }];
 
-  let hasCanonicalizer = 1;
   let hasVerifier = 1;
 }
 
@@ -125,7 +124,7 @@ def Tosa_Conv2DOp : Tosa_ConvOp<"conv2d"> {
 
   let arguments = (ins
     Tosa_Tensor4D:$input,
-    Tosa_Tensor4D:$weight,
+    TosaTensorRankOf<[Tosa_Weight], [4]>:$weight,
     Tosa_Tensor1D:$bias,
     Tosa_ScalarIntOrFloatTensor:$input_zp,
     Tosa_ScalarIntOrFloatTensor:$weight_zp,
@@ -154,8 +153,6 @@ def Tosa_Conv2DOp : Tosa_ConvOp<"conv2d"> {
   }];
 
   let builders = [Tosa_ConvOpQuantInfoBuilder];
-
-  let hasCanonicalizer = 1;
   let hasVerifier = 1;
 }
 
@@ -172,7 +169,7 @@ def Tosa_Conv3DOp : Tosa_ConvOp<"conv3d"> {
 
   let arguments = (ins
     Tosa_Tensor5D:$input,
-    Tosa_Tensor5D:$weight,
+    TosaTensorRankOf<[Tosa_Weight], [5]>:$weight,
     Tosa_Tensor1D:$bias,
     Tosa_ScalarIntOrFloatTensor:$input_zp,
     Tosa_ScalarIntOrFloatTensor:$weight_zp,
@@ -218,7 +215,7 @@ def Tosa_DepthwiseConv2DOp : Tosa_ConvOp<"depthwise_conv2d"> {
 
   let arguments = (ins
     Tosa_Tensor4D:$input,
-    Tosa_Tensor4D:$weight,
+    TosaTensorRankOf<[Tosa_Weight], [4]>:$weight,
     Tosa_Tensor1D:$bias,
     Tosa_ScalarIntOrFloatTensor:$input_zp,
     Tosa_ScalarIntOrFloatTensor:$weight_zp,
@@ -247,8 +244,6 @@ def Tosa_DepthwiseConv2DOp : Tosa_ConvOp<"depthwise_conv2d"> {
   }];
 
   let builders = [Tosa_ConvOpQuantInfoBuilder];
-
-  let hasCanonicalizer = 1;
   let hasVerifier = 1;
 }
 
@@ -271,7 +266,7 @@ def Tosa_FFT2dOp : Tosa_InferShapedTypeOp<"fft2d", [
     Example:
 
     ```mlir
-     %output_real, %output_imag = tosa.fft2d %input_real, %input_imag : (tensor<8x9xf32>, tensor<8x9xf32>) -> (tensor<8x9xf32>, tensor<8x9xf32>)
+     %out_real, %out_imag = tosa.fft2d %in_real, %in_imag : (tensor<8x9xf32>, tensor<8x9xf32>) -> (tensor<8x9xf32>, tensor<8x9xf32>)
     ```
   }];
 
@@ -394,7 +389,7 @@ def Tosa_RFFT2dOp : Tosa_InferShapedTypeOp<"rfft2d", [
     Example:
 
     ```mlir
-     %ouput_real, %output_imag = tosa.rfft2d %input_real : (tensor<8x16xf32>) -> (tensor<8x9xf32>, tensor<8x9xf32>)
+     %real, %imag = tosa.rfft2d %in : (tensor<8x16xf32>) -> (tensor<8x9xf32>, tensor<8x9xf32>)
     ```
   }];
 
@@ -434,7 +429,7 @@ def Tosa_TransposeConv2DOp : Tosa_ConvOp<"transpose_conv2d"> {
 
   let arguments = (ins
     Tosa_Tensor4D:$input,
-    Tosa_Tensor4D:$weight,
+    TosaTensorRankOf<[Tosa_Weight], [4]>:$weight,
     Tosa_Tensor1D:$bias,
     Tosa_ScalarIntOrFloatTensor:$input_zp,
     Tosa_ScalarIntOrFloatTensor:$weight_zp,
@@ -545,7 +540,9 @@ def Tosa_SigmoidOp : Tosa_ElementwiseUnaryOp<"sigmoid"> {
     For quantized integer data types, the TABLE operator should be used instead.
     Each implementation may choose an appropriate TABLE given the scale and zero
     point of the input data. Eight or sixteen bit precision tables may be used
-    based on the input tensor to the sigmoid function.
+    based on the input tensor to the sigmoid function. The sigmoid table has 513
+    entries each of 16-bit precision and covering the input range -16.0 to +16.0
+    in steps of 1/16.
   }];
 
   let arguments = (ins
@@ -611,10 +608,10 @@ def Tosa_AddOp : Tosa_ElementwiseOp<"add", [
 
     ```mlir
     // Elementwise addition.
-    %out = tosa.add %input1, %input2 : tensor<12x6xf32>, tensor<12x6xf32> -> tensor<12x6xf32>
+    %out = tosa.add %in1, %in2 : tensor<12x6xf32>, tensor<12x6xf32> -> tensor<12x6xf32>
 
     // Elementwise addition with broadcasting.
-    %out = tosa.add %input1, %input2 : tensor<12x6xsi32>, tensor<1x1xsi32> -> tensor<12x6xsi32>
+    %out = tosa.add %in1, %in2 : tensor<12x6xsi32>, tensor<1x1xsi32> -> tensor<12x6xsi32>
     ```
   }];
 
@@ -749,16 +746,16 @@ def Tosa_BitwiseXorOp : Tosa_ElementwiseOp<"bitwise_xor", [
 }
 
 //===----------------------------------------------------------------------===//
-// Operator: intdiv
+// Operator: int_div
 //===----------------------------------------------------------------------===//
-def Tosa_IntDivOp : Tosa_ElementwiseOp<"intdiv", [SameOperandsAndResultElementType]> {
+def Tosa_IntDivOp : Tosa_ElementwiseOp<"int_div", [SameOperandsAndResultElementType]> {
   let summary = "Integer divide operator.";
 
   let description = [{
-    Elementwise integer divide of input1 by input2. Axis of size 1 will be
-    broadcast as necessary. Rank of input tensors must match. The result of the
-    divide is truncated towards zero. Expected use is for operations on
-    non-scaled integers. Floating point divide should use RECIPROCAL and MUL.
+    Elementwise integer divide of input1 by input2. Axis of size 1 will be 
+    broadcast as necessary. Rank of input tensors must match. The result of the 
+    divide is truncated towards zero. Expected use is for operations on 
+    non-scaled integers. Floating point divide should use RECIPROCAL and MUL. 
     Quantized integer divide should use TABLE (for 1/x) and MUL.
   }];
 
@@ -1131,7 +1128,7 @@ def Tosa_AbsOp : Tosa_ElementwiseUnaryOp<"abs"> {
     Example:
 
     ```mlir
-    %output = tosa.abs(%input1) : (tensor<21x3xf32>) -> tensor<21x3xf32>
+    %out = tosa.abs(%in) : (tensor<21x3xf32>) -> tensor<21x3xf32>
     ```
   }];
 
@@ -2326,21 +2323,7 @@ def Tosa_RescaleOp : Tosa_InferShapedTypeOp<"rescale"> {
   let summary = "Tosa rescale operator.";
 
   let description = [{
-    RESCALE is defined using an integer multiply, add, and shift.
-
-    Rescale supports two precisions of multiplier: 16-bit and 32-bit. The 32-bit multiplier
-    version supports two rounding modes to enable simpler lowering of existing frameworks
-    that use two stage rounding. All arithmetic is designed so that it does not overflow a
-    64-bit accumulator and that the result fits in 32 bits. In particular, a 48-bit value
-    cannot be scaled with the 32-bit multiplier because the accumulator would need to have
-    80 bits.
-
-    The shift and value range are limited to allow a variety of implementations. The limit
-    of 62 on shift allows the shift to be decomposed as two right shifts of 31.
-
-    Supported rescalings:
-    * This table is showing the supported conversions from the TOSA Specification.
-    * The MLIR dialect here can be used to represent other conversions.
+    Rescale quantized values into a new domain. Supported rescalings are:
 
     | Mode                   | Input | Output | Unsigned input | Unsigned output |
     |------------------------|-------|--------|----------------|-----------------|
@@ -2559,7 +2542,6 @@ def Tosa_IfOp : Tosa_Op<"cond_if",
   );
 
   let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2598,7 +2580,6 @@ def Tosa_WhileOp : Tosa_Op<"while_loop", [
   );
 
   let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
 }
 
 include "mlir/Dialect/Tosa/IR/TosaUtilOps.td"

@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SparcSelectionDAGInfo.h"
 #include "SparcTargetMachine.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"

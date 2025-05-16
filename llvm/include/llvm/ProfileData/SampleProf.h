@@ -506,7 +506,7 @@ using SampleContextFrames = ArrayRef<SampleContextFrame>;
 
 struct SampleContextFrameHash {
   uint64_t operator()(const SampleContextFrameVector &S) const {
-    return hash_combine_range(S);
+    return hash_combine_range(S.begin(), S.end());
   }
 };
 
@@ -1299,7 +1299,7 @@ private:
 static inline FunctionId getRepInFormat(StringRef Name) {
   if (Name.empty() || !FunctionSamples::UseMD5)
     return FunctionId(Name);
-  return FunctionId(Function::getGUIDAssumingExternalLinkage(Name));
+  return FunctionId(Function::getGUID(Name));
 }
 
 raw_ostream &operator<<(raw_ostream &OS, const FunctionSamples &FS);

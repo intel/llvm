@@ -230,14 +230,14 @@ public:
 /// are not the superclass of some other listed class.
 class RecordRecTy final : public RecTy,
                           public FoldingSetNode,
-                          private TrailingObjects<RecordRecTy, const Record *> {
-  friend TrailingObjects;
+                          public TrailingObjects<RecordRecTy, const Record *> {
   friend class Record;
   friend detail::RecordKeeperImpl;
 
   unsigned NumClasses;
 
-  explicit RecordRecTy(RecordKeeper &RK, ArrayRef<const Record *> Classes);
+  explicit RecordRecTy(RecordKeeper &RK, unsigned Num)
+      : RecTy(RecordRecTyKind, RK), NumClasses(Num) {}
 
 public:
   RecordRecTy(const RecordRecTy &) = delete;
@@ -587,11 +587,11 @@ public:
 /// It contains a vector of bits, whose size is determined by the type.
 class BitsInit final : public TypedInit,
                        public FoldingSetNode,
-                       private TrailingObjects<BitsInit, const Init *> {
-  friend TrailingObjects;
+                       public TrailingObjects<BitsInit, const Init *> {
   unsigned NumBits;
 
-  BitsInit(RecordKeeper &RK, ArrayRef<const Init *> Bits);
+  BitsInit(RecordKeeper &RK, unsigned N)
+      : TypedInit(IK_BitsInit, BitsRecTy::get(RK, N)), NumBits(N) {}
 
 public:
   BitsInit(const BitsInit &) = delete;
@@ -632,11 +632,10 @@ public:
 
   const Init *resolveReferences(Resolver &R) const override;
 
-  ArrayRef<const Init *> getBits() const {
-    return ArrayRef(getTrailingObjects<const Init *>(), NumBits);
+  const Init *getBit(unsigned Bit) const override {
+    assert(Bit < NumBits && "Bit index out of range!");
+    return getTrailingObjects<const Init *>()[Bit];
   }
-
-  const Init *getBit(unsigned Bit) const override { return getBits()[Bit]; }
 };
 
 /// '7' - Represent an initialization by a literal integer value.
@@ -758,15 +757,15 @@ public:
 ///
 class ListInit final : public TypedInit,
                        public FoldingSetNode,
-                       private TrailingObjects<ListInit, const Init *> {
-  friend TrailingObjects;
+                       public TrailingObjects<ListInit, const Init *> {
   unsigned NumValues;
 
 public:
   using const_iterator = const Init *const *;
 
 private:
-  explicit ListInit(ArrayRef<const Init *> Elements, const RecTy *EltTy);
+  explicit ListInit(unsigned N, const RecTy *EltTy)
+      : TypedInit(IK_ListInit, ListRecTy::get(EltTy)), NumValues(N) {}
 
 public:
   ListInit(const ListInit &) = delete;
@@ -782,12 +781,10 @@ public:
 
   void Profile(FoldingSetNodeID &ID) const;
 
-  ArrayRef<const Init *> getValues() const {
-    return ArrayRef(getTrailingObjects<const Init *>(), NumValues);
+  const Init *getElement(unsigned i) const {
+    assert(i < NumValues && "List element index out of range!");
+    return getTrailingObjects<const Init *>()[i];
   }
-
-  const Init *getElement(unsigned Index) const { return getValues()[Index]; }
-
   const RecTy *getElementType() const {
     return cast<ListRecTy>(getType())->getElementType();
   }
@@ -807,8 +804,12 @@ public:
   bool isConcrete() const override;
   std::string getAsString() const override;
 
-  const_iterator begin() const { return getValues().begin(); }
-  const_iterator end() const { return getValues().end(); }
+  ArrayRef<const Init *> getValues() const {
+    return ArrayRef(getTrailingObjects<const Init *>(), NumValues);
+  }
+
+  const_iterator begin() const { return getTrailingObjects<const Init *>(); }
+  const_iterator end  () const { return begin() + NumValues; }
 
   size_t         size () const { return NumValues;  }
   bool           empty() const { return NumValues == 0; }
@@ -1018,13 +1019,12 @@ public:
 /// Otherwise reports an error.
 class CondOpInit final : public TypedInit,
                          public FoldingSetNode,
-                         private TrailingObjects<CondOpInit, const Init *> {
-  friend TrailingObjects;
+                         public TrailingObjects<CondOpInit, const Init *> {
   unsigned NumConds;
   const RecTy *ValType;
 
-  CondOpInit(ArrayRef<const Init *> Conds, ArrayRef<const Init *> Values,
-             const RecTy *Type);
+  CondOpInit(unsigned NC, const RecTy *Type)
+      : TypedInit(IK_CondOpInit, Type), NumConds(NC), ValType(Type) {}
 
   size_t numTrailingObjects(OverloadToken<Init *>) const {
     return 2*NumConds;
@@ -1038,9 +1038,8 @@ public:
     return I->getKind() == IK_CondOpInit;
   }
 
-  static const CondOpInit *get(ArrayRef<const Init *> Conds,
-                               ArrayRef<const Init *> Values,
-                               const RecTy *Type);
+  static const CondOpInit *get(ArrayRef<const Init *> C,
+                               ArrayRef<const Init *> V, const RecTy *Type);
 
   void Profile(FoldingSetNodeID &ID) const;
 
@@ -1048,9 +1047,15 @@ public:
 
   unsigned getNumConds() const { return NumConds; }
 
-  const Init *getCond(unsigned Num) const { return getConds()[Num]; }
+  const Init *getCond(unsigned Num) const {
+    assert(Num < NumConds && "Condition number out of range!");
+    return getTrailingObjects<const Init *>()[Num];
+  }
 
-  const Init *getVal(unsigned Num) const { return getVals()[Num]; }
+  const Init *getVal(unsigned Num) const {
+    assert(Num < NumConds && "Val number out of range!");
+    return getTrailingObjects<const Init *>()[Num + NumConds];
+  }
 
   ArrayRef<const Init *> getConds() const {
     return ArrayRef(getTrailingObjects<const Init *>(), NumConds);
@@ -1332,15 +1337,13 @@ public:
 class VarDefInit final
     : public TypedInit,
       public FoldingSetNode,
-      private TrailingObjects<VarDefInit, const ArgumentInit *> {
-  friend TrailingObjects;
+      public TrailingObjects<VarDefInit, const ArgumentInit *> {
   SMLoc Loc;
   const Record *Class;
   const DefInit *Def = nullptr; // after instantiation
   unsigned NumArgs;
 
-  explicit VarDefInit(SMLoc Loc, const Record *Class,
-                      ArrayRef<const ArgumentInit *> Args);
+  explicit VarDefInit(SMLoc Loc, const Record *Class, unsigned N);
 
   const DefInit *instantiate();
 
@@ -1364,18 +1367,23 @@ public:
 
   std::string getAsString() const override;
 
-  const ArgumentInit *getArg(unsigned i) const { return args()[i]; }
+  const ArgumentInit *getArg(unsigned i) const {
+    assert(i < NumArgs && "Argument index out of range!");
+    return getTrailingObjects<const ArgumentInit *>()[i];
+  }
 
   using const_iterator = const ArgumentInit *const *;
 
-  const_iterator args_begin() const { return args().begin(); }
-  const_iterator args_end() const { return args().end(); }
+  const_iterator args_begin() const {
+    return getTrailingObjects<const ArgumentInit *>();
+  }
+  const_iterator args_end  () const { return args_begin() + NumArgs; }
 
   size_t         args_size () const { return NumArgs; }
   bool           args_empty() const { return NumArgs == 0; }
 
   ArrayRef<const ArgumentInit *> args() const {
-    return ArrayRef(getTrailingObjects<const ArgumentInit *>(), NumArgs);
+    return ArrayRef(args_begin(), NumArgs);
   }
 
   const Init *getBit(unsigned Bit) const override {
@@ -1430,15 +1438,18 @@ public:
 class DagInit final
     : public TypedInit,
       public FoldingSetNode,
-      private TrailingObjects<DagInit, const Init *, const StringInit *> {
+      public TrailingObjects<DagInit, const Init *, const StringInit *> {
   friend TrailingObjects;
 
   const Init *Val;
   const StringInit *ValName;
   unsigned NumArgs;
+  unsigned NumArgNames;
 
-  DagInit(const Init *V, const StringInit *VN, ArrayRef<const Init *> Args,
-          ArrayRef<const StringInit *> ArgNames);
+  DagInit(const Init *V, const StringInit *VN, unsigned NumArgs,
+          unsigned NumArgNames)
+      : TypedInit(IK_DagInit, DagRecTy::get(V->getRecordKeeper())), Val(V),
+        ValName(VN), NumArgs(NumArgs), NumArgNames(NumArgNames) {}
 
   size_t numTrailingObjects(OverloadToken<const Init *>) const {
     return NumArgs;
@@ -1472,14 +1483,18 @@ public:
 
   unsigned getNumArgs() const { return NumArgs; }
 
-  const Init *getArg(unsigned Num) const { return getArgs()[Num]; }
+  const Init *getArg(unsigned Num) const {
+    assert(Num < NumArgs && "Arg number out of range!");
+    return getTrailingObjects<const Init *>()[Num];
+  }
 
   /// This method looks up the specified argument name and returns its argument
   /// number or std::nullopt if that argument name does not exist.
   std::optional<unsigned> getArgNo(StringRef Name) const;
 
   const StringInit *getArgName(unsigned Num) const {
-    return getArgNames()[Num];
+    assert(Num < NumArgNames && "Arg number out of range!");
+    return getTrailingObjects<const StringInit *>()[Num];
   }
 
   StringRef getArgNameStr(unsigned Num) const {
@@ -1492,7 +1507,7 @@ public:
   }
 
   ArrayRef<const StringInit *> getArgNames() const {
-    return ArrayRef(getTrailingObjects<const StringInit *>(), NumArgs);
+    return ArrayRef(getTrailingObjects<const StringInit *>(), NumArgNames);
   }
 
   const Init *resolveReferences(Resolver &R) const override;
@@ -1512,6 +1527,9 @@ public:
 
   inline const_name_iterator name_begin() const { return getArgNames().begin();}
   inline const_name_iterator name_end  () const { return getArgNames().end(); }
+
+  inline size_t              name_size () const { return NumArgNames; }
+  inline bool                name_empty() const { return NumArgNames == 0; }
 
   const Init *getBit(unsigned Bit) const override {
     llvm_unreachable("Illegal bit reference off dag");
@@ -1649,9 +1667,9 @@ private:
   SmallVector<AssertionInfo, 0> Assertions;
   SmallVector<DumpInfo, 0> Dumps;
 
-  // Direct superclasses, which are roots of the inheritance forest (yes, it
+  // All superclasses in the inheritance forest in post-order (yes, it
   // must be a forest; diamond-shaped inheritance is not allowed).
-  SmallVector<std::pair<const Record *, SMRange>, 0> DirectSuperClasses;
+  SmallVector<std::pair<const Record *, SMRange>, 0> SuperClasses;
 
   // Tracks Record instances. Not owned by Record.
   RecordKeeper &TrackedRecords;
@@ -1685,9 +1703,8 @@ public:
   Record(const Record &O)
       : Name(O.Name), Locs(O.Locs), TemplateArgs(O.TemplateArgs),
         Values(O.Values), Assertions(O.Assertions),
-        DirectSuperClasses(O.DirectSuperClasses),
-        TrackedRecords(O.TrackedRecords), ID(getNewUID(O.getRecords())),
-        Kind(O.Kind) {}
+        SuperClasses(O.SuperClasses), TrackedRecords(O.TrackedRecords),
+        ID(getNewUID(O.getRecords())), Kind(O.Kind) {}
 
   static unsigned getNewUID(RecordKeeper &RK);
 
@@ -1738,30 +1755,15 @@ public:
   ArrayRef<AssertionInfo> getAssertions() const { return Assertions; }
   ArrayRef<DumpInfo> getDumps() const { return Dumps; }
 
-  /// Append all superclasses in post-order to \p Classes.
-  void getSuperClasses(std::vector<const Record *> &Classes) const {
-    for (const Record *SC : make_first_range(DirectSuperClasses)) {
-      SC->getSuperClasses(Classes);
-      Classes.push_back(SC);
-    }
-  }
-
-  /// Return all superclasses in post-order.
-  std::vector<const Record *> getSuperClasses() const {
-    std::vector<const Record *> Classes;
-    getSuperClasses(Classes);
-    return Classes;
+  ArrayRef<std::pair<const Record *, SMRange>> getSuperClasses() const {
+    return SuperClasses;
   }
 
   /// Determine whether this record has the specified direct superclass.
-  bool hasDirectSuperClass(const Record *SuperClass) const {
-    return is_contained(make_first_range(DirectSuperClasses), SuperClass);
-  }
+  bool hasDirectSuperClass(const Record *SuperClass) const;
 
-  /// Return the direct superclasses of this record.
-  ArrayRef<std::pair<const Record *, SMRange>> getDirectSuperClasses() const {
-    return DirectSuperClasses;
-  }
+  /// Append the direct superclasses of this record to Classes.
+  void getDirectSuperClasses(SmallVectorImpl<const Record *> &Classes) const;
 
   bool isTemplateArg(const Init *Name) const {
     return llvm::is_contained(TemplateArgs, Name);
@@ -1829,32 +1831,29 @@ public:
   void checkUnusedTemplateArgs();
 
   bool isSubClassOf(const Record *R) const {
-    for (const Record *SC : make_first_range(DirectSuperClasses)) {
-      if (SC == R || SC->isSubClassOf(R))
+    for (const auto &[SC, _] : SuperClasses)
+      if (SC == R)
         return true;
-    }
     return false;
   }
 
   bool isSubClassOf(StringRef Name) const {
-    for (const Record *SC : make_first_range(DirectSuperClasses)) {
+    for (const auto &[SC, _] : SuperClasses) {
       if (const auto *SI = dyn_cast<StringInit>(SC->getNameInit())) {
         if (SI->getValue() == Name)
           return true;
       } else if (SC->getNameInitAsString() == Name) {
         return true;
       }
-      if (SC->isSubClassOf(Name))
-        return true;
     }
     return false;
   }
 
-  void addDirectSuperClass(const Record *R, SMRange Range) {
+  void addSuperClass(const Record *R, SMRange Range) {
     assert(!CorrespondingDefInit &&
            "changing type of record after it has been referenced");
     assert(!isSubClassOf(R) && "Already subclassing record!");
-    DirectSuperClasses.emplace_back(R, Range);
+    SuperClasses.emplace_back(R, Range);
   }
 
   /// If there are any field references that refer to fields that have been

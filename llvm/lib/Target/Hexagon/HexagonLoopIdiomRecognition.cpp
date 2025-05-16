@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "HexagonLoopIdiomRecognition.h"
-#include "Hexagon.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
@@ -109,6 +108,14 @@ static cl::opt<unsigned> SimplifyLimit("hlir-simplify-limit", cl::init(10000),
 static const char *HexagonVolatileMemcpyName
   = "hexagon_memcpy_forward_vp4cp4n2";
 
+
+namespace llvm {
+
+void initializeHexagonLoopIdiomRecognizeLegacyPassPass(PassRegistry &);
+Pass *createHexagonLoopIdiomPass();
+
+} // end namespace llvm
+
 namespace {
 
 class HexagonLoopIdiomRecognize {
@@ -144,7 +151,10 @@ class HexagonLoopIdiomRecognizeLegacyPass : public LoopPass {
 public:
   static char ID;
 
-  explicit HexagonLoopIdiomRecognizeLegacyPass() : LoopPass(ID) {}
+  explicit HexagonLoopIdiomRecognizeLegacyPass() : LoopPass(ID) {
+    initializeHexagonLoopIdiomRecognizeLegacyPassPass(
+        *PassRegistry::getPassRegistry());
+  }
 
   StringRef getPassName() const override {
     return "Recognize Hexagon-specific loop idioms";
@@ -1079,7 +1089,9 @@ bool PolynomialMultiplyRecognize::promoteTypes(BasicBlock *LoopB,
       return false;
 
   // Perform the promotion.
-  SmallVector<Instruction *> LoopIns(llvm::make_pointer_range(*LoopB));
+  std::vector<Instruction*> LoopIns;
+  std::transform(LoopB->begin(), LoopB->end(), std::back_inserter(LoopIns),
+                 [](Instruction &In) { return &In; });
   for (Instruction *In : LoopIns)
     if (!In->isTerminator())
       promoteTo(In, DestTy, LoopB);

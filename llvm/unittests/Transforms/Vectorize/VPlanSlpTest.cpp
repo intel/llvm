@@ -8,6 +8,7 @@
 
 #include "../lib/Transforms/Vectorize/VPlanSLP.h"
 #include "../lib/Transforms/Vectorize/VPlan.h"
+#include "../lib/Transforms/Vectorize/VPlanHCFGBuilder.h"
 #include "VPlanTestBase.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/VectorUtils.h"
@@ -101,8 +102,8 @@ TEST_F(VPlanSlpTest, testSlpSimple_2) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 13));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 15));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 12));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 14));
 
   VPlanSlp Slp(VPIAI, *Body);
   SmallVector<VPValue *, 4> StoreRoot = {Store1, Store2};
@@ -173,8 +174,8 @@ TEST_F(VPlanSlpTest, testSlpSimple_3) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 13));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 15));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 12));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 14));
 
   auto VPIAI = getInterleavedAccessInfo(*F, LI->getLoopFor(LoopHeader), *Plan);
 
@@ -192,8 +193,8 @@ TEST_F(VPlanSlpTest, testSlpSimple_3) {
   EXPECT_EQ(VPInstruction::SLPLoad, CombinedLoadA->getOpcode());
   EXPECT_EQ(VPInstruction::SLPLoad, CombinedLoadB->getOpcode());
 
-  VPInstruction *GetA = cast<VPInstruction>(&*std::next(Body->begin(), 2));
-  VPInstruction *GetB = cast<VPInstruction>(&*std::next(Body->begin(), 4));
+  VPInstruction *GetA = cast<VPInstruction>(&*std::next(Body->begin(), 1));
+  VPInstruction *GetB = cast<VPInstruction>(&*std::next(Body->begin(), 3));
   EXPECT_EQ(GetA, CombinedLoadA->getOperand(0));
   EXPECT_EQ(GetB, CombinedLoadB->getOperand(0));
 
@@ -245,8 +246,8 @@ TEST_F(VPlanSlpTest, testSlpReuse_1) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 9));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 11));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 8));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 10));
 
   VPlanSlp Slp(VPIAI, *Body);
   SmallVector<VPValue *, 4> StoreRoot = {Store1, Store2};
@@ -309,8 +310,8 @@ TEST_F(VPlanSlpTest, testSlpReuse_2) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 6));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 11));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 5));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 10));
 
   VPlanSlp Slp(VPIAI, *Body);
   SmallVector<VPValue *, 4> StoreRoot = {Store1, Store2};
@@ -341,16 +342,16 @@ static void checkReorderExample(VPInstruction *Store1, VPInstruction *Store2,
   VPInstruction *CombinedLoadA =
       cast<VPInstruction>(CombinedMulAB->getOperand(0));
   EXPECT_EQ(VPInstruction::SLPLoad, CombinedLoadA->getOpcode());
-  VPInstruction *LoadvA0 = cast<VPInstruction>(&*std::next(Body->begin(), 3));
-  VPInstruction *LoadvA1 = cast<VPInstruction>(&*std::next(Body->begin(), 13));
+  VPInstruction *LoadvA0 = cast<VPInstruction>(&*std::next(Body->begin(), 2));
+  VPInstruction *LoadvA1 = cast<VPInstruction>(&*std::next(Body->begin(), 12));
   EXPECT_EQ(LoadvA0->getOperand(0), CombinedLoadA->getOperand(0));
   EXPECT_EQ(LoadvA1->getOperand(0), CombinedLoadA->getOperand(1));
 
   VPInstruction *CombinedLoadB =
       cast<VPInstruction>(CombinedMulAB->getOperand(1));
   EXPECT_EQ(VPInstruction::SLPLoad, CombinedLoadB->getOpcode());
-  VPInstruction *LoadvB0 = cast<VPInstruction>(&*std::next(Body->begin(), 5));
-  VPInstruction *LoadvB1 = cast<VPInstruction>(&*std::next(Body->begin(), 15));
+  VPInstruction *LoadvB0 = cast<VPInstruction>(&*std::next(Body->begin(), 4));
+  VPInstruction *LoadvB1 = cast<VPInstruction>(&*std::next(Body->begin(), 14));
   EXPECT_EQ(LoadvB0->getOperand(0), CombinedLoadB->getOperand(0));
   EXPECT_EQ(LoadvB1->getOperand(0), CombinedLoadB->getOperand(1));
 
@@ -359,16 +360,16 @@ static void checkReorderExample(VPInstruction *Store1, VPInstruction *Store2,
   VPInstruction *CombinedLoadC =
       cast<VPInstruction>(CombinedMulCD->getOperand(0));
   EXPECT_EQ(VPInstruction::SLPLoad, CombinedLoadC->getOpcode());
-  VPInstruction *LoadvC0 = cast<VPInstruction>(&*std::next(Body->begin(), 8));
-  VPInstruction *LoadvC1 = cast<VPInstruction>(&*std::next(Body->begin(), 18));
+  VPInstruction *LoadvC0 = cast<VPInstruction>(&*std::next(Body->begin(), 7));
+  VPInstruction *LoadvC1 = cast<VPInstruction>(&*std::next(Body->begin(), 17));
   EXPECT_EQ(LoadvC0->getOperand(0), CombinedLoadC->getOperand(0));
   EXPECT_EQ(LoadvC1->getOperand(0), CombinedLoadC->getOperand(1));
 
   VPInstruction *CombinedLoadD =
       cast<VPInstruction>(CombinedMulCD->getOperand(1));
   EXPECT_EQ(VPInstruction::SLPLoad, CombinedLoadD->getOpcode());
-  VPInstruction *LoadvD0 = cast<VPInstruction>(&*std::next(Body->begin(), 10));
-  VPInstruction *LoadvD1 = cast<VPInstruction>(&*std::next(Body->begin(), 20));
+  VPInstruction *LoadvD0 = cast<VPInstruction>(&*std::next(Body->begin(), 9));
+  VPInstruction *LoadvD1 = cast<VPInstruction>(&*std::next(Body->begin(), 19));
   EXPECT_EQ(LoadvD0->getOperand(0), CombinedLoadD->getOperand(0));
   EXPECT_EQ(LoadvD1->getOperand(0), CombinedLoadD->getOperand(1));
 
@@ -446,8 +447,8 @@ TEST_F(VPlanSlpTest, testSlpReorder_1) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 25));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 27));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 24));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 26));
 
   checkReorderExample(
       Store1, Store2, Body,
@@ -518,8 +519,8 @@ TEST_F(VPlanSlpTest, testSlpReorder_2) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 25));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 27));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 24));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 26));
 
   checkReorderExample(
       Store1, Store2, Body,
@@ -590,8 +591,8 @@ TEST_F(VPlanSlpTest, testSlpReorder_3) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 25));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 27));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 24));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 26));
 
   auto VPIAI = getInterleavedAccessInfo(*F, LI->getLoopFor(LoopHeader), *Plan);
   VPlanSlp Slp(VPIAI, *Body);
@@ -666,8 +667,8 @@ TEST_F(VPlanSlpTest, testSlpReorder_4) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 25));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 27));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 24));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 26));
 
   checkReorderExample(
       Store1, Store2, Body,
@@ -728,8 +729,8 @@ TEST_F(VPlanSlpTest, testInstrsInDifferentBBs) {
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
   VPBasicBlock *BB2 = Body->getSingleSuccessor()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(BB2->begin(), 4));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(BB2->begin(), 6));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(BB2->begin(), 3));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(BB2->begin(), 5));
 
   VPlanSlp Slp(VPIAI, *BB2);
   SmallVector<VPValue *, 4> StoreRoot = {Store1, Store2};
@@ -791,8 +792,8 @@ TEST_F(VPlanSlpTest, testInstrsInDifferentBBs2) {
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
   VPBasicBlock *BB2 = Body->getSingleSuccessor()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(BB2->begin(), 2));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(BB2->begin(), 4));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(BB2->begin(), 1));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(BB2->begin(), 3));
 
   VPlanSlp Slp(VPIAI, *BB2);
   SmallVector<VPValue *, 4> StoreRoot = {Store1, Store2};
@@ -850,8 +851,8 @@ TEST_F(VPlanSlpTest, testSlpAtomicLoad) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 13));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 15));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 12));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 14));
 
   VPlanSlp Slp(VPIAI, *Body);
   SmallVector<VPValue *, 4> StoreRoot = {Store1, Store2};
@@ -909,8 +910,8 @@ TEST_F(VPlanSlpTest, testSlpAtomicStore) {
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());
   VPBasicBlock *Body = Plan->getVectorLoopRegion()->getEntryBasicBlock();
 
-  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 13));
-  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 15));
+  VPInstruction *Store1 = cast<VPInstruction>(&*std::next(Body->begin(), 12));
+  VPInstruction *Store2 = cast<VPInstruction>(&*std::next(Body->begin(), 14));
 
   VPlanSlp Slp(VPIAI, *Body);
   SmallVector<VPValue *, 4> StoreRoot = {Store1, Store2};

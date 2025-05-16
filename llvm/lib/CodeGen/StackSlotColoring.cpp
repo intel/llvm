@@ -287,10 +287,8 @@ void StackSlotColoring::InitializeSlots() {
 
     auto StackID = MFI->getStackID(FI);
     if (StackID != 0) {
-      if (StackID >= AllColors.size()) {
-        AllColors.resize(StackID + 1);
-        UsedColors.resize(StackID + 1);
-      }
+      AllColors.resize(StackID + 1);
+      UsedColors.resize(StackID + 1);
       AllColors[StackID].resize(LastFI);
       UsedColors[StackID].resize(LastFI);
     }

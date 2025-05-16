@@ -91,6 +91,8 @@ public:
 
       case Dtor_Comdat:
         llvm_unreachable("emitting dtor comdat as function?");
+      case Dtor_VectorDeleting:
+        llvm_unreachable("unexpected dtor kind for this ABI");
       }
       llvm_unreachable("bad dtor kind");
     }
@@ -128,10 +130,11 @@ public:
                                     llvm::Value *MemFnPtr,
                                     const MemberPointerType *MPT) override;
 
-  llvm::Value *EmitMemberDataPointerAddress(CodeGenFunction &CGF, const Expr *E,
-                                            Address Base, llvm::Value *MemPtr,
-                                            const MemberPointerType *MPT,
-                                            bool IsInBounds) override;
+  llvm::Value *
+    EmitMemberDataPointerAddress(CodeGenFunction &CGF, const Expr *E,
+                                 Address Base,
+                                 llvm::Value *MemPtr,
+                                 const MemberPointerType *MPT) override;
 
   llvm::Value *EmitMemberPointerConversion(CodeGenFunction &CGF,
                                            const CastExpr *E,
@@ -179,6 +182,7 @@ public:
   }
 
   bool shouldTypeidBeNullChecked(QualType SrcRecordTy) override;
+  bool hasVectorDeletingDtors() override { return false; }
   void EmitBadTypeidCall(CodeGenFunction &CGF) override;
   llvm::Value *EmitTypeid(CodeGenFunction &CGF, QualType SrcRecordTy,
                           Address ThisPtr,
@@ -448,7 +452,8 @@ public:
        if (!IsInlined)
          continue;
 
-       StringRef Name = CGM.getMangledName(VtableComponent.getGlobalDecl());
+       StringRef Name = CGM.getMangledName(
+           VtableComponent.getGlobalDecl(/*HasVectorDeletingDtors=*/false));
        auto *Entry = CGM.GetGlobalValue(Name);
        // This checks if virtual inline function has already been emitted.
        // Note that it is possible that this inline function would be emitted
@@ -862,16 +867,14 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
 /// base object.
 llvm::Value *ItaniumCXXABI::EmitMemberDataPointerAddress(
     CodeGenFunction &CGF, const Expr *E, Address Base, llvm::Value *MemPtr,
-    const MemberPointerType *MPT, bool IsInBounds) {
+    const MemberPointerType *MPT) {
   assert(MemPtr->getType() == CGM.PtrDiffTy);
 
   CGBuilderTy &Builder = CGF.Builder;
 
-  // Apply the offset.
-  llvm::Value *BaseAddr = Base.emitRawPointer(CGF);
-  return Builder.CreateGEP(CGF.Int8Ty, BaseAddr, MemPtr, "memptr.offset",
-                           IsInBounds ? llvm::GEPNoWrapFlags::inBounds()
-                                      : llvm::GEPNoWrapFlags::none());
+  // Apply the offset, which we assume is non-null.
+  return Builder.CreateInBoundsGEP(CGF.Int8Ty, Base.emitRawPointer(CGF), MemPtr,
+                                   "memptr.offset");
 }
 
 // See if it's possible to return a constant signed pointer.

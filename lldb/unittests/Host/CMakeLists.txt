@@ -15,10 +15,10 @@ set (FILES
   XMLTest.cpp
 )
 
-if (UNIX)
+if (CMAKE_SYSTEM_NAME MATCHES "Linux|Android")
   list(APPEND FILES
-    posix/HostTest.cpp
-    posix/SupportTest.cpp
+    linux/HostTest.cpp
+    linux/SupportTest.cpp
   )
 endif()
 

@@ -99,8 +99,11 @@ void initializeAMDGPUDAGToDAGISelLegacyPass(PassRegistry &);
 
 void initializeAMDGPUAlwaysInlinePass(PassRegistry&);
 
+Pass *createAMDGPUAnnotateKernelFeaturesPass();
 Pass *createAMDGPUAttributorLegacyPass();
 void initializeAMDGPUAttributorLegacyPass(PassRegistry &);
+void initializeAMDGPUAnnotateKernelFeaturesPass(PassRegistry &);
+extern char &AMDGPUAnnotateKernelFeaturesID;
 
 // DPP/Iterative option enables the atomic optimizer with given strategy
 // whereas None disables the atomic optimizer.
@@ -217,7 +220,7 @@ extern char &SIWholeQuadModeID;
 void initializeSILowerControlFlowLegacyPass(PassRegistry &);
 extern char &SILowerControlFlowLegacyID;
 
-void initializeSIPreEmitPeepholeLegacyPass(PassRegistry &);
+void initializeSIPreEmitPeepholePass(PassRegistry &);
 extern char &SIPreEmitPeepholeID;
 
 void initializeSILateBranchLoweringLegacyPass(PassRegistry &);
@@ -346,12 +349,9 @@ private:
 
   AMDGPUAttributorOptions Options;
 
-  const ThinOrFullLTOPhase LTOPhase;
-
 public:
-  AMDGPUAttributorPass(TargetMachine &TM, AMDGPUAttributorOptions Options,
-                       ThinOrFullLTOPhase LTOPhase = ThinOrFullLTOPhase::None)
-      : TM(TM), Options(Options), LTOPhase(LTOPhase) {};
+  AMDGPUAttributorPass(TargetMachine &TM, AMDGPUAttributorOptions Options = {})
+      : TM(TM), Options(Options) {};
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
@@ -403,13 +403,6 @@ public:
 
 class SILateBranchLoweringPass
     : public PassInfoMixin<SILateBranchLoweringPass> {
-public:
-  PreservedAnalyses run(MachineFunction &MF,
-                        MachineFunctionAnalysisManager &MFAM);
-  static bool isRequired() { return true; }
-};
-
-class SIPreEmitPeepholePass : public PassInfoMixin<SIPreEmitPeepholePass> {
 public:
   PreservedAnalyses run(MachineFunction &MF,
                         MachineFunctionAnalysisManager &MFAM);
@@ -553,11 +546,14 @@ enum TargetIndex {
 };
 
 static inline bool addrspacesMayAlias(unsigned AS1, unsigned AS2) {
+  static_assert(AMDGPUAS::MAX_AMDGPU_ADDRESS <= 9, "Addr space out of range");
+
   if (AS1 > AMDGPUAS::MAX_AMDGPU_ADDRESS || AS2 > AMDGPUAS::MAX_AMDGPU_ADDRESS)
     return true;
 
+  // This array is indexed by address space value enum elements 0 ... to 9
   // clang-format off
-  static const bool ASAliasRules[][AMDGPUAS::MAX_AMDGPU_ADDRESS + 1] = {
+  static const bool ASAliasRules[10][10] = {
     /*                       Flat   Global Region  Local Constant Private Const32 BufFatPtr BufRsrc BufStrdPtr */
     /* Flat     */            {true,  true,  false, true,  true,  true,  true,  true,  true,  true},
     /* Global   */            {true,  true,  false, false, true,  false, true,  true,  true,  true},
@@ -571,7 +567,6 @@ static inline bool addrspacesMayAlias(unsigned AS1, unsigned AS2) {
     /* Buffer Strided Ptr  */ {true,  true,  false, false, true,  false, true,  true,  true,  true},
   };
   // clang-format on
-  static_assert(std::size(ASAliasRules) == AMDGPUAS::MAX_AMDGPU_ADDRESS + 1);
 
   return ASAliasRules[AS1][AS2];
 }

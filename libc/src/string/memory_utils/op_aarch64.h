@@ -25,6 +25,7 @@
 
 #ifdef __ARM_NEON
 #include <arm_neon.h>
+#endif //__ARM_NEON
 
 namespace LIBC_NAMESPACE_DECL {
 namespace aarch64 {
@@ -175,8 +176,6 @@ template <size_t Size> struct Bcmp {
 } // namespace aarch64
 } // namespace LIBC_NAMESPACE_DECL
 
-#endif //__ARM_NEON
-
 namespace LIBC_NAMESPACE_DECL {
 namespace generic {
 
@@ -226,8 +225,6 @@ LIBC_INLINE MemcmpReturnType cmp<uint64_t>(CPtr p1, CPtr p2, size_t offset) {
   return MemcmpReturnType::zero();
 }
 
-#if defined(__ARM_NEON)
-
 ///////////////////////////////////////////////////////////////////////////////
 // Specializations for uint8x16_t
 template <> struct is_vector<uint8x16_t> : cpp::true_type {};
@@ -272,9 +269,6 @@ LIBC_INLINE MemcmpReturnType cmp<uint8x16x2_t>(CPtr p1, CPtr p2,
   }
   return MemcmpReturnType::zero();
 }
-
-#endif // __ARM_NEON
-
 } // namespace generic
 } // namespace LIBC_NAMESPACE_DECL
 

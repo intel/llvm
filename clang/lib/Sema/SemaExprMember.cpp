@@ -772,7 +772,7 @@ static bool LookupMemberExprInRecord(Sema &SemaRef, LookupResult &R,
             BaseExpr, BaseExpr->getType(), OpLoc, IsArrow, SS, SourceLocation(),
             nullptr, R, nullptr, nullptr);
       },
-      CorrectTypoKind::ErrorRecovery, DC);
+      Sema::CTK_ErrorRecovery, DC);
 
   return false;
 }
@@ -1457,7 +1457,7 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
       Validator.IsObjCIvarLookup = IsArrow;
       if (TypoCorrection Corrected = S.CorrectTypo(
               R.getLookupNameInfo(), Sema::LookupMemberName, nullptr, nullptr,
-              Validator, CorrectTypoKind::ErrorRecovery, IDecl)) {
+              Validator, Sema::CTK_ErrorRecovery, IDecl)) {
         IV = Corrected.getCorrectionDeclAs<ObjCIvarDecl>();
         S.diagnoseTypo(
             Corrected,

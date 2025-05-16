@@ -869,9 +869,6 @@ public:
       }
       CGM.setAtomicOpts(AO);
     }
-
-    CGAtomicOptionsRAII(const CGAtomicOptionsRAII &) = delete;
-    CGAtomicOptionsRAII &operator=(const CGAtomicOptionsRAII &) = delete;
     ~CGAtomicOptionsRAII() { CGM.setAtomicOpts(SavedAtomicOpts); }
 
   private:
@@ -2274,8 +2271,6 @@ public:
   void pushLifetimeExtendedDestroy(CleanupKind kind, Address addr,
                                    QualType type, Destroyer *destroyer,
                                    bool useEHCleanupForArray);
-  void pushLifetimeExtendedDestroy(QualType::DestructionKind dtorKind,
-                                   Address addr, QualType type);
   void pushCallObjectDeleteCleanup(const FunctionDecl *OperatorDelete,
                                    llvm::Value *CompletePtr,
                                    QualType ElementType);
@@ -2826,17 +2821,6 @@ private:
     llvm::SmallVector<llvm::AllocaInst *> Allocas;
   };
   AllocaTracker *Allocas = nullptr;
-
-  /// CGDecl helper.
-  void emitStoresForConstant(const VarDecl &D, Address Loc, bool isVolatile,
-                             llvm::Constant *constant, bool IsAutoInit);
-  /// CGDecl helper.
-  void emitStoresForZeroInit(const VarDecl &D, Address Loc, bool isVolatile);
-  /// CGDecl helper.
-  void emitStoresForPatternInit(const VarDecl &D, Address Loc, bool isVolatile);
-  /// CGDecl helper.
-  void emitStoresForInitAfterBZero(llvm::Constant *Init, Address Loc,
-                                   bool isVolatile, bool IsAutoInit);
 
 public:
   // Captures all the allocas created during the scope of its RAII object.
@@ -4457,10 +4441,10 @@ public:
     }
 
     bool isReference() const { return ValueAndIsReference.getInt(); }
-    LValue getReferenceLValue(CodeGenFunction &CGF, const Expr *RefExpr) const {
+    LValue getReferenceLValue(CodeGenFunction &CGF, Expr *refExpr) const {
       assert(isReference());
       return CGF.MakeNaturalAlignAddrLValue(ValueAndIsReference.getPointer(),
-                                            RefExpr->getType());
+                                            refExpr->getType());
     }
 
     llvm::Constant *getValue() const {
@@ -4469,7 +4453,7 @@ public:
     }
   };
 
-  ConstantEmission tryEmitAsConstant(const DeclRefExpr *RefExpr);
+  ConstantEmission tryEmitAsConstant(DeclRefExpr *refExpr);
   ConstantEmission tryEmitAsConstant(const MemberExpr *ME);
   llvm::Value *emitScalarConstant(const ConstantEmission &Constant, Expr *E);
 
@@ -4486,8 +4470,7 @@ public:
                               const ObjCIvarDecl *Ivar);
   llvm::Value *EmitIvarOffsetAsPointerDiff(const ObjCInterfaceDecl *Interface,
                                            const ObjCIvarDecl *Ivar);
-  LValue EmitLValueForField(LValue Base, const FieldDecl *Field,
-                            bool IsInBounds = true);
+  LValue EmitLValueForField(LValue Base, const FieldDecl *Field);
   LValue EmitLValueForLambdaField(const FieldDecl *Field);
   LValue EmitLValueForLambdaField(const FieldDecl *Field,
                                   llvm::Value *ThisValue);
@@ -4584,8 +4567,6 @@ public:
                                                const CXXRecordDecl *RD);
 
   bool isPointerKnownNonNull(const Expr *E);
-  /// Check whether the underlying base pointer is a constant null.
-  bool isUnderlyingBasePointerConstantNull(const Expr *E);
 
   /// Create the discriminator from the storage address and the entity hash.
   llvm::Value *EmitPointerAuthBlendDiscriminator(llvm::Value *StorageAddress,
@@ -4612,26 +4593,6 @@ public:
   void EmitPointerAuthOperandBundle(
       const CGPointerAuthInfo &Info,
       SmallVectorImpl<llvm::OperandBundleDef> &Bundles);
-
-  CGPointerAuthInfo EmitPointerAuthInfo(PointerAuthQualifier Qualifier,
-                                        Address StorageAddress);
-  llvm::Value *EmitPointerAuthQualify(PointerAuthQualifier Qualifier,
-                                      llvm::Value *Pointer, QualType ValueType,
-                                      Address StorageAddress,
-                                      bool IsKnownNonNull);
-  llvm::Value *EmitPointerAuthQualify(PointerAuthQualifier Qualifier,
-                                      const Expr *PointerExpr,
-                                      Address StorageAddress);
-  llvm::Value *EmitPointerAuthUnqualify(PointerAuthQualifier Qualifier,
-                                        llvm::Value *Pointer,
-                                        QualType PointerType,
-                                        Address StorageAddress,
-                                        bool IsKnownNonNull);
-  void EmitPointerAuthCopy(PointerAuthQualifier Qualifier, QualType Type,
-                           Address DestField, Address SrcField);
-
-  std::pair<llvm::Value *, CGPointerAuthInfo>
-  EmitOrigPointerRValue(const Expr *E);
 
   llvm::Value *authPointerToPointerCast(llvm::Value *ResultPtr,
                                         QualType SourceType, QualType DestType);
@@ -4687,7 +4648,7 @@ public:
   // Compute the object pointer.
   Address EmitCXXMemberDataPointerAddress(
       const Expr *E, Address base, llvm::Value *memberPtr,
-      const MemberPointerType *memberPtrType, bool IsInBounds,
+      const MemberPointerType *memberPtrType,
       LValueBaseInfo *BaseInfo = nullptr, TBAAAccessInfo *TBAAInfo = nullptr);
   RValue EmitCXXMemberPointerCallExpr(const CXXMemberCallExpr *E,
                                       ReturnValueSlot ReturnValue,
@@ -5396,9 +5357,6 @@ public:
   llvm::Value *emitBoolVecConversion(llvm::Value *SrcVec,
                                      unsigned NumElementsDst,
                                      const llvm::Twine &Name = "");
-
-  void maybeAttachRangeForLoad(llvm::LoadInst *Load, QualType Ty,
-                               SourceLocation Loc);
 
 private:
   // Emits a convergence_loop instruction for the given |BB|, with |ParentToken|

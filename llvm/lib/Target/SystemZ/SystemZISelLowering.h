@@ -627,9 +627,6 @@ public:
                    bool IsSigned, SDLoc DL, bool DoesNotReturn,
                    bool IsReturnValueUsed) const;
 
-  SDValue useLibCall(SelectionDAG &DAG, RTLIB::Libcall LC, MVT VT, SDValue Arg,
-                     SDLoc DL, SDValue Chain, bool IsStrict) const;
-
   bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
                       bool isVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -723,8 +720,6 @@ private:
   SDValue lowerCTPOP(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVECREDUCE_ADD(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerATOMIC_FENCE(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerATOMIC_LOAD(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerATOMIC_STORE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerATOMIC_LDST_I128(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerATOMIC_LOAD_OP(SDValue Op, SelectionDAG &DAG,
                               unsigned Opcode) const;
@@ -748,12 +743,6 @@ private:
   SDValue lowerShift(SDValue Op, SelectionDAG &DAG, unsigned ByScalar) const;
   SDValue lowerFSHL(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFSHR(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lower_FP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lower_INT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerLoadF16(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerStoreF16(SDValue Op, SelectionDAG &DAG) const;
-
   SDValue lowerIS_FPCLASS(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerREADCYCLECOUNTER(SDValue Op, SelectionDAG &DAG) const;
@@ -777,7 +766,6 @@ private:
   SDValue combineFP_ROUND(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineFP_EXTEND(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineINT_TO_FP(SDNode *N, DAGCombinerInfo &DCI) const;
-  SDValue combineFCOPYSIGN(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineBSWAP(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineSETCC(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineBR_CCMASK(SDNode *N, DAGCombinerInfo &DCI) const;

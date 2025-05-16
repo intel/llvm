@@ -10,7 +10,4 @@
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <prefetch.inc>
-#include <clc/integer/gentype.inc>
-
-#define __CLC_BODY <prefetch.inc>
-#include <clc/math/gentype.inc>
+#include <clc/async/gentype.inc>

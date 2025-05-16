@@ -49,7 +49,8 @@ add_clang_tool(clang
   DEPENDS
   intrinsics_gen
   # These generated headers are included transitively.
-  target_parser_gen
+  ARMTargetParserTableGen
+  AArch64TargetParserTableGen
   ${support_plugins}
   ${CLANG_BOLT_DEPS}
   GENERATE_DRIVER

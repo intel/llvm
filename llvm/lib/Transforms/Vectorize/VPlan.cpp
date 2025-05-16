@@ -64,10 +64,11 @@ static cl::opt<bool> PrintVPlansInDotFormat(
 #define DEBUG_TYPE "loop-vectorize"
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-raw_ostream &llvm::operator<<(raw_ostream &OS, const VPRecipeBase &R) {
-  const VPBasicBlock *Parent = R.getParent();
-  VPSlotTracker SlotTracker(Parent ? Parent->getPlan() : nullptr);
-  R.print(OS, "", SlotTracker);
+raw_ostream &llvm::operator<<(raw_ostream &OS, const VPValue &V) {
+  const VPInstruction *Instr = dyn_cast<VPInstruction>(&V);
+  VPSlotTracker SlotTracker(
+      (Instr && Instr->getParent()) ? Instr->getParent()->getPlan() : nullptr);
+  V.print(OS, SlotTracker);
   return OS;
 }
 #endif
@@ -216,10 +217,10 @@ VPBasicBlock::iterator VPBasicBlock::getFirstNonPhi() {
 
 VPTransformState::VPTransformState(const TargetTransformInfo *TTI,
                                    ElementCount VF, LoopInfo *LI,
-                                   DominatorTree *DT, AssumptionCache *AC,
-                                   IRBuilderBase &Builder, VPlan *Plan,
+                                   DominatorTree *DT, IRBuilderBase &Builder,
+                                   InnerLoopVectorizer *ILV, VPlan *Plan,
                                    Loop *CurrentParentLoop, Type *CanonicalIVTy)
-    : TTI(TTI), VF(VF), CFG(DT), LI(LI), AC(AC), Builder(Builder), Plan(Plan),
+    : TTI(TTI), VF(VF), CFG(DT), LI(LI), Builder(Builder), ILV(ILV), Plan(Plan),
       CurrentParentLoop(CurrentParentLoop), LVer(nullptr),
       TypeAnalysis(CanonicalIVTy), VPDT(*Plan) {}
 
@@ -350,12 +351,28 @@ Value *VPTransformState::get(const VPValue *Def, bool NeedsScalar) {
   return VectorValue;
 }
 
+BasicBlock *VPTransformState::CFGState::getPreheaderBBFor(VPRecipeBase *R) {
+  VPRegionBlock *LoopRegion = R->getParent()->getEnclosingLoopRegion();
+  return VPBB2IRBB[LoopRegion->getPreheaderVPBB()];
+}
+
 void VPTransformState::addNewMetadata(Instruction *To,
                                       const Instruction *Orig) {
   // If the loop was versioned with memchecks, add the corresponding no-alias
   // metadata.
   if (LVer && isa<LoadInst, StoreInst>(Orig))
     LVer->annotateInstWithNoAlias(To, Orig);
+}
+
+void VPTransformState::addMetadata(Value *To, Instruction *From) {
+  // No source instruction to transfer metadata from?
+  if (!From)
+    return;
+
+  if (Instruction *ToI = dyn_cast<Instruction>(To)) {
+    propagateMetadata(ToI, From);
+    addNewMetadata(ToI, From);
+  }
 }
 
 void VPTransformState::setDebugLocFrom(DebugLoc DL) {
@@ -549,6 +566,7 @@ VPBasicBlock *VPBasicBlock::splitAt(iterator SplitAt) {
   assert((SplitAt == end() || SplitAt->getParent() == this) &&
          "can only split at a position in the same block");
 
+  SmallVector<VPBlockBase *, 2> Succs(successors());
   // Create new empty block after the block to split.
   auto *SplitBlock = getPlan()->createVPBasicBlock(getName() + ".split");
   VPBlockUtils::insertBlockAfter(SplitBlock, this);
@@ -784,25 +802,6 @@ InstructionCost VPBasicBlock::cost(ElementCount VF, VPCostContext &Ctx) {
   return Cost;
 }
 
-const VPBasicBlock *VPBasicBlock::getCFGPredecessor(unsigned Idx) const {
-  const VPBlockBase *Pred = nullptr;
-  if (getNumPredecessors() > 0) {
-    Pred = getPredecessors()[Idx];
-  } else {
-    auto *Region = getParent();
-    assert(Region && !Region->isReplicator() && Region->getEntry() == this &&
-           "must be in the entry block of a non-replicate region");
-    assert(Idx < 2 && Region->getNumPredecessors() == 1 &&
-           "loop region has a single predecessor (preheader), its entry block "
-           "has 2 incoming blocks");
-
-    // Idx ==  0 selects the predecessor of the region, Idx == 1 selects the
-    // region itself whose exiting block feeds the phi across the backedge.
-    Pred = Idx == 0 ? Region->getSinglePredecessor() : Region;
-  }
-  return Pred->getExitingBasicBlock();
-}
-
 InstructionCost VPRegionBlock::cost(ElementCount VF, VPCostContext &Ctx) {
   if (!isReplicator()) {
     InstructionCost Cost = 0;
@@ -860,7 +859,7 @@ VPlan::VPlan(Loop *L) {
   ScalarHeader = createVPIRBasicBlock(L->getHeader());
 
   SmallVector<BasicBlock *> IRExitBlocks;
-  L->getUniqueExitBlocks(IRExitBlocks);
+  L->getExitBlocks(IRExitBlocks);
   for (BasicBlock *EB : IRExitBlocks)
     ExitBlocks.push_back(createVPIRBasicBlock(EB));
 }
@@ -1217,13 +1216,6 @@ VPlan *VPlan::duplicate() {
     NewPlan->CreatedBlocks.push_back(this->CreatedBlocks[I]);
   CreatedBlocks.truncate(NumBlocksBeforeCloning);
 
-  // Update ExitBlocks of the new plan.
-  for (VPBlockBase *VPB : NewPlan->CreatedBlocks) {
-    if (VPB->getNumSuccessors() == 0 && isa<VPIRBasicBlock>(VPB) &&
-        VPB != NewScalarHeader)
-      NewPlan->ExitBlocks.push_back(cast<VPIRBasicBlock>(VPB));
-  }
-
   return NewPlan;
 }
 
@@ -1412,13 +1404,6 @@ void VPValue::replaceUsesWithIf(
     // increment the index if the number of users did not change.
     if (!RemovedUser)
       J++;
-  }
-}
-
-void VPUser::replaceUsesOfWith(VPValue *From, VPValue *To) {
-  for (unsigned Idx = 0; Idx != getNumOperands(); ++Idx) {
-    if (getOperand(Idx) == From)
-      setOperand(Idx, To);
   }
 }
 

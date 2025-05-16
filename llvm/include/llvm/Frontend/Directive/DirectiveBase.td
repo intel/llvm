@@ -71,6 +71,9 @@ class Clause<string c> {
   // Name of the clause.
   string name = c;
 
+  // Define an alternative name return in get<LanguageName>ClauseName function.
+  string alternativeName = "";
+
   // Define aliases used in the parser.
   list<string> aliases = [];
 
@@ -79,9 +82,6 @@ class Clause<string c> {
 
   // Optional class holding value of the clause in flang AST.
   string flangClass = "";
-
-  // If set to true, don't emit flang Unparser.
-  bit skipFlangUnparser = false;
 
   // If set to true, value is optional. Not optional by default.
   bit isValueOptional = false;
@@ -113,10 +113,6 @@ class Clause<string c> {
   // Set the prefix as optional.
   // `clause([prefix]: value)`
   bit isPrefixOptional = true;
-
-  // When necessary because it isn't covered by rules, the name used in the
-  // clause in the clang::OpenACCClauseKind enum.
-  string clangAccSpelling = "";
 }
 
 // Hold information about clause validity by version.
@@ -176,6 +172,10 @@ def CA_Utility: Category<"Utility"> {}
 class Directive<string d> {
   // Name of the directive. Can be composite directive sepearted by whitespace.
   string name = d;
+
+  // Define an alternative name return in get<LanguageName>DirectiveName
+  // function.
+  string alternativeName = "";
 
   // Clauses cannot appear twice in the three allowed lists below. Also, since
   // required implies allowed, the same clause cannot appear in both the

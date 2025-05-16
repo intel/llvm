@@ -397,10 +397,6 @@ def skipIf(
     )
 
 
-def skip(bugnumber=None):
-    return _decorateTest(DecorateMode.Skip, bugnumber=bugnumber)
-
-
 def _skip_fn_for_android(reason, api_levels, archs):
     def impl():
         result = lldbplatformutil.match_android_device(

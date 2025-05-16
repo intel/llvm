@@ -112,7 +112,9 @@ class AArch64A57FPLoadBalancing : public MachineFunctionPass {
 
 public:
   static char ID;
-  explicit AArch64A57FPLoadBalancing() : MachineFunctionPass(ID) {}
+  explicit AArch64A57FPLoadBalancing() : MachineFunctionPass(ID) {
+    initializeAArch64A57FPLoadBalancingPass(*PassRegistry::getPassRegistry());
+  }
 
   bool runOnMachineFunction(MachineFunction &F) override;
 

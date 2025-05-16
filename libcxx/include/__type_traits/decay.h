@@ -50,7 +50,7 @@ public:
 };
 
 template <class _Tp>
-struct decay {
+struct _LIBCPP_TEMPLATE_VIS decay {
 private:
   using _Up _LIBCPP_NODEBUG = __libcpp_remove_reference_t<_Tp>;
 

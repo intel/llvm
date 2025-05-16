@@ -2759,15 +2759,6 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
       OpenMPClauseKind CKind = Tok.isAnnotation()
                                    ? OMPC_unknown
                                    : getOpenMPClauseKind(PP.getSpelling(Tok));
-      // Check if the clause is unrecognized.
-      if (CKind == OMPC_unknown)
-        Diag(Tok, diag::err_omp_expected_clause) << "metadirective";
-      if (getLangOpts().OpenMP < 52 && CKind == OMPC_otherwise)
-        Diag(Tok, diag::err_omp_unexpected_clause)
-            << getOpenMPClauseName(CKind) << "metadirective";
-      if (CKind == OMPC_default && getLangOpts().OpenMP >= 52)
-        Diag(Tok, diag::warn_omp_default_deprecated);
-
       SourceLocation Loc = ConsumeToken();
 
       // Parse '('.
@@ -2794,7 +2785,6 @@ StmtResult Parser::ParseOpenMPDeclarativeOrExecutableDirective(
           return Directive;
         }
       }
-
       // Skip Directive for now. We will parse directive in the second iteration
       int paren = 0;
       while (Tok.isNot(tok::r_paren) || paren != 0) {
@@ -3562,9 +3552,8 @@ ExprResult Parser::ParseOpenMPParensExpr(StringRef ClauseName,
     return ExprError();
 
   SourceLocation ELoc = Tok.getLocation();
-  ExprResult LHS(ParseCastExpression(CastParseKind::AnyCastExpr,
-                                     IsAddressOfOperand,
-                                     TypeCastState::NotTypeCast));
+  ExprResult LHS(
+      ParseCastExpression(AnyCastExpr, IsAddressOfOperand, NotTypeCast));
   ExprResult Val(ParseRHSOfBinaryExpression(LHS, prec::Conditional));
   Val = Actions.ActOnFinishFullExpr(Val.get(), ELoc, /*DiscardedValue*/ false);
 
@@ -3669,7 +3658,7 @@ bool Parser::ParseOpenMPIndirectClause(
       return false;
     llvm::APSInt Result;
     Ret = Actions.VerifyIntegerConstantExpression(Val.get(), &Result,
-                                                  AllowFoldKind::Allow);
+                                                  Sema::AllowFold);
     if (Ret.isInvalid())
       return false;
     DTCI.Indirect = Val.get();
@@ -3715,7 +3704,7 @@ bool Parser::ParseOMPInteropInfo(OMPInteropInfo &InteropInfo,
 
       while (Tok.isNot(tok::r_paren)) {
         SourceLocation Loc = Tok.getLocation();
-        ExprResult LHS = ParseCastExpression(CastParseKind::AnyCastExpr);
+        ExprResult LHS = ParseCastExpression(AnyCastExpr);
         ExprResult PTExpr = Actions.CorrectDelayedTyposInExpr(
             ParseRHSOfBinaryExpression(LHS, prec::Conditional));
         PTExpr = Actions.ActOnFinishFullExpr(PTExpr.get(), Loc,
@@ -4199,8 +4188,7 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
                           Kind == OMPC_grainsize || Kind == OMPC_num_tasks;
   if (NeedAnExpression) {
     SourceLocation ELoc = Tok.getLocation();
-    ExprResult LHS(ParseCastExpression(CastParseKind::AnyCastExpr, false,
-                                       TypeCastState::NotTypeCast));
+    ExprResult LHS(ParseCastExpression(AnyCastExpr, false, NotTypeCast));
     Val = ParseRHSOfBinaryExpression(LHS, prec::Conditional);
     Val =
         Actions.ActOnFinishFullExpr(Val.get(), ELoc, /*DiscardedValue*/ false);
@@ -4491,7 +4479,7 @@ ExprResult Parser::ParseOpenMPIteratorsExpr() {
     ColonProtectionRAIIObject ColonRAII(*this);
     // Parse <begin>
     SourceLocation Loc = Tok.getLocation();
-    ExprResult LHS = ParseCastExpression(CastParseKind::AnyCastExpr);
+    ExprResult LHS = ParseCastExpression(AnyCastExpr);
     ExprResult Begin = Actions.CorrectDelayedTyposInExpr(
         ParseRHSOfBinaryExpression(LHS, prec::Conditional));
     Begin = Actions.ActOnFinishFullExpr(Begin.get(), Loc,
@@ -4503,7 +4491,7 @@ ExprResult Parser::ParseOpenMPIteratorsExpr() {
 
     // Parse <end>
     Loc = Tok.getLocation();
-    LHS = ParseCastExpression(CastParseKind::AnyCastExpr);
+    LHS = ParseCastExpression(AnyCastExpr);
     ExprResult End = Actions.CorrectDelayedTyposInExpr(
         ParseRHSOfBinaryExpression(LHS, prec::Conditional));
     End = Actions.ActOnFinishFullExpr(End.get(), Loc,
@@ -4517,7 +4505,7 @@ ExprResult Parser::ParseOpenMPIteratorsExpr() {
       SecColonLoc = ConsumeToken();
       // Parse <step>
       Loc = Tok.getLocation();
-      LHS = ParseCastExpression(CastParseKind::AnyCastExpr);
+      LHS = ParseCastExpression(AnyCastExpr);
       Step = Actions.CorrectDelayedTyposInExpr(
           ParseRHSOfBinaryExpression(LHS, prec::Conditional));
       Step = Actions.ActOnFinishFullExpr(Step.get(), Loc,

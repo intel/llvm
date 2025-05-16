@@ -37,7 +37,6 @@ add_lldb_tool(lldb-dap
   Handler/ResponseHandler.cpp
   Handler/AttachRequestHandler.cpp
   Handler/BreakpointLocationsHandler.cpp
-  Handler/CancelRequestHandler.cpp
   Handler/CompileUnitsRequestHandler.cpp
   Handler/CompletionsHandler.cpp
   Handler/ConfigurationDoneRequestHandler.cpp

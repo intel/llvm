@@ -287,7 +287,7 @@ PrintingPolicy CGDebugInfo::getPrintingPolicy() const {
 
   PP.SuppressInlineNamespace =
       PrintingPolicy::SuppressInlineNamespaceMode::None;
-  PP.PrintAsCanonical = true;
+  PP.PrintCanonicalTypes = true;
   PP.UsePreferredNames = false;
   PP.AlwaysIncludeTypeForTemplateArgument = true;
   PP.UseEnumerators = false;
@@ -1068,23 +1068,8 @@ llvm::DIType *CGDebugInfo::CreateQualifiedType(QualType Ty,
   // additional ones.
   llvm::dwarf::Tag Tag = getNextQualifier(Qc);
   if (!Tag) {
-    if (Qc.getPointerAuth()) {
-      unsigned Key = Qc.getPointerAuth().getKey();
-      bool IsDiscr = Qc.getPointerAuth().isAddressDiscriminated();
-      unsigned ExtraDiscr = Qc.getPointerAuth().getExtraDiscriminator();
-      bool IsaPointer = Qc.getPointerAuth().isIsaPointer();
-      bool AuthenticatesNullValues =
-          Qc.getPointerAuth().authenticatesNullValues();
-      Qc.removePointerAuth();
-      assert(Qc.empty() && "Unknown type qualifier for debug info");
-      llvm::DIType *FromTy = getOrCreateType(QualType(T, 0), Unit);
-      return DBuilder.createPtrAuthQualifiedType(FromTy, Key, IsDiscr,
-                                                 ExtraDiscr, IsaPointer,
-                                                 AuthenticatesNullValues);
-    } else {
-      assert(Qc.empty() && "Unknown type qualifier for debug info");
-      return getOrCreateType(QualType(T, 0), Unit);
-    }
+    assert(Qc.empty() && "Unknown type qualifier for debug info");
+    return getOrCreateType(QualType(T, 0), Unit);
   }
 
   auto *FromTy = getOrCreateType(Qc.apply(CGM.getContext(), T), Unit);
@@ -2144,7 +2129,8 @@ llvm::DISubprogram *CGDebugInfo::CreateCXXMemberFunction(
       // Emit MS ABI vftable information.  There is only one entry for the
       // deleting dtor.
       const auto *DD = dyn_cast<CXXDestructorDecl>(Method);
-      GlobalDecl GD = DD ? GlobalDecl(DD, Dtor_Deleting) : GlobalDecl(Method);
+      GlobalDecl GD =
+          DD ? GlobalDecl(DD, Dtor_VectorDeleting) : GlobalDecl(Method);
       MethodVFTableLocation ML =
           CGM.getMicrosoftVTableContext().getMethodVFTableLocation(GD);
       VIndex = ML.Index;

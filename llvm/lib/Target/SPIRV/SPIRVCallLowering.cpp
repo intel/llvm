@@ -215,8 +215,11 @@ static SPIRVType *getArgSPIRVType(const Function &F, unsigned ArgIdx,
   Argument *Arg = F.getArg(ArgIdx);
   Type *ArgType = Arg->getType();
   if (isTypedPointerTy(ArgType)) {
-    return GR->getOrCreateSPIRVPointerType(
+    SPIRVType *ElementType = GR->getOrCreateSPIRVType(
         cast<TypedPointerType>(ArgType)->getElementType(), MIRBuilder,
+        SPIRV::AccessQualifier::ReadWrite, true);
+    return GR->getOrCreateSPIRVPointerType(
+        ElementType, MIRBuilder,
         addressSpaceToStorageClass(getPointerAddressSpace(ArgType), ST));
   }
 
@@ -229,8 +232,11 @@ static SPIRVType *getArgSPIRVType(const Function &F, unsigned ArgIdx,
   // spv_assign_ptr_type intrinsic or otherwise use default pointer element
   // type.
   if (hasPointeeTypeAttr(Arg)) {
+    SPIRVType *ElementType =
+        GR->getOrCreateSPIRVType(getPointeeTypeByAttr(Arg), MIRBuilder,
+                                 SPIRV::AccessQualifier::ReadWrite, true);
     return GR->getOrCreateSPIRVPointerType(
-        getPointeeTypeByAttr(Arg), MIRBuilder,
+        ElementType, MIRBuilder,
         addressSpaceToStorageClass(getPointerAddressSpace(ArgType), ST));
   }
 
@@ -253,8 +259,10 @@ static SPIRVType *getArgSPIRVType(const Function &F, unsigned ArgIdx,
     MetadataAsValue *VMD = cast<MetadataAsValue>(II->getOperand(1));
     Type *ElementTy =
         toTypedPointer(cast<ConstantAsMetadata>(VMD->getMetadata())->getType());
+    SPIRVType *ElementType = GR->getOrCreateSPIRVType(
+        ElementTy, MIRBuilder, SPIRV::AccessQualifier::ReadWrite, true);
     return GR->getOrCreateSPIRVPointerType(
-        ElementTy, MIRBuilder,
+        ElementType, MIRBuilder,
         addressSpaceToStorageClass(
             cast<ConstantInt>(II->getOperand(2))->getZExtValue(), ST));
   }
@@ -454,7 +462,7 @@ bool SPIRVCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
                    ? SPIRV::LinkageType::LinkOnceODR
                    : SPIRV::LinkageType::Export);
     buildOpDecorate(FuncVReg, MIRBuilder, SPIRV::Decoration::LinkageAttributes,
-                    {static_cast<uint32_t>(LnkTy)}, F.getName());
+                    {static_cast<uint32_t>(LnkTy)}, F.getGlobalIdentifier());
   }
 
   // Handle function pointers decoration

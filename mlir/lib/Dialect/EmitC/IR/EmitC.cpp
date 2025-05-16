@@ -465,6 +465,7 @@ ParseResult ForOp::parse(OpAsmParser &parser, OperationState &result) {
 
   // Parse the optional initial iteration arguments.
   SmallVector<OpAsmParser::Argument, 4> regionArgs;
+  SmallVector<OpAsmParser::UnresolvedOperand, 4> operands;
   regionArgs.push_back(inductionVariable);
 
   // Parse optional type, else assume Index.
@@ -1043,9 +1044,7 @@ Type emitc::ArrayType::parse(AsmParser &parser) {
 
   // Check that array is formed from allowed types.
   if (!isValidElementType(elementType))
-    return parser.emitError(typeLoc, "invalid array element type '")
-               << elementType << "'",
-           Type();
+    return parser.emitError(typeLoc, "invalid array element type"), Type();
   if (parser.parseGreater())
     return Type();
   return parser.getChecked<ArrayType>(dimensions, elementType);
@@ -1338,7 +1337,7 @@ Block &emitc::SwitchOp::getCaseBlock(unsigned idx) {
 
 void SwitchOp::getSuccessorRegions(
     RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &successors) {
-  llvm::append_range(successors, getRegions());
+  llvm::copy(getRegions(), std::back_inserter(successors));
 }
 
 void SwitchOp::getEntrySuccessorRegions(
@@ -1349,7 +1348,7 @@ void SwitchOp::getEntrySuccessorRegions(
   // If a constant was not provided, all regions are possible successors.
   auto arg = dyn_cast_or_null<IntegerAttr>(adaptor.getArg());
   if (!arg) {
-    llvm::append_range(successors, getRegions());
+    llvm::copy(getRegions(), std::back_inserter(successors));
     return;
   }
 

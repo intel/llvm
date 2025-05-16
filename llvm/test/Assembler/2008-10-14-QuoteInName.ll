@@ -1,5 +1,4 @@
-; RUN: llvm-as < %s | llvm-dis | FileCheck %s
+; RUN: llvm-as < %s | llvm-dis | grep "quote"
 ; RUN: verify-uselistorder %s
 
-; CHECK: quote
 @"a\22quote" = global i32 0

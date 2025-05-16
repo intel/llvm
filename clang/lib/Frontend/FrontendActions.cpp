@@ -263,20 +263,6 @@ GenerateModuleFromModuleMapAction::CreateOutputFile(CompilerInstance &CI,
                                     /*ForceUseTemporary=*/true);
 }
 
-bool GenerateModuleInterfaceAction::PrepareToExecuteAction(
-    CompilerInstance &CI) {
-  for (const auto &FIF : CI.getFrontendOpts().Inputs) {
-    if (const auto InputFormat = FIF.getKind().getFormat();
-        InputFormat != InputKind::Format::Source) {
-      CI.getDiagnostics().Report(
-          diag::err_frontend_action_unsupported_input_format)
-          << "module interface compilation" << FIF.getFile() << InputFormat;
-      return false;
-    }
-  }
-  return GenerateModuleAction::PrepareToExecuteAction(CI);
-}
-
 bool GenerateModuleInterfaceAction::BeginSourceFileAction(
     CompilerInstance &CI) {
   CI.getLangOpts().setCompilingModule(LangOptions::CMK_ModuleInterface);
@@ -791,11 +777,10 @@ namespace {
     /// Indicates that the AST file contains particular input file.
     ///
     /// \returns true to continue receiving the next input file, false to stop.
-    bool visitInputFile(StringRef FilenameAsRequested, StringRef Filename,
-                        bool isSystem, bool isOverridden,
-                        bool isExplicitModule) override {
+    bool visitInputFile(StringRef Filename, bool isSystem,
+                        bool isOverridden, bool isExplicitModule) override {
 
-      Out.indent(2) << "Input file: " << FilenameAsRequested;
+      Out.indent(2) << "Input file: " << Filename;
 
       if (isSystem || isOverridden || isExplicitModule) {
         Out << " [";
@@ -1230,9 +1215,9 @@ void GetDependenciesByModuleNameAction::ExecuteAction() {
   SourceManager &SM = PP.getSourceManager();
   FileID MainFileID = SM.getMainFileID();
   SourceLocation FileStart = SM.getLocForStartOfFile(MainFileID);
-  SmallVector<IdentifierLoc, 2> Path;
+  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
   IdentifierInfo *ModuleID = PP.getIdentifierInfo(ModuleName);
-  Path.emplace_back(FileStart, ModuleID);
+  Path.push_back(std::make_pair(ModuleID, FileStart));
   auto ModResult = CI.loadModule(FileStart, Path, Module::Hidden, false);
   PPCallbacks *CB = PP.getPPCallbacks();
   CB->moduleImport(SourceLocation(), Path, ModResult);

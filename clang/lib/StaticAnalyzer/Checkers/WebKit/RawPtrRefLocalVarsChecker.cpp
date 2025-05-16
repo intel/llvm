@@ -261,12 +261,6 @@ public:
           return DynamicRecursiveASTVisitor::TraverseCompoundStmt(CS);
         return true;
       }
-
-      bool TraverseClassTemplateDecl(ClassTemplateDecl *Decl) override {
-        if (isSmartPtrClass(safeGetName(Decl)))
-          return true;
-        return DynamicRecursiveASTVisitor::TraverseClassTemplateDecl(Decl);
-      }
     };
 
     LocalVisitor visitor(this);

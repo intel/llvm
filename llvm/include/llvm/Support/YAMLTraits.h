@@ -901,12 +901,11 @@ public:
   }
 
   template <typename T, typename Context>
-  void mapOptionalWithContext(const char *Key, T &Val, Context &Ctx) {
-    if constexpr (has_SequenceTraits<T>::value) {
-      // omit key/value instead of outputting empty sequence
-      if (this->canElideEmptySequence() && Val.begin() == Val.end())
-        return;
-    }
+  std::enable_if_t<has_SequenceTraits<T>::value, void>
+  mapOptionalWithContext(const char *Key, T &Val, Context &Ctx) {
+    // omit key/value instead of outputting empty sequence
+    if (this->canElideEmptySequence() && !(Val.begin() != Val.end()))
+      return;
     this->processKey(Key, Val, false, Ctx);
   }
 
@@ -915,6 +914,12 @@ public:
                               Context &Ctx) {
     this->processKeyWithDefault(Key, Val, std::optional<T>(),
                                 /*Required=*/false, Ctx);
+  }
+
+  template <typename T, typename Context>
+  std::enable_if_t<!has_SequenceTraits<T>::value, void>
+  mapOptionalWithContext(const char *Key, T &Val, Context &Ctx) {
+    this->processKey(Key, Val, false, Ctx);
   }
 
   template <typename T, typename Context, typename DefaultT>
@@ -1100,18 +1105,22 @@ yamlize(IO &io, T &Val, bool, Context &Ctx) {
 }
 
 template <typename T, typename Context>
-bool yamlizeMappingEnumInput(IO &io, T &Val) {
-  if constexpr (has_MappingEnumInputTraits<T, Context>::value) {
-    if (io.outputting())
-      return false;
-
-    io.beginEnumScalar();
-    MappingTraits<T>::enumInput(io, Val);
-    bool Matched = !io.matchEnumFallback();
-    io.endEnumScalar();
-    return Matched;
-  }
+std::enable_if_t<!has_MappingEnumInputTraits<T, Context>::value, bool>
+yamlizeMappingEnumInput(IO &io, T &Val) {
   return false;
+}
+
+template <typename T, typename Context>
+std::enable_if_t<has_MappingEnumInputTraits<T, Context>::value, bool>
+yamlizeMappingEnumInput(IO &io, T &Val) {
+  if (io.outputting())
+    return false;
+
+  io.beginEnumScalar();
+  MappingTraits<T>::enumInput(io, Val);
+  bool Matched = !io.matchEnumFallback();
+  io.endEnumScalar();
+  return Matched;
 }
 
 template <typename T, typename Context>

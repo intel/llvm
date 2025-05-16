@@ -22,8 +22,7 @@ void populateVectorToLLVMMatrixConversionPatterns(
 /// Collect a set of patterns to convert from the Vector dialect to LLVM.
 void populateVectorToLLVMConversionPatterns(
     const LLVMTypeConverter &converter, RewritePatternSet &patterns,
-    bool reassociateFPReductions = false, bool force32BitVectorIndices = false,
-    bool useVectorAlignment = false);
+    bool reassociateFPReductions = false, bool force32BitVectorIndices = false);
 
 namespace vector {
 void registerConvertVectorToLLVMInterface(DialectRegistry &registry);

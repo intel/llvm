@@ -203,7 +203,7 @@ CallInst *IRBuilderBase::CreateMemSetInline(Value *Dst, MaybeAlign DstAlign,
   CallInst *CI = CreateIntrinsic(Intrinsic::memset_inline, Tys, Ops);
 
   if (DstAlign)
-    cast<MemSetInst>(CI)->setDestAlignment(*DstAlign);
+    cast<MemSetInlineInst>(CI)->setDestAlignment(*DstAlign);
 
   // Set the TBAA info if present.
   if (TBAATag)
@@ -749,13 +749,21 @@ getStatepointBundles(std::optional<ArrayRef<T1>> TransitionArgs,
                      std::optional<ArrayRef<T2>> DeoptArgs,
                      ArrayRef<T3> GCArgs) {
   std::vector<OperandBundleDef> Rval;
-  if (DeoptArgs)
-    Rval.emplace_back("deopt", SmallVector<Value *, 16>(*DeoptArgs));
-  if (TransitionArgs)
-    Rval.emplace_back("gc-transition",
-                      SmallVector<Value *, 16>(*TransitionArgs));
-  if (GCArgs.size())
-    Rval.emplace_back("gc-live", SmallVector<Value *, 16>(GCArgs));
+  if (DeoptArgs) {
+    SmallVector<Value*, 16> DeoptValues;
+    llvm::append_range(DeoptValues, *DeoptArgs);
+    Rval.emplace_back("deopt", DeoptValues);
+  }
+  if (TransitionArgs) {
+    SmallVector<Value*, 16> TransitionValues;
+    llvm::append_range(TransitionValues, *TransitionArgs);
+    Rval.emplace_back("gc-transition", TransitionValues);
+  }
+  if (GCArgs.size()) {
+    SmallVector<Value*, 16> LiveValues;
+    llvm::append_range(LiveValues, GCArgs);
+    Rval.emplace_back("gc-live", LiveValues);
+  }
   return Rval;
 }
 
@@ -1085,7 +1093,9 @@ CallInst *IRBuilderBase::CreateConstrainedFPCall(
     Function *Callee, ArrayRef<Value *> Args, const Twine &Name,
     std::optional<RoundingMode> Rounding,
     std::optional<fp::ExceptionBehavior> Except) {
-  llvm::SmallVector<Value *, 6> UseArgs(Args);
+  llvm::SmallVector<Value *, 6> UseArgs;
+
+  append_range(UseArgs, Args);
 
   if (Intrinsic::hasConstrainedFPRoundingModeOperand(Callee->getIntrinsicID()))
     UseArgs.push_back(getConstrainedFPRounding(Rounding));

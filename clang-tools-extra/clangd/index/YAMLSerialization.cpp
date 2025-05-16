@@ -319,7 +319,6 @@ template <> struct MappingTraits<Ref> {
     MappingNormalization<NormalizedRefKind, RefKind> NKind(IO, R.Kind);
     IO.mapRequired("Kind", NKind->Kind);
     IO.mapRequired("Location", R.Location);
-    IO.mapOptional("Container", R.Container);
   }
 };
 

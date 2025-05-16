@@ -465,8 +465,7 @@ def Builtin_Function : Builtin_Type<"Function", "function"> {
 // IndexType
 //===----------------------------------------------------------------------===//
 
-def Builtin_Index : Builtin_Type<"Index", "index",
-    [VectorElementTypeInterface]> {
+def Builtin_Index : Builtin_Type<"Index", "index"> {
   let summary = "Integer-like type with unknown platform-dependent bit width";
   let description = [{
     Syntax:
@@ -496,8 +495,7 @@ def Builtin_Index : Builtin_Type<"Index", "index",
 // IntegerType
 //===----------------------------------------------------------------------===//
 
-def Builtin_Integer : Builtin_Type<"Integer", "integer",
-    [VectorElementTypeInterface]> {
+def Builtin_Integer : Builtin_Type<"Integer", "integer"> {
   let summary = "Integer type with arbitrary precision up to a fixed limit";
   let description = [{
     Syntax:
@@ -1269,11 +1267,7 @@ def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", "unranked_tensor", [
 // VectorType
 //===----------------------------------------------------------------------===//
 
-// Note: VectorType uses this type constraint instead of a plain
-// VectorElementTypeInterface, so that methods with mlir::Type are generated.
-// We may want to drop this in future and require VectorElementTypeInterface
-// for all methods.
-def Builtin_VectorTypeElementType : AnyTypeOf<[VectorElementTypeInterface]> {
+def Builtin_VectorTypeElementType : AnyTypeOf<[AnyInteger, Index, AnyFloat]> {
   let cppFunctionName = "isValidVectorTypeElementType";
 }
 

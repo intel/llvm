@@ -4,7 +4,10 @@
 define <16 x i8> @shuffle_16i8_vbsll_v_1(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_1:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 1
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI0_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI0_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14>
   ret <16 x i8> %shuffle
@@ -13,7 +16,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_1(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_2(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 2
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI1_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI1_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
   ret <16 x i8> %shuffle
@@ -22,7 +28,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_2(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_3(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_3:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 3
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI2_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI2_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12>
   ret <16 x i8> %shuffle
@@ -31,7 +40,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_3(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_4(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 4
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI3_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI3_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11>
   ret <16 x i8> %shuffle
@@ -40,7 +52,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_4(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_5(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_5:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 5
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI4_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI4_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10>
   ret <16 x i8> %shuffle
@@ -49,7 +64,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_5(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_6(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_6:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 6
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI5_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI5_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9>
   ret <16 x i8> %shuffle
@@ -58,7 +76,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_6(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_7(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_7:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 7
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI6_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI6_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8>
   ret <16 x i8> %shuffle
@@ -67,7 +88,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_7(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_8(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 8
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI7_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI7_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7>
   ret <16 x i8> %shuffle
@@ -76,7 +100,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_8(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_9(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_9:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 9
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI8_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI8_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6>
   ret <16 x i8> %shuffle
@@ -85,7 +112,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_9(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_10(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_10:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 10
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI9_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI9_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5>
   ret <16 x i8> %shuffle
@@ -94,7 +124,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_10(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_11(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_11:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 11
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI10_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI10_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3, i32 4>
   ret <16 x i8> %shuffle
@@ -103,7 +136,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_11(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_12(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_12:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 12
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI11_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI11_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2, i32 3>
   ret <16 x i8> %shuffle
@@ -112,7 +148,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_12(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_13(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_13:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 13
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI12_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI12_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1, i32 2>
   ret <16 x i8> %shuffle
@@ -121,7 +160,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_13(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_14(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_14:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 14
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI13_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI13_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0, i32 1>
   ret <16 x i8> %shuffle
@@ -130,7 +172,10 @@ define <16 x i8> @shuffle_16i8_vbsll_v_14(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsll_v_15(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsll_v_15:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 15
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI14_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI14_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 0>
   ret <16 x i8> %shuffle
@@ -139,7 +184,11 @@ define <16 x i8> @shuffle_16i8_vbsll_v_15(<16 x i8> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsll_v_2(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsll_v_2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 2
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI15_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI15_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 8, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6>
   ret <8 x i16> %shuffle
@@ -148,7 +197,11 @@ define <8 x i16> @shuffle_8i16_vbsll_v_2(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsll_v_4(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsll_v_4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 4
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI16_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI16_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 8, i32 8, i32 0, i32 1, i32 2, i32 3, i32 4, i32 5>
   ret <8 x i16> %shuffle
@@ -157,7 +210,11 @@ define <8 x i16> @shuffle_8i16_vbsll_v_4(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsll_v_6(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsll_v_6:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 6
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI17_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI17_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 8, i32 8, i32 8, i32 0, i32 1, i32 2, i32 3, i32 4>
   ret <8 x i16> %shuffle
@@ -166,7 +223,11 @@ define <8 x i16> @shuffle_8i16_vbsll_v_6(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsll_v_8(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsll_v_8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 8
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI18_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI18_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 8, i32 8, i32 8, i32 8, i32 0, i32 1, i32 2, i32 3>
   ret <8 x i16> %shuffle
@@ -175,7 +236,11 @@ define <8 x i16> @shuffle_8i16_vbsll_v_8(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsll_v_10(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsll_v_10:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 10
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI19_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI19_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 8, i32 8, i32 8, i32 8, i32 8, i32 0, i32 1, i32 2>
   ret <8 x i16> %shuffle
@@ -184,7 +249,11 @@ define <8 x i16> @shuffle_8i16_vbsll_v_10(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsll_v_12(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsll_v_12:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 12
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI20_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI20_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 0, i32 1>
   ret <8 x i16> %shuffle
@@ -193,7 +262,11 @@ define <8 x i16> @shuffle_8i16_vbsll_v_12(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsll_v_14(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsll_v_14:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 14
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI21_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI21_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 0>
   ret <8 x i16> %shuffle
@@ -202,7 +275,11 @@ define <8 x i16> @shuffle_8i16_vbsll_v_14(<8 x i16> %a) nounwind {
 define <4 x i32> @shuffle_4i32_vbsll_v_4(<4 x i32> %a) nounwind {
 ; CHECK-LABEL: shuffle_4i32_vbsll_v_4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 4
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI22_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI22_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.w $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <4 x i32> %a, <4 x i32> zeroinitializer, <4 x i32> <i32 4, i32 0, i32 1, i32 2>
   ret <4 x i32> %shuffle
@@ -211,7 +288,11 @@ define <4 x i32> @shuffle_4i32_vbsll_v_4(<4 x i32> %a) nounwind {
 define <4 x i32> @shuffle_4i32_vbsll_v_8(<4 x i32> %a) nounwind {
 ; CHECK-LABEL: shuffle_4i32_vbsll_v_8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 8
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI23_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI23_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.w $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <4 x i32> %a, <4 x i32> zeroinitializer, <4 x i32> <i32 4, i32 4, i32 0, i32 1>
   ret <4 x i32> %shuffle
@@ -220,7 +301,11 @@ define <4 x i32> @shuffle_4i32_vbsll_v_8(<4 x i32> %a) nounwind {
 define <4 x i32> @shuffle_4i32_vbsll_v_12(<4 x i32> %a) nounwind {
 ; CHECK-LABEL: shuffle_4i32_vbsll_v_12:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsll.v $vr0, $vr0, 12
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI24_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI24_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.w $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <4 x i32> %a, <4 x i32> zeroinitializer, <4 x i32> <i32 4, i32 4, i32 4, i32 0>
   ret <4 x i32> %shuffle
@@ -239,7 +324,10 @@ define <2 x i64> @shuffle_2i64_vbsll_v_8(<2 x i64> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_1(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_1:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 1
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI26_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI26_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16>
   ret <16 x i8> %shuffle
@@ -248,7 +336,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_1(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_2(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 2
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI27_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI27_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -257,7 +348,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_2(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_3(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_3:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 3
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI28_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI28_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -266,7 +360,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_3(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_4(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 4
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI29_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI29_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -275,7 +372,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_4(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_5(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_5:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 5
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI30_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI30_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -284,7 +384,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_5(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_6(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_6:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 6
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI31_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI31_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -293,7 +396,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_6(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_7(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_7:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 7
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI32_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI32_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -302,7 +408,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_7(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_8(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 8
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI33_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI33_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -311,7 +420,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_8(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_9(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_9:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 9
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI34_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI34_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -320,7 +432,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_9(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_10(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_10:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 10
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI35_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI35_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -329,7 +444,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_10(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_11(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_11:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 11
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI36_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI36_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -338,7 +456,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_11(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_12(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_12:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 12
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI37_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI37_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 12, i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -347,7 +468,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_12(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_13(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_13:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 13
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI38_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI38_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 13, i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -356,7 +480,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_13(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_14(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_14:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 14
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI39_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI39_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 14, i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -365,7 +492,10 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_14(<16 x i8> %a) nounwind {
 define <16 x i8> @shuffle_16i8_vbsrl_v_15(<16 x i8> %a) nounwind {
 ; CHECK-LABEL: shuffle_16i8_vbsrl_v_15:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 15
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI40_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI40_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.b $vr0, $vr2, $vr0, $vr1
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <16 x i8> %a, <16 x i8> zeroinitializer, <16 x i32> <i32 15, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16, i32 16>
   ret <16 x i8> %shuffle
@@ -374,7 +504,11 @@ define <16 x i8> @shuffle_16i8_vbsrl_v_15(<16 x i8> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsrl_v_2(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsrl_v_2:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 2
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI41_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI41_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8>
   ret <8 x i16> %shuffle
@@ -383,7 +517,11 @@ define <8 x i16> @shuffle_8i16_vbsrl_v_2(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsrl_v_4(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsrl_v_4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 4
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI42_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI42_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 8>
   ret <8 x i16> %shuffle
@@ -392,7 +530,11 @@ define <8 x i16> @shuffle_8i16_vbsrl_v_4(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsrl_v_6(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsrl_v_6:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 6
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI43_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI43_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 8, i32 8>
   ret <8 x i16> %shuffle
@@ -401,7 +543,11 @@ define <8 x i16> @shuffle_8i16_vbsrl_v_6(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsrl_v_8(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsrl_v_8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 8
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI44_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI44_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 8, i32 8, i32 8, i32 8>
   ret <8 x i16> %shuffle
@@ -410,7 +556,11 @@ define <8 x i16> @shuffle_8i16_vbsrl_v_8(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsrl_v_10(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsrl_v_10:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 10
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI45_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI45_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 5, i32 6, i32 7, i32 8, i32 8, i32 8, i32 8, i32 8>
   ret <8 x i16> %shuffle
@@ -419,7 +569,11 @@ define <8 x i16> @shuffle_8i16_vbsrl_v_10(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsrl_v_12(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsrl_v_12:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 12
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI46_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI46_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 6, i32 7, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8>
   ret <8 x i16> %shuffle
@@ -428,7 +582,11 @@ define <8 x i16> @shuffle_8i16_vbsrl_v_12(<8 x i16> %a) nounwind {
 define <8 x i16> @shuffle_8i16_vbsrl_v_14(<8 x i16> %a) nounwind {
 ; CHECK-LABEL: shuffle_8i16_vbsrl_v_14:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 14
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI47_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI47_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.h $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <8 x i16> %a, <8 x i16> zeroinitializer, <8 x i32> <i32 7, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8>
   ret <8 x i16> %shuffle
@@ -437,7 +595,11 @@ define <8 x i16> @shuffle_8i16_vbsrl_v_14(<8 x i16> %a) nounwind {
 define <4 x i32> @shuffle_4i32_vbsrl_v_4(<4 x i32> %a) nounwind {
 ; CHECK-LABEL: shuffle_4i32_vbsrl_v_4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 4
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI48_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI48_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.w $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <4 x i32> %a, <4 x i32> zeroinitializer, <4 x i32> <i32 1, i32 2, i32 3, i32 4>
   ret <4 x i32> %shuffle
@@ -446,7 +608,11 @@ define <4 x i32> @shuffle_4i32_vbsrl_v_4(<4 x i32> %a) nounwind {
 define <4 x i32> @shuffle_4i32_vbsrl_v_8(<4 x i32> %a) nounwind {
 ; CHECK-LABEL: shuffle_4i32_vbsrl_v_8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 8
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI49_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI49_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.w $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <4 x i32> %a, <4 x i32> zeroinitializer, <4 x i32> <i32 2, i32 3, i32 4, i32 4>
   ret <4 x i32> %shuffle
@@ -455,7 +621,11 @@ define <4 x i32> @shuffle_4i32_vbsrl_v_8(<4 x i32> %a) nounwind {
 define <4 x i32> @shuffle_4i32_vbsrl_v_12(<4 x i32> %a) nounwind {
 ; CHECK-LABEL: shuffle_4i32_vbsrl_v_12:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 12
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI50_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI50_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.w $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <4 x i32> %a, <4 x i32> zeroinitializer, <4 x i32> <i32 3, i32 4, i32 4, i32 4>
   ret <4 x i32> %shuffle
@@ -464,7 +634,11 @@ define <4 x i32> @shuffle_4i32_vbsrl_v_12(<4 x i32> %a) nounwind {
 define <2 x i64> @shuffle_2i64_vbsrl_v_8(<2 x i64> %a) nounwind {
 ; CHECK-LABEL: shuffle_2i64_vbsrl_v_8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vbsrl.v $vr0, $vr0, 8
+; CHECK-NEXT:    pcalau12i $a0, %pc_hi20(.LCPI51_0)
+; CHECK-NEXT:    vld $vr1, $a0, %pc_lo12(.LCPI51_0)
+; CHECK-NEXT:    vrepli.b $vr2, 0
+; CHECK-NEXT:    vshuf.d $vr1, $vr2, $vr0
+; CHECK-NEXT:    vori.b $vr0, $vr1, 0
 ; CHECK-NEXT:    ret
   %shuffle = shufflevector <2 x i64> %a, <2 x i64> zeroinitializer, <2 x i32> <i32 1, i32 2>
   ret <2 x i64> %shuffle

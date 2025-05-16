@@ -47,19 +47,16 @@ class MCSectionCOFF final : public MCSection {
   /// section (Characteristics & IMAGE_SCN_LNK_COMDAT) != 0
   mutable int Selection;
 
-  unsigned UniqueID;
-
 private:
   friend class MCContext;
   // The storage of Name is owned by MCContext's COFFUniquingMap.
   MCSectionCOFF(StringRef Name, unsigned Characteristics,
-                MCSymbol *COMDATSymbol, int Selection, unsigned UniqueID,
-                MCSymbol *Begin)
+                MCSymbol *COMDATSymbol, int Selection, MCSymbol *Begin)
       : MCSection(SV_COFF, Name, Characteristics & COFF::IMAGE_SCN_CNT_CODE,
                   Characteristics & COFF::IMAGE_SCN_CNT_UNINITIALIZED_DATA,
                   Begin),
         Characteristics(Characteristics), COMDATSymbol(COMDATSymbol),
-        Selection(Selection), UniqueID(UniqueID) {
+        Selection(Selection) {
     assert((Characteristics & 0x00F00000) == 0 &&
            "alignment must not be set upon section creation");
   }
@@ -74,9 +71,6 @@ public:
   int getSelection() const { return Selection; }
 
   void setSelection(int Selection) const;
-
-  bool isUnique() const { return UniqueID != NonUniqueID; }
-  unsigned getUniqueID() const { return UniqueID; }
 
   void printSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
                             raw_ostream &OS,

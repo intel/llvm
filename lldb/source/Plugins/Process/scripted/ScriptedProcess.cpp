@@ -191,7 +191,8 @@ Status ScriptedProcess::DoResume(RunDirection direction) {
     return GetInterface().Resume();
   // FIXME: Pipe reverse continue through Scripted Processes
   return Status::FromErrorStringWithFormatv(
-      "{0} does not support reverse execution of processes", GetPluginName());
+      "error: {0} does not support reverse execution of processes",
+      GetPluginName());
 }
 
 Status ScriptedProcess::DoAttach(const ProcessAttachInfo &attach_info) {

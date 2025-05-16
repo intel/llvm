@@ -17,11 +17,6 @@
 
 using namespace clang;
 
-bool OpenACCConstructDecl::classofKind(Kind K) {
-  return OpenACCDeclareDecl::classofKind(K) ||
-         OpenACCRoutineDecl::classofKind(K);
-}
-
 OpenACCDeclareDecl *
 OpenACCDeclareDecl::Create(ASTContext &Ctx, DeclContext *DC,
                            SourceLocation StartLoc, SourceLocation DirLoc,

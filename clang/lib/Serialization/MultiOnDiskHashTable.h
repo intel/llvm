@@ -103,9 +103,11 @@ private:
 
   /// The current set of on-disk tables.
   table_range tables() {
-    unsigned DropBegin = getMergedTable() ? 1 : 0;
-    return llvm::map_range(llvm::drop_begin(Tables, DropBegin),
-                           AsOnDiskTable());
+    auto Begin = Tables.begin(), End = Tables.end();
+    if (getMergedTable())
+      ++Begin;
+    return llvm::make_range(llvm::map_iterator(Begin, AsOnDiskTable()),
+                            llvm::map_iterator(End, AsOnDiskTable()));
   }
 
   MergedTable *getMergedTable() const {
@@ -209,7 +211,8 @@ public:
     OverriddenFiles.reserve(NumFiles);
     for (/**/; NumFiles != 0; --NumFiles)
       OverriddenFiles.push_back(InfoObj.ReadFileRef(Ptr));
-    llvm::append_range(PendingOverrides, OverriddenFiles);
+    PendingOverrides.insert(PendingOverrides.end(), OverriddenFiles.begin(),
+                            OverriddenFiles.end());
 
     // Read the OnDiskChainedHashTable header.
     storage_type Buckets = Data + BucketOffset;

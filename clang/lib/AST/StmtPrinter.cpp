@@ -1284,11 +1284,7 @@ void StmtPrinter::VisitSourceLocExpr(SourceLocExpr *Node) {
 }
 
 void StmtPrinter::VisitEmbedExpr(EmbedExpr *Node) {
-  // FIXME: Embed parameters are not reflected in the AST, so there is no way to
-  // print them yet.
-  OS << "#embed ";
-  OS << Node->getFileName();
-  OS << NL;
+  llvm::report_fatal_error("Not implemented");
 }
 
 void StmtPrinter::VisitConstantExpr(ConstantExpr *Node) {
@@ -1309,13 +1305,9 @@ void StmtPrinter::VisitDeclRefExpr(DeclRefExpr *Node) {
     Qualifier->print(OS, Policy);
   if (Node->hasTemplateKeyword())
     OS << "template ";
-
-  bool ForceAnonymous =
-      Policy.PrintAsCanonical && VD->getKind() == Decl::NonTypeTemplateParm;
   DeclarationNameInfo NameInfo = Node->getNameInfo();
   if (IdentifierInfo *ID = NameInfo.getName().getAsIdentifierInfo();
-      !ForceAnonymous &&
-      (ID || NameInfo.getName().getNameKind() != DeclarationName::Identifier)) {
+      ID || NameInfo.getName().getNameKind() != DeclarationName::Identifier) {
     if (Policy.CleanUglifiedParameters &&
         isa<ParmVarDecl, NonTypeTemplateParmDecl>(VD) && ID)
       OS << ID->deuglifiedName();

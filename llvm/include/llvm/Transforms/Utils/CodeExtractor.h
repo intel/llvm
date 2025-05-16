@@ -290,8 +290,7 @@ public:
     void emitFunctionBody(const ValueSet &inputs, const ValueSet &outputs,
                           const ValueSet &StructValues, Function *newFunction,
                           StructType *StructArgTy, BasicBlock *header,
-                          const ValueSet &SinkingCands,
-                          SmallVectorImpl<Value *> &NewValues);
+                          const ValueSet &SinkingCands);
 
     /// Generates a Basic Block that calls the extracted function.
     CallInst *emitReplacerCall(const ValueSet &inputs, const ValueSet &outputs,

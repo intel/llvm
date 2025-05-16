@@ -90,9 +90,10 @@ static const AvailabilityAttr *getAttrForPlatform(ASTContext &Context,
 /// the availability attribute that is selected.
 /// \param ClassReceiver If we're checking the method of a class message
 /// send, the class. Otherwise nullptr.
-std::pair<AvailabilityResult, const NamedDecl *>
-Sema::ShouldDiagnoseAvailabilityOfDecl(const NamedDecl *D, std::string *Message,
-                                       ObjCInterfaceDecl *ClassReceiver) {
+static std::pair<AvailabilityResult, const NamedDecl *>
+ShouldDiagnoseAvailabilityOfDecl(Sema &S, const NamedDecl *D,
+                                 std::string *Message,
+                                 ObjCInterfaceDecl *ClassReceiver) {
   AvailabilityResult Result = D->getAvailability(Message);
 
   // For typedefs, if the typedef declaration appears available look
@@ -146,12 +147,12 @@ done:
 
   // For +new, infer availability from -init.
   if (const auto *MD = dyn_cast<ObjCMethodDecl>(D)) {
-    if (ObjC().NSAPIObj && ClassReceiver) {
+    if (S.ObjC().NSAPIObj && ClassReceiver) {
       ObjCMethodDecl *Init = ClassReceiver->lookupInstanceMethod(
-          ObjC().NSAPIObj->getInitSelector());
+          S.ObjC().NSAPIObj->getInitSelector());
       if (Init && Result == AR_Available && MD->isClassMethod() &&
-          MD->getSelector() == ObjC().NSAPIObj->getNewSelector() &&
-          MD->definedInNSObject(getASTContext())) {
+          MD->getSelector() == S.ObjC().NSAPIObj->getNewSelector() &&
+          MD->definedInNSObject(S.getASTContext())) {
         Result = Init->getAvailability(Message);
         D = Init;
       }
@@ -160,6 +161,7 @@ done:
 
   return {Result, D};
 }
+
 
 /// whether we should emit a diagnostic for \c K and \c DeclVersion in
 /// the context of \c Ctx. For example, we should emit an unavailable diagnostic
@@ -875,7 +877,7 @@ void DiagnoseUnguardedAvailability::DiagnoseDeclAvailability(
   AvailabilityResult Result;
   const NamedDecl *OffendingDecl;
   std::tie(Result, OffendingDecl) =
-      SemaRef.ShouldDiagnoseAvailabilityOfDecl(D, nullptr, ReceiverClass);
+      ShouldDiagnoseAvailabilityOfDecl(SemaRef, D, nullptr, ReceiverClass);
   if (Result != AR_Available) {
     // All other diagnostic kinds have already been handled in
     // DiagnoseAvailabilityOfDecl.
@@ -1111,13 +1113,12 @@ void Sema::DiagnoseAvailabilityOfDecl(NamedDecl *D,
                                       bool ObjCPropertyAccess,
                                       bool AvoidPartialAvailabilityChecks,
                                       ObjCInterfaceDecl *ClassReceiver) {
-
   std::string Message;
   AvailabilityResult Result;
   const NamedDecl* OffendingDecl;
   // See if this declaration is unavailable, deprecated, or partial.
   std::tie(Result, OffendingDecl) =
-      ShouldDiagnoseAvailabilityOfDecl(D, &Message, ClassReceiver);
+      ShouldDiagnoseAvailabilityOfDecl(*this, D, &Message, ClassReceiver);
   if (Result == AR_Available)
     return;
 
@@ -1145,12 +1146,4 @@ void Sema::DiagnoseAvailabilityOfDecl(NamedDecl *D,
 
   EmitAvailabilityWarning(*this, Result, D, OffendingDecl, Message, Locs,
                           UnknownObjCClass, ObjCPDecl, ObjCPropertyAccess);
-}
-
-void Sema::DiagnoseAvailabilityOfDecl(NamedDecl *D,
-                                      ArrayRef<SourceLocation> Locs) {
-  DiagnoseAvailabilityOfDecl(D, Locs, /*UnknownObjCClass=*/nullptr,
-                             /*ObjCPropertyAccess=*/false,
-                             /*AvoidPartialAvailabilityChecks=*/false,
-                             /*ClassReceiver=*/nullptr);
 }

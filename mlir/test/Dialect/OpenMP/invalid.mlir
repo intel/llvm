@@ -1711,14 +1711,6 @@ func.func @omp_task(%mem: memref<1xf32>) {
 // -----
 
 func.func @omp_cancel() {
-  // expected-error @below {{Orphaned cancel construct}}
-  omp.cancel cancellation_construct_type(parallel)
-  return
-}
-
-// -----
-
-func.func @omp_cancel() {
   omp.sections {
     // expected-error @below {{cancel parallel must appear inside a parallel region}}
     omp.cancel cancellation_construct_type(parallel)
@@ -1746,18 +1738,6 @@ func.func @omp_cancel2() {
   omp.sections {
     // expected-error @below {{cancel loop must appear inside a worksharing-loop region}}
     omp.cancel cancellation_construct_type(loop)
-    // CHECK: omp.terminator
-    omp.terminator
-  }
-  return
-}
-
-// -----
-
-func.func @omp_cancel_taskloop() {
-  omp.sections {
-    // expected-error @below {{cancel taskgroup must appear inside a task region}}
-    omp.cancel cancellation_construct_type(taskgroup)
     // CHECK: omp.terminator
     omp.terminator
   }
@@ -1810,14 +1790,6 @@ func.func @omp_cancel5() -> () {
 // -----
 
 func.func @omp_cancellationpoint() {
-  // expected-error @below {{Orphaned cancellation point}}
-  omp.cancellation_point cancellation_construct_type(parallel)
-  return
-}
-
-// -----
-
-func.func @omp_cancellationpoint() {
   omp.sections {
     // expected-error @below {{cancellation point parallel must appear inside a parallel region}}
     omp.cancellation_point cancellation_construct_type(parallel)
@@ -1845,18 +1817,6 @@ func.func @omp_cancellationpoint2() {
   omp.sections {
     // expected-error @below {{cancellation point loop must appear inside a worksharing-loop region}}
     omp.cancellation_point cancellation_construct_type(loop)
-    // CHECK: omp.terminator
-    omp.terminator
-  }
-  return
-}
-
-// -----
-
-func.func @omp_cancellationpoint_taskgroup() {
-  omp.sections {
-    // expected-error @below {{cancellation point taskgroup must appear inside a task region}}
-    omp.cancellation_point cancellation_construct_type(taskgroup)
     // CHECK: omp.terminator
     omp.terminator
   }
@@ -2431,7 +2391,7 @@ func.func @omp_distribute_allocate(%data_var : memref<i32>, %lb : i32, %ub : i32
 // -----
 
 func.func @omp_distribute_nested_wrapper(%lb: index, %ub: index, %step: index) -> () {
-  // expected-error @below {{an 'omp.wsloop' nested wrapper is only allowed when a composite 'omp.parallel' is the direct parent}}
+  // expected-error @below {{an 'omp.wsloop' nested wrapper is only allowed when 'omp.parallel' is the direct parent}}
   omp.distribute {
     "omp.wsloop"() ({
       omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
@@ -2464,22 +2424,6 @@ func.func @omp_distribute_nested_wrapper3(%lb: index, %ub: index, %step: index) 
         "omp.yield"() : () -> ()
       }
     }) {omp.composite} : () -> ()
-  }
-}
-
-// -----
-
-func.func @omp_distribute_nested_wrapper4(%lb: index, %ub: index, %step: index) -> () {
-  omp.parallel {
-    // expected-error @below {{an 'omp.wsloop' nested wrapper is only allowed when a composite 'omp.parallel' is the direct parent}}
-    omp.distribute {
-      "omp.wsloop"() ({
-        omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
-          "omp.yield"() : () -> ()
-        }
-      }) {omp.composite} : () -> ()
-    } {omp.composite}
-    omp.terminator
   }
 }
 
@@ -2679,13 +2623,15 @@ func.func @masked_arg_count_mismatch(%arg0: i32, %arg1: i32) {
 
 // -----
 func.func @omp_parallel_missing_composite(%lb: index, %ub: index, %step: index) -> () {
-  // expected-error @below {{'omp.composite' attribute missing from composite operation}}
+  // expected-error@+1 {{'omp.composite' attribute missing from composite operation}}
   omp.parallel {
     omp.distribute {
-      omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
-        omp.yield
-      }
-    }
+      omp.wsloop {
+        omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
+          omp.yield
+        }
+      } {omp.composite}
+    } {omp.composite}
     omp.terminator
   }
   return
@@ -2707,32 +2653,9 @@ func.func @omp_parallel_invalid_composite(%lb: index, %ub: index, %step: index) 
 
 // -----
 func.func @omp_parallel_invalid_composite2(%lb: index, %ub: index, %step: index) -> () {
-  // expected-error @below {{unexpected OpenMP operation inside of composite 'omp.parallel': omp.barrier}}
+  // expected-error @below {{unexpected OpenMP operation inside of composite 'omp.parallel'}}
   omp.parallel {
     omp.barrier
-    omp.distribute {
-      omp.wsloop {
-        omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
-          omp.yield
-        }
-      } {omp.composite}
-    } {omp.composite}
-    omp.terminator
-  } {omp.composite}
-  return
-}
-
-// -----
-func.func @omp_parallel_invalid_composite3(%lb: index, %ub: index, %step: index) -> () {
-  // expected-error @below {{multiple 'omp.distribute' nested inside of 'omp.parallel'}}
-  omp.parallel {
-    omp.distribute {
-      omp.wsloop {
-        omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
-          omp.yield
-        }
-      } {omp.composite}
-    } {omp.composite}
     omp.distribute {
       omp.wsloop {
         omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
@@ -2864,7 +2787,7 @@ func.func @omp_taskloop_invalid_composite(%lb: index, %ub: index, %step: index) 
 
 func.func @omp_loop_invalid_nesting(%lb : index, %ub : index, %step : index) {
 
-  // expected-error @below {{'omp.loop' op expected to be a standalone loop wrapper}}
+  // expected-error @below {{`omp.loop` expected to be a standalone loop wrapper}}
   omp.loop {
     omp.simd {
       omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
@@ -2881,7 +2804,7 @@ func.func @omp_loop_invalid_nesting(%lb : index, %ub : index, %step : index) {
 func.func @omp_loop_invalid_nesting2(%lb : index, %ub : index, %step : index) {
 
   omp.simd {
-    // expected-error @below {{'omp.loop' op expected to be a standalone loop wrapper}}
+    // expected-error @below {{`omp.loop` expected to be a standalone loop wrapper}}
     omp.loop {
       omp.loop_nest (%iv) : index = (%lb) to (%ub) step (%step) {
         omp.yield
@@ -2908,7 +2831,7 @@ func.func @omp_loop_invalid_binding(%lb : index, %ub : index, %step : index) {
 // -----
 func.func @nested_wrapper(%idx : index) {
   omp.workshare {
-    // expected-error @below {{'omp.workshare.loop_wrapper' op expected to be a standalone loop wrapper}}
+    // expected-error @below {{cannot be composite}}
     omp.workshare.loop_wrapper {
       omp.simd {
         omp.loop_nest (%iv) : index = (%idx) to (%idx) step (%idx) {

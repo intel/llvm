@@ -153,18 +153,16 @@ def LLVM_PowOp : LLVM_BinarySameArgsIntrOpF<"pow">;
 def LLVM_PowIOp : LLVM_PowFI<"powi">;
 def LLVM_RintOp : LLVM_UnaryIntrOpF<"rint">;
 def LLVM_NearbyintOp : LLVM_UnaryIntrOpF<"nearbyint">;
-class LLVM_IntRoundIntrOpBase<string func, Type element = LLVM_AnyFloat> :
+class LLVM_IntRoundIntrOpBase<string func> :
         LLVM_OneResultIntrOp<func, [0], [0], [Pure]> {
-  let arguments = (ins element:$val);
+  let arguments = (ins LLVM_AnyFloat:$val);
   let assemblyFormat = "`(` operands `)` attr-dict `:` "
       "functional-type(operands, results)";
 }
-class LLVM_ScalarOrVectorIntRoundIntrOpBase<string func> :
-  LLVM_IntRoundIntrOpBase<func, LLVM_ScalarOrVectorOf<LLVM_AnyFloat>>;
-def LLVM_LroundOp : LLVM_ScalarOrVectorIntRoundIntrOpBase<"lround">;
+def LLVM_LroundOp : LLVM_IntRoundIntrOpBase<"lround">;
 def LLVM_LlroundOp : LLVM_IntRoundIntrOpBase<"llround">;
-def LLVM_LrintOp : LLVM_ScalarOrVectorIntRoundIntrOpBase<"lrint">;
-def LLVM_LlrintOp : LLVM_ScalarOrVectorIntRoundIntrOpBase<"llrint">;
+def LLVM_LrintOp : LLVM_IntRoundIntrOpBase<"lrint">;
+def LLVM_LlrintOp : LLVM_IntRoundIntrOpBase<"llrint">;
 def LLVM_BitReverseOp : LLVM_UnaryIntrOpI<"bitreverse">;
 def LLVM_ByteSwapOp : LLVM_UnaryIntrOpI<"bswap">;
 def LLVM_CountLeadingZerosOp : LLVM_CountZerosIntrOp<"ctlz">;
@@ -876,7 +874,7 @@ def LLVM_MatrixColumnMajorLoadOp : LLVM_OneResultIntrOp<"matrix.column.major.loa
     const llvm::DataLayout &dl =
       builder.GetInsertBlock()->getModule()->getDataLayout();
     llvm::Type *ElemTy = moduleTranslation.convertType(
-        op.getType().getElementType());
+        getVectorElementType(op.getType()));
     llvm::Align align = dl.getABITypeAlign(ElemTy);
     $res = mb.CreateColumnMajorLoad(
       ElemTy, $data, align, $stride, $isVolatile, $rows,
@@ -909,7 +907,7 @@ def LLVM_MatrixColumnMajorStoreOp : LLVM_ZeroResultIntrOp<"matrix.column.major.s
     llvm::MatrixBuilder mb(builder);
     const llvm::DataLayout &dl =
       builder.GetInsertBlock()->getModule()->getDataLayout();
-    Type elementType = op.getMatrix().getType().getElementType();
+    Type elementType = getVectorElementType(op.getMatrix().getType());
     llvm::Align align = dl.getABITypeAlign(
       moduleTranslation.convertType(elementType));
     mb.CreateColumnMajorStore(
@@ -1166,8 +1164,7 @@ def LLVM_vector_insert
   let extraClassDeclaration = [{
     uint64_t getVectorBitWidth(Type vector) {
       return getVectorNumElements(vector).getKnownMinValue() *
-             ::llvm::cast<VectorType>(vector).getElementType()
-                .getIntOrFloatBitWidth();
+             getVectorElementType(vector).getIntOrFloatBitWidth();
     }
     uint64_t getSrcVectorBitWidth() {
       return getVectorBitWidth(getSrcvec().getType());
@@ -1199,8 +1196,7 @@ def LLVM_vector_extract
   let extraClassDeclaration = [{
     uint64_t getVectorBitWidth(Type vector) {
       return getVectorNumElements(vector).getKnownMinValue() *
-             ::llvm::cast<VectorType>(vector).getElementType()
-                .getIntOrFloatBitWidth();
+             getVectorElementType(vector).getIntOrFloatBitWidth();
     }
     uint64_t getSrcVectorBitWidth() {
       return getVectorBitWidth(getSrcvec().getType());
@@ -1220,8 +1216,8 @@ def LLVM_vector_interleave2
             "result has twice as many elements as 'vec1'",
             And<[CPred<"getVectorNumElements($res.getType()) == "
                        "getVectorNumElements($vec1.getType()) * 2">,
-                 CPred<"::llvm::cast<VectorType>($vec1.getType()).getElementType() == "
-                       "::llvm::cast<VectorType>($res.getType()).getElementType()">]>>,
+                 CPred<"getVectorElementType($vec1.getType()) == "
+                       "getVectorElementType($res.getType())">]>>,
         ]>,
         Arguments<(ins LLVM_AnyVector:$vec1, LLVM_AnyVector:$vec2)>;
 

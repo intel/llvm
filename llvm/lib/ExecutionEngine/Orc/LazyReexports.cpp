@@ -323,7 +323,7 @@ void LazyReexportsManager::handleTransferResources(JITDylib &JD,
     } else {
       auto &SrcAddrs = I->second;
       auto &DstAddrs = J->second;
-      llvm::append_range(DstAddrs, SrcAddrs);
+      DstAddrs.insert(DstAddrs.end(), SrcAddrs.begin(), SrcAddrs.end());
       KeyToReentryAddrs.erase(I);
     }
     if (L)
@@ -503,7 +503,7 @@ void SimpleLazyReexportsSpeculator::onLazyReexportsTransfered(
   } else {
     auto &SrcNames = J->second;
     auto &DstNames = K->second;
-    llvm::append_range(DstNames, SrcNames);
+    DstNames.insert(DstNames.end(), SrcNames.begin(), SrcNames.end());
     MapForJD.erase(J);
   }
 }

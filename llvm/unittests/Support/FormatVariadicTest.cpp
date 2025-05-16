@@ -13,6 +13,7 @@
 #include "gtest/gtest.h"
 
 using namespace llvm;
+using ::testing::HasSubstr;
 
 // Compile-time tests templates in the detail namespace.
 namespace {

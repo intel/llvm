@@ -45,7 +45,8 @@ public:
                   const MCSubtargetInfo *STI) const override;
 
   std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
-  MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override;
+  const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
+
 
   bool writeNopData(raw_ostream &OS, uint64_t Count,
                     const MCSubtargetInfo *STI) const override;
@@ -53,6 +54,8 @@ public:
   bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
                              const MCValue &Target,
                              const MCSubtargetInfo *STI) override;
+
+  bool isMicroMips(const MCSymbol *Sym) const override;
 }; // class MipsAsmBackend
 
 } // namespace

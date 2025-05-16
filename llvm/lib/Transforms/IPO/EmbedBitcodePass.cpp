@@ -24,12 +24,14 @@ using namespace llvm;
 
 PreservedAnalyses EmbedBitcodePass::run(Module &M, ModuleAnalysisManager &AM) {
   if (M.getGlobalVariable("llvm.embedded.module", /*AllowInternal=*/true))
-    reportFatalUsageError("Can only embed the module once");
+    report_fatal_error("Can only embed the module once",
+                       /*gen_crash_diag=*/false);
 
   Triple T(M.getTargetTriple());
   if (T.getObjectFormat() != Triple::ELF)
-    reportFatalUsageError(
-        "EmbedBitcode pass currently only supports ELF object format");
+    report_fatal_error(
+        "EmbedBitcode pass currently only supports ELF object format",
+        /*gen_crash_diag=*/false);
 
   std::string Data;
   raw_string_ostream OS(Data);

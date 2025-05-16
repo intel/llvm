@@ -13,14 +13,13 @@
 
 // RUN: cp -r %t/frameworks2/A.framework %t/frameworks1
 
-// RUN: not clang-scan-deps -format experimental-full -o %t/deps2.json 2>%t/errs -- \
+// RUN: not clang-scan-deps -format experimental-full -o %t/deps2.json -- \
 // RUN:   %clang -fmodules -fmodules-cache-path=%t/cache \
 // RUN:   -F %t/frameworks1 -F %t/frameworks2 \
-// RUN:   -c %t/tu2.m -o %t/tu2.o
-// RUN: FileCheck --input-file=%t/errs %s
+// RUN:   -c %t/tu2.m -o %t/tu2.o \
+// RUN:     2>&1 | FileCheck %s
 
-// CHECK:      fatal error: module 'A' is defined in both '{{.*}}.pcm' and '{{.*}}.pcm'
-// CHECK-NEXT: note: compiled from '{{.*}}frameworks1{{.*}}' and '{{.*}}frameworks2{{.*}}'
+// CHECK: fatal error: module 'A' is defined in both '{{.*}}.pcm' and '{{.*}}.pcm'
 
 //--- frameworks2/A.framework/Modules/module.modulemap
 framework module A { header "A.h" }

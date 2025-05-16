@@ -9,7 +9,6 @@
 #include "FormatterBytecode.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/ValueObject/ValueObject.h"
-#include "lldb/ValueObject/ValueObjectConstResult.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Format.h"
@@ -490,10 +489,7 @@ llvm::Error Interpret(std::vector<ControlStackElement> &control,
         TYPE_CHECK(Object, String);
         auto name = data.Pop<std::string>();
         POP_VALOBJ(valobj);
-        if (auto index_or_err = valobj->GetIndexOfChildWithName(name))
-          data.Push((uint64_t)*index_or_err);
-        else
-          return index_or_err.takeError();
+        data.Push((uint64_t)valobj->GetIndexOfChildWithName(name));
         break;
       }
       case sel_get_type: {

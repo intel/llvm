@@ -222,8 +222,7 @@ static void addIntrinsicToSummary(
     auto *TypeId = dyn_cast<MDString>(TypeMDVal->getMetadata());
     if (!TypeId)
       break;
-    GlobalValue::GUID Guid =
-        GlobalValue::getGUIDAssumingExternalLinkage(TypeId->getString());
+    GlobalValue::GUID Guid = GlobalValue::getGUID(TypeId->getString());
 
     // Produce a summary from type.test intrinsics. We only summarize type.test
     // intrinsics that are used other than by an llvm.assume intrinsic.
@@ -251,8 +250,7 @@ static void addIntrinsicToSummary(
     auto *TypeId = dyn_cast<MDString>(TypeMDVal->getMetadata());
     if (!TypeId)
       break;
-    GlobalValue::GUID Guid =
-        GlobalValue::getGUIDAssumingExternalLinkage(TypeId->getString());
+    GlobalValue::GUID Guid = GlobalValue::getGUID(TypeId->getString());
 
     SmallVector<DevirtCallSite, 4> DevirtCalls;
     SmallVector<Instruction *, 4> LoadedPtrs;
@@ -523,6 +521,7 @@ static void computeFunctionSummary(
       auto *MemProfMD = I.getMetadata(LLVMContext::MD_memprof);
       if (MemProfMD) {
         std::vector<MIBInfo> MIBs;
+        std::vector<uint64_t> TotalSizes;
         std::vector<std::vector<ContextTotalSize>> ContextSizeInfos;
         for (auto &MDOp : MemProfMD->operands()) {
           auto *MIBMD = cast<const MDNode>(MDOp);
@@ -905,8 +904,7 @@ static void computeAliasSummary(ModuleSummaryIndex &Index, const GlobalAlias &A,
 
 // Set LiveRoot flag on entries matching the given value name.
 static void setLiveRoot(ModuleSummaryIndex &Index, StringRef Name) {
-  if (ValueInfo VI =
-          Index.getValueInfo(GlobalValue::getGUIDAssumingExternalLinkage(Name)))
+  if (ValueInfo VI = Index.getValueInfo(GlobalValue::getGUID(Name)))
     for (const auto &Summary : VI.getSummaryList())
       Summary->setLive(true);
 }
@@ -1158,7 +1156,9 @@ ModulePass *llvm::createModuleSummaryIndexWrapperPass() {
 }
 
 ModuleSummaryIndexWrapperPass::ModuleSummaryIndexWrapperPass()
-    : ModulePass(ID) {}
+    : ModulePass(ID) {
+  initializeModuleSummaryIndexWrapperPassPass(*PassRegistry::getPassRegistry());
+}
 
 bool ModuleSummaryIndexWrapperPass::runOnModule(Module &M) {
   auto *PSI = &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
@@ -1196,7 +1196,10 @@ char ImmutableModuleSummaryIndexWrapperPass::ID = 0;
 
 ImmutableModuleSummaryIndexWrapperPass::ImmutableModuleSummaryIndexWrapperPass(
     const ModuleSummaryIndex *Index)
-    : ImmutablePass(ID), Index(Index) {}
+    : ImmutablePass(ID), Index(Index) {
+  initializeImmutableModuleSummaryIndexWrapperPassPass(
+      *PassRegistry::getPassRegistry());
+}
 
 void ImmutableModuleSummaryIndexWrapperPass::getAnalysisUsage(
     AnalysisUsage &AU) const {

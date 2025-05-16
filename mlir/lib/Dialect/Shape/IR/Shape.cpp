@@ -649,29 +649,24 @@ OpFoldResult BroadcastOp::fold(FoldAdaptor adaptor) {
     return getShapes().front();
   }
 
-  if (!adaptor.getShapes().front())
+  // TODO: Support folding with more than 2 input shapes
+  if (getShapes().size() > 2)
     return nullptr;
 
-  SmallVector<int64_t, 6> resultShape(
-      llvm::cast<DenseIntElementsAttr>(adaptor.getShapes().front())
+  if (!adaptor.getShapes()[0] || !adaptor.getShapes()[1])
+    return nullptr;
+  auto lhsShape = llvm::to_vector<6>(
+      llvm::cast<DenseIntElementsAttr>(adaptor.getShapes()[0])
           .getValues<int64_t>());
+  auto rhsShape = llvm::to_vector<6>(
+      llvm::cast<DenseIntElementsAttr>(adaptor.getShapes()[1])
+          .getValues<int64_t>());
+  SmallVector<int64_t, 6> resultShape;
 
-  for (auto next : adaptor.getShapes().drop_front()) {
-    if (!next)
-      return nullptr;
-    auto nextShape = llvm::to_vector<6>(
-        llvm::cast<DenseIntElementsAttr>(next).getValues<int64_t>());
-
-    SmallVector<int64_t, 6> tmpShape;
-    // If the shapes are not compatible, we can't fold it.
-    // TODO: Fold to an "error".
-    if (!OpTrait::util::getBroadcastedShape(resultShape, nextShape, tmpShape))
-      return nullptr;
-
-    resultShape.clear();
-    std::copy(tmpShape.begin(), tmpShape.end(),
-              std::back_inserter(resultShape));
-  }
+  // If the shapes are not compatible, we can't fold it.
+  // TODO: Fold to an "error".
+  if (!OpTrait::util::getBroadcastedShape(lhsShape, rhsShape, resultShape))
+    return nullptr;
 
   Builder builder(getContext());
   return builder.getIndexTensorAttr(resultShape);

@@ -1100,7 +1100,6 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("ObjCSpaceAfterProperty", Style.ObjCSpaceAfterProperty);
     IO.mapOptional("ObjCSpaceBeforeProtocolList",
                    Style.ObjCSpaceBeforeProtocolList);
-    IO.mapOptional("OneLineFormatOffRegex", Style.OneLineFormatOffRegex);
     IO.mapOptional("PackConstructorInitializers",
                    Style.PackConstructorInitializers);
     IO.mapOptional("PenaltyBreakAssignment", Style.PenaltyBreakAssignment);
@@ -1436,7 +1435,7 @@ static void expandPresetsBraceWrapping(FormatStyle &Expanded) {
         /*AfterExternBlock=*/true,
         /*BeforeCatch=*/true,
         /*BeforeElse=*/true,
-        /*BeforeLambdaBody=*/true,
+        /*BeforeLambdaBody=*/false,
         /*BeforeWhile=*/true,
         /*IndentBraces=*/true,
         /*SplitEmptyFunction=*/true,
@@ -2428,23 +2427,19 @@ public:
 private:
   void editEnumTrailingComma(SmallVectorImpl<AnnotatedLine *> &Lines,
                              tooling::Replacements &Result) {
-    bool InEnumBraces = false;
-    const FormatToken *BeforeRBrace = nullptr;
     const auto &SourceMgr = Env.getSourceManager();
     for (auto *Line : Lines) {
       if (!Line->Children.empty())
         editEnumTrailingComma(Line->Children, Result);
+      if (!Line->Affected)
+        continue;
       for (const auto *Token = Line->First; Token && !Token->Finalized;
            Token = Token->Next) {
-        if (Token->isNot(TT_EnumRBrace)) {
-          if (Token->is(TT_EnumLBrace))
-            InEnumBraces = true;
-          else if (InEnumBraces && Token->isNot(tok::comment))
-            BeforeRBrace = Line->Affected ? Token : nullptr;
+        if (Token->isNot(TT_EnumRBrace))
           continue;
-        }
-        InEnumBraces = false;
-        if (!BeforeRBrace) // Empty braces or Line not affected.
+        const auto *BeforeRBrace = Token->getPreviousNonComment();
+        assert(BeforeRBrace);
+        if (BeforeRBrace->is(TT_EnumLBrace)) // Empty braces.
           continue;
         if (BeforeRBrace->is(tok::comma)) {
           if (Style.EnumTrailingComma == FormatStyle::ETC_Remove)
@@ -2453,7 +2448,6 @@ private:
           cantFail(Result.add(tooling::Replacement(
               SourceMgr, BeforeRBrace->Tok.getEndLoc(), 0, ",")));
         }
-        BeforeRBrace = nullptr;
       }
     }
   }
@@ -3084,7 +3078,7 @@ private:
       for (const FormatToken *FormatTok = Line->First; FormatTok;
            FormatTok = FormatTok->Next) {
         if ((FormatTok->Previous && FormatTok->Previous->is(tok::at) &&
-             (FormatTok->isNot(tok::objc_not_keyword) ||
+             (FormatTok->Tok.getObjCKeywordID() != tok::objc_not_keyword ||
               FormatTok->isOneOf(tok::numeric_constant, tok::l_square,
                                  tok::l_brace))) ||
             (FormatTok->Tok.isAnyIdentifier() &&
@@ -3245,11 +3239,11 @@ static void sortCppIncludes(const FormatStyle &Style,
   }
 
   // Deduplicate #includes.
-  Indices.erase(llvm::unique(Indices,
-                             [&](unsigned LHSI, unsigned RHSI) {
-                               return Includes[LHSI].Text.trim() ==
-                                      Includes[RHSI].Text.trim();
-                             }),
+  Indices.erase(std::unique(Indices.begin(), Indices.end(),
+                            [&](unsigned LHSI, unsigned RHSI) {
+                              return Includes[LHSI].Text.trim() ==
+                                     Includes[RHSI].Text.trim();
+                            }),
                 Indices.end());
 
   int CurrentCategory = Includes.front().Category;
@@ -3477,10 +3471,10 @@ static void sortJavaImports(const FormatStyle &Style,
   });
 
   // Deduplicate imports.
-  Indices.erase(llvm::unique(Indices,
-                             [&](unsigned LHSI, unsigned RHSI) {
-                               return Imports[LHSI].Text == Imports[RHSI].Text;
-                             }),
+  Indices.erase(std::unique(Indices.begin(), Indices.end(),
+                            [&](unsigned LHSI, unsigned RHSI) {
+                              return Imports[LHSI].Text == Imports[RHSI].Text;
+                            }),
                 Indices.end());
 
   bool CurrentIsStatic = Imports[Indices.front()].IsStatic;
@@ -3597,12 +3591,13 @@ tooling::Replacements sortIncludes(const FormatStyle &Style, StringRef Code,
     return Replaces;
   if (isLikelyXml(Code))
     return Replaces;
-  if (Style.isJavaScript()) {
-    if (isMpegTS(Code))
-      return Replaces;
-    return sortJavaScriptImports(Style, Code, Ranges, FileName);
+  if (Style.Language == FormatStyle::LanguageKind::LK_JavaScript &&
+      isMpegTS(Code)) {
+    return Replaces;
   }
-  if (Style.isJava())
+  if (Style.Language == FormatStyle::LanguageKind::LK_JavaScript)
+    return sortJavaScriptImports(Style, Code, Ranges, FileName);
+  if (Style.Language == FormatStyle::LanguageKind::LK_Java)
     return sortJavaImports(Style, Code, Ranges, FileName, Replaces);
   if (Style.isCpp())
     sortCppIncludes(Style, Code, Ranges, FileName, Replaces, Cursor);
@@ -3782,7 +3777,7 @@ reformat(const FormatStyle &Style, StringRef Code,
     return {tooling::Replacements(), 0};
   if (isLikelyXml(Code))
     return {tooling::Replacements(), 0};
-  if (Expanded.isJavaScript() && isMpegTS(Code))
+  if (Expanded.Language == FormatStyle::LK_JavaScript && isMpegTS(Code))
     return {tooling::Replacements(), 0};
 
   // JSON only needs the formatting passing.
@@ -4091,10 +4086,8 @@ static FormatStyle::LanguageKind getLanguageByFileName(StringRef FileName) {
     return FormatStyle::LK_TableGen;
   if (FileName.ends_with_insensitive(".cs"))
     return FormatStyle::LK_CSharp;
-  if (FileName.ends_with_insensitive(".json") ||
-      FileName.ends_with_insensitive(".ipynb")) {
+  if (FileName.ends_with_insensitive(".json"))
     return FormatStyle::LK_Json;
-  }
   if (FileName.ends_with_insensitive(".sv") ||
       FileName.ends_with_insensitive(".svh") ||
       FileName.ends_with_insensitive(".v") ||

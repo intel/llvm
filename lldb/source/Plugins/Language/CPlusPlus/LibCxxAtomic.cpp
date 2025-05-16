@@ -96,7 +96,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   ValueObject *m_real_child = nullptr;
@@ -130,13 +130,9 @@ lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::GetChildAtIndex(
   return nullptr;
 }
 
-llvm::Expected<size_t>
-lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::
+size_t lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::
     GetIndexOfChildWithName(ConstString name) {
-  if (name == "Value")
-    return 0;
-  return llvm::createStringError("Type has no child named '%s'",
-                                 name.AsCString());
+  return name == "Value" ? 0 : UINT32_MAX;
 }
 
 SyntheticChildrenFrontEnd *

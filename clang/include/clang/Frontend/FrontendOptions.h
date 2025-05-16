@@ -530,10 +530,6 @@ public:
   /// Output Path for module output file.
   std::string ModuleOutputPath;
 
-  /// Output path to dump ranges of deserialized declarations to use as
-  /// minimization hints.
-  std::string DumpMinimizationHintsPath;
-
 public:
   FrontendOptions()
       : DisableFree(false), RelocatablePCH(false), ShowHelp(false),

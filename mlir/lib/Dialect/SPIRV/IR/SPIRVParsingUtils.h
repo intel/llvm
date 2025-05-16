@@ -49,6 +49,7 @@ ParseResult
 parseEnumKeywordAttr(EnumClass &value, ParserType &parser,
                      StringRef attrName = spirv::attributeName<EnumClass>()) {
   StringRef keyword;
+  SmallVector<NamedAttribute, 1> attr;
   auto loc = parser.getCurrentLocation();
   if (parser.parseKeyword(&keyword))
     return failure();

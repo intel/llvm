@@ -89,7 +89,8 @@ bool IncludeFixerActionFactory::runInvocation(
   assert(Invocation->getFrontendOpts().Inputs.size() == 1);
 
   // Set up Clang.
-  CompilerInstance Compiler(std::move(Invocation), std::move(PCHContainerOps));
+  clang::CompilerInstance Compiler(PCHContainerOps);
+  Compiler.setInvocation(std::move(Invocation));
   Compiler.setFileManager(Files);
 
   // Create the compiler's actual diagnostics engine. We want to drop all

@@ -243,7 +243,7 @@ void dwarfgen::LineTable::addByte(uint8_t Value) {
 void dwarfgen::LineTable::addStandardOpcode(uint8_t Opcode,
                                             ArrayRef<ValueAndLength> Operands) {
   Contents.push_back({Opcode, Byte});
-  llvm::append_range(Contents, Operands);
+  Contents.insert(Contents.end(), Operands.begin(), Operands.end());
 }
 
 void dwarfgen::LineTable::addExtendedOpcode(uint64_t Length, uint8_t Opcode,
@@ -251,7 +251,7 @@ void dwarfgen::LineTable::addExtendedOpcode(uint64_t Length, uint8_t Opcode,
   Contents.push_back({0, Byte});
   Contents.push_back({Length, ULEB});
   Contents.push_back({Opcode, Byte});
-  llvm::append_range(Contents, Operands);
+  Contents.insert(Contents.end(), Operands.begin(), Operands.end());
 }
 
 void dwarfgen::LineTable::generate(MCContext &MC, AsmPrinter &Asm) const {

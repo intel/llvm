@@ -56,12 +56,12 @@ static void writeSourceFileRef(const ClangDocContext &CDCtx, const Location &L,
                                raw_ostream &OS) {
 
   if (!CDCtx.RepositoryUrl) {
-    OS << "*Defined at " << L.Filename << "#"
-       << std::to_string(L.StartLineNumber) << "*";
+    OS << "*Defined at " << L.Filename << "#" << std::to_string(L.LineNumber)
+       << "*";
   } else {
 
     OS << formatv("*Defined at [#{0}{1}{2}](#{0}{1}{3})*",
-                  CDCtx.RepositoryLinePrefix.value_or(""), L.StartLineNumber,
+                  CDCtx.RepositoryLinePrefix.value_or(""), L.LineNumber,
                   L.Filename, *CDCtx.RepositoryUrl);
   }
   OS << "\n\n";
@@ -169,12 +169,15 @@ static void genMarkdown(const ClangDocContext &CDCtx, const FunctionInfo &I,
     First = false;
   }
   writeHeader(I.Name, 3, OS);
-  StringRef Access = getAccessSpelling(I.Access);
-  writeLine(genItalic(Twine(Access) + (!Access.empty() ? " " : "") +
-                      (I.IsStatic ? "static " : "") +
-                      I.ReturnType.Type.QualName.str() + " " + I.Name.str() +
-                      "(" + Twine(Stream.str()) + ")"),
-            OS);
+  std::string Access = getAccessSpelling(I.Access).str();
+  if (Access != "")
+    writeLine(genItalic(Access + " " + I.ReturnType.Type.QualName + " " +
+                        I.Name + "(" + Stream.str() + ")"),
+              OS);
+  else
+    writeLine(genItalic(I.ReturnType.Type.QualName + " " + I.Name + "(" +
+                        Stream.str() + ")"),
+              OS);
 
   maybeWriteSourceFileRef(OS, CDCtx, I.DefLoc);
 
@@ -259,11 +262,11 @@ static void genMarkdown(const ClangDocContext &CDCtx, const RecordInfo &I,
   if (!I.Members.empty()) {
     writeHeader("Members", 2, OS);
     for (const auto &Member : I.Members) {
-      StringRef Access = getAccessSpelling(Member.Access);
-      writeLine(Twine(Access) + (Access.empty() ? "" : " ") +
-                    (Member.IsStatic ? "static " : "") +
-                    Member.Type.Name.str() + " " + Member.Name.str(),
-                OS);
+      std::string Access = getAccessSpelling(Member.Access).str();
+      if (Access != "")
+        writeLine(Access + " " + Member.Type.Name + " " + Member.Name, OS);
+      else
+        writeLine(Member.Type.Name + " " + Member.Name, OS);
     }
     writeNewLine(OS);
   }

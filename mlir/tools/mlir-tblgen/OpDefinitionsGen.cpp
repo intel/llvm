@@ -1802,7 +1802,7 @@ void OpEmitter::genPropertiesSupportForBytecode(
       writePropertiesMethod << tgfmt(writeBytecodeSegmentSizeLegacy, &fmtCtxt);
     }
     if (const auto *namedProperty =
-            dyn_cast<const NamedProperty *>(attrOrProp)) {
+            attrOrProp.dyn_cast<const NamedProperty *>()) {
       StringRef name = namedProperty->name;
       readPropertiesMethod << formatv(
           R"(
@@ -1828,7 +1828,7 @@ void OpEmitter::genPropertiesSupportForBytecode(
           name, tgfmt(namedProperty->prop.getWriteToMlirBytecodeCall(), &fctx));
       continue;
     }
-    const auto *namedAttr = dyn_cast<const AttributeMetadata *>(attrOrProp);
+    const auto *namedAttr = attrOrProp.dyn_cast<const AttributeMetadata *>();
     StringRef name = namedAttr->attrName;
     if (namedAttr->isRequired) {
       readPropertiesMethod << formatv(R"(

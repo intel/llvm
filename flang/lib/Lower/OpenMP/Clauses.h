@@ -17,7 +17,6 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Frontend/OpenMP/ClauseT.h"
-#include "llvm/Frontend/OpenMP/OMP.h.inc"
 
 #include <optional>
 #include <type_traits>
@@ -307,8 +306,7 @@ using Write = tomp::clause::WriteT<TypeTy, IdTy, ExprTy>;
 using tomp::type::operator==;
 
 struct CancellationConstructType {
-  using WrapperTrait = std::true_type;
-  llvm::omp::CancellationConstructType v;
+  using EmptyTrait = std::true_type;
 };
 struct Depobj {
   using EmptyTrait = std::true_type;

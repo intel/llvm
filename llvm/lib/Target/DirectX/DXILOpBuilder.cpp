@@ -478,9 +478,10 @@ DXILOpBuilder::DXILOpBuilder(Module &M) : M(M), IRB(M.getContext()) {
   ShaderStage = TT.getEnvironment();
   // Ensure Environment type is known
   if (ShaderStage == Triple::UnknownEnvironment) {
-    reportFatalUsageError(
+    report_fatal_error(
         Twine(DXILVersion.getAsString()) +
-        ": Unknown Compilation Target Shader Stage specified ");
+            ": Unknown Compilation Target Shader Stage specified ",
+        /*gen_crash_diag*/ false);
   }
 }
 

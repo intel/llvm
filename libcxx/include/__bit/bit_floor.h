@@ -12,6 +12,7 @@
 #include <__bit/bit_log2.h>
 #include <__concepts/arithmetic.h>
 #include <__config>
+#include <limits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header

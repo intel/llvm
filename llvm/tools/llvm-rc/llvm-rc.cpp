@@ -371,7 +371,7 @@ RcOptions parseWindresOptions(ArrayRef<const char *> ArgsArr,
   }
 
   std::vector<std::string> FileArgs = InputArgs.getAllArgValues(WINDRES_INPUT);
-  llvm::append_range(FileArgs, InputArgsArray);
+  FileArgs.insert(FileArgs.end(), InputArgsArray.begin(), InputArgsArray.end());
 
   if (InputArgs.hasArg(WINDRES_input)) {
     Opts.InputFile = InputArgs.getLastArgValue(WINDRES_input).str();
@@ -519,7 +519,8 @@ RcOptions parseRcOptions(ArrayRef<const char *> ArgsArr,
   }
 
   std::vector<std::string> InArgsInfo = InputArgs.getAllArgValues(OPT_INPUT);
-  llvm::append_range(InArgsInfo, InputArgsArray);
+  InArgsInfo.insert(InArgsInfo.end(), InputArgsArray.begin(),
+                    InputArgsArray.end());
   if (InArgsInfo.size() != 1) {
     fatalError("Exactly one input file should be provided.");
   }

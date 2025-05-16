@@ -61,7 +61,7 @@ void OptionValueFormatEntity::DumpValue(const ExecutionContext *exe_ctx,
 }
 
 llvm::json::Value
-OptionValueFormatEntity::ToJSON(const ExecutionContext *exe_ctx) const {
+OptionValueFormatEntity::ToJSON(const ExecutionContext *exe_ctx) {
   std::string escaped;
   EscapeBackticks(m_current_format, escaped);
   return escaped;

@@ -1575,7 +1575,8 @@ static void addSymbolizer(
   ArrayRef<uint64_t> LabelAddrsRef = SymbolizerPtr->getReferencedAddresses();
   // Copy and sort to remove duplicates.
   std::vector<uint64_t> LabelAddrs;
-  llvm::append_range(LabelAddrs, LabelAddrsRef);
+  LabelAddrs.insert(LabelAddrs.end(), LabelAddrsRef.begin(),
+                    LabelAddrsRef.end());
   llvm::sort(LabelAddrs);
   LabelAddrs.resize(llvm::unique(LabelAddrs) - LabelAddrs.begin());
   // Add the labels.

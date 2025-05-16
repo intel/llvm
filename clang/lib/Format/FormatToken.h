@@ -621,9 +621,6 @@ public:
   bool MacroParent = false;
 
   bool is(tok::TokenKind Kind) const { return Tok.is(Kind); }
-  bool is(tok::ObjCKeywordKind Kind) const {
-    return Tok.getObjCKeywordID() == Kind;
-  }
   bool is(TokenType TT) const { return getType() == TT; }
   bool is(const IdentifierInfo *II) const {
     return II && II == Tok.getIdentifierInfo();
@@ -681,6 +678,10 @@ public:
     return isOneOf(tok::kw___attribute, tok::kw___declspec, TT_AttributeMacro);
   }
 
+  bool isObjCAtKeyword(tok::ObjCKeywordKind Kind) const {
+    return Tok.isObjCAtKeyword(Kind);
+  }
+
   bool isAccessSpecifierKeyword() const {
     return isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private);
   }
@@ -707,8 +708,10 @@ public:
 
   bool isObjCAccessSpecifier() const {
     return is(tok::at) && Next &&
-           Next->isOneOf(tok::objc_public, tok::objc_protected,
-                         tok::objc_package, tok::objc_private);
+           (Next->isObjCAtKeyword(tok::objc_public) ||
+            Next->isObjCAtKeyword(tok::objc_protected) ||
+            Next->isObjCAtKeyword(tok::objc_package) ||
+            Next->isObjCAtKeyword(tok::objc_private));
   }
 
   /// Returns whether \p Tok is ([{ or an opening < of a template or in

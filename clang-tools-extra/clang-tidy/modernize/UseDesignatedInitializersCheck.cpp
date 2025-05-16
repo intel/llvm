@@ -121,9 +121,8 @@ void UseDesignatedInitializersCheck::registerMatchers(MatchFinder *Finder) {
       hasAnyBase(hasType(cxxRecordDecl(has(fieldDecl()))));
   Finder->addMatcher(
       initListExpr(
-          hasType(cxxRecordDecl(
-                      RestrictToPODTypes ? isPOD() : isAggregate(),
-                      unless(anyOf(HasBaseWithFields, hasName("::std::array"))))
+          hasType(cxxRecordDecl(RestrictToPODTypes ? isPOD() : isAggregate(),
+                                unless(HasBaseWithFields))
                       .bind("type")),
           IgnoreSingleElementAggregates ? hasMoreThanOneElement() : anything(),
           unless(isFullyDesignated()))

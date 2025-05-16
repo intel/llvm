@@ -1,15 +1,20 @@
+set(LLVM_LINK_COMPONENTS
+  Support
+  )
 add_clang_unittest(ParseTests
   ParseHLSLRootSignatureTest.cpp
-  CLANG_LIBS
+  )
+clang_target_link_libraries(ParseTests
+  PRIVATE
   clangAST
   clangBasic
   clangLex
   clangParse
   clangSema
-  LINK_LIBS
+  )
+target_link_libraries(ParseTests
+  PRIVATE
   LLVMTestingAnnotations
   LLVMTestingSupport
   clangTesting
-  LLVM_COMPONENTS
-  Support
   )

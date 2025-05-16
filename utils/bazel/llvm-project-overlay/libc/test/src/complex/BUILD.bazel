@@ -1,14 +1,4 @@
-# This file is licensed under the Apache License v2.0 with LLVM Exceptions.
-# See https://llvm.org/LICENSE.txt for license information.
-# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-# Tests for LLVM libc complex.h functions.
-
 load("//libc/test:libc_test_rules.bzl", "libc_test")
-
-package(default_visibility = ["//visibility:public"])
-
-licenses(["notice"])
 
 [
     libc_test(
@@ -17,7 +7,8 @@ licenses(["notice"])
             "CImagTest.h",
             func_name + "_test.cpp",
         ],
-        deps = ["//libc:func_name".replace("func_name", func_name)] + [
+        libc_function_deps = ["//libc:func_name".replace("func_name", func_name)],
+        deps = [
             "//libc:hdr_math_macros",
             "//libc/test/UnitTest:fp_test_helpers",
         ],
@@ -38,7 +29,8 @@ licenses(["notice"])
             "ConjTest.h",
             func_name + "_test.cpp",
         ],
-        deps = ["//libc:func_name".replace("func_name", func_name)] + [
+        libc_function_deps = ["//libc:func_name".replace("func_name", func_name)],
+        deps = [
             "//libc:hdr_math_macros",
             "//libc/test/UnitTest:fp_test_helpers",
         ],
@@ -59,7 +51,8 @@ licenses(["notice"])
             "CprojTest.h",
             func_name + "_test.cpp",
         ],
-        deps = ["//libc:func_name".replace("func_name", func_name)] + [
+        libc_function_deps = ["//libc:func_name".replace("func_name", func_name)],
+        deps = [
             "//libc:hdr_math_macros",
             "//libc/test/UnitTest:fp_test_helpers",
         ] + (["//libc/utils/MPCWrapper:mpc_wrapper"] if func_name == "cprojf" else []),
@@ -80,7 +73,8 @@ licenses(["notice"])
             "CRealTest.h",
             func_name + "_test.cpp",
         ],
-        deps = ["//libc:func_name".replace("func_name", func_name)] + [
+        libc_function_deps = ["//libc:func_name".replace("func_name", func_name)],
+        deps = [
             "//libc:hdr_math_macros",
             "//libc/test/UnitTest:fp_test_helpers",
         ],

@@ -106,24 +106,21 @@ public:
   /// be converted to integer, violate subtarget's specifications, or are not
   /// compatible with minimum/maximum number of waves limited by flat work group
   /// size, register usage, and/or lds usage.
-  std::pair<unsigned, unsigned> getWavesPerEU(const Function &F) const;
+  std::pair<unsigned, unsigned> getWavesPerEU(const Function &F) const {
+    // Default/requested minimum/maximum flat work group sizes.
+    std::pair<unsigned, unsigned> FlatWorkGroupSizes = getFlatWorkGroupSizes(F);
+    return getWavesPerEU(F, FlatWorkGroupSizes);
+  }
 
-  /// Overload which uses the specified values for the flat workgroup sizes and
-  /// LDS space rather than querying the function itself. \p FlatWorkGroupSizes
-  /// should correspond to the function's value for getFlatWorkGroupSizes and \p
-  /// LDSBytes to the per-workgroup LDS allocation.
+  /// Overload which uses the specified values for the flat work group sizes,
+  /// rather than querying the function itself. \p FlatWorkGroupSizes Should
+  /// correspond to the function's value for getFlatWorkGroupSizes.
   std::pair<unsigned, unsigned>
-  getWavesPerEU(std::pair<unsigned, unsigned> FlatWorkGroupSizes,
-                unsigned LDSBytes, const Function &F) const;
-
-  /// Returns the target minimum/maximum number of waves per EU. This is based
-  /// on the minimum/maximum number of \p RequestedWavesPerEU and further
-  /// limited by the maximum achievable occupancy derived from the range of \p
-  /// FlatWorkGroupSizes and number of \p LDSBytes per workgroup.
-  std::pair<unsigned, unsigned>
-  getEffectiveWavesPerEU(std::pair<unsigned, unsigned> RequestedWavesPerEU,
-                         std::pair<unsigned, unsigned> FlatWorkGroupSizes,
-                         unsigned LDSBytes) const;
+  getWavesPerEU(const Function &F,
+                std::pair<unsigned, unsigned> FlatWorkGroupSizes) const;
+  std::pair<unsigned, unsigned> getEffectiveWavesPerEU(
+      std::pair<unsigned, unsigned> WavesPerEU,
+      std::pair<unsigned, unsigned> FlatWorkGroupSizes) const;
 
   /// Return the amount of LDS that can be used that will not restrict the
   /// occupancy lower than WaveCount.
@@ -136,16 +133,7 @@ public:
   /// This notably depends on the range of allowed flat group sizes for the
   /// function and hardware characteristics.
   std::pair<unsigned, unsigned>
-  getOccupancyWithWorkGroupSizes(uint32_t LDSBytes, const Function &F) const {
-    return getOccupancyWithWorkGroupSizes(LDSBytes, getFlatWorkGroupSizes(F));
-  }
-
-  /// Overload which uses the specified values for the flat work group sizes,
-  /// rather than querying the function itself. \p FlatWorkGroupSizes should
-  /// correspond to the function's value for getFlatWorkGroupSizes.
-  std::pair<unsigned, unsigned> getOccupancyWithWorkGroupSizes(
-      uint32_t LDSBytes,
-      std::pair<unsigned, unsigned> FlatWorkGroupSizes) const;
+  getOccupancyWithWorkGroupSizes(uint32_t LDSBytes, const Function &F) const;
 
   /// Subtarget's minimum/maximum occupancy, in number of waves per EU, that can
   /// be achieved when the only function running on a CU is \p MF. This notably

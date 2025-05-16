@@ -568,8 +568,9 @@ private:
     std::vector<char> &newStorage = propertiesStorage.back();
     size_t propertiesSize = sizeScratch.size() + rawProperties.size();
     newStorage.reserve(propertiesSize);
-    llvm::append_range(newStorage, sizeScratch);
-    llvm::append_range(newStorage, rawProperties);
+    newStorage.insert(newStorage.end(), sizeScratch.begin(), sizeScratch.end());
+    newStorage.insert(newStorage.end(), rawProperties.begin(),
+                      rawProperties.end());
 
     // Try to de-duplicate the new serialized properties.
     // If the properties is a duplicate, pop it back from the storage.

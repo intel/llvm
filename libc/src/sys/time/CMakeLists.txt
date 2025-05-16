@@ -8,17 +8,3 @@ add_entrypoint_object(
   DEPENDS
     .${LIBC_TARGET_OS}.utimes
 )
-
-add_entrypoint_object(
-  setitimer
-  ALIAS
-  DEPENDS
-  .${LIBC_TARGET_OS}.setitimer 
-)
-
-add_entrypoint_object(
-  getitimer
-  ALIAS
-  DEPENDS
-    .${LIBC_TARGET_OS}.getitimer 
-)

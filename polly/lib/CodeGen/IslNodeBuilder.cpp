@@ -488,7 +488,7 @@ void IslNodeBuilder::createForSequential(isl::ast_node_for For,
 
   IDToValue.erase(IDToValue.find(IteratorID.get()));
 
-  Builder.SetInsertPoint(ExitBlock, ExitBlock->begin());
+  Builder.SetInsertPoint(&ExitBlock->front());
 
   SequentialLoops++;
 }
@@ -505,10 +505,10 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
   // The preamble of parallel code interacts different than normal code with
   // e.g., scalar initialization. Therefore, we ensure the parallel code is
   // separated from the last basic block.
-  BasicBlock *ParBB =
-      SplitBlock(Builder.GetInsertBlock(), Builder.GetInsertPoint(), &DT, &LI);
+  BasicBlock *ParBB = SplitBlock(Builder.GetInsertBlock(),
+                                 &*Builder.GetInsertPoint(), &DT, &LI);
   ParBB->setName("polly.parallel.for");
-  Builder.SetInsertPoint(ParBB, ParBB->begin());
+  Builder.SetInsertPoint(&ParBB->front());
 
   Body = isl_ast_node_for_get_body(For);
   Init = isl_ast_node_for_get_init(For);
@@ -612,7 +612,7 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
   BlockGen.switchGeneratedFunc(SubFn, GenDT, GenLI, GenSE);
   RegionGen.switchGeneratedFunc(SubFn, GenDT, GenLI, GenSE);
   ExprBuilder.switchGeneratedFunc(SubFn, GenDT, GenLI, GenSE);
-  Builder.SetInsertPoint(LoopBody);
+  Builder.SetInsertPoint(&*LoopBody);
 
   // Update the ValueMap to use instructions in the subfunction. Note that
   // "GlobalMap" used in BlockGenerator/IslExprBuilder is a reference to this
@@ -682,7 +682,7 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
   ExprBuilder.switchGeneratedFunc(CallerFn, CallerDT, CallerLI, CallerSE);
   RegionGen.switchGeneratedFunc(CallerFn, CallerDT, CallerLI, CallerSE);
   BlockGen.switchGeneratedFunc(CallerFn, CallerDT, CallerLI, CallerSE);
-  Builder.SetInsertPoint(AfterLoop);
+  Builder.SetInsertPoint(&*AfterLoop);
 
   for (const Loop *L : Loops)
     OutsideLoopIterations.erase(L);
@@ -711,9 +711,9 @@ void IslNodeBuilder::createIf(__isl_take isl_ast_node *If) {
   LLVMContext &Context = F->getContext();
 
   BasicBlock *CondBB = SplitBlock(Builder.GetInsertBlock(),
-                                  Builder.GetInsertPoint(), GenDT, GenLI);
+                                  &*Builder.GetInsertPoint(), GenDT, GenLI);
   CondBB->setName("polly.cond");
-  BasicBlock *MergeBB = SplitBlock(CondBB, CondBB->begin(), GenDT, GenLI);
+  BasicBlock *MergeBB = SplitBlock(CondBB, &CondBB->front(), GenDT, GenLI);
   MergeBB->setName("polly.merge");
   BasicBlock *ThenBB = BasicBlock::Create(Context, "polly.then", F);
   BasicBlock *ElseBB = BasicBlock::Create(Context, "polly.else", F);
@@ -737,16 +737,16 @@ void IslNodeBuilder::createIf(__isl_take isl_ast_node *If) {
   Builder.CreateBr(MergeBB);
   Builder.SetInsertPoint(ElseBB);
   Builder.CreateBr(MergeBB);
-  Builder.SetInsertPoint(ThenBB, ThenBB->begin());
+  Builder.SetInsertPoint(&ThenBB->front());
 
   create(isl_ast_node_if_get_then(If));
 
-  Builder.SetInsertPoint(ElseBB, ElseBB->begin());
+  Builder.SetInsertPoint(&ElseBB->front());
 
   if (isl_ast_node_if_has_else(If))
     create(isl_ast_node_if_get_else(If));
 
-  Builder.SetInsertPoint(MergeBB, MergeBB->begin());
+  Builder.SetInsertPoint(&MergeBB->front());
 
   isl_ast_node_free(If);
 
@@ -1111,10 +1111,10 @@ Value *IslNodeBuilder::preloadInvariantLoad(const MemoryAccess &MA,
     Cond = Builder.CreateIsNotNull(Cond);
 
   BasicBlock *CondBB = SplitBlock(Builder.GetInsertBlock(),
-                                  Builder.GetInsertPoint(), GenDT, GenLI);
+                                  &*Builder.GetInsertPoint(), GenDT, GenLI);
   CondBB->setName("polly.preload.cond");
 
-  BasicBlock *MergeBB = SplitBlock(CondBB, CondBB->begin(), GenDT, GenLI);
+  BasicBlock *MergeBB = SplitBlock(CondBB, &CondBB->front(), GenDT, GenLI);
   MergeBB->setName("polly.preload.merge");
 
   Function *F = Builder.GetInsertBlock()->getParent();
@@ -1126,16 +1126,16 @@ Value *IslNodeBuilder::preloadInvariantLoad(const MemoryAccess &MA,
     L->addBasicBlockToLoop(ExecBB, *GenLI);
 
   auto *CondBBTerminator = CondBB->getTerminator();
-  Builder.SetInsertPoint(CondBB, CondBBTerminator->getIterator());
+  Builder.SetInsertPoint(CondBBTerminator);
   Builder.CreateCondBr(Cond, ExecBB, MergeBB);
   CondBBTerminator->eraseFromParent();
 
   Builder.SetInsertPoint(ExecBB);
   Builder.CreateBr(MergeBB);
 
-  Builder.SetInsertPoint(ExecBB, ExecBB->getTerminator()->getIterator());
+  Builder.SetInsertPoint(ExecBB->getTerminator());
   Value *PreAccInst = preloadUnconditionally(AccessRange, Build, AccInst);
-  Builder.SetInsertPoint(MergeBB, MergeBB->getTerminator()->getIterator());
+  Builder.SetInsertPoint(MergeBB->getTerminator());
   auto *MergePHI = Builder.CreatePHI(
       AccInstTy, 2, "polly.preload." + AccInst->getName() + ".merge");
   PreloadVal = MergePHI;
@@ -1315,9 +1315,7 @@ void IslNodeBuilder::allocateNewArrays(BBPair StartExitBlocks) {
       unsigned Size = SAI->getElemSizeInBytes();
 
       // Insert the malloc call at polly.start
-      BasicBlock *StartBlock = std::get<0>(StartExitBlocks);
-      Builder.SetInsertPoint(StartBlock,
-                             StartBlock->getTerminator()->getIterator());
+      Builder.SetInsertPoint(std::get<0>(StartExitBlocks)->getTerminator());
       auto *CreatedArray = Builder.CreateMalloc(
           IntPtrTy, SAI->getElementType(),
           ConstantInt::get(Type::getInt64Ty(Ctx), Size),
@@ -1327,9 +1325,7 @@ void IslNodeBuilder::allocateNewArrays(BBPair StartExitBlocks) {
       SAI->setBasePtr(CreatedArray);
 
       // Insert the free call at polly.exiting
-      BasicBlock *ExitingBlock = std::get<1>(StartExitBlocks);
-      Builder.SetInsertPoint(ExitingBlock,
-                             ExitingBlock->getTerminator()->getIterator());
+      Builder.SetInsertPoint(std::get<1>(StartExitBlocks)->getTerminator());
       Builder.CreateFree(CreatedArray);
     } else {
       auto InstIt = Builder.GetInsertBlock()
@@ -1353,9 +1349,9 @@ bool IslNodeBuilder::preloadInvariantLoads() {
     return true;
 
   BasicBlock *PreLoadBB = SplitBlock(Builder.GetInsertBlock(),
-                                     Builder.GetInsertPoint(), GenDT, GenLI);
+                                     &*Builder.GetInsertPoint(), GenDT, GenLI);
   PreLoadBB->setName("polly.preload.begin");
-  Builder.SetInsertPoint(PreLoadBB, PreLoadBB->begin());
+  Builder.SetInsertPoint(&PreLoadBB->front());
 
   for (auto &IAClass : InvariantEquivClasses)
     if (!preloadInvariantEquivClass(IAClass))
@@ -1401,7 +1397,7 @@ Value *IslNodeBuilder::generateSCEV(const SCEV *Expr) {
   /// insert location remains valid.
   assert(Builder.GetInsertBlock()->end() != Builder.GetInsertPoint() &&
          "Insert location points after last valid instruction");
-  BasicBlock::iterator InsertLocation = Builder.GetInsertPoint();
+  Instruction *InsertLocation = &*Builder.GetInsertPoint();
 
   return expandCodeFor(S, SE, Builder.GetInsertBlock()->getParent(), *GenSE, DL,
                        "polly", Expr, Expr->getType(), InsertLocation,

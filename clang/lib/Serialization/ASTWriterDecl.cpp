@@ -847,8 +847,6 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
   FunctionDeclBits.addBit(D->isInstantiatedFromMemberTemplate());
   FunctionDeclBits.addBit(D->FriendConstraintRefersToEnclosingTemplate());
   FunctionDeclBits.addBit(D->usesSEHTry());
-  FunctionDeclBits.addBit(D->isDestroyingOperatorDelete());
-  FunctionDeclBits.addBit(D->isTypeAwareOperatorNewOrDelete());
   Record.push_back(FunctionDeclBits);
 
   Record.AddSourceLocation(D->getEndLoc());
@@ -1517,7 +1515,7 @@ void ASTDeclWriter::VisitNamespaceDecl(NamespaceDecl *D) {
         D->getParent()->getRedeclContext()->getPrimaryContext());
     if (Parent->isFromASTFile() || isa<TranslationUnitDecl>(Parent)) {
       Writer.DeclUpdates[Parent].push_back(
-          ASTWriter::DeclUpdate(DeclUpdateKind::CXXAddedAnonymousNamespace, D));
+          ASTWriter::DeclUpdate(UPD_CXX_ADDED_ANONYMOUS_NAMESPACE, D));
     }
   }
 }

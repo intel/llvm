@@ -5,20 +5,16 @@
 # CHECK: ^
 	
 # CHECK-NOT: error:
-# CHECK: .machine push
 # CHECK: .machine z13
 # CHECK: vgbm	%v0, 0
 # CHECK: .machine zEC12
-# CHECK: .machine pop
+# CHECK: .machine z13
 # CHECK: vgbm	%v0, 3
-# CHECK: .machine pop
 
-.machine push
 .machine z13
-.machine push
 vgbm    %v0, 0
 .machine zEC12
 vgbm    %v0, 1
-.machine pop
+.machine z13
 vgbm    %v0, 3
-.machine pop
+

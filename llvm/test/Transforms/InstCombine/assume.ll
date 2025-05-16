@@ -1013,7 +1013,8 @@ define i1 @assume_trunc_nuw_eq_one(i8 %x) {
 ; CHECK-LABEL: @assume_trunc_nuw_eq_one(
 ; CHECK-NEXT:    [[A:%.*]] = trunc nuw i8 [[X:%.*]] to i1
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[A]])
-; CHECK-NEXT:    ret i1 true
+; CHECK-NEXT:    [[Q:%.*]] = icmp eq i8 [[X]], 1
+; CHECK-NEXT:    ret i1 [[Q]]
 ;
   %a = trunc nuw i8 %x to i1
   call void @llvm.assume(i1 %a)

@@ -1,4 +1,4 @@
-//===------- Offload API tests - olGetDeviceInfo --------------------------===//
+//===------- Offload API tests - olGetDeviceInfo ---------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,87 +7,68 @@
 //===----------------------------------------------------------------------===//
 
 #include "../common/Fixtures.hpp"
+#include "olDeviceInfo.hpp"
 #include <OffloadAPI.h>
 #include <gtest/gtest.h>
 
-using olGetDeviceInfoTest = OffloadDeviceTest;
-OFFLOAD_TESTS_INSTANTIATE_DEVICE_FIXTURE(olGetDeviceInfoTest);
+struct olGetDeviceInfoTest : offloadDeviceTest,
+                             ::testing::WithParamInterface<ol_device_info_t> {
 
-TEST_P(olGetDeviceInfoTest, SuccessType) {
-  ol_device_type_t DeviceType;
-  ASSERT_SUCCESS(olGetDeviceInfo(Device, OL_DEVICE_INFO_TYPE,
-                                 sizeof(ol_device_type_t), &DeviceType));
-}
+  void SetUp() override { RETURN_ON_FATAL_FAILURE(offloadDeviceTest::SetUp()); }
+};
 
-TEST_P(olGetDeviceInfoTest, SuccessPlatform) {
-  ol_platform_handle_t Platform = nullptr;
-  ASSERT_SUCCESS(olGetDeviceInfo(Device, OL_DEVICE_INFO_PLATFORM,
-                                 sizeof(ol_platform_handle_t), &Platform));
-  ASSERT_NE(Platform, nullptr);
-}
+INSTANTIATE_TEST_SUITE_P(
+    , olGetDeviceInfoTest, ::testing::ValuesIn(DeviceQueries),
+    [](const ::testing::TestParamInfo<ol_device_info_t> &info) {
+      std::stringstream ss;
+      ss << info.param;
+      return ss.str();
+    });
 
-TEST_P(olGetDeviceInfoTest, SuccessName) {
+TEST_P(olGetDeviceInfoTest, Success) {
+  ol_device_info_t InfoType = GetParam();
   size_t Size = 0;
-  ASSERT_SUCCESS(olGetDeviceInfoSize(Device, OL_DEVICE_INFO_NAME, &Size));
-  ASSERT_GT(Size, 0ul);
-  std::vector<char> Name;
-  Name.resize(Size);
-  ASSERT_SUCCESS(
-      olGetDeviceInfo(Device, OL_DEVICE_INFO_NAME, Size, Name.data()));
-  ASSERT_EQ(std::strlen(Name.data()), Size - 1);
+
+  ASSERT_SUCCESS(olGetDeviceInfoSize(Device, InfoType, &Size));
+
+  std::vector<char> InfoData(Size);
+  ASSERT_SUCCESS(olGetDeviceInfo(Device, InfoType, Size, InfoData.data()));
+
+  if (InfoType == OL_DEVICE_INFO_PLATFORM) {
+    auto *ReturnedPlatform =
+        reinterpret_cast<ol_platform_handle_t *>(InfoData.data());
+    ASSERT_EQ(Platform, *ReturnedPlatform);
+  }
 }
 
-TEST_P(olGetDeviceInfoTest, SuccessVendor) {
-  size_t Size = 0;
-  ASSERT_SUCCESS(olGetDeviceInfoSize(Device, OL_DEVICE_INFO_VENDOR, &Size));
-  ASSERT_GT(Size, 0ul);
-  std::vector<char> Vendor;
-  Vendor.resize(Size);
-  ASSERT_SUCCESS(
-      olGetDeviceInfo(Device, OL_DEVICE_INFO_VENDOR, Size, Vendor.data()));
-  ASSERT_EQ(std::strlen(Vendor.data()), Size - 1);
-}
-
-TEST_P(olGetDeviceInfoTest, SuccessDriverVersion) {
-  size_t Size = 0;
-  ASSERT_SUCCESS(
-      olGetDeviceInfoSize(Device, OL_DEVICE_INFO_DRIVER_VERSION, &Size));
-  ASSERT_GT(Size, 0ul);
-  std::vector<char> DriverVersion;
-  DriverVersion.resize(Size);
-  ASSERT_SUCCESS(olGetDeviceInfo(Device, OL_DEVICE_INFO_DRIVER_VERSION, Size,
-                                 DriverVersion.data()));
-  ASSERT_EQ(std::strlen(DriverVersion.data()), Size - 1);
-}
-
-TEST_P(olGetDeviceInfoTest, InvalidNullHandleDevice) {
+TEST_F(olGetDeviceInfoTest, InvalidNullHandleDevice) {
   ol_device_type_t DeviceType;
   ASSERT_ERROR(OL_ERRC_INVALID_NULL_HANDLE,
                olGetDeviceInfo(nullptr, OL_DEVICE_INFO_TYPE,
                                sizeof(ol_device_type_t), &DeviceType));
 }
 
-TEST_P(olGetDeviceInfoTest, InvalidEnumerationInfoType) {
+TEST_F(olGetDeviceInfoTest, InvalidEnumerationInfoType) {
   ol_device_type_t DeviceType;
   ASSERT_ERROR(OL_ERRC_INVALID_ENUMERATION,
                olGetDeviceInfo(Device, OL_DEVICE_INFO_FORCE_UINT32,
                                sizeof(ol_device_type_t), &DeviceType));
 }
 
-TEST_P(olGetDeviceInfoTest, InvalidSizePropSize) {
+TEST_F(olGetDeviceInfoTest, InvalidSizePropSize) {
   ol_device_type_t DeviceType;
   ASSERT_ERROR(OL_ERRC_INVALID_SIZE,
                olGetDeviceInfo(Device, OL_DEVICE_INFO_TYPE, 0, &DeviceType));
 }
 
-TEST_P(olGetDeviceInfoTest, InvalidSizePropSizeSmall) {
+TEST_F(olGetDeviceInfoTest, InvalidSizePropSizeSmall) {
   ol_device_type_t DeviceType;
   ASSERT_ERROR(OL_ERRC_INVALID_SIZE,
                olGetDeviceInfo(Device, OL_DEVICE_INFO_TYPE,
                                sizeof(DeviceType) - 1, &DeviceType));
 }
 
-TEST_P(olGetDeviceInfoTest, InvalidNullPointerPropValue) {
+TEST_F(olGetDeviceInfoTest, InvalidNullPointerPropValue) {
   ol_device_type_t DeviceType;
   ASSERT_ERROR(OL_ERRC_INVALID_NULL_POINTER,
                olGetDeviceInfo(Device, OL_DEVICE_INFO_TYPE, sizeof(DeviceType),

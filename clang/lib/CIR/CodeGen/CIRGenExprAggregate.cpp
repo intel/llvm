@@ -1,4 +1,4 @@
-//===- CIRGenExprAggregrate.cpp - Emit CIR Code from Aggregate Expressions ===//
+//===--- CIRGenExprAgg.cpp - Emit CIR Code from Aggregate Expressions -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -130,7 +130,7 @@ void AggExprEmitter::emitArrayInit(Address destPtr, cir::ArrayType arrayTy,
     }
 
     const Address address = Address(element, cirElementType, elementAlign);
-    const LValue elementLV = cgf.makeAddrLValue(address, elementType);
+    const LValue elementLV = LValue::makeAddr(address, elementType);
     emitInitializationToLValue(args[i], elementLV);
   }
 
@@ -157,7 +157,7 @@ void AggExprEmitter::emitArrayInit(Address destPtr, cir::ArrayType arrayTy,
     const Address tmpAddr = cgf.createTempAlloca(
         cirElementPtrType, cgf.getPointerAlign(), loc, "arrayinit.temp",
         /*insertIntoFnEntryBlock=*/false);
-    LValue tmpLV = cgf.makeAddrLValue(tmpAddr, elementPtrType);
+    LValue tmpLV = LValue::makeAddr(tmpAddr, elementPtrType);
     cgf.emitStoreThroughLValue(RValue::get(element), tmpLV);
 
     // TODO(CIR): Replace this part later with cir::DoWhileOp
@@ -166,7 +166,7 @@ void AggExprEmitter::emitArrayInit(Address destPtr, cir::ArrayType arrayTy,
           builder.createLoad(loc, tmpAddr.getPointer());
 
       // Emit the actual filler expression.
-      const LValue elementLV = cgf.makeAddrLValue(
+      const LValue elementLV = LValue::makeAddr(
           Address(currentElement, cirElementType, elementAlign), elementType);
 
       if (arrayFiller)

@@ -65,14 +65,16 @@ struct Factor {
 };
 
 struct OverflowTracking {
-  bool HasNUW = true;
-  bool HasNSW = true;
-  bool AllKnownNonNegative = true;
-  bool AllKnownNonZero = true;
+  bool HasNUW;
+  bool HasNSW;
+  bool AllKnownNonNegative;
+  bool AllKnownNonZero;
   // Note: AllKnownNonNegative can be true in a case where one of the operands
   // is negative, but one the operators is not NSW. AllKnownNonNegative should
   // not be used independently of HasNSW
-  OverflowTracking() = default;
+  OverflowTracking()
+      : HasNUW(true), HasNSW(true), AllKnownNonNegative(true),
+        AllKnownNonZero(true) {}
 };
 
 class XorOpnd;
@@ -131,7 +133,7 @@ private:
                                  SmallVectorImpl<reassociate::Factor> &Factors);
   Value *OptimizeMul(BinaryOperator *I,
                      SmallVectorImpl<reassociate::ValueEntry> &Ops);
-  Value *RemoveFactorFromExpression(Value *V, Value *Factor, DebugLoc DL);
+  Value *RemoveFactorFromExpression(Value *V, Value *Factor);
   void EraseInst(Instruction *I);
   void RecursivelyEraseDeadInsts(Instruction *I, OrderedSet &Insts);
   void OptimizeInst(Instruction *I);

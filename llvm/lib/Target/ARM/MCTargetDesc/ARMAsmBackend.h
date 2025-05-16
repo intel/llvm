@@ -30,7 +30,7 @@ public:
 
   std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
 
-  MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override;
+  const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
 
   bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
                              const MCValue &Target,
@@ -54,9 +54,8 @@ public:
   const char *reasonForFixupRelaxation(const MCFixup &Fixup,
                                        uint64_t Value) const;
 
-  bool fixupNeedsRelaxationAdvanced(const MCAssembler &,
-                                    const MCFixup &, const MCValue &, uint64_t,
-                                    bool) const override;
+  bool fixupNeedsRelaxation(const MCFixup &Fixup,
+                            uint64_t Value) const override;
 
   void relaxInstruction(MCInst &Inst,
                         const MCSubtargetInfo &STI) const override;

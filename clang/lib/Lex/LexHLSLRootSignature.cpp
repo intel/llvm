@@ -16,10 +16,8 @@ using TokenKind = RootSignatureToken::Kind;
 // Lexer Definitions
 
 static bool isNumberChar(char C) {
-  return isdigit(C)                                      // integer support
-         || C == '.'                                     // float support
-         || C == 'e' || C == 'E' || C == '-' || C == '+' // exponent support
-         || C == 'f' || C == 'F'; // explicit float support
+  // TODO(#126565): extend for float support exponents
+  return isdigit(C); // integer support
 }
 
 RootSignatureToken RootSignatureLexer::lexToken() {
@@ -47,15 +45,10 @@ RootSignatureToken RootSignatureLexer::lexToken() {
     break;
   }
 
-  // Number literal
-  if (isdigit(C) || C == '.') {
+  // Integer literal
+  if (isdigit(C)) {
+    Result.TokKind = TokenKind::int_literal;
     Result.NumSpelling = Buffer.take_while(isNumberChar);
-
-    // If all values are digits then we have an int literal
-    bool IsInteger = Result.NumSpelling.find_if_not(isdigit) == StringRef::npos;
-
-    Result.TokKind =
-        IsInteger ? TokenKind::int_literal : TokenKind::float_literal;
     advanceBuffer(Result.NumSpelling.size());
     return Result;
   }

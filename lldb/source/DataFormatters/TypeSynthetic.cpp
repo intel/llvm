@@ -49,7 +49,7 @@ bool TypeFilterImpl::SetExpressionPathAtIndex(size_t i,
   return true;
 }
 
-llvm::Expected<size_t>
+size_t
 TypeFilterImpl::FrontEnd::GetIndexOfChildWithName(ConstString name) {
   const char *name_cstr = name.GetCString();
   if (name_cstr) {
@@ -67,8 +67,7 @@ TypeFilterImpl::FrontEnd::GetIndexOfChildWithName(ConstString name) {
       }
     }
   }
-  return llvm::createStringError("Type has no child named '%s'",
-                                 name.AsCString());
+  return UINT32_MAX;
 }
 
 std::string TypeFilterImpl::GetDescription() {
@@ -219,11 +218,10 @@ bool ScriptedSyntheticChildren::FrontEnd::MightHaveChildren() {
   return m_interpreter->MightHaveChildrenSynthProviderInstance(m_wrapper_sp);
 }
 
-llvm::Expected<size_t>
-ScriptedSyntheticChildren::FrontEnd::GetIndexOfChildWithName(ConstString name) {
+size_t ScriptedSyntheticChildren::FrontEnd::GetIndexOfChildWithName(
+    ConstString name) {
   if (!m_wrapper_sp || m_interpreter == nullptr)
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
+    return UINT32_MAX;
   return m_interpreter->GetIndexOfChildWithName(m_wrapper_sp,
                                                 name.GetCString());
 }

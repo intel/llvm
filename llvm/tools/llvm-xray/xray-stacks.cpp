@@ -495,8 +495,15 @@ public:
   void printIgnoringThreads(raw_ostream &OS, FuncIdConversionHelper &FN) {
     RootVector RootValues;
 
-    for (const auto &RootNodeRange : make_second_range(Roots))
+    // Function to pull the values out of a map iterator.
+    using RootsType = decltype(Roots.begin())::value_type;
+    auto MapValueFn = [](const RootsType &Value) { return Value.second; };
+
+    for (const auto &RootNodeRange :
+         make_range(map_iterator(Roots.begin(), MapValueFn),
+                    map_iterator(Roots.end(), MapValueFn))) {
       llvm::append_range(RootValues, RootNodeRange);
+    }
 
     print(OS, FN, RootValues);
   }

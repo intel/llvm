@@ -1631,11 +1631,14 @@ using detect_has_verify_region_trait =
 
 /// Verify the given trait if it provides a verifier.
 template <typename T>
-LogicalResult verifyTrait(Operation *op) {
-  if constexpr (detect_has_verify_trait<T>::value)
-    return T::verifyTrait(op);
-  else
-    return success();
+std::enable_if_t<detect_has_verify_trait<T>::value, LogicalResult>
+verifyTrait(Operation *op) {
+  return T::verifyTrait(op);
+}
+template <typename T>
+inline std::enable_if_t<!detect_has_verify_trait<T>::value, LogicalResult>
+verifyTrait(Operation *) {
+  return success();
 }
 
 /// Given a set of traits, return the result of verifying the given operation.
@@ -1646,11 +1649,15 @@ LogicalResult verifyTraits(Operation *op) {
 
 /// Verify the given trait if it provides a region verifier.
 template <typename T>
-LogicalResult verifyRegionTrait(Operation *op) {
-  if constexpr (detect_has_verify_region_trait<T>::value)
-    return T::verifyRegionTrait(op);
-  else
-    return success();
+std::enable_if_t<detect_has_verify_region_trait<T>::value, LogicalResult>
+verifyRegionTrait(Operation *op) {
+  return T::verifyRegionTrait(op);
+}
+template <typename T>
+inline std::enable_if_t<!detect_has_verify_region_trait<T>::value,
+                        LogicalResult>
+verifyRegionTrait(Operation *) {
+  return success();
 }
 
 /// Given a set of traits, return the result of verifying the regions of the

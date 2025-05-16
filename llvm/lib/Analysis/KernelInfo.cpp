@@ -313,6 +313,8 @@ void KernelInfo::emitKernelInfo(Function &F, FunctionAnalysisManager &FAM,
   REMARK_PROPERTY(Invokes);
   REMARK_PROPERTY(FlatAddrspaceAccesses);
 #undef REMARK_PROPERTY
+
+  return;
 }
 
 PreservedAnalyses KernelInfoPrinter::run(Function &F,

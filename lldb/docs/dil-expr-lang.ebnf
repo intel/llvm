@@ -3,12 +3,7 @@
 (* This is currently a subset of the final DIL Language, matching the current
    DIL implementation. *)
 
-expression = unary_expression ;
-
-unary_expression = unary_operator expression
-                 | primary_expression ;
-
-unary_operator = "*" | "&" ;
+expression = primary_expression ;
 
 primary_expression = id_expression
                    | "(" expression ")";

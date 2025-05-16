@@ -676,8 +676,11 @@ bubbleUpPackOpThroughCollapseShape(tensor::CollapseShapeOp collapseOp,
   // new permutation after bubbling. This is because moving a collapsed dim is
   // equivalent to moving the associated source dims together.
   SmallVector<int64_t> newOuterDimsPerm;
-  for (auto outerPos : outerDimsPerm)
-    llvm::append_range(newOuterDimsPerm, reassocIndices[outerPos]);
+  for (auto outerPos : outerDimsPerm) {
+    newOuterDimsPerm.insert(newOuterDimsPerm.end(),
+                            reassocIndices[outerPos].begin(),
+                            reassocIndices[outerPos].end());
+  }
 
   auto emptyOp = linalg::PackOp::createDestinationTensor(
       rewriter, packOp.getLoc(), collapseOp.getSrc(), packOp.getMixedTiles(),
@@ -766,12 +769,13 @@ bubbleUpPackOpThroughExpandShape(tensor::ExpandShapeOp expandOp,
   SmallVector<ReassociationIndices, 4> reassoc =
       expandOp.getReassociationIndices();
   ArrayRef<int64_t> packInnerDims = packOp.getInnerDimsPos();
-  llvm::SetVector<int64_t> packDimsPos(llvm::from_range, packInnerDims);
+  llvm::SetVector<int64_t> packDimsPos(packInnerDims.begin(),
+                                       packInnerDims.end());
 
   for (auto [idx, indices] : llvm::enumerate(reassoc)) {
     // For each expand_shape reassociation, figure out which dimensions get
     // packed if any.
-    llvm::SetVector<int64_t> expandDimPos(llvm::from_range, indices);
+    llvm::SetVector<int64_t> expandDimPos(indices.begin(), indices.end());
     llvm::SetVector<int64_t> packedDims =
         llvm::set_intersection(packDimsPos, expandDimPos);
 
@@ -921,8 +925,11 @@ static LogicalResult pushDownUnPackOpThroughExpandShape(
   // new permutation after pushing. This is because moving a source dim is
   // equivalent to moving the associated expanded dims together.
   SmallVector<int64_t> newOuterDimsPerm;
-  for (auto outerPos : outerDimsPerm)
-    llvm::append_range(newOuterDimsPerm, reassocIndices[outerPos]);
+  for (auto outerPos : outerDimsPerm) {
+    newOuterDimsPerm.insert(newOuterDimsPerm.end(),
+                            reassocIndices[outerPos].begin(),
+                            reassocIndices[outerPos].end());
+  }
 
   SmallVector<ReassociationIndices> newReassocIndices = reassocIndices;
   // First apply the permutation on the reassociations of the outer dims.

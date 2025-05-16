@@ -165,12 +165,11 @@ public:
     return lldb::ChildCacheState::eRefetch;
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  size_t GetIndexOfChildWithName(ConstString name) override {
     static ConstString g_userInfo("_userInfo");
     if (name == g_userInfo)
       return 0;
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
+    return UINT32_MAX;
   }
 
 private:

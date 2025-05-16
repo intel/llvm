@@ -10,7 +10,6 @@
 #include "BinaryHolder.h"
 #include "DebugMap.h"
 #include "MachOUtils.h"
-#include "SwiftModule.h"
 #include "dsymutil.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -202,6 +201,7 @@ Error DwarfLinkerForBinary::emitRelocations(
     Obj.OutRelocs->addValidRelocs(RM);
   }
 
+  SmallString<128> InputPath;
   SmallString<128> Path;
   // Create the "Relocations" directory in the "Resources" directory, and
   // create an architecture-specific directory in the "Relocations" directory.
@@ -232,6 +232,7 @@ static Error emitRemarks(const LinkOptions &Options, StringRef BinaryPath,
   if (RL.empty())
     return Error::success();
 
+  SmallString<128> InputPath;
   SmallString<128> Path;
   // Create the "Remarks" directory in the "Resources" directory.
   sys::path::append(Path, *Options.ResourceDir, "Remarks");
@@ -782,21 +783,6 @@ bool DwarfLinkerForBinary::linkImpl(
         reportWarning("Could not open '" + File + "'");
         continue;
       }
-      auto FromInterfaceOrErr =
-          IsBuiltFromSwiftInterface((*ErrorOrMem)->getBuffer());
-      if (!FromInterfaceOrErr) {
-        reportWarning("Could not parse binary Swift module: " +
-                          toString(FromInterfaceOrErr.takeError()),
-                      Obj->getObjectFilename());
-        // Only skip swiftmodules that could be parsed and are
-        // positively identified as textual.
-      } else if (*FromInterfaceOrErr) {
-        if (Options.Verbose)
-          outs() << "Skipping compiled textual Swift interface: "
-                 << Obj->getObjectFilename() << "\n";
-        continue;
-      }
-
       sys::fs::file_status Stat;
       if (auto Err = sys::fs::status(File, Stat)) {
         reportWarning(Err.message());

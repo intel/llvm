@@ -81,6 +81,10 @@ char MIRPrintingPass::ID = 0;
 char &llvm::MIRPrintingPassID = MIRPrintingPass::ID;
 INITIALIZE_PASS(MIRPrintingPass, "mir-printer", "MIR Printer", false, false)
 
-MachineFunctionPass *llvm::createPrintMIRPass(raw_ostream &OS) {
+namespace llvm {
+
+MachineFunctionPass *createPrintMIRPass(raw_ostream &OS) {
   return new MIRPrintingPass(OS);
 }
+
+} // end namespace llvm

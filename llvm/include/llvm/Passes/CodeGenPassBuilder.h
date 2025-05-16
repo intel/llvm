@@ -47,7 +47,6 @@
 #include "llvm/CodeGen/JMCInstrumenter.h"
 #include "llvm/CodeGen/LiveDebugValuesPass.h"
 #include "llvm/CodeGen/LiveIntervals.h"
-#include "llvm/CodeGen/LiveVariables.h"
 #include "llvm/CodeGen/LocalStackSlotAllocation.h"
 #include "llvm/CodeGen/LowerEmuTLS.h"
 #include "llvm/CodeGen/MIRPrinter.h"
@@ -63,7 +62,6 @@
 #include "llvm/CodeGen/MachineSink.h"
 #include "llvm/CodeGen/MachineVerifier.h"
 #include "llvm/CodeGen/OptimizePHIs.h"
-#include "llvm/CodeGen/PEI.h"
 #include "llvm/CodeGen/PHIElimination.h"
 #include "llvm/CodeGen/PatchableFunction.h"
 #include "llvm/CodeGen/PeepholeOptimizer.h"
@@ -76,25 +74,20 @@
 #include "llvm/CodeGen/RegUsageInfoPropagate.h"
 #include "llvm/CodeGen/RegisterCoalescerPass.h"
 #include "llvm/CodeGen/RegisterUsageInfo.h"
-#include "llvm/CodeGen/RemoveLoadsIntoFakeUses.h"
 #include "llvm/CodeGen/RemoveRedundantDebugValues.h"
 #include "llvm/CodeGen/RenameIndependentSubregs.h"
 #include "llvm/CodeGen/ReplaceWithVeclib.h"
 #include "llvm/CodeGen/SafeStack.h"
-#include "llvm/CodeGen/SanitizerBinaryMetadata.h"
 #include "llvm/CodeGen/SelectOptimize.h"
 #include "llvm/CodeGen/ShadowStackGCLowering.h"
-#include "llvm/CodeGen/ShrinkWrap.h"
 #include "llvm/CodeGen/SjLjEHPrepare.h"
 #include "llvm/CodeGen/StackColoring.h"
-#include "llvm/CodeGen/StackFrameLayoutAnalysisPass.h"
 #include "llvm/CodeGen/StackProtector.h"
 #include "llvm/CodeGen/StackSlotColoring.h"
 #include "llvm/CodeGen/TailDuplication.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TwoAddressInstructionPass.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
-#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/CodeGen/WasmEHPrepare.h"
 #include "llvm/CodeGen/WinEHPrepare.h"
 #include "llvm/CodeGen/XRayInstrumentation.h"
@@ -1012,11 +1005,10 @@ Error CodeGenPassBuilder<Derived, TargetMachineT>::addMachinePasses(
 
   addPass(FuncletLayoutPass());
 
-  addPass(RemoveLoadsIntoFakeUsesPass());
   addPass(StackMapLivenessPass());
   addPass(LiveDebugValuesPass(
       getTM<TargetMachine>().Options.ShouldEmitDebugEntryValues()));
-  addPass(MachineSanitizerBinaryMetadataPass());
+  addPass(MachineSanitizerBinaryMetadata());
 
   if (TM.Options.EnableMachineOutliner &&
       getOptLevel() != CodeGenOptLevel::None &&
@@ -1027,8 +1019,6 @@ Error CodeGenPassBuilder<Derived, TargetMachineT>::addMachinePasses(
     if (AddOutliner)
       addPass(MachineOutlinerPass(RunOnAllFunctions));
   }
-
-  addPass(StackFrameLayoutAnalysisPass());
 
   // Add passes that directly emit MI after all other MI passes.
   derived().addPreEmitPass2(addPass);
@@ -1119,7 +1109,7 @@ void CodeGenPassBuilder<Derived, TargetMachineT>::addRegAllocPass(
       addPass(RAGreedyPass());
       break;
     default:
-      reportFatalUsageError("register allocator not supported yet");
+      report_fatal_error("register allocator not supported yet", false);
     }
     return;
   }
@@ -1178,21 +1168,7 @@ void CodeGenPassBuilder<Derived, TargetMachineT>::addOptimizedRegAlloc(
 
   addPass(ProcessImplicitDefsPass());
 
-  // LiveVariables currently requires pure SSA form.
-  //
-  // FIXME: Once TwoAddressInstruction pass no longer uses kill flags,
-  // LiveVariables can be removed completely, and LiveIntervals can be directly
-  // computed. (We still either need to regenerate kill flags after regalloc, or
-  // preferably fix the scavenger to not depend on them).
-  // FIXME: UnreachableMachineBlockElim is a dependant pass of LiveVariables.
-  // When LiveVariables is removed this has to be removed/moved either.
-  // Explicit addition of UnreachableMachineBlockElim allows stopping before or
-  // after it with -stop-before/-stop-after.
-  addPass(UnreachableMachineBlockElimPass());
-  addPass(RequireAnalysisPass<LiveVariablesAnalysis, MachineFunction>());
-
   // Edge splitting is smarter with machine loop info.
-  addPass(RequireAnalysisPass<MachineLoopAnalysis, MachineFunction>());
   addPass(PHIEliminationPass());
 
   // Eventually, we want to run LiveIntervals before PHI elimination.

@@ -72,11 +72,17 @@ using namespace llvm::AMDGPU;
   class GetMember##member {                                                    \
   public:                                                                      \
     static const MCExpr *Phony;                                                \
-    template <typename U> static const MCExpr *&Get(U &C) {                    \
-      if constexpr (IsMCExpr##member::RESULT)                                  \
-        return C.member;                                                       \
-      else                                                                     \
-        return Phony;                                                          \
+    template <typename U, typename std::enable_if_t<IsMCExpr##member::RESULT,  \
+                                                    U> * = nullptr>            \
+    static const MCExpr *&Get(U &C) {                                          \
+      assert(IsMCExpr##member::RESULT &&                                       \
+             "Trying to retrieve member that does not exist.");                \
+      return C.member;                                                         \
+    }                                                                          \
+    template <typename U, typename std::enable_if_t<!IsMCExpr##member::RESULT, \
+                                                    U> * = nullptr>            \
+    static const MCExpr *&Get(U &C) {                                          \
+      return Phony;                                                            \
     }                                                                          \
   };                                                                           \
   const MCExpr *GetMember##member::Phony = nullptr;
@@ -216,17 +222,22 @@ static int get_amd_kernel_code_t_FieldIndex(StringRef name) {
 
 class PrintField {
 public:
-  template <typename T, T AMDGPUMCKernelCodeT::*ptr>
+  template <typename T, T AMDGPUMCKernelCodeT::*ptr,
+            typename std::enable_if_t<!std::is_integral_v<T>, T> * = nullptr>
   static void printField(StringRef Name, const AMDGPUMCKernelCodeT &C,
                          raw_ostream &OS, MCContext &Ctx,
                          AMDGPUMCKernelCodeT::PrintHelper Helper) {
-    if constexpr (!std::is_integral_v<T>) {
-      OS << Name << " = ";
-      const MCExpr *Value = C.*ptr;
-      Helper(Value, OS, Ctx.getAsmInfo());
-    } else {
-      OS << Name << " = " << (int)(C.*ptr);
-    }
+    OS << Name << " = ";
+    const MCExpr *Value = C.*ptr;
+    Helper(Value, OS, Ctx.getAsmInfo());
+  }
+
+  template <typename T, T AMDGPUMCKernelCodeT::*ptr,
+            typename std::enable_if_t<std::is_integral_v<T>, T> * = nullptr>
+  static void printField(StringRef Name, const AMDGPUMCKernelCodeT &C,
+                         raw_ostream &OS, MCContext &,
+                         AMDGPUMCKernelCodeT::PrintHelper) {
+    OS << Name << " = " << (int)(C.*ptr);
   }
 };
 

@@ -18,7 +18,6 @@
 #include "lldb/API/SBType.h"
 #include "lldb/API/SBValue.h"
 #include "lldb/lldb-types.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/JSON.h"
 #include <cstdint>
@@ -346,21 +345,6 @@ llvm::json::Value CreateSource(const lldb::SBLineEntry &line_entry);
 ///     definition outlined by Microsoft.
 llvm::json::Value CreateSource(llvm::StringRef source_path);
 
-/// Return true if the given line entry should be displayed as assembly.
-///
-/// \param[in] line_entry
-///     The LLDB line entry to check.
-///
-/// \param[in] stop_disassembly_display
-///     The value of the "stop-disassembly-display" setting.
-///
-/// \return
-///     True if the line entry should be displayed as assembly, false
-///     otherwise.
-bool ShouldDisplayAssemblySource(
-    const lldb::SBLineEntry &line_entry,
-    lldb::StopDisassemblyType stop_disassembly_display);
-
 /// Create a "StackFrame" object for a LLDB frame object.
 ///
 /// This function will fill in the following keys in the returned
@@ -379,14 +363,11 @@ bool ShouldDisplayAssemblySource(
 ///     The LLDB format to use when populating out the "StackFrame"
 ///     object.
 ///
-/// \param[in] stop_disassembly_display
-///     The value of the "stop-disassembly-display" setting.
-///
 /// \return
 ///     A "StackFrame" JSON object with that follows the formal JSON
 ///     definition outlined by Microsoft.
-llvm::json::Value CreateStackFrame(lldb::SBFrame &frame, lldb::SBFormat &format,
-                                   lldb::StopDisassemblyType);
+llvm::json::Value CreateStackFrame(lldb::SBFrame &frame,
+                                   lldb::SBFormat &format);
 
 /// Create a "StackFrame" label object for a LLDB thread.
 ///
@@ -432,8 +413,6 @@ llvm::json::Value CreateExtendedStackFrameLabel(lldb::SBThread &thread,
 ///     A "Thread" JSON object with that follows the formal JSON
 ///     definition outlined by Microsoft.
 llvm::json::Value CreateThread(lldb::SBThread &thread, lldb::SBFormat &format);
-
-llvm::json::Array GetThreads(lldb::SBProcess process, lldb::SBFormat &format);
 
 /// Create a "StoppedEvent" object for a LLDB thread object.
 ///
@@ -582,17 +561,9 @@ llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit &unit);
 
 /// Create a runInTerminal reverse request object
 ///
-/// \param[in] program
-///     Path to the program to run in the terminal.
-///
-/// \param[in] args
-///     The arguments for the program.
-///
-/// \param[in] env
-///     The environment variables to set in the terminal.
-///
-/// \param[in] cwd
-///     The working directory for the run in terminal request.
+/// \param[in] launch_request
+///     The original launch_request object whose fields are used to construct
+///     the reverse request object.
 ///
 /// \param[in] comm_file
 ///     The fifo file used to communicate the with the target launcher.
@@ -605,10 +576,10 @@ llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit &unit);
 /// \return
 ///     A "runInTerminal" JSON object that follows the specification outlined by
 ///     Microsoft.
-llvm::json::Object CreateRunInTerminalReverseRequest(
-    llvm::StringRef program, const std::vector<std::string> &args,
-    const llvm::StringMap<std::string> env, llvm::StringRef cwd,
-    llvm::StringRef comm_file, lldb::pid_t debugger_pid);
+llvm::json::Object
+CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
+                                  llvm::StringRef comm_file,
+                                  lldb::pid_t debugger_pid);
 
 /// Create a "Terminated" JSON object that contains statistics
 ///

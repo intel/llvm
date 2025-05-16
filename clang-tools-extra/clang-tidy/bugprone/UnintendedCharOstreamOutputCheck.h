@@ -30,7 +30,6 @@ public:
   }
 
 private:
-  const std::vector<StringRef> AllowedTypes;
   const std::optional<StringRef> CastTypeName;
 };
 

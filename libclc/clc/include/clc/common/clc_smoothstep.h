@@ -14,5 +14,6 @@
 
 #define __CLC_BODY <clc/common/clc_smoothstep.inc>
 #include <clc/math/gentype.inc>
+#undef __CLC_BODY
 
 #endif // __CLC_COMMON_CLC_SMOOTHSTEP_H__

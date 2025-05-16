@@ -347,7 +347,7 @@ struct Fragment {
     ///   "IWYU": Include what you use. Insert the owning header for top-level
     ///     symbols, unless the header is already directly included or the
     ///     symbol is forward-declared
-    ///   "Never": Never insert headers
+    ///   "NeverInsert": Never insert headers
     std::optional<Located<std::string>> HeaderInsertion;
   };
   CompletionBlock Completion;

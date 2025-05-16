@@ -619,7 +619,8 @@ void ASTNode::render(const json::Value &Data, raw_ostream &OS) {
     return;
   }
   case InvertSection: {
-    bool IsLambda = SectionLambdas.contains(AccessorValue[0]);
+    bool IsLambda =
+        SectionLambdas.find(AccessorValue[0]) != SectionLambdas.end();
     if (!isFalsey(Context) || IsLambda)
       return;
     renderChild(Context, OS);
@@ -706,6 +707,7 @@ void ASTNode::renderSectionLambdas(const json::Value &Contexts,
   Parser P = Parser(LambdaStr);
   AstPtr LambdaNode = P.parse(Partials, Lambdas, SectionLambdas, Escapes);
   LambdaNode->render(Contexts, OS);
+  return;
 }
 
 void Template::render(const json::Value &Data, llvm::raw_ostream &OS) {

@@ -488,7 +488,7 @@ Error ELFSectionWriter<ELFT>::visit(const DecompressedSection &Sec) {
                                  "': " + toString(std::move(E)));
 
   uint8_t *Buf = reinterpret_cast<uint8_t *>(Out.getBufferStart()) + Sec.Offset;
-  llvm::copy(Decompressed, Buf);
+  std::copy(Decompressed.begin(), Decompressed.end(), Buf);
 
   return Error::success();
 }

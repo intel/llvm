@@ -20,10 +20,10 @@
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _Key, class _Compare = less<_Key>, class _Allocator = allocator<_Key> >
-class set;
+class _LIBCPP_TEMPLATE_VIS set;
 
 template <class _Key, class _Compare = less<_Key>, class _Allocator = allocator<_Key> >
-class multiset;
+class _LIBCPP_TEMPLATE_VIS multiset;
 
 _LIBCPP_END_NAMESPACE_STD
 

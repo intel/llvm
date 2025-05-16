@@ -592,7 +592,7 @@ llvm::createLibcall(MachineIRBuilder &MIRBuilder, const char *Name,
         isLibCallInTailPosition(Result, *MI, MIRBuilder.getTII(),
                                 *MIRBuilder.getMRI());
 
-  llvm::append_range(Info.OrigArgs, Args);
+  std::copy(Args.begin(), Args.end(), std::back_inserter(Info.OrigArgs));
   if (!CLI.lowerCall(MIRBuilder, Info))
     return LegalizerHelper::UnableToLegalize;
 
@@ -708,7 +708,7 @@ llvm::createMemLibcall(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
       MI.getOperand(MI.getNumOperands() - 1).getImm() &&
       isLibCallInTailPosition(Info.OrigRet, MI, MIRBuilder.getTII(), MRI);
 
-  llvm::append_range(Info.OrigArgs, Args);
+  std::copy(Args.begin(), Args.end(), std::back_inserter(Info.OrigArgs));
   if (!CLI.lowerCall(MIRBuilder, Info))
     return LegalizerHelper::UnableToLegalize;
 
@@ -855,7 +855,7 @@ createAtomicLibcall(MachineIRBuilder &MIRBuilder, MachineInstr &MI) {
   Info.Callee = MachineOperand::CreateES(Name);
   Info.OrigRet = CallLowering::ArgInfo(RetRegs, RetTy, 0);
 
-  llvm::append_range(Info.OrigArgs, Args);
+  std::copy(Args.begin(), Args.end(), std::back_inserter(Info.OrigArgs));
   if (!CLI.lowerCall(MIRBuilder, Info))
     return LegalizerHelper::UnableToLegalize;
 
@@ -1765,7 +1765,7 @@ LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
         LLT GCDTy = extractGCDType(WidenedXors, NarrowTy, LeftoverTy, Xor);
         buildLCMMergePieces(LeftoverTy, NarrowTy, GCDTy, WidenedXors,
                             /* PadStrategy = */ TargetOpcode::G_ZEXT);
-        llvm::append_range(Xors, WidenedXors);
+        Xors.insert(Xors.end(), WidenedXors.begin(), WidenedXors.end());
       }
 
       // Now, for each part we broke up, we know if they are equal/not equal
@@ -2060,6 +2060,7 @@ void LegalizerHelper::moreElementsVectorDst(MachineInstr &MI, LLT WideTy,
 void LegalizerHelper::moreElementsVectorSrc(MachineInstr &MI, LLT MoreTy,
                                             unsigned OpIdx) {
   MachineOperand &MO = MI.getOperand(OpIdx);
+  SmallVector<Register, 8> Regs;
   MO.setReg(MIRBuilder.buildPadVectorWithUndefElements(MoreTy, MO).getReg(0));
 }
 
@@ -2150,6 +2151,7 @@ LegalizerHelper::widenScalarMergeValues(MachineInstr &MI, unsigned TypeIdx,
   const int GCD = std::gcd(SrcSize, WideSize);
   LLT GCDTy = LLT::scalar(GCD);
 
+  SmallVector<Register, 8> Parts;
   SmallVector<Register, 8> NewMergeRegs;
   SmallVector<Register, 8> Unmerges;
   LLT WideDstTy = LLT::scalar(NumMerge * WideSize);
@@ -5208,11 +5210,6 @@ LegalizerHelper::reduceLoadStoreWidth(GLoadStore &LdStMI, unsigned TypeIdx,
   if (TypeIdx != 0)
     return UnableToLegalize;
 
-  if (!NarrowTy.isByteSized()) {
-    LLVM_DEBUG(dbgs() << "Can't narrow load/store to non-byte-sized type\n");
-    return UnableToLegalize;
-  }
-
   // This implementation doesn't work for atomics. Give up instead of doing
   // something invalid.
   if (LdStMI.isAtomic())
@@ -5498,8 +5495,9 @@ LegalizerHelper::fewerElementsBitcast(MachineInstr &MI, unsigned int TypeIdx,
 
   // Build new smaller bitcast instructions
   // Not supporting Leftover types for now but will have to
-  for (Register Reg : SrcVRegs)
-    BitcastVRegs.push_back(MIRBuilder.buildBitcast(NarrowTy, Reg).getReg(0));
+  for (unsigned i = 0; i < SrcVRegs.size(); i++)
+    BitcastVRegs.push_back(
+        MIRBuilder.buildBitcast(NarrowTy, SrcVRegs[i]).getReg(0));
 
   MIRBuilder.buildMergeLikeInstr(DstReg, BitcastVRegs);
   MI.eraseFromParent();
@@ -6641,6 +6639,7 @@ LegalizerHelper::narrowScalarExtract(MachineInstr &MI, unsigned TypeIdx,
   int NumParts = SizeOp1 / NarrowSize;
 
   SmallVector<Register, 2> SrcRegs, DstRegs;
+  SmallVector<uint64_t, 2> Indexes;
   extractParts(MI.getOperand(1).getReg(), NarrowTy, NumParts, SrcRegs,
                MIRBuilder, MRI);
 
@@ -6700,6 +6699,7 @@ LegalizerHelper::narrowScalarInsert(MachineInstr &MI, unsigned TypeIdx,
     return UnableToLegalize;
 
   SmallVector<Register, 2> SrcRegs, LeftoverRegs, DstRegs;
+  SmallVector<uint64_t, 2> Indexes;
   LLT RegTy = MRI.getType(MI.getOperand(0).getReg());
   LLT LeftoverTy;
   extractParts(MI.getOperand(1).getReg(), RegTy, NarrowTy, LeftoverTy, SrcRegs,
@@ -7378,8 +7378,9 @@ LegalizerHelper::LegalizeResult LegalizerHelper::lowerTRUNC(MachineInstr &MI) {
       InterTy = SplitSrcTy.changeElementSize(DstTy.getScalarSizeInBits() * 2);
     else
       InterTy = SplitSrcTy.changeElementSize(DstTy.getScalarSizeInBits());
-    for (Register &Src : SplitSrcs)
-      Src = MIRBuilder.buildTrunc(InterTy, Src).getReg(0);
+    for (unsigned I = 0; I < SplitSrcs.size(); ++I) {
+      SplitSrcs[I] = MIRBuilder.buildTrunc(InterTy, SplitSrcs[I]).getReg(0);
+    }
 
     // Combine the new truncates into one vector
     auto Merge = MIRBuilder.buildMergeLikeInstr(

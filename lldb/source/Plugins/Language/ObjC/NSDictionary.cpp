@@ -109,7 +109,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   struct DataDescriptor_32 {
@@ -148,7 +148,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   ExecutionContextRef m_exe_ctx_ref;
@@ -178,7 +178,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   struct DictionaryItemDescriptor {
@@ -209,7 +209,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   ValueObjectSP m_pair;
@@ -228,7 +228,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   struct DictionaryItemDescriptor {
@@ -259,8 +259,8 @@ namespace Foundation1100 {
 
     lldb::ChildCacheState Update() override;
 
-    llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
-
+    size_t GetIndexOfChildWithName(ConstString name) override;
+    
   private:
     struct DataDescriptor_32 {
       uint32_t _used : 26;
@@ -585,14 +585,12 @@ lldb_private::formatters::NSDictionaryISyntheticFrontEnd::
   m_data_64 = nullptr;
 }
 
-llvm::Expected<size_t> lldb_private::formatters::
-    NSDictionaryISyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
+size_t lldb_private::formatters::NSDictionaryISyntheticFrontEnd::
+    GetIndexOfChildWithName(ConstString name) {
   const char *item_name = name.GetCString();
   uint32_t idx = ExtractIndexFromString(item_name);
-  if (idx == UINT32_MAX ||
-      (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors()))
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
+  if (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors())
+    return UINT32_MAX;
   return idx;
 }
 
@@ -720,14 +718,12 @@ lldb_private::formatters::NSCFDictionarySyntheticFrontEnd::
     : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(), m_hashtable(),
       m_pair_type() {}
 
-llvm::Expected<size_t> lldb_private::formatters::
-    NSCFDictionarySyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
+size_t lldb_private::formatters::NSCFDictionarySyntheticFrontEnd::
+    GetIndexOfChildWithName(ConstString name) {
   const char *item_name = name.GetCString();
   const uint32_t idx = ExtractIndexFromString(item_name);
-  if (idx == UINT32_MAX ||
-      (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors()))
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString(), idx);
+  if (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors())
+    return UINT32_MAX;
   return idx;
 }
 
@@ -853,15 +849,12 @@ lldb_private::formatters::NSConstantDictionarySyntheticFrontEnd::
     NSConstantDictionarySyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
     : SyntheticChildrenFrontEnd(*valobj_sp) {}
 
-llvm::Expected<size_t>
-lldb_private::formatters::NSConstantDictionarySyntheticFrontEnd::
+size_t lldb_private::formatters::NSConstantDictionarySyntheticFrontEnd::
     GetIndexOfChildWithName(ConstString name) {
   const char *item_name = name.GetCString();
   uint32_t idx = ExtractIndexFromString(item_name);
-  if (idx == UINT32_MAX ||
-      (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors()))
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
+  if (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors())
+    return UINT32_MAX;
   return idx;
 }
 
@@ -968,13 +961,10 @@ lldb_private::formatters::NSDictionary1SyntheticFrontEnd::
     NSDictionary1SyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
     : SyntheticChildrenFrontEnd(*valobj_sp.get()), m_pair(nullptr) {}
 
-llvm::Expected<size_t> lldb_private::formatters::
-    NSDictionary1SyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
+size_t lldb_private::formatters::NSDictionary1SyntheticFrontEnd::
+    GetIndexOfChildWithName(ConstString name) {
   static const ConstString g_zero("[0]");
-  if (name == g_zero)
-    return 0;
-  return llvm::createStringError("Type has no child named '%s'",
-                                 name.AsCString());
+  return name == g_zero ? 0 : UINT32_MAX;
 }
 
 llvm::Expected<uint32_t> lldb_private::formatters::
@@ -1055,15 +1045,12 @@ lldb_private::formatters::GenericNSDictionaryMSyntheticFrontEnd<
 }
 
 template <typename D32, typename D64>
-llvm::Expected<size_t>
-lldb_private::formatters::GenericNSDictionaryMSyntheticFrontEnd<
+size_t lldb_private::formatters::GenericNSDictionaryMSyntheticFrontEnd<
     D32, D64>::GetIndexOfChildWithName(ConstString name) {
   const char *item_name = name.GetCString();
   uint32_t idx = ExtractIndexFromString(item_name);
-  if (idx == UINT32_MAX ||
-      (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors()))
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
+  if (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors())
+    return UINT32_MAX;
   return idx;
 }
 
@@ -1215,14 +1202,13 @@ lldb_private::formatters::Foundation1100::
   m_data_64 = nullptr;
 }
 
-llvm::Expected<size_t> lldb_private::formatters::Foundation1100::
-    NSDictionaryMSyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
+size_t
+lldb_private::formatters::Foundation1100::
+  NSDictionaryMSyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
   const char *item_name = name.GetCString();
   uint32_t idx = ExtractIndexFromString(item_name);
-  if (idx == UINT32_MAX ||
-      (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors()))
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
+  if (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors())
+    return UINT32_MAX;
   return idx;
 }
 

@@ -1,7 +1,6 @@
 // Ensure -fsycl-allow-device-dependencies can work with free function kernels.
 
-// REQUIRES: aspect-usm_shared_allocations, pdtracker
-// PDTRACKER: https://github.com/intel/llvm/issues/18432
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out --offload-new-driver -fsycl-allow-device-image-dependencies
 // RUN: %{run} %t.out
 

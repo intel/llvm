@@ -1755,8 +1755,7 @@ private:
           // tags all result variables with one of the largest types to allow
           // them to share the same storage. Convert this to the actual type.
           if (resultRef.getType() != resultRefType)
-            resultRef = builder->createConvertWithVolatileCast(
-                loc, resultRefType, resultRef);
+            resultRef = builder->createConvert(loc, resultRefType, resultRef);
           return builder->create<fir::LoadOp>(loc, resultRef);
         });
     genExitRoutine(false, resultVal);
@@ -3098,7 +3097,7 @@ private:
 
     llvm::SmallVector<mlir::Value> gridValues;
     llvm::SmallVector<mlir::Value> blockValues;
-    mlir::Value streamAddr;
+    mlir::Value streamValue;
 
     if (launchConfig) {
       const std::list<Fortran::parser::CUFKernelDoConstruct::StarOrExpr> &grid =
@@ -3131,8 +3130,10 @@ private:
       }
 
       if (stream)
-        streamAddr = fir::getBase(
-            genExprAddr(*Fortran::semantics::GetExpr(*stream), stmtCtx));
+        streamValue = builder->createConvert(
+            loc, builder->getI32Type(),
+            fir::getBase(
+                genExprValue(*Fortran::semantics::GetExpr(*stream), stmtCtx)));
     }
 
     const auto &outerDoConstruct =
@@ -3266,7 +3267,7 @@ private:
     }
 
     auto op = builder->create<cuf::KernelOp>(
-        loc, gridValues, blockValues, streamAddr, lbs, ubs, steps, n,
+        loc, gridValues, blockValues, streamValue, lbs, ubs, steps, n,
         mlir::ValueRange(reduceOperands), builder->getArrayAttr(reduceAttrs));
     builder->createBlock(&op.getRegion(), op.getRegion().end(), ivTypes,
                          ivLocs);
@@ -3733,11 +3734,10 @@ private:
           builder->createMinusOneInteger(loc, builder->getIndexType())};
       mlir::Value baseAddr =
           hlfir::genVariableRawAddress(loc, *builder, selector);
-      const bool isVolatile = fir::isa_volatile_type(selector.getType());
       mlir::Type eleType =
           fir::unwrapSequenceType(fir::unwrapRefType(baseAddr.getType()));
-      mlir::Type rank1Type = fir::ReferenceType::get(
-          builder->getVarLenSeqTy(eleType, 1), isVolatile);
+      mlir::Type rank1Type =
+          fir::ReferenceType::get(builder->getVarLenSeqTy(eleType, 1));
       baseAddr = builder->createConvert(loc, rank1Type, baseAddr);
       if (selector.isCharacter()) {
         mlir::Value len = hlfir::genCharLength(loc, *builder, selector);
@@ -3757,8 +3757,7 @@ private:
           mlir::cast<fir::BaseBoxType>(fir::unwrapRefType(selector.getType()));
       mlir::Type newBoxType = boxTy.getBoxTypeWithNewShape(rank);
       if (fir::isa_ref_type(selector.getType()))
-        newBoxType = fir::ReferenceType::get(
-            newBoxType, fir::isa_volatile_type(selector.getType()));
+        newBoxType = fir::ReferenceType::get(newBoxType);
       // Give rank info to value via cast, and get rid of the box if not needed
       // (simple scalars, contiguous arrays... This is done by
       // translateVariableToExtendedValue).
@@ -5494,9 +5493,8 @@ private:
         // return, PassBy::AddressAndLength should be retired.
         mlir::Location loc = toLocation();
         fir::factory::CharacterExprHelper charHelp{*builder, loc};
-        mlir::Value casted =
-            builder->createVolatileCast(loc, false, arg.firArgument);
-        mlir::Value box = charHelp.createEmboxChar(casted, arg.firLength);
+        mlir::Value box =
+            charHelp.createEmboxChar(arg.firArgument, arg.firLength);
         mapBlockArgToDummyOrResult(arg.entity->get(), box, isResult);
       } else {
         if (arg.entity.has_value()) {
@@ -5510,10 +5508,7 @@ private:
     for (const Fortran::lower::CalleeInterface::PassedEntity &arg :
          callee.getPassedArguments())
       mapPassedEntity(arg);
-
-    // Always generate fir.dummy_scope even if there are no arguments.
-    // It is currently used to create proper TBAA forest.
-    if (lowerToHighLevelFIR()) {
+    if (lowerToHighLevelFIR() && !callee.getPassedArguments().empty()) {
       mlir::Value scopeOp = builder->create<fir::DummyScopeOp>(toLocation());
       setDummyArgsScope(scopeOp);
     }

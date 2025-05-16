@@ -122,11 +122,12 @@ IntrusiveRefCntPtr<ExternalSemaSource> clang::createChainedIncludesSource(
     IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
         new DiagnosticsEngine(DiagID, &CI.getDiagnosticOpts(), DiagClient));
 
-    auto Clang = std::make_unique<CompilerInstance>(
-        std::move(CInvok), CI.getPCHContainerOperations());
+    std::unique_ptr<CompilerInstance> Clang(
+        new CompilerInstance(CI.getPCHContainerOperations()));
+    Clang->setInvocation(std::move(CInvok));
     Clang->setDiagnostics(Diags.get());
     Clang->setTarget(TargetInfo::CreateTargetInfo(
-        Clang->getDiagnostics(), Clang->getInvocation().getTargetOpts()));
+        Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
     Clang->createFileManager();
     Clang->createSourceManager(Clang->getFileManager());
     Clang->createPreprocessor(TU_Prefix);

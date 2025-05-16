@@ -1111,7 +1111,10 @@ private:
       addMLIRAttr(fir::getContiguousAttrName());
     if (obj.attrs.test(Attrs::Value))
       isValueAttr = true; // TODO: do we want an mlir::Attribute as well?
-
+    if (obj.attrs.test(Attrs::Volatile)) {
+      TODO(loc, "VOLATILE in procedure interface");
+      addMLIRAttr(fir::getVolatileAttrName());
+    }
     // obj.attrs.test(Attrs::Asynchronous) does not impact the way the argument
     // is passed given flang implement asynch IO synchronously. However, it's
     // added to determine whether the argument is captured.
@@ -1148,8 +1151,7 @@ private:
 
     if (obj.attrs.test(Attrs::Allocatable) || obj.attrs.test(Attrs::Pointer)) {
       // Pass as fir.ref<fir.box> or fir.ref<fir.class>
-      const bool isVolatile = obj.attrs.test(Attrs::Volatile);
-      mlir::Type boxRefType = fir::ReferenceType::get(boxType, isVolatile);
+      mlir::Type boxRefType = fir::ReferenceType::get(boxType);
       addFirOperand(boxRefType, nextPassedArgPosition(), Property::MutableBox,
                     attrs);
       addPassedArg(PassEntityBy::MutableBox, entity, characteristics);

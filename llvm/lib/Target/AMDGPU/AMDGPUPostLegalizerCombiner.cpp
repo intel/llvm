@@ -473,6 +473,8 @@ void AMDGPUPostLegalizerCombiner::getAnalysisUsage(AnalysisUsage &AU) const {
 
 AMDGPUPostLegalizerCombiner::AMDGPUPostLegalizerCombiner(bool IsOptNone)
     : MachineFunctionPass(ID), IsOptNone(IsOptNone) {
+  initializeAMDGPUPostLegalizerCombinerPass(*PassRegistry::getPassRegistry());
+
   if (!RuleConfig.parseCommandLineOption())
     report_fatal_error("Invalid rule identifier");
 }
@@ -517,6 +519,8 @@ INITIALIZE_PASS_END(AMDGPUPostLegalizerCombiner, DEBUG_TYPE,
                     "Combine AMDGPU machine instrs after legalization", false,
                     false)
 
-FunctionPass *llvm::createAMDGPUPostLegalizeCombiner(bool IsOptNone) {
+namespace llvm {
+FunctionPass *createAMDGPUPostLegalizeCombiner(bool IsOptNone) {
   return new AMDGPUPostLegalizerCombiner(IsOptNone);
 }
+} // end namespace llvm

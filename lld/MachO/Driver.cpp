@@ -314,6 +314,8 @@ static InputFile *addFile(StringRef path, LoadType loadType,
       std::unique_ptr<object::Archive> archive = CHECK(
           object::Archive::create(mbref), path + ": failed to parse archive");
 
+      if (!archive->isEmpty() && !archive->hasSymbolTable())
+        error(path + ": archive has no index; run ranlib to add one");
       file = make<ArchiveFile>(std::move(archive), isForceHidden);
 
       if (tar && file->getArchive().isThin())
@@ -360,11 +362,9 @@ static InputFile *addFile(StringRef path, LoadType loadType,
                 ": Archive::children failed: " + toString(std::move(e)));
       }
     } else if (isCommandLineLoad && config->forceLoadObjC) {
-      if (file->getArchive().hasSymbolTable()) {
-        for (const object::Archive::Symbol &sym : file->getArchive().symbols())
-          if (sym.getName().starts_with(objc::symbol_names::klass))
-            file->fetch(sym);
-      }
+      for (const object::Archive::Symbol &sym : file->getArchive().symbols())
+        if (sym.getName().starts_with(objc::symbol_names::klass))
+          file->fetch(sym);
 
       // TODO: no need to look for ObjC sections for a given archive member if
       // we already found that it contains an ObjC symbol.
@@ -394,6 +394,7 @@ static InputFile *addFile(StringRef path, LoadType loadType,
                 ": Archive::children failed: " + toString(std::move(e)));
       }
     }
+
     file->addLazySymbols();
     loadedArchives[path] = ArchiveFileInfo{file, isCommandLineLoad};
     newFile = file;

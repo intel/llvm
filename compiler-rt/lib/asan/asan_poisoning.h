@@ -22,19 +22,6 @@
 
 namespace __asan {
 
-struct PoisonRecord {
-  u32 stack_id;
-  u32 thread_id;
-  uptr begin;
-  uptr end;
-};
-
-void AddPoisonRecord(const PoisonRecord& new_record);
-bool FindPoisonRecord(uptr addr, PoisonRecord& match);
-
-void AcquirePoisonRecords();
-void ReleasePoisonRecords();
-
 // Enable/disable memory poisoning.
 void SetCanPoisonMemory(bool value);
 bool CanPoisonMemory();

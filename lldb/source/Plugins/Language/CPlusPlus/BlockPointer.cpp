@@ -144,10 +144,9 @@ public:
     return lldb::ChildCacheState::eRefetch;
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  size_t GetIndexOfChildWithName(ConstString name) override {
     if (!m_block_struct_type.IsValid())
-      return llvm::createStringError("Type has no child named '%s'",
-                                     name.AsCString());
+      return UINT32_MAX;
 
     const bool omit_empty_base_classes = false;
     return m_block_struct_type.GetIndexOfChildWithName(name.AsCString(),
@@ -173,17 +172,8 @@ bool lldb_private::formatters::BlockPointerSummaryProvider(
 
   static const ConstString s_FuncPtr_name("__FuncPtr");
 
-  auto index_or_err =
-      synthetic_children->GetIndexOfChildWithName(s_FuncPtr_name);
-
-  if (!index_or_err) {
-    LLDB_LOG_ERROR(GetLog(LLDBLog::DataFormatters), index_or_err.takeError(),
-                   "{0}");
-    return false;
-  }
-
-  lldb::ValueObjectSP child_sp =
-      synthetic_children->GetChildAtIndex(*index_or_err);
+  lldb::ValueObjectSP child_sp = synthetic_children->GetChildAtIndex(
+      synthetic_children->GetIndexOfChildWithName(s_FuncPtr_name));
 
   if (!child_sp) {
     return false;

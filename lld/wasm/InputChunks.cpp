@@ -411,9 +411,9 @@ bool InputChunk::generateRelocationCode(raw_ostream &os) const {
     if (ctx.isPic) {
       writeU8(os, WASM_OPCODE_GLOBAL_GET, "GLOBAL_GET");
       if (isTLS())
-        writeUleb128(os, ctx.sym.tlsBase->getGlobalIndex(), "tls_base");
+        writeUleb128(os, WasmSym::tlsBase->getGlobalIndex(), "tls_base");
       else
-        writeUleb128(os, ctx.sym.memoryBase->getGlobalIndex(), "memory_base");
+        writeUleb128(os, WasmSym::memoryBase->getGlobalIndex(), "memory_base");
       writeU8(os, opcode_ptr_add, "ADD");
     }
 
@@ -436,12 +436,12 @@ bool InputChunk::generateRelocationCode(raw_ostream &os) const {
       }
     } else {
       assert(ctx.isPic);
-      const GlobalSymbol *baseSymbol = ctx.sym.memoryBase;
+      const GlobalSymbol* baseSymbol = WasmSym::memoryBase;
       if (rel.Type == R_WASM_TABLE_INDEX_I32 ||
           rel.Type == R_WASM_TABLE_INDEX_I64)
-        baseSymbol = ctx.sym.tableBase;
+        baseSymbol = WasmSym::tableBase;
       else if (sym->isTLS())
-        baseSymbol = ctx.sym.tlsBase;
+        baseSymbol = WasmSym::tlsBase;
       writeU8(os, WASM_OPCODE_GLOBAL_GET, "GLOBAL_GET");
       writeUleb128(os, baseSymbol->getGlobalIndex(), "base");
       writeU8(os, opcode_reloc_const, "CONST");

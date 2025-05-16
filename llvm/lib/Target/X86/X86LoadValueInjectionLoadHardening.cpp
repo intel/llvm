@@ -414,6 +414,7 @@ X86LoadValueInjectionLoadHardeningPass::getGadgetGraph(
 
             // Check whether the use propagates to more defs.
             NodeAddr<InstrNode *> Owner{Use.Addr->getOwner(DFG)};
+            rdf::NodeList AnalyzedChildDefs;
             for (const auto &ChildDef :
                  Owner.Addr->members_if(DataFlowGraph::IsDef, DFG)) {
               if (!DefsVisited.insert(ChildDef.Id).second)

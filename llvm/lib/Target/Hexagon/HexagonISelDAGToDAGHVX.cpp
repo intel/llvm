@@ -1269,11 +1269,11 @@ OpRef HvxSelector::packs(ShuffleMask SM, OpRef Va, OpRef Vb,
     return OpRef::fail();
 
   if (Vb.isUndef()) {
-    llvm::copy(SM.Mask, NewMask.begin());
+    std::copy(SM.Mask.begin(), SM.Mask.end(), NewMask.begin());
     return Va;
   }
   if (Va.isUndef()) {
-    llvm::copy(SM.Mask, NewMask.begin());
+    std::copy(SM.Mask.begin(), SM.Mask.end(), NewMask.begin());
     ShuffleVectorSDNode::commuteMask(NewMask);
     return Vb;
   }

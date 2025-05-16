@@ -24,7 +24,8 @@ class SimplifyConstraintsTest : public ::testing::Test {
 protected:
   llvm::SetVector<const Formula *> parse(StringRef Lines) {
     std::vector<const Formula *> formulas = test::parseFormulas(A, Lines);
-    llvm::SetVector<const Formula *> Constraints(llvm::from_range, formulas);
+    llvm::SetVector<const Formula *> Constraints(formulas.begin(),
+                                                 formulas.end());
     return Constraints;
   }
 

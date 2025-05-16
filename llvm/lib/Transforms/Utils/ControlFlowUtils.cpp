@@ -246,14 +246,12 @@ static void reconnectPhis(BasicBlock *Out, BasicBlock *GuardBlock,
     bool AllUndef = true;
     for (auto [BB, Succ0, Succ1] : Incoming) {
       Value *V = PoisonValue::get(Phi->getType());
-      if  (Phi->getBasicBlockIndex(BB) != -1) {
+      if (BB == Out) {
+        V = NewPhi;
+      } else if (Phi->getBasicBlockIndex(BB) != -1) {
         V = Phi->removeIncomingValue(BB, false);
-        if (BB == Out) {
-          V = NewPhi;
-        }
         AllUndef &= isa<UndefValue>(V);
       }
-
       NewPhi->addIncoming(V, BB);
     }
     assert(NewPhi->getNumIncomingValues() == Incoming.size());

@@ -1569,10 +1569,10 @@ StructuredData::ObjectSP
 ScriptInterpreterPythonImpl::CreateStructuredDataFromScriptObject(
     ScriptObject obj) {
   void *ptr = const_cast<void *>(obj.GetPointer());
-  Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
   PythonObject py_obj(PyRefType::Borrowed, static_cast<PyObject *>(ptr));
   if (!py_obj.IsValid() || py_obj.IsNone())
     return {};
+  Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
   return py_obj.CreateStructuredObject();
 }
 
@@ -2037,19 +2037,19 @@ lldb::ValueObjectSP ScriptInterpreterPythonImpl::GetChildAtIndex(
   return ret_val;
 }
 
-llvm::Expected<int> ScriptInterpreterPythonImpl::GetIndexOfChildWithName(
+int ScriptInterpreterPythonImpl::GetIndexOfChildWithName(
     const StructuredData::ObjectSP &implementor_sp, const char *child_name) {
   if (!implementor_sp)
-    return llvm::createStringError("Type has no child named '%s'", child_name);
+    return UINT32_MAX;
 
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
-    return llvm::createStringError("Type has no child named '%s'", child_name);
+    return UINT32_MAX;
   auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
-    return llvm::createStringError("Type has no child named '%s'", child_name);
+    return UINT32_MAX;
 
-  int ret_val = INT32_MAX;
+  int ret_val = UINT32_MAX;
 
   {
     Locker py_lock(this,
@@ -2058,8 +2058,6 @@ llvm::Expected<int> ScriptInterpreterPythonImpl::GetIndexOfChildWithName(
                                                                  child_name);
   }
 
-  if (ret_val == INT32_MAX)
-    return llvm::createStringError("Type has no child named '%s'", child_name);
   return ret_val;
 }
 
@@ -2567,6 +2565,8 @@ bool ScriptInterpreterPythonImpl::RunScriptBasedCommand(
 
   bool ret_val = false;
 
+  std::string err_msg;
+
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession |
@@ -2610,6 +2610,8 @@ bool ScriptInterpreterPythonImpl::RunScriptBasedCommand(
 
   bool ret_val = false;
 
+  std::string err_msg;
+
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession |
@@ -2652,6 +2654,8 @@ bool ScriptInterpreterPythonImpl::RunScriptBasedParsedCommand(
   }
 
   bool ret_val = false;
+
+  std::string err_msg;
 
   {
     Locker py_lock(this,
@@ -3160,6 +3164,8 @@ void ScriptInterpreterPythonImpl::Initialize() {
 
 void ScriptInterpreterPythonImpl::AddToSysPath(AddLocation location,
                                                std::string path) {
+  std::string path_copy;
+
   std::string statement;
   if (location == AddLocation::Beginning) {
     statement.assign("sys.path.insert(0,\"");

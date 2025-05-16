@@ -10,7 +10,6 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -211,26 +210,22 @@ struct BasicIRPrinterConfig : public PassManager::IRPrinterConfig {
 /// `op` first, `op` last). This information is used to construct the directory
 /// tree for the `FileTreeIRPrinterConfig` below.
 /// The counter for `op` will be incremented by this call.
-static std::pair<SmallVector<std::pair<std::string, std::string>>, std::string>
+static std::pair<SmallVector<std::pair<std::string, StringRef>>, std::string>
 getOpAndSymbolNames(Operation *op, StringRef passName,
                     llvm::DenseMap<Operation *, unsigned> &counters) {
-  SmallVector<std::pair<std::string, std::string>> pathElements;
+  SmallVector<std::pair<std::string, StringRef>> pathElements;
   SmallVector<unsigned> countPrefix;
 
   Operation *iter = op;
   ++counters.try_emplace(op, -1).first->second;
   while (iter) {
     countPrefix.push_back(counters[iter]);
-    StringAttr symbolNameAttr =
+    StringAttr symbolName =
         iter->getAttrOfType<StringAttr>(SymbolTable::getSymbolAttrName());
-    std::string symbolName =
-        symbolNameAttr ? symbolNameAttr.str() : "no-symbol-name";
-    llvm::replace(symbolName, '/', '_');
-    llvm::replace(symbolName, '\\', '_');
-
     std::string opName =
         llvm::join(llvm::split(iter->getName().getStringRef().str(), '.'), "_");
-    pathElements.emplace_back(std::move(opName), std::move(symbolName));
+    pathElements.emplace_back(opName, symbolName ? symbolName.strref()
+                                                 : "no-symbol-name");
     iter = iter->getParentOp();
   }
   // Return in the order of top level (module) down to `op`.

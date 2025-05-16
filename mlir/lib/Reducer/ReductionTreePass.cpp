@@ -29,7 +29,7 @@
 #include "llvm/Support/ManagedStatic.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_REDUCTIONTREEPASS
+#define GEN_PASS_DEF_REDUCTIONTREE
 #include "mlir/Reducer/Passes.h.inc"
 } // namespace mlir
 
@@ -62,11 +62,11 @@ static void applyPatterns(Region &region,
   // before that transform.
   for (Operation *op : opsInRange) {
     // `applyOpPatternsGreedily` with folding returns whether the op is
-    // converted. Omit it because we don't have expectation this reduction will
+    // convered. Omit it because we don't have expectation this reduction will
     // be success or not.
-    (void)applyOpPatternsGreedily(op, patterns,
-                                  GreedyRewriteConfig().setStrictness(
-                                      GreedyRewriteStrictness::ExistingOps));
+    GreedyRewriteConfig config;
+    config.strictMode = GreedyRewriteStrictness::ExistingOps;
+    (void)applyOpPatternsGreedily(op, patterns, config);
   }
 
   if (eraseOpNotInRange)
@@ -191,10 +191,10 @@ public:
 /// This class defines the Reduction Tree Pass. It provides a framework to
 /// to implement a reduction pass using a tree structure to keep track of the
 /// generated reduced variants.
-class ReductionTreePass
-    : public impl::ReductionTreePassBase<ReductionTreePass> {
+class ReductionTreePass : public impl::ReductionTreeBase<ReductionTreePass> {
 public:
-  using Base::Base;
+  ReductionTreePass() = default;
+  ReductionTreePass(const ReductionTreePass &pass) = default;
 
   LogicalResult initialize(MLIRContext *context) override;
 
@@ -255,4 +255,8 @@ LogicalResult ReductionTreePass::reduceOp(ModuleOp module, Region &region) {
   default:
     return module.emitError() << "unsupported traversal mode detected";
   }
+}
+
+std::unique_ptr<Pass> mlir::createReductionTreePass() {
+  return std::make_unique<ReductionTreePass>();
 }
