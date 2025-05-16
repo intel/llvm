@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // This tests support of col major layout for matrix B which does transpose and
-// then VNNI transform. This is currently only available on AMX
+// then VNNI transform.
 
 // UNSUPPORTED: target-nvidia, target-amd
 // UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
@@ -20,6 +20,7 @@
 // RUN: %{build} -o %t32.out -DSG_SZ=32
 // RUN: %{run} %t32.out
 
+// This is currently not implemented for DG2
 // XFAIL: run-mode && gpu-intel-dg2
 // XFAIL-TRACKER: GSD-5768
 
@@ -139,26 +140,22 @@ int main() {
     if (!bf16_run && combination.atype == matrix_type::bf16) {
       std::cout << "bf16 ";
       test<bfloat16, 8, 16, 16>();
-#ifdef BIG_SHAPES
       test<bfloat16, 16, 16, 16>();
       test<bfloat16, 1, 64, 16>();
       test<bfloat16, 1, 64, 32>();
       test<bfloat16, 32, 64, 16>();
       test<bfloat16, 32, 64, 32>();
-#endif
       bf16_run = true;
     }
 
     if (!half_run && combination.atype == matrix_type::fp16) {
       std::cout << "half ";
       test<half, 8, 16, 16>();
-#ifdef BIG_SHAPES
       test<half, 16, 16, 16>();
       test<half, 1, 64, 16>();
       test<half, 1, 64, 32>();
       test<half, 32, 64, 16>();
       test<half, 32, 64, 32>();
-#endif
       half_run = true;
     }
 
