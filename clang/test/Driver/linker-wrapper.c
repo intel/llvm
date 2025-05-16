@@ -57,8 +57,10 @@ __attribute__((visibility("protected"), used)) int x;
 // RUN: not clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=SPIRV-LINK-INTEL
 
+// TODO: Remove SPIRV-LINK-INTEL once migration to community flow is completed.
 // SPIRV-LINK: clang{{.*}} -o {{.*}}.img --target=spirv64-unknown-unknown {{.*}}.o --sycl-link -Xlinker -triple=spirv64-unknown-unknown -Xlinker -arch=
-// SPIRV-LINK-INTEL:spirv-to-ir-wrapper{{.*}} -o {{.*}}.bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// SPIRV-LINK-INTEL: spirv-to-ir-wrapper{{.*}} -o {{.*}}.bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// SPIRV-LINK-INTEL: llvm-link{{.*}} {{.*}}.bc -o {{.*}}.bc --suppress-warnings
 //
 // RUN: clang-offload-packager -o %t.out \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=x86_64-unknown-linux-gnu \
