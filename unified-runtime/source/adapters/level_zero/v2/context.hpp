@@ -34,7 +34,12 @@ struct ur_context_handle_t_ : ur_object {
   getP2PDevices(ur_device_handle_t hDevice) const;
 
   v2::event_pool &getNativeEventsPool() { return nativeEventsPool; }
-  v2::event_pool_cache &getEventPoolCache() { return eventPoolCache; }
+  v2::event_pool_cache &getEventPoolCacheImmediate() {
+    return eventPoolCacheImmediate;
+  }
+  v2::event_pool_cache &getEventPoolCacheRegular() {
+    return eventPoolCacheRegular;
+  }
   v2::command_list_cache_t &getCommandListCache() { return commandListCache; }
 
   // Checks if Device is covered by this context.
@@ -45,7 +50,8 @@ private:
   const v2::raii::ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t> hDevices;
   v2::command_list_cache_t commandListCache;
-  v2::event_pool_cache eventPoolCache;
+  v2::event_pool_cache eventPoolCacheImmediate;
+  v2::event_pool_cache eventPoolCacheRegular;
 
   // pool used for urEventCreateWithNativeHandle when native handle is NULL
   // (uses non-counter based events to allow for signaling from host)
