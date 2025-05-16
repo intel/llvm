@@ -16,6 +16,7 @@ set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
 # TEST_INCLUDE_PATH is used for syntax-only verification of type information.
 list(APPEND test_includes ${SYCL_INCLUDE})
 list(APPEND test_includes ${SYCL_SOURCE_DIR}/source)
+list(APPEND test_includes ${LLVM_MAIN_INCLUDE_DIR})
 list(APPEND test_includes ${BOOST_UNORDERED_INCLUDE_DIRS})
 if(SYCL_ENABLE_EXTENSION_JIT)
   list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
