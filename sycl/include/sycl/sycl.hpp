@@ -123,4 +123,6 @@
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+#include <sycl/khr/dynamic_addrspace_cast.hpp>
 #include <sycl/khr/group_interface.hpp>
+#include <sycl/khr/static_addrspace_cast.hpp>
