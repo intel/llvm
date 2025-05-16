@@ -73,7 +73,7 @@ public:
 
     if (LocalMemSizePtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
-      if (MaxChosenLocalMem <= 0 || MaxChosenLocalMem > MaxCapacityLocalMem) {
+      if (MaxChosenLocalMem <= 0) {
         setErrorMessage(LocalMemSizePtrUR ? "Invalid value specified for "
                                             "UR_CUDA_MAX_LOCAL_MEM_SIZE"
                                           : "Invalid value specified for "
@@ -81,6 +81,10 @@ public:
                         UR_RESULT_ERROR_INVALID_VALUE);
         throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
+
+      // Cap chosen local mem size to device capacity, kernel enqueue will fail
+      // if it actually needs more.
+      MaxChosenLocalMem = std::min(MaxChosenLocalMem, MaxCapacityLocalMem);
     }
 
     // Max size of memory object allocation in bytes.

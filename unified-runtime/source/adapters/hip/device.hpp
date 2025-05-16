@@ -77,7 +77,7 @@ public:
 
     if (LocalMemSzPtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSzPtr);
-      if (MaxChosenLocalMem <= 0 || MaxChosenLocalMem > DeviceMaxLocalMem) {
+      if (MaxChosenLocalMem <= 0) {
         setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
                                           "UR_HIP_MAX_LOCAL_MEM_SIZE"
                                         : "Invalid value specified for "
@@ -85,6 +85,10 @@ public:
                         UR_RESULT_ERROR_OUT_OF_RESOURCES);
         throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
+
+      // Cap chosen local mem size to device capacity, kernel enqueue will fail
+      // if it actually needs more.
+      MaxChosenLocalMem = std::min(MaxChosenLocalMem, MaxCapacityLocalMem);
     }
   }
 

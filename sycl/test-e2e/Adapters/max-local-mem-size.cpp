@@ -23,7 +23,7 @@ int main() {
     auto LocalSize =
         Q.get_device().get_info<sycl::info::device::local_mem_size>();
     Q.submit([&](sycl::handler &cgh) {
-       auto LocalAcc = sycl::local_accessor<float>(LocalSize + 1, cgh);
+       auto LocalAcc = sycl::local_accessor<char>(LocalSize + 1, cgh);
        cgh.parallel_for(sycl::nd_range<1>{32, 32}, [=](sycl::nd_item<1> idx) {
          LocalAcc[idx.get_global_linear_id()] *= 2;
        });
@@ -31,6 +31,6 @@ int main() {
   } catch (const std::exception &e) {
     std::puts(e.what());
   }
-  // CHECK-ZERO: Local memory for kernel exceeds the amount requested
+  // CHECK-ZERO: Invalid value specified for
   // CHECK-OVERALLOCATE: Excessive allocation of local memory on the device
 }
