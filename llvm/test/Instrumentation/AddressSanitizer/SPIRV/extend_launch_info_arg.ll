@@ -25,4 +25,4 @@ entry:
 attributes #0 = { sanitize_address }
 ;; sycl-device-global-size = 16 * 2
 ;; sycl-host-access = 0 read-only
-; CHECK: attributes #{{.*}} = { "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__AsanKernelMetadata" }
+; CHECK: attributes #{{.*}} = { "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__AsanKernelMetadata{{.*}}" }

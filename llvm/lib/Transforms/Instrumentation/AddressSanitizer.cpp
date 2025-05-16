@@ -31,6 +31,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
@@ -68,6 +69,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MD5.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1459,8 +1461,15 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   AsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   AsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
+  // Create a memory buffer to hold the serialized module
+  std::string Buffer;
+  llvm::raw_string_ostream Stream(Buffer);
+  llvm::WriteBitcodeToFile(M, Stream);
+  Stream.flush();
+  auto ModuleHash = llvm::utohexstr(MD5Hash(Buffer), true);
+
   AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                       "_Z20__AsanKernelMetadata");
+                                       "_Z20__AsanKernelMetadata" + ModuleHash);
   AsanSpirKernelMetadata->setDSOLocal(true);
 
   // Handle SpirFixupKernels
