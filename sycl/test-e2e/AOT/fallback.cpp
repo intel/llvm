@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: ocloc, any-device-is-gpu, target-spir
-// Remove support for platform used as compile target since AOT image should be
-// not applicable.
 // UNSUPPORTED: arch-intel_gpu_tgl
+// UNSUPPORTED-INTENDED: Remove support for platform used as compile target
+// since AOT image should be not applicable.
 
 // AOT-compiled image for absent gen platform, run on GPU
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,intel_gpu_tgl %S/Inputs/aot.cpp -o %t_spv_gpu.out
