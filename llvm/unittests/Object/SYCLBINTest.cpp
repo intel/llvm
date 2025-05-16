@@ -97,7 +97,7 @@ void CommonCheck() {
         fs::createUniqueDirectory("SYCLBINTest-test", TestDirectory));
   }
 
-  // Create a random files to be used in the SYCLBIN. If the same image is
+  // Create random files to be used in the SYCLBIN. If the same image is
   // generated, retry until they are unique.
   std::vector<std::vector<uint8_t>> Images =
       generateUniqueRandomImages(NumImages);
@@ -108,7 +108,7 @@ void CommonCheck() {
   MDs.reserve(NumImages);
   for (size_t I = 0; I < NumImages; ++I) {
     SmallString<128> File(TestDirectory);
-    File.append("/image_file" + std::to_string(I));
+    llvm::sys::path::append(File, "image_file" + std::to_string(I));
     Expected<ManagedBinaryFile> ManagedModuleFileOrError =
         ManagedBinaryFile::create(File, Images[I]);
     ASSERT_THAT_EXPECTED(ManagedModuleFileOrError, Succeeded());
@@ -198,12 +198,9 @@ void CommonCheck() {
       EXPECT_EQ(IRMMetadataType.asUint32(), uint32_t{0});
 
       // Find the image that matches.
-      auto ImageMatchIt = std::find_if(
-          Images.begin(), Images.end(), [&](const std::vector<uint8_t> &Image) {
-            return Image.size() == IRM.RawIRBytes.size() &&
-                   std::memcmp(Image.data(), IRM.RawIRBytes.data(),
-                               Image.size()) == 0;
-          });
+      std::vector<uint8_t> IRImage{IRM.RawIRBytes.begin(),
+                                   IRM.RawIRBytes.end()};
+      auto ImageMatchIt = std::find(Images.begin(), Images.end(), IRImage);
       ASSERT_NE(ImageMatchIt, Images.end());
       ImageIts.push_back(ImageMatchIt);
     }
@@ -232,13 +229,11 @@ void CommonCheck() {
                 0);
 
       // Find the image that matches.
-      auto ImageMatchIt = std::find_if(
-          Images.begin(), Images.end(), [&](const std::vector<uint8_t> &Image) {
-            return Image.size() == NDCI.RawDeviceCodeImageBytes.size() &&
-                   std::memcmp(Image.data(),
-                               NDCI.RawDeviceCodeImageBytes.data(),
-                               Image.size()) == 0;
-          });
+      std::vector<uint8_t> RawDeviceCodeImage{
+          NDCI.RawDeviceCodeImageBytes.begin(),
+          NDCI.RawDeviceCodeImageBytes.end()};
+      auto ImageMatchIt =
+          std::find(Images.begin(), Images.end(), RawDeviceCodeImage);
       ASSERT_NE(ImageMatchIt, Images.end());
       ImageIts.push_back(ImageMatchIt);
     }
