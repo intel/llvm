@@ -1878,6 +1878,11 @@ static int getTypeSizeFromManglingName(StringRef Name) {
     }
   };
 
+  // Name should always be long enough since it has other unmeaningful chars,
+  // it should has at least 5 chars, such as "Dv16_d"
+  if (Name.size() < 6)
+    return 0;
+
   // 1. Basic type
   if (Name[0] != 'D')
     return GetTypeSize(Name[0]);
@@ -1890,6 +1895,7 @@ static int getTypeSizeFromManglingName(StringRef Name) {
   Name = Name.drop_front(2);
 
   // Vector length
+  assert(isDigit(Name[0]) && "Invalid mangling name for vector type");
   int Len = std::stoi(Name.str());
   Name = Name.drop_front(Len >= 10 ? 2 : 1);
 
