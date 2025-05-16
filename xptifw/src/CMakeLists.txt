@@ -32,13 +32,8 @@ function(add_xpti_library LIB_NAME)
   remove_definitions(-DXPTI_STATIC_LIBRARY)
   add_library(${LIB_NAME} SHARED ${SOURCES})
 
-  if (${LIB_NAME} MATCHES "xptifwd")
-    set_property(TARGET ${LIB_NAME} PROPERTY
-      MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
-  else()
-    set_property(TARGET ${LIB_NAME} PROPERTY
-      MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-  endif()
+  set_target_properties(${LIB_NAME} PROPERTIES
+                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
   target_include_directories(${LIB_NAME} PUBLIC
@@ -61,6 +56,10 @@ function(add_xpti_library LIB_NAME)
       target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
   endif()
 
+  if (CMAKE_SYSTEM_NAME STREQUAL Windows)
+      set_target_properties(${LIB_NAME} PROPERTIES DEBUG_POSTFIX d)
+  endif()
+
   # Set the location of the library installation
   include(GNUInstallDirs)
   install(TARGETS ${LIB_NAME}
@@ -70,10 +69,4 @@ function(add_xpti_library LIB_NAME)
   )
 endfunction(add_xpti_library)
 
-# MSVC provides two incompatible build variants for its CRT: release and debug
-# To avoid potential issues in user code we also need to provide two kinds
-# of XPTIFW for release and debug configurations.
 add_xpti_library(xptifw)
-if (MSVC)
-  add_xpti_library(xptifwd)
-endif()
