@@ -65,12 +65,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  CL_RETURN_ON_FAILURE(clEnqueueNDRangeKernel(
+  auto Err = clEnqueueNDRangeKernel(
       hQueue->CLQueue, hKernel->CLKernel, workDim, pGlobalWorkOffset,
       pGlobalWorkSize,
       compiledLocalWorksize.empty() ? pLocalWorkSize
                                     : compiledLocalWorksize.data(),
-      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event));
+  if (Err == CL_INVALID_KERNEL_ARGS) {
+    UR_LOG_L(ur::cl::getAdapter()->log, ERR,
+             "Kernel called with invalid arguments");
+  }
+  CL_RETURN_ON_FAILURE(Err);
 
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;

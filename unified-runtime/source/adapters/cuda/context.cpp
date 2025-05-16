@@ -36,13 +36,6 @@ ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
 }
 
 /// Create a UR CUDA context.
-///
-/// By default creates a scoped context and keeps the last active CUDA context
-/// on top of the CUDA context stack.
-/// With the __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of
-/// PI_TRUE creates a primary CUDA context and activates it on the CUDA context
-/// stack.
-///
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
                 const ur_context_properties_t * /*pProperties*/,
@@ -94,8 +87,7 @@ urContextRelease(ur_context_handle_t hContext) {
     return UR_RESULT_SUCCESS;
   }
   hContext->invokeExtendedDeleters();
-
-  std::unique_ptr<ur_context_handle_t_> Context{hContext};
+  delete hContext;
 
   return UR_RESULT_SUCCESS;
 }

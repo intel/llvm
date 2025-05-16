@@ -154,9 +154,15 @@ extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *Message,
-                                      ur_result_t ErrorCode);
+[[maybe_unused]] void setErrorMessage(const char *Message, int32_t ErrorCode);
 } // namespace cl_adapter
+
+namespace ur::opencl {
+struct ddi_getter {
+  const static ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ur::opencl::ddi_getter>;
+} // namespace ur::opencl
 
 namespace cl_ext {
 // Older versions of GCC don't like "const" here

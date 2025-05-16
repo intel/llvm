@@ -87,7 +87,7 @@ template <int Dim> struct range_to_item_map<sycl::nd_range<Dim>> {
   using ItemT = sycl::nd_item<Dim>;
 };
 template <int Dim> struct range_to_item_map<sycl::range<Dim>> {
-  using ItemT = sycl::item<Dim>;
+  using ItemT = sycl::item<Dim, false>;
 };
 
 template <typename T>

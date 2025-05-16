@@ -62,3 +62,30 @@ ur_result_t bindlessImagesHandleCopyFlags(
     ur_exp_image_copy_flags_t imageCopyFlags,
     ze_command_list_handle_t ZeCommandList, ze_event_handle_t zeSignalEvent,
     uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
+
+bool is3ChannelOrder(ur_image_channel_order_t ChannelOrder);
+
+bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
+                                const ur_image_desc_t *pImageDesc,
+                                ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyMipmapImageSupport(const ur_device_handle_t hDevice,
+                              const ur_image_desc_t *pImageDesc,
+                              ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyCubemapImageSupport(const ur_device_handle_t hDevice,
+                               const ur_image_desc_t *pImageDesc,
+                               ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyLayeredImageSupport(const ur_device_handle_t hDevice,
+                               const ur_image_desc_t *pImageDesc,
+                               ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyGatherImageSupport(const ur_device_handle_t hDevice,
+                              const ur_image_desc_t *pImageDesc,
+                              ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyCommonImagePropertiesSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType);

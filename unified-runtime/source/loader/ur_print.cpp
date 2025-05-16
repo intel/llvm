@@ -92,6 +92,13 @@ ur_result_t urPrintRectRegion(const struct ur_rect_region_t params,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintBackend(enum ur_backend_t value, char *buffer,
+                           const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintDeviceInitFlags(enum ur_device_init_flag_t value,
                                    char *buffer, const size_t buff_size,
                                    size_t *out_size) {
@@ -123,13 +130,6 @@ ur_result_t urPrintAdapterInfo(enum ur_adapter_info_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
-                                  const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintLoggerLevel(enum ur_logger_level_t value, char *buffer,
                                const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -156,14 +156,6 @@ ur_result_t urPrintPlatformNativeProperties(
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintPlatformBackend(enum ur_platform_backend_t value,
-                                   char *buffer, const size_t buff_size,
-                                   size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
@@ -972,6 +964,14 @@ urPrintExpExternalSemaphoreType(enum ur_exp_external_semaphore_type_t value,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpImageMemType(enum ur_exp_image_mem_type_t value,
+                                   char *buffer, const size_t buff_size,
+                                   size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintExpFileDescriptor(const struct ur_exp_file_descriptor_t params,
                          char *buffer, const size_t buff_size,
@@ -1287,6 +1287,34 @@ ur_result_t urPrintBindlessImagesImageGetInfoExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_memory_handle_type_support_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_unsampled_handle_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesGetImageSampledHandleSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_sampled_handle_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintBindlessImagesMipmapGetLevelExpParams(
     const struct ur_bindless_images_mipmap_get_level_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -1330,6 +1358,15 @@ ur_result_t urPrintBindlessImagesMapExternalLinearMemoryExpParams(
 
 ur_result_t urPrintBindlessImagesReleaseExternalMemoryExpParams(
     const struct ur_bindless_images_release_external_memory_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesFreeMappedLinearMemoryExpParams(
+    const struct ur_bindless_images_free_mapped_linear_memory_exp_params_t
         *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;

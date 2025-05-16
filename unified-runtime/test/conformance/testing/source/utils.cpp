@@ -684,7 +684,7 @@ ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
 }
 
 std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter) {
-  ur_adapter_backend_t backend = UR_ADAPTER_BACKEND_UNKNOWN;
+  ur_backend_t backend = UR_BACKEND_UNKNOWN;
   urAdapterGetInfo(hAdapter, UR_ADAPTER_INFO_BACKEND, sizeof(backend), &backend,
                    nullptr);
   std::stringstream ss;

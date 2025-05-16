@@ -4,13 +4,22 @@
 // RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER %s
 // HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
-// HOST_COMPILER: g++{{.*}} "-c" "-include" "[[INTHEADER]]" "-iquote" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}}
+// HOST_COMPILER: g++{{.*}} "-c" "-include" "[[INTHEADER]]"
+// HOST_COMPILER-SAME: "-iquote"
+// HOST_COMPILER-SAME: "-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// HOST_COMPILER-SAME: "-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// HOST_COMPILER-SAME: "-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
+// HOST_COMPILER-SAME: "-o" "[[HOSTOBJ:.+\.o]]"
 // HOST_COMPILER: ld{{.*}} "[[HOSTOBJ]]"
 
 // RUN: %clang_cl -fsycl --no-offload-new-driver -fsycl-host-compiler=/some/dir/cl %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_CL %s
 // HOST_COMPILER_CL: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
-// HOST_COMPILER_CL: cl{{.*}} "-c" "-Fo[[HOSTOBJ:.+\.obj]]" "-FI" "[[INTHEADER]]"{{.*}} "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}}
+// HOST_COMPILER_CL: cl{{.*}} "-c" "-Fo[[HOSTOBJ:.+\.obj]]" "-FI" "[[INTHEADER]]"
+// HOST_COMPILER_CL-SAME: "/external:W0"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// HOST_COMPILER_CL-SAME: "/external:I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // HOST_COMPILER_CL: link{{.*}} "[[HOSTOBJ]]"
 
 /// check for additional host options

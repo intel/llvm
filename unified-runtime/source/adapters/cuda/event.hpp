@@ -17,7 +17,7 @@
 
 /// UR Event mapping to CUevent
 ///
-struct ur_event_handle_t_ {
+struct ur_event_handle_t_ : ur::cuda::handle_base {
 public:
   using native_type = CUevent;
 

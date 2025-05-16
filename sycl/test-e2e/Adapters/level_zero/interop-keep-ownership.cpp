@@ -14,6 +14,10 @@
 using namespace sycl;
 
 int main() {
+  // Creat SYCL platform/device
+  device Device(gpu_selector_v);
+  platform Platform = Device.get_info<info::device::platform>();
+
   // Initialize Level Zero driver is required if this test is linked
   // statically with Level Zero loader, the driver will not be init otherwise.
   ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
@@ -21,10 +25,6 @@ int main() {
     std::cout << "zeInit failed\n";
     return 1;
   }
-
-  // Creat SYCL platform/device
-  device Device(gpu_selector_v);
-  platform Platform = Device.get_info<info::device::platform>();
 
   // Create native Level-Zero context
   ze_context_handle_t ZeContext;

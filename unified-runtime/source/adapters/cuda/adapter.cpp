@@ -38,7 +38,8 @@ public:
 // through UR entry points.
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(logger::get_logger("cuda",
+    : handle_base(),
+      logger(logger::get_logger("cuda",
                                 /*default_log_level*/ UR_LOGGER_LEVEL_ERROR)) {
   Platform = std::make_unique<ur_platform_handle_t_>();
 
@@ -90,9 +91,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
-    ur_adapter_handle_t, const char **ppMessage, int32_t * /*pError*/) {
+    ur_adapter_handle_t, const char **ppMessage, int32_t *pError) {
   *ppMessage = ErrorMessage;
-  return ErrorMessageCode;
+  *pError = ErrorMessageCode;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
@@ -104,7 +106,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
 
   switch (propName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_CUDA);
+    return ReturnValue(UR_BACKEND_CUDA);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(ur::cuda::adapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION:

@@ -23,7 +23,7 @@
 // it.
 static ur_adapter_handle_t liveAdapter = nullptr;
 
-ur_adapter_handle_t_::ur_adapter_handle_t_() {
+ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 #ifdef _MSC_VER
 
   // Loading OpenCL.dll increments the libraries internal reference count.
@@ -117,7 +117,7 @@ urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
 
   switch (propName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_OPENCL);
+    return ReturnValue(UR_BACKEND_OPENCL);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(hAdapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION:

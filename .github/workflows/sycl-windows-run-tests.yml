@@ -58,7 +58,7 @@ on:
         default: '{}'
         required: False
 
-      compiler:
+      cxx:
         type: string
         required: false
         default: "cl"
@@ -117,7 +117,7 @@ jobs:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -152,73 +152,19 @@ jobs:
     - run: |
         sycl-ls --verbose
 
-    - name: Download E2E Binaries
-      if: ${{ inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'run-only' }}
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ inputs.e2e_binaries_artifact }}
-    - name: Extract E2E Binaries
-      if: ${{ inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'run-only' }}
-      shell: bash
-      run: |
-        mkdir build-e2e
-        tar -xf e2e_bin.tar.gz -C build-e2e
-
-    - name: Configure E2E with Level Zero target
+    - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
-      shell: cmd
-      run: |
-        mkdir build-e2e
-        cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py"
-
-    - name: Keep track of files after configuring E2E step
-      if: ${{ always() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
-      shell: bash
-      run: ls build-e2e > e2econf_files.txt
-
-    - name: Run End-to-End tests
-      if: inputs.tests_selector == 'e2e'
-      shell: bash {0}
-      env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.e2e_testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.e2e_testing_mode }} ${{ inputs.extra_lit_opts }}
-      run: |
-        # Run E2E tests.
-        if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           export LIT_FILTER_OUT="compile_on_win_with_mdd"
-        fi
-        cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
-
-        exit_code=$?
-        cat e2e.log
-        if [ $exit_code -ne 0 ]; then
-          # This is duplicated between lin/win, updates must change both.
-          awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
-        fi
-        exit $exit_code
-
-    # Github CI doesn't support containers on Windows, so we cannot guarantee
-    # that paths are the same between building and running systems. To avoid
-    # CMake issues related to absolute paths we reconfigure the build-e2e
-    # folder on the run system.
-    - name: Remove E2E configuration files
-      if: ${{ always() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
-      shell: bash
-      run: |
-        for FILE in $(cat e2econf_files.txt); do rm -r build-e2e/$FILE; done
-        rm e2econf_files.txt
-
-    - name: Pack E2E test binaries
-      if: ${{ always() && !cancelled() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
-      shell: bash
-      run: |
-        tar -czf e2e_bin.tar.gz -C build-e2e .
-    - name: Upload E2E test binaries
-      if: ${{ always() && !cancelled() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
-      uses: actions/upload-artifact@v4
+      uses: ./devops/actions/run-tests/windows/e2e
+      timeout-minutes: 60
       with:
-        name: ${{ inputs.e2e_binaries_artifact }}
-        path: e2e_bin.tar.gz
-        retention-days: 3
+        ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        testing_mode: ${{ inputs.e2e_testing_mode }}
+        extra_cmake_args: ${{ inputs.extra_cmake_args }}
+        target_devices: ${{ inputs.target_devices }}
+        extra_lit_opts: ${{ inputs.extra_lit_opts }}
+        retention-days: ${{ inputs.artifact_retention_days }}
+        cxx: ${{ inputs.cxx }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'

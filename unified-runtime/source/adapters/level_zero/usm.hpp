@@ -22,6 +22,8 @@ usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 struct UsmPool {
   UsmPool(umf::pool_unique_handle_t Pool) : UmfPool(std::move(Pool)) {}
   umf::pool_unique_handle_t UmfPool;
+  // 'AsyncPool' needs to be declared after 'UmfPool' so its destructor is
+  // invoked first.
   EnqueuedPool AsyncPool;
 };
 

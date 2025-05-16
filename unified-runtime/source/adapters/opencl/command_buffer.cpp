@@ -21,6 +21,9 @@
 /// command-buffer to free the underlying object.
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   urQueueRelease(hInternalQueue);
+  if (LastSubmission) {
+    clReleaseEvent(LastSubmission);
+  }
 
   cl_context CLContext = hContext->CLContext;
   cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
@@ -501,16 +504,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
           ur::cl::getAdapter()->fnCache.clEnqueueCommandBufferKHRCache,
           cl_ext::EnqueueCommandBufferName, &clEnqueueCommandBufferKHR));
 
-  const uint32_t NumberOfQueues = 1;
-  cl_event Event;
-  std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
+  // If we've submitted the command-buffer before, then add a dependency on the
+  // last submission.
+  bool AddExtraDep = hCommandBuffer->LastSubmission != nullptr;
+  uint32_t CLWaitListLength =
+      AddExtraDep ? numEventsInWaitList + 1 : numEventsInWaitList;
+  std::vector<cl_event> CLWaitEvents(CLWaitListLength);
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
     CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
   }
+  if (AddExtraDep) {
+    CLWaitEvents[numEventsInWaitList] = hCommandBuffer->LastSubmission;
+  }
+
+  // Always get an event as we need it to serialize any future submissions
+  // of the command-buffer with.
+  cl_event Event;
   cl_command_queue CLQueue = hQueue->CLQueue;
-  CL_RETURN_ON_FAILURE(clEnqueueCommandBufferKHR(
-      NumberOfQueues, &CLQueue, hCommandBuffer->CLCommandBuffer,
-      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+  CL_RETURN_ON_FAILURE(
+      clEnqueueCommandBufferKHR(1, &CLQueue, hCommandBuffer->CLCommandBuffer,
+                                CLWaitListLength, CLWaitEvents.data(), &Event));
+
+  // Retain event so that if a user manually destroys the returned UR
+  // event the adapter still has a valid handle.
+  clRetainEvent(Event);
+  if (hCommandBuffer->LastSubmission) {
+    clReleaseEvent(hCommandBuffer->LastSubmission);
+  }
+  hCommandBuffer->LastSubmission = Event;
 
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;

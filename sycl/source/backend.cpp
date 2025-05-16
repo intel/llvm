@@ -48,19 +48,19 @@ static const AdapterPtr &getAdapter(backend Backend) {
   }
 }
 
-backend convertUrBackend(ur_platform_backend_t UrBackend) {
+backend convertUrBackend(ur_backend_t UrBackend) {
   switch (UrBackend) {
-  case UR_PLATFORM_BACKEND_UNKNOWN:
+  case UR_BACKEND_UNKNOWN:
     return backend::all; // No specific backend
-  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+  case UR_BACKEND_LEVEL_ZERO:
     return backend::ext_oneapi_level_zero;
-  case UR_PLATFORM_BACKEND_OPENCL:
+  case UR_BACKEND_OPENCL:
     return backend::opencl;
-  case UR_PLATFORM_BACKEND_CUDA:
+  case UR_BACKEND_CUDA:
     return backend::ext_oneapi_cuda;
-  case UR_PLATFORM_BACKEND_HIP:
+  case UR_BACKEND_HIP:
     return backend::ext_oneapi_hip;
-  case UR_PLATFORM_BACKEND_NATIVE_CPU:
+  case UR_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
   default:
     throw exception(make_error_code(errc::runtime),

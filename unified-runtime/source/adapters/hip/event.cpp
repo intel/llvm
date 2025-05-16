@@ -19,7 +19,7 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        hipEvent_t EvEnd, hipEvent_t EvQueued,
                                        hipEvent_t EvStart, hipStream_t Stream,
                                        uint32_t StreamToken)
-    : CommandType{Type}, RefCount{1}, HasOwnership{true},
+    : handle_base(), CommandType{Type}, RefCount{1}, HasOwnership{true},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
       StreamToken{StreamToken}, EventId{0}, EvEnd{EvEnd}, EvStart{EvStart},
       EvQueued{EvQueued}, Queue{Queue}, Stream{Stream}, Context{Context} {
@@ -29,11 +29,12 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
 
 ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
                                        hipEvent_t EventNative)
-    : CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1}, HasOwnership{false},
-      HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      IsInterop{true}, StreamToken{std::numeric_limits<uint32_t>::max()},
-      EventId{0}, EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr},
-      Queue{nullptr}, Stream{nullptr}, Context{Context} {
+    : handle_base(), CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1},
+      HasOwnership{false}, HasBeenWaitedOn{false}, IsRecorded{false},
+      IsStarted{false}, IsInterop{true},
+      StreamToken{std::numeric_limits<uint32_t>::max()}, EventId{0},
+      EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
+      Stream{nullptr}, Context{Context} {
   urContextRetain(Context);
 }
 
@@ -95,12 +96,9 @@ uint64_t ur_event_handle_t_::getEndTime() const {
 }
 
 ur_result_t ur_event_handle_t_::record() {
-
   if (isRecorded() || !isStarted()) {
     return UR_RESULT_ERROR_INVALID_EVENT;
   }
-
-  ur_result_t Result = UR_RESULT_ERROR_INVALID_OPERATION;
 
   UR_ASSERT(Queue, UR_RESULT_ERROR_INVALID_QUEUE);
 
@@ -110,28 +108,23 @@ ur_result_t ur_event_handle_t_::record() {
       die("Unrecoverable program state reached in event identifier overflow");
     }
     UR_CHECK_ERROR(hipEventRecord(EvEnd, Stream));
-    Result = UR_RESULT_SUCCESS;
   } catch (ur_result_t Error) {
-    Result = Error;
+    return Error;
   }
 
-  if (Result == UR_RESULT_SUCCESS) {
-    IsRecorded = true;
-  }
-
-  return Result;
+  IsRecorded = true;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_event_handle_t_::wait() {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
     HasBeenWaitedOn = true;
   } catch (ur_result_t Error) {
-    Result = Error;
+    return Error;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_event_handle_t_::release() {

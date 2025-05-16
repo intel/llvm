@@ -19,7 +19,7 @@ int main() {
   sycl::queue Q;
 
   Q.submit([&](sycl::handler &h) {
-     h.parallel_for<class Test>(sycl::nd_range<1>(32, 8),
+     h.parallel_for<class Test>(sycl::nd_range<1>(128, 8),
                                 [=](sycl::nd_item<1>) { dev_global[0]++; });
    }).wait();
   // CHECK: WARNING: DeviceSanitizer: data race

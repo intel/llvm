@@ -1,7 +1,5 @@
 // This test ensures created program/kernels are not retained
 // if and only if caching is disabled.
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: bug in L0 loader param validation (fixed in v.1.21.1)
 
 // RUN: %{build} -o %t.out
 // RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=2 SYCL_CACHE_IN_MEM=0 %{run} %t.out \

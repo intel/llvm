@@ -23,11 +23,10 @@ static thread_local detail::code_location GCodeLocTLS = {};
 /// @brief Default constructor to use in lower levels of the calling stack to
 /// check and see if code location object is available. If not, continue with
 /// instrumentation as needed
-tls_code_loc_t::tls_code_loc_t() {
-  // Check TLS to see if a previously stashed code_location object is
-  // available; if so, we are in a local scope.
-  MLocalScope = GCodeLocTLS.fileName() && GCodeLocTLS.functionName();
-}
+tls_code_loc_t::tls_code_loc_t()
+    : // Check TLS to see if a previously stashed code_location object is
+      // available; if so, we are in a local scope.
+      MLocalScope(GCodeLocTLS.fileName() && GCodeLocTLS.functionName()) {}
 
 ur_code_location_t codeLocationCallback(void *) {
   ur_code_location_t codeloc;
@@ -44,12 +43,11 @@ ur_code_location_t codeLocationCallback(void *) {
 /// application code. In this case, we still check to see if another code
 /// location has been stashed in the TLS at a higher level. If not, we have the
 /// code location information that must be active for the current calling scope.
-tls_code_loc_t::tls_code_loc_t(const detail::code_location &CodeLoc) {
-  // Check TLS to see if a previously stashed code_location object is
-  // available; if so, then don't overwrite the previous information as we
-  // are still in scope of the instrumented function
-  MLocalScope = GCodeLocTLS.fileName() && GCodeLocTLS.functionName();
-
+tls_code_loc_t::tls_code_loc_t(const detail::code_location &CodeLoc)
+    : // Check TLS to see if a previously stashed code_location object is
+      // available; if so, then don't overwrite the previous information as we
+      // are still in scope of the instrumented function.
+      MLocalScope(GCodeLocTLS.fileName() && GCodeLocTLS.functionName()) {
   if (!MLocalScope)
     // Update the TLS information with the code_location information
     GCodeLocTLS = CodeLoc;

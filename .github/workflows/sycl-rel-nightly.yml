@@ -134,6 +134,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
+      target_devices: level_zero:gpu
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}

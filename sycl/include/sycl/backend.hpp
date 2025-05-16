@@ -327,18 +327,16 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeQueue == true,
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
-  auto KeepOwnership =
-      Backend == backend::ext_oneapi_cuda || Backend == backend::ext_oneapi_hip;
   if constexpr (Backend == backend::ext_oneapi_level_zero) {
     return detail::make_queue(
         detail::ur::cast<ur_native_handle_t>(
             std::get<ze_command_queue_handle_t>(BackendObject.NativeHandle)),
-        false, TargetContext, nullptr, KeepOwnership, {}, Handler, Backend);
-  }
-  if constexpr (Backend != backend::ext_oneapi_level_zero) {
+        false, TargetContext, nullptr, /*KeepOwnership*/ false, {}, Handler,
+        Backend);
+  } else {
     return detail::make_queue(
         detail::ur::cast<ur_native_handle_t>(BackendObject), false,
-        TargetContext, nullptr, KeepOwnership, {}, Handler, Backend);
+        TargetContext, nullptr, /*KeepOwnership*/ true, {}, Handler, Backend);
   }
 }
 

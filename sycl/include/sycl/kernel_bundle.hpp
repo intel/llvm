@@ -885,7 +885,8 @@ join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
 /// \returns a new kernel bundle that represents the union of all the device
 /// images in the input bundles with duplicates removed.
 template <sycl::bundle_state State>
-sycl::kernel_bundle<State>
+std::enable_if_t<State != sycl::bundle_state::ext_oneapi_source,
+                 sycl::kernel_bundle<State>>
 join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
   // Convert kernel_bundle<State> to impls to abstract template parameter away
   std::vector<detail::KernelBundleImplPtr> KernelBundleImpls;

@@ -79,13 +79,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 
 TEST_P(urEnqueueMemBufferCopyRectTestWithParam, Success) {
   const auto name = getParam().name;
-  if (name.find("copy_row_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
-  if (name.find("copy_3D_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
 
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 

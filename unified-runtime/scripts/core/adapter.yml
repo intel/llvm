@@ -133,7 +133,7 @@ name: $x_adapter_info_t
 typed_etors: True
 etors:
     - name: BACKEND
-      desc: "[$x_adapter_backend_t] Identifies the native backend supported by the adapter."
+      desc: "[$x_backend_t] Identifies the native backend supported by the adapter."
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the adapter.
@@ -185,30 +185,6 @@ returns:
         - "`pPropValue == NULL && pPropSizeRet == NULL`"
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
---- #--------------------------------------------------------------------------
-type: enum
-desc: "Identifies backend of the adapter"
-class: $x
-name: $x_adapter_backend_t
-etors:
-    - name: UNKNOWN
-      value: "0"
-      desc: "The backend is not a recognized one"
-    - name: LEVEL_ZERO
-      value: "1"
-      desc: "The backend is Level Zero"
-    - name: OPENCL
-      value: "2"
-      desc: "The backend is OpenCL"
-    - name: CUDA
-      value: "3"
-      desc: "The backend is CUDA"
-    - name: HIP
-      value: "4"
-      desc: "The backend is HIP"
-    - name: NATIVE_CPU
-      value: "5"
-      desc: "The backend is Native CPU"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Minimum level of messages to be processed by the logger."

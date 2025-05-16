@@ -115,8 +115,7 @@ public:
                    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
                    std::vector<ur_event_handle_t> DepEvents,
-                   ur_event_handle_t &OutEvent,
-                   const detail::EventImplPtr &OutEventImpl);
+                   ur_event_handle_t &OutEvent);
 
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const unsigned char *Pattern,
@@ -124,8 +123,7 @@ public:
                    sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
                    unsigned int ElementSize,
                    std::vector<ur_event_handle_t> DepEvents,
-                   ur_event_handle_t &OutEvent,
-                   const detail::EventImplPtr &OutEventImpl);
+                   ur_event_handle_t &OutEvent);
 
   static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    access::mode AccessMode, unsigned int Dim,
@@ -140,57 +138,52 @@ public:
 
   static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
                        void *DstMem, std::vector<ur_event_handle_t> DepEvents,
-                       ur_event_handle_t *OutEvent,
-                       const detail::EventImplPtr &OutEventImpl);
+                       ur_event_handle_t *OutEvent);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        const std::vector<unsigned char> &Pattern,
                        std::vector<ur_event_handle_t> DepEvents,
-                       ur_event_handle_t *OutEvent,
-                       const detail::EventImplPtr &OutEventImpl);
+                       ur_event_handle_t *OutEvent);
 
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<ur_event_handle_t> DepEvents,
-                           ur_event_handle_t *OutEvent,
-                           const detail::EventImplPtr &OutEventImpl);
+                           ur_event_handle_t *OutEvent);
 
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
                          ur_usm_advice_flags_t Advice,
                          std::vector<ur_event_handle_t> DepEvents,
-                         ur_event_handle_t *OutEvent,
-                         const detail::EventImplPtr &OutEventImpl);
+                         ur_event_handle_t *OutEvent);
 
   static void copy_2d_usm(const void *SrcMem, size_t SrcPitch,
                           QueueImplPtr Queue, void *DstMem, size_t DstPitch,
                           size_t Width, size_t Height,
                           std::vector<ur_event_handle_t> DepEvents,
-                          ur_event_handle_t *OutEvent,
-                          const detail::EventImplPtr &OutEventImpl);
+                          ur_event_handle_t *OutEvent);
 
   static void fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                           size_t Width, size_t Height,
                           const std::vector<unsigned char> &Pattern,
                           std::vector<ur_event_handle_t> DepEvents,
-                          ur_event_handle_t *OutEvent,
-                          const detail::EventImplPtr &OutEventImpl);
+                          ur_event_handle_t *OutEvent);
 
   static void memset_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                             size_t Width, size_t Height, char Value,
                             std::vector<ur_event_handle_t> DepEvents,
-                            ur_event_handle_t *OutEvent,
-                            const detail::EventImplPtr &OutEventImpl);
+                            ur_event_handle_t *OutEvent);
 
-  static void copy_to_device_global(
-      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
-      size_t NumBytes, size_t Offset, const void *SrcMem,
-      const std::vector<ur_event_handle_t> &DepEvents,
-      ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl);
+  static void
+  copy_to_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
+                        QueueImplPtr Queue, size_t NumBytes, size_t Offset,
+                        const void *SrcMem,
+                        const std::vector<ur_event_handle_t> &DepEvents,
+                        ur_event_handle_t *OutEvent);
 
-  static void copy_from_device_global(
-      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
-      size_t NumBytes, size_t Offset, void *DstMem,
-      const std::vector<ur_event_handle_t> &DepEvents,
-      ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl);
+  static void
+  copy_from_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
+                          QueueImplPtr Queue, size_t NumBytes, size_t Offset,
+                          void *DstMem,
+                          const std::vector<ur_event_handle_t> &DepEvents,
+                          ur_event_handle_t *OutEvent);
 
   // Command buffer extension methods
   static void ext_oneapi_copyD2D_cmd_buffer(

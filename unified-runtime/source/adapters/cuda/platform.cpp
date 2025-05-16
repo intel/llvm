@@ -19,62 +19,6 @@
 #include <cuda.h>
 #include <sstream>
 
-static ur_result_t
-CreateDeviceMemoryProvidersPools(ur_platform_handle_t_ *Platform) {
-  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
-
-  umf_result_t UmfResult =
-      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  OnScopeExit Cleanup(
-      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
-
-  for (auto &Device : Platform->Devices) {
-    ur_device_handle_t_ *device_handle = Device.get();
-    CUdevice device = device_handle->get();
-    CUcontext context = device_handle->getNativeContext();
-
-    // create UMF CUDA memory provider for the device memory
-    // (UMF_MEMORY_TYPE_DEVICE)
-    UmfResult = umf::setCUMemoryProviderParams(CUMemoryProviderParams, device,
-                                               context, UMF_MEMORY_TYPE_DEVICE);
-    UMF_RETURN_UR_ERROR(UmfResult);
-
-    UmfResult = umfMemoryProviderCreate(umfCUDAMemoryProviderOps(),
-                                        CUMemoryProviderParams,
-                                        &device_handle->MemoryProviderDevice);
-    UMF_RETURN_UR_ERROR(UmfResult);
-
-    // create UMF CUDA memory provider for the shared memory
-    // (UMF_MEMORY_TYPE_SHARED)
-    UmfResult = umf::setCUMemoryProviderParams(CUMemoryProviderParams, device,
-                                               context, UMF_MEMORY_TYPE_SHARED);
-    UMF_RETURN_UR_ERROR(UmfResult);
-
-    UmfResult = umfMemoryProviderCreate(umfCUDAMemoryProviderOps(),
-                                        CUMemoryProviderParams,
-                                        &device_handle->MemoryProviderShared);
-    UMF_RETURN_UR_ERROR(UmfResult);
-
-    // create UMF CUDA memory pool for the device memory
-    // (UMF_MEMORY_TYPE_DEVICE)
-    UmfResult =
-        umfPoolCreate(umfProxyPoolOps(), device_handle->MemoryProviderDevice,
-                      nullptr, 0, &device_handle->MemoryPoolDevice);
-    UMF_RETURN_UR_ERROR(UmfResult);
-
-    // create UMF CUDA memory pool for the shared memory
-    // (UMF_MEMORY_TYPE_SHARED)
-    UmfResult =
-        umfPoolCreate(umfProxyPoolOps(), device_handle->MemoryProviderShared,
-                      nullptr, 0, &device_handle->MemoryPoolShared);
-    UMF_RETURN_UR_ERROR(UmfResult);
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t PlatformInfoType,
                   size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
@@ -95,7 +39,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t PlatformInfoType,
     return ReturnValue("");
   }
   case UR_PLATFORM_INFO_BACKEND: {
-    return ReturnValue(UR_PLATFORM_BACKEND_CUDA);
+    return ReturnValue(UR_BACKEND_CUDA);
   }
   case UR_PLATFORM_INFO_ADAPTER: {
     return ReturnValue(ur::cuda::adapter);
@@ -148,10 +92,16 @@ urPlatformGet(ur_adapter_handle_t, uint32_t, ur_platform_handle_t *phPlatforms,
                   new ur_device_handle_t_{Device, Context, EvBase,
                                           ur::cuda::adapter->Platform.get(),
                                           static_cast<uint32_t>(i)});
-            }
 
-            UR_CHECK_ERROR(CreateDeviceMemoryProvidersPools(
-                ur::cuda::adapter->Platform.get()));
+              // Create UMF memory providers and pools
+              auto &dev = ur::cuda::adapter->Platform->Devices.back();
+              UR_CHECK_ERROR(umf::CreateProviderPool(
+                  Device, Context, UMF_MEMORY_TYPE_DEVICE,
+                  &dev->MemoryProviderDevice, &dev->MemoryPoolDevice));
+              UR_CHECK_ERROR(umf::CreateProviderPool(
+                  Device, Context, UMF_MEMORY_TYPE_SHARED,
+                  &dev->MemoryProviderShared, &dev->MemoryPoolShared));
+            }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
             for (int i = 0; i < NumDevices; ++i) {

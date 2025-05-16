@@ -10,6 +10,7 @@
 
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 #include <detail/sycl_mem_obj_i.hpp>

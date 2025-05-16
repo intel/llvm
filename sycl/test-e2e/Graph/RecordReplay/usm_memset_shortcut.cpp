@@ -22,7 +22,7 @@ int main() {
   Queue.submit([&](handler &CGH) {
     CGH.depends_on(Init);
     CGH.single_task<class double_dest>([=]() {
-      for (int i = 0; i < Size; i++)
+      for (int i = 0; i < N; i++)
         Arr[i] = 2 * Arr[i];
     });
   });

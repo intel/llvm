@@ -28,14 +28,16 @@ TEST_F(CommandGraphTest, UpdatableException) {
 
 TEST_F(CommandGraphTest, DynamicParamRegister) {
   // Check that registering a dynamic param with a node from a graph that was
-  // not passed to its constructor throws.
+  // not passed to its constructor does not throw.
+  // TODO: Update test when deprecated constructors that take a graph have been
+  // removed.
   experimental::dynamic_parameter DynamicParam(Graph, int{});
 
   auto OtherGraph =
       experimental::command_graph(Queue.get_context(), Queue.get_device());
   auto Node = OtherGraph.add([&](sycl::handler &cgh) {
-    // This should throw since OtherGraph is not associated with DynamicParam
-    EXPECT_ANY_THROW(cgh.set_arg(0, DynamicParam));
+    // This should not throw
+    EXPECT_NO_THROW(cgh.set_arg(0, DynamicParam));
     cgh.single_task<TestKernel<>>([]() {});
   });
 }

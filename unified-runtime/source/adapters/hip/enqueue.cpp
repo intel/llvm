@@ -1374,8 +1374,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     // mem_advise.
     if (!Device->getManagedMemSupport()) {
       releaseEvent();
-      logger::warning("mem_advise ignored as device does not support "
-                      "managed memory access.");
+      UR_LOG(WARN, "mem_advise ignored as device does not support "
+                   "managed memory access.");
       return UR_RESULT_SUCCESS;
     }
 
@@ -1389,7 +1389,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     // async prefetch requires USM pointer (or hip SVM) to work.
     if (!attribs.isManaged) {
       releaseEvent();
-      logger::warning("Prefetch hint ignored as prefetch only works with USM.");
+      UR_LOG(WARN, "Prefetch hint ignored as prefetch only works with USM.");
       return UR_RESULT_SUCCESS;
     }
 
@@ -1444,8 +1444,8 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     // mem_advise.
     if (!Device->getManagedMemSupport()) {
       releaseEvent();
-      logger::warning("mem_advise ignored as device does not support "
-                      "managed memory access.");
+      UR_LOG(WARN, "mem_advise ignored as device does not support "
+                   "managed memory access.");
       return UR_RESULT_SUCCESS;
     }
 
@@ -1461,8 +1461,8 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                   UR_USM_ADVICE_FLAG_DEFAULT)) {
       if (!Device->getConcurrentManagedAccess()) {
         releaseEvent();
-        logger::warning("mem_advise ignored as device does not support "
-                        "concurrent memory access.");
+        UR_LOG(WARN, "mem_advise ignored as device does not support "
+                     "concurrent memory access.");
         return UR_RESULT_SUCCESS;
       }
 
@@ -1481,8 +1481,8 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     if (auto ptrAttribs = getPointerAttributes(pMem);
         !ptrAttribs || !ptrAttribs->isManaged) {
       releaseEvent();
-      logger::warning("mem_advise is ignored as the pointer argument is not "
-                      "a shared USM pointer.");
+      UR_LOG(WARN, "mem_advise is ignored as the pointer argument is not "
+                   "a shared USM pointer.");
       return UR_RESULT_SUCCESS;
     }
 
@@ -1510,8 +1510,8 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       // the runtime.
       if (Result == UR_RESULT_ERROR_INVALID_ENUMERATION) {
         releaseEvent();
-        logger::warning("mem_advise is ignored as the advice argument is not "
-                        "supported by this device.");
+        UR_LOG(WARN, "mem_advise is ignored as the advice argument is not "
+                     "supported by this device.");
         return UR_RESULT_SUCCESS;
       }
       UR_CHECK_ERROR(Result);
@@ -1754,7 +1754,6 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                 hipFunction_t &HIPFunc, size_t (&ThreadsPerBlock)[3],
                 size_t (&BlocksPerGrid)[3]) {
   size_t MaxWorkGroupSize = 0;
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedDevice Active(Device);
     {
@@ -1836,16 +1835,17 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                                           "UR_HIP_MAX_LOCAL_MEM_SIZE"
                                         : "Invalid value specified for "
                                           "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                        UR_RESULT_ERROR_OUT_OF_RESOURCES);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
       UR_CHECK_ERROR(hipFuncSetAttribute(
           HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, EnvVal));
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 void setCopyRectParams(ur_rect_region_t Region, const void *SrcPtr,
@@ -1896,8 +1896,6 @@ void setCopyRectParams(ur_rect_region_t Region, const void *SrcPtr,
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   try {
     ScopedDevice Active(hQueue->getDevice());
@@ -1921,7 +1919,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 
     *phEvent = RetImplEvent.release();
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }

@@ -11,7 +11,6 @@
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/platform_info.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
@@ -211,10 +210,10 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   std::vector<int> original_indices;
 
   // Find out backend of the platform
-  ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
+  ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
   MAdapter->call<UrApiKind::urPlatformGetInfo>(
-      MPlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
-      &UrBackend, nullptr);
+      MPlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
+      nullptr);
   backend Backend = convertUrBackend(UrBackend);
 
   int InsertIDx = 0;
@@ -547,9 +546,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_platform_info_string_impl(
-      MPlatform, getAdapter(),
-      detail::UrInfoCode<info::platform::extensions>::value);
+
+  std::string AllExtensionNames = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+      *this, detail::UrInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -563,11 +562,6 @@ ur_native_handle_t platform_impl::getNative() const {
   ur_native_handle_t Handle = 0;
   Adapter->call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
-}
-
-template <typename Param>
-typename Param::return_type platform_impl::get_info() const {
-  return get_platform_info<Param>(this->getHandleRef(), getAdapter());
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -638,12 +632,6 @@ device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
   }
   return nullptr;
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template ReturnT platform_impl::get_info<info::platform::Desc>() const;
-
-#include <sycl/info/platform_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace _V1

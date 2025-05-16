@@ -98,10 +98,10 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     // the AMD backend handles this differently and uses three separate
     // arguments for each of the three dimensions of the accessor.
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,

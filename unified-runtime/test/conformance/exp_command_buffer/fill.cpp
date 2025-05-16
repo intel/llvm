@@ -53,7 +53,8 @@ struct urCommandBufferFillCommandsTest
             testParametersFill>::TearDown());
   }
 
-  void verifyData(std::vector<uint8_t> &output, size_t verify_size) {
+  void verifyData(const std::vector<uint8_t> &output,
+                  const size_t verify_size) {
     size_t pattern_index = 0;
     for (size_t i = 0; i < verify_size; ++i) {
       ASSERT_EQ(output[i], pattern[pattern_index])

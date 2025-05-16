@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 // L0 adapter incorrectly reports memory leaks because it doesn't take into
 // account direct calls to L0 API.
-// UNSUPPORTED: ze_debug, level_zero_v2_adapter
+// UNSUPPORTED: ze_debug
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
@@ -17,6 +17,7 @@
 
 // Keep ownership
 // CHECK: zeMemFree
+// CHECK: zeMemFree
 
 // Account for zeMemFree used to query page sizes by the UMF (only affects v2 L0
 // adapter)
@@ -31,10 +32,8 @@
 
 // Transfer ownership
 // CHECK: zeMemFree
-// CHECK: zeMemFree
-
-// No other calls to zeMemFree
-// CHECK-NOT: zeMemFree
+// For v2 adapter, all calls (even from this test) are logged
+// CHECK-OPT: zeMemFree
 
 #include "interop-buffer-helpers.hpp"
 #include <sycl/detail/core.hpp>
@@ -119,14 +118,6 @@ void test_copyback_and_free(
 int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
   try {
-    // Initialize Level Zero driver is required if this test is linked
-    // statically with Level Zero loader, the driver will not be init otherwise.
-    ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
-    if (result != ZE_RESULT_SUCCESS) {
-      std::cout << "zeInit failed\n";
-      return 1;
-    }
-
     platform Plt{gpu_selector_v};
 
     auto Devices = Plt.get_devices();
@@ -134,6 +125,14 @@ int main() {
     if (Devices.size() < 1) {
       std::cout << "Devices not found" << std::endl;
       return 0;
+    }
+
+    // Initialize Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, the driver will not be init otherwise.
+    ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+    if (result != ZE_RESULT_SUCCESS) {
+      std::cout << "zeInit failed\n";
+      return 1;
     }
 
     device Dev1 = Devices[0];

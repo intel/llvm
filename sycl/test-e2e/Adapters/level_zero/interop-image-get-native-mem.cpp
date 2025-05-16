@@ -42,6 +42,10 @@ using namespace sycl;
 
 int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+  constexpr auto BE = sycl::backend::ext_oneapi_level_zero;
+  sycl::device D =
+      sycl::ext::oneapi::filter_selector("level_zero:gpu").select_device();
+
   // Initialize Level Zero driver is required if this test is linked
   // statically with Level Zero loader, the driver will not be init otherwise.
   ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
@@ -49,10 +53,6 @@ int main() {
     std::cout << "zeInit failed\n";
     return 1;
   }
-
-  constexpr auto BE = sycl::backend::ext_oneapi_level_zero;
-  sycl::device D =
-      sycl::ext::oneapi::filter_selector("level_zero:gpu").select_device();
 
   sycl::context Ctx{D};
   sycl::queue Q(Ctx, D);

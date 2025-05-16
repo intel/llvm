@@ -49,11 +49,11 @@ std::vector<ur_adapter_handle_t>
 get_supported_adapters(std::vector<ur_adapter_handle_t> &adapters) {
   std::vector<ur_adapter_handle_t> supported_adapters;
   for (auto adapter : adapters) {
-    ur_adapter_backend_t backend;
+    ur_backend_t backend;
     ur_check(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
-                              sizeof(ur_adapter_backend_t), &backend, nullptr));
+                              sizeof(ur_backend_t), &backend, nullptr));
 
-    if (backend == UR_ADAPTER_BACKEND_LEVEL_ZERO) {
+    if (backend == UR_BACKEND_LEVEL_ZERO) {
       supported_adapters.push_back(adapter);
     }
   }

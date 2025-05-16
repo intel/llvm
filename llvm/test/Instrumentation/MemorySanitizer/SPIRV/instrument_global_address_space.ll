@@ -13,15 +13,13 @@ define spir_kernel void @MyKernel(ptr addrspace(1) noundef align 4 %_arg_array) 
 entry:
   %0 = load i32, ptr addrspace(1) %_arg_array, align 4
   ; CHECK:      %1 = ptrtoint ptr addrspace(1) %_arg_array to i64
-  ; CHECK-NEXT: %2 = call i64 @__msan_get_shadow(i64 %1, i32 1, ptr addrspace(2) null)
-  ; CHECK-NEXT: %3 = inttoptr i64 %2 to ptr addrspace(1)
-  ; CHECK-NEXT: %_msld = load i32, ptr addrspace(1) %3, align 4
+  ; CHECK-NEXT: %2 = call ptr addrspace(1) @__msan_get_shadow(i64 %1, i32 1, ptr addrspace(2) null)
+  ; CHECK-NEXT: %_msld = load i32, ptr addrspace(1) %2, align 4
   ; CHECK-NEXT: call void @__msan_maybe_warning_4(i32 zeroext %_msld, i64 zeroext 0, ptr addrspace(2) null, i32 0, ptr addrspace(2) @__msan_kernel)
   %call = call spir_func i32 @foo(i32 %0)
-  ; CHECK:      %4 = ptrtoint ptr addrspace(1) %_arg_array to i64
-  ; CHECK-NEXT: %5 = call i64 @__msan_get_shadow(i64 %4, i32 1, ptr addrspace(2) null)
-  ; CHECK-NEXT: %6 = inttoptr i64 %5 to ptr addrspace(1)
-  ; CHECK-NEXT: store i32 0, ptr addrspace(1) %6, align 4
+  ; CHECK:      %3 = ptrtoint ptr addrspace(1) %_arg_array to i64
+  ; CHECK-NEXT: %4 = call ptr addrspace(1) @__msan_get_shadow(i64 %3, i32 1, ptr addrspace(2) null)
+  ; CHECK-NEXT: store i32 0, ptr addrspace(1) %4, align 4
   store i32 %call, ptr addrspace(1) %_arg_array, align 4
   ret void
 }

@@ -24,7 +24,7 @@
 // XFAIL-TRACKER: GSD-5768
 
 // Only transpose on half data type
-// XFAIL: arch-intel_cpu_gnr
+// XFAIL: arch-intel_cpu_gnr || arch-intel_cpu_dmr
 // XFAIL-TRACKER: CMPLRLLVM-65499
 
 #include "common.hpp"

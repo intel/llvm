@@ -135,6 +135,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, execution_capabilities,
                          UR_DEVICE_INFO_EXECUTION_CAPABILITIES)
 __SYCL_PARAM_TRAITS_SPEC(device, queue_profiling, bool,
                          UR_DEVICE_INFO_QUEUE_PROPERTIES)
+// TODO: UR_DEVICE_INFO_FORCE_UINT32 looks wrong here:
 __SYCL_PARAM_TRAITS_SPEC(device, built_in_kernel_ids,
                          std::vector<sycl::kernel_id>, UR_DEVICE_INFO_FORCE_UINT32)
 __SYCL_PARAM_TRAITS_SPEC(device, built_in_kernels, std::vector<std::string>,

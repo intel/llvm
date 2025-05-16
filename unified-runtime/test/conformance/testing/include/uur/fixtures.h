@@ -1214,11 +1214,11 @@ struct urProgramTest : urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Images and samplers are not available on AMD
-    if (program_name == "image_copy" && backend == UR_PLATFORM_BACKEND_HIP) {
+    if (program_name == "image_copy" && backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
@@ -1250,11 +1250,11 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam<T>::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(this->platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Images and samplers are not available on AMD
-    if (program_name == "image_copy" && backend == UR_PLATFORM_BACKEND_HIP) {
+    if (program_name == "image_copy" && backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
 
@@ -1420,10 +1420,10 @@ struct KernelLaunchHelper {
     // the AMD backend handles this differently and uses three separate
     // arguments for each of the three dimensions of the accessor.
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
@@ -1657,12 +1657,11 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceQueueTest::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Multi-device programs are not supported for AMD and CUDA
-    if (backend == UR_PLATFORM_BACKEND_HIP ||
-        backend == UR_PLATFORM_BACKEND_CUDA) {
+    if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA) {
       GTEST_SKIP();
     }
     if (devices.size() < 2) {

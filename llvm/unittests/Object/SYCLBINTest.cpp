@@ -44,7 +44,7 @@ public:
     std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
     llvm::copy(Data, Output->getBufferStart());
     if (Error E = Output->commit())
-      return std::move(E);
+      return E;
 
     return std::move(ManagedFile);
   }
@@ -63,7 +63,7 @@ std::vector<uint8_t> generateRandomImage() {
       std::numeric_limits<uint8_t>::min(), std::numeric_limits<uint8_t>::max());
   std::vector<uint8_t> Image(SizeDist(Rng));
   std::generate(Image.begin(), Image.end(), [&]() { return BinaryDist(Rng); });
-  return std::move(Image);
+  return Image;
 }
 
 } // namespace

@@ -46,10 +46,14 @@ inline size_t command_list_descriptor_hash_t::operator()(
   }
 }
 
-command_list_cache_t::command_list_cache_t(ze_context_handle_t ZeContext,
-                                           bool ZeCopyOffloadExtensionSupported)
+command_list_cache_t::command_list_cache_t(
+    ze_context_handle_t ZeContext,
+    supported_extensions_descriptor_t supportedExtensions)
     : ZeContext{ZeContext},
-      ZeCopyOffloadExtensionSupported{ZeCopyOffloadExtensionSupported} {}
+      ZeCopyOffloadExtensionSupported{
+          supportedExtensions.ZeCopyOffloadExtensionSupported},
+      ZeMutableCmdListExtentionSupported{
+          supportedExtensions.ZeMutableCmdListExtentionSupported} {}
 
 static bool ForceDisableCopyOffload = [] {
   return getenv_tobool("UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD");
@@ -62,13 +66,13 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
 
   if (ForceDisableCopyOffload && requestedCopyOffload) {
-    logger::info("Copy offload is disabled by the environment variable.");
+    UR_LOG(INFO, "Copy offload is disabled by the environment variable.");
     requestedCopyOffload = false;
   }
 
   if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
-    logger::info(
-        "Copy offload is requested but is not supported by the driver.");
+    UR_LOG(INFO,
+           "Copy offload is requested but is not supported by the driver.");
     requestedCopyOffload = false;
   }
 
@@ -89,10 +93,10 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     }
     QueueDesc.pNext = &offloadDesc;
 
-    logger::debug("create command list ordinal: {}, type: immediate, device: "
-                  "{}, inOrder: {}",
-                  ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice,
-                  ImmCmdDesc->IsInOrder);
+    UR_LOG(DEBUG,
+           "create command list ordinal: {}, type: immediate, "
+           "device: {}, inOrder: {}",
+           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder);
 
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
@@ -100,16 +104,27 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     return raii::ze_command_list_handle_t(ZeCommandList);
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
+    bool IsMutable = RegCmdDesc.Mutable;
+    if (!ZeMutableCmdListExtentionSupported && IsMutable) {
+      UR_LOG(INFO, "Mutable command lists were requested but are not supported "
+                   "by the driver.");
+      throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
     ZeStruct<ze_command_list_desc_t> CmdListDesc;
     CmdListDesc.flags =
         RegCmdDesc.IsInOrder ? ZE_COMMAND_LIST_FLAG_IN_ORDER : 0;
     CmdListDesc.commandQueueGroupOrdinal = RegCmdDesc.Ordinal;
     CmdListDesc.pNext = &offloadDesc;
+    ZeStruct<ze_mutable_command_list_exp_desc_t> ZeMutableCommandListDesc;
+    if (IsMutable) {
+      ZeMutableCommandListDesc.flags = 0;
+      offloadDesc.pNext = &ZeMutableCommandListDesc;
+    }
 
-    logger::debug("create command list ordinal: {}, type: immediate, device: "
-                  "{}, inOrder: {}",
-                  RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice,
-                  RegCmdDesc.IsInOrder);
+    UR_LOG(DEBUG,
+           "create command list ordinal: {}, type: immediate, "
+           "device: {}, inOrder: {}",
+           RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder);
 
     ze_command_list_handle_t ZeCommandList;
     ZE2UR_CALL_THROWS(zeCommandListCreate, (ZeContext, RegCmdDesc.ZeDevice,
@@ -119,16 +134,16 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
 }
 
 raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
-    ze_device_handle_t ZeDevice, bool IsInOrder, uint32_t Ordinal,
-    bool CopyOffloadEnable, ze_command_queue_mode_t Mode,
-    ze_command_queue_priority_t Priority, std::optional<uint32_t> Index) {
+    ze_device_handle_t ZeDevice, command_list_desc_t ListDesc,
+    ze_command_queue_mode_t Mode, ze_command_queue_priority_t Priority,
+    std::optional<uint32_t> Index) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getImmediateCommandList");
 
   immediate_command_list_descriptor_t Desc;
   Desc.ZeDevice = ZeDevice;
-  Desc.Ordinal = Ordinal;
-  Desc.CopyOffloadEnabled = CopyOffloadEnable;
-  Desc.IsInOrder = IsInOrder;
+  Desc.Ordinal = ListDesc.Ordinal;
+  Desc.CopyOffloadEnabled = ListDesc.CopyOffloadEnable;
+  Desc.IsInOrder = ListDesc.IsInOrder;
   Desc.Mode = Mode;
   Desc.Priority = Priority;
   Desc.Index = Index;
@@ -142,15 +157,15 @@ raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
 
 raii::command_list_unique_handle
 command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
-                                            bool IsInOrder, uint32_t Ordinal,
-                                            bool CopyOffloadEnable) {
+                                            command_list_desc_t ListDesc) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getRegularCommandList");
 
   regular_command_list_descriptor_t Desc;
   Desc.ZeDevice = ZeDevice;
-  Desc.IsInOrder = IsInOrder;
-  Desc.Ordinal = Ordinal;
-  Desc.CopyOffloadEnabled = CopyOffloadEnable;
+  Desc.IsInOrder = ListDesc.IsInOrder;
+  Desc.Ordinal = ListDesc.Ordinal;
+  Desc.CopyOffloadEnabled = ListDesc.CopyOffloadEnable;
+  Desc.Mutable = ListDesc.Mutable;
 
   auto [CommandList, _] = getCommandList(Desc).release();
 

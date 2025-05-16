@@ -233,3 +233,29 @@ TEST_P(urCommandBufferAppendKernelLaunchExpTest, FinalizeTwice) {
   EXPECT_EQ_RESULT(urCommandBufferFinalizeExp(cmd_buf_handle),
                    UR_RESULT_ERROR_INVALID_OPERATION);
 }
+
+TEST_P(urCommandBufferAppendKernelLaunchExpTest, DuplicateSyncPoint) {
+  ur_exp_command_buffer_sync_point_t sync_point;
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+      cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
+      &local_size, 0, nullptr, 0, nullptr, 0, nullptr, &sync_point, nullptr,
+      nullptr));
+
+  // Test passing redundant sync-points
+  ur_exp_command_buffer_sync_point_t sync_points[2] = {sync_point, sync_point};
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+      cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
+      &local_size, 0, nullptr, 2, sync_points, 0, nullptr, nullptr, nullptr,
+      nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+  int32_t *ptrZ = static_cast<int32_t *>(shared_ptrs[0]);
+  for (size_t i = 0; i < global_size; i++) {
+    uint32_t result = (A * i) + (i * 2);
+    ASSERT_EQ(result, ptrZ[i]);
+  }
+}

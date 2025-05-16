@@ -196,7 +196,7 @@ etors:
     - name: ERROR_INVALID_WORK_DIMENSION
       desc: "Invalid work dimension"
     - name: ERROR_INVALID_KERNEL_ARGS
-      desc: "Invalid kernel args"
+      desc: "[deprecated-value] No longer used - invalid kernel args are now UB"
     - name: ERROR_INVALID_KERNEL
       desc: "Invalid kernel"
     - name: ERROR_INVALID_KERNEL_NAME
@@ -339,3 +339,26 @@ members:
     - type: uint64_t
       name: depth
       desc: "[in] scalar (scalar)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Defines known backends."
+name: $x_backend_t
+etors:
+    - name: UNKNOWN
+      value: "0"
+      desc: "The backend is not a recognized one"
+    - name: LEVEL_ZERO
+      value: "1"
+      desc: "The backend is Level Zero"
+    - name: OPENCL
+      value: "2"
+      desc: "The backend is OpenCL"
+    - name: CUDA
+      value: "3"
+      desc: "The backend is CUDA"
+    - name: HIP
+      value: "4"
+      desc: "The backend is HIP"
+    - name: NATIVE_CPU
+      value: "5"
+      desc: "The backend is Native CPU"

@@ -21,6 +21,12 @@ void submit_kernel(queue &q) {
 }
 
 int main(int argc, char *argv[]) {
+  queue q;
+
+  submit_kernel(q); // starts a batch
+                    // CHECK: ---> urEnqueueKernelLaunch
+                    // CHECK-NOT: zeCommandQueueExecuteCommandLists
+
   // Initialize Level Zero driver is required if this test is linked
   // statically with Level Zero loader, the driver will not be init otherwise.
   ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
@@ -28,12 +34,6 @@ int main(int argc, char *argv[]) {
     std::cout << "zeInit failed\n";
     return 1;
   }
-
-  queue q;
-
-  submit_kernel(q); // starts a batch
-                    // CHECK: ---> urEnqueueKernelLaunch
-                    // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   // continue the batch
   event barrier = q.ext_oneapi_submit_barrier();

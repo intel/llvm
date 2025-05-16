@@ -229,6 +229,16 @@ etors:
   - name: TIMELINE_WIN32_NT
     desc: "Timeline semaphore Win32 NT handle"
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Indicates the type of image backing memory handle."
+class: $xBindlessImages
+name: $x_exp_image_mem_type_t
+etors:
+  - name: USM_POINTER
+    desc: "USM pointer to image memory"
+  - name: OPAQUE_HANDLE
+    desc: "Opaque handle to image memory"
+--- #--------------------------------------------------------------------------
 type: struct
 desc: "File descriptor"
 name: $x_exp_file_descriptor_t
@@ -517,6 +527,7 @@ name: SampledImageCreateExp
 ordinal: "0"
 analogue:
     - "**cuTexObjectCreate**"
+    - "**hipTexObjectCreate**"
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -533,9 +544,9 @@ params:
     - type: "const $x_image_desc_t*"
       name: pImageDesc
       desc: "[in] pointer to image description"
-    - type: $x_sampler_handle_t
-      name: hSampler
-      desc: "[in] sampler to be used"
+    - type: const $x_sampler_desc_t*
+      name: pSamplerDesc
+      desc: "[in] pointer to sampler description to be used"
     - type: $x_exp_image_native_handle_t*
       name: phImage
       desc: "[out][alloc] pointer to handle of image object created"
@@ -641,6 +652,90 @@ returns:
     - $X_RESULT_ERROR_INVALID_DEVICE
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for allocating a given image backing memory handle type with specific image properties"
+class: $xBindlessImages
+name: GetImageMemoryHandleTypeSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: $x_exp_image_mem_type_t
+      name: imageMemHandleType
+      desc: "[in] type of image backing memory handle to query support for"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for allocating the given image backing memory handle type"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for creating an unsampled image handle with specific image properties"
+class: $xBindlessImages
+name: GetImageUnsampledHandleSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: $x_exp_image_mem_type_t
+      name: imageMemHandleType
+      desc: "[in] type of image backing memory handle to query support for"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for creating unsampled image handles"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for creating an sampled image handle with specific image properties"
+class: $xBindlessImages
+name: GetImageSampledHandleSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: $x_exp_image_mem_type_t
+      name: imageMemHandleType
+      desc: "[in] type of image backing memory handle to query support for"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for creating sampled image handles"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieve individual image from mipmap"
@@ -805,6 +900,29 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Free a linear memory region mapped using MapExternalLinearMemoryExp"
+class: $xBindlessImages
+name: FreeMappedLinearMemoryExp
+ordinal: "0"
+analogue:
+    - "**cuMemFree**"
+    - "**zeMemFree**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: void *
+      name: pMem
+      desc: "[in][release] pointer to mapped linear memory region to be freed"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pMem == NULL`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Import an external semaphore"

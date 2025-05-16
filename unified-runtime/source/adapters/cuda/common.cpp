@@ -11,6 +11,8 @@
 #include "common.hpp"
 #include "logger/ur_logger.hpp"
 
+#include "umf_helpers.hpp"
+
 #include <cuda.h>
 #include <nvml.h>
 
@@ -71,7 +73,7 @@ void checkErrorUR(CUresult Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr ||
       std::getenv("UR_CUDA_ABORT") != nullptr) {
@@ -95,7 +97,7 @@ void checkErrorUR(nvmlReturn_t Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr ||
       std::getenv("UR_CUDA_ABORT") != nullptr) {
@@ -115,7 +117,7 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
   SS << "\nUR ERROR:"
      << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
      << "\n\tSource Location: " << File << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  UR_LOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
@@ -135,12 +137,11 @@ std::string getCudaVersionString() {
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
-thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
+thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize]{};
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode) {
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode) {
   assert(strlen(pMessage) < MaxMessageSize);
   // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
   // always null terminated.
@@ -169,5 +170,34 @@ ur_result_t getProviderNativeError(const char *providerName, int32_t error) {
   }
 
   return UR_RESULT_ERROR_UNKNOWN;
+}
+
+ur_result_t CreateProviderPool(int cuDevice, void *cuContext,
+                               umf_usm_memory_type_t type,
+                               umf_memory_provider_handle_t *provider,
+                               umf_memory_pool_handle_t *pool) {
+  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
+  UMF_RETURN_UR_ERROR(
+      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams));
+  OnScopeExit Cleanup(
+      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
+
+  // Setup memory provider parameters
+  UMF_RETURN_UR_ERROR(
+      umfCUDAMemoryProviderParamsSetContext(CUMemoryProviderParams, cuContext));
+  UMF_RETURN_UR_ERROR(
+      umfCUDAMemoryProviderParamsSetDevice(CUMemoryProviderParams, cuDevice));
+  UMF_RETURN_UR_ERROR(
+      umfCUDAMemoryProviderParamsSetMemoryType(CUMemoryProviderParams, type));
+
+  // Create memory provider
+  UMF_RETURN_UR_ERROR(umfMemoryProviderCreate(
+      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, provider));
+
+  // Create memory pool
+  UMF_RETURN_UR_ERROR(
+      umfPoolCreate(umfProxyPoolOps(), *provider, nullptr, 0, pool));
+
+  return UR_RESULT_SUCCESS;
 }
 } // namespace umf

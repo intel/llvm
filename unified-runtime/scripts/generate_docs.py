@@ -58,7 +58,7 @@ def _find_enum_from_etor(etor, meta):
 
 def _make_ref(symbol, symbol_type, meta):
     """make restructedtext reference from symbol."""
-    if not re.match(r"function|struct|union|enum|etor", symbol_type):
+    if not re.match(r"function|struct|union|enum|etor|macro", symbol_type):
         return ""
 
     ref = _fixup_tag(symbol)
@@ -180,7 +180,7 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta, fast_mode):
                         line = tuple[2]
                     else:
                         # ignore reference links for specific types that have no API documentation for them.
-                        if not re.match(r"env|handle|typedef|macro", symbol_type):
+                        if not re.match(r"env|handle|typedef", symbol_type):
                             print(
                                 "%s(%s) : warning : reference link %s (type=%s) not used."
                                 % (fin, iline + 1, symbol, symbol_type)

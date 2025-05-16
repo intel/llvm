@@ -13,18 +13,8 @@ void ndRangeKernelReference(int &Ref) {}
 
 // Diagnostic for these violations of the restrictions haven't been implemented
 // yet.
-// TODO: Add expected error when it will be implemented.
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
-void singleTaskKernelVariadic(...) {}
 
-// TODO: Add expected error when it will be implemented.
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<3>)
-void ndRangeKernelVariadic(...) {}
-
-// TODO: Add expected error when it will be implemented.
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
-void singleTaskKernelDefaultValues(int Value = 1) {}
-
-// TODO: Add expected error when it will be implemented.
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
-void ndRangeKernelDefaultValues(int Value = 1) {}
+void ndRangeKernelVariadic( // expected-error {{free function kernel cannot be a variadic function}}
+    ...) {}

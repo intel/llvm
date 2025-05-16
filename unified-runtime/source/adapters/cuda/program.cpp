@@ -179,51 +179,6 @@ ur_result_t ur_program_handle_t_::getGlobalVariablePointer(
   return UR_RESULT_SUCCESS;
 }
 
-/// Loads images from a list of PTX or CUBIN binaries.
-/// Note: No calls to CUDA driver API in this function, only store binaries
-/// for later.
-///
-/// Note: Only supports one device
-///
-ur_result_t createProgram(ur_context_handle_t hContext,
-                          ur_device_handle_t hDevice, size_t size,
-                          const uint8_t *pBinary,
-                          const ur_program_properties_t *pProperties,
-                          ur_program_handle_t *phProgram) {
-  UR_ASSERT(std::find(hContext->getDevices().begin(),
-                      hContext->getDevices().end(),
-                      hDevice) != hContext->getDevices().end(),
-            UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
-
-  try {
-    std::unique_ptr<ur_program_handle_t_> RetProgram{
-        new ur_program_handle_t_{hContext, hDevice}};
-
-    if (pProperties) {
-      if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
-        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-      } else if (pProperties->count == 0 &&
-                 pProperties->pMetadatas != nullptr) {
-        return UR_RESULT_ERROR_INVALID_SIZE;
-      }
-      UR_CHECK_ERROR(
-          RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count));
-    }
-
-    auto pBinary_string = reinterpret_cast<const char *>(pBinary);
-
-    UR_CHECK_ERROR(RetProgram->setBinary(pBinary_string, size));
-    *phProgram = RetProgram.release();
-  } catch (std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
 // A program is unique to a device so this entry point cannot be supported with
 // a multi device context
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -263,19 +218,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramBuild(ur_context_handle_t /*hContext*/, ur_program_handle_t hProgram,
                const char *pOptions) {
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     ScopedContext Active(hProgram->getDevice());
 
     hProgram->buildProgram(pOptions);
     hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
-
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
@@ -449,11 +400,7 @@ urProgramRelease(ur_program_handle_t hProgram) {
 
   // decrement ref count. If it is 0, delete the program.
   if (hProgram->decrementReferenceCount() == 0) {
-
     std::unique_ptr<ur_program_handle_t_> ProgramPtr{hProgram};
-
-    ur_result_t Result = UR_RESULT_ERROR_INVALID_PROGRAM;
-
     try {
       ScopedContext Active(hProgram->getDevice());
       auto cuModule = hProgram->get();
@@ -462,16 +409,17 @@ urProgramRelease(ur_program_handle_t hProgram) {
       // status.
       if (hProgram->BuildStatus == UR_PROGRAM_BUILD_STATUS_SUCCESS) {
         UR_CHECK_ERROR(cuModuleUnload(cuModule));
-        Result = UR_RESULT_SUCCESS;
       } else if (hProgram->BuildStatus == UR_PROGRAM_BUILD_STATUS_NONE) {
         // Nothing to free.
-        Result = UR_RESULT_SUCCESS;
+      } else {
+        // Invalid program.
+        return UR_RESULT_ERROR_INVALID_PROGRAM;
       }
+    } catch (ur_result_t Err) {
+      return Err;
     } catch (...) {
-      Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
-
-    return Result;
   }
 
   return UR_RESULT_SUCCESS;
@@ -489,17 +437,56 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
+/// Loads images from a list of PTX or CUBIN binaries.
+/// Note: No calls to CUDA driver API in this function, only store binaries
+/// for later.
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, uint32_t numDevices,
     ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
     const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
+  // Only support one device
   if (numDevices > 1)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  UR_CHECK_ERROR(createProgram(hContext, phDevices[0], pLengths[0],
-                               ppBinaries[0], pProperties, phProgram));
-  (*phProgram)->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+  ur_device_handle_t hDevice = phDevices[0];
+  size_t size = pLengths[0];
+  const uint8_t *pBinary = ppBinaries[0];
+
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
+
+  try {
+    std::unique_ptr<ur_program_handle_t_> RetProgram{
+        new ur_program_handle_t_{hContext, hDevice}};
+
+    if (pProperties) {
+      if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+      } else if (pProperties->count == 0 &&
+                 pProperties->pMetadatas != nullptr) {
+        return UR_RESULT_ERROR_INVALID_SIZE;
+      }
+      UR_CHECK_ERROR(
+          RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count));
+    }
+
+    auto pBinary_string = reinterpret_cast<const char *>(pBinary);
+
+    UR_CHECK_ERROR(RetProgram->setBinary(pBinary_string, size));
+    RetProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+
+    *phProgram = RetProgram.release();
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -520,16 +507,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   CUfunction Func;
   CUresult Ret = cuModuleGetFunction(&Func, hProgram->get(), pFunctionName);
   *ppFunctionPointer = Func;
-  ur_result_t Result = UR_RESULT_SUCCESS;
 
   if (Ret != CUDA_SUCCESS && Ret != CUDA_ERROR_NOT_FOUND)
-    UR_CHECK_ERROR(Ret);
+    return mapErrorUR(Ret);
+
   if (Ret == CUDA_ERROR_NOT_FOUND) {
     *ppFunctionPointer = 0;
-    Result = UR_RESULT_ERROR_INVALID_KERNEL_NAME;
+    return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
