@@ -318,8 +318,16 @@ ur_result_t createSyncPointAndGetZeEvents(
     return UR_RESULT_SUCCESS;
   }
 
-  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                  SyncPointWaitList, ZeEventList));
+  if (CommandBuffer->InOrderRequested && !CommandBuffer->ZeEventsList.empty()) {
+    // If a user requested an in-order UR command-buffer, but driver L0
+    // command-lists couldn't be used, then we need to emulate the behavior by
+    // giving the command an event dependency on the last command.
+    ze_event_handle_t LastEvent = CommandBuffer->ZeEventsList.back();
+    ZeEventList.push_back(LastEvent);
+  } else {
+    UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                    SyncPointWaitList, ZeEventList));
+  }
   ur_event_handle_t LaunchEvent;
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr /*Queue*/,
                       false /*IsMultiDevice*/, HostVisible, &LaunchEvent,
@@ -477,9 +485,8 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       AllResetEvent(AllResetEvent), CopyFinishedEvent(CopyFinishedEvent),
       ComputeFinishedEvent(ComputeFinishedEvent), ZeFencesMap(),
       ZeActiveFence(nullptr), SyncPoints(), NextSyncPoint(0),
-      IsUpdatable(Desc ? Desc->isUpdatable : false),
-      IsProfilingEnabled(Desc ? Desc->enableProfiling : false),
-      IsInOrderCmdList(IsInOrderCmdList),
+      IsUpdatable(Desc->isUpdatable), IsProfilingEnabled(Desc->enableProfiling),
+      InOrderRequested(Desc->isInOrder), IsInOrderCmdList(IsInOrderCmdList),
       UseImmediateAppendPath(UseImmediateAppendPath) {
   ur::level_zero::urContextRetain(Context);
   ur::level_zero::urDeviceRetain(Device);
