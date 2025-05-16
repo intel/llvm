@@ -246,7 +246,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
         commandListLocked, hKernel, workDim, pGlobalWorkSize,
         numKernelAlternatives, kernelAlternatives, command));
   }
-  UR_CALL(commandListLocked->appendKernelLaunch(
+  UR_CALL(commandListLocked->enqueueKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
       nullptr, nullptr));
   return UR_RESULT_SUCCESS;
@@ -266,8 +266,8 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
 
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMMemcpy(false, pDst, pSrc, size, 0,
-                                             nullptr, nullptr));
+  UR_CALL(commandListLocked->enqueueUSMMemcpy(false, pDst, pSrc, size, 0,
+                                              nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -289,7 +289,7 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
   // sync mechanic can be ignored, because all lists are in-order
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendMemBufferCopy(
+  UR_CALL(commandListLocked->enqueueMemBufferCopy(
       hSrcMem, hDstMem, srcOffset, dstOffset, size, 0, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
@@ -312,8 +312,8 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
   // sync mechanic can be ignored, because all lists are in-order
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendMemBufferWrite(hBuffer, false, offset, size,
-                                                  pSrc, 0, nullptr, nullptr));
+  UR_CALL(commandListLocked->enqueueMemBufferWrite(hBuffer, false, offset, size,
+                                                   pSrc, 0, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -334,8 +334,8 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendMemBufferRead(hBuffer, false, offset, size,
-                                                 pDst, 0, nullptr, nullptr));
+  UR_CALL(commandListLocked->enqueueMemBufferRead(hBuffer, false, offset, size,
+                                                  pDst, 0, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -359,7 +359,7 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
   // sync mechanic can be ignored, because all lists are in-order
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendMemBufferCopyRect(
+  UR_CALL(commandListLocked->enqueueMemBufferCopyRect(
       hSrcMem, hDstMem, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, 0, nullptr, nullptr));
 
@@ -385,7 +385,7 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
 
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendMemBufferWriteRect(
+  UR_CALL(commandListLocked->enqueueMemBufferWriteRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, 0, nullptr,
       nullptr));
@@ -412,7 +412,7 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
 
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendMemBufferReadRect(
+  UR_CALL(commandListLocked->enqueueMemBufferReadRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, 0, nullptr,
       nullptr));
@@ -434,8 +434,8 @@ ur_result_t urCommandBufferAppendUSMFillExp(
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMFill(pMemory, patternSize, pPattern, size,
-                                           0, nullptr, nullptr));
+  UR_CALL(commandListLocked->enqueueUSMFill(pMemory, patternSize, pPattern,
+                                            size, 0, nullptr, nullptr));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -454,7 +454,7 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendMemBufferFill(
+  UR_CALL(commandListLocked->enqueueMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, 0, nullptr, nullptr));
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -475,8 +475,8 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMPrefetch(pMemory, size, flags, 0, nullptr,
-                                               nullptr));
+  UR_CALL(commandListLocked->enqueueUSMPrefetch(pMemory, size, flags, 0,
+                                                nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -496,7 +496,7 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMAdvise(pMemory, size, advice, nullptr));
+  UR_CALL(commandListLocked->enqueueUSMAdvise(pMemory, size, advice, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -546,13 +546,13 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   // Barrier on all commands before user defined commands.
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendBarrier(0, nullptr, nullptr));
+  UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(0, nullptr, nullptr));
 
   // Call user-defined function immediately
   pfnNativeCommand(pData);
 
   // Barrier on all commands after user defined commands.
-  UR_CALL(commandListLocked->appendBarrier(0, nullptr, nullptr));
+  UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(0, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 }

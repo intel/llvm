@@ -49,8 +49,8 @@ else()
             ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_normal.cpp
             ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_counter.cpp
             ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event.cpp
-            ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/queue_api.cpp
     )
+    target_include_directories(test-adapter-level_zero_event_pool PUBLIC ${PROJECT_SOURCE_DIR}/source/ur)
 endif()
 
 add_adapter_test(level_zero_memory_residency

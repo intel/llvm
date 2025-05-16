@@ -186,6 +186,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
     )
     install_ur_library(ur_adapter_level_zero_v2)

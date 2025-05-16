@@ -50,6 +50,10 @@ public:
     std::unique_lock lock{mut_};
     return locked<T>(&object_, std::move(lock));
   }
+  template <typename Base> locked<Base> lock() {
+    std::unique_lock lock{mut_};
+    return locked<Base>(&object_, std::move(lock));
+  }
   T *get_no_lock() { return &object_; }
 
 private:
