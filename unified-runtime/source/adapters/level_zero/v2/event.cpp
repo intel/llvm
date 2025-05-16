@@ -109,10 +109,8 @@ ur_event_handle_t_::ur_event_handle_t_(
     : hContext(hContext), event_pool(pool), hZeEvent(std::move(hZeEvent)),
       flags(flags), profilingData(getZeEvent()) {}
 
-void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
-                                              ur_command_t commandType) {
+void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   this->hQueue = hQueue;
-  this->commandType = commandType;
 
   if (hQueue) {
     UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
@@ -123,6 +121,10 @@ void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
   }
 
   profilingData.reset();
+}
+
+void ur_event_handle_t_::setCommandType(ur_command_t commandType) {
+  this->commandType = commandType;
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {

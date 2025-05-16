@@ -70,9 +70,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       isInOrder(desc ? desc->isInOrder : false),
       commandListManager(
           context, device,
-          std::forward<v2::raii::command_list_unique_handle>(commandList),
-          isInOrder ? v2::EVENT_FLAGS_COUNTER : 0, nullptr,
-          PoolCacheType::Regular),
+          std::forward<v2::raii::command_list_unique_handle>(commandList)),
       context(context), device(device) {}
 
 ur_exp_command_buffer_sync_point_t
@@ -297,9 +295,9 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   if (retSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendKernelLaunch(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      numSyncPointsInWaitList, eventsWaitList, event));
+  UR_CALL(commandListLocked->enqueueKernelLaunch(
+      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
+      nullptr, numSyncPointsInWaitList, eventsWaitList, event));
 
   if (retSyncPoint != nullptr) {
     *retSyncPoint = commandBuffer->getSyncPoint(signalEvent);
@@ -329,7 +327,7 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendUSMMemcpy(
+  UR_CALL(commandListLocked->enqueueUSMMemcpy(
       false, pDst, pSrc, size, numSyncPointsInWaitList, eventsWaitList, event));
 
   if (pSyncPoint != nullptr) {
@@ -362,7 +360,7 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendMemBufferCopy(
+  UR_CALL(commandListLocked->enqueueMemBufferCopy(
       hSrcMem, hDstMem, srcOffset, dstOffset, size, numSyncPointsInWaitList,
       eventsWaitList, event));
 
@@ -396,9 +394,9 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendMemBufferWrite(hBuffer, false, offset, size,
-                                                  pSrc, numSyncPointsInWaitList,
-                                                  eventsWaitList, event));
+  UR_CALL(commandListLocked->enqueueMemBufferWrite(
+      hBuffer, false, offset, size, pSrc, numSyncPointsInWaitList,
+      eventsWaitList, event));
 
   if (pSyncPoint != nullptr) {
     *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
@@ -428,9 +426,9 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendMemBufferRead(hBuffer, false, offset, size,
-                                                 pDst, numSyncPointsInWaitList,
-                                                 eventsWaitList, event));
+  UR_CALL(commandListLocked->enqueueMemBufferRead(hBuffer, false, offset, size,
+                                                  pDst, numSyncPointsInWaitList,
+                                                  eventsWaitList, event));
 
   if (pSyncPoint != nullptr) {
     *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
@@ -464,7 +462,7 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendMemBufferCopyRect(
+  UR_CALL(commandListLocked->enqueueMemBufferCopyRect(
       hSrcMem, hDstMem, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, numSyncPointsInWaitList,
       eventsWaitList, event));
@@ -501,7 +499,7 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendMemBufferWriteRect(
+  UR_CALL(commandListLocked->enqueueMemBufferWriteRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
       numSyncPointsInWaitList, eventsWaitList, event));
@@ -538,7 +536,7 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendMemBufferReadRect(
+  UR_CALL(commandListLocked->enqueueMemBufferReadRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
       numSyncPointsInWaitList, eventsWaitList, event));
@@ -570,9 +568,9 @@ ur_result_t urCommandBufferAppendUSMFillExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendUSMFill(pMemory, patternSize, pPattern, size,
-                                           numSyncPointsInWaitList,
-                                           eventsWaitList, event));
+  UR_CALL(commandListLocked->enqueueUSMFill(pMemory, patternSize, pPattern,
+                                            size, numSyncPointsInWaitList,
+                                            eventsWaitList, event));
   if (pSyncPoint != nullptr) {
     *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
   }
@@ -601,7 +599,7 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendMemBufferFill(
+  UR_CALL(commandListLocked->enqueueMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, numSyncPointsInWaitList,
       eventsWaitList, event));
   if (pSyncPoint != nullptr) {
@@ -633,7 +631,7 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendUSMPrefetch(
+  UR_CALL(commandListLocked->enqueueUSMPrefetch(
       pMemory, size, flags, numSyncPointsInWaitList, eventsWaitList, event));
 
   if (pSyncPoint != nullptr) {
@@ -663,7 +661,7 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendUSMAdvise(
+  UR_CALL(commandListLocked->enqueueUSMAdvise(
       pMemory, size, advice, numSyncPointsInWaitList, eventsWaitList, event));
 
   if (pSyncPoint != nullptr) {
@@ -719,14 +717,14 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendBarrier(numSyncPointsInWaitList,
-                                           eventsWaitList, nullptr));
+  UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(
+      numSyncPointsInWaitList, eventsWaitList, nullptr));
 
   // Call user-defined function immediately
   pfnNativeCommand(pData);
 
   // Barrier on all commands after user defined commands.
-  UR_CALL(commandListLocked->appendBarrier(0, nullptr, event));
+  UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(0, nullptr, event));
 
   if (pSyncPoint != nullptr) {
     *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
