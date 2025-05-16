@@ -1024,9 +1024,10 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
                MExecutionEvents.begin();
            It != MExecutionEvents.end();) {
-        std::shared_ptr<event_impl> &Event = *It;
+        EventImplPtr &Event = *It;
         if (!Event->isCompleted()) {
-          auto &AttachedEventsList = Event->getPostCompleteEvents();
+          const std::vector<EventImplPtr> &AttachedEventsList =
+              Event->getPostCompleteEvents();
           CGData.MEvents.reserve(CGData.MEvents.size() +
                                  AttachedEventsList.size() + 1);
           CGData.MEvents.push_back(Event);
