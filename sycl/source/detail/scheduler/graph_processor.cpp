@@ -71,23 +71,23 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
 
 bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, ReadLockT &GraphReadLock, EnqueueResultT &EnqueueResult,
-    std::vector<Command *> &ToCleanUp, Command *RootCommand,
-    BlockingT Blocking, uint32_t RecursionDepth) {
+    std::vector<Command *> &ToCleanUp, Command *RootCommand, BlockingT Blocking,
+    uint32_t RecursionDepth) {
   if (!Cmd)
     return true;
 
   // Tracks only direct blocking dependencies to optimize notification times.
-  // Consider a scenario where command B depends on command A, and command C depends on B.
-  // When enqueueCommand is called with Cmd=A, RootCommand=A, and RecursionDepth=0,
-  // it recursively enqueues all dependencies of A:
+  // Consider a scenario where command B depends on command A, and command C
+  // depends on B. When enqueueCommand is called with Cmd=A, RootCommand=A, and
+  // RecursionDepth=0, it recursively enqueues all dependencies of A:
   //   (1) enqueueCommand(Cmd=B, RootCommand=A, RecursionDepth=1)
   //   (2) enqueueCommand(Cmd=C, RootCommand=A, RecursionDepth=2)
   //
-  // Once A is completed, it suffices to notify B, the direct blocking user of A.
-  // C will be notified upon B's completion. Therefore, handleBlockingCmd is invoked
-  // only when RecursionDepth equals 1. This approach prevents the size of Cmd->MBlockedUsers
-  // from growing excessively in long dependency chains, thereby reducing notification time
-  // upon command completion.
+  // Once A is completed, it suffices to notify B, the direct blocking user of
+  // A. C will be notified upon B's completion. Therefore, handleBlockingCmd is
+  // invoked only when RecursionDepth equals 1. This approach prevents the size
+  // of Cmd->MBlockedUsers from growing excessively in long dependency chains,
+  // thereby reducing notification time upon command completion.
   bool IsDirectBlocking = RecursionDepth == 1;
   if (IsDirectBlocking && Cmd->isSuccessfullyEnqueued())
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
