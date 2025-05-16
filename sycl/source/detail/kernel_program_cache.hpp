@@ -242,9 +242,9 @@ public:
     std::weak_ptr<Adapter> MAdapterWeakPtr; /* Weak pointer to the adapter. */
 
     KernelFastCacheVal(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
-                        const KernelArgMask *KernelArgMask,
-                        ur_program_handle_t ProgramHandle,
-                        const AdapterPtr &Adapter)
+                       const KernelArgMask *KernelArgMask,
+                       ur_program_handle_t ProgramHandle,
+                       const AdapterPtr &Adapter)
         : MKernelHandle(KernelHandle), MMutex(Mutex),
           MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle),
           MAdapterWeakPtr(Adapter) {}
@@ -448,8 +448,8 @@ public:
     return std::make_pair(It->second, DidInsert);
   }
 
-  KernelFastCacheValPtr tryToGetKernelFast(
-      const KernelProgramCache::KernelFastCacheKeyT &CacheKey) {
+  KernelFastCacheValPtr
+  tryToGetKernelFast(const KernelProgramCache::KernelFastCacheKeyT &CacheKey) {
     KernelFastCacheReadLockT Lock(MKernelFastCacheMutex);
     auto It = MKernelFastCache.find(CacheKey);
     if (It != MKernelFastCache.end()) {
