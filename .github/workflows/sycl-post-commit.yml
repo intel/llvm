@@ -53,3 +53,4 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       compiler: icx
+	  env: '{"LIT_FILTERS":"std_array"}'
