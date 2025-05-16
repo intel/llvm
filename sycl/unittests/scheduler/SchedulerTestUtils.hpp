@@ -301,8 +301,8 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), getStreamStorage(), impl->MAuxiliaryResources,
-          getType(), {}, impl->MKernelIsCooperative,
+          getKernelName(), impl->MKernelNameBasedCachePtr, getStreamStorage(),
+          impl->MAuxiliaryResources, getType(), {}, impl->MKernelIsCooperative,
           impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
           getCodeLoc()));
       break;

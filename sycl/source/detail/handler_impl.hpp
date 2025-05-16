@@ -198,6 +198,9 @@ public:
 
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
+
+  // A pointer to a kernel name based cache retrieved on the application side.
+  KernelNameBasedCacheT *MKernelNameBasedCachePtr;
 };
 
 } // namespace detail
