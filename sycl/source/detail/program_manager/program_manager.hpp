@@ -198,7 +198,7 @@ public:
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
-  KernelProgramCache::KernelFastCacheValTPtr
+  KernelProgramCache::KernelFastCacheValPtr
   getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {});
 

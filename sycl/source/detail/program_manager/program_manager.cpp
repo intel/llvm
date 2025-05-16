@@ -1107,7 +1107,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 }
 // When caching is enabled, the returned UrProgram and UrKernel will
 // already have their ref count incremented.
-KernelProgramCache::KernelFastCacheValTPtr ProgramManager::getOrCreateKernel(
+KernelProgramCache::KernelFastCacheValPtr ProgramManager::getOrCreateKernel(
     const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
     KernelNameStrRefT KernelName, const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
@@ -1123,19 +1123,7 @@ KernelProgramCache::KernelFastCacheValTPtr ProgramManager::getOrCreateKernel(
   auto key = std::make_pair(UrDevice, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(key);
-#if 0
-    constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
-    constexpr size_t Program = 3; // see KernelFastCacheValT tuple
-#endif
     if (ret_tuple) {
-#if 0
-      // Pulling a copy of a kernel and program from the cache,
-      // so we need to retain those resources.
-      ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-          std::get<Kernel>(*ret_tuple));
-      ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
-          std::get<Program>(*ret_tuple));
-#endif
       return ret_tuple;
     }
   }
@@ -1175,7 +1163,7 @@ KernelProgramCache::KernelFastCacheValTPtr ProgramManager::getOrCreateKernel(
     // threads when caching is disabled, so we can return
     // nullptr for the mutex.
     auto [Kernel, ArgMask] = BuildF();
-    return std::make_shared<KernelProgramCache::KernelFastCacheValT>(
+    return std::make_shared<KernelProgramCache::KernelFastCacheVal>(
         Kernel, nullptr, ArgMask, Program, ContextImpl->getAdapter());
   }
 
@@ -1183,7 +1171,7 @@ KernelProgramCache::KernelFastCacheValTPtr ProgramManager::getOrCreateKernel(
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
-  auto ret_val = std::make_shared<KernelProgramCache::KernelFastCacheValT>(
+  auto ret_val = std::make_shared<KernelProgramCache::KernelFastCacheVal>(
       KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, Program, ContextImpl->getAdapter());
 

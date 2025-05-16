@@ -2003,7 +2003,7 @@ void instrumentationAddExtraKernelMetadata(
     // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
     //       by graph API, when a modifiable graph is finalized.
-    KernelProgramCache::KernelFastCacheValTPtr KernelCacheVal =
+    KernelProgramCache::KernelFastCacheValPtr KernelCacheVal =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName);
     EliminatedArgMask = KernelCacheVal->MKernelArgMask;
@@ -2524,12 +2524,14 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     ur_program_handle_t UrProgram = nullptr;
-    KernelProgramCache::KernelFastCacheValTPtr KernelCacheVal =
+    KernelProgramCache::KernelFastCacheValPtr KernelCacheVal =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
     UrKernel = KernelCacheVal->MKernelHandle;
     EliminatedArgMask = KernelCacheVal->MKernelArgMask;
     UrProgram = KernelCacheVal->MProgramHandle;
+    // UrProgram/UrKernel are used after KernelCacheVal is destroyed, so caller
+    // must call ur*Release
     ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(UrProgram);
     ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(UrKernel);
 
@@ -2671,7 +2673,7 @@ void enqueueImpKernel(
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
-  KernelProgramCache::KernelFastCacheValTPtr KernelCacheVal;
+  KernelProgramCache::KernelFastCacheValPtr KernelCacheVal;
 
   if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
@@ -2748,14 +2750,6 @@ void enqueueImpKernel(
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, KernelName);
-
-#if 0
-    const AdapterPtr &Adapter = Queue->getAdapter();
-    if (!SyclKernelImpl && !MSyclKernel) {
-      Adapter->call<UrApiKind::urKernelRelease>(Kernel);
-      Adapter->call<UrApiKind::urProgramRelease>(Program);
-    }
-#endif
   }
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
