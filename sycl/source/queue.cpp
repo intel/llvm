@@ -25,6 +25,7 @@ namespace detail {
 SubmissionInfo::SubmissionInfo()
     : impl{std::make_shared<SubmissionInfoImpl>()} {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() {
   return impl->MPostProcessorFunc;
 }
@@ -32,6 +33,7 @@ optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() {
 const optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() const {
   return impl->MPostProcessorFunc;
 }
+#endif
 
 std::shared_ptr<detail::queue_impl> &SubmissionInfo::SecondaryQueue() {
   return impl->MSecondaryQueue;
