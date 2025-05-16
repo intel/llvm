@@ -60,8 +60,7 @@ uint64_t computeApproximatePrivateMemoryUsage(const llvm::Function &fn) {
     if (alloca_inst.isArrayAllocation()) {
       auto *arr_size_val = alloca_inst.getArraySize();
       auto *const_int = llvm::dyn_cast<llvm::ConstantInt>(arr_size_val);
-      assert(const_int != nullptr &&
-             "OpenCL or Vulkan Array Allocation of dynamic size");
+      assert(const_int != nullptr && "Array Allocation of dynamic size");
       const uint64_t arr_size = const_int->getUniqueInteger().getLimitedValue();
       bytes += arr_size * alloc_size;
 
