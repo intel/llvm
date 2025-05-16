@@ -29,22 +29,24 @@ struct KernelInfo<class __usmfill2d<long>>
     : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return USMFillHelperKernelNameLong; }
   static constexpr unsigned getNumParams() { return 7; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    // Actual signature does not matter, but we need entries for each param.
-    static constexpr const kernel_param_desc_t DummySignature[] = {
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-    };
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return DummySignature[Idx];
   }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 3 * sizeof(size_t);
   }
+
+private:
+  // Actual signature does not matter, but we need entries for each param.
+  static constexpr const kernel_param_desc_t DummySignature[] = {
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+  };
 };
 
 template <>
@@ -52,22 +54,24 @@ struct KernelInfo<class __usmfill2d<unsigned char>>
     : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return USMFillHelperKernelNameChar; }
   static constexpr unsigned getNumParams() { return 7; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    // Actual signature does not matter, but we need entries for each param.
-    static constexpr const kernel_param_desc_t DummySignature[] = {
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-    };
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return DummySignature[Idx];
   }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 3 * sizeof(size_t);
   }
+
+private:
+  // Actual signature does not matter, but we need entries for each param.
+  static constexpr const kernel_param_desc_t DummySignature[] = {
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+  };
 };
 
 template <>
@@ -77,23 +81,25 @@ struct KernelInfo<class __usmmemcpy2d<long>>
     return USMMemcpyHelperKernelNameLong;
   }
   static constexpr unsigned getNumParams() { return 8; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    // Actual signature does not matter, but we need entries for each param.
-    static constexpr const kernel_param_desc_t DummySignature[] = {
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-    };
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return DummySignature[Idx];
   }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 4 * sizeof(size_t);
   }
+
+private:
+  // Actual signature does not matter, but we need entries for each param.
+  static constexpr const kernel_param_desc_t DummySignature[] = {
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+  };
 };
 
 template <>
@@ -103,23 +109,25 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
     return USMMemcpyHelperKernelNameChar;
   }
   static constexpr unsigned getNumParams() { return 8; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    // Actual signature does not matter, but we need entries for each param.
-    static constexpr const kernel_param_desc_t DummySignature[] = {
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-    };
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return DummySignature[Idx];
   }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 4 * sizeof(size_t);
   }
+
+private:
+  // Actual signature does not matter, but we need entries for each param.
+  static constexpr const kernel_param_desc_t DummySignature[] = {
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+  };
 };
 } // namespace detail
 } // namespace _V1

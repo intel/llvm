@@ -626,7 +626,10 @@ void enqueueImpKernel(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
-    const RTDeviceBinaryImage *BinImage = nullptr);
+    const RTDeviceBinaryImage *BinImage = nullptr,
+    void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
+    bool KernelHasSpecialCaptures = true);
 
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
@@ -775,6 +778,27 @@ void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,
         continue;
 
       Func(Arg, NextTrueIndex);
+      ++NextTrueIndex;
+    }
+  }
+}
+
+template <typename FuncT>
+void applyFuncOnFilteredArgs(
+    const KernelArgMask *EliminatedArgMask, int KernelNumArgs,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int), FuncT Func) {
+  if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
+    for (int I = 0; I < KernelNumArgs; ++I) {
+      const detail::kernel_param_desc_t &Param = KernelParamDescGetter(I);
+      Func(Param, I);
+    }
+  } else {
+    size_t NextTrueIndex = 0;
+    for (int I = 0; I < KernelNumArgs; ++I) {
+      const detail::kernel_param_desc_t &Param = KernelParamDescGetter(I);
+      if ((*EliminatedArgMask)[I])
+        continue;
+      Func(Param, NextTrueIndex);
       ++NextTrueIndex;
     }
   }
