@@ -31,8 +31,7 @@ jobs:
             } catch (error) {
               if (error.status === 422) {
                 console.log(`Branch '${branch}' not found`);
+              } else {
+                throw error;
               }
-            } else {
-              throw error;
             }
-          }
