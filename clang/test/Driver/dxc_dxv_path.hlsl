@@ -1,3 +1,4 @@
+// UNSUPPORTED: system-windows
 // RUN: env PATH="" %clang_dxc -I test -Tlib_6_3 -Fo %T/a.dxo  -### %s 2>&1 | FileCheck %s
 
 // Make sure report warning.
