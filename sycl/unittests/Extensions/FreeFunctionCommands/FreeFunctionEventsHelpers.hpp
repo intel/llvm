@@ -9,14 +9,6 @@
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 
-inline void CheckLastEventDiscarded(sycl::queue &Q) {
-  auto QueueImplPtr = sycl::detail::getSyclObjImpl(Q);
-  sycl::detail::optional<sycl::event> LastEvent = QueueImplPtr->getLastEvent();
-  ASSERT_TRUE(LastEvent.has_value());
-  auto LastEventImplPtr = sycl::detail::getSyclObjImpl(*LastEvent);
-  ASSERT_TRUE(LastEventImplPtr->isDiscarded());
-}
-
 inline ur_result_t after_urKernelGetInfo(void *pParams) {
   auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
   constexpr char MockKernel[] = "TestKernel";
