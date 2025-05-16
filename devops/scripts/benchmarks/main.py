@@ -359,7 +359,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save",
-        type=str,
+        type=lambda save: Validate.save_name(
+            save,
+            throw=argparse.ArgumentTypeError(
+                "Specified save name is not within characters [a-zA-Z0-9_-]."
+            ),
+        ),
         help="Save the results for comparison under a specified name.",
     )
     parser.add_argument(

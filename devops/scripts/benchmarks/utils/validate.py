@@ -8,7 +8,7 @@ def validate_on_re(val: str, regex: re.Pattern, throw: Exception = None):
     If `throw` argument is not None: return val as-is if val matches regex,
     otherwise raise error defined by throw.
     """
-    is_matching: bool = re.compile(regex).match(val) is not None
+    is_matching: bool = re.compile(regex).match(val.strip()) is not None
 
     if throw is None:
         return is_matching
@@ -27,6 +27,16 @@ class Validate:
         Returns True if runner_name is clean (no illegal characters).
         """
         return validate_on_re(runner_name, r"^[a-zA-Z0-9_]+$", throw=throw)
+
+    @staticmethod
+    def save_name(save: str, throw: Exception = None):
+        """
+        Returns True if save is within [a-zA-Z0-9_-].
+
+        If throw argument is specified: return save as is if save satisfies
+        aforementioned regex, otherwise raise error defined by throw.
+        """
+        return validate_on_re(save, r"^[a-zA-Z0-9_-]+$", throw=throw)
 
     @staticmethod
     def timestamp(t: str, throw: Exception = None):
