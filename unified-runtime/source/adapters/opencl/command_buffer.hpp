@@ -8,11 +8,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "common.hpp"
 #include <CL/cl_ext.h>
 #include <ur/ur.hpp>
 
 /// Handle to a kernel command.
-struct ur_exp_command_buffer_command_handle_t_ {
+struct ur_exp_command_buffer_command_handle_t_ : ur::opencl::handle_base {
   /// Command-buffer this command belongs to.
   ur_exp_command_buffer_handle_t hCommandBuffer;
   /// OpenCL command-handle.
@@ -28,13 +29,13 @@ struct ur_exp_command_buffer_command_handle_t_ {
       ur_exp_command_buffer_handle_t hCommandBuffer,
       cl_mutable_command_khr CLMutableCommand, ur_kernel_handle_t Kernel,
       cl_uint WorkDim, bool UserDefinedLocalSize)
-      : hCommandBuffer(hCommandBuffer), CLMutableCommand(CLMutableCommand),
-        Kernel(Kernel), WorkDim(WorkDim),
+      : handle_base(), hCommandBuffer(hCommandBuffer),
+        CLMutableCommand(CLMutableCommand), Kernel(Kernel), WorkDim(WorkDim),
         UserDefinedLocalSize(UserDefinedLocalSize) {}
 };
 
 /// Handle to a command-buffer object.
-struct ur_exp_command_buffer_handle_t_ {
+struct ur_exp_command_buffer_handle_t_ : ur::opencl::handle_base {
   /// UR queue belonging to the command-buffer, required for OpenCL creation.
   ur_queue_handle_t hInternalQueue;
   /// Context the command-buffer is created for.
@@ -63,10 +64,10 @@ struct ur_exp_command_buffer_handle_t_ {
                                   ur_device_handle_t hDevice,
                                   cl_command_buffer_khr CLCommandBuffer,
                                   bool IsUpdatable, bool IsInOrder)
-      : hInternalQueue(hQueue), hContext(hContext), hDevice(hDevice),
-        CLCommandBuffer(CLCommandBuffer), IsUpdatable(IsUpdatable),
-        IsInOrder(IsInOrder), IsFinalized(false), RefCount(0),
-        LastSubmission(nullptr) {}
+      : handle_base(), hInternalQueue(hQueue), hContext(hContext),
+        hDevice(hDevice), CLCommandBuffer(CLCommandBuffer),
+        IsUpdatable(IsUpdatable), IsInOrder(IsInOrder), IsFinalized(false),
+        RefCount(0), LastSubmission(nullptr) {}
 
   ~ur_exp_command_buffer_handle_t_();
 
