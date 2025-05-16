@@ -9370,8 +9370,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (is_style_windows(llvm::sys::path::Style::native)) {
     // BoundArch may contain ':' or '*', which is invalid in file names on
     // Windows, therefore replace it with '@'.
-    std::replace(BoundArch.begin(), BoundArch.end(), ':', '@');
-    std::replace(BoundArch.begin(), BoundArch.end(), '*', '@');
+    llvm::replace(BoundArch, ':', '@');
+    llvm::replace(BoundArch, '*', '@');
   }
   // BoundArch may contain ',', which may create strings that interfere with
   // the StringMap for the clang-offload-packager input values.
