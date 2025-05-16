@@ -209,16 +209,16 @@ jobs:
         extra_lit_opts: --param sycl_build_targets="spir"
         cxx: ${{ inputs.cxx }}
     - name: Memes
-	  id: memes
+      id: memes
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: |
-		set PATH=%CD%\build\bin;%CD%\build\lib;%PATH%
-		set LIB=%CD%\build\lib;%LIB%
-		clang-cl --version
-		mkdir tmp
-		cd tmp
-		clang-cl -fsycl ..\src\sycl\test-e2e\Basic\std_array.cpp -g /MDd /Od /Zi /EHsc
-		.\std_array.exe
+        set PATH=%CD%\build\bin;%CD%\build\lib;%PATH%
+        set LIB=%CD%\build\lib;%LIB%
+        clang-cl --version
+        mkdir tmp
+        cd tmp
+        clang-cl -fsycl ..\src\sycl\test-e2e\Basic\std_array.cpp -g /MDd /Od /Zi /EHsc
+        .\std_array.exe
     - name: Upload memes
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
