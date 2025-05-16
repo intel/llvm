@@ -54,4 +54,4 @@ jobs:
       target_devices: "level_zero:gpu"
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       cxx: icx
-	  env: '{"LIT_FILTERS":"std_array"}'
+      env: '{"LIT_FILTERS":"std_array"}'
