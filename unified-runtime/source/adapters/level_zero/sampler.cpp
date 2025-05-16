@@ -17,30 +17,9 @@
 #include "context.hpp"
 #endif
 
-namespace ur::level_zero {
-
-ur_result_t urSamplerCreate(
-    /// [in] handle of the context object
-    ur_context_handle_t Context,
-    /// [in] specifies a list of sampler property names and their
-    /// corresponding values.
-    const ur_sampler_desc_t *Props,
-    /// [out] pointer to handle of sampler object created
-    ur_sampler_handle_t *Sampler) {
-  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
-
-  // Have the "0" device in context to own the sampler. Rely on Level-Zero
-  // drivers to perform migration as necessary for sharing it across multiple
-  // devices in the context.
-  //
-  // TODO: figure out if we instead need explicit copying for acessing
-  // the sampler from other devices in the context.
-  //
-  ur_device_handle_t Device = Context->getDevices()[0];
-
-  ze_sampler_handle_t ZeSampler;
-  ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
-
+ur_result_t ur2zeSamplerDesc(ze_api_version_t ZeApiVersion,
+                             const ur_sampler_desc_t *SamplerDesc,
+                             ZeStruct<ze_sampler_desc_t> &ZeSamplerDesc) {
   // Set the default values for the ZeSamplerDesc.
   ZeSamplerDesc.isNormalized = true;
   ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_CLAMP;
@@ -48,11 +27,11 @@ ur_result_t urSamplerCreate(
 
   // Update the values of the ZeSamplerDesc from the sampler properties list.
   // Default values will be used if any of the following is true:
-  //   a) SamplerProperties list is NULL
-  //   b) SamplerProperties list is missing any properties
+  //   a) SamplerDesc list is NULL
+  //   b) SamplerDesc list is missing any properties
 
-  if (Props) {
-    ZeSamplerDesc.isNormalized = Props->normalizedCoords;
+  if (SamplerDesc) {
+    ZeSamplerDesc.isNormalized = SamplerDesc->normalizedCoords;
 
     // Level Zero runtime with API version 1.2 and lower has a bug:
     // ZE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER is implemented as "clamp to
@@ -60,9 +39,8 @@ ur_result_t urSamplerCreate(
     // border", i.e. logic is flipped. Starting from API version 1.3 this
     // problem is going to be fixed. That's why check for API version to set
     // an address mode.
-    ze_api_version_t ZeApiVersion = Context->getPlatform()->ZeApiVersion;
     // TODO: add support for PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE
-    switch (Props->addressingMode) {
+    switch (SamplerDesc->addressingMode) {
     case UR_SAMPLER_ADDRESSING_MODE_NONE:
       ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_NONE;
       break;
@@ -88,15 +66,44 @@ ur_result_t urSamplerCreate(
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
-    if (Props->filterMode == UR_SAMPLER_FILTER_MODE_NEAREST)
+    if (SamplerDesc->filterMode == UR_SAMPLER_FILTER_MODE_NEAREST)
       ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_NEAREST;
-    else if (Props->filterMode == UR_SAMPLER_FILTER_MODE_LINEAR)
+    else if (SamplerDesc->filterMode == UR_SAMPLER_FILTER_MODE_LINEAR)
       ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_LINEAR;
     else {
       UR_LOG(ERR, "urSamplerCreate: unsupported UR_SAMPLER_FILTER_MODE value");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
+
+  return UR_RESULT_SUCCESS;
+}
+
+namespace ur::level_zero {
+
+ur_result_t urSamplerCreate(
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] specifies a list of sampler property names and their
+    /// corresponding values.
+    const ur_sampler_desc_t *Props,
+    /// [out] pointer to handle of sampler object created
+    ur_sampler_handle_t *Sampler) {
+  std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
+
+  // Have the "0" device in context to own the sampler. Rely on Level-Zero
+  // drivers to perform migration as necessary for sharing it across multiple
+  // devices in the context.
+  //
+  // TODO: figure out if we instead need explicit copying for acessing
+  // the sampler from other devices in the context.
+  //
+  ur_device_handle_t Device = Context->getDevices()[0];
+
+  ze_sampler_handle_t ZeSampler;
+  ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
+  ze_api_version_t ZeApiVersion = Context->getPlatform()->ZeApiVersion;
+  UR_CALL(ur2zeSamplerDesc(ZeApiVersion, Props, ZeSamplerDesc));
 
   ZE2UR_CALL(zeSamplerCreate, (Context->getZeHandle(), Device->ZeDevice,
                                &ZeSamplerDesc, // TODO: translate properties

@@ -109,7 +109,7 @@ void *&getDllHandle() {
 
 static bool shouldLoadL0V2adapter() {
   auto SyclEnv = std::getenv("SYCL_UR_USE_LEVEL_ZERO_V2");
-  auto UREvn = std::getenv("UR_LOADER_USE_LEVEL_ZERO_V2");
+  auto UREnv = std::getenv("UR_LOADER_USE_LEVEL_ZERO_V2");
 
   try {
     if (SyclEnv && std::stoi(SyclEnv) == 1) {
@@ -119,7 +119,7 @@ static bool shouldLoadL0V2adapter() {
   }
 
   try {
-    if (UREvn && std::atoi(UREvn) == 1) {
+    if (UREnv && std::stoi(UREnv) == 1) {
       return true;
     }
   } catch (...) {
