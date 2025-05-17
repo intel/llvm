@@ -36,14 +36,10 @@ public:
 
   GenericOptionalFrontend(ValueObject &valobj, StdLib stdlib);
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  size_t GetIndexOfChildWithName(ConstString name) override {
     if (name == "$$dereference$$")
       return 0;
-    size_t idx = formatters::ExtractIndexFromString(name.GetCString());
-    if (idx == UINT32_MAX)
-      return llvm::createStringError("Type has no child named '%s'",
-                                     name.AsCString());
-    return idx;
+    return formatters::ExtractIndexFromString(name.GetCString());
   }
 
   llvm::Expected<uint32_t> CalculateNumChildren() override {

@@ -400,7 +400,9 @@ SDValue DAGTypeLegalizer::ScalarizeVecRes_MERGE_VALUES(SDNode *N,
 
 SDValue DAGTypeLegalizer::ScalarizeVecRes_BITCAST(SDNode *N) {
   SDValue Op = N->getOperand(0);
-  if (getTypeAction(Op.getValueType()) == TargetLowering::TypeScalarizeVector)
+  if (Op.getValueType().isVector()
+      && Op.getValueType().getVectorNumElements() == 1
+      && !isSimpleLegalType(Op.getValueType()))
     Op = GetScalarizedVector(Op);
   EVT NewVT = N->getValueType(0).getVectorElementType();
   return DAG.getNode(ISD::BITCAST, SDLoc(N),
@@ -3220,30 +3222,8 @@ void DAGTypeLegalizer::SplitVecRes_VP_REVERSE(SDNode *N, SDValue &Lo,
 void DAGTypeLegalizer::SplitVecRes_PARTIAL_REDUCE_MLA(SDNode *N, SDValue &Lo,
                                                       SDValue &Hi) {
   SDLoc DL(N);
-  SDValue Acc = N->getOperand(0);
-  SDValue Input1 = N->getOperand(1);
-  SDValue Input2 = N->getOperand(2);
-
-  SDValue AccLo, AccHi;
-  std::tie(AccLo, AccHi) = DAG.SplitVector(Acc, DL);
-  unsigned Opcode = N->getOpcode();
-
-  // If the input types don't need splitting, just accumulate into the
-  // low part of the accumulator.
-  if (getTypeAction(Input1.getValueType()) != TargetLowering::TypeSplitVector) {
-    Lo = DAG.getNode(Opcode, DL, AccLo.getValueType(), AccLo, Input1, Input2);
-    Hi = AccHi;
-    return;
-  }
-
-  SDValue Input1Lo, Input1Hi;
-  SDValue Input2Lo, Input2Hi;
-  std::tie(Input1Lo, Input1Hi) = DAG.SplitVector(Input1, DL);
-  std::tie(Input2Lo, Input2Hi) = DAG.SplitVector(Input2, DL);
-  EVT ResultVT = AccLo.getValueType();
-
-  Lo = DAG.getNode(Opcode, DL, ResultVT, AccLo, Input1Lo, Input2Lo);
-  Hi = DAG.getNode(Opcode, DL, ResultVT, AccHi, Input1Hi, Input2Hi);
+  SDValue Expanded = TLI.expandPartialReduceMLA(N, DAG);
+  std::tie(Lo, Hi) = DAG.SplitVector(Expanded, DL);
 }
 
 void DAGTypeLegalizer::SplitVecRes_VECTOR_DEINTERLEAVE(SDNode *N) {
@@ -4523,20 +4503,7 @@ SDValue DAGTypeLegalizer::SplitVecOp_VECTOR_HISTOGRAM(SDNode *N) {
 }
 
 SDValue DAGTypeLegalizer::SplitVecOp_PARTIAL_REDUCE_MLA(SDNode *N) {
-  SDValue Acc = N->getOperand(0);
-  assert(getTypeAction(Acc.getValueType()) != TargetLowering::TypeSplitVector &&
-         "Accumulator should already be a legal type, and shouldn't need "
-         "further splitting");
-
-  SDLoc DL(N);
-  SDValue Input1Lo, Input1Hi, Input2Lo, Input2Hi;
-  std::tie(Input1Lo, Input1Hi) = DAG.SplitVector(N->getOperand(1), DL);
-  std::tie(Input2Lo, Input2Hi) = DAG.SplitVector(N->getOperand(2), DL);
-  unsigned Opcode = N->getOpcode();
-  EVT ResultVT = Acc.getValueType();
-
-  SDValue Lo = DAG.getNode(Opcode, DL, ResultVT, Acc, Input1Lo, Input2Lo);
-  return DAG.getNode(Opcode, DL, ResultVT, Lo, Input1Hi, Input2Hi);
+  return TLI.expandPartialReduceMLA(N, DAG);
 }
 
 //===----------------------------------------------------------------------===//

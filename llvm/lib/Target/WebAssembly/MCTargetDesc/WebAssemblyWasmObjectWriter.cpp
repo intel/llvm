@@ -13,7 +13,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/WebAssemblyFixupKinds.h"
-#include "MCTargetDesc/WebAssemblyMCExpr.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "llvm/BinaryFormat/Wasm.h"
 #include "llvm/MC/MCAsmBackend.h"
@@ -67,33 +66,31 @@ unsigned WebAssemblyWasmObjectWriter::getRelocType(
     const MCValue &Target, const MCFixup &Fixup,
     const MCSectionWasm &FixupSection, bool IsLocRel) const {
   auto &SymA = cast<MCSymbolWasm>(*Target.getAddSym());
-  auto Spec = WebAssembly::Specifier(Target.getSpecifier());
+  auto Spec = Target.getSpecifier();
   switch (Spec) {
-  case WebAssembly::S_GOT:
-    SymA.setUsedInGOT();
+  case MCSymbolRefExpr::VK_GOT:
+  case MCSymbolRefExpr::VK_WASM_GOT_TLS:
     return wasm::R_WASM_GLOBAL_INDEX_LEB;
-  case WebAssembly::S_GOT_TLS:
-    SymA.setUsedInGOT();
-    SymA.setTLS();
-    return wasm::R_WASM_GLOBAL_INDEX_LEB;
-  case WebAssembly::S_TBREL:
+  case MCSymbolRefExpr::VK_WASM_TBREL:
     assert(SymA.isFunction());
     return is64Bit() ? wasm::R_WASM_TABLE_INDEX_REL_SLEB64
                      : wasm::R_WASM_TABLE_INDEX_REL_SLEB;
-  case WebAssembly::S_TLSREL:
-    SymA.setTLS();
+  case MCSymbolRefExpr::VK_WASM_TLSREL:
     return is64Bit() ? wasm::R_WASM_MEMORY_ADDR_TLS_SLEB64
                      : wasm::R_WASM_MEMORY_ADDR_TLS_SLEB;
-  case WebAssembly::S_MBREL:
+  case MCSymbolRefExpr::VK_WASM_MBREL:
     assert(SymA.isData());
     return is64Bit() ? wasm::R_WASM_MEMORY_ADDR_REL_SLEB64
                      : wasm::R_WASM_MEMORY_ADDR_REL_SLEB;
-  case WebAssembly::S_TYPEINDEX:
+  case MCSymbolRefExpr::VK_WASM_TYPEINDEX:
     return wasm::R_WASM_TYPE_INDEX_LEB;
-  case WebAssembly::S_None:
+  case MCSymbolRefExpr::VK_None:
     break;
-  case WebAssembly::S_FUNCINDEX:
+  case MCSymbolRefExpr::VK_WASM_FUNCINDEX:
     return wasm::R_WASM_FUNCTION_INDEX_I32;
+  default:
+    report_fatal_error("unknown VariantKind");
+    break;
   }
 
   switch (unsigned(Fixup.getKind())) {

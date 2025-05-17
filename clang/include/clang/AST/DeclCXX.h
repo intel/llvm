@@ -2852,6 +2852,7 @@ class CXXDestructorDecl : public CXXMethodDecl {
   // FIXME: Don't allocate storage for these except in the first declaration
   // of a virtual destructor.
   FunctionDecl *OperatorDelete = nullptr;
+  FunctionDecl *OperatorArrayDelete = nullptr;
   Expr *OperatorDeleteThisArg = nullptr;
 
   CXXDestructorDecl(ASTContext &C, CXXRecordDecl *RD, SourceLocation StartLoc,
@@ -2877,9 +2878,14 @@ public:
   static CXXDestructorDecl *CreateDeserialized(ASTContext &C, GlobalDeclID ID);
 
   void setOperatorDelete(FunctionDecl *OD, Expr *ThisArg);
+  void setOperatorArrayDelete(FunctionDecl *OD);
 
   const FunctionDecl *getOperatorDelete() const {
     return getCanonicalDecl()->OperatorDelete;
+  }
+
+  const FunctionDecl *getArrayOperatorDelete() const {
+    return getCanonicalDecl()->OperatorArrayDelete;
   }
 
   Expr *getOperatorDeleteThisArg() const {
@@ -4160,7 +4166,7 @@ public:
 /// DecompositionDecl of type 'int (&)[3]'.
 class BindingDecl : public ValueDecl {
   /// The declaration that this binding binds to part of.
-  ValueDecl *Decomp = nullptr;
+  ValueDecl *Decomp;
   /// The binding represented by this declaration. References to this
   /// declaration are effectively equivalent to this expression (except
   /// that it is only evaluated once at the point of declaration of the
@@ -4275,7 +4281,7 @@ public:
         [](BindingDecl *BD) { return BD->isParameterPack(); });
 
     Bindings = Bindings.drop_front(BeforePackBindings.size());
-    if (!Bindings.empty() && Bindings.front()->getBinding()) {
+    if (!Bindings.empty()) {
       PackBindings = Bindings.front()->getBindingPackDecls();
       Bindings = Bindings.drop_front();
     }

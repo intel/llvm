@@ -25,14 +25,16 @@
 namespace clang {
 
 IncrementalCUDADeviceParser::IncrementalCUDADeviceParser(
-    CompilerInstance &DeviceInstance, CompilerInstance &HostInstance,
+    std::unique_ptr<CompilerInstance> DeviceInstance,
+    CompilerInstance &HostInstance,
     llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> FS,
     llvm::Error &Err, const std::list<PartialTranslationUnit> &PTUs)
-    : IncrementalParser(DeviceInstance, Err), PTUs(PTUs), VFS(FS),
+    : IncrementalParser(*DeviceInstance, Err), PTUs(PTUs), VFS(FS),
       CodeGenOpts(HostInstance.getCodeGenOpts()),
-      TargetOpts(DeviceInstance.getTargetOpts()) {
+      TargetOpts(HostInstance.getTargetOpts()) {
   if (Err)
     return;
+  DeviceCI = std::move(DeviceInstance);
   StringRef Arch = TargetOpts.CPU;
   if (!Arch.starts_with("sm_") || Arch.substr(3).getAsInteger(10, SMVersion)) {
     Err = llvm::joinErrors(std::move(Err), llvm::make_error<llvm::StringError>(
@@ -40,6 +42,34 @@ IncrementalCUDADeviceParser::IncrementalCUDADeviceParser(
                                                llvm::inconvertibleErrorCode()));
     return;
   }
+}
+
+llvm::Expected<TranslationUnitDecl *>
+IncrementalCUDADeviceParser::Parse(llvm::StringRef Input) {
+  auto PTU = IncrementalParser::Parse(Input);
+  if (!PTU)
+    return PTU.takeError();
+
+  auto PTX = GeneratePTX();
+  if (!PTX)
+    return PTX.takeError();
+
+  auto Err = GenerateFatbinary();
+  if (Err)
+    return std::move(Err);
+
+  std::string FatbinFileName =
+      "/incr_module_" + std::to_string(PTUs.size()) + ".fatbin";
+  VFS->addFile(FatbinFileName, 0,
+               llvm::MemoryBuffer::getMemBuffer(
+                   llvm::StringRef(FatbinContent.data(), FatbinContent.size()),
+                   "", false));
+
+  CodeGenOpts.CudaGpuBinaryFileName = FatbinFileName;
+
+  FatbinContent.clear();
+
+  return PTU;
 }
 
 llvm::Expected<llvm::StringRef> IncrementalCUDADeviceParser::GeneratePTX() {
@@ -141,19 +171,6 @@ llvm::Error IncrementalCUDADeviceParser::GenerateFatbinary() {
                        ((char *)&InnerHeader) + InnerHeader.HeaderSize);
 
   FatbinContent.append(PTXCode.begin(), PTXCode.end());
-
-  const PartialTranslationUnit &PTU = PTUs.back();
-
-  std::string FatbinFileName = "/" + PTU.TheModule->getName().str() + ".fatbin";
-
-  VFS->addFile(FatbinFileName, 0,
-               llvm::MemoryBuffer::getMemBuffer(
-                   llvm::StringRef(FatbinContent.data(), FatbinContent.size()),
-                   "", false));
-
-  CodeGenOpts.CudaGpuBinaryFileName = FatbinFileName;
-
-  FatbinContent.clear();
 
   return llvm::Error::success();
 }

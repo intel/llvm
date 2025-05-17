@@ -73,7 +73,10 @@ class AArch64LowerHomogeneousPrologEpilog : public ModulePass {
 public:
   static char ID;
 
-  AArch64LowerHomogeneousPrologEpilog() : ModulePass(ID) {}
+  AArch64LowerHomogeneousPrologEpilog() : ModulePass(ID) {
+    initializeAArch64LowerHomogeneousPrologEpilogPass(
+        *PassRegistry::getPassRegistry());
+  }
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<MachineModuleInfoWrapperPass>();
     AU.addPreserved<MachineModuleInfoWrapperPass>();

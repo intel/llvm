@@ -54,10 +54,12 @@ static Operation *extractFunction(std::vector<Operation *> &ops,
       slice.push_back(op);
 
     // All results are returned by the extracted function.
-    llvm::append_range(outputTypes, op->getResults().getTypes());
+    outputTypes.insert(outputTypes.end(), op->getResults().getTypes().begin(),
+                       op->getResults().getTypes().end());
 
     // Track all values that need to be taken as input to function.
-    llvm::append_range(values, op->getOperands());
+    values.insert(values.end(), op->getOperands().begin(),
+                  op->getOperands().end());
   }
 
   // Create the function
@@ -88,11 +90,10 @@ static Operation *extractFunction(std::vector<Operation *> &ops,
   // Remove unused function arguments
   size_t currentIndex = 0;
   while (currentIndex < funcOp.getNumArguments()) {
-    // Erase if possible.
     if (funcOp.getArgument(currentIndex).use_empty())
-      if (succeeded(funcOp.eraseArgument(currentIndex)))
-        continue;
-    ++currentIndex;
+      funcOp.eraseArgument(currentIndex);
+    else
+      ++currentIndex;
   }
 
   return funcOp;

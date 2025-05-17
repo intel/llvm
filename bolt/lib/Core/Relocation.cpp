@@ -96,7 +96,6 @@ static bool isSupportedAArch64(uint32_t Type) {
   case ELF::R_AARCH64_MOVW_UABS_G2:
   case ELF::R_AARCH64_MOVW_UABS_G2_NC:
   case ELF::R_AARCH64_MOVW_UABS_G3:
-  case ELF::R_AARCH64_PLT32:
     return true;
   }
 }
@@ -123,7 +122,6 @@ static bool isSupportedRISCV(uint32_t Type) {
   case ELF::R_RISCV_LO12_S:
   case ELF::R_RISCV_64:
   case ELF::R_RISCV_TLS_GOT_HI20:
-  case ELF::R_RISCV_TLS_GD_HI20:
   case ELF::R_RISCV_TPREL_HI20:
   case ELF::R_RISCV_TPREL_ADD:
   case ELF::R_RISCV_TPREL_LO12_I:
@@ -204,7 +202,6 @@ static size_t getSizeForTypeAArch64(uint32_t Type) {
   case ELF::R_AARCH64_MOVW_UABS_G2_NC:
   case ELF::R_AARCH64_MOVW_UABS_G3:
   case ELF::R_AARCH64_ABS32:
-  case ELF::R_AARCH64_PLT32:
     return 4;
   case ELF::R_AARCH64_ABS64:
   case ELF::R_AARCH64_PREL64:
@@ -237,7 +234,6 @@ static size_t getSizeForTypeRISCV(uint32_t Type) {
   case ELF::R_RISCV_64:
   case ELF::R_RISCV_GOT_HI20:
   case ELF::R_RISCV_TLS_GOT_HI20:
-  case ELF::R_RISCV_TLS_GD_HI20:
     // See extractValueRISCV for why this is necessary.
     return 8;
   }
@@ -358,7 +354,6 @@ static uint64_t extractValueAArch64(uint32_t Type, uint64_t Contents,
   case ELF::R_AARCH64_PREL16:
     return static_cast<int64_t>(PC) + SignExtend64<16>(Contents & 0xffff);
   case ELF::R_AARCH64_PREL32:
-  case ELF::R_AARCH64_PLT32:
     return static_cast<int64_t>(PC) + SignExtend64<32>(Contents & 0xffffffff);
   case ELF::R_AARCH64_PREL64:
     return static_cast<int64_t>(PC) + Contents;
@@ -493,7 +488,6 @@ static uint64_t extractValueRISCV(uint32_t Type, uint64_t Contents,
     return extractBImmRISCV(Contents);
   case ELF::R_RISCV_GOT_HI20:
   case ELF::R_RISCV_TLS_GOT_HI20:
-  case ELF::R_RISCV_TLS_GD_HI20:
     // We need to know the exact address of the GOT entry so we extract the
     // value from both the AUIPC and L[D|W]. We cannot rely on the symbol in the
     // relocation for this since it simply refers to the object that is stored
@@ -682,7 +676,6 @@ static bool isPCRelativeAArch64(uint32_t Type) {
   case ELF::R_AARCH64_PREL16:
   case ELF::R_AARCH64_PREL32:
   case ELF::R_AARCH64_PREL64:
-  case ELF::R_AARCH64_PLT32:
     return true;
   }
 }
@@ -710,7 +703,6 @@ static bool isPCRelativeRISCV(uint32_t Type) {
   case ELF::R_RISCV_RVC_BRANCH:
   case ELF::R_RISCV_32_PCREL:
   case ELF::R_RISCV_TLS_GOT_HI20:
-  case ELF::R_RISCV_TLS_GD_HI20:
     return true;
   }
 }

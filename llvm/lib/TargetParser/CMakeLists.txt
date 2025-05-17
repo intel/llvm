@@ -39,5 +39,7 @@ add_llvm_component_library(LLVMTargetParser
   Support
 
   DEPENDS
-  target_parser_gen
+  ARMTargetParserTableGen
+  AArch64TargetParserTableGen
+  RISCVTargetParserTableGen
   )

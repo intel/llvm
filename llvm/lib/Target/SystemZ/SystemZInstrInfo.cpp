@@ -61,8 +61,7 @@ void SystemZInstrInfo::anchor() {}
 
 SystemZInstrInfo::SystemZInstrInfo(SystemZSubtarget &sti)
     : SystemZGenInstrInfo(-1, -1),
-      RI(sti.getSpecialRegisters()->getReturnFunctionAddressRegister(),
-         sti.getHwMode()),
+      RI(sti.getSpecialRegisters()->getReturnFunctionAddressRegister()),
       STI(sti) {}
 
 // MI is a 128-bit load or store.  Split it into two 64-bit loads or stores,
@@ -990,8 +989,6 @@ void SystemZInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   unsigned Opcode;
   if (SystemZ::GR64BitRegClass.contains(DestReg, SrcReg))
     Opcode = SystemZ::LGR;
-  else if (SystemZ::FP16BitRegClass.contains(DestReg, SrcReg))
-    Opcode = STI.hasVector() ? SystemZ::LDR16 : SystemZ::LER16;
   else if (SystemZ::FP32BitRegClass.contains(DestReg, SrcReg))
     // For z13 we prefer LDR over LER to avoid partial register dependencies.
     Opcode = STI.hasVector() ? SystemZ::LDR32 : SystemZ::LER;
@@ -1262,12 +1259,10 @@ MachineInstr *SystemZInstrInfo::foldMemoryOperandImpl(
     return nullptr;
 
   unsigned OpNum = Ops[0];
-  const TargetRegisterClass *RC =
-      MF.getRegInfo().getRegClass(MI.getOperand(OpNum).getReg());
-  assert((Size * 8 == TRI->getRegSizeInBits(*RC) ||
-          (RC == &SystemZ::FP16BitRegClass && Size == 4 && !STI.hasVector())) &&
+  assert(Size * 8 ==
+           TRI->getRegSizeInBits(*MF.getRegInfo()
+                               .getRegClass(MI.getOperand(OpNum).getReg())) &&
          "Invalid size combination");
-  (void)RC;
 
   if ((Opcode == SystemZ::AHI || Opcode == SystemZ::AGHI) && OpNum == 0 &&
       isInt<8>(MI.getOperand(2).getImm())) {
@@ -1905,9 +1900,6 @@ void SystemZInstrInfo::getLoadStoreOpcodes(const TargetRegisterClass *RC,
              RC == &SystemZ::ADDR128BitRegClass) {
     LoadOpcode = SystemZ::L128;
     StoreOpcode = SystemZ::ST128;
-  } else if (RC == &SystemZ::FP16BitRegClass && !STI.hasVector()) {
-    LoadOpcode = SystemZ::LE16;
-    StoreOpcode = SystemZ::STE16;
   } else if (RC == &SystemZ::FP32BitRegClass) {
     LoadOpcode = SystemZ::LE;
     StoreOpcode = SystemZ::STE;
@@ -1917,10 +1909,6 @@ void SystemZInstrInfo::getLoadStoreOpcodes(const TargetRegisterClass *RC,
   } else if (RC == &SystemZ::FP128BitRegClass) {
     LoadOpcode = SystemZ::LX;
     StoreOpcode = SystemZ::STX;
-  } else if (RC == &SystemZ::FP16BitRegClass ||
-             RC == &SystemZ::VR16BitRegClass) {
-    LoadOpcode = SystemZ::VL16;
-    StoreOpcode = SystemZ::VST16;
   } else if (RC == &SystemZ::VR32BitRegClass) {
     LoadOpcode = SystemZ::VL32;
     StoreOpcode = SystemZ::VST32;

@@ -285,8 +285,22 @@ declare void @sink_alt() cold
   EXPECT_TRUE(Ehpad);
 
   BasicBlock *NewBB = SplitEdge(SrcBlock, DestBlock, &DT, &LI, &MSSAU, "");
-  // SplitEdge cannot split an eh pad edge.
-  EXPECT_EQ(NewBB, nullptr);
+
+  MSSA.verifyMemorySSA();
+  EXPECT_TRUE(DT.verify());
+  EXPECT_NE(NewBB, nullptr);
+  EXPECT_EQ(NewBB->getSinglePredecessor(), SrcBlock);
+  EXPECT_EQ(NewBB, SrcBlock->getTerminator()->getSuccessor(SuccNum));
+  EXPECT_EQ(NewBB->getParent(), F);
+
+  bool BBFlag = false;
+  for (BasicBlock &BB : *F) {
+    if (BB.getName() == NewBB->getName()) {
+      BBFlag = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(BBFlag);
 }
 
 TEST(BasicBlockUtils, splitBasicBlockBefore_ex1) {

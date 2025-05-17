@@ -2,9 +2,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# To run these tests:
-# python -m unittest generate_test_report_lib_test.py
-
 import unittest
 from io import StringIO
 from textwrap import dedent
@@ -153,7 +150,7 @@ class TestReports(unittest.TestCase):
           * 2 tests failed
 
           ## Failed Tests
-          (click on a test name to see its output)
+          (click to see output)
 
           ### Bar
           <details>
@@ -185,7 +182,7 @@ class TestReports(unittest.TestCase):
         * 2 tests failed
 
         ## Failed Tests
-        (click on a test name to see its output)
+        (click to see output)
 
         ### ABC
         <details>

@@ -224,15 +224,17 @@ public:
     friend class BasicLayout;
 
   public:
-    Segment() = default;
+    Segment()
+        : ContentSize(0), ZeroFillSize(0), Addr(0), WorkingMem(nullptr),
+          NextWorkingMemOffset(0) {}
     Align Alignment;
-    size_t ContentSize = 0;
-    uint64_t ZeroFillSize = 0;
+    size_t ContentSize;
+    uint64_t ZeroFillSize;
     orc::ExecutorAddr Addr;
     char *WorkingMem = nullptr;
 
   private:
-    size_t NextWorkingMemOffset = 0;
+    size_t NextWorkingMemOffset;
     std::vector<Block *> ContentBlocks, ZeroFillBlocks;
   };
 

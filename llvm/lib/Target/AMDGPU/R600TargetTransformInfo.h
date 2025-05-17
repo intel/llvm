@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 /// \file
-/// This file a TargetTransformInfoImplBase conforming object specific to the
+/// This file a TargetTransformInfo::Concept conforming object specific to the
 /// R600 target machine. It uses the target's detailed information to
 /// provide more precise answers to certain TTI queries, while letting the
 /// target independent and default TTI implementations handle the rest.
@@ -43,29 +43,27 @@ public:
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP,
-                               OptimizationRemarkEmitter *ORE) const override;
+                               OptimizationRemarkEmitter *ORE);
   void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
-                             TTI::PeelingPreferences &PP) const override;
+                             TTI::PeelingPreferences &PP);
   unsigned getHardwareNumberOfRegisters(bool Vec) const;
-  unsigned getNumberOfRegisters(unsigned ClassID) const override;
-  TypeSize
-  getRegisterBitWidth(TargetTransformInfo::RegisterKind Vector) const override;
-  unsigned getMinVectorRegisterBitWidth() const override;
-  unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const override;
+  unsigned getNumberOfRegisters(bool Vec) const;
+  TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind Vector) const;
+  unsigned getMinVectorRegisterBitWidth() const;
+  unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const;
   bool isLegalToVectorizeMemChain(unsigned ChainSizeInBytes, Align Alignment,
                                   unsigned AddrSpace) const;
   bool isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes, Align Alignment,
-                                   unsigned AddrSpace) const override;
+                                   unsigned AddrSpace) const;
   bool isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes, Align Alignment,
-                                    unsigned AddrSpace) const override;
-  unsigned getMaxInterleaveFactor(ElementCount VF) const override;
+                                    unsigned AddrSpace) const;
+  unsigned getMaxInterleaveFactor(ElementCount VF);
   InstructionCost getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind,
-                                 const Instruction *I = nullptr) const override;
+                                 const Instruction *I = nullptr);
   using BaseT::getVectorInstrCost;
   InstructionCost getVectorInstrCost(unsigned Opcode, Type *ValTy,
                                      TTI::TargetCostKind CostKind,
-                                     unsigned Index, const Value *Op0,
-                                     const Value *Op1) const override;
+                                     unsigned Index, Value *Op0, Value *Op1);
 };
 
 } // end namespace llvm

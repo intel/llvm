@@ -8,7 +8,6 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 
-#include "mlir/Conversion/ConvertToEmitC/ToEmitCInterface.h"
 #include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -42,7 +41,6 @@ void FuncDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Func/IR/FuncOps.cpp.inc"
       >();
-  declarePromisedInterface<ConvertToEmitCPatternInterface, FuncDialect>();
   declarePromisedInterface<DialectInlinerInterface, FuncDialect>();
   declarePromisedInterface<ConvertToLLVMPatternInterface, FuncDialect>();
   declarePromisedInterfaces<bufferization::BufferizableOpInterface, CallOp,

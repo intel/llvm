@@ -116,24 +116,7 @@ void DisassembleRequestHandler::operator()(
 
   const auto inst_count =
       GetInteger<int64_t>(arguments, "instructionCount").value_or(0);
-
-  std::string flavor_string;
-  const auto target_triple = llvm::StringRef(dap.target.GetTriple());
-  // This handles both 32 and 64bit x86 architecture. The logic is duplicated in
-  // `CommandObjectDisassemble::CommandOptions::OptionParsingStarting`
-  if (target_triple.starts_with("x86")) {
-    const lldb::SBStructuredData flavor =
-        dap.debugger.GetSetting("target.x86-disassembly-flavor");
-
-    const size_t str_length = flavor.GetStringValue(nullptr, 0);
-    if (str_length != 0) {
-      flavor_string.resize(str_length + 1);
-      flavor.GetStringValue(flavor_string.data(), flavor_string.length());
-    }
-  }
-
-  lldb::SBInstructionList insts =
-      dap.target.ReadInstructions(addr, inst_count, flavor_string.c_str());
+  lldb::SBInstructionList insts = dap.target.ReadInstructions(addr, inst_count);
 
   if (!insts.IsValid()) {
     response["success"] = false;

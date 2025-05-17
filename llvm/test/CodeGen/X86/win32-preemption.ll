@@ -5,13 +5,6 @@
 ; RUN: llc -mtriple x86_64-pc-win32 \
 ; RUN:  -relocation-model=dynamic-no-pic < %s | FileCheck --check-prefix=COFF %s
 
-; RUN: llc -mtriple x86_64-uefi \
-; RUN:     -relocation-model=static  < %s | FileCheck --check-prefix=COFF_S %s
-; RUN: llc -mtriple x86_64-uefi \
-; RUN:     -relocation-model=pic     < %s | FileCheck --check-prefix=COFF %s
-; RUN: llc -mtriple x86_64-uefi \
-; RUN:  -relocation-model=dynamic-no-pic < %s | FileCheck --check-prefix=COFF %s
-
 
 ; 32 bits
 

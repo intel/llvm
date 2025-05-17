@@ -8,7 +8,6 @@
 
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticFrontend.h"
-#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
@@ -330,23 +329,25 @@ bool ClangModulesDeclVendorImpl::AddModule(const SourceModule &module,
     }
   }
   if (!HS.lookupModule(module.path.front().GetStringRef())) {
-    error_stream.Printf("error: Header search couldn't locate module '%s'\n",
+    error_stream.Printf("error: Header search couldn't locate module %s\n",
                         module.path.front().AsCString());
     return false;
   }
 
-  llvm::SmallVector<clang::IdentifierLoc, 4> clang_path;
+  llvm::SmallVector<std::pair<clang::IdentifierInfo *, clang::SourceLocation>,
+                    4>
+      clang_path;
 
   {
     clang::SourceManager &source_manager =
         m_compiler_instance->getASTContext().getSourceManager();
 
     for (ConstString path_component : module.path) {
-      clang_path.emplace_back(
-          source_manager.getLocForStartOfFile(source_manager.getMainFileID())
-              .getLocWithOffset(m_source_location_index++),
+      clang_path.push_back(std::make_pair(
           &m_compiler_instance->getASTContext().Idents.get(
-              path_component.GetStringRef()));
+              path_component.GetStringRef()),
+          source_manager.getLocForStartOfFile(source_manager.getMainFileID())
+              .getLocWithOffset(m_source_location_index++)));
     }
   }
 
@@ -628,8 +629,8 @@ ClangModulesDeclVendorImpl::DoGetModule(clang::ModuleIdPath path,
 
   const bool is_inclusion_directive = false;
 
-  return m_compiler_instance->loadModule(path.front().getLoc(), path,
-                                         visibility, is_inclusion_directive);
+  return m_compiler_instance->loadModule(path.front().second, path, visibility,
+                                         is_inclusion_directive);
 }
 
 static const char *ModuleImportBufferName = "LLDBModulesMemoryBuffer";
@@ -731,16 +732,18 @@ ClangModulesDeclVendor::Create(Target &target) {
   invocation->getPreprocessorOpts().addRemappedFile(ModuleImportBufferName,
                                                     source_buffer.release());
 
-  auto instance = std::make_unique<clang::CompilerInstance>(invocation);
+  std::unique_ptr<clang::CompilerInstance> instance(
+      new clang::CompilerInstance);
 
   // Make sure clang uses the same VFS as LLDB.
   instance->createFileManager(FileSystem::Instance().GetVirtualFileSystem());
   instance->setDiagnostics(diagnostics_engine.get());
+  instance->setInvocation(invocation);
 
   std::unique_ptr<clang::FrontendAction> action(new clang::SyntaxOnlyAction);
 
   instance->setTarget(clang::TargetInfo::CreateTargetInfo(
-      *diagnostics_engine, instance->getInvocation().getTargetOpts()));
+      *diagnostics_engine, instance->getInvocation().TargetOpts));
 
   if (!instance->hasTarget())
     return nullptr;

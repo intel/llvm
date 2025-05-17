@@ -284,6 +284,7 @@ private:
   GlobalVariable *SanCovCallbackGate;
   Type *PtrTy, *IntptrTy, *Int64Ty, *Int32Ty, *Int16Ty, *Int8Ty, *Int1Ty;
   Module *CurModule;
+  std::string CurModuleUniqueId;
   Triple TargetTriple;
   LLVMContext *C;
   const DataLayout *DL;
@@ -398,6 +399,7 @@ bool ModuleSanitizerCoverage::instrumentModule() {
   C = &(M.getContext());
   DL = &M.getDataLayout();
   CurModule = &M;
+  CurModuleUniqueId = getUniqueModuleId(CurModule);
   TargetTriple = M.getTargetTriple();
   FunctionGuardArray = nullptr;
   Function8bitCounterArray = nullptr;

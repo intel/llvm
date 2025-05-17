@@ -134,13 +134,14 @@ public:
 
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &CGM) const override {
-    auto *Fn = dyn_cast<llvm::Function>(GV);
-    if (!Fn)
+    if (GV->isDeclaration())
       return;
-    const auto *FD = dyn_cast_or_null<FunctionDecl>(D);
+    const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
+    if (!FD)
+      return;
+    auto *Fn = cast<llvm::Function>(GV);
 
-    if (FD && FD->hasAttr<TargetAttr>()) {
-      const auto *TA = FD->getAttr<TargetAttr>();
+    if (const auto *TA = FD->getAttr<TargetAttr>()) {
       ParsedTargetAttr Attr =
           CGM.getTarget().parseTargetAttr(TA->getFeaturesStr());
       if (!Attr.BranchProtection.empty()) {
@@ -173,10 +174,10 @@ public:
       setBranchProtectionFnAttributes(BPI, (*Fn));
     }
 
-    if (!FD || !FD->hasAttr<ARMInterruptAttr>())
+    const ARMInterruptAttr *Attr = FD->getAttr<ARMInterruptAttr>();
+    if (!Attr)
       return;
 
-    const ARMInterruptAttr *Attr = FD->getAttr<ARMInterruptAttr>();
     const char *Kind;
     switch (Attr->getInterrupt()) {
     case ARMInterruptAttr::Generic: Kind = ""; break;
@@ -188,12 +189,6 @@ public:
     }
 
     Fn->addFnAttr("interrupt", Kind);
-
-    // Note: the ARMSaveFPAttr can only exist if we also have an interrupt
-    // attribute
-    const ARMSaveFPAttr *SaveFPAttr = FD->getAttr<ARMSaveFPAttr>();
-    if (SaveFPAttr)
-      Fn->addFnAttr("save-fp");
 
     ARMABIKind ABI = getABIInfo<ARMABIInfo>().getABIKind();
     if (ABI == ARMABIKind::APCS)

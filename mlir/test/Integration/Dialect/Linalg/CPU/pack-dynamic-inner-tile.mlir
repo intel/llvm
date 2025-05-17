@@ -125,13 +125,9 @@ module @transforms attributes { transform.with_named_sequence } {
     %bufferize = transform.bufferization.one_shot_bufferize %module
       {bufferize_function_boundaries=true} : (!transform.any_op) -> !transform.any_op
 
-    // 5. Deallocate buffers.
+    // 5. Canonicalize
     %func_op_bufferized = transform.structured.match ops{["func.func"]} in %bufferize : (!transform.any_op) -> !transform.op<"func.func">
-    %func_op_deallocated = transform.apply_registered_pass "buffer-deallocation-pipeline" to %func_op_bufferized
-      : (!transform.op<"func.func">) -> !transform.op<"func.func">
-
-    // 6. Canonicalize
-    transform.apply_patterns to %func_op_deallocated {
+    transform.apply_patterns to %func_op_bufferized {
       transform.apply_patterns.canonicalization
     } : !transform.op<"func.func">
 

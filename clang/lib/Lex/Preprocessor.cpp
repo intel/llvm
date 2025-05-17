@@ -834,11 +834,6 @@ bool Preprocessor::HandleIdentifier(Token &Identifier) {
     II.setIsFutureCompatKeyword(false);
   }
 
-  // If this identifier would be a keyword in C++, diagnose as a compatibility
-  // issue.
-  if (II.IsKeywordInCPlusPlus() && !DisableMacroExpansion)
-    Diag(Identifier, diag::warn_pp_identifier_is_cpp_keyword) << &II;
-
   // If this is an extension token, diagnose its use.
   // We avoid diagnosing tokens that originate from macro definitions.
   // FIXME: This warning is disabled in cases where it shouldn't be,
@@ -1164,8 +1159,8 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
     if (Result.is(tok::colon) && ModuleDeclState.isNamedModule()) {
       std::string Name = ModuleDeclState.getPrimaryName().str();
       Name += ":";
-      NamedModuleImportPath.emplace_back(Result.getLocation(),
-                                         getIdentifierInfo(Name));
+      NamedModuleImportPath.push_back(
+          {getIdentifierInfo(Name), Result.getLocation()});
       CurLexerCallback = CLK_LexAfterModuleImport;
       return true;
     }
@@ -1263,8 +1258,8 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
   if (ModuleImportExpectsIdentifier && Result.getKind() == tok::identifier) {
     // We expected to see an identifier here, and we did; continue handling
     // identifiers.
-    NamedModuleImportPath.emplace_back(Result.getLocation(),
-                                       Result.getIdentifierInfo());
+    NamedModuleImportPath.push_back(
+        std::make_pair(Result.getIdentifierInfo(), Result.getLocation()));
     ModuleImportExpectsIdentifier = false;
     CurLexerCallback = CLK_LexAfterModuleImport;
     return true;
@@ -1307,12 +1302,12 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
       // If the FlatModuleName ends with colon, it implies it is a partition.
       if (!FlatModuleName.empty() && FlatModuleName.back() != ':')
         FlatModuleName += ".";
-      FlatModuleName += Piece.getIdentifierInfo()->getName();
+      FlatModuleName += Piece.first->getName();
     }
-    SourceLocation FirstPathLoc = NamedModuleImportPath[0].getLoc();
+    SourceLocation FirstPathLoc = NamedModuleImportPath[0].second;
     NamedModuleImportPath.clear();
-    NamedModuleImportPath.emplace_back(FirstPathLoc,
-                                       getIdentifierInfo(FlatModuleName));
+    NamedModuleImportPath.push_back(
+        std::make_pair(getIdentifierInfo(FlatModuleName), FirstPathLoc));
   }
 
   Module *Imported = nullptr;

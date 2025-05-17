@@ -75,7 +75,6 @@ Decl *Parser::ParseHLSLBuffer(SourceLocation &DeclEnd) {
   Decl *D = Actions.HLSL().ActOnStartBuffer(getCurScope(), IsCBuffer, BufferLoc,
                                             Identifier, IdentifierLoc,
                                             T.getOpenLocation());
-  Actions.ProcessDeclAttributeList(Actions.CurScope, D, Attrs);
 
   while (Tok.isNot(tok::r_brace) && Tok.isNot(tok::eof)) {
     // FIXME: support attribute on constants inside cbuffer/tbuffer.
@@ -99,6 +98,7 @@ Decl *Parser::ParseHLSLBuffer(SourceLocation &DeclEnd) {
   BufferScope.Exit();
   Actions.HLSL().ActOnFinishBuffer(D, DeclEnd);
 
+  Actions.ProcessDeclAttributeList(Actions.CurScope, D, Attrs);
   return D;
 }
 
@@ -115,7 +115,7 @@ static void fixSeparateAttrArgAndNumber(StringRef ArgStr, SourceLocation ArgLoc,
       << FixedArg
       << FixItHint::CreateReplacement(SourceRange(ArgLoc, EndNumLoc), FixedArg);
   ArgsUnion &Slot = ArgExprs.back();
-  Slot = new (Ctx) IdentifierLoc(ArgLoc, PP.getIdentifierInfo(FixedArg));
+  Slot = IdentifierLoc::create(Ctx, ArgLoc, PP.getIdentifierInfo(FixedArg));
 }
 
 void Parser::ParseHLSLAnnotations(ParsedAttributes &Attrs,
@@ -163,16 +163,11 @@ void Parser::ParseHLSLAnnotations(ParsedAttributes &Attrs,
     SourceLocation SlotLoc = Tok.getLocation();
     ArgExprs.push_back(ParseIdentifierLoc());
 
-    if (SlotStr.size() == 1) {
-      if (!Tok.is(tok::numeric_constant)) {
-        Diag(Tok.getLocation(), diag::err_expected) << tok::numeric_constant;
-        SkipUntil(tok::r_paren, StopAtSemi); // skip through )
-        return;
-      }
-      // Add numeric_constant for fix-it.
+    // Add numeric_constant for fix-it.
+    if (SlotStr.size() == 1 && Tok.is(tok::numeric_constant))
       fixSeparateAttrArgAndNumber(SlotStr, SlotLoc, Tok, ArgExprs, *this,
                                   Actions.Context, PP);
-    }
+
     if (Tok.is(tok::comma)) {
       ConsumeToken(); // consume comma
       if (!Tok.is(tok::identifier)) {

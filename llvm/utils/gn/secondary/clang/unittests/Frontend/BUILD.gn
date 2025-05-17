@@ -12,7 +12,6 @@ unittest("FrontendTests") {
     "//clang/lib/Sema",
     "//clang/lib/Tooling",
     "//llvm/lib/Support",
-    "//llvm/lib/Target:AllTargetsDescs",
     "//llvm/lib/TargetParser",
   ]
   sources = [

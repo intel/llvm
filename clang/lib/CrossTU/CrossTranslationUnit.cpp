@@ -569,7 +569,7 @@ CrossTranslationUnitContext::ASTLoader::loadFromDump(StringRef ASTDumpPath) {
   return ASTUnit::LoadFromASTFile(
       ASTDumpPath, CI.getPCHContainerOperations()->getRawReader(),
       ASTUnit::LoadEverything, Diags, CI.getFileSystemOpts(),
-      CI.getHeaderSearchOpts());
+      CI.getHeaderSearchOptsPtr());
 }
 
 /// Load the AST from a source-file, which is supposed to be located inside the

@@ -91,7 +91,7 @@ TEST_F(ASTUnitTest, SaveLoadPreservesLangOptionsInPrintingPolicy) {
   AST->Save(ASTFileName.str());
 
   EXPECT_TRUE(llvm::sys::fs::exists(ASTFileName));
-  HeaderSearchOptions HSOpts;
+  auto HSOpts = std::make_shared<HeaderSearchOptions>();
 
   std::unique_ptr<ASTUnit> AU = ASTUnit::LoadFromASTFile(
       ASTFileName, PCHContainerOps->getRawReader(), ASTUnit::LoadEverything,

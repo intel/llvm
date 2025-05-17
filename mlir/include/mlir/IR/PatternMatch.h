@@ -273,13 +273,17 @@ private:
   template <typename T>
   using detect_has_initialize = llvm::is_detected<has_initialize, T>;
 
-  /// Initialize the derived pattern by calling its `initialize` method if
-  /// available.
+  /// Initialize the derived pattern by calling its `initialize` method.
   template <typename T>
-  static void initializePattern(T &pattern) {
-    if constexpr (detect_has_initialize<T>::value)
-      pattern.initialize();
+  static std::enable_if_t<detect_has_initialize<T>::value>
+  initializePattern(T &pattern) {
+    pattern.initialize();
   }
+  /// Empty derived pattern initializer for patterns that do not have an
+  /// initialize method.
+  template <typename T>
+  static std::enable_if_t<!detect_has_initialize<T>::value>
+  initializePattern(T &) {}
 
   /// An anchor for the virtual table.
   virtual void anchor();

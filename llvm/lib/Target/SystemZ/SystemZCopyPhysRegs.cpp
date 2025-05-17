@@ -28,7 +28,10 @@ namespace {
 class SystemZCopyPhysRegs : public MachineFunctionPass {
 public:
   static char ID;
-  SystemZCopyPhysRegs() : MachineFunctionPass(ID), TII(nullptr), MRI(nullptr) {}
+  SystemZCopyPhysRegs()
+    : MachineFunctionPass(ID), TII(nullptr), MRI(nullptr) {
+    initializeSystemZCopyPhysRegsPass(*PassRegistry::getPassRegistry());
+  }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;

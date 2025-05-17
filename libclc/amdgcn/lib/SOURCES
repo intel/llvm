@@ -1,3 +1,5 @@
 cl_khr_int64_extended_atomics/minmax_helpers.ll
+math/fmax.cl
+math/fmin.cl
 mem_fence/fence.cl
 synchronization/barrier.cl

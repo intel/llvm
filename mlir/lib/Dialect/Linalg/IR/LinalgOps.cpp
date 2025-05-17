@@ -47,7 +47,6 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/InterleavedRange.h"
 #include "llvm/Support/LogicalResult.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1416,6 +1415,7 @@ static void addBodyWithPayloadOp(OpAsmParser &parser, OperationState &result,
   Region *body = result.addRegion();
   Block &block = body->emplaceBlock();
   b.setInsertionPointToStart(&block);
+  SmallVector<Value> bbArgs;
   for (auto &operand : operands) {
     block.addArgument(
         llvm::cast<ShapedType>(operand.getType()).getElementType(),
@@ -2280,24 +2280,6 @@ LogicalResult IndexOp::verify() {
            << getDim() << ") to be lower than the number of loops ("
            << linalgOp.getNumLoops() << ") of the enclosing LinalgOp";
   return success();
-}
-
-OpFoldResult IndexOp::fold(FoldAdaptor adaptor) {
-  auto linalgOp = dyn_cast_or_null<LinalgOp>((*this)->getParentOp());
-  // Bail out if `linalg.index` does not have a proper parent yet at this
-  // point, e.g., when calling `createOrFold` during IR construction in
-  // `genericOp::build`.
-  if (!linalgOp)
-    return OpFoldResult{};
-
-  // Index of unit dims is always 0.
-  SmallVector<int64_t, 4> loopBounds = linalgOp.getStaticLoopRanges();
-  uint64_t dim = getDim();
-  assert(dim < loopBounds.size() && "Dim is out of bounds");
-  if (loopBounds[dim] == 1)
-    return IntegerAttr::get(IndexType::get(getContext()), 0);
-
-  return OpFoldResult{};
 }
 
 /////// Operations corresponding to library calls defined with Tablegen ////////
@@ -3616,7 +3598,7 @@ void MatmulOp::regionBuilder(ImplicitLocOpBuilder &b, Block &block,
   SmallVector<Value> yields;
 
   TypeFn castVal = TypeFn::cast_signed;
-  const auto *castIter = llvm::find_if(attrs, [&](const NamedAttribute &attr) {
+  auto castIter = llvm::find_if(attrs, [&](const NamedAttribute &attr) {
     return attr.getName() == "cast";
   });
   if (castIter != attrs.end()) {
@@ -3678,13 +3660,17 @@ ParseResult MatmulOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void MatmulOp::print(OpAsmPrinter &p) {
-  SmallVector<Attribute, 3> indexingMaps = llvm::map_to_vector<3>(
+  SmallVector<Attribute, 3> indexingMaps = llvm::map_to_vector(
       MatmulOp::getDefaultIndexingMaps(getContext()),
       [](AffineMap map) -> Attribute { return AffineMapAttr::get(map); });
-  if (!llvm::equal(getIndexingMaps(), indexingMaps))
-    p << " indexing_maps = " << llvm::interleaved_array(getIndexingMaps());
+  if (!llvm::equal(getIndexingMaps(), indexingMaps)) {
+    p << " indexing_maps = [";
+    llvm::interleaveComma(getIndexingMaps(), p,
+                          [&](Attribute attr) { p.printAttribute(attr); });
+    p << "]";
+  }
 
-  std::array<StringRef, 3> elidedAttrs = {
+  SmallVector<StringRef, 3> elidedAttrs = {
       "operandSegmentSizes", "linalg.memoized_indexing_maps", "indexing_maps"};
   printNamedStructuredOp(p, getOperation(), getInputs(), getOutputs(),
                          elidedAttrs);
@@ -3791,7 +3777,10 @@ ParseResult ContractOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void ContractOp::print(OpAsmPrinter &p) {
-  p << " indexing_maps = " << llvm::interleaved_array(getIndexingMaps());
+  p << " indexing_maps = [";
+  llvm::interleaveComma(getIndexingMaps(), p,
+                        [&](Attribute attr) { p.printAttribute(attr); });
+  p << "]";
   printNamedStructuredOp(
       p, getOperation(), getInputs(), getOutputs(),
       /*elidedAttrs=*/{"indexing_maps", "operandSegmentSizes"});
@@ -4024,13 +4013,17 @@ ParseResult BatchMatmulOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void BatchMatmulOp::print(OpAsmPrinter &p) {
-  SmallVector<Attribute, 3> indexingMaps = llvm::map_to_vector<3>(
+  SmallVector<Attribute, 3> indexingMaps = llvm::map_to_vector(
       BatchMatmulOp::getDefaultIndexingMaps(getContext()),
       [](AffineMap map) -> Attribute { return AffineMapAttr::get(map); });
-  if (!llvm::equal(getIndexingMaps(), indexingMaps))
-    p << " indexing_maps = " << llvm::interleaved_array(getIndexingMaps());
+  if (!llvm::equal(getIndexingMaps(), indexingMaps)) {
+    p << " indexing_maps = [";
+    llvm::interleaveComma(getIndexingMaps(), p,
+                          [&](Attribute attr) { p.printAttribute(attr); });
+    p << "]";
+  }
 
-  std::array<StringRef, 3> elidedAttrs = {
+  SmallVector<StringRef, 3> elidedAttrs = {
       "operandSegmentSizes", "linalg.memoized_indexing_maps", "indexing_maps"};
   ::printNamedStructuredOp(p, getOperation(), getInputs(), getOutputs(),
                            elidedAttrs);
@@ -4211,13 +4204,17 @@ void ElementwiseOp::print(OpAsmPrinter &p) {
       getArityGroupAsUInt(getArityGroupAndKind(getKind()).arityGroup);
   unsigned numDims = getResultRank();
 
-  SmallVector<Attribute, 3> indexingMaps = llvm::map_to_vector<3>(
+  SmallVector<Attribute, 3> indexingMaps = llvm::map_to_vector(
       ElementwiseOp::getDefaultIndexingMaps(arity + 1 /*output*/, numDims,
                                             getContext()),
       [](AffineMap map) -> Attribute { return AffineMapAttr::get(map); });
 
-  if (!llvm::equal(getIndexingMaps(), indexingMaps))
-    p << " indexing_maps = " << llvm::interleaved_array(getIndexingMaps());
+  if (!llvm::equal(getIndexingMaps(), indexingMaps)) {
+    p << " indexing_maps = [";
+    llvm::interleaveComma(getIndexingMaps(), p,
+                          [&](Attribute attr) { p.printAttribute(attr); });
+    p << "]";
+  }
 
   printNamedStructuredOp(p, getOperation(), getInputs(), getOutputs(),
                          elidedAttrs);

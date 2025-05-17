@@ -151,7 +151,8 @@ SyntaxTreeTest::buildTree(StringRef Code, const TestClangConfig &ClangConfig) {
   Invocation->getFrontendOpts().DisableFree = false;
   Invocation->getPreprocessorOpts().addRemappedFile(
       FileName, llvm::MemoryBuffer::getMemBufferCopy(Code).release());
-  CompilerInstance Compiler(Invocation);
+  CompilerInstance Compiler;
+  Compiler.setInvocation(Invocation);
   Compiler.setDiagnostics(Diags.get());
   Compiler.setFileManager(FileMgr.get());
   Compiler.setSourceManager(SourceMgr.get());

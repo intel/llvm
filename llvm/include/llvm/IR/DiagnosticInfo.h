@@ -695,7 +695,7 @@ public:
             Orig.RemarkName, Orig.getFunction(), Orig.getLocation()),
         CodeRegion(Orig.getCodeRegion()) {
     *this << Prepend;
-    llvm::append_range(Args, Orig.Args);
+    std::copy(Orig.Args.begin(), Orig.Args.end(), std::back_inserter(Args));
   }
 
   /// Legacy interface.
@@ -1092,7 +1092,7 @@ public:
 /// Diagnostic information for MisExpect analysis.
 class DiagnosticInfoMisExpect : public DiagnosticInfoWithLocationBase {
 public:
-  DiagnosticInfoMisExpect(const Instruction *Inst, const Twine &Msg);
+  DiagnosticInfoMisExpect(const Instruction *Inst, Twine &Msg);
 
   /// \see DiagnosticInfo::print.
   void print(DiagnosticPrinter &DP) const override;

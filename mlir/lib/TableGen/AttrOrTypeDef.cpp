@@ -278,10 +278,6 @@ std::optional<StringRef> AttrOrTypeParameter::getAllocator() const {
   return getDefValue<StringInit>("allocator");
 }
 
-bool AttrOrTypeParameter::hasCustomComparator() const {
-  return getDefValue<StringInit>("comparator").has_value();
-}
-
 StringRef AttrOrTypeParameter::getComparator() const {
   return getDefValue<StringInit>("comparator").value_or("$_lhs == $_rhs");
 }
@@ -297,9 +293,10 @@ StringRef AttrOrTypeParameter::getCppType() const {
         init->getDef()->getLoc(),
         Twine("Missing `cppType` field in Attribute/Type parameter: ") +
             init->getAsString());
-  llvm::reportFatalUsageError(
+  llvm::report_fatal_error(
       Twine("Missing `cppType` field in Attribute/Type parameter: ") +
-      getDef()->getAsString());
+          getDef()->getAsString(),
+      /*gen_crash_diag=*/false);
 }
 
 StringRef AttrOrTypeParameter::getCppAccessorType() const {

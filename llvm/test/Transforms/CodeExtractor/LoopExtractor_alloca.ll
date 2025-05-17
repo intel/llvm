@@ -19,7 +19,6 @@
 
 ; CHECK-LABEL: define internal void @test.loop1(ptr %v1)
 ; CHECK-NEXT: newFuncRoot:
-; CHECK-NEXT: #dbg_value
 ; CHECK-NEXT:   br
 
 define void @test() {

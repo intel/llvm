@@ -893,6 +893,25 @@ CompilerDecl CompilerType::GetStaticFieldWithName(llvm::StringRef name) const {
   return CompilerDecl();
 }
 
+uint32_t CompilerType::GetIndexOfFieldWithName(
+    const char *name, CompilerType *field_compiler_type_ptr,
+    uint64_t *bit_offset_ptr, uint32_t *bitfield_bit_size_ptr,
+    bool *is_bitfield_ptr) const {
+  unsigned count = GetNumFields();
+  std::string field_name;
+  for (unsigned index = 0; index < count; index++) {
+    CompilerType field_compiler_type(
+        GetFieldAtIndex(index, field_name, bit_offset_ptr,
+                        bitfield_bit_size_ptr, is_bitfield_ptr));
+    if (strcmp(field_name.c_str(), name) == 0) {
+      if (field_compiler_type_ptr)
+        *field_compiler_type_ptr = field_compiler_type;
+      return index;
+    }
+  }
+  return UINT32_MAX;
+}
+
 llvm::Expected<CompilerType> CompilerType::GetChildCompilerTypeAtIndex(
     ExecutionContext *exe_ctx, size_t idx, bool transparent_pointers,
     bool omit_empty_base_classes, bool ignore_array_bounds,
@@ -1023,7 +1042,7 @@ bool CompilerType::IsMeaninglessWithoutDynamicResolution() const {
 // doesn't descend into the children, but only looks one level deep and name
 // matches can include base class names.
 
-llvm::Expected<uint32_t>
+uint32_t
 CompilerType::GetIndexOfChildWithName(llvm::StringRef name,
                                       bool omit_empty_base_classes) const {
   if (IsValid() && !name.empty()) {
@@ -1031,8 +1050,7 @@ CompilerType::GetIndexOfChildWithName(llvm::StringRef name,
       return type_system_sp->GetIndexOfChildWithName(m_type, name,
                                                      omit_empty_base_classes);
   }
-  return llvm::createStringError("Type has no child named '%s'",
-                                 name.str().c_str());
+  return UINT32_MAX;
 }
 
 // Dumping types

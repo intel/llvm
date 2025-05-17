@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <clc/math/clc_minmag.h>
+#include <clc/utils.h>
 
-#define FUNCTION minmag
-#define __CLC_BODY <clc/shared/binary_def.inc>
+#define __CLC_BODY <minmag.inc>
 #include <clc/math/gentype.inc>

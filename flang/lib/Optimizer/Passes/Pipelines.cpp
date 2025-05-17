@@ -35,8 +35,7 @@ void addNestedPassToAllTopLevelOperationsConditionally(
 
 void addCanonicalizerPassWithoutRegionSimplification(mlir::OpPassManager &pm) {
   mlir::GreedyRewriteConfig config;
-  config.setRegionSimplificationLevel(
-      mlir::GreedySimplifyRegionLevel::Disabled);
+  config.enableRegionSimplification = mlir::GreedySimplifyRegionLevel::Disabled;
   pm.addPass(mlir::createCanonicalizerPass(config));
 }
 
@@ -164,8 +163,7 @@ void createDefaultFIROptimizerPassPipeline(mlir::PassManager &pm,
 
   // simplify the IR
   mlir::GreedyRewriteConfig config;
-  config.setRegionSimplificationLevel(
-      mlir::GreedySimplifyRegionLevel::Disabled);
+  config.enableRegionSimplification = mlir::GreedySimplifyRegionLevel::Disabled;
   pm.addPass(mlir::createCSEPass());
   fir::addAVC(pm, pc.OptLevel);
   addNestedPassToAllTopLevelOperations<PassConstructor>(
@@ -298,14 +296,8 @@ void createOpenMPFIRPassPipeline(mlir::PassManager &pm,
     pm.addPass(flangomp::createDoConcurrentConversionPass(
         opts.doConcurrentMappingKind == DoConcurrentMappingKind::DCMK_Device));
 
-  // The MapsForPrivatizedSymbols pass needs to run before
-  // MapInfoFinalizationPass because the former creates new
-  // MapInfoOp instances, typically for descriptors.
-  // MapInfoFinalizationPass adds MapInfoOp instances for the descriptors
-  // underlying data which is necessary to access the data on the offload
-  // target device.
-  pm.addPass(flangomp::createMapsForPrivatizedSymbolsPass());
   pm.addPass(flangomp::createMapInfoFinalizationPass());
+  pm.addPass(flangomp::createMapsForPrivatizedSymbolsPass());
   pm.addPass(flangomp::createMarkDeclareTargetPass());
   pm.addPass(flangomp::createGenericLoopConversionPass());
   if (opts.isTargetDevice)
@@ -349,15 +341,9 @@ void createDefaultFIRCodeGenPassPipeline(mlir::PassManager &pm,
     framePointerKind = mlir::LLVM::framePointerKind::FramePointerKind::None;
 
   pm.addPass(fir::createFunctionAttr(
-      {framePointerKind, config.InstrumentFunctionEntry,
-       config.InstrumentFunctionExit, config.NoInfsFPMath, config.NoNaNsFPMath,
+      {framePointerKind, config.NoInfsFPMath, config.NoNaNsFPMath,
        config.ApproxFuncFPMath, config.NoSignedZerosFPMath, config.UnsafeFPMath,
        ""}));
-
-  if (config.EnableOpenMP) {
-    pm.addNestedPass<mlir::func::FuncOp>(
-        flangomp::createLowerNontemporalPass());
-  }
 
   fir::addFIRToLLVMPass(pm, config);
 }

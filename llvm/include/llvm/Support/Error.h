@@ -735,16 +735,9 @@ private:
 #endif
 };
 
-/// @deprecated Use reportFatalInternalError() or reportFatalUsageError()
-/// instead.
+/// Report a serious error, calling any installed error handler. See
+/// ErrorHandling.h.
 [[noreturn]] void report_fatal_error(Error Err, bool gen_crash_diag = true);
-
-/// Report a fatal error that indicates a bug in LLVM.
-/// See ErrorHandling.h for details.
-[[noreturn]] void reportFatalInternalError(Error Err);
-/// Report a fatal error that does not indicate a bug in LLVM.
-/// See ErrorHandling.h for details.
-[[noreturn]] void reportFatalUsageError(Error Err);
 
 /// Report a fatal error if Err is a failure value.
 ///

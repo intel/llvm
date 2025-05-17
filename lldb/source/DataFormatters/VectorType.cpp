@@ -269,13 +269,11 @@ public:
     return lldb::ChildCacheState::eRefetch;
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  size_t GetIndexOfChildWithName(ConstString name) override {
     const char *item_name = name.GetCString();
     uint32_t idx = ExtractIndexFromString(item_name);
-    if (idx == UINT32_MAX ||
-        (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors()))
-      return llvm::createStringError("Type has no child named '%s'",
-                                     name.AsCString());
+    if (idx < UINT32_MAX && idx >= CalculateNumChildrenIgnoringErrors())
+      return UINT32_MAX;
     return idx;
   }
 

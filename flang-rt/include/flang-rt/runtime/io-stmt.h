@@ -20,7 +20,6 @@
 #include "flang/Common/optional.h"
 #include "flang/Common/reference-wrapper.h"
 #include "flang/Common/visit.h"
-#include "flang/Runtime/freestanding-tools.h"
 #include "flang/Runtime/io-api.h"
 #include <flang/Common/variant.h>
 #include <functional>
@@ -131,81 +130,8 @@ public:
   }
 
   // Vacant after the end of the current record
-  RT_API_ATTRS Fortran::common::optional<char32_t> GetCurrentCharSlow(
-      std::size_t &byteCount);
-
-  // For faster formatted input editing, this structure can be built by
-  // GetUpcomingFastAsciiField() and used to save significant time in
-  // GetCurrentChar, NextInField() and other input utilities when the input
-  // is buffered, does not require UTF-8 conversion, and comprises only
-  // single byte characters.
-  class FastAsciiField {
-  public:
-    RT_API_ATTRS FastAsciiField(ConnectionState &connection)
-        : connection_{connection} {}
-    RT_API_ATTRS FastAsciiField(
-        ConnectionState &connection, const char *start, std::size_t bytes)
-        : connection_{connection}, at_{start}, limit_{start + bytes} {
-      CheckForAsterisk();
-    }
-    RT_API_ATTRS ConnectionState &connection() { return connection_; }
-    RT_API_ATTRS std::size_t got() const { return got_; }
-
-    RT_API_ATTRS bool MustUseSlowPath() const { return at_ == nullptr; }
-
-    RT_API_ATTRS Fortran::common::optional<char32_t> Next() const {
-      if (at_ && at_ < limit_) {
-        return *at_;
-      } else {
-        return Fortran::common::nullopt;
-      }
-    }
-    RT_API_ATTRS void NextRecord(IoStatementState &io) {
-      if (at_) {
-        if (std::size_t bytes{io.GetNextInputBytes(at_)}) {
-          limit_ = at_ + bytes;
-          CheckForAsterisk();
-        } else {
-          at_ = limit_ = nullptr;
-        }
-      }
-    }
-    RT_API_ATTRS void Advance(int gotten, std::size_t bytes) {
-      if (at_ && at_ < limit_) {
-        ++at_;
-        got_ += gotten;
-      }
-      connection_.HandleRelativePosition(bytes);
-    }
-    RT_API_ATTRS bool MightHaveAsterisk() const { return !at_ || hasAsterisk_; }
-
-  private:
-    RT_API_ATTRS void CheckForAsterisk() {
-      hasAsterisk_ = at_ && at_ < limit_ &&
-          runtime::memchr(at_, '*', limit_ - at_) != nullptr;
-    }
-
-    ConnectionState &connection_;
-    const char *at_{nullptr};
-    const char *limit_{nullptr};
-    std::size_t got_{0}; // for READ(..., SIZE=)
-    bool hasAsterisk_{false};
-  };
-
-  RT_API_ATTRS FastAsciiField GetUpcomingFastAsciiField();
-
   RT_API_ATTRS Fortran::common::optional<char32_t> GetCurrentChar(
-      std::size_t &byteCount, FastAsciiField *field = nullptr) {
-    if (field) {
-      if (auto ch{field->Next()}) {
-        byteCount = ch ? 1 : 0;
-        return ch;
-      } else if (!field->MustUseSlowPath()) {
-        return Fortran::common::nullopt;
-      }
-    }
-    return GetCurrentCharSlow(byteCount);
-  }
+      std::size_t &byteCount);
 
   // The result of CueUpInput() and the "remaining" arguments to SkipSpaces()
   // and NextInField() are always in units of bytes, not characters; the
@@ -213,12 +139,11 @@ public:
 
   // For fixed-width fields, return the number of remaining bytes.
   // Skip over leading blanks.
-  RT_API_ATTRS Fortran::common::optional<int> CueUpInput(
-      const DataEdit &edit, FastAsciiField *fastField = nullptr) {
+  RT_API_ATTRS Fortran::common::optional<int> CueUpInput(const DataEdit &edit) {
     Fortran::common::optional<int> remaining;
     if (edit.IsListDirected()) {
       std::size_t byteCount{0};
-      GetNextNonBlank(byteCount, fastField);
+      GetNextNonBlank(byteCount);
     } else {
       if (edit.width.value_or(0) > 0) {
         remaining = *edit.width;
@@ -227,17 +152,16 @@ public:
           *remaining *= bytesPerChar;
         }
       }
-      SkipSpaces(remaining, fastField);
+      SkipSpaces(remaining);
     }
     return remaining;
   }
 
   RT_API_ATTRS Fortran::common::optional<char32_t> SkipSpaces(
-      Fortran::common::optional<int> &remaining,
-      FastAsciiField *fastField = nullptr) {
+      Fortran::common::optional<int> &remaining) {
     while (!remaining || *remaining > 0) {
       std::size_t byteCount{0};
-      if (auto ch{GetCurrentChar(byteCount, fastField)}) {
+      if (auto ch{GetCurrentChar(byteCount)}) {
         if (*ch != ' ' && *ch != '\t') {
           return ch;
         }
@@ -248,11 +172,7 @@ public:
           GotChar(byteCount);
           *remaining -= byteCount;
         }
-        if (fastField) {
-          fastField->Advance(0, byteCount);
-        } else {
-          HandleRelativePosition(byteCount);
-        }
+        HandleRelativePosition(byteCount);
       } else {
         break;
       }
@@ -263,35 +183,25 @@ public:
   // Acquires the next input character, respecting any applicable field width
   // or separator character.
   RT_API_ATTRS Fortran::common::optional<char32_t> NextInField(
-      Fortran::common::optional<int> &remaining, const DataEdit &,
-      FastAsciiField *field = nullptr);
+      Fortran::common::optional<int> &remaining, const DataEdit &);
 
   // Detect and signal any end-of-record condition after input.
   // Returns true if at EOR and remaining input should be padded with blanks.
-  RT_API_ATTRS bool CheckForEndOfRecord(
-      std::size_t afterReading, const ConnectionState &);
+  RT_API_ATTRS bool CheckForEndOfRecord(std::size_t afterReading);
 
   // Skips spaces, advances records, and ignores NAMELIST comments
   RT_API_ATTRS Fortran::common::optional<char32_t> GetNextNonBlank(
-      std::size_t &byteCount, FastAsciiField *fastField = nullptr) {
-    auto ch{GetCurrentChar(byteCount, fastField)};
+      std::size_t &byteCount) {
+    auto ch{GetCurrentChar(byteCount)};
     bool inNamelist{mutableModes().inNamelist};
     while (!ch || *ch == ' ' || *ch == '\t' || *ch == '\n' ||
         (inNamelist && *ch == '!')) {
       if (ch && (*ch == ' ' || *ch == '\t' || *ch == '\n')) {
-        if (fastField) {
-          fastField->Advance(0, byteCount);
-        } else {
-          HandleRelativePosition(byteCount);
-        }
-      } else if (AdvanceRecord()) {
-        if (fastField) {
-          fastField->NextRecord(*this);
-        }
-      } else {
+        HandleRelativePosition(byteCount);
+      } else if (!AdvanceRecord()) {
         return Fortran::common::nullopt;
       }
-      ch = GetCurrentChar(byteCount, fastField);
+      ch = GetCurrentChar(byteCount);
     }
     return ch;
   }

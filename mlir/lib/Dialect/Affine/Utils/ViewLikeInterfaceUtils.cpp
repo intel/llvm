@@ -41,6 +41,7 @@ LogicalResult mlir::affine::mergeOffsetsSizesAndStrides(
       combinedStrides[i] = producerStrides[i];
       continue;
     }
+    SmallVector<OpFoldResult> offsetSymbols, strideSymbols;
     // The combined offset is computed as
     //    producer_offset + consumer_offset * producer_strides.
     combinedOffsets[i] = makeComposedFoldedAffineApply(

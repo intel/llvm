@@ -540,10 +540,6 @@ public:
   addFortranRuntimeLibraryPath(const llvm::opt::ArgList &Args,
                                llvm::opt::ArgStringList &CmdArgs) const;
 
-  /// Add the path for libflang_rt.runtime.a
-  void addFlangRTLibPath(const llvm::opt::ArgList &Args,
-                         llvm::opt::ArgStringList &CmdArgs) const;
-
   const char *getCompilerRTArgString(const llvm::opt::ArgList &Args,
                                      StringRef Component,
                                      FileType Type = ToolChain::FT_Static,

@@ -43,7 +43,6 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "Hexagon.h"
 #include "HexagonSubtarget.h"
 #include "HexagonTargetMachine.h"
 
@@ -2318,9 +2317,9 @@ auto HexagonVectorCombine::insertb(IRBuilderBase &Builder, Value *Dst,
   assert(0 <= Where && Where + Length <= DstLen);
 
   int P2Len = PowerOf2Ceil(SrcLen | DstLen);
-  auto *Poison = PoisonValue::get(getByteTy());
-  Value *P2Src = vresize(Builder, Src, P2Len, Poison);
-  Value *P2Dst = vresize(Builder, Dst, P2Len, Poison);
+  auto *Undef = UndefValue::get(getByteTy());
+  Value *P2Src = vresize(Builder, Src, P2Len, Undef);
+  Value *P2Dst = vresize(Builder, Dst, P2Len, Undef);
 
   SmallVector<int, 256> SMask(P2Len);
   for (int i = 0; i != P2Len; ++i) {
@@ -2331,7 +2330,7 @@ auto HexagonVectorCombine::insertb(IRBuilderBase &Builder, Value *Dst,
   }
 
   Value *P2Insert = Builder.CreateShuffleVector(P2Dst, P2Src, SMask, "shf");
-  return vresize(Builder, P2Insert, DstLen, Poison);
+  return vresize(Builder, P2Insert, DstLen, Undef);
 }
 
 auto HexagonVectorCombine::vlalignb(IRBuilderBase &Builder, Value *Lo,
@@ -2931,6 +2930,11 @@ auto HexagonVectorCombine::getElementRange(IRBuilderBase &Builder, Value *Lo,
 }
 
 // Pass management.
+
+namespace llvm {
+void initializeHexagonVectorCombineLegacyPass(PassRegistry &);
+FunctionPass *createHexagonVectorCombineLegacyPass();
+} // namespace llvm
 
 namespace {
 class HexagonVectorCombineLegacy : public FunctionPass {

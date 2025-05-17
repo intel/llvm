@@ -50,7 +50,9 @@ public:
 
   static char ID;
 
-  AArch64ExpandPseudo() : MachineFunctionPass(ID) {}
+  AArch64ExpandPseudo() : MachineFunctionPass(ID) {
+    initializeAArch64ExpandPseudoPass(*PassRegistry::getPassRegistry());
+  }
 
   bool runOnMachineFunction(MachineFunction &Fn) override;
 

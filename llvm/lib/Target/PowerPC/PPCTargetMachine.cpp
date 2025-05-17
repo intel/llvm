@@ -561,6 +561,7 @@ void PPCPassConfig::addMachineSSAOptimization() {
 
 void PPCPassConfig::addPreRegAlloc() {
   if (getOptLevel() != CodeGenOptLevel::None) {
+    initializePPCVSXFMAMutatePass(*PassRegistry::getPassRegistry());
     insertPass(VSXFMAMutateEarly ? &RegisterCoalescerID : &MachineSchedulerID,
                &PPCVSXFMAMutateID);
   }
@@ -604,7 +605,7 @@ void PPCPassConfig::addPreEmitPass2() {
 
 TargetTransformInfo
 PPCTargetMachine::getTargetTransformInfo(const Function &F) const {
-  return TargetTransformInfo(std::make_unique<PPCTTIImpl>(this, F));
+  return TargetTransformInfo(PPCTTIImpl(this, F));
 }
 
 bool PPCTargetMachine::isLittleEndian() const {

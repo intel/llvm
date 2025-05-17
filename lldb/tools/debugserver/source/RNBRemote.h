@@ -14,6 +14,7 @@
 #define LLDB_TOOLS_DEBUGSERVER_SOURCE_RNBREMOTE_H
 
 #include "DNB.h"
+#include "PThreadMutex.h"
 #include "RNBContext.h"
 #include "RNBDefs.h"
 #include "RNBSocket.h"
@@ -24,6 +25,7 @@
 
 class RNBSocket;
 class RNBContext;
+class PThreadEvents;
 
 enum event_loop_mode { debug_nub, gdb_remote_protocol, done };
 
@@ -377,7 +379,7 @@ protected:
   std::string m_arch;
   nub_thread_t m_continue_thread; // thread to continue; 0 for any, -1 for all
   nub_thread_t m_thread;          // thread for other ops; 0 for any, -1 for all
-  std::mutex m_mutex;             // Mutex that protects
+  PThreadMutex m_mutex;           // Mutex that protects
   DispatchQueueOffsets m_dispatch_queue_offsets;
   nub_addr_t m_dispatch_queue_offsets_addr;
   uint32_t m_qSymbol_index;

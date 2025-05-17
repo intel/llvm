@@ -31,7 +31,6 @@
 #include "clang/CIR/Dialect/IR/CIROpsEnums.h"
 #include "clang/CIR/Interfaces/CIRLoopOpInterface.h"
 #include "clang/CIR/Interfaces/CIROpInterfaces.h"
-#include "clang/CIR/MissingFeatures.h"
 
 namespace mlir {
 namespace OpTrait {
@@ -60,12 +59,6 @@ public:
 
 using BuilderCallbackRef =
     llvm::function_ref<void(mlir::OpBuilder &, mlir::Location)>;
-using BuilderOpStateCallbackRef = llvm::function_ref<void(
-    mlir::OpBuilder &, mlir::Location, mlir::OperationState &)>;
-
-namespace cir {
-void buildTerminatedBody(mlir::OpBuilder &builder, mlir::Location loc);
-} // namespace cir
 
 // TableGen'erated files for MLIR dialects require that a macro be defined when
 // they are included.  GET_OP_CLASSES tells the file to define the classes for

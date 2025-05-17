@@ -203,7 +203,6 @@ bool CodeGenAction::beginSourceFileAction() {
   fir::support::registerLLVMTranslation(*mlirCtx);
   mlir::DialectRegistry registry;
   fir::acc::registerOpenACCExtensions(registry);
-  fir::omp::registerOpenMPExtensions(registry);
   mlirCtx->appendDialectRegistry(registry);
 
   const llvm::TargetMachine &targetMachine = ci.getTargetMachine();

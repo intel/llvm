@@ -143,7 +143,7 @@ enum class LangAS : unsigned int;
 class LocalInstantiationScope;
 class LookupResult;
 class MangleNumberingContext;
-typedef ArrayRef<IdentifierLoc> ModuleIdPath;
+typedef ArrayRef<std::pair<IdentifierInfo *, SourceLocation>> ModuleIdPath;
 class ModuleLoader;
 class MultiLevelTemplateArgumentList;
 struct NormalizedConstraint;
@@ -220,6 +220,11 @@ enum class AssignmentAction {
   Casting,
   Passing_CFAudited
 };
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             const AssignmentAction &AA) {
+  DB << llvm::to_underlying(AA);
+  return DB;
+}
 
 namespace threadSafety {
 class BeforeSet;
@@ -286,8 +291,7 @@ public:
 /// parameter. This avoids updating the type on hot paths in the parser.
 class PreferredTypeBuilder {
 public:
-  PreferredTypeBuilder(ASTContext *Ctx, bool Enabled)
-      : Ctx(Ctx), Enabled(Enabled) {}
+  PreferredTypeBuilder(bool Enabled) : Enabled(Enabled) {}
 
   void enterCondition(Sema &S, SourceLocation Tok);
   void enterReturn(Sema &S, SourceLocation Tok);
@@ -333,7 +337,6 @@ public:
   }
 
 private:
-  ASTContext *Ctx;
   bool Enabled;
   /// Start position of a token for which we store expected type.
   SourceLocation ExpectedLoc;
@@ -456,382 +459,6 @@ enum class FunctionEffectMode : uint8_t {
   False,    // effect(false).
   True,     // effect(true).
   Dependent // effect(expr) where expr is dependent.
-};
-
-/// pragma clang section kind
-enum class PragmaClangSectionKind {
-  Invalid = 0,
-  BSS = 1,
-  Data = 2,
-  Rodata = 3,
-  Text = 4,
-  Relro = 5
-};
-
-enum class PragmaClangSectionAction { Set = 0, Clear = 1 };
-
-enum class PragmaOptionsAlignKind {
-  Native,  // #pragma options align=native
-  Natural, // #pragma options align=natural
-  Packed,  // #pragma options align=packed
-  Power,   // #pragma options align=power
-  Mac68k,  // #pragma options align=mac68k
-  Reset    // #pragma options align=reset
-};
-
-enum class TUFragmentKind {
-  /// The global module fragment, between 'module;' and a module-declaration.
-  Global,
-  /// A normal translation unit fragment. For a non-module unit, this is the
-  /// entire translation unit. Otherwise, it runs from the module-declaration
-  /// to the private-module-fragment (if any) or the end of the TU (if not).
-  Normal,
-  /// The private module fragment, between 'module :private;' and the end of
-  /// the translation unit.
-  Private
-};
-
-enum class FormatStringType {
-  Scanf,
-  Printf,
-  NSString,
-  Strftime,
-  Strfmon,
-  Kprintf,
-  FreeBSDKPrintf,
-  OSTrace,
-  OSLog,
-  Syslog,
-  Unknown
-};
-
-// Used for emitting the right warning by DefaultVariadicArgumentPromotion
-enum class VariadicCallType {
-  Function,
-  Block,
-  Method,
-  Constructor,
-  DoesNotApply
-};
-
-enum class BuiltinCountedByRefKind {
-  Assignment,
-  Initializer,
-  FunctionArg,
-  ReturnArg,
-  ArraySubscript,
-  BinaryExpr,
-};
-
-// Contexts where using non-trivial C union types can be disallowed. This is
-// passed to err_non_trivial_c_union_in_invalid_context.
-enum class NonTrivialCUnionContext {
-  // Function parameter.
-  FunctionParam,
-  // Function return.
-  FunctionReturn,
-  // Default-initialized object.
-  DefaultInitializedObject,
-  // Variable with automatic storage duration.
-  AutoVar,
-  // Initializer expression that might copy from another object.
-  CopyInit,
-  // Assignment.
-  Assignment,
-  // Compound literal.
-  CompoundLiteral,
-  // Block capture.
-  BlockCapture,
-  // lvalue-to-rvalue conversion of volatile type.
-  LValueToRValueVolatile,
-};
-
-/// Describes the result of the name lookup and resolution performed
-/// by \c Sema::ClassifyName().
-enum class NameClassificationKind {
-  /// This name is not a type or template in this context, but might be
-  /// something else.
-  Unknown,
-  /// Classification failed; an error has been produced.
-  Error,
-  /// The name has been typo-corrected to a keyword.
-  Keyword,
-  /// The name was classified as a type.
-  Type,
-  /// The name was classified as a specific non-type, non-template
-  /// declaration. ActOnNameClassifiedAsNonType should be called to
-  /// convert the declaration to an expression.
-  NonType,
-  /// The name was classified as an ADL-only function name.
-  /// ActOnNameClassifiedAsUndeclaredNonType should be called to convert the
-  /// result to an expression.
-  UndeclaredNonType,
-  /// The name denotes a member of a dependent type that could not be
-  /// resolved. ActOnNameClassifiedAsDependentNonType should be called to
-  /// convert the result to an expression.
-  DependentNonType,
-  /// The name was classified as an overload set, and an expression
-  /// representing that overload set has been formed.
-  /// ActOnNameClassifiedAsOverloadSet should be called to form a suitable
-  /// expression referencing the overload set.
-  OverloadSet,
-  /// The name was classified as a template whose specializations are types.
-  TypeTemplate,
-  /// The name was classified as a variable template name.
-  VarTemplate,
-  /// The name was classified as a function template name.
-  FunctionTemplate,
-  /// The name was classified as an ADL-only function template name.
-  UndeclaredTemplate,
-  /// The name was classified as a concept name.
-  Concept,
-};
-
-enum class PointerAuthDiscArgKind {
-  // Address discrimination argument of __ptrauth.
-  Addr,
-
-  // Extra discriminator argument of __ptrauth.
-  Extra,
-};
-
-/// Common ways to introduce type names without a tag for use in diagnostics.
-/// Keep in sync with err_tag_reference_non_tag.
-enum class NonTagKind {
-  NonStruct,
-  NonClass,
-  NonUnion,
-  NonEnum,
-  Typedef,
-  TypeAlias,
-  Template,
-  TypeAliasTemplate,
-  TemplateTemplateArgument,
-};
-
-enum class OffsetOfKind {
-  // Not parsing a type within __builtin_offsetof.
-  Outside,
-  // Parsing a type within __builtin_offsetof.
-  Builtin,
-  // Parsing a type within macro "offsetof", defined in __buitin_offsetof
-  // To improve our diagnostic message.
-  Macro,
-};
-
-/// Describes the kind of merge to perform for availability
-/// attributes (including "deprecated", "unavailable", and "availability").
-enum class AvailabilityMergeKind {
-  /// Don't merge availability attributes at all.
-  None,
-  /// Merge availability attributes for a redeclaration, which requires
-  /// an exact match.
-  Redeclaration,
-  /// Merge availability attributes for an override, which requires
-  /// an exact match or a weakening of constraints.
-  Override,
-  /// Merge availability attributes for an implementation of
-  /// a protocol requirement.
-  ProtocolImplementation,
-  /// Merge availability attributes for an implementation of
-  /// an optional protocol requirement.
-  OptionalProtocolImplementation
-};
-
-enum class TrivialABIHandling {
-  /// The triviality of a method unaffected by "trivial_abi".
-  IgnoreTrivialABI,
-
-  /// The triviality of a method affected by "trivial_abi".
-  ConsiderTrivialABI
-};
-
-enum class TryCaptureKind { Implicit, ExplicitByVal, ExplicitByRef };
-
-enum class AllowFoldKind {
-  No,
-  Allow,
-};
-
-/// Context in which we're performing a usual arithmetic conversion.
-enum class ArithConvKind {
-  /// An arithmetic operation.
-  Arithmetic,
-  /// A bitwise operation.
-  BitwiseOp,
-  /// A comparison.
-  Comparison,
-  /// A conditional (?:) operator.
-  Conditional,
-  /// A compound assignment expression.
-  CompAssign,
-};
-
-// Used for determining in which context a type is allowed to be passed to a
-// vararg function.
-enum class VarArgKind {
-  Valid,
-  ValidInCXX11,
-  Undefined,
-  MSVCUndefined,
-  Invalid
-};
-
-/// AssignConvertType - All of the 'assignment' semantic checks return this
-/// enum to indicate whether the assignment was allowed.  These checks are
-/// done for simple assignments, as well as initialization, return from
-/// function, argument passing, etc.  The query is phrased in terms of a
-/// source and destination type.
-enum class AssignConvertType {
-  /// Compatible - the types are compatible according to the standard.
-  Compatible,
-
-  /// CompatibleVoidPtrToNonVoidPtr - The types are compatible in C because
-  /// a void * can implicitly convert to another pointer type, which we
-  /// differentiate for better diagnostic behavior.
-  CompatibleVoidPtrToNonVoidPtr,
-
-  /// PointerToInt - The assignment converts a pointer to an int, which we
-  /// accept as an extension.
-  PointerToInt,
-
-  /// IntToPointer - The assignment converts an int to a pointer, which we
-  /// accept as an extension.
-  IntToPointer,
-
-  /// FunctionVoidPointer - The assignment is between a function pointer and
-  /// void*, which the standard doesn't allow, but we accept as an extension.
-  FunctionVoidPointer,
-
-  /// IncompatiblePointer - The assignment is between two pointers types that
-  /// are not compatible, but we accept them as an extension.
-  IncompatiblePointer,
-
-  /// IncompatibleFunctionPointer - The assignment is between two function
-  /// pointers types that are not compatible, but we accept them as an
-  /// extension.
-  IncompatibleFunctionPointer,
-
-  /// IncompatibleFunctionPointerStrict - The assignment is between two
-  /// function pointer types that are not identical, but are compatible,
-  /// unless compiled with -fsanitize=cfi, in which case the type mismatch
-  /// may trip an indirect call runtime check.
-  IncompatibleFunctionPointerStrict,
-
-  /// IncompatiblePointerSign - The assignment is between two pointers types
-  /// which point to integers which have a different sign, but are otherwise
-  /// identical. This is a subset of the above, but broken out because it's by
-  /// far the most common case of incompatible pointers.
-  IncompatiblePointerSign,
-
-  /// CompatiblePointerDiscardsQualifiers - The assignment discards
-  /// c/v/r qualifiers, which we accept as an extension.
-  CompatiblePointerDiscardsQualifiers,
-
-  /// IncompatiblePointerDiscardsQualifiers - The assignment
-  /// discards qualifiers that we don't permit to be discarded,
-  /// like address spaces.
-  IncompatiblePointerDiscardsQualifiers,
-
-  /// IncompatibleNestedPointerAddressSpaceMismatch - The assignment
-  /// changes address spaces in nested pointer types which is not allowed.
-  /// For instance, converting __private int ** to __generic int ** is
-  /// illegal even though __private could be converted to __generic.
-  IncompatibleNestedPointerAddressSpaceMismatch,
-
-  /// IncompatibleNestedPointerQualifiers - The assignment is between two
-  /// nested pointer types, and the qualifiers other than the first two
-  /// levels differ e.g. char ** -> const char **, but we accept them as an
-  /// extension.
-  IncompatibleNestedPointerQualifiers,
-
-  /// IncompatibleVectors - The assignment is between two vector types that
-  /// have the same size, which we accept as an extension.
-  IncompatibleVectors,
-
-  /// IntToBlockPointer - The assignment converts an int to a block
-  /// pointer. We disallow this.
-  IntToBlockPointer,
-
-  /// IncompatibleBlockPointer - The assignment is between two block
-  /// pointers types that are not compatible.
-  IncompatibleBlockPointer,
-
-  /// IncompatibleObjCQualifiedId - The assignment is between a qualified
-  /// id type and something else (that is incompatible with it). For example,
-  /// "id <XXX>" = "Foo *", where "Foo *" doesn't implement the XXX protocol.
-  IncompatibleObjCQualifiedId,
-
-  /// IncompatibleObjCWeakRef - Assigning a weak-unavailable object to an
-  /// object with __weak qualifier.
-  IncompatibleObjCWeakRef,
-
-  /// Incompatible - We reject this conversion outright, it is invalid to
-  /// represent it in the AST.
-  Incompatible
-};
-
-/// The scope in which to find allocation functions.
-enum class AllocationFunctionScope {
-  /// Only look for allocation functions in the global scope.
-  Global,
-  /// Only look for allocation functions in the scope of the
-  /// allocated class.
-  Class,
-  /// Look for allocation functions in both the global scope
-  /// and in the scope of the allocated class.
-  Both
-};
-
-/// Describes the result of an "if-exists" condition check.
-enum class IfExistsResult {
-  /// The symbol exists.
-  Exists,
-
-  /// The symbol does not exist.
-  DoesNotExist,
-
-  /// The name is a dependent name, so the results will differ
-  /// from one instantiation to the next.
-  Dependent,
-
-  /// An error occurred.
-  Error
-};
-
-enum class CorrectTypoKind {
-  NonError,     // CorrectTypo used in a non error recovery situation.
-  ErrorRecovery // CorrectTypo used in normal error recovery.
-};
-
-enum class OverloadKind {
-  /// This is a legitimate overload: the existing declarations are
-  /// functions or function templates with different signatures.
-  Overload,
-
-  /// This is not an overload because the signature exactly matches
-  /// an existing declaration.
-  Match,
-
-  /// This is not an overload because the lookup results contain a
-  /// non-function.
-  NonFunction
-};
-
-/// Contexts in which a converted constant expression is required.
-enum class CCEKind {
-  CaseValue,     ///< Expression in a case label.
-  Enumerator,    ///< Enumerator value with fixed underlying type.
-  TemplateArg,   ///< Value of a non-type template parameter.
-  TempArgStrict, ///< As above, but applies strict template checking
-                 ///< rules.
-  ArrayBound,    ///< Array bound in array declarator or new-expression.
-  ExplicitBool,  ///< Condition in an explicit(bool) specifier.
-  Noexcept,      ///< Condition in a noexcept(bool) specifier.
-  StaticAssertMessageSize, ///< Call to size() in a static assert
-                           ///< message.
-  StaticAssertMessageData, ///< Call to data() in a static assert
-                           ///< message.
 };
 
 /// Sema - This implements semantic analysis and AST building for C.
@@ -985,6 +612,18 @@ public:
   // Emit all deferred diagnostics.
   void emitDeferredDiags();
 
+  enum TUFragmentKind {
+    /// The global module fragment, between 'module;' and a module-declaration.
+    Global,
+    /// A normal translation unit fragment. For a non-module unit, this is the
+    /// entire translation unit. Otherwise, it runs from the module-declaration
+    /// to the private-module-fragment (if any) or the end of the TU (if not).
+    Normal,
+    /// The private module fragment, between 'module :private;' and the end of
+    /// the translation unit.
+    Private
+  };
+
   /// This is called before the very first declaration in the translation unit
   /// is parsed. Note that the ASTContext may have already injected some
   /// declarations.
@@ -1111,6 +750,20 @@ public:
   /// Check if the type is allowed to be used for the current target.
   void checkTypeSupport(QualType Ty, SourceLocation Loc,
                         ValueDecl *D = nullptr);
+
+  // /// The kind of conversion being performed.
+  // enum CheckedConversionKind {
+  //   /// An implicit conversion.
+  //   CCK_ImplicitConversion,
+  //   /// A C-style cast.
+  //   CCK_CStyleCast,
+  //   /// A functional-style cast.
+  //   CCK_FunctionalCast,
+  //   /// A cast other than a C-style cast.
+  //   CCK_OtherCast,
+  //   /// A conversion for an operand of a builtin overloaded operator.
+  //   CCK_ForBuiltinOverloadedOp
+  // };
 
   /// ImpCastExprToType - If Expr is not of type 'Type', insert an implicit
   /// cast.  If there is already an implicit cast, merge into the existing one.
@@ -1776,6 +1429,18 @@ public:
   /// Source location for newly created implicit MSInheritanceAttrs
   SourceLocation ImplicitMSInheritanceAttrLoc;
 
+  /// pragma clang section kind
+  enum PragmaClangSectionKind {
+    PCSK_Invalid = 0,
+    PCSK_BSS = 1,
+    PCSK_Data = 2,
+    PCSK_Rodata = 3,
+    PCSK_Text = 4,
+    PCSK_Relro = 5
+  };
+
+  enum PragmaClangSectionAction { PCSA_Set = 0, PCSA_Clear = 1 };
+
   struct PragmaClangSection {
     std::string SectionName;
     bool Valid = false;
@@ -2135,6 +1800,15 @@ public:
   /// Add _Nullable attributes for std:: types.
   void inferNullableClassAttribute(CXXRecordDecl *CRD);
 
+  enum PragmaOptionsAlignKind {
+    POAK_Native,  // #pragma options align=native
+    POAK_Natural, // #pragma options align=natural
+    POAK_Packed,  // #pragma options align=packed
+    POAK_Power,   // #pragma options align=power
+    POAK_Mac68k,  // #pragma options align=mac68k
+    POAK_Reset    // #pragma options align=reset
+  };
+
   /// ActOnPragmaClangSection - Called on well formed \#pragma clang section
   void ActOnPragmaClangSection(SourceLocation PragmaLoc,
                                PragmaClangSectionAction Action,
@@ -2393,14 +2067,9 @@ public:
   void DiagnoseAvailabilityOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                                   const ObjCInterfaceDecl *UnknownObjCClass,
                                   bool ObjCPropertyAccess,
-                                  bool AvoidPartialAvailabilityChecks,
-                                  ObjCInterfaceDecl *ClassReceiver);
+                                  bool AvoidPartialAvailabilityChecks = false,
+                                  ObjCInterfaceDecl *ClassReceiver = nullptr);
 
-  void DiagnoseAvailabilityOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs);
-
-  std::pair<AvailabilityResult, const NamedDecl *>
-  ShouldDiagnoseAvailabilityOfDecl(const NamedDecl *D, std::string *Message,
-                                   ObjCInterfaceDecl *ClassReceiver);
   ///@}
 
   //
@@ -2434,50 +2103,6 @@ public:
   bool CheckCountedByAttrOnField(FieldDecl *FD, Expr *E, bool CountInBytes,
                                  bool OrNull);
 
-  /// Perform Bounds Safety Semantic checks for assigning to a `__counted_by` or
-  /// `__counted_by_or_null` pointer type \param LHSTy.
-  ///
-  /// \param LHSTy The type being assigned to. Checks will only be performed if
-  ///              the type is a `counted_by` or `counted_by_or_null ` pointer.
-  /// \param RHSExpr The expression being assigned from.
-  /// \param Action The type assignment being performed
-  /// \param Loc The SourceLocation to use for error diagnostics
-  /// \param Assignee The ValueDecl being assigned. This is used to compute
-  ///        the name of the assignee. If the assignee isn't known this can
-  ///        be set to nullptr.
-  /// \param ShowFullyQualifiedAssigneeName If set to true when using \p
-  ///        Assignee to compute the name of the assignee use the fully
-  ///        qualified name, otherwise use the unqualified name.
-  ///
-  /// \returns True iff no diagnostic where emitted, false otherwise.
-  bool BoundsSafetyCheckAssignmentToCountAttrPtr(
-      QualType LHSTy, Expr *RHSExpr, AssignmentAction Action,
-      SourceLocation Loc, const ValueDecl *Assignee,
-      bool ShowFullyQualifiedAssigneeName);
-
-  /// Perform Bounds Safety Semantic checks for initializing a Bounds Safety
-  /// pointer.
-  ///
-  /// \param Entity The entity being initialized
-  /// \param Kind The kind of initialization being performed
-  /// \param Action The type assignment being performed
-  /// \param LHSTy The type being assigned to. Checks will only be performed if
-  ///              the type is a `counted_by` or `counted_by_or_null ` pointer.
-  /// \param RHSExpr The expression being used for initialization.
-  ///
-  /// \returns True iff no diagnostic where emitted, false otherwise.
-  bool BoundsSafetyCheckInitialization(const InitializedEntity &Entity,
-                                       const InitializationKind &Kind,
-                                       AssignmentAction Action,
-                                       QualType LHSType, Expr *RHSExpr);
-
-  /// Perform Bounds Safety semantic checks for uses of invalid uses counted_by
-  /// or counted_by_or_null pointers in \param E.
-  ///
-  /// \param E the expression to check
-  ///
-  /// \returns True iff no diagnostic where emitted, false otherwise.
-  bool BoundsSafetyCheckUseOfCountAttrPtr(const Expr *E);
   ///@}
 
   //
@@ -2601,6 +2226,19 @@ public:
                                SourceLocation BuiltinLoc,
                                SourceLocation RParenLoc);
 
+  enum FormatStringType {
+    FST_Scanf,
+    FST_Printf,
+    FST_NSString,
+    FST_Strftime,
+    FST_Strfmon,
+    FST_Kprintf,
+    FST_FreeBSDKPrintf,
+    FST_OSTrace,
+    FST_OSLog,
+    FST_Syslog,
+    FST_Unknown
+  };
   static StringRef GetFormatStringTypeName(FormatStringType FST);
   static FormatStringType GetFormatStringType(StringRef FormatFlavor);
   static FormatStringType GetFormatStringType(const FormatAttr *Format);
@@ -2716,6 +2354,15 @@ public:
   /// DiagnoseSelfMove - Emits a warning if a value is moved to itself.
   void DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                         SourceLocation OpLoc);
+
+  // Used for emitting the right warning by DefaultVariadicArgumentPromotion
+  enum VariadicCallType {
+    VariadicFunction,
+    VariadicBlock,
+    VariadicMethod,
+    VariadicConstructor,
+    VariadicDoesNotApply
+  };
 
   bool IsLayoutCompatible(QualType T1, QualType T2) const;
   bool IsPointerInterconvertibleBaseOf(const TypeSourceInfo *Base,
@@ -2962,6 +2609,15 @@ private:
   bool PrepareBuiltinReduceMathOneArgCall(CallExpr *TheCall);
 
   bool BuiltinNonDeterministicValue(CallExpr *TheCall);
+
+  enum BuiltinCountedByRefKind {
+    AssignmentKind,
+    InitializerKind,
+    FunctionArgKind,
+    ReturnArgKind,
+    ArraySubscriptKind,
+    BinaryExprKind,
+  };
 
   bool CheckInvalidBuiltinCountedByRef(const Expr *E,
                                        BuiltinCountedByRefKind K);
@@ -3615,6 +3271,47 @@ public:
                                       SourceLocation NameLoc,
                                       bool IsTemplateTypeArg);
 
+  /// Describes the result of the name lookup and resolution performed
+  /// by \c ClassifyName().
+  enum NameClassificationKind {
+    /// This name is not a type or template in this context, but might be
+    /// something else.
+    NC_Unknown,
+    /// Classification failed; an error has been produced.
+    NC_Error,
+    /// The name has been typo-corrected to a keyword.
+    NC_Keyword,
+    /// The name was classified as a type.
+    NC_Type,
+    /// The name was classified as a specific non-type, non-template
+    /// declaration. ActOnNameClassifiedAsNonType should be called to
+    /// convert the declaration to an expression.
+    NC_NonType,
+    /// The name was classified as an ADL-only function name.
+    /// ActOnNameClassifiedAsUndeclaredNonType should be called to convert the
+    /// result to an expression.
+    NC_UndeclaredNonType,
+    /// The name denotes a member of a dependent type that could not be
+    /// resolved. ActOnNameClassifiedAsDependentNonType should be called to
+    /// convert the result to an expression.
+    NC_DependentNonType,
+    /// The name was classified as an overload set, and an expression
+    /// representing that overload set has been formed.
+    /// ActOnNameClassifiedAsOverloadSet should be called to form a suitable
+    /// expression referencing the overload set.
+    NC_OverloadSet,
+    /// The name was classified as a template whose specializations are types.
+    NC_TypeTemplate,
+    /// The name was classified as a variable template name.
+    NC_VarTemplate,
+    /// The name was classified as a function template name.
+    NC_FunctionTemplate,
+    /// The name was classified as an ADL-only function template name.
+    NC_UndeclaredTemplate,
+    /// The name was classified as a concept name.
+    NC_Concept,
+  };
+
   class NameClassification {
     NameClassificationKind Kind;
     union {
@@ -3627,66 +3324,62 @@ public:
     explicit NameClassification(NameClassificationKind Kind) : Kind(Kind) {}
 
   public:
-    NameClassification(ParsedType Type)
-        : Kind(NameClassificationKind::Type), Type(Type) {}
+    NameClassification(ParsedType Type) : Kind(NC_Type), Type(Type) {}
 
-    NameClassification(const IdentifierInfo *Keyword)
-        : Kind(NameClassificationKind::Keyword) {}
+    NameClassification(const IdentifierInfo *Keyword) : Kind(NC_Keyword) {}
 
-    static NameClassification Error() {
-      return NameClassification(NameClassificationKind::Error);
-    }
+    static NameClassification Error() { return NameClassification(NC_Error); }
 
     static NameClassification Unknown() {
-      return NameClassification(NameClassificationKind::Unknown);
+      return NameClassification(NC_Unknown);
     }
 
     static NameClassification OverloadSet(ExprResult E) {
-      NameClassification Result(NameClassificationKind::OverloadSet);
+      NameClassification Result(NC_OverloadSet);
       Result.Expr = E;
       return Result;
     }
 
     static NameClassification NonType(NamedDecl *D) {
-      NameClassification Result(NameClassificationKind::NonType);
+      NameClassification Result(NC_NonType);
       Result.NonTypeDecl = D;
       return Result;
     }
 
     static NameClassification UndeclaredNonType() {
-      return NameClassification(NameClassificationKind::UndeclaredNonType);
+      return NameClassification(NC_UndeclaredNonType);
     }
 
     static NameClassification DependentNonType() {
-      return NameClassification(NameClassificationKind::DependentNonType);
+      return NameClassification(NC_DependentNonType);
     }
 
     static NameClassification TypeTemplate(TemplateName Name) {
-      NameClassification Result(NameClassificationKind::TypeTemplate);
+      NameClassification Result(NC_TypeTemplate);
       Result.Template = Name;
       return Result;
     }
 
     static NameClassification VarTemplate(TemplateName Name) {
-      NameClassification Result(NameClassificationKind::VarTemplate);
+      NameClassification Result(NC_VarTemplate);
       Result.Template = Name;
       return Result;
     }
 
     static NameClassification FunctionTemplate(TemplateName Name) {
-      NameClassification Result(NameClassificationKind::FunctionTemplate);
+      NameClassification Result(NC_FunctionTemplate);
       Result.Template = Name;
       return Result;
     }
 
     static NameClassification Concept(TemplateName Name) {
-      NameClassification Result(NameClassificationKind::Concept);
+      NameClassification Result(NC_Concept);
       Result.Template = Name;
       return Result;
     }
 
     static NameClassification UndeclaredTemplate(TemplateName Name) {
-      NameClassification Result(NameClassificationKind::UndeclaredTemplate);
+      NameClassification Result(NC_UndeclaredTemplate);
       Result.Template = Name;
       return Result;
     }
@@ -3694,40 +3387,38 @@ public:
     NameClassificationKind getKind() const { return Kind; }
 
     ExprResult getExpression() const {
-      assert(Kind == NameClassificationKind::OverloadSet);
+      assert(Kind == NC_OverloadSet);
       return Expr;
     }
 
     ParsedType getType() const {
-      assert(Kind == NameClassificationKind::Type);
+      assert(Kind == NC_Type);
       return Type;
     }
 
     NamedDecl *getNonTypeDecl() const {
-      assert(Kind == NameClassificationKind::NonType);
+      assert(Kind == NC_NonType);
       return NonTypeDecl;
     }
 
     TemplateName getTemplateName() const {
-      assert(Kind == NameClassificationKind::TypeTemplate ||
-             Kind == NameClassificationKind::FunctionTemplate ||
-             Kind == NameClassificationKind::VarTemplate ||
-             Kind == NameClassificationKind::Concept ||
-             Kind == NameClassificationKind::UndeclaredTemplate);
+      assert(Kind == NC_TypeTemplate || Kind == NC_FunctionTemplate ||
+             Kind == NC_VarTemplate || Kind == NC_Concept ||
+             Kind == NC_UndeclaredTemplate);
       return Template;
     }
 
     TemplateNameKind getTemplateNameKind() const {
       switch (Kind) {
-      case NameClassificationKind::TypeTemplate:
+      case NC_TypeTemplate:
         return TNK_Type_template;
-      case NameClassificationKind::FunctionTemplate:
+      case NC_FunctionTemplate:
         return TNK_Function_template;
-      case NameClassificationKind::VarTemplate:
+      case NC_VarTemplate:
         return TNK_Var_template;
-      case NameClassificationKind::Concept:
+      case NC_Concept:
         return TNK_Concept_template;
-      case NameClassificationKind::UndeclaredTemplate:
+      case NC_UndeclaredTemplate:
         return TNK_Undeclared_template;
       default:
         llvm_unreachable("unsupported name classification.");
@@ -3813,7 +3504,6 @@ public:
   }
 
   void warnOnReservedIdentifier(const NamedDecl *D);
-  void warnOnCTypeHiddenInCPlusPlus(const NamedDecl *D);
 
   Decl *ActOnDeclarator(Scope *S, Declarator &D);
 
@@ -3868,9 +3558,6 @@ public:
   bool checkPointerAuthEnabled(SourceLocation Loc, SourceRange Range);
 
   bool checkConstantPointerAuthKey(Expr *keyExpr, unsigned &key);
-
-  bool checkPointerAuthDiscriminatorArg(Expr *Arg, PointerAuthDiscArgKind Kind,
-                                        unsigned &IntVal);
 
   /// Diagnose function specifiers on a declaration of an identifier that
   /// does not identify a function.
@@ -4030,6 +3717,29 @@ public:
                               SourceLocation NameLoc,
                               const IdentifierInfo *Name, QualType T,
                               TypeSourceInfo *TSInfo, StorageClass SC);
+
+  // Contexts where using non-trivial C union types can be disallowed. This is
+  // passed to err_non_trivial_c_union_in_invalid_context.
+  enum NonTrivialCUnionContext {
+    // Function parameter.
+    NTCUC_FunctionParam,
+    // Function return.
+    NTCUC_FunctionReturn,
+    // Default-initialized object.
+    NTCUC_DefaultInitializedObject,
+    // Variable with automatic storage duration.
+    NTCUC_AutoVar,
+    // Initializer expression that might copy from another object.
+    NTCUC_CopyInit,
+    // Assignment.
+    NTCUC_Assignment,
+    // Compound literal.
+    NTCUC_CompoundLiteral,
+    // Block capture.
+    NTCUC_BlockCapture,
+    // lvalue-to-rvalue conversion of volatile type.
+    NTCUC_LValueToRValueVolatile,
+  };
 
   /// Emit diagnostics if the initializer or any of its explicit or
   /// implicitly-generated subexpressions require copying or
@@ -4233,6 +3943,20 @@ public:
   Decl *BuildMicrosoftCAnonymousStruct(Scope *S, DeclSpec &DS,
                                        RecordDecl *Record);
 
+  /// Common ways to introduce type names without a tag for use in diagnostics.
+  /// Keep in sync with err_tag_reference_non_tag.
+  enum NonTagKind {
+    NTK_NonStruct,
+    NTK_NonClass,
+    NTK_NonUnion,
+    NTK_NonEnum,
+    NTK_Typedef,
+    NTK_TypeAlias,
+    NTK_Template,
+    NTK_TypeAliasTemplate,
+    NTK_TemplateTemplateArgument,
+  };
+
   /// Given a non-tag type declaration, returns an enum useful for indicating
   /// what kind of non-tag type this is.
   NonTagKind getNonTagTypeDeclKind(const Decl *D, TagTypeKind TTK);
@@ -4244,6 +3968,16 @@ public:
   bool isAcceptableTagRedeclaration(const TagDecl *Previous, TagTypeKind NewTag,
                                     bool isDefinition, SourceLocation NewTagLoc,
                                     const IdentifierInfo *Name);
+
+  enum OffsetOfKind {
+    // Not parsing a type within __builtin_offsetof.
+    OOK_Outside,
+    // Parsing a type within __builtin_offsetof.
+    OOK_Builtin,
+    // Parsing a type within macro "offsetof", defined in __buitin_offsetof
+    // To improve our diagnostic message.
+    OOK_Macro,
+  };
 
   /// This is invoked when we see 'struct foo' or 'struct {'.  In the
   /// former case, Name will be non-null.  In the later case, Name will be null.
@@ -4365,8 +4099,7 @@ public:
   Decl *ActOnEnumConstant(Scope *S, Decl *EnumDecl, Decl *LastEnumConstant,
                           SourceLocation IdLoc, IdentifierInfo *Id,
                           const ParsedAttributesView &Attrs,
-                          SourceLocation EqualLoc, Expr *Val,
-                          SkipBodyInfo *SkipBody = nullptr);
+                          SourceLocation EqualLoc, Expr *Val);
   void ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
                      Decl *EnumDecl, ArrayRef<Decl *> Elements, Scope *S,
                      const ParsedAttributesView &Attr);
@@ -4411,10 +4144,28 @@ public:
                                 TypeSourceInfo *TInfo);
   bool isIncompatibleTypedef(const TypeDecl *Old, TypedefNameDecl *New);
 
+  /// Describes the kind of merge to perform for availability
+  /// attributes (including "deprecated", "unavailable", and "availability").
+  enum AvailabilityMergeKind {
+    /// Don't merge availability attributes at all.
+    AMK_None,
+    /// Merge availability attributes for a redeclaration, which requires
+    /// an exact match.
+    AMK_Redeclaration,
+    /// Merge availability attributes for an override, which requires
+    /// an exact match or a weakening of constraints.
+    AMK_Override,
+    /// Merge availability attributes for an implementation of
+    /// a protocol requirement.
+    AMK_ProtocolImplementation,
+    /// Merge availability attributes for an implementation of
+    /// an optional protocol requirement.
+    AMK_OptionalProtocolImplementation
+  };
+
   /// mergeDeclAttributes - Copy attributes from the Old decl to the New one.
-  void mergeDeclAttributes(
-      NamedDecl *New, Decl *Old,
-      AvailabilityMergeKind AMK = AvailabilityMergeKind::Redeclaration);
+  void mergeDeclAttributes(NamedDecl *New, Decl *Old,
+                           AvailabilityMergeKind AMK = AMK_Redeclaration);
 
   /// MergeTypedefNameDecl - We just parsed a typedef 'New' which has the
   /// same name and scope as a previous declaration 'Old'.  Figure out
@@ -4591,7 +4342,6 @@ public:
   NamedDecl *findLocallyScopedExternCDecl(DeclarationName Name);
 
   void deduceOpenCLAddressSpace(ValueDecl *decl);
-  void deduceHLSLAddressSpace(VarDecl *decl);
 
   /// Adjust the \c DeclContext for a function or variable that might be a
   /// function-local external declaration.
@@ -4776,7 +4526,7 @@ public:
   getAttrLoc(const AttrInfo &AL) {
     return AL.getLocation();
   }
-  SourceLocation getAttrLoc(const AttributeCommonInfo &CI);
+  SourceLocation getAttrLoc(const ParsedAttr &AL);
 
   /// If Expr is a valid integer constant, get the value of the integer
   /// expression and return success or failure. May output an error.
@@ -5161,10 +4911,6 @@ public:
   CXXRecordDecl *getStdBadAlloc() const;
   EnumDecl *getStdAlignValT() const;
 
-  TypeAwareAllocationMode ShouldUseTypeAwareOperatorNewOrDelete() const;
-  FunctionDecl *BuildTypeAwareUsualDelete(FunctionTemplateDecl *FnDecl,
-                                          QualType AllocType, SourceLocation);
-
   ValueDecl *tryLookupUnambiguousFieldDecl(RecordDecl *ClassDecl,
                                            const IdentifierInfo *MemberOrBase);
 
@@ -5192,26 +4938,11 @@ public:
   /// it is and Element is not NULL, assigns the element type to Element.
   bool isStdInitializerList(QualType Ty, QualType *Element);
 
-  /// Tests whether Ty is an instance of std::type_identity and, if
-  /// it is and TypeArgument is not NULL, assigns the element type to Element.
-  /// If MalformedDecl is not null, and type_identity was ruled out due to being
-  /// incorrectly structured despite having the correct name, the faulty Decl
-  /// will be assigned to MalformedDecl.
-  bool isStdTypeIdentity(QualType Ty, QualType *TypeArgument,
-                         const Decl **MalformedDecl = nullptr);
-
   /// Looks for the std::initializer_list template and instantiates it
   /// with Element, or emits an error if it's not found.
   ///
   /// \returns The instantiated template, or null on error.
   QualType BuildStdInitializerList(QualType Element, SourceLocation Loc);
-
-  /// Looks for the std::type_identity template and instantiates it
-  /// with Type, or returns a null type if type_identity has not been declared
-  ///
-  /// \returns The instantiated template, or null if std::type_identity is not
-  /// declared
-  QualType tryBuildStdTypeIdentity(QualType Type, SourceLocation Loc);
 
   /// Determine whether Ctor is an initializer-list constructor, as
   /// defined in [dcl.init.list]p2.
@@ -6274,13 +6005,20 @@ public:
   void DiagnoseNontrivial(const CXXRecordDecl *Record,
                           CXXSpecialMemberKind CSM);
 
+  enum TrivialABIHandling {
+    /// The triviality of a method unaffected by "trivial_abi".
+    TAH_IgnoreTrivialABI,
+
+    /// The triviality of a method affected by "trivial_abi".
+    TAH_ConsiderTrivialABI
+  };
+
   /// Determine whether a defaulted or deleted special member function is
   /// trivial, as specified in C++11 [class.ctor]p5, C++11 [class.copy]p12,
   /// C++11 [class.copy]p25, and C++11 [class.dtor]p5.
-  bool SpecialMemberIsTrivial(
-      CXXMethodDecl *MD, CXXSpecialMemberKind CSM,
-      TrivialABIHandling TAH = TrivialABIHandling::IgnoreTrivialABI,
-      bool Diagnose = false);
+  bool SpecialMemberIsTrivial(CXXMethodDecl *MD, CXXSpecialMemberKind CSM,
+                              TrivialABIHandling TAH = TAH_IgnoreTrivialABI,
+                              bool Diagnose = false);
 
   /// For a defaulted function, the kind of defaulted function that it is.
   class DefaultedFunctionKind {
@@ -6454,10 +6192,6 @@ public:
   /// \<initializer_list>.
   ClassTemplateDecl *StdInitializerList;
 
-  /// The C++ "std::type_identity" template, which is defined in
-  /// \<type_traits>.
-  ClassTemplateDecl *StdTypeIdentity;
-
   // Contains the locations of the beginning of unparsed default
   // argument locations.
   llvm::DenseMap<ParmVarDecl *, SourceLocation> UnparsedDefaultArgLocs;
@@ -6497,8 +6231,6 @@ private:
   void setupImplicitSpecialMemberType(CXXMethodDecl *SpecialMem,
                                       QualType ResultTy,
                                       ArrayRef<QualType> Args);
-  // Helper for ActOnFields to check for all function pointer members.
-  bool EntirelyFunctionPointers(const RecordDecl *Record);
 
   // A cache representing if we've fully checked the various comparison category
   // types stored in ASTContext. The bit-index corresponds to the integer value
@@ -6993,6 +6725,12 @@ public:
   ExprResult CheckLValueToRValueConversionOperand(Expr *E);
   void CleanupVarDeclMarking();
 
+  enum TryCaptureKind {
+    TryCapture_Implicit,
+    TryCapture_ExplicitByVal,
+    TryCapture_ExplicitByRef
+  };
+
   /// Try to capture the given variable.
   ///
   /// \param Var The variable to capture.
@@ -7034,7 +6772,7 @@ public:
 
   /// Try to capture the given variable.
   bool tryCaptureVariable(ValueDecl *Var, SourceLocation Loc,
-                          TryCaptureKind Kind = TryCaptureKind::Implicit,
+                          TryCaptureKind Kind = TryCapture_Implicit,
                           SourceLocation EllipsisLoc = SourceLocation());
 
   /// Checks if the variable must be captured.
@@ -7195,11 +6933,6 @@ public:
   ExprResult ActOnParenExpr(SourceLocation L, SourceLocation R, Expr *E);
   ExprResult ActOnParenListExpr(SourceLocation L, SourceLocation R,
                                 MultiExprArg Val);
-  ExprResult ActOnCXXParenListInitExpr(ArrayRef<Expr *> Args, QualType T,
-                                       unsigned NumUserSpecifiedExprs,
-                                       SourceLocation InitLoc,
-                                       SourceLocation LParenLoc,
-                                       SourceLocation RParenLoc);
 
   /// ActOnStringLiteral - The specified tokens were lexed as pasted string
   /// fragments (e.g. "foo" "bar" L"baz").  The result string has to handle
@@ -7433,15 +7166,13 @@ public:
   ExprResult ActOnBinOp(Scope *S, SourceLocation TokLoc, tok::TokenKind Kind,
                         Expr *LHSExpr, Expr *RHSExpr);
   ExprResult BuildBinOp(Scope *S, SourceLocation OpLoc, BinaryOperatorKind Opc,
-                        Expr *LHSExpr, Expr *RHSExpr,
-                        bool ForFoldExpression = false);
+                        Expr *LHSExpr, Expr *RHSExpr);
 
   /// CreateBuiltinBinOp - Creates a new built-in binary operation with
   /// operator @p Opc at location @c TokLoc. This routine only supports
   /// built-in operations; ActOnBinOp handles overloaded operators.
   ExprResult CreateBuiltinBinOp(SourceLocation OpLoc, BinaryOperatorKind Opc,
-                                Expr *LHSExpr, Expr *RHSExpr,
-                                bool ForFoldExpression = false);
+                                Expr *LHSExpr, Expr *RHSExpr);
   void LookupBinOp(Scope *S, SourceLocation OpLoc, BinaryOperatorKind Opc,
                    UnresolvedSetImpl &Functions);
 
@@ -7509,7 +7240,7 @@ public:
 
   // #embed
   ExprResult ActOnEmbedExpr(SourceLocation EmbedKeywordLoc,
-                            StringLiteral *BinaryData, StringRef FileName);
+                            StringLiteral *BinaryData);
 
   // Build a potentially resolved SourceLocExpr.
   ExprResult BuildSourceLocExpr(SourceLocIdentKind Kind, QualType ResultTy,
@@ -7644,23 +7375,25 @@ public:
     virtual ~VerifyICEDiagnoser() {}
   };
 
+  enum AllowFoldKind {
+    NoFold,
+    AllowFold,
+  };
+
   /// VerifyIntegerConstantExpression - Verifies that an expression is an ICE,
   /// and reports the appropriate diagnostics. Returns false on success.
   /// Can optionally return the value of the expression.
-  ExprResult
-  VerifyIntegerConstantExpression(Expr *E, llvm::APSInt *Result,
-                                  VerifyICEDiagnoser &Diagnoser,
-                                  AllowFoldKind CanFold = AllowFoldKind::No);
-  ExprResult
-  VerifyIntegerConstantExpression(Expr *E, llvm::APSInt *Result,
-                                  unsigned DiagID,
-                                  AllowFoldKind CanFold = AllowFoldKind::No);
-  ExprResult
-  VerifyIntegerConstantExpression(Expr *E, llvm::APSInt *Result = nullptr,
-                                  AllowFoldKind CanFold = AllowFoldKind::No);
-  ExprResult
-  VerifyIntegerConstantExpression(Expr *E,
-                                  AllowFoldKind CanFold = AllowFoldKind::No) {
+  ExprResult VerifyIntegerConstantExpression(Expr *E, llvm::APSInt *Result,
+                                             VerifyICEDiagnoser &Diagnoser,
+                                             AllowFoldKind CanFold = NoFold);
+  ExprResult VerifyIntegerConstantExpression(Expr *E, llvm::APSInt *Result,
+                                             unsigned DiagID,
+                                             AllowFoldKind CanFold = NoFold);
+  ExprResult VerifyIntegerConstantExpression(Expr *E,
+                                             llvm::APSInt *Result = nullptr,
+                                             AllowFoldKind CanFold = NoFold);
+  ExprResult VerifyIntegerConstantExpression(Expr *E,
+                                             AllowFoldKind CanFold = NoFold) {
     return VerifyIntegerConstantExpression(E, nullptr, CanFold);
   }
 
@@ -7797,6 +7530,20 @@ public:
                                       SourceLocation Loc,
                                       BinaryOperatorKind Opc);
 
+  /// Context in which we're performing a usual arithmetic conversion.
+  enum ArithConvKind {
+    /// An arithmetic operation.
+    ACK_Arithmetic,
+    /// A bitwise operation.
+    ACK_BitwiseOp,
+    /// A comparison.
+    ACK_Comparison,
+    /// A conditional (?:) operator.
+    ACK_Conditional,
+    /// A compound assignment expression.
+    ACK_CompAssign,
+  };
+
   // type checking for sizeless vector binary operators.
   QualType CheckSizelessVectorOperands(ExprResult &LHS, ExprResult &RHS,
                                        SourceLocation Loc, bool IsCompAssign,
@@ -7923,6 +7670,16 @@ public:
                                        const FunctionProtoType *Proto,
                                        Expr *Fn);
 
+  // Used for determining in which context a type is allowed to be passed to a
+  // vararg function.
+  enum VarArgKind {
+    VAK_Valid,
+    VAK_ValidInCXX11,
+    VAK_Undefined,
+    VAK_MSVCUndefined,
+    VAK_Invalid
+  };
+
   /// Determine the degree of POD-ness for an expression.
   /// Incomplete types are considered POD, since this check can be performed
   /// when we're in an unevaluated context.
@@ -7934,12 +7691,13 @@ public:
 
   /// GatherArgumentsForCall - Collector argument expressions for various
   /// form of call prototypes.
-  bool GatherArgumentsForCall(
-      SourceLocation CallLoc, FunctionDecl *FDecl,
-      const FunctionProtoType *Proto, unsigned FirstParam,
-      ArrayRef<Expr *> Args, SmallVectorImpl<Expr *> &AllArgs,
-      VariadicCallType CallType = VariadicCallType::DoesNotApply,
-      bool AllowExplicit = false, bool IsListInitialization = false);
+  bool GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
+                              const FunctionProtoType *Proto,
+                              unsigned FirstParam, ArrayRef<Expr *> Args,
+                              SmallVectorImpl<Expr *> &AllArgs,
+                              VariadicCallType CallType = VariadicDoesNotApply,
+                              bool AllowExplicit = false,
+                              bool IsListInitialization = false);
 
   // DefaultVariadicArgumentPromotion - Like DefaultArgumentPromotion, but
   // will create a runtime trap if the resulting type is not a POD type.
@@ -7949,7 +7707,7 @@ public:
   // Check that the usual arithmetic conversions can be performed on this pair
   // of expressions that might be of enumeration type.
   void checkEnumArithmeticConversions(Expr *LHS, Expr *RHS, SourceLocation Loc,
-                                      ArithConvKind ACK);
+                                      Sema::ArithConvKind ACK);
 
   // UsualArithmeticConversions - performs the UsualUnaryConversions on it's
   // operands and then handles various conversions that are common to binary
@@ -7959,17 +7717,94 @@ public:
   QualType UsualArithmeticConversions(ExprResult &LHS, ExprResult &RHS,
                                       SourceLocation Loc, ArithConvKind ACK);
 
-  bool IsAssignConvertCompatible(AssignConvertType ConvTy) {
-    switch (ConvTy) {
-    default:
-      return false;
-    case AssignConvertType::Compatible:
-    case AssignConvertType::CompatiblePointerDiscardsQualifiers:
-    case AssignConvertType::CompatibleVoidPtrToNonVoidPtr:
-      return true;
-    }
-    llvm_unreachable("impossible");
-  }
+  /// AssignConvertType - All of the 'assignment' semantic checks return this
+  /// enum to indicate whether the assignment was allowed.  These checks are
+  /// done for simple assignments, as well as initialization, return from
+  /// function, argument passing, etc.  The query is phrased in terms of a
+  /// source and destination type.
+  enum AssignConvertType {
+    /// Compatible - the types are compatible according to the standard.
+    Compatible,
+
+    /// PointerToInt - The assignment converts a pointer to an int, which we
+    /// accept as an extension.
+    PointerToInt,
+
+    /// IntToPointer - The assignment converts an int to a pointer, which we
+    /// accept as an extension.
+    IntToPointer,
+
+    /// FunctionVoidPointer - The assignment is between a function pointer and
+    /// void*, which the standard doesn't allow, but we accept as an extension.
+    FunctionVoidPointer,
+
+    /// IncompatiblePointer - The assignment is between two pointers types that
+    /// are not compatible, but we accept them as an extension.
+    IncompatiblePointer,
+
+    /// IncompatibleFunctionPointer - The assignment is between two function
+    /// pointers types that are not compatible, but we accept them as an
+    /// extension.
+    IncompatibleFunctionPointer,
+
+    /// IncompatibleFunctionPointerStrict - The assignment is between two
+    /// function pointer types that are not identical, but are compatible,
+    /// unless compiled with -fsanitize=cfi, in which case the type mismatch
+    /// may trip an indirect call runtime check.
+    IncompatibleFunctionPointerStrict,
+
+    /// IncompatiblePointerSign - The assignment is between two pointers types
+    /// which point to integers which have a different sign, but are otherwise
+    /// identical. This is a subset of the above, but broken out because it's by
+    /// far the most common case of incompatible pointers.
+    IncompatiblePointerSign,
+
+    /// CompatiblePointerDiscardsQualifiers - The assignment discards
+    /// c/v/r qualifiers, which we accept as an extension.
+    CompatiblePointerDiscardsQualifiers,
+
+    /// IncompatiblePointerDiscardsQualifiers - The assignment
+    /// discards qualifiers that we don't permit to be discarded,
+    /// like address spaces.
+    IncompatiblePointerDiscardsQualifiers,
+
+    /// IncompatibleNestedPointerAddressSpaceMismatch - The assignment
+    /// changes address spaces in nested pointer types which is not allowed.
+    /// For instance, converting __private int ** to __generic int ** is
+    /// illegal even though __private could be converted to __generic.
+    IncompatibleNestedPointerAddressSpaceMismatch,
+
+    /// IncompatibleNestedPointerQualifiers - The assignment is between two
+    /// nested pointer types, and the qualifiers other than the first two
+    /// levels differ e.g. char ** -> const char **, but we accept them as an
+    /// extension.
+    IncompatibleNestedPointerQualifiers,
+
+    /// IncompatibleVectors - The assignment is between two vector types that
+    /// have the same size, which we accept as an extension.
+    IncompatibleVectors,
+
+    /// IntToBlockPointer - The assignment converts an int to a block
+    /// pointer. We disallow this.
+    IntToBlockPointer,
+
+    /// IncompatibleBlockPointer - The assignment is between two block
+    /// pointers types that are not compatible.
+    IncompatibleBlockPointer,
+
+    /// IncompatibleObjCQualifiedId - The assignment is between a qualified
+    /// id type and something else (that is incompatible with it). For example,
+    /// "id <XXX>" = "Foo *", where "Foo *" doesn't implement the XXX protocol.
+    IncompatibleObjCQualifiedId,
+
+    /// IncompatibleObjCWeakRef - Assigning a weak-unavailable object to an
+    /// object with __weak qualifier.
+    IncompatibleObjCWeakRef,
+
+    /// Incompatible - We reject this conversion outright, it is invalid to
+    /// represent it in the AST.
+    Incompatible
+  };
 
   /// DiagnoseAssignmentResult - Emit a diagnostic, if required, for the
   /// assignment conversion type specified by ConvTy.  This returns true if the
@@ -8469,14 +8304,28 @@ public:
   bool CheckAllocatedType(QualType AllocType, SourceLocation Loc,
                           SourceRange R);
 
+  /// The scope in which to find allocation functions.
+  enum AllocationFunctionScope {
+    /// Only look for allocation functions in the global scope.
+    AFS_Global,
+    /// Only look for allocation functions in the scope of the
+    /// allocated class.
+    AFS_Class,
+    /// Look for allocation functions in both the global scope
+    /// and in the scope of the allocated class.
+    AFS_Both
+  };
+
   /// Finds the overloads of operator new and delete that are appropriate
   /// for the allocation.
-  bool FindAllocationFunctions(
-      SourceLocation StartLoc, SourceRange Range,
-      AllocationFunctionScope NewScope, AllocationFunctionScope DeleteScope,
-      QualType AllocType, bool IsArray, ImplicitAllocationParameters &IAP,
-      MultiExprArg PlaceArgs, FunctionDecl *&OperatorNew,
-      FunctionDecl *&OperatorDelete, bool Diagnose = true);
+  bool FindAllocationFunctions(SourceLocation StartLoc, SourceRange Range,
+                               AllocationFunctionScope NewScope,
+                               AllocationFunctionScope DeleteScope,
+                               QualType AllocType, bool IsArray,
+                               bool &PassAlignment, MultiExprArg PlaceArgs,
+                               FunctionDecl *&OperatorNew,
+                               FunctionDecl *&OperatorDelete,
+                               bool Diagnose = true);
 
   /// DeclareGlobalNewDelete - Declare the global forms of operator new and
   /// delete. These are:
@@ -8507,13 +8356,15 @@ public:
 
   bool FindDeallocationFunction(SourceLocation StartLoc, CXXRecordDecl *RD,
                                 DeclarationName Name, FunctionDecl *&Operator,
-                                ImplicitDeallocationParameters,
-                                bool Diagnose = true);
+                                bool Diagnose = true, bool WantSize = false,
+                                bool WantAligned = false);
   FunctionDecl *FindUsualDeallocationFunction(SourceLocation StartLoc,
-                                              ImplicitDeallocationParameters,
+                                              bool CanProvideSize,
+                                              bool Overaligned,
                                               DeclarationName Name);
   FunctionDecl *FindDeallocationFunctionForDestructor(SourceLocation StartLoc,
                                                       CXXRecordDecl *RD,
+                                                      DeclarationName Name,
                                                       bool Diagnose = true);
 
   /// ActOnCXXDelete - Parsed a C++ 'delete' expression (C++ 5.3.5), as in:
@@ -8751,6 +8602,22 @@ public:
                : CorrectDelayedTyposInExpr(ER.get(), InitDecl,
                                            RecoverUncorrectedTypos, Filter);
   }
+
+  /// Describes the result of an "if-exists" condition check.
+  enum IfExistsResult {
+    /// The symbol exists.
+    IER_Exists,
+
+    /// The symbol does not exist.
+    IER_DoesNotExist,
+
+    /// The name is a dependent name, so the results will differ
+    /// from one instantiation to the next.
+    IER_Dependent,
+
+    /// An error occurred.
+    IER_Error
+  };
 
   IfExistsResult
   CheckMicrosoftIfExistsSymbol(Scope *S, CXXScopeSpec &SS,
@@ -9662,6 +9529,11 @@ public:
                           bool IncludeDependentBases = false,
                           bool LoadExternal = true);
 
+  enum CorrectTypoKind {
+    CTK_NonError,     // CorrectTypo used in a non error recovery situation.
+    CTK_ErrorRecovery // CorrectTypo used in normal error recovery.
+  };
+
   /// Try to "correct" a typo in the source code by finding
   /// visible declarations whose names are similar to the name that was
   /// present in the source code.
@@ -10051,14 +9923,28 @@ public:
   /// if Sema is already doing so, which would cause infinite recursions.
   bool IsBuildingRecoveryCallExpr;
 
+  enum OverloadKind {
+    /// This is a legitimate overload: the existing declarations are
+    /// functions or function templates with different signatures.
+    Ovl_Overload,
+
+    /// This is not an overload because the signature exactly matches
+    /// an existing declaration.
+    Ovl_Match,
+
+    /// This is not an overload because the lookup results contain a
+    /// non-function.
+    Ovl_NonFunction
+  };
+
   /// Determine whether the given New declaration is an overload of the
-  /// declarations in Old. This routine returns OverloadKind::Match or
-  /// OverloadKind::NonFunction if New and Old cannot be overloaded, e.g., if
-  /// New has the same signature as some function in Old (C++ 1.3.10) or if the
-  /// Old declarations aren't functions (or function templates) at all. When it
-  /// does return OverloadKind::Match or OverloadKind::NonFunction, MatchedDecl
-  /// will point to the decl that New cannot be overloaded with. This decl may
-  /// be a UsingShadowDecl on top of the underlying declaration.
+  /// declarations in Old. This routine returns Ovl_Match or Ovl_NonFunction if
+  /// New and Old cannot be overloaded, e.g., if New has the same signature as
+  /// some function in Old (C++ 1.3.10) or if the Old declarations aren't
+  /// functions (or function templates) at all. When it does return Ovl_Match or
+  /// Ovl_NonFunction, MatchedDecl will point to the decl that New cannot be
+  /// overloaded with. This decl may be a UsingShadowDecl on top of the
+  /// underlying declaration.
   ///
   /// Example: Given the following input:
   ///
@@ -10071,15 +9957,14 @@ public:
   ///
   /// When we process #2, Old contains only the FunctionDecl for #1. By
   /// comparing the parameter types, we see that #1 and #2 are overloaded (since
-  /// they have different signatures), so this routine returns
-  /// OverloadKind::Overload; MatchedDecl is unchanged.
+  /// they have different signatures), so this routine returns Ovl_Overload;
+  /// MatchedDecl is unchanged.
   ///
   /// When we process #3, Old is an overload set containing #1 and #2. We
   /// compare the signatures of #3 to #1 (they're overloaded, so we do nothing)
   /// and then #3 to #2. Since the signatures of #3 and #2 are identical (return
   /// types of functions are not part of the signature), IsOverload returns
-  /// OverloadKind::Match and MatchedDecl will be set to point to the
-  /// FunctionDecl for #2.
+  /// Ovl_Match and MatchedDecl will be set to point to the FunctionDecl for #2.
   ///
   /// 'NewIsUsingShadowDecl' indicates that 'New' is being introduced into a
   /// class by a using declaration. The rules for whether to hide shadow
@@ -10267,6 +10152,22 @@ public:
   /// conversion of the expression From to an Objective-C pointer type.
   /// Returns a valid but null ExprResult if no conversion sequence exists.
   ExprResult PerformContextuallyConvertToObjCPointer(Expr *From);
+
+  /// Contexts in which a converted constant expression is required.
+  enum CCEKind {
+    CCEK_CaseValue,     ///< Expression in a case label.
+    CCEK_Enumerator,    ///< Enumerator value with fixed underlying type.
+    CCEK_TemplateArg,   ///< Value of a non-type template parameter.
+    CCEK_TempArgStrict, ///< As above, but applies strict template checking
+                        ///< rules.
+    CCEK_ArrayBound,    ///< Array bound in array declarator or new-expression.
+    CCEK_ExplicitBool,  ///< Condition in an explicit(bool) specifier.
+    CCEK_Noexcept,      ///< Condition in a noexcept(bool) specifier.
+    CCEK_StaticAssertMessageSize, ///< Call to size() in a static assert
+                                  ///< message.
+    CCEK_StaticAssertMessageData, ///< Call to data() in a static assert
+                                  ///< message.
+  };
 
   ExprResult BuildConvertedConstantExpression(Expr *From, QualType T,
                                               CCEKind CCE,
@@ -15527,6 +15428,12 @@ void Sema::PragmaStack<Sema::AlignPackInfo>::Act(SourceLocation PragmaLocation,
                                                  PragmaMsStackAction Action,
                                                  llvm::StringRef StackSlotLabel,
                                                  AlignPackInfo Value);
+
+inline const StreamingDiagnostic &
+operator<<(const StreamingDiagnostic &DB, Sema::StringEvaluationContext Ctx) {
+  DB << llvm::to_underlying(Ctx);
+  return DB;
+}
 
 } // end namespace clang
 

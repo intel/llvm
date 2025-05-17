@@ -45,7 +45,8 @@ struct TestCompiler {
     Tr.setEnvironment(Triple::EnvironmentType::UnknownEnvironment);
     compiler.getTargetOpts().Triple = Tr.getTriple();
     compiler.setTarget(clang::TargetInfo::CreateTargetInfo(
-        compiler.getDiagnostics(), compiler.getTargetOpts()));
+        compiler.getDiagnostics(),
+        std::make_shared<clang::TargetOptions>(compiler.getTargetOpts())));
 
     const clang::TargetInfo &TInfo = compiler.getTarget();
     PtrSize = TInfo.getPointerWidth(clang::LangAS::Default) / 8;

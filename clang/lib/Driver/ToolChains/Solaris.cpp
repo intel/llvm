@@ -243,10 +243,13 @@ void solaris::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-latomic");
       addAsNeededOption(ToolChain, Args, CmdArgs, false);
     }
-
-    AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
+    addAsNeededOption(ToolChain, Args, CmdArgs, true);
+    CmdArgs.push_back("-lgcc_s");
+    addAsNeededOption(ToolChain, Args, CmdArgs, false);
     CmdArgs.push_back("-lc");
-
+    if (!Args.hasArg(options::OPT_shared)) {
+      CmdArgs.push_back("-lgcc");
+    }
     const SanitizerArgs &SA = ToolChain.getSanitizerArgs(Args);
     if (NeedsSanitizerDeps) {
       linkSanitizerRuntimeDeps(ToolChain, Args, CmdArgs);

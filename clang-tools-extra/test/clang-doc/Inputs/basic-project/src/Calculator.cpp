@@ -15,4 +15,3 @@ int Calculator::multiply(int a, int b) {
 double Calculator::divide(int a, int b) {
   return static_cast<double>(a) / b;
 }
-

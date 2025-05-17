@@ -86,8 +86,9 @@ export int aa = 43;
 
     Buf->release();
 
-    CompilerInstance Instance(std::move(Invocation));
+    CompilerInstance Instance;
     Instance.setDiagnostics(Diags.get());
+    Instance.setInvocation(Invocation);
 
     Instance.getFrontendOpts().OutputFile = BMIPath;
 
@@ -120,8 +121,9 @@ export int aa = 43;
     EXPECT_TRUE(Invocation);
     Invocation->getFrontendOpts().DisableFree = false;
 
-    CompilerInstance Clang(std::move(Invocation));
+    CompilerInstance Clang;
 
+    Clang.setInvocation(Invocation);
     Clang.setDiagnostics(Diags.get());
     FileManager *FM = Clang.createFileManager(CIOpts.VFS);
     Clang.createSourceManager(*FM);

@@ -73,9 +73,8 @@ void GlobalValue::copyAttributesFrom(const GlobalValue *Src) {
     removeSanitizerMetadata();
 }
 
-GlobalValue::GUID
-GlobalValue::getGUIDAssumingExternalLinkage(StringRef GlobalIdentifier) {
-  return MD5Hash(GlobalIdentifier);
+GlobalValue::GUID GlobalValue::getGUID(StringRef GlobalName) {
+  return MD5Hash(GlobalName);
 }
 
 void GlobalValue::removeFromParent() {

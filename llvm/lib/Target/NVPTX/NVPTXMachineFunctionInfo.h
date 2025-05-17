@@ -50,7 +50,8 @@ public:
   /// Check if the symbol has a mapping. Having a mapping means the handle is
   /// replaced with a reference
   bool checkImageHandleSymbol(StringRef Symbol) const {
-    return llvm::is_contained(ImageHandleList, Symbol);
+    return ImageHandleList.end() !=
+           std::find(ImageHandleList.begin(), ImageHandleList.end(), Symbol);
   }
 };
 }

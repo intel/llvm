@@ -1422,18 +1422,7 @@ bool DeclContext::Encloses(const DeclContext *DC) const {
     return getPrimaryContext()->Encloses(DC);
 
   for (; DC; DC = DC->getParent())
-    if (!isa<LinkageSpecDecl, ExportDecl>(DC) &&
-        DC->getPrimaryContext() == this)
-      return true;
-  return false;
-}
-
-bool DeclContext::LexicallyEncloses(const DeclContext *DC) const {
-  if (getPrimaryContext() != this)
-    return getPrimaryContext()->LexicallyEncloses(DC);
-
-  for (; DC; DC = DC->getLexicalParent())
-    if (!isa<LinkageSpecDecl, ExportDecl>(DC) &&
+    if (!isa<LinkageSpecDecl>(DC) && !isa<ExportDecl>(DC) &&
         DC->getPrimaryContext() == this)
       return true;
   return false;
@@ -1992,7 +1981,7 @@ void DeclContext::localUncachedLookup(DeclarationName Name,
   // the results.
   if (!hasExternalVisibleStorage() && !hasExternalLexicalStorage() && Name) {
     lookup_result LookupResults = lookup(Name);
-    llvm::append_range(Results, LookupResults);
+    Results.insert(Results.end(), LookupResults.begin(), LookupResults.end());
     if (!Results.empty())
       return;
   }
@@ -2149,7 +2138,8 @@ void DeclContext::makeDeclVisibleInContextImpl(NamedDecl *D, bool Internal) {
   // have already checked the external source.
   if (!Internal)
     if (ExternalASTSource *Source = getParentASTContext().getExternalSource())
-      if (hasExternalVisibleStorage() && !Map->contains(D->getDeclName()))
+      if (hasExternalVisibleStorage() &&
+          Map->find(D->getDeclName()) == Map->end())
         Source->FindExternalVisibleDeclsByName(this, D->getDeclName(),
                                                D->getDeclContext());
 

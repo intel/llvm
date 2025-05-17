@@ -97,8 +97,10 @@ protected:
     if (Start >= End)
       return Ranges.end();
 
-    auto It = llvm::partition_point(
-        Ranges, [=](const T &R) { return AddressRange(R).start() <= Start; });
+    auto It =
+        std::partition_point(Ranges.begin(), Ranges.end(), [=](const T &R) {
+          return AddressRange(R).start() <= Start;
+        });
 
     if (It == Ranges.begin())
       return Ranges.end();
@@ -167,10 +169,10 @@ public:
       return;
 
     // Search for range which is less than or equal incoming Range.
-    auto It =
-        llvm::partition_point(Ranges, [=](const AddressRangeValuePair &R) {
-          return R.Range.start() <= Range.start();
-        });
+    auto It = std::partition_point(Ranges.begin(), Ranges.end(),
+                                   [=](const AddressRangeValuePair &R) {
+                                     return R.Range.start() <= Range.start();
+                                   });
 
     if (It != Ranges.begin())
       It--;

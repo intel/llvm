@@ -31,12 +31,8 @@ public:
 
   std::vector<std::string> GetListeningConnectionURI() const override;
 
-  static llvm::Expected<std::unique_ptr<DomainSocket>>
-  FromBoundNativeSocket(NativeSocket sockfd, bool should_close);
-
 protected:
   DomainSocket(SocketProtocol protocol);
-  DomainSocket(SocketProtocol protocol, NativeSocket socket, bool should_close);
 
   virtual size_t GetNameOffset() const;
   virtual void DeleteSocketFile(llvm::StringRef name);

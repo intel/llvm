@@ -12,3 +12,4 @@
 #include <clc/integer/gentype.inc>
 
 #undef __CLC_FUNCTION
+#undef __CLC_BODY

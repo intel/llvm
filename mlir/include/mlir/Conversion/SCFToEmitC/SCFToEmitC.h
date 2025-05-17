@@ -13,7 +13,6 @@
 #include <memory>
 
 namespace mlir {
-class DialectRegistry;
 class Pass;
 class RewritePatternSet;
 
@@ -23,8 +22,6 @@ class RewritePatternSet;
 /// Collect a set of patterns to convert SCF operations to the EmitC dialect.
 void populateSCFToEmitCConversionPatterns(RewritePatternSet &patterns,
                                           TypeConverter &typeConverter);
-
-void registerConvertSCFToEmitCInterface(DialectRegistry &registry);
 } // namespace mlir
 
 #endif // MLIR_CONVERSION_SCFTOEMITC_SCFTOEMITC_H

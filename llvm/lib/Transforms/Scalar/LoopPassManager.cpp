@@ -308,8 +308,9 @@ PreservedAnalyses FunctionToLoopPassAdaptor::run(Function &F,
       PI.runAfterPass<Loop>(*Pass, *L, PassPA);
 
     if (LAR.MSSA && !PassPA.getChecker<MemorySSAAnalysis>().preserved())
-      reportFatalUsageError("Loop pass manager using MemorySSA contains a pass "
-                            "that does not preserve MemorySSA");
+      report_fatal_error("Loop pass manager using MemorySSA contains a pass "
+                         "that does not preserve MemorySSA",
+                         /*gen_crash_diag*/ false);
 
 #ifndef NDEBUG
     // LoopAnalysisResults should always be valid.

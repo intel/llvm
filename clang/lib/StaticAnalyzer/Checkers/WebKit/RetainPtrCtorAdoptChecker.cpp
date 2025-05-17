@@ -12,7 +12,6 @@
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
-#include "clang/Analysis/DomainSpecific/CocoaConventions.h"
 #include "clang/Analysis/RetainSummaryManager.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
@@ -32,10 +31,9 @@ class RetainPtrCtorAdoptChecker
     : public Checker<check::ASTDecl<TranslationUnitDecl>> {
 private:
   BugType Bug;
-  mutable BugReporter *BR = nullptr;
+  mutable BugReporter *BR;
   mutable std::unique_ptr<RetainSummaryManager> Summaries;
   mutable llvm::DenseSet<const ValueDecl *> CreateOrCopyOutArguments;
-  mutable llvm::DenseSet<const Expr *> CreateOrCopyFnCall;
   mutable RetainTypeChecker RTC;
 
 public:
@@ -72,7 +70,7 @@ public:
       }
 
       bool TraverseClassTemplateDecl(ClassTemplateDecl *CTD) {
-        if (isRetainPtr(safeGetName(CTD)))
+        if (safeGetName(CTD) == "RetainPtr")
           return true; // Skip the contents of RetainPtr.
         return Base::TraverseClassTemplateDecl(CTD);
       }
@@ -91,26 +89,6 @@ public:
         Checker->visitConstructExpr(CE, DeclWithIssue);
         return true;
       }
-
-      bool VisitObjCMessageExpr(const ObjCMessageExpr *ObjCMsgExpr) {
-        Checker->visitObjCMessageExpr(ObjCMsgExpr, DeclWithIssue);
-        return true;
-      }
-
-      bool VisitReturnStmt(const ReturnStmt *RS) {
-        Checker->visitReturnStmt(RS, DeclWithIssue);
-        return true;
-      }
-
-      bool VisitVarDecl(const VarDecl *VD) {
-        Checker->visitVarDecl(VD);
-        return true;
-      }
-
-      bool VisitBinaryOperator(const BinaryOperator *BO) {
-        Checker->visitBinaryOperator(BO);
-        return true;
-      }
     };
 
     LocalVisitor visitor(this);
@@ -122,120 +100,53 @@ public:
   }
 
   bool isAdoptFn(const Decl *FnDecl) const {
-    return isAdoptFnName(safeGetName(FnDecl));
+    auto Name = safeGetName(FnDecl);
+    return Name == "adoptNS" || Name == "adoptCF" || Name == "adoptNSArc" ||
+           Name == "adoptCFArc";
   }
 
-  bool isAdoptFnName(const std::string &Name) const {
-    return isAdoptNS(Name) || Name == "adoptCF" || Name == "adoptCFArc";
-  }
-
-  bool isAdoptNS(const std::string &Name) const {
+  bool isAdoptNS(const Decl *FnDecl) const {
+    auto Name = safeGetName(FnDecl);
     return Name == "adoptNS" || Name == "adoptNSArc";
   }
 
   void visitCallExpr(const CallExpr *CE, const Decl *DeclWithIssue) const {
-    assert(BR && "expected nonnull BugReporter");
     if (BR->getSourceManager().isInSystemHeader(CE->getExprLoc()))
       return;
 
-    std::string FnName;
-    if (auto *F = CE->getDirectCallee()) {
-      FnName = safeGetName(F);
-      if (isAdoptFnName(FnName))
-        checkAdoptCall(CE, FnName, DeclWithIssue);
-      else {
-        checkCreateOrCopyFunction(CE, DeclWithIssue);
-        checkBridgingRelease(CE, F, DeclWithIssue);
-      }
+    auto *F = CE->getDirectCallee();
+    if (!F)
+      return;
+
+    if (!isAdoptFn(F) || !CE->getNumArgs()) {
+      rememberOutArguments(CE, F);
       return;
     }
-
-    auto *CalleeExpr = CE->getCallee();
-    if (!CalleeExpr)
-      return;
-    CalleeExpr = CalleeExpr->IgnoreParenCasts();
-    if (auto *UnresolvedExpr = dyn_cast<UnresolvedLookupExpr>(CalleeExpr)) {
-      auto Name = UnresolvedExpr->getName();
-      if (!Name.isIdentifier())
-        return;
-      FnName = Name.getAsString();
-      if (isAdoptFnName(FnName))
-        checkAdoptCall(CE, FnName, DeclWithIssue);
-    }
-    checkCreateOrCopyFunction(CE, DeclWithIssue);
-  }
-
-  void checkAdoptCall(const CallExpr *CE, const std::string &FnName,
-                      const Decl *DeclWithIssue) const {
-    if (!CE->getNumArgs())
-      return;
 
     auto *Arg = CE->getArg(0)->IgnoreParenCasts();
     auto Result = isOwned(Arg);
+    auto Name = safeGetName(F);
     if (Result == IsOwnedResult::Unknown)
       Result = IsOwnedResult::NotOwned;
-
-    const Expr *Inner = nullptr;
-    if (isAllocInit(Arg, &Inner) || isCreateOrCopy(Arg)) {
-      if (Inner)
-        CreateOrCopyFnCall.insert(Inner);
-      CreateOrCopyFnCall.insert(Arg); // Avoid double reporting.
-      return;
+    if (Result == IsOwnedResult::NotOwned && !isAllocInit(Arg) &&
+        !isCreateOrCopy(Arg)) {
+      if (auto *DRE = dyn_cast<DeclRefExpr>(Arg)) {
+        if (CreateOrCopyOutArguments.contains(DRE->getDecl()))
+          return;
+      }
+      if (RTC.isARCEnabled() && isAdoptNS(F))
+        reportUseAfterFree(Name, CE, DeclWithIssue, "when ARC is disabled");
+      else
+        reportUseAfterFree(Name, CE, DeclWithIssue);
     }
-    if (Result == IsOwnedResult::Owned || Result == IsOwnedResult::Skip) {
-      CreateOrCopyFnCall.insert(Arg);
-      return;
-    }
-
-    if (auto *DRE = dyn_cast<DeclRefExpr>(Arg)) {
-      if (CreateOrCopyOutArguments.contains(DRE->getDecl()))
-        return;
-    }
-    if (RTC.isARCEnabled() && isAdoptFnName(FnName))
-      reportUseAfterFree(FnName, CE, DeclWithIssue, "when ARC is disabled");
-    else
-      reportUseAfterFree(FnName, CE, DeclWithIssue);
   }
 
-  void visitObjCMessageExpr(const ObjCMessageExpr *ObjCMsgExpr,
-                            const Decl *DeclWithIssue) const {
-    if (BR->getSourceManager().isInSystemHeader(ObjCMsgExpr->getExprLoc()))
+  void rememberOutArguments(const CallExpr *CE,
+                            const FunctionDecl *Callee) const {
+    if (!isCreateOrCopyFunction(Callee))
       return;
 
-    auto Selector = ObjCMsgExpr->getSelector();
-    if (Selector.getAsString() == "autorelease") {
-      auto *Receiver = ObjCMsgExpr->getInstanceReceiver()->IgnoreParenCasts();
-      if (!Receiver)
-        return;
-      ObjCMsgExpr = dyn_cast<ObjCMessageExpr>(Receiver);
-      if (!ObjCMsgExpr)
-        return;
-      const Expr *Inner = nullptr;
-      if (!isAllocInit(ObjCMsgExpr, &Inner))
-        return;
-      CreateOrCopyFnCall.insert(ObjCMsgExpr);
-      if (Inner)
-        CreateOrCopyFnCall.insert(Inner);
-      return;
-    }
-
-    const Expr *Inner = nullptr;
-    if (!isAllocInit(ObjCMsgExpr, &Inner))
-      return;
-    if (RTC.isARCEnabled())
-      return; // ARC never leaks.
-    if (CreateOrCopyFnCall.contains(ObjCMsgExpr))
-      return;
-    if (Inner)
-      CreateOrCopyFnCall.insert(Inner); // Avoid double reporting.
-    reportLeak(ObjCMsgExpr, DeclWithIssue);
-  }
-
-  void checkCreateOrCopyFunction(const CallExpr *CE,
-                                 const Decl *DeclWithIssue) const {
     unsigned ArgCount = CE->getNumArgs();
-    auto *CalleeDecl = CE->getCalleeDecl();
-    auto *FnDecl = CalleeDecl ? CalleeDecl->getAsFunction() : nullptr;
     for (unsigned ArgIndex = 0; ArgIndex < ArgCount; ++ArgIndex) {
       auto *Arg = CE->getArg(ArgIndex)->IgnoreParenCasts();
       auto *Unary = dyn_cast<UnaryOperator>(Arg);
@@ -252,51 +163,12 @@ public:
       auto *Decl = DRE->getDecl();
       if (!Decl)
         continue;
-      if (FnDecl && ArgIndex < FnDecl->getNumParams()) {
-        // Manually check attributes on argumenet since RetainSummaryManager
-        // basically ignores CF_RETRUNS_RETAINED on out arguments.
-        auto *ParamDecl = FnDecl->getParamDecl(ArgIndex);
-        if (ParamDecl->hasAttr<CFReturnsRetainedAttr>())
-          CreateOrCopyOutArguments.insert(Decl);
-      } else {
-        // No callee or a variadic argument.
-        // Conservatively assume it's an out argument.
-        if (RTC.isUnretained(Decl->getType()))
-          CreateOrCopyOutArguments.insert(Decl);
-      }
+      CreateOrCopyOutArguments.insert(Decl);
     }
-    auto Summary = Summaries->getSummary(AnyCall(CE));
-    switch (Summary->getRetEffect().getKind()) {
-    case RetEffect::OwnedSymbol:
-    case RetEffect::OwnedWhenTrackedReceiver:
-      if (!CreateOrCopyFnCall.contains(CE))
-        reportLeak(CE, DeclWithIssue);
-      break;
-    default:
-      break;
-    }
-  }
-
-  void checkBridgingRelease(const CallExpr *CE, const FunctionDecl *Callee,
-                            const Decl *DeclWithIssue) const {
-    if (safeGetName(Callee) != "CFBridgingRelease" || CE->getNumArgs() != 1)
-      return;
-
-    auto *Arg = CE->getArg(0)->IgnoreParenCasts();
-    auto *InnerCE = dyn_cast<CallExpr>(Arg);
-    if (!InnerCE)
-      return;
-
-    auto *InnerF = InnerCE->getDirectCallee();
-    if (!InnerF || !isCreateOrCopyFunction(InnerF))
-      return;
-
-    CreateOrCopyFnCall.insert(InnerCE);
   }
 
   void visitConstructExpr(const CXXConstructExpr *CE,
                           const Decl *DeclWithIssue) const {
-    assert(BR && "expected nonnull BugReporter");
     if (BR->getSourceManager().isInSystemHeader(CE->getExprLoc()))
       return;
 
@@ -308,7 +180,7 @@ public:
     if (!Cls)
       return;
 
-    if (!isRetainPtr(safeGetName(Cls)) || !CE->getNumArgs())
+    if (safeGetName(Cls) != "RetainPtr" || !CE->getNumArgs())
       return;
 
     // Ignore RetainPtr construction inside adoptNS, adoptCF, and retainPtr.
@@ -318,20 +190,6 @@ public:
     std::string Name = "RetainPtr constructor";
     auto *Arg = CE->getArg(0)->IgnoreParenCasts();
     auto Result = isOwned(Arg);
-
-    if (isCreateOrCopy(Arg))
-      CreateOrCopyFnCall.insert(Arg); // Avoid double reporting.
-
-    const Expr *Inner = nullptr;
-    if (isAllocInit(Arg, &Inner)) {
-      CreateOrCopyFnCall.insert(Arg);
-      if (Inner)
-        CreateOrCopyFnCall.insert(Inner);
-    }
-
-    if (Result == IsOwnedResult::Skip)
-      return;
-
     if (Result == IsOwnedResult::Unknown)
       Result = IsOwnedResult::NotOwned;
     if (Result == IsOwnedResult::Owned)
@@ -342,96 +200,8 @@ public:
       reportLeak(Name, CE, DeclWithIssue);
   }
 
-  void visitVarDecl(const VarDecl *VD) const {
-    auto *Init = VD->getInit();
-    if (!Init || !RTC.isARCEnabled())
-      return;
-    Init = Init->IgnoreParenCasts();
-    const Expr *Inner = nullptr;
-    if (isAllocInit(Init, &Inner)) {
-      CreateOrCopyFnCall.insert(Init);
-      if (Inner)
-        CreateOrCopyFnCall.insert(Inner);
-    }
-  }
-
-  void visitBinaryOperator(const BinaryOperator *BO) const {
-    if (!BO->isAssignmentOp())
-      return;
-    if (!isa<ObjCIvarRefExpr>(BO->getLHS()))
-      return;
-    auto *RHS = BO->getRHS()->IgnoreParenCasts();
-    const Expr *Inner = nullptr;
-    if (isAllocInit(RHS, &Inner)) {
-      CreateOrCopyFnCall.insert(RHS);
-      if (Inner)
-        CreateOrCopyFnCall.insert(Inner);
-    }
-  }
-
-  void visitReturnStmt(const ReturnStmt *RS, const Decl *DeclWithIssue) const {
-    if (!DeclWithIssue)
-      return;
-    auto *RetValue = RS->getRetValue();
-    if (!RetValue)
-      return;
-    RetValue = RetValue->IgnoreParenCasts();
-    std::optional<bool> retainsRet;
-    if (auto *FnDecl = dyn_cast<FunctionDecl>(DeclWithIssue))
-      retainsRet = retainsReturnValue(FnDecl);
-    else if (auto *MethodDecl = dyn_cast<ObjCMethodDecl>(DeclWithIssue))
-      retainsRet = retainsReturnValue(MethodDecl);
-    else
-      return;
-    if (!retainsRet || !*retainsRet) {
-      // Under ARC, returning [[X alloc] init] doesn't leak X.
-      if (RTC.isUnretained(RetValue->getType()))
-        return;
-    }
-    if (auto *CE = dyn_cast<CallExpr>(RetValue)) {
-      auto *Callee = CE->getDirectCallee();
-      if (!Callee || !isCreateOrCopyFunction(Callee))
-        return;
-      CreateOrCopyFnCall.insert(CE);
-      return;
-    }
-    const Expr *Inner = nullptr;
-    if (isAllocInit(RetValue, &Inner)) {
-      CreateOrCopyFnCall.insert(RetValue);
-      if (Inner)
-        CreateOrCopyFnCall.insert(Inner);
-    }
-  }
-
-  template <typename CallableType>
-  std::optional<bool> retainsReturnValue(const CallableType *FnDecl) const {
-    auto Summary = Summaries->getSummary(AnyCall(FnDecl));
-    auto RetEffect = Summary->getRetEffect();
-    switch (RetEffect.getKind()) {
-    case RetEffect::NoRet:
-      return std::nullopt;
-    case RetEffect::OwnedSymbol:
-      return true;
-    case RetEffect::NotOwnedSymbol:
-      return false;
-    case RetEffect::OwnedWhenTrackedReceiver:
-      return std::nullopt;
-    case RetEffect::NoRetHard:
-      return std::nullopt;
-    }
-    return std::nullopt;
-  }
-
-  bool isAllocInit(const Expr *E, const Expr **InnerExpr = nullptr) const {
+  bool isAllocInit(const Expr *E) const {
     auto *ObjCMsgExpr = dyn_cast<ObjCMessageExpr>(E);
-    if (auto *POE = dyn_cast<PseudoObjectExpr>(E)) {
-      if (unsigned ExprCount = POE->getNumSemanticExprs()) {
-        auto *Expr = POE->getSemanticExpr(ExprCount - 1)->IgnoreParenCasts();
-        ObjCMsgExpr = dyn_cast<ObjCMessageExpr>(Expr);
-        if (InnerExpr)
-          *InnerExpr = ObjCMsgExpr;
-      }
-    }
     if (!ObjCMsgExpr)
       return false;
     auto Selector = ObjCMsgExpr->getSelector();
@@ -439,28 +209,20 @@ public:
     if (NameForFirstSlot == "alloc" || NameForFirstSlot.starts_with("copy") ||
         NameForFirstSlot.starts_with("mutableCopy"))
       return true;
-    if (!NameForFirstSlot.starts_with("init") &&
-        !NameForFirstSlot.starts_with("_init"))
+    if (!NameForFirstSlot.starts_with("init"))
       return false;
     if (!ObjCMsgExpr->isInstanceMessage())
       return false;
-    auto *Receiver = ObjCMsgExpr->getInstanceReceiver();
+    auto *Receiver = ObjCMsgExpr->getInstanceReceiver()->IgnoreParenCasts();
     if (!Receiver)
       return false;
-    Receiver = Receiver->IgnoreParenCasts();
-    if (auto *Inner = dyn_cast<ObjCMessageExpr>(Receiver)) {
-      if (InnerExpr)
-        *InnerExpr = Inner;
-      auto InnerSelector = Inner->getSelector();
+    if (auto *InnerObjCMsgExpr = dyn_cast<ObjCMessageExpr>(Receiver)) {
+      auto InnerSelector = InnerObjCMsgExpr->getSelector();
       return InnerSelector.getNameForSlot(0) == "alloc";
     } else if (auto *CE = dyn_cast<CallExpr>(Receiver)) {
-      if (InnerExpr)
-        *InnerExpr = CE;
       if (auto *Callee = CE->getDirectCallee()) {
-        if (Callee->getDeclName().isIdentifier()) {
-          auto CalleeName = Callee->getName();
-          return CalleeName.starts_with("alloc");
-        }
+        auto CalleeName = Callee->getName();
+        return CalleeName.starts_with("alloc");
       }
     }
     return false;
@@ -485,12 +247,6 @@ public:
   enum class IsOwnedResult { Unknown, Skip, Owned, NotOwned };
   IsOwnedResult isOwned(const Expr *E) const {
     while (1) {
-      if (auto *POE = dyn_cast<PseudoObjectExpr>(E)) {
-        if (unsigned SemanticExprCount = POE->getNumSemanticExprs()) {
-          E = POE->getSemanticExpr(SemanticExprCount - 1);
-          continue;
-        }
-      }
       if (isa<CXXNullPtrLiteralExpr>(E))
         return IsOwnedResult::NotOwned;
       if (auto *DRE = dyn_cast<DeclRefExpr>(E)) {
@@ -534,12 +290,12 @@ public:
           if (auto *CD = dyn_cast<CXXConversionDecl>(MD)) {
             auto QT = CD->getConversionType().getCanonicalType();
             auto *ResultType = QT.getTypePtrOrNull();
-            if (isRetainPtr(safeGetName(Cls)) && ResultType &&
+            if (safeGetName(Cls) == "RetainPtr" && ResultType &&
                 (ResultType->isPointerType() || ResultType->isReferenceType() ||
                  ResultType->isObjCObjectPointerType()))
               return IsOwnedResult::NotOwned;
           }
-          if (safeGetName(MD) == "leakRef" && isRetainPtr(safeGetName(Cls)))
+          if (safeGetName(MD) == "leakRef" && safeGetName(Cls) == "RetainPtr")
             return IsOwnedResult::Owned;
         }
       }
@@ -547,26 +303,13 @@ public:
         if (auto *Callee = CE->getDirectCallee()) {
           if (isAdoptFn(Callee))
             return IsOwnedResult::NotOwned;
-          auto Name = safeGetName(Callee);
-          if (Name == "__builtin___CFStringMakeConstantString")
+          if (safeGetName(Callee) == "__builtin___CFStringMakeConstantString")
             return IsOwnedResult::NotOwned;
-          if ((Name == "checked_cf_cast" || Name == "dynamic_cf_cast" ||
-               Name == "checked_objc_cast" || Name == "dynamic_objc_cast") &&
-              CE->getNumArgs() == 1) {
-            E = CE->getArg(0)->IgnoreParenCasts();
-            continue;
-          }
           auto RetType = Callee->getReturnType();
           if (isRetainPtrType(RetType))
             return IsOwnedResult::NotOwned;
-          if (isCreateOrCopyFunction(Callee)) {
-            CreateOrCopyFnCall.insert(CE);
-            return IsOwnedResult::Owned;
-          }
         } else if (auto *CalleeExpr = CE->getCallee()) {
           if (isa<CXXDependentScopeMemberExpr>(CalleeExpr))
-            return IsOwnedResult::Skip; // Wait for instantiation.
-          if (isa<UnresolvedLookupExpr>(CalleeExpr))
             return IsOwnedResult::Skip; // Wait for instantiation.
         }
         auto Summary = Summaries->getSummary(AnyCall(CE));
@@ -589,7 +332,7 @@ public:
     return IsOwnedResult::Unknown;
   }
 
-  void reportUseAfterFree(const std::string &Name, const CallExpr *CE,
+  void reportUseAfterFree(std::string &Name, const CallExpr *CE,
                           const Decl *DeclWithIssue,
                           const char *condition = nullptr) const {
     SmallString<100> Buf;
@@ -601,7 +344,6 @@ public:
       Os << " " << condition;
     Os << ".";
 
-    assert(BR && "expected nonnull BugReporter");
     PathDiagnosticLocation BSLoc(CE->getSourceRange().getBegin(),
                                  BR->getSourceManager());
     auto Report = std::make_unique<BasicBugReport>(Bug, Os.str(), BSLoc);
@@ -622,26 +364,10 @@ public:
       Os << " " << condition;
     Os << ".";
 
-    assert(BR && "expected nonnull BugReporter");
     PathDiagnosticLocation BSLoc(CE->getSourceRange().getBegin(),
                                  BR->getSourceManager());
     auto Report = std::make_unique<BasicBugReport>(Bug, Os.str(), BSLoc);
     Report->addRange(CE->getSourceRange());
-    Report->setDeclWithIssue(DeclWithIssue);
-    BR->emitReport(std::move(Report));
-  }
-
-  template <typename ExprType>
-  void reportLeak(const ExprType *E, const Decl *DeclWithIssue) const {
-    SmallString<100> Buf;
-    llvm::raw_svector_ostream Os(Buf);
-
-    Os << "The return value is +1 and results in a memory leak.";
-
-    PathDiagnosticLocation BSLoc(E->getSourceRange().getBegin(),
-                                 BR->getSourceManager());
-    auto Report = std::make_unique<BasicBugReport>(Bug, Os.str(), BSLoc);
-    Report->addRange(E->getSourceRange());
     Report->setDeclWithIssue(DeclWithIssue);
     BR->emitReport(std::move(Report));
   }

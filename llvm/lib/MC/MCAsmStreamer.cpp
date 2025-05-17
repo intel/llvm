@@ -74,11 +74,10 @@ class MCAsmStreamer final : public MCStreamer {
 
 public:
   MCAsmStreamer(MCContext &Context, std::unique_ptr<formatted_raw_ostream> os,
-                std::unique_ptr<MCInstPrinter> printer,
-                std::unique_ptr<MCCodeEmitter> emitter,
+                MCInstPrinter *printer, std::unique_ptr<MCCodeEmitter> emitter,
                 std::unique_ptr<MCAsmBackend> asmbackend)
       : MCStreamer(Context), OSOwner(std::move(os)), OS(*OSOwner),
-        MAI(Context.getAsmInfo()), InstPrinter(std::move(printer)),
+        MAI(Context.getAsmInfo()), InstPrinter(printer),
         Assembler(std::make_unique<MCAssembler>(
             Context, std::move(asmbackend), std::move(emitter),
             (asmbackend) ? asmbackend->createObjectWriter(NullStream)
@@ -2338,7 +2337,7 @@ void MCAsmStreamer::AddEncodingComment(const MCInst &Inst,
 
   for (unsigned i = 0, e = Fixups.size(); i != e; ++i) {
     MCFixup &F = Fixups[i];
-    MCFixupKindInfo Info =
+    const MCFixupKindInfo &Info =
         getAssembler().getBackend().getFixupKindInfo(F.getKind());
     for (unsigned j = 0; j != Info.TargetSize; ++j) {
       unsigned Index = F.getOffset() * 8 + Info.TargetOffset + j;
@@ -2399,16 +2398,12 @@ void MCAsmStreamer::AddEncodingComment(const MCInst &Inst,
 
   for (unsigned i = 0, e = Fixups.size(); i != e; ++i) {
     MCFixup &F = Fixups[i];
+    const MCFixupKindInfo &Info =
+        getAssembler().getBackend().getFixupKindInfo(F.getKind());
     OS << "  fixup " << char('A' + i) << " - "
        << "offset: " << F.getOffset() << ", value: ";
     F.getValue()->print(OS, MAI);
-    auto Kind = F.getKind();
-    if (mc::isRelocation(Kind))
-      OS << ", relocation type: " << Kind;
-    else
-      OS << ", kind: "
-         << getAssembler().getBackend().getFixupKindInfo(Kind).Name;
-    OS << '\n';
+    OS << ", kind: " << Info.Name << "\n";
   }
 }
 
@@ -2654,9 +2649,9 @@ void MCAsmStreamer::emitDwarfAdvanceLineAddr(int64_t LineDelta,
 
 MCStreamer *llvm::createAsmStreamer(MCContext &Context,
                                     std::unique_ptr<formatted_raw_ostream> OS,
-                                    std::unique_ptr<MCInstPrinter> IP,
-                                    std::unique_ptr<MCCodeEmitter> CE,
-                                    std::unique_ptr<MCAsmBackend> MAB) {
-  return new MCAsmStreamer(Context, std::move(OS), std::move(IP), std::move(CE),
+                                    MCInstPrinter *IP,
+                                    std::unique_ptr<MCCodeEmitter> &&CE,
+                                    std::unique_ptr<MCAsmBackend> &&MAB) {
+  return new MCAsmStreamer(Context, std::move(OS), IP, std::move(CE),
                            std::move(MAB));
 }

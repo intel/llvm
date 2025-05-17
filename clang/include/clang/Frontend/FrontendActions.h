@@ -156,7 +156,6 @@ private:
 /// files) for C++20 Named Modules.
 class GenerateModuleInterfaceAction : public GenerateModuleAction {
 protected:
-  bool PrepareToExecuteAction(CompilerInstance &CI) override;
   bool BeginSourceFileAction(CompilerInstance &CI) override;
 
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,

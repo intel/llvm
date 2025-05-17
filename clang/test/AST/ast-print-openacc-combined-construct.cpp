@@ -37,40 +37,40 @@ void foo() {
   bool SomeB;
   struct SomeStruct{} SomeStructImpl;
 
-//CHECK: #pragma acc parallel loop dtype(default)
+//CHECK: #pragma acc parallel loop dtype(SomeB)
 // CHECK-NEXT: for (int i = 0; i < 5; ++i)
 // CHECK-NEXT: ;
-#pragma acc parallel loop dtype(default)
+#pragma acc parallel loop dtype(SomeB)
   for(int i = 0;i<5;++i);
 
-//CHECK: #pragma acc serial loop device_type(radeon, host)
+//CHECK: #pragma acc serial loop device_type(SomeStruct)
 // CHECK-NEXT: for (int i = 0; i < 5; ++i)
 // CHECK-NEXT: ;
-#pragma acc serial loop device_type(radeon, host)
+#pragma acc serial loop device_type(SomeStruct)
   for(int i = 0;i<5;++i);
 
-//CHECK: #pragma acc kernels loop device_type(nvidia)
+//CHECK: #pragma acc kernels loop device_type(int)
 // CHECK-NEXT: for (int i = 0; i < 5; ++i)
 // CHECK-NEXT: ;
-#pragma acc kernels loop device_type(nvidia)
+#pragma acc kernels loop device_type(int)
   for(int i = 0;i<5;++i);
 
-//CHECK: #pragma acc parallel loop dtype(multicore)
+//CHECK: #pragma acc parallel loop dtype(bool)
 // CHECK-NEXT: for (int i = 0; i < 5; ++i)
 // CHECK-NEXT: ;
-#pragma acc parallel loop dtype(multicore)
+#pragma acc parallel loop dtype(bool)
   for(int i = 0;i<5;++i);
 
-//CHECK: #pragma acc serial loop device_type(default)
+//CHECK: #pragma acc serial loop device_type(SomeStructImpl)
 // CHECK-NEXT: for (int i = 0; i < 5; ++i)
 // CHECK-NEXT: ;
-#pragma acc serial loop device_type (default)
+#pragma acc serial loop device_type (SomeStructImpl)
   for(int i = 0;i<5;++i);
 
-// CHECK: #pragma acc kernels loop dtype(host)
+// CHECK: #pragma acc kernels loop dtype(AnotherIdent)
 // CHECK-NEXT: for (int i = 0; i < 5; ++i)
 // CHECK-NEXT: ;
-#pragma acc kernels loop dtype(host)
+#pragma acc kernels loop dtype(AnotherIdent)
   for(int i = 0;i<5;++i);
 
   int i;

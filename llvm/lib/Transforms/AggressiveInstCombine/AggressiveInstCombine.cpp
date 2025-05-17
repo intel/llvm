@@ -1133,7 +1133,6 @@ static bool foldMemChr(CallInst *Call, DomTreeUpdater *DTU,
   BasicBlock *BB = Call->getParent();
   BasicBlock *BBNext = SplitBlock(BB, Call, DTU);
   IRBuilder<> IRB(BB);
-  IRB.SetCurrentDebugLocation(Call->getDebugLoc());
   IntegerType *ByteTy = IRB.getInt8Ty();
   BB->getTerminator()->eraseFromParent();
   SwitchInst *SI = IRB.CreateSwitch(

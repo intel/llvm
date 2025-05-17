@@ -22,6 +22,8 @@
 #include <string>
 #include <utility>
 
+using ::testing::StartsWith;
+
 namespace llvm {
 
 extern "C" LLVM_EXTERNAL_VISIBILITY bool

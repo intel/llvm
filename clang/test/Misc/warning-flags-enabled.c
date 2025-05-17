@@ -26,15 +26,13 @@
 // CHECK-NO-LEVELS-NOT: {{^F }}
 // CHECK-NO-LEVELS: warn_objc_root_class_missing [-Wobjc-root-class]
 
-// Test if EnumConversion is a subgroup of -Wconversion. Because no diagnostics
-// are grouped directly under -Wenum-conversion, we check for
-// -Wimplicit-enum-enum-cast instead (which is itself under -Wenum-conversion).
+// Test if EnumConversion is a subgroup of -Wconversion.
 // RUN: diagtool show-enabled --no-levels -Wno-conversion -Wenum-conversion %s | FileCheck --check-prefix CHECK-ENUM-CONVERSION %s
 // RUN: diagtool show-enabled --no-levels %s | FileCheck --check-prefix CHECK-ENUM-CONVERSION %s
 // RUN: diagtool show-enabled --no-levels -Wno-conversion %s | FileCheck --check-prefix CHECK-NO-ENUM-CONVERSION %s
 //
-// CHECK-ENUM-CONVERSION: -Wimplicit-enum-enum-cast
-// CHECK-NO-ENUM-CONVERSION-NOT: -Wimplicit-enum-enum-cast
+// CHECK-ENUM-CONVERSION: -Wenum-conversion
+// CHECK-NO-ENUM-CONVERSION-NOT: -Wenum-conversion
 
 // Test if -Wshift-op-parentheses is a subgroup of -Wparentheses
 // RUN: diagtool show-enabled --no-levels -Wno-parentheses -Wshift-op-parentheses %s | FileCheck --check-prefix CHECK-SHIFT-OP-PARENTHESES %s

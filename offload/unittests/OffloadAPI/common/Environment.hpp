@@ -8,19 +8,10 @@
 
 #pragma once
 
-#include "llvm/Support/MemoryBuffer.h"
 #include <OffloadAPI.h>
 #include <gtest/gtest.h>
 
 namespace TestEnvironment {
-
-struct Device {
-  ol_device_handle_t Handle;
-  std::string Name;
-};
-
-const std::vector<Device> &getDevices();
-ol_device_handle_t getHostDevice();
-bool loadDeviceBinary(const std::string &BinaryName, ol_device_handle_t Device,
-                      std::unique_ptr<llvm::MemoryBuffer> &BinaryOut);
+const std::vector<ol_platform_handle_t> &getPlatforms();
+ol_platform_handle_t getPlatform();
 } // namespace TestEnvironment

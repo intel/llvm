@@ -10,4 +10,4 @@
 
 #define __CLC_BODY <prefetch.inc>
 #define __CLC_GEN_VEC3
-#include <libspirv/async/gentype.inc>
+#include <clc/async/gentype.inc>

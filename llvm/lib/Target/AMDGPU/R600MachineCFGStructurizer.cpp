@@ -41,6 +41,12 @@ STATISTIC(numIfPatternMatch,        "CFGStructurizer number of if pattern "
 STATISTIC(numClonedBlock,           "CFGStructurizer cloned blocks");
 STATISTIC(numClonedInstr,           "CFGStructurizer cloned instructions");
 
+namespace llvm {
+
+void initializeR600MachineCFGStructurizerPass(PassRegistry &);
+
+} // end namespace llvm
+
 namespace {
 
 //===----------------------------------------------------------------------===//
@@ -98,7 +104,9 @@ public:
 
   static char ID;
 
-  R600MachineCFGStructurizer() : MachineFunctionPass(ID) {}
+  R600MachineCFGStructurizer() : MachineFunctionPass(ID) {
+    initializeR600MachineCFGStructurizerPass(*PassRegistry::getPassRegistry());
+  }
 
   StringRef getPassName() const override {
     return "AMDGPU Control Flow Graph structurizer Pass";

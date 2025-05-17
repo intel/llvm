@@ -946,7 +946,9 @@ void MachineFunction::eraseAdditionalCallInfo(const MachineInstr *MI) {
   if (CSIt != CallSitesInfo.end())
     CallSitesInfo.erase(CSIt);
 
-  CalledGlobalsInfo.erase(CallMI);
+  CalledGlobalsMap::iterator CGIt = CalledGlobalsInfo.find(CallMI);
+  if (CGIt != CalledGlobalsInfo.end())
+    CalledGlobalsInfo.erase(CGIt);
 }
 
 void MachineFunction::copyAdditionalCallInfo(const MachineInstr *Old,

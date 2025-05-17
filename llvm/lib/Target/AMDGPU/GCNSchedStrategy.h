@@ -208,7 +208,7 @@ public:
 
   // Retrieve the LiveReg for a given RegionIdx
   GCNRPTracker::LiveRegSet &getLiveRegsForRegionIdx(unsigned RegionIdx) {
-    assert(IdxToInstruction.contains(RegionIdx));
+    assert(IdxToInstruction.find(RegionIdx) != IdxToInstruction.end());
     MachineInstr *Key = IdxToInstruction[RegionIdx];
     return RegionLiveRegMap[Key];
   }

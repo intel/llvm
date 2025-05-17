@@ -2,7 +2,7 @@
 ; RUN: FileCheck %s < %t
 ; Test the case where an invalid label name is used
 
-; CHECK: invalid type for function argument
+; CHECK: unable to create block named 'bb'
 
 define void @test(label %bb) {
 bb:

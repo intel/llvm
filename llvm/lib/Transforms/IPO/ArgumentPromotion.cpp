@@ -382,8 +382,9 @@ doPromotion(Function *F, FunctionAnalysisManager &FAM,
     // Cleanup the code from the dead instructions: GEPs and BitCasts in between
     // the original argument and its users: loads and stores. Retarget every
     // user to the new created alloca.
-    SmallVector<Value *, 16> Worklist(Arg.users());
+    SmallVector<Value *, 16> Worklist;
     SmallVector<Instruction *, 16> DeadInsts;
+    append_range(Worklist, Arg.users());
     while (!Worklist.empty()) {
       Value *V = Worklist.pop_back_val();
       if (isa<GetElementPtrInst>(V)) {

@@ -49,7 +49,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   ExecutionContextRef m_exe_ctx_ref;
@@ -68,8 +68,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
-
+  size_t GetIndexOfChildWithName(ConstString name) override;
 private:
 
   // The lifetime of a ValueObject and all its derivative ValueObjects
@@ -146,15 +145,13 @@ LibstdcppMapIteratorSyntheticFrontEnd::GetChildAtIndex(uint32_t idx) {
   return lldb::ValueObjectSP();
 }
 
-llvm::Expected<size_t>
-LibstdcppMapIteratorSyntheticFrontEnd::GetIndexOfChildWithName(
+size_t LibstdcppMapIteratorSyntheticFrontEnd::GetIndexOfChildWithName(
     ConstString name) {
   if (name == "first")
     return 0;
   if (name == "second")
     return 1;
-  return llvm::createStringError("Type has no child named '%s'",
-                                 name.AsCString());
+  return UINT32_MAX;
 }
 
 SyntheticChildrenFrontEnd *
@@ -229,12 +226,11 @@ VectorIteratorSyntheticFrontEnd::GetChildAtIndex(uint32_t idx) {
   return lldb::ValueObjectSP();
 }
 
-llvm::Expected<size_t>
-VectorIteratorSyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
+size_t VectorIteratorSyntheticFrontEnd::GetIndexOfChildWithName(
+    ConstString name) {
   if (name == "item")
     return 0;
-  return llvm::createStringError("Type has no child named '%s'",
-                                 name.AsCString());
+  return UINT32_MAX;
 }
 
 bool lldb_private::formatters::LibStdcppStringSummaryProvider(
@@ -413,14 +409,13 @@ lldb::ChildCacheState LibStdcppSharedPtrSyntheticFrontEnd::Update() {
   return lldb::ChildCacheState::eRefetch;
 }
 
-llvm::Expected<size_t>
-LibStdcppSharedPtrSyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
+size_t LibStdcppSharedPtrSyntheticFrontEnd::GetIndexOfChildWithName(
+    ConstString name) {
   if (name == "pointer")
     return 0;
   if (name == "object" || name == "$$dereference$$")
     return 1;
-  return llvm::createStringError("Type has no child named '%s'",
-                                 name.AsCString());
+  return UINT32_MAX;
 }
 
 SyntheticChildrenFrontEnd *

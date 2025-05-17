@@ -14,18 +14,6 @@
 // CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformRotateKHR
 // CHECK-SPIRV-DAG: Extension "SPV_KHR_subgroup_rotate"
 
-// CHECK-SPIRV-DAG: Name [[#testRotateCharFn:]] "testRotateChar"
-// CHECK-SPIRV-DAG: Name [[#testRotateUCharFn:]] "testRotateUChar"
-// CHECK-SPIRV-DAG: Name [[#testRotateShortFn:]] "testRotateShort"
-// CHECK-SPIRV-DAG: Name [[#testRotateUShortFn:]] "testRotateUShort"
-// CHECK-SPIRV-DAG: Name [[#testRotateIntFn:]] "testRotateInt"
-// CHECK-SPIRV-DAG: Name [[#testRotateUIntFn:]] "testRotateUInt"
-// CHECK-SPIRV-DAG: Name [[#testRotateLongFn:]] "testRotateLong"
-// CHECK-SPIRV-DAG: Name [[#testRotateULongFn:]] "testRotateULong"
-// CHECK-SPIRV-DAG: Name [[#testRotateFloatFn:]] "testRotateFloat"
-// CHECK-SPIRV-DAG: Name [[#testRotateHalfFn:]] "testRotateHalf"
-// CHECK-SPIRV-DAG: Name [[#testRotateDoubleFn:]] "testRotateDouble"
-
 // CHECK-SPIRV-DAG: TypeInt   [[char:[0-9]+]]   8  0
 // CHECK-SPIRV-DAG: TypeInt   [[short:[0-9]+]]  16 0
 // CHECK-SPIRV-DAG: TypeInt   [[int:[0-9]+]]    32 0
@@ -48,7 +36,7 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateCharFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[char]] {{[0-9]+}} [[ScopeSubgroup]] [[char_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[char]] {{[0-9]+}} [[ScopeSubgroup]] [[char_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -67,7 +55,7 @@ kernel void testRotateChar(global char* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateUCharFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[char]] {{[0-9]+}} [[ScopeSubgroup]] [[char_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[char]] {{[0-9]+}} [[ScopeSubgroup]] [[char_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -86,7 +74,7 @@ kernel void testRotateUChar(global uchar* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateShortFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[short]] {{[0-9]+}} [[ScopeSubgroup]] [[short_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[short]] {{[0-9]+}} [[ScopeSubgroup]] [[short_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -105,7 +93,7 @@ kernel void testRotateShort(global short* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateUShortFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[short]] {{[0-9]+}} [[ScopeSubgroup]] [[short_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[short]] {{[0-9]+}} [[ScopeSubgroup]] [[short_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -124,7 +112,7 @@ kernel void testRotateUShort(global ushort* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateIntFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[int_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[int_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -143,7 +131,7 @@ kernel void testRotateInt(global int* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateUIntFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[int_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[int_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -162,7 +150,7 @@ kernel void testRotateUInt(global uint* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateLongFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[long]] {{[0-9]+}} [[ScopeSubgroup]] [[long_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[long]] {{[0-9]+}} [[ScopeSubgroup]] [[long_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -181,7 +169,7 @@ kernel void testRotateLong(global long* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateULongFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[long]] {{[0-9]+}} [[ScopeSubgroup]] [[long_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[long]] {{[0-9]+}} [[ScopeSubgroup]] [[long_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -200,7 +188,7 @@ kernel void testRotateULong(global ulong* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateFloatFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[float]] {{[0-9]+}} [[ScopeSubgroup]] [[float_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[float]] {{[0-9]+}} [[ScopeSubgroup]] [[float_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -219,7 +207,7 @@ kernel void testRotateFloat(global float* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateHalfFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[half]] {{[0-9]+}} [[ScopeSubgroup]] [[half_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[half]] {{[0-9]+}} [[ScopeSubgroup]] [[half_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd
@@ -238,7 +226,7 @@ kernel void testRotateHalf(global half* dst)
     dst[1] = sub_group_clustered_rotate(v, 2, 4);
 }
 
-// CHECK-SPIRV: Function [[#]] [[#testRotateDoubleFn]]
+// CHECK-SPIRV-LABEL: 5 Function
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[double]] {{[0-9]+}} [[ScopeSubgroup]] [[double_0]] [[int_2]]
 // CHECK-SPIRV: GroupNonUniformRotateKHR [[double]] {{[0-9]+}} [[ScopeSubgroup]] [[double_0]] [[int_2]] [[int_4]]
 // CHECK-SPIRV: FunctionEnd

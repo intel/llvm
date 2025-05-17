@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 /// \file
-/// This file a TargetTransformInfoImplBase conforming object specific to the
+/// This file a TargetTransformInfo::Concept conforming object specific to the
 /// AArch64 target machine. It uses the target's detailed information to
 /// provide more precise answers to certain TTI queries, while letting the
 /// target independent and default TTI implementations handle the rest.
@@ -61,7 +61,7 @@ class AArch64TTIImpl : public BasicTTIImplBase<AArch64TTIImpl> {
 
   bool isWideningInstruction(Type *DstTy, unsigned Opcode,
                              ArrayRef<const Value *> Args,
-                             Type *SrcOverrideTy = nullptr) const;
+                             Type *SrcOverrideTy = nullptr);
 
   // A helper function called by 'getVectorInstrCost'.
   //
@@ -75,7 +75,7 @@ class AArch64TTIImpl : public BasicTTIImplBase<AArch64TTIImpl> {
   InstructionCost getVectorInstrCostHelper(
       unsigned Opcode, Type *Val, TTI::TargetCostKind CostKind, unsigned Index,
       bool HasRealUse, const Instruction *I = nullptr, Value *Scalar = nullptr,
-      ArrayRef<std::tuple<Value *, User *, int>> ScalarUserAndIdx = {}) const;
+      ArrayRef<std::tuple<Value *, User *, int>> ScalarUserAndIdx = {});
 
 public:
   explicit AArch64TTIImpl(const AArch64TargetMachine *TM, const Function &F)
@@ -83,46 +83,44 @@ public:
         TLI(ST->getTargetLowering()) {}
 
   bool areInlineCompatible(const Function *Caller,
-                           const Function *Callee) const override;
+                           const Function *Callee) const;
 
   bool areTypesABICompatible(const Function *Caller, const Function *Callee,
-                             const ArrayRef<Type *> &Types) const override;
+                             const ArrayRef<Type *> &Types) const;
 
   unsigned getInlineCallPenalty(const Function *F, const CallBase &Call,
-                                unsigned DefaultCallPenalty) const override;
+                                unsigned DefaultCallPenalty) const;
 
-  uint64_t getFeatureMask(const Function &F) const override;
+  uint64_t getFeatureMask(const Function &F) const;
 
-  bool isMultiversionedFunction(const Function &F) const override;
+  bool isMultiversionedFunction(const Function &F) const;
 
   /// \name Scalar TTI Implementations
   /// @{
 
   using BaseT::getIntImmCost;
-  InstructionCost getIntImmCost(int64_t Val) const;
+  InstructionCost getIntImmCost(int64_t Val);
   InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
-                                TTI::TargetCostKind CostKind) const override;
+                                TTI::TargetCostKind CostKind);
   InstructionCost getIntImmCostInst(unsigned Opcode, unsigned Idx,
                                     const APInt &Imm, Type *Ty,
                                     TTI::TargetCostKind CostKind,
-                                    Instruction *Inst = nullptr) const override;
-  InstructionCost
-  getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                      Type *Ty, TTI::TargetCostKind CostKind) const override;
-  TTI::PopcntSupportKind getPopcntSupport(unsigned TyWidth) const override;
+                                    Instruction *Inst = nullptr);
+  InstructionCost getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                      const APInt &Imm, Type *Ty,
+                                      TTI::TargetCostKind CostKind);
+  TTI::PopcntSupportKind getPopcntSupport(unsigned TyWidth);
 
   /// @}
 
   /// \name Vector TTI Implementations
   /// @{
 
-  bool enableInterleavedAccessVectorization() const override { return true; }
+  bool enableInterleavedAccessVectorization() { return true; }
 
-  bool enableMaskedInterleavedAccessVectorization() const override {
-    return ST->hasSVE();
-  }
+  bool enableMaskedInterleavedAccessVectorization() { return ST->hasSVE(); }
 
-  unsigned getNumberOfRegisters(unsigned ClassID) const override {
+  unsigned getNumberOfRegisters(unsigned ClassID) const {
     bool Vector = (ClassID == 1);
     if (Vector) {
       if (ST->hasNEON())
@@ -132,34 +130,31 @@ public:
     return 31;
   }
 
-  InstructionCost
-  getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
-                        TTI::TargetCostKind CostKind) const override;
+  InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                        TTI::TargetCostKind CostKind);
 
-  std::optional<Instruction *>
-  instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const override;
+  std::optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                                    IntrinsicInst &II) const;
 
   std::optional<Value *> simplifyDemandedVectorEltsIntrinsic(
       InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
       APInt &UndefElts2, APInt &UndefElts3,
       std::function<void(Instruction *, unsigned, APInt, APInt &)>
-          SimplifyAndSetOp) const override;
+          SimplifyAndSetOp) const;
 
-  TypeSize
-  getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const override;
+  TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const;
 
-  unsigned getMinVectorRegisterBitWidth() const override {
+  unsigned getMinVectorRegisterBitWidth() const {
     return ST->getMinVectorRegisterBitWidth();
   }
 
-  std::optional<unsigned> getVScaleForTuning() const override {
+  std::optional<unsigned> getVScaleForTuning() const {
     return ST->getVScaleForTuning();
   }
 
-  bool isVScaleKnownToBeAPowerOfTwo() const override { return true; }
+  bool isVScaleKnownToBeAPowerOfTwo() const { return true; }
 
-  bool shouldMaximizeVectorBandwidth(
-      TargetTransformInfo::RegisterKind K) const override;
+  bool shouldMaximizeVectorBandwidth(TargetTransformInfo::RegisterKind K) const;
 
   /// Try to return an estimate cost factor that can be used as a multiplier
   /// when scalarizing an operation for a vector with ElementCount \p VF.
@@ -172,111 +167,101 @@ public:
     return VF.getKnownMinValue() * ST->getVScaleForTuning();
   }
 
-  unsigned getMaxInterleaveFactor(ElementCount VF) const override;
+  unsigned getMaxInterleaveFactor(ElementCount VF);
 
-  bool prefersVectorizedAddressing() const override;
+  bool prefersVectorizedAddressing() const;
 
-  InstructionCost
-  getMaskedMemoryOpCost(unsigned Opcode, Type *Src, Align Alignment,
-                        unsigned AddressSpace,
-                        TTI::TargetCostKind CostKind) const override;
+  InstructionCost getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
+                                        Align Alignment, unsigned AddressSpace,
+                                        TTI::TargetCostKind CostKind);
 
-  InstructionCost
-  getGatherScatterOpCost(unsigned Opcode, Type *DataTy, const Value *Ptr,
-                         bool VariableMask, Align Alignment,
-                         TTI::TargetCostKind CostKind,
-                         const Instruction *I = nullptr) const override;
+  InstructionCost getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
+                                         const Value *Ptr, bool VariableMask,
+                                         Align Alignment,
+                                         TTI::TargetCostKind CostKind,
+                                         const Instruction *I = nullptr);
 
-  bool isExtPartOfAvgExpr(const Instruction *ExtUser, Type *Dst,
-                          Type *Src) const;
+  bool isExtPartOfAvgExpr(const Instruction *ExtUser, Type *Dst, Type *Src);
 
-  InstructionCost
-  getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
-                   TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
-                   const Instruction *I = nullptr) const override;
+  InstructionCost getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
+                                   TTI::CastContextHint CCH,
+                                   TTI::TargetCostKind CostKind,
+                                   const Instruction *I = nullptr);
 
-  InstructionCost
-  getExtractWithExtendCost(unsigned Opcode, Type *Dst, VectorType *VecTy,
-                           unsigned Index,
-                           TTI::TargetCostKind CostKind) const override;
+  InstructionCost getExtractWithExtendCost(unsigned Opcode, Type *Dst,
+                                           VectorType *VecTy, unsigned Index);
 
   InstructionCost getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind,
-                                 const Instruction *I = nullptr) const override;
+                                 const Instruction *I = nullptr);
 
   InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
                                      TTI::TargetCostKind CostKind,
-                                     unsigned Index, const Value *Op0,
-                                     const Value *Op1) const override;
+                                     unsigned Index, Value *Op0, Value *Op1);
 
   /// \param ScalarUserAndIdx encodes the information about extracts from a
   /// vector with 'Scalar' being the value being extracted,'User' being the user
   /// of the extract(nullptr if user is not known before vectorization) and
   /// 'Idx' being the extract lane.
-  InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
-                                     TTI::TargetCostKind CostKind,
-                                     unsigned Index, Value *Scalar,
-                                     ArrayRef<std::tuple<Value *, User *, int>>
-                                         ScalarUserAndIdx) const override;
+  InstructionCost getVectorInstrCost(
+      unsigned Opcode, Type *Val, TTI::TargetCostKind CostKind, unsigned Index,
+      Value *Scalar,
+      ArrayRef<std::tuple<Value *, User *, int>> ScalarUserAndIdx);
 
   InstructionCost getVectorInstrCost(const Instruction &I, Type *Val,
                                      TTI::TargetCostKind CostKind,
-                                     unsigned Index) const override;
+                                     unsigned Index);
 
-  InstructionCost
-  getMinMaxReductionCost(Intrinsic::ID IID, VectorType *Ty, FastMathFlags FMF,
-                         TTI::TargetCostKind CostKind) const override;
+  InstructionCost getMinMaxReductionCost(Intrinsic::ID IID, VectorType *Ty,
+                                         FastMathFlags FMF,
+                                         TTI::TargetCostKind CostKind);
 
-  InstructionCost
-  getArithmeticReductionCostSVE(unsigned Opcode, VectorType *ValTy,
-                                TTI::TargetCostKind CostKind) const;
+  InstructionCost getArithmeticReductionCostSVE(unsigned Opcode,
+                                                VectorType *ValTy,
+                                                TTI::TargetCostKind CostKind);
 
-  InstructionCost getSpliceCost(VectorType *Tp, int Index,
-                                TTI::TargetCostKind CostKind) const;
+  InstructionCost getSpliceCost(VectorType *Tp, int Index);
 
   InstructionCost getArithmeticInstrCost(
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
       TTI::OperandValueInfo Op1Info = {TTI::OK_AnyValue, TTI::OP_None},
       TTI::OperandValueInfo Op2Info = {TTI::OK_AnyValue, TTI::OP_None},
-      ArrayRef<const Value *> Args = {},
-      const Instruction *CxtI = nullptr) const override;
+      ArrayRef<const Value *> Args = {}, const Instruction *CxtI = nullptr);
 
   InstructionCost getAddressComputationCost(Type *Ty, ScalarEvolution *SE,
-                                            const SCEV *Ptr) const override;
+                                            const SCEV *Ptr);
 
   InstructionCost getCmpSelInstrCost(
       unsigned Opcode, Type *ValTy, Type *CondTy, CmpInst::Predicate VecPred,
       TTI::TargetCostKind CostKind,
       TTI::OperandValueInfo Op1Info = {TTI::OK_AnyValue, TTI::OP_None},
       TTI::OperandValueInfo Op2Info = {TTI::OK_AnyValue, TTI::OP_None},
-      const Instruction *I = nullptr) const override;
+      const Instruction *I = nullptr);
 
-  TTI::MemCmpExpansionOptions
-  enableMemCmpExpansion(bool OptSize, bool IsZeroCmp) const override;
+  TTI::MemCmpExpansionOptions enableMemCmpExpansion(bool OptSize,
+                                                    bool IsZeroCmp) const;
   bool useNeonVector(const Type *Ty) const;
 
-  InstructionCost getMemoryOpCost(
-      unsigned Opcode, Type *Src, Align Alignment, unsigned AddressSpace,
-      TTI::TargetCostKind CostKind,
-      TTI::OperandValueInfo OpInfo = {TTI::OK_AnyValue, TTI::OP_None},
-      const Instruction *I = nullptr) const override;
-
   InstructionCost
-  getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const override;
+  getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
+                  unsigned AddressSpace, TTI::TargetCostKind CostKind,
+                  TTI::OperandValueInfo OpInfo = {TTI::OK_AnyValue, TTI::OP_None},
+                  const Instruction *I = nullptr);
+
+  InstructionCost getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys);
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP,
-                               OptimizationRemarkEmitter *ORE) const override;
+                               OptimizationRemarkEmitter *ORE);
 
   void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
-                             TTI::PeelingPreferences &PP) const override;
+                             TTI::PeelingPreferences &PP);
 
   Value *getOrCreateResultFromMemIntrinsic(IntrinsicInst *Inst,
-                                           Type *ExpectedType) const override;
+                                           Type *ExpectedType);
 
-  bool getTgtMemIntrinsic(IntrinsicInst *Inst,
-                          MemIntrinsicInfo &Info) const override;
+  bool getTgtMemIntrinsic(IntrinsicInst *Inst, MemIntrinsicInfo &Info);
 
-  bool isElementTypeLegalForScalableVector(Type *Ty) const override {
+  bool isElementTypeLegalForScalableVector(Type *Ty) const {
     if (Ty->isPointerTy())
       return true;
 
@@ -293,7 +278,7 @@ public:
     return false;
   }
 
-  bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) const {
+  bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
     if (!ST->hasSVE())
       return false;
 
@@ -306,12 +291,12 @@ public:
   }
 
   bool isLegalMaskedLoad(Type *DataType, Align Alignment,
-                         unsigned /*AddressSpace*/) const override {
+                         unsigned /*AddressSpace*/) {
     return isLegalMaskedLoadStore(DataType, Alignment);
   }
 
   bool isLegalMaskedStore(Type *DataType, Align Alignment,
-                          unsigned /*AddressSpace*/) const override {
+                          unsigned /*AddressSpace*/) {
     return isLegalMaskedLoadStore(DataType, Alignment);
   }
 
@@ -328,16 +313,15 @@ public:
     return isElementTypeLegalForScalableVector(DataType->getScalarType());
   }
 
-  bool isLegalMaskedGather(Type *DataType, Align Alignment) const override {
+  bool isLegalMaskedGather(Type *DataType, Align Alignment) const {
     return isLegalMaskedGatherScatter(DataType);
   }
 
-  bool isLegalMaskedScatter(Type *DataType, Align Alignment) const override {
+  bool isLegalMaskedScatter(Type *DataType, Align Alignment) const {
     return isLegalMaskedGatherScatter(DataType);
   }
 
-  bool isLegalBroadcastLoad(Type *ElementTy,
-                            ElementCount NumElements) const override {
+  bool isLegalBroadcastLoad(Type *ElementTy, ElementCount NumElements) const {
     // Return true if we can generate a `ld1r` splat load instruction.
     if (!ST->hasNEON() || NumElements.isScalable())
       return false;
@@ -354,7 +338,7 @@ public:
     return false;
   }
 
-  bool isLegalNTStoreLoad(Type *DataType, Align Alignment) const {
+  bool isLegalNTStoreLoad(Type *DataType, Align Alignment) {
     // NOTE: The logic below is mostly geared towards LV, which calls it with
     //       vectors with 2 elements. We might want to improve that, if other
     //       users show up.
@@ -371,11 +355,11 @@ public:
     return BaseT::isLegalNTStore(DataType, Alignment);
   }
 
-  bool isLegalNTStore(Type *DataType, Align Alignment) const override {
+  bool isLegalNTStore(Type *DataType, Align Alignment) {
     return isLegalNTStoreLoad(DataType, Alignment);
   }
 
-  bool isLegalNTLoad(Type *DataType, Align Alignment) const override {
+  bool isLegalNTLoad(Type *DataType, Align Alignment) {
     // Only supports little-endian targets.
     if (ST->isLittleEndian())
       return isLegalNTStoreLoad(DataType, Alignment);
@@ -387,31 +371,30 @@ public:
                           Type *AccumType, ElementCount VF,
                           TTI::PartialReductionExtendKind OpAExtend,
                           TTI::PartialReductionExtendKind OpBExtend,
-                          std::optional<unsigned> BinOp) const override;
+                          std::optional<unsigned> BinOp) const;
 
-  bool enableOrderedReductions() const override { return true; }
+  bool enableOrderedReductions() const { return true; }
 
   InstructionCost getInterleavedMemoryOpCost(
       unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
       Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
-      bool UseMaskForCond = false, bool UseMaskForGaps = false) const override;
+      bool UseMaskForCond = false, bool UseMaskForGaps = false);
 
-  bool shouldConsiderAddressTypePromotion(
-      const Instruction &I,
-      bool &AllowPromotionWithoutCommonHeader) const override;
+  bool
+  shouldConsiderAddressTypePromotion(const Instruction &I,
+                                     bool &AllowPromotionWithoutCommonHeader);
 
-  bool shouldExpandReduction(const IntrinsicInst *II) const override {
-    return false;
+  bool shouldExpandReduction(const IntrinsicInst *II) const { return false; }
+
+  unsigned getGISelRematGlobalCost() const {
+    return 2;
   }
 
-  unsigned getGISelRematGlobalCost() const override { return 2; }
-
-  unsigned getMinTripCountTailFoldingThreshold() const override {
+  unsigned getMinTripCountTailFoldingThreshold() const {
     return ST->hasSVE() ? 5 : 0;
   }
 
-  TailFoldingStyle
-  getPreferredTailFoldingStyle(bool IVUpdateMayOverflow) const override {
+  TailFoldingStyle getPreferredTailFoldingStyle(bool IVUpdateMayOverflow) const {
     if (ST->hasSVE())
       return IVUpdateMayOverflow
                  ? TailFoldingStyle::DataAndControlFlowWithoutRuntimeCheck
@@ -420,50 +403,50 @@ public:
     return TailFoldingStyle::DataWithoutLaneMask;
   }
 
-  bool preferFixedOverScalableIfEqualCost() const override;
+  bool preferFixedOverScalableIfEqualCost() const;
 
-  unsigned getEpilogueVectorizationMinVF() const override;
+  unsigned getEpilogueVectorizationMinVF() const;
 
-  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI) const override;
+  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI);
 
-  bool supportsScalableVectors() const override {
+  bool supportsScalableVectors() const {
     return ST->isSVEorStreamingSVEAvailable();
   }
 
-  bool enableScalableVectorization() const override;
+  bool enableScalableVectorization() const;
 
   bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
-                                   ElementCount VF) const override;
+                                   ElementCount VF) const;
 
-  bool preferPredicatedReductionSelect(unsigned Opcode,
-                                       Type *Ty) const override {
+  bool preferPredicatedReductionSelect(unsigned Opcode, Type *Ty) const {
     return ST->hasSVE();
   }
 
-  InstructionCost
-  getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
-                             std::optional<FastMathFlags> FMF,
-                             TTI::TargetCostKind CostKind) const override;
+  InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
+                                             std::optional<FastMathFlags> FMF,
+                                             TTI::TargetCostKind CostKind);
 
-  InstructionCost
-  getExtendedReductionCost(unsigned Opcode, bool IsUnsigned, Type *ResTy,
-                           VectorType *ValTy, std::optional<FastMathFlags> FMF,
-                           TTI::TargetCostKind CostKind) const override;
+  InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
+                                           Type *ResTy, VectorType *ValTy,
+                                           std::optional<FastMathFlags> FMF,
+                                           TTI::TargetCostKind CostKind);
 
   InstructionCost getMulAccReductionCost(
       bool IsUnsigned, Type *ResTy, VectorType *Ty,
-      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const override;
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput);
 
-  InstructionCost
-  getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp, ArrayRef<int> Mask,
-                 TTI::TargetCostKind CostKind, int Index, VectorType *SubTp,
-                 ArrayRef<const Value *> Args = {},
-                 const Instruction *CxtI = nullptr) const override;
+  InstructionCost getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp,
+                                 ArrayRef<int> Mask,
+                                 TTI::TargetCostKind CostKind, int Index,
+                                 VectorType *SubTp,
+                                 ArrayRef<const Value *> Args = {},
+                                 const Instruction *CxtI = nullptr);
 
-  InstructionCost getScalarizationOverhead(
-      VectorType *Ty, const APInt &DemandedElts, bool Insert, bool Extract,
-      TTI::TargetCostKind CostKind, bool ForPoisonSrc = true,
-      ArrayRef<Value *> VL = {}) const override;
+  InstructionCost getScalarizationOverhead(VectorType *Ty,
+                                           const APInt &DemandedElts,
+                                           bool Insert, bool Extract,
+                                           TTI::TargetCostKind CostKind,
+                                           ArrayRef<Value *> VL = {});
 
   /// Return the cost of the scaling factor used in the addressing
   /// mode represented by AM for this target, for a load/store
@@ -472,17 +455,14 @@ public:
   /// If the AM is not supported, it returns an invalid cost.
   InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                        StackOffset BaseOffset, bool HasBaseReg,
-                                       int64_t Scale,
-                                       unsigned AddrSpace) const override;
+                                       int64_t Scale, unsigned AddrSpace) const;
 
-  bool enableSelectOptimize() const override {
-    return ST->enableSelectOptimize();
-  }
+  bool enableSelectOptimize() { return ST->enableSelectOptimize(); }
 
-  bool shouldTreatInstructionLikeSelect(const Instruction *I) const override;
+  bool shouldTreatInstructionLikeSelect(const Instruction *I);
 
   unsigned getStoreMinimumVF(unsigned VF, Type *ScalarMemTy,
-                             Type *ScalarValTy) const override {
+                             Type *ScalarValTy) const {
     // We can vectorize store v4i8.
     if (ScalarMemTy->isIntegerTy(8) && isPowerOf2_32(VF) && VF >= 4)
       return 4;
@@ -490,13 +470,13 @@ public:
     return BaseT::getStoreMinimumVF(VF, ScalarMemTy, ScalarValTy);
   }
 
-  std::optional<unsigned> getMinPageSize() const override { return 4096; }
+  std::optional<unsigned> getMinPageSize() const { return 4096; }
 
   bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
-                     const TargetTransformInfo::LSRCost &C2) const override;
+                     const TargetTransformInfo::LSRCost &C2);
 
   bool isProfitableToSinkOperands(Instruction *I,
-                                  SmallVectorImpl<Use *> &Ops) const override;
+                                  SmallVectorImpl<Use *> &Ops) const;
   /// @}
 };
 

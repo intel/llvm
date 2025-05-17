@@ -368,10 +368,10 @@ public:
     return lldb::ValueObjectSP();
   }
 
-  virtual llvm::Expected<int>
+  virtual int
   GetIndexOfChildWithName(const StructuredData::ObjectSP &implementor,
                           const char *child_name) {
-    return llvm::createStringError("Type has no child named '%s'", child_name);
+    return UINT32_MAX;
   }
 
   virtual bool

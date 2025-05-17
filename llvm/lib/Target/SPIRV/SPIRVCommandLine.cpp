@@ -92,12 +92,7 @@ static const std::map<std::string, SPIRV::Extension::Extension, std::less<>>
         {"SPV_INTEL_long_composites",
          SPIRV::Extension::Extension::SPV_INTEL_long_composites},
         {"SPV_INTEL_fp_max_error",
-         SPIRV::Extension::Extension::SPV_INTEL_fp_max_error},
-        {"SPV_INTEL_subgroup_matrix_multiply_accumulate",
-         SPIRV::Extension::Extension::
-             SPV_INTEL_subgroup_matrix_multiply_accumulate},
-        {"SPV_INTEL_ternary_bitwise_function",
-         SPIRV::Extension::Extension::SPV_INTEL_ternary_bitwise_function}};
+         SPIRV::Extension::Extension::SPV_INTEL_fp_max_error}};
 
 bool SPIRVExtensionsParser::parse(cl::Option &O, StringRef ArgName,
                                   StringRef ArgValue,
@@ -128,7 +123,8 @@ bool SPIRVExtensionsParser::parse(cl::Option &O, StringRef ArgName,
     if (Token.starts_with("+")) {
       EnabledExtensions.insert(NameValuePair->second);
     } else if (EnabledExtensions.count(NameValuePair->second)) {
-      if (llvm::is_contained(Tokens, "+" + ExtensionName.str()))
+      if (std::find(Tokens.begin(), Tokens.end(), "+" + ExtensionName.str()) !=
+          Tokens.end())
         return O.error(
             "Extension cannot be allowed and disallowed at the same time: " +
             ExtensionName.str());

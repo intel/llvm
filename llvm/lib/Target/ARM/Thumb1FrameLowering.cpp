@@ -21,7 +21,6 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/CodeGen/CFIInstBuilder.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -35,6 +34,9 @@
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCDwarf.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
@@ -148,6 +150,7 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.begin();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   ARMFunctionInfo *AFI = MF.getInfo<ARMFunctionInfo>();
+  const MCRegisterInfo *MRI = MF.getContext().getRegisterInfo();
   const ThumbRegisterInfo *RegInfo =
       static_cast<const ThumbRegisterInfo *>(STI.getRegisterInfo());
   const Thumb1InstrInfo &TII =
@@ -177,13 +180,16 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
   // belongs to which callee-save spill areas.
   unsigned FRSize = 0, GPRCS1Size = 0, GPRCS2Size = 0, DPRCSSize = 0;
   int FramePtrSpillFI = 0;
-  CFIInstBuilder CFIBuilder(MBB, MBBI, MachineInstr::FrameSetup);
 
   if (ArgRegsSaveSize) {
     emitPrologueEpilogueSPUpdate(MBB, MBBI, TII, dl, *RegInfo, -ArgRegsSaveSize,
                                  ARM::NoRegister, MachineInstr::FrameSetup);
     CFAOffset += ArgRegsSaveSize;
-    CFIBuilder.buildDefCFAOffset(CFAOffset);
+    unsigned CFIIndex =
+        MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, CFAOffset));
+    BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+        .addCFIIndex(CFIIndex)
+        .setMIFlags(MachineInstr::FrameSetup);
   }
 
   if (!AFI->hasStackFrame()) {
@@ -192,7 +198,11 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
                                    -(NumBytes - ArgRegsSaveSize),
                                    ARM::NoRegister, MachineInstr::FrameSetup);
       CFAOffset += NumBytes - ArgRegsSaveSize;
-      CFIBuilder.buildDefCFAOffset(CFAOffset);
+      unsigned CFIIndex = MF.addFrameInst(
+          MCCFIInstruction::cfiDefCfaOffset(nullptr, CFAOffset));
+      BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlags(MachineInstr::FrameSetup);
     }
     return;
   }
@@ -330,11 +340,20 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
           .add(predOps(ARMCC::AL));
     }
 
-    CFIBuilder.setInsertPoint(AfterPush);
-    if (FramePtrOffsetInBlock)
-      CFIBuilder.buildDefCFA(FramePtr, CFAOffset - FramePtrOffsetInBlock);
-    else
-      CFIBuilder.buildDefCFARegister(FramePtr);
+    if(FramePtrOffsetInBlock) {
+      unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::cfiDefCfa(
+          nullptr, MRI->getDwarfRegNum(FramePtr, true), (CFAOffset - FramePtrOffsetInBlock)));
+      BuildMI(MBB, AfterPush, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlags(MachineInstr::FrameSetup);
+    } else {
+      unsigned CFIIndex =
+          MF.addFrameInst(MCCFIInstruction::createDefCfaRegister(
+              nullptr, MRI->getDwarfRegNum(FramePtr, true)));
+      BuildMI(MBB, AfterPush, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlags(MachineInstr::FrameSetup);
+    }
     if (NumBytes > 508)
       // If offset is > 508 then sp cannot be adjusted in a single instruction,
       // try restoring from fp instead.
@@ -343,11 +362,18 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
 
   // Emit call frame information for the callee-saved low registers.
   if (GPRCS1Size > 0) {
-    CFIBuilder.setInsertPoint(std::next(GPRCS1Push));
-    if (adjustedGPRCS1Size)
-      CFIBuilder.buildDefCFAOffset(CFAOffset);
+    MachineBasicBlock::iterator Pos = std::next(GPRCS1Push);
+    if (adjustedGPRCS1Size) {
+      unsigned CFIIndex =
+          MF.addFrameInst(MCCFIInstruction::cfiDefCfaOffset(nullptr, CFAOffset));
+      BuildMI(MBB, Pos, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlags(MachineInstr::FrameSetup);
+    }
     for (const CalleeSavedInfo &I : CSI) {
-      switch (I.getReg()) {
+      MCRegister Reg = I.getReg();
+      int FI = I.getFrameIdx();
+      switch (Reg) {
       case ARM::R8:
       case ARM::R9:
       case ARM::R10:
@@ -363,8 +389,11 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
       case ARM::R6:
       case ARM::R7:
       case ARM::LR:
-        CFIBuilder.buildOffset(I.getReg(),
-                               MFI.getObjectOffset(I.getFrameIdx()));
+        unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
+            nullptr, MRI->getDwarfRegNum(Reg, true), MFI.getObjectOffset(FI)));
+        BuildMI(MBB, Pos, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+            .addCFIIndex(CFIIndex)
+            .setMIFlags(MachineInstr::FrameSetup);
         break;
       }
     }
@@ -372,17 +401,23 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
 
   // Emit call frame information for the callee-saved high registers.
   if (GPRCS2Size > 0) {
-    CFIBuilder.setInsertPoint(std::next(GPRCS2Push));
+    MachineBasicBlock::iterator Pos = std::next(GPRCS2Push);
     for (auto &I : CSI) {
-      switch (I.getReg()) {
+      MCRegister Reg = I.getReg();
+      int FI = I.getFrameIdx();
+      switch (Reg) {
       case ARM::R8:
       case ARM::R9:
       case ARM::R10:
       case ARM::R11:
-      case ARM::R12:
-        CFIBuilder.buildOffset(I.getReg(),
-                               MFI.getObjectOffset(I.getFrameIdx()));
+      case ARM::R12: {
+        unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
+            nullptr, MRI->getDwarfRegNum(Reg, true), MFI.getObjectOffset(FI)));
+        BuildMI(MBB, Pos, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+            .addCFIIndex(CFIIndex)
+            .setMIFlags(MachineInstr::FrameSetup);
         break;
+      }
       default:
         break;
       }
@@ -407,7 +442,11 @@ void Thumb1FrameLowering::emitPrologue(MachineFunction &MF,
                                  ScratchRegister, MachineInstr::FrameSetup);
     if (!HasFP) {
       CFAOffset += NumBytes;
-      CFIBuilder.buildDefCFAOffset(CFAOffset);
+      unsigned CFIIndex = MF.addFrameInst(
+          MCCFIInstruction::cfiDefCfaOffset(nullptr, CFAOffset));
+      BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlags(MachineInstr::FrameSetup);
     }
   }
 

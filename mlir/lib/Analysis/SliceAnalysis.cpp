@@ -197,7 +197,8 @@ static bool dependsOnCarriedVals(Value value,
 
   // Check that none of the operands of the operations in the backward slice are
   // loop iteration arguments, and neither is the value itself.
-  SmallPtrSet<Value, 8> iterCarriedValSet(llvm::from_range, iterCarriedArgs);
+  SmallPtrSet<Value, 8> iterCarriedValSet(iterCarriedArgs.begin(),
+                                          iterCarriedArgs.end());
   if (iterCarriedValSet.contains(value))
     return true;
 

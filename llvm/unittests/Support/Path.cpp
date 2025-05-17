@@ -824,6 +824,8 @@ TEST_F(FileSystemTest, RealPathNoReadPerm) {
   ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) + "/noreadperm"));
 }
 TEST_F(FileSystemTest, RemoveDirectoriesNoExePerm) {
+  SmallString<64> Expanded;
+
   ASSERT_NO_ERROR(
       fs::create_directories(Twine(TestDirectory) + "/noexeperm/foo"));
   ASSERT_TRUE(fs::exists(Twine(TestDirectory) + "/noexeperm/foo"));
@@ -963,6 +965,7 @@ TEST_F(FileSystemTest, TempFileCollisions) {
   FileRemover Cleanup(TestDirectory);
   SmallString<128> Model = TestDirectory;
   path::append(Model, "%.tmp");
+  SmallString<128> Path;
   std::vector<fs::TempFile> TempFiles;
 
   auto TryCreateTempFile = [&]() {
@@ -1052,7 +1055,9 @@ TEST_F(FileSystemTest, CreateDir) {
   do {
     LongPathWithUnixSeparators.append("/DirNameWith19Charss");
   } while (LongPathWithUnixSeparators.size() < 260);
-  llvm::replace(LongPathWithUnixSeparators, '\\', '/');
+  std::replace(LongPathWithUnixSeparators.begin(),
+               LongPathWithUnixSeparators.end(),
+               '\\', '/');
   ASSERT_NO_ERROR(fs::create_directories(Twine(LongPathWithUnixSeparators)));
   // cleanup
   ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) +
@@ -2437,7 +2442,7 @@ TEST_F(FileSystemTest, widenPath) {
   EXPECT_EQ(Result, Expected);
 
   // Check that Unix separators are handled correctly.
-  llvm::replace(Input, '\\', '/');
+  std::replace(Input.begin(), Input.end(), '\\', '/');
   ASSERT_NO_ERROR(windows::widenPath(Input, Result));
   EXPECT_EQ(Result, Expected);
 

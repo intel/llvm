@@ -1,4 +1,5 @@
 ; RUN: opt -S --amdgpu-annotate-uniform < %s | FileCheck -check-prefix=OPT %s
+target datalayout = "A5"
 
 ; "load vaddr" depends on the store, so we should not mark vaddr as amdgpu.noclobber.
 

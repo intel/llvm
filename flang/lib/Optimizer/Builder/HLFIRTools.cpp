@@ -16,7 +16,6 @@
 #include "flang/Optimizer/Builder/MutableBox.h"
 #include "flang/Optimizer/Builder/Runtime/Allocatable.h"
 #include "flang/Optimizer/Builder/Todo.h"
-#include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/HLFIR/HLFIROps.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Support/LLVM.h"
@@ -383,9 +382,7 @@ hlfir::Entity hlfir::genVariableBox(mlir::Location loc,
   mlir::Value addr = var.getBase();
   if (mlir::isa<fir::BoxCharType>(var.getType()))
     addr = genVariableRawAddress(loc, builder, var);
-  const bool isVolatile = fir::isa_volatile_type(var.getType());
-  mlir::Type boxType =
-      fir::BoxType::get(var.getElementOrSequenceType(), isVolatile);
+  mlir::Type boxType = fir::BoxType::get(var.getElementOrSequenceType());
   if (forceBoxType) {
     boxType = forceBoxType;
     mlir::Type baseType =
@@ -796,16 +793,15 @@ mlir::Type hlfir::getVariableElementType(hlfir::Entity variable) {
   if (variable.isScalar())
     return variable.getType();
   mlir::Type eleTy = variable.getFortranElementType();
-  const bool isVolatile = fir::isa_volatile_type(variable.getType());
   if (variable.isPolymorphic())
-    return fir::ClassType::get(eleTy, isVolatile);
+    return fir::ClassType::get(eleTy);
   if (auto charType = mlir::dyn_cast<fir::CharacterType>(eleTy)) {
     if (charType.hasDynamicLen())
       return fir::BoxCharType::get(charType.getContext(), charType.getFKind());
   } else if (fir::isRecordWithTypeParameters(eleTy)) {
-    return fir::BoxType::get(eleTy, isVolatile);
+    return fir::BoxType::get(eleTy);
   }
-  return fir::ReferenceType::get(eleTy, isVolatile);
+  return fir::ReferenceType::get(eleTy);
 }
 
 mlir::Type hlfir::getEntityElementType(hlfir::Entity entity) {

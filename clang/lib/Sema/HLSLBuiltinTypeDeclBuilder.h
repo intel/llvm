@@ -78,7 +78,6 @@ public:
 
   // Builtin types methods
   BuiltinTypeDeclBuilder &addDefaultHandleConstructor();
-  BuiltinTypeDeclBuilder &addHandleConstructorFromBinding();
 
   // Builtin types methods
   BuiltinTypeDeclBuilder &addLoadMethods();

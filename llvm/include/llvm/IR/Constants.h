@@ -893,9 +893,9 @@ public:
 class BlockAddress final : public Constant {
   friend class Constant;
 
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{1};
+  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
 
-  BlockAddress(Type *Ty, BasicBlock *BB);
+  BlockAddress(Function *F, BasicBlock *BB);
 
   void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
 
@@ -912,11 +912,6 @@ public:
   /// block must be embedded into a function.
   static BlockAddress *get(BasicBlock *BB);
 
-  /// Return a BlockAddress for the specified basic block, which may not be
-  /// part of a function. The specified type must match the type of the function
-  /// the block will be inserted into.
-  static BlockAddress *get(Type *Ty, BasicBlock *BB);
-
   /// Lookup an existing \c BlockAddress constant for the given BasicBlock.
   ///
   /// \returns 0 if \c !BB->hasAddressTaken(), otherwise the \c BlockAddress.
@@ -925,8 +920,8 @@ public:
   /// Transparently provide more efficient getOperand methods.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
 
-  BasicBlock *getBasicBlock() const { return cast<BasicBlock>(Op<0>().get()); }
-  Function *getFunction() const { return getBasicBlock()->getParent(); }
+  Function *getFunction() const { return (Function *)Op<0>().get(); }
+  BasicBlock *getBasicBlock() const { return (BasicBlock *)Op<1>().get(); }
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Value *V) {
@@ -936,7 +931,7 @@ public:
 
 template <>
 struct OperandTraits<BlockAddress>
-    : public FixedNumOperandTraits<BlockAddress, 1> {};
+    : public FixedNumOperandTraits<BlockAddress, 2> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(BlockAddress, Value)
 

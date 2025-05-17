@@ -30,7 +30,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   /// A non-owning pointer to valarray's __begin_ member.
@@ -123,18 +123,11 @@ lldb_private::formatters::LibcxxStdValarraySyntheticFrontEnd::Update() {
   return ChildCacheState::eRefetch;
 }
 
-llvm::Expected<size_t>
-lldb_private::formatters::LibcxxStdValarraySyntheticFrontEnd::
+size_t lldb_private::formatters::LibcxxStdValarraySyntheticFrontEnd::
     GetIndexOfChildWithName(ConstString name) {
   if (!m_start || !m_finish)
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
-  size_t idx = ExtractIndexFromString(name.GetCString());
-  if (idx == UINT32_MAX) {
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
-  }
-  return idx;
+    return std::numeric_limits<size_t>::max();
+  return ExtractIndexFromString(name.GetCString());
 }
 
 lldb_private::SyntheticChildrenFrontEnd *

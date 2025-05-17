@@ -59,8 +59,6 @@ public:
   }
 
   ArrayRef<const OpenACCClause *> clauses() const { return Clauses; }
-  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
-  static bool classofKind(Kind K);
 };
 
 class OpenACCDeclareDecl final

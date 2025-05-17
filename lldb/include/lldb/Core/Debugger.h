@@ -20,8 +20,6 @@
 #include "lldb/Core/IOHandler.h"
 #include "lldb/Core/SourceManager.h"
 #include "lldb/Core/Statusline.h"
-#include "lldb/Core/StructuredDataImpl.h"
-#include "lldb/Core/Telemetry.h"
 #include "lldb/Core/UserSettingsController.h"
 #include "lldb/Host/HostThread.h"
 #include "lldb/Host/StreamFile.h"
@@ -34,7 +32,6 @@
 #include "lldb/Utility/Diagnostics.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Status.h"
-#include "lldb/Utility/StructuredData.h"
 #include "lldb/Utility/UserID.h"
 #include "lldb/lldb-defines.h"
 #include "lldb/lldb-enumerations.h"
@@ -69,6 +66,10 @@ class Process;
 class Stream;
 class SymbolContext;
 class Target;
+
+namespace repro {
+class DataRecorder;
+}
 
 /// \class Debugger Debugger.h "lldb/Core/Debugger.h"
 /// A class to manage flag bits.
@@ -127,8 +128,6 @@ public:
 
   void Clear();
 
-  void DispatchClientTelemetry(const lldb_private::StructuredDataImpl &entry);
-
   bool GetAsyncExecution();
 
   void SetAsyncExecution(bool async);
@@ -143,6 +142,8 @@ public:
   lldb::FileSP GetErrorFileSP() {
     return m_error_stream_sp->GetUnlockedFileSP();
   }
+
+  repro::DataRecorder *GetInputRecorder();
 
   Status SetInputString(const char *data);
 
@@ -237,6 +238,14 @@ public:
 
   void SetLoggingCallback(lldb::LogOutputCallback log_callback, void *baton);
 
+  // Properties Functions
+  enum StopDisassemblyType {
+    eStopDisassemblyTypeNever = 0,
+    eStopDisassemblyTypeNoDebugInfo,
+    eStopDisassemblyTypeNoSource,
+    eStopDisassemblyTypeAlways
+  };
+
   Status SetPropertyValue(const ExecutionContext *exe_ctx,
                           VarSetOperationType op, llvm::StringRef property_path,
                           llvm::StringRef value) override;
@@ -298,10 +307,6 @@ public:
   bool GetShowStatusline() const;
 
   const FormatEntity::Entry *GetStatuslineFormat() const;
-  bool SetStatuslineFormat(const FormatEntity::Entry &format);
-
-  llvm::StringRef GetSeparator() const;
-  bool SetSeparator(llvm::StringRef s);
 
   llvm::StringRef GetShowProgressAnsiPrefix() const;
 
@@ -333,7 +338,7 @@ public:
 
   uint64_t GetStopSourceLineCount(bool before) const;
 
-  lldb::StopDisassemblyType GetStopDisassemblyDisplay() const;
+  StopDisassemblyType GetStopDisassemblyDisplay() const;
 
   uint64_t GetDisassemblyLineCount() const;
 
@@ -714,6 +719,9 @@ protected:
   lldb::LockableStreamFileSP m_error_stream_sp;
   LockableStreamFile::Mutex m_output_mutex;
 
+  /// Used for shadowing the input file when capturing a reproducer.
+  repro::DataRecorder *m_input_recorder;
+
   lldb::BroadcasterManagerSP m_broadcaster_manager_sp; // The debugger acts as a
                                                        // broadcaster manager of
                                                        // last resort.
@@ -743,8 +751,6 @@ protected:
   IOHandlerStack m_io_handler_stack;
   std::recursive_mutex m_io_handler_synchronous_mutex;
 
-  /// Mutex protecting the m_statusline member.
-  std::mutex m_statusline_mutex;
   std::optional<Statusline> m_statusline;
 
   llvm::StringMap<std::weak_ptr<LogHandler>> m_stream_handlers;

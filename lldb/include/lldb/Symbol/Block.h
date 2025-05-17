@@ -78,8 +78,6 @@ public:
 
   Block *CalculateSymbolContextBlock() override;
 
-  Function &GetFunction();
-
   /// Check if an offset is in one of the block offset ranges.
   ///
   /// \param[in] range_offset

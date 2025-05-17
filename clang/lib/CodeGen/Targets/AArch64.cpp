@@ -136,15 +136,13 @@ public:
 
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &CGM) const override {
-    auto *Fn = dyn_cast<llvm::Function>(GV);
-    if (!Fn)
+    const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
+    if (!FD)
       return;
 
-    const auto *FD = dyn_cast_or_null<FunctionDecl>(D);
     TargetInfo::BranchProtectionInfo BPI(CGM.getLangOpts());
 
-    if (FD && FD->hasAttr<TargetAttr>()) {
-      const auto *TA = FD->getAttr<TargetAttr>();
+    if (const auto *TA = FD->getAttr<TargetAttr>()) {
       ParsedTargetAttr Attr =
           CGM.getTarget().parseTargetAttr(TA->getFeaturesStr());
       if (!Attr.BranchProtection.empty()) {
@@ -154,6 +152,7 @@ public:
         assert(Error.empty());
       }
     }
+    auto *Fn = cast<llvm::Function>(GV);
     setBranchProtectionFnAttributes(BPI, *Fn);
   }
 
@@ -700,7 +699,7 @@ bool AArch64ABIInfo::passAsPureScalableType(
       return false;
 
     for (uint64_t I = 0; I < NElt; ++I)
-      llvm::append_range(CoerceToSeq, EltCoerceToSeq);
+      llvm::copy(EltCoerceToSeq, std::back_inserter(CoerceToSeq));
 
     NVec += NElt * NV;
     NPred += NElt * NP;
@@ -819,7 +818,7 @@ void AArch64ABIInfo::flattenType(
     flattenType(AT->getElementType(), EltFlattened);
 
     for (uint64_t I = 0; I < NElt; ++I)
-      llvm::append_range(Flattened, EltFlattened);
+      llvm::copy(EltFlattened, std::back_inserter(Flattened));
     return;
   }
 

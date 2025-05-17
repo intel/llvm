@@ -64,6 +64,7 @@ static cl::opt<bool> AllowIncompleteIR(
         "metadata will be dropped)"));
 
 extern llvm::cl::opt<bool> UseNewDbgInfoFormat;
+extern cl::opt<cl::boolOrDefault> PreserveInputDbgFormat;
 
 static std::string getTypeString(Type *T) {
   std::string Result;
@@ -208,6 +209,10 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
   // records in this IR.
   assert(!(SeenNewDbgInfoFormat && SeenOldDbgInfoFormat) &&
          "Mixed debug intrinsics/records seen without a parsing error?");
+  if (PreserveInputDbgFormat == cl::boolOrDefault::BOU_TRUE) {
+    UseNewDbgInfoFormat = SeenNewDbgInfoFormat;
+    M->setNewDbgInfoFormatFlag(SeenNewDbgInfoFormat);
+  }
 
   // Handle any function attribute group forward references.
   for (const auto &RAG : ForwardRefAttrGroups) {
@@ -442,7 +447,8 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
   UpgradeNVVMAnnotations(*M);
   UpgradeSectionAttributes(*M);
 
-  M->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+  if (PreserveInputDbgFormat != cl::boolOrDefault::BOU_TRUE)
+    M->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
 
   if (!Slots)
     return false;
@@ -3072,8 +3078,6 @@ bool LLParser::parseParameterList(SmallVectorImpl<ParamInfo> &ArgList,
     Value *V;
     if (parseType(ArgTy, ArgLoc))
       return true;
-    if (!FunctionType::isValidArgumentType(ArgTy))
-      return error(ArgLoc, "invalid type for function argument");
 
     AttrBuilder ArgAttrs(M->getContext());
 
@@ -3383,7 +3387,7 @@ bool LLParser::parseArgumentList(SmallVectorImpl<ArgInfo> &ArgList,
         CurValID = ArgID + 1;
       }
 
-      if (!FunctionType::isValidArgumentType(ArgTy))
+      if (!ArgTy->isFirstClassType())
         return error(TypeLoc, "invalid type for function argument");
 
       ArgList.emplace_back(TypeLoc, ArgTy,
@@ -5321,22 +5325,20 @@ bool LLParser::parseSpecializedMDNode(MDNode *&N, bool IsDistinct) {
 
 /// parseDILocationFields:
 ///   ::= !DILocation(line: 43, column: 8, scope: !5, inlinedAt: !6,
-///   isImplicitCode: true, atomGroup: 1, atomRank: 1)
+///   isImplicitCode: true)
 bool LLParser::parseDILocation(MDNode *&Result, bool IsDistinct) {
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
   OPTIONAL(line, LineField, );                                                 \
   OPTIONAL(column, ColumnField, );                                             \
   REQUIRED(scope, MDField, (/* AllowNull */ false));                           \
   OPTIONAL(inlinedAt, MDField, );                                              \
-  OPTIONAL(isImplicitCode, MDBoolField, (false));                              \
-  OPTIONAL(atomGroup, MDUnsignedField, (0, UINT64_MAX));                       \
-  OPTIONAL(atomRank, MDUnsignedField, (0, UINT8_MAX));
+  OPTIONAL(isImplicitCode, MDBoolField, (false));
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
-  Result = GET_OR_DISTINCT(
-      DILocation, (Context, line.Val, column.Val, scope.Val, inlinedAt.Val,
-                   isImplicitCode.Val, atomGroup.Val, atomRank.Val));
+  Result =
+      GET_OR_DISTINCT(DILocation, (Context, line.Val, column.Val, scope.Val,
+                                   inlinedAt.Val, isImplicitCode.Val));
   return false;
 }
 
@@ -8630,14 +8632,6 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
     Operation = AtomicRMWInst::FMin;
     IsFP = true;
     break;
-  case lltok::kw_fmaximum:
-    Operation = AtomicRMWInst::FMaximum;
-    IsFP = true;
-    break;
-  case lltok::kw_fminimum:
-    Operation = AtomicRMWInst::FMinimum;
-    IsFP = true;
-    break;
   }
   Lex.Lex();  // Eat the operation.
 
@@ -9061,7 +9055,7 @@ bool LLParser::parseTypeIdEntry(unsigned ID) {
     for (auto TIDRef : FwdRefTIDs->second) {
       assert(!*TIDRef.first &&
              "Forward referenced type id GUID expected to be 0");
-      *TIDRef.first = GlobalValue::getGUIDAssumingExternalLinkage(Name);
+      *TIDRef.first = GlobalValue::getGUID(Name);
     }
     ForwardRefTypeIds.erase(FwdRefTIDs);
   }
@@ -9166,7 +9160,7 @@ bool LLParser::parseTypeIdCompatibleVtableEntry(unsigned ID) {
     for (auto TIDRef : FwdRefTIDs->second) {
       assert(!*TIDRef.first &&
              "Forward referenced type id GUID expected to be 0");
-      *TIDRef.first = GlobalValue::getGUIDAssumingExternalLinkage(Name);
+      *TIDRef.first = GlobalValue::getGUID(Name);
     }
     ForwardRefTypeIds.erase(FwdRefTIDs);
   }
@@ -9482,7 +9476,7 @@ bool LLParser::addGlobalValueToIndex(
       assert(
           (!GlobalValue::isLocalLinkage(Linkage) || !SourceFileName.empty()) &&
           "Need a source_filename to compute GUID for local");
-      GUID = GlobalValue::getGUIDAssumingExternalLinkage(
+      GUID = GlobalValue::getGUID(
           GlobalValue::getGlobalIdentifier(Name, Linkage, SourceFileName));
       VI = Index->getOrInsertValueInfo(GUID, Index->saveString(Name));
     }

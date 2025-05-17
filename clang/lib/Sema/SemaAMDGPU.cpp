@@ -27,7 +27,7 @@ bool SemaAMDGPU::CheckAMDGCNBuiltinFunctionCall(unsigned BuiltinID,
   // position of memory order and scope arguments in the builtin
   unsigned OrderIndex, ScopeIndex;
 
-  const auto *FD = SemaRef.getCurFunctionDecl(/*AllowLambda=*/true);
+  const auto *FD = SemaRef.getCurFunctionDecl();
   assert(FD && "AMDGPU builtins should not be used outside of a function");
   llvm::StringMap<bool> CallerFeatureMap;
   getASTContext().getFunctionFeatureMap(CallerFeatureMap, FD);

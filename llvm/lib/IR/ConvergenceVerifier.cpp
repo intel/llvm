@@ -34,7 +34,9 @@ auto GenericConvergenceVerifier<SSAContext>::getConvOp(const Instruction &I)
 
 template <>
 void GenericConvergenceVerifier<SSAContext>::checkConvergenceTokenProduced(
-    const Instruction &I) {}
+    const Instruction &I) {
+  return;
+}
 
 template <>
 const Instruction *

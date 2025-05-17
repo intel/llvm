@@ -156,11 +156,6 @@ static bool SetBackdoorDriverOutputsFromEnvVars(Driver &TheDriver) {
       }
 
       const char *FilteringStr = ::getenv("CC_PRINT_HEADERS_FILTERING");
-      if (!FilteringStr) {
-        TheDriver.Diag(clang::diag::err_drv_print_header_env_var_invalid_format)
-            << EnvVar;
-        return false;
-      }
       HeaderIncludeFilteringKind Filtering;
       if (!stringToHeaderIncludeFiltering(FilteringStr, Filtering)) {
         TheDriver.Diag(clang::diag::err_drv_print_header_env_var)
@@ -171,7 +166,7 @@ static bool SetBackdoorDriverOutputsFromEnvVars(Driver &TheDriver) {
       if ((TheDriver.CCPrintHeadersFormat == HIFMT_Textual &&
            Filtering != HIFIL_None) ||
           (TheDriver.CCPrintHeadersFormat == HIFMT_JSON &&
-           Filtering == HIFIL_None)) {
+           Filtering != HIFIL_Only_Direct_System)) {
         TheDriver.Diag(clang::diag::err_drv_print_header_env_var_combination)
             << EnvVar << FilteringStr;
         return false;

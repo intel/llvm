@@ -7,4 +7,4 @@ define void @store_extern(%externref %ref) {
   ret void
 }
 
-; CHECK-ERROR: error: invalid type for undef constant
+; CHECK-ERROR: error: storing unsized types is not allowed

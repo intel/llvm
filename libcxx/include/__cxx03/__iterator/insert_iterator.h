@@ -14,6 +14,7 @@
 #include <__cxx03/__iterator/iterator.h>
 #include <__cxx03/__iterator/iterator_traits.h>
 #include <__cxx03/__memory/addressof.h>
+#include <__cxx03/__ranges/access.h>
 #include <__cxx03/__utility/move.h>
 #include <__cxx03/cstddef>
 
@@ -26,12 +27,21 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
+#if _LIBCPP_STD_VER >= 20
+template <class _Container>
+using __insert_iterator_iter_t = ranges::iterator_t<_Container>;
+#else
 template <class _Container>
 using __insert_iterator_iter_t = typename _Container::iterator;
+#endif
 
 _LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Container>
-class _LIBCPP_TEMPLATE_VIS insert_iterator : public iterator<output_iterator_tag, void, void, void, void> {
+class _LIBCPP_TEMPLATE_VIS insert_iterator
+#if _LIBCPP_STD_VER <= 14 || !defined(_LIBCPP_ABI_NO_ITERATOR_BASES)
+    : public iterator<output_iterator_tag, void, void, void, void>
+#endif
+{
   _LIBCPP_SUPPRESS_DEPRECATED_POP
 
 protected:
@@ -41,7 +51,11 @@ protected:
 public:
   typedef output_iterator_tag iterator_category;
   typedef void value_type;
+#if _LIBCPP_STD_VER >= 20
+  typedef ptrdiff_t difference_type;
+#else
   typedef void difference_type;
+#endif
   typedef void pointer;
   typedef void reference;
   typedef _Container container_type;
@@ -55,6 +69,14 @@ public:
     ++iter;
     return *this;
   }
+#ifndef _LIBCPP_CXX03_LANG
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 insert_iterator&
+  operator=(typename _Container::value_type&& __value) {
+    iter = container->insert(iter, std::move(__value));
+    ++iter;
+    return *this;
+  }
+#endif // _LIBCPP_CXX03_LANG
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 insert_iterator& operator*() { return *this; }
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 insert_iterator& operator++() { return *this; }
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 insert_iterator& operator++(int) { return *this; }

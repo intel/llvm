@@ -32,7 +32,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
   bool GetSummary(Stream &stream, const TypeSummaryOptions &options);
 
@@ -139,16 +139,15 @@ LibStdcppUniquePtrSyntheticFrontEnd::CalculateNumChildren() {
   return 1;
 }
 
-llvm::Expected<size_t>
-LibStdcppUniquePtrSyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
+size_t LibStdcppUniquePtrSyntheticFrontEnd::GetIndexOfChildWithName(
+    ConstString name) {
   if (name == "ptr" || name == "pointer")
     return 0;
   if (name == "del" || name == "deleter")
     return 1;
   if (name == "obj" || name == "object" || name == "$$dereference$$")
     return 2;
-  return llvm::createStringError("Type has no child named '%s'",
-                                 name.AsCString());
+  return UINT32_MAX;
 }
 
 bool LibStdcppUniquePtrSyntheticFrontEnd::GetSummary(

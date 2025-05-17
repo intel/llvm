@@ -14,6 +14,7 @@
 
 #include <clc/math/gentype.inc>
 
+#undef __CLC_BODY
 #undef __CLC_FUNCTION
 
 #endif // __CLC_COMMON_CLC_SIGN_H__

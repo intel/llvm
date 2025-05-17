@@ -2975,6 +2975,7 @@ SDNode *IntegerCompareEliminator::tryEXTEND(SDNode *N) {
   if (!WideRes)
     return nullptr;
 
+  SDLoc dl(N);
   bool Input32Bit = WideRes.getValueType() == MVT::i32;
   bool Output32Bit = N->getValueType(0) == MVT::i32;
 

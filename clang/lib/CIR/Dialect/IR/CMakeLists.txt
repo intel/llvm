@@ -6,7 +6,6 @@ add_clang_library(MLIRCIR
 
   DEPENDS
   MLIRCIROpsIncGen
-  MLIRCIRTypeConstraintsIncGen
   MLIRCIREnumsGen
   MLIRCIROpInterfacesIncGen
   MLIRCIRLoopOpInterfaceIncGen

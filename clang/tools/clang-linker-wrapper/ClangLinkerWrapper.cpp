@@ -532,6 +532,9 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   if (!OffloadBundlerPath)
     return OffloadBundlerPath.takeError();
 
+  llvm::Triple Triple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+
   // Create a new file to write the linked device image to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "hipfb");
@@ -1635,7 +1638,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       else
         Arg->render(Args, LinkerArgs);
     }
-    llvm::append_range(CmdArgs, LinkerArgs);
+    llvm::copy(LinkerArgs, std::back_inserter(CmdArgs));
   }
 
   // Pass on -mllvm options to the linker invocation.
@@ -1686,7 +1689,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-    return generic::clang(InputFiles, Args);
+    return generic::clang(InputFiles, Args, IsSYCLKind);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -1716,7 +1719,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return StringRef("");
   }
   case Triple::loongarch64:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args);
   default:
     if (Triple.str() == "native_cpu" && IsSYCLKind)
       return generic::clang(InputFiles, Args);
@@ -1848,6 +1851,7 @@ bundleCuda(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
     InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
                                            Image.StringData.lookup("arch")));
 
+  Triple TheTriple = Triple(Images.front().StringData.lookup("triple"));
   auto FileOrErr = nvptx::fatbinary(InputFiles, Args);
   if (!FileOrErr)
     return FileOrErr.takeError();
@@ -1870,6 +1874,7 @@ bundleHIP(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
     InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
                                            Image.StringData.lookup("arch")));
 
+  Triple TheTriple = Triple(Images.front().StringData.lookup("triple"));
   auto FileOrErr = amdgcn::fatbinary(InputFiles, Args);
   if (!FileOrErr)
     return FileOrErr.takeError();
@@ -2040,24 +2045,16 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
           reportError(createStringError(Err));
         });
     auto LinkerArgs = getLinkerArgs(Input, BaseArgs);
+    DenseSet<OffloadKind> ActiveOffloadKinds;
     bool HasSYCLOffloadKind = false;
     bool HasNonSYCLOffloadKinds = false;
-    uint16_t ActiveOffloadKindMask = 0u;
     for (const auto &File : Input) {
-      ActiveOffloadKindMask |= File.getBinary()->getOffloadKind();
+      if (File.getBinary()->getOffloadKind() != OFK_None)
+        ActiveOffloadKinds.insert(File.getBinary()->getOffloadKind());
       if (File.getBinary()->getOffloadKind() == OFK_SYCL)
         HasSYCLOffloadKind = true;
       else
         HasNonSYCLOffloadKinds = true;
-    }
-
-    // Write any remaining device inputs to an output file.
-    SmallVector<StringRef> InputFiles;
-    for (const OffloadFile &File : Input) {
-      auto FileNameOrErr = writeOffloadFile(File);
-      if (!FileNameOrErr)
-        return FileNameOrErr.takeError();
-      InputFiles.emplace_back(*FileNameOrErr);
     }
 
     if (HasSYCLOffloadKind) {
@@ -2172,10 +2169,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         return OutputOrErr.takeError();
 
       // Store the offloading image for each linked output file.
-      for (OffloadKind Kind = OFK_OpenMP; Kind != OFK_LAST;
-        Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
-        if ((ActiveOffloadKindMask & Kind) == 0)
-          continue;
+      for (OffloadKind Kind : ActiveOffloadKinds) {
         llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
             llvm::MemoryBuffer::getFileOrSTDIN(*OutputOrErr);
         if (std::error_code EC = FileOrErr.getError()) {
@@ -2628,7 +2622,7 @@ int main(int Argc, char **Argv) {
   PassPlugins.setCallback([&](const std::string &PluginPath) {
     auto Plugin = PassPlugin::Load(PluginPath);
     if (!Plugin)
-      reportFatalUsageError(Plugin.takeError());
+      report_fatal_error(Plugin.takeError(), /*gen_crash_diag=*/false);
     PluginList.emplace_back(Plugin.get());
   });
   cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);

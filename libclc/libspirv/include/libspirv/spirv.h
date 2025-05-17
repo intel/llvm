@@ -49,6 +49,9 @@
 /* Reinterpreting Types Using __clc_as_type() and __clc_as_typen() */
 #include <clc/clc_as_type.h>
 
+/* Preprocessor Directives and Macros */
+#include <macros.h>
+
 /* 6.11.1 Work-Item Functions */
 #include <libspirv/workitem/get_global_id.h>
 #include <libspirv/workitem/get_global_offset.h>

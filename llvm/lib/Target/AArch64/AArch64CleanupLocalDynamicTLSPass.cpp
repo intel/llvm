@@ -35,7 +35,9 @@ using namespace llvm;
 namespace {
 struct LDTLSCleanup : public MachineFunctionPass {
   static char ID;
-  LDTLSCleanup() : MachineFunctionPass(ID) {}
+  LDTLSCleanup() : MachineFunctionPass(ID) {
+    initializeLDTLSCleanupPass(*PassRegistry::getPassRegistry());
+  }
 
   bool runOnMachineFunction(MachineFunction &MF) override {
     if (skipFunction(MF.getFunction()))

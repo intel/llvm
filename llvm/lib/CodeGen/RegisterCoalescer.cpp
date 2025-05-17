@@ -3814,7 +3814,8 @@ bool RegisterCoalescer::joinVirtRegs(CoalescerPair &CP) {
     // into an existing tracking collection, or insert a new one.
     RegIt = RegToPHIIdx.find(CP.getDstReg());
     if (RegIt != RegToPHIIdx.end())
-      llvm::append_range(RegIt->second, InstrNums);
+      RegIt->second.insert(RegIt->second.end(), InstrNums.begin(),
+                           InstrNums.end());
     else
       RegToPHIIdx.insert({CP.getDstReg(), InstrNums});
   }

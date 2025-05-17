@@ -1371,30 +1371,38 @@ getSectionFlagsForTarget(unsigned EOSAbi, unsigned EMachine) {
                                        std::end(ElfSectionFlags));
   switch (EOSAbi) {
   case ELFOSABI_SOLARIS:
-    llvm::append_range(Ret, ElfSolarisSectionFlags);
+    Ret.insert(Ret.end(), std::begin(ElfSolarisSectionFlags),
+               std::end(ElfSolarisSectionFlags));
     break;
   default:
-    llvm::append_range(Ret, ElfGNUSectionFlags);
+    Ret.insert(Ret.end(), std::begin(ElfGNUSectionFlags),
+               std::end(ElfGNUSectionFlags));
     break;
   }
   switch (EMachine) {
   case EM_AARCH64:
-    llvm::append_range(Ret, ElfAArch64SectionFlags);
+    Ret.insert(Ret.end(), std::begin(ElfAArch64SectionFlags),
+               std::end(ElfAArch64SectionFlags));
     break;
   case EM_ARM:
-    llvm::append_range(Ret, ElfARMSectionFlags);
+    Ret.insert(Ret.end(), std::begin(ElfARMSectionFlags),
+               std::end(ElfARMSectionFlags));
     break;
   case EM_HEXAGON:
-    llvm::append_range(Ret, ElfHexagonSectionFlags);
+    Ret.insert(Ret.end(), std::begin(ElfHexagonSectionFlags),
+               std::end(ElfHexagonSectionFlags));
     break;
   case EM_MIPS:
-    llvm::append_range(Ret, ElfMipsSectionFlags);
+    Ret.insert(Ret.end(), std::begin(ElfMipsSectionFlags),
+               std::end(ElfMipsSectionFlags));
     break;
   case EM_X86_64:
-    llvm::append_range(Ret, ElfX86_64SectionFlags);
+    Ret.insert(Ret.end(), std::begin(ElfX86_64SectionFlags),
+               std::end(ElfX86_64SectionFlags));
     break;
   case EM_XCORE:
-    llvm::append_range(Ret, ElfXCoreSectionFlags);
+    Ret.insert(Ret.end(), std::begin(ElfXCoreSectionFlags),
+               std::end(ElfXCoreSectionFlags));
     break;
   default:
     break;
@@ -3489,13 +3497,20 @@ ELFDumper<ELFT>::getOtherFlagsFromSymbol(const Elf_Ehdr &Header,
     // flag overlap with other ST_MIPS_xxx flags. So consider both
     // cases separately.
     if ((Symbol.st_other & STO_MIPS_MIPS16) == STO_MIPS_MIPS16)
-      llvm::append_range(SymOtherFlags, ElfMips16SymOtherFlags);
+      SymOtherFlags.insert(SymOtherFlags.end(),
+                           std::begin(ElfMips16SymOtherFlags),
+                           std::end(ElfMips16SymOtherFlags));
     else
-      llvm::append_range(SymOtherFlags, ElfMipsSymOtherFlags);
+      SymOtherFlags.insert(SymOtherFlags.end(),
+                           std::begin(ElfMipsSymOtherFlags),
+                           std::end(ElfMipsSymOtherFlags));
   } else if (Header.e_machine == EM_AARCH64) {
-    llvm::append_range(SymOtherFlags, ElfAArch64SymOtherFlags);
+    SymOtherFlags.insert(SymOtherFlags.end(),
+                         std::begin(ElfAArch64SymOtherFlags),
+                         std::end(ElfAArch64SymOtherFlags));
   } else if (Header.e_machine == EM_RISCV) {
-    llvm::append_range(SymOtherFlags, ElfRISCVSymOtherFlags);
+    SymOtherFlags.insert(SymOtherFlags.end(), std::begin(ElfRISCVSymOtherFlags),
+                         std::end(ElfRISCVSymOtherFlags));
   }
   return SymOtherFlags;
 }

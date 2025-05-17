@@ -298,7 +298,8 @@ namespace {
       assert(V.isLValue() && "Non-LValue used to make an LValue designator?");
       if (!Invalid) {
         IsOnePastTheEnd = V.isLValueOnePastTheEnd();
-        llvm::append_range(Entries, V.getLValuePath());
+        ArrayRef<PathEntry> VEntries = V.getLValuePath();
+        Entries.insert(Entries.end(), VEntries.begin(), VEntries.end());
         if (V.getLValueBase()) {
           bool IsArray = false;
           bool FirstIsUnsizedArray = false;
@@ -1831,7 +1832,8 @@ namespace {
       DeclAndIsDerivedMember.setPointer(V.getMemberPointerDecl());
       DeclAndIsDerivedMember.setInt(V.isMemberPointerToDerivedMember());
       Path.clear();
-      llvm::append_range(Path, V.getMemberPointerPath());
+      ArrayRef<const CXXRecordDecl*> P = V.getMemberPointerPath();
+      Path.insert(Path.end(), P.begin(), P.end());
     }
 
     /// DeclAndIsDerivedMember - The member declaration, and a flag indicating
@@ -2232,15 +2234,10 @@ static bool ArePotentiallyOverlappingStringLiterals(const EvalInfo &Info,
   // within RHS. We don't need to look at the characters of one string that
   // would appear before the start of the other string if they were merged.
   CharUnits Offset = RHS.Offset - LHS.Offset;
-  if (Offset.isNegative()) {
-    if (LHSString.Bytes.size() < (size_t)-Offset.getQuantity())
-      return false;
+  if (Offset.isNegative())
     LHSString.Bytes = LHSString.Bytes.drop_front(-Offset.getQuantity());
-  } else {
-    if (RHSString.Bytes.size() < (size_t)Offset.getQuantity())
-      return false;
+  else
     RHSString.Bytes = RHSString.Bytes.drop_front(Offset.getQuantity());
-  }
 
   bool LHSIsLonger = LHSString.Bytes.size() > RHSString.Bytes.size();
   StringRef Longer = LHSIsLonger ? LHSString.Bytes : RHSString.Bytes;
@@ -8388,8 +8385,9 @@ public:
           FD = CorrespondingCallOpSpecialization;
         } else
           FD = LambdaCallOp;
-      } else if (FD->isUsableAsGlobalAllocationFunctionInConstantEvaluation()) {
-        if (FD->getDeclName().isAnyOperatorNew()) {
+      } else if (FD->isReplaceableGlobalAllocationFunction()) {
+        if (FD->getDeclName().getCXXOverloadedOperator() == OO_New ||
+            FD->getDeclName().getCXXOverloadedOperator() == OO_Array_New) {
           LValue Ptr;
           if (!HandleOperatorNewCall(Info, E, Ptr))
             return false;
@@ -9202,10 +9200,7 @@ bool LValueExprEvaluator::VisitExtVectorElementExpr(
 
   if (Success) {
     Result.setFrom(Info.Ctx, Val);
-    QualType BaseType = E->getBase()->getType();
-    if (E->isArrow())
-      BaseType = BaseType->getPointeeType();
-    const auto *VT = BaseType->castAs<VectorType>();
+    const auto *VT = E->getBase()->getType()->castAs<VectorType>();
     HandleLValueVectorElement(Info, E, Result, VT->getElementType(),
                               VT->getNumElements(), Indices[0]);
   }
@@ -10342,8 +10337,7 @@ bool PointerExprEvaluator::VisitCXXNewExpr(const CXXNewExpr *E) {
     Info.FFDiag(E, diag::note_constexpr_new_placement)
         << /*Unsupported*/ 0 << E->getSourceRange();
     return false;
-  } else if (!OperatorNew
-                  ->isUsableAsGlobalAllocationFunctionInConstantEvaluation()) {
+  } else if (!OperatorNew->isReplaceableGlobalAllocationFunction()) {
     Info.FFDiag(E, diag::note_constexpr_new_non_replaceable)
         << isa<CXXMethodDecl>(OperatorNew) << OperatorNew;
     return false;
@@ -12802,13 +12796,11 @@ static bool determineEndOffset(EvalInfo &Info, SourceLocation ExprLoc,
   bool DetermineForCompleteObject = refersToCompleteObject(LVal);
 
   auto CheckedHandleSizeof = [&](QualType Ty, CharUnits &Result) {
-    if (Ty.isNull())
+    if (Ty.isNull() || Ty->isIncompleteType() || Ty->isFunctionType())
       return false;
 
-    Ty = Ty.getNonReferenceType();
-
-    if (Ty->isIncompleteType() || Ty->isFunctionType())
-      return false;
+    if (Ty->isReferenceType())
+      Ty = Ty.getNonReferenceType();
 
     return HandleSizeof(Info, ExprLoc, Ty, Result);
   };
@@ -14854,6 +14846,9 @@ bool IntExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
     // Reject differing bases from the normal codepath; we special-case
     // comparisons to null.
     if (!HasSameBase(LHSValue, RHSValue)) {
+      // Handle &&A - &&B.
+      if (!LHSValue.Offset.isZero() || !RHSValue.Offset.isZero())
+        return Error(E);
       const Expr *LHSExpr = LHSValue.Base.dyn_cast<const Expr *>();
       const Expr *RHSExpr = RHSValue.Base.dyn_cast<const Expr *>();
 
@@ -16611,8 +16606,7 @@ bool VoidExprEvaluator::VisitCXXDeleteExpr(const CXXDeleteExpr *E) {
     return false;
 
   FunctionDecl *OperatorDelete = E->getOperatorDelete();
-  if (!OperatorDelete
-           ->isUsableAsGlobalAllocationFunctionInConstantEvaluation()) {
+  if (!OperatorDelete->isReplaceableGlobalAllocationFunction()) {
     Info.FFDiag(E, diag::note_constexpr_new_non_replaceable)
         << isa<CXXMethodDecl>(OperatorDelete) << OperatorDelete;
     return false;
@@ -16656,8 +16650,7 @@ bool VoidExprEvaluator::VisitCXXDeleteExpr(const CXXDeleteExpr *E) {
   if (!E->isArrayForm() && !E->isGlobalDelete()) {
     const FunctionDecl *VirtualDelete = getVirtualOperatorDelete(AllocType);
     if (VirtualDelete &&
-        !VirtualDelete
-             ->isUsableAsGlobalAllocationFunctionInConstantEvaluation()) {
+        !VirtualDelete->isReplaceableGlobalAllocationFunction()) {
       Info.FFDiag(E, diag::note_constexpr_new_non_replaceable)
           << isa<CXXMethodDecl>(VirtualDelete) << VirtualDelete;
       return false;
@@ -18106,14 +18099,10 @@ static bool EvaluateCharRangeAsStringImpl(const Expr *, T &Result,
                                           const Expr *PtrExpression,
                                           ASTContext &Ctx,
                                           Expr::EvalResult &Status) {
+  LValue String;
   EvalInfo Info(Ctx, Status, EvalInfo::EM_ConstantExpression);
   Info.InConstantContext = true;
 
-  if (Info.EnableNewConstInterp)
-    return Info.Ctx.getInterpContext().evaluateCharRange(Info, SizeExpression,
-                                                         PtrExpression, Result);
-
-  LValue String;
   FullExpressionRAII Scope(Info);
   APSInt SizeValue;
   if (!::EvaluateInteger(SizeExpression, SizeValue, Info))

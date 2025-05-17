@@ -117,7 +117,8 @@ void DroppedVariableStats::removeVarFromAllSets(VarID Var, const Function *F) {
 bool DroppedVariableStats::isScopeChildOfOrEqualTo(const DIScope *Scope,
                                                    const DIScope *DbgValScope) {
   while (Scope != nullptr) {
-    if (VisitedScope.insert(Scope).second) {
+    if (VisitedScope.find(Scope) == VisitedScope.end()) {
+      VisitedScope.insert(Scope);
       if (Scope == DbgValScope) {
         VisitedScope.clear();
         return true;

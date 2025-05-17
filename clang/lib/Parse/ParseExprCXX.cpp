@@ -1451,8 +1451,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
   // lambda declarator and applies them to the corresponding function operator
   // or operator template declaration. We accept this as a conforming extension
   // in all language modes that support lambdas.
-  if (isCXX11AttributeSpecifier() !=
-      CXX11AttributeKind::NotAttributeSpecifier) {
+  if (isCXX11AttributeSpecifier()) {
     Diag(Tok, getLangOpts().CPlusPlus23
                   ? diag::warn_cxx20_compat_decl_attrs_on_lambda
                   : diag::ext_decl_attrs_on_lambda)
@@ -3598,7 +3597,7 @@ Parser::ParseCXXDeleteExpression(bool UseGlobal, SourceLocation Start) {
       return ExprError();
   }
 
-  ExprResult Operand(ParseCastExpression(CastParseKind::AnyCastExpr));
+  ExprResult Operand(ParseCastExpression(AnyCastExpr));
   if (Operand.isInvalid())
     return Operand;
 
@@ -4086,8 +4085,7 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
                                          BalancedDelimiterTracker &Tracker,
                                          ColonProtectionRAIIObject &ColonProt) {
   assert(getLangOpts().CPlusPlus && "Should only be called for C++!");
-  assert(ExprType == ParenParseOption::CastExpr &&
-         "Compound literals are not ambiguous!");
+  assert(ExprType == CastExpr && "Compound literals are not ambiguous!");
   assert(isTypeIdInParens() && "Not a type-id!");
 
   ExprResult Result(true);
@@ -4124,7 +4122,7 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
   }
 
   if (Tok.is(tok::l_brace)) {
-    ParseAs = ParenParseOption::CompoundLiteral;
+    ParseAs = CompoundLiteral;
   } else {
     bool NotCastExpr;
     if (Tok.is(tok::l_paren) && NextToken().is(tok::r_paren)) {
@@ -4134,16 +4132,16 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
       // If it is not a cast-expression, NotCastExpr will be true and no token
       // will be consumed.
       ColonProt.restore();
-      Result = ParseCastExpression(CastParseKind::AnyCastExpr,
-                                   false /*isAddressofOperand*/, NotCastExpr,
+      Result = ParseCastExpression(AnyCastExpr,
+                                   false/*isAddressofOperand*/,
+                                   NotCastExpr,
                                    // type-id has priority.
-                                   TypeCastState::IsTypeCast);
+                                   IsTypeCast);
     }
 
     // If we parsed a cast-expression, it's really a type-id, otherwise it's
     // an expression.
-    ParseAs =
-        NotCastExpr ? ParenParseOption::SimpleExpr : ParenParseOption::CastExpr;
+    ParseAs = NotCastExpr ? SimpleExpr : CastExpr;
   }
 
   // Create a fake EOF to mark end of Toks buffer.
@@ -4164,7 +4162,7 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
   // as when we entered this function.
   ConsumeAnyToken();
 
-  if (ParseAs >= ParenParseOption::CompoundLiteral) {
+  if (ParseAs >= CompoundLiteral) {
     // Parse the type declarator.
     DeclSpec DS(AttrFactory);
     Declarator DeclaratorInfo(DS, ParsedAttributesView::none(),
@@ -4183,8 +4181,8 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
     assert(Tok.is(tok::eof) && Tok.getEofData() == AttrEnd.getEofData());
     ConsumeAnyToken();
 
-    if (ParseAs == ParenParseOption::CompoundLiteral) {
-      ExprType = ParenParseOption::CompoundLiteral;
+    if (ParseAs == CompoundLiteral) {
+      ExprType = CompoundLiteral;
       if (DeclaratorInfo.isInvalidType())
         return ExprError();
 
@@ -4195,7 +4193,7 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
     }
 
     // We parsed '(' type-id ')' and the thing after it wasn't a '{'.
-    assert(ParseAs == ParenParseOption::CastExpr);
+    assert(ParseAs == CastExpr);
 
     if (DeclaratorInfo.isInvalidType())
       return ExprError();
@@ -4209,9 +4207,9 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
   }
 
   // Not a compound literal, and not followed by a cast-expression.
-  assert(ParseAs == ParenParseOption::SimpleExpr);
+  assert(ParseAs == SimpleExpr);
 
-  ExprType = ParenParseOption::SimpleExpr;
+  ExprType = SimpleExpr;
   Result = ParseExpression();
   if (!Result.isInvalid() && Tok.is(tok::r_paren))
     Result = Actions.ActOnParenExpr(Tracker.getOpenLocation(),

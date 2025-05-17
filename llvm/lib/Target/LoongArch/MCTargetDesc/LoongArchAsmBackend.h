@@ -33,7 +33,11 @@ class LoongArchAsmBackend : public MCAsmBackend {
 
 public:
   LoongArchAsmBackend(const MCSubtargetInfo &STI, uint8_t OSABI, bool Is64Bit,
-                      const MCTargetOptions &Options);
+                      const MCTargetOptions &Options)
+      : MCAsmBackend(llvm::endianness::little,
+                     LoongArch::fixup_loongarch_relax),
+        STI(STI), OSABI(OSABI), Is64Bit(Is64Bit), TargetOptions(Options) {}
+  ~LoongArchAsmBackend() override {}
 
   bool handleAddSubRelocations(const MCAssembler &Asm, const MCFragment &F,
                                const MCFixup &Fixup, const MCValue &Target,
@@ -59,7 +63,7 @@ public:
 
   std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
 
-  MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override;
+  const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
 
   void relaxInstruction(MCInst &Inst,
                         const MCSubtargetInfo &STI) const override {}

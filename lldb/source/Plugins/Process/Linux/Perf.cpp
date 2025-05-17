@@ -9,6 +9,7 @@
 #include "Perf.h"
 
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
+#include "lldb/Host/linux/Support.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"

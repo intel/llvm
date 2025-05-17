@@ -35,7 +35,9 @@ class AMDGPURegBankSelect : public MachineFunctionPass {
 public:
   static char ID;
 
-  AMDGPURegBankSelect() : MachineFunctionPass(ID) {}
+  AMDGPURegBankSelect() : MachineFunctionPass(ID) {
+    initializeAMDGPURegBankSelectPass(*PassRegistry::getPassRegistry());
+  }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 

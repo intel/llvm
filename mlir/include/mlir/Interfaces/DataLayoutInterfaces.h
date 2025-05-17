@@ -19,7 +19,6 @@
 #include "mlir/IR/DialectInterface.h"
 #include "mlir/IR/OpDefinition.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/MapVector.h"
 #include "llvm/Support/TypeSize.h"
 
 namespace mlir {
@@ -36,7 +35,7 @@ using DataLayoutEntryListRef = llvm::ArrayRef<DataLayoutEntryInterface>;
 using TargetDeviceSpecListRef = llvm::ArrayRef<TargetDeviceSpecInterface>;
 using TargetDeviceSpecEntry = std::pair<StringAttr, TargetDeviceSpecInterface>;
 using DataLayoutIdentifiedEntryMap =
-    ::llvm::MapVector<::mlir::StringAttr, ::mlir::DataLayoutEntryInterface>;
+    ::llvm::DenseMap<::mlir::StringAttr, ::mlir::DataLayoutEntryInterface>;
 class DataLayoutOpInterface;
 class DataLayoutSpecInterface;
 class ModuleOp;

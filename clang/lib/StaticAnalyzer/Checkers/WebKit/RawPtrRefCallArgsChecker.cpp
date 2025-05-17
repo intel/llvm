@@ -69,7 +69,7 @@ public:
       }
 
       bool TraverseClassTemplateDecl(ClassTemplateDecl *Decl) override {
-        if (isSmartPtrClass(safeGetName(Decl)))
+        if (isRefType(safeGetName(Decl)))
           return true;
         return DynamicRecursiveASTVisitor::TraverseClassTemplateDecl(Decl);
       }
@@ -264,7 +264,7 @@ public:
         auto *callee = MemberOp->getDirectCallee();
         if (auto *calleeDecl = dyn_cast<CXXMethodDecl>(callee)) {
           if (const CXXRecordDecl *classDecl = calleeDecl->getParent()) {
-            if (isSafePtr(classDecl))
+            if (isRefCounted(classDecl))
               return true;
           }
         }

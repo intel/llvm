@@ -14,7 +14,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "HexagonVectorLoopCarriedReuse.h"
-#include "Hexagon.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -55,6 +54,13 @@ static cl::opt<int> HexagonVLCRIterationLim(
     "hexagon-vlcr-iteration-lim", cl::Hidden,
     cl::desc("Maximum distance of loop carried dependences that are handled"),
     cl::init(2));
+
+namespace llvm {
+
+void initializeHexagonVectorLoopCarriedReuseLegacyPassPass(PassRegistry &);
+Pass *createHexagonVectorLoopCarriedReuseLegacyPass();
+
+} // end namespace llvm
 
 namespace {
 
@@ -156,7 +162,10 @@ namespace {
   public:
     static char ID;
 
-    explicit HexagonVectorLoopCarriedReuseLegacyPass() : LoopPass(ID) {}
+    explicit HexagonVectorLoopCarriedReuseLegacyPass() : LoopPass(ID) {
+      PassRegistry *PR = PassRegistry::getPassRegistry();
+      initializeHexagonVectorLoopCarriedReuseLegacyPassPass(*PR);
+    }
 
     StringRef getPassName() const override {
       return "Hexagon-specific loop carried reuse for HVX vectors";
@@ -519,6 +528,7 @@ void HexagonVectorLoopCarriedReuse::reuseValue() {
   SmallVector<Instruction *, 4> InstsInPreheader;
   for (int i = 0; i < Iterations; ++i) {
     Instruction *InstInPreheader = Inst2Replace->clone();
+    SmallVector<Value *, 4> Ops;
     for (int j = 0; j < NumOperands; ++j) {
       Instruction *I = dyn_cast<Instruction>(Inst2Replace->getOperand(j));
       if (!I)

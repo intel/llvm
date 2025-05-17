@@ -1,3 +1,5 @@
+// XFAIL: *
+// XFAIL-TRACKER: CMPLRLLVM-64770
 // Test that SYCL kernel name conflicts that occur across PCH boundaries are
 // properly diagnosed.
 

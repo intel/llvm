@@ -171,8 +171,8 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
                      << setIsVerbose();
             });
           }
-        } else if (CtxProfPromoteAlwaysInline &&
-                   CtxProf.isInSpecializedModule() && CB->isIndirectCall()) {
+        } else if (CtxProfPromoteAlwaysInline && !CtxProf.contexts().empty() &&
+                   CB->isIndirectCall()) {
           CtxProfAnalysis::collectIndirectCallPromotionList(*CB, CtxProf,
                                                             ICPCandidates);
         }
@@ -260,7 +260,7 @@ PreservedAnalyses ModuleInlinerPass::run(Module &M,
           // iteration because the next iteration may not happen and we may
           // miss inlining it.
           // FIXME: enable for ctxprof.
-          if (CtxProf.isInSpecializedModule())
+          if (CtxProf.contexts().empty())
             if (tryPromoteCall(*ICB))
               NewCallee = ICB->getCalledFunction();
         }

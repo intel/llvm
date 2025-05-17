@@ -741,6 +741,9 @@ bool CompactUnwindInfo::CreateUnwindPlan_x86_64(Target &target,
   unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetRegisterKind(eRegisterKindEHFrame);
 
+  unwind_plan.SetLSDAAddress(function_info.lsda_address);
+  unwind_plan.SetPersonalityFunctionPtr(function_info.personality_ptr_address);
+
   UnwindPlan::Row row;
 
   const int wordsize = 8;
@@ -1007,6 +1010,9 @@ bool CompactUnwindInfo::CreateUnwindPlan_i386(Target &target,
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolNo);
   unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetRegisterKind(eRegisterKindEHFrame);
+
+  unwind_plan.SetLSDAAddress(function_info.lsda_address);
+  unwind_plan.SetPersonalityFunctionPtr(function_info.personality_ptr_address);
 
   UnwindPlan::Row row;
 
@@ -1300,6 +1306,9 @@ bool CompactUnwindInfo::CreateUnwindPlan_arm64(Target &target,
   unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetRegisterKind(eRegisterKindEHFrame);
 
+  unwind_plan.SetLSDAAddress(function_info.lsda_address);
+  unwind_plan.SetPersonalityFunctionPtr(function_info.personality_ptr_address);
+
   UnwindPlan::Row row;
 
   const int wordsize = 8;
@@ -1427,6 +1436,9 @@ bool CompactUnwindInfo::CreateUnwindPlan_armv7(Target &target,
   unwind_plan.SetUnwindPlanValidAtAllInstructions(eLazyBoolNo);
   unwind_plan.SetUnwindPlanForSignalTrap(eLazyBoolNo);
   unwind_plan.SetRegisterKind(eRegisterKindEHFrame);
+
+  unwind_plan.SetLSDAAddress(function_info.lsda_address);
+  unwind_plan.SetPersonalityFunctionPtr(function_info.personality_ptr_address);
 
   UnwindPlan::Row row;
 

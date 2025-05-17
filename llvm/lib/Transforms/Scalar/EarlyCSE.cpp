@@ -223,11 +223,13 @@ static unsigned hashCallInst(CallInst *CI) {
   // Don't CSE convergent calls in different basic blocks, because they
   // implicitly depend on the set of threads that is currently executing.
   if (CI->isConvergent()) {
-    return hash_combine(CI->getOpcode(), CI->getParent(),
-                        hash_combine_range(CI->operand_values()));
+    return hash_combine(
+        CI->getOpcode(), CI->getParent(),
+        hash_combine_range(CI->value_op_begin(), CI->value_op_end()));
   }
-  return hash_combine(CI->getOpcode(),
-                      hash_combine_range(CI->operand_values()));
+  return hash_combine(
+      CI->getOpcode(),
+      hash_combine_range(CI->value_op_begin(), CI->value_op_end()));
 }
 
 static unsigned getHashValueImpl(SimpleValue Val) {
@@ -300,11 +302,12 @@ static unsigned getHashValueImpl(SimpleValue Val) {
 
   if (const ExtractValueInst *EVI = dyn_cast<ExtractValueInst>(Inst))
     return hash_combine(EVI->getOpcode(), EVI->getOperand(0),
-                        hash_combine_range(EVI->indices()));
+                        hash_combine_range(EVI->idx_begin(), EVI->idx_end()));
 
   if (const InsertValueInst *IVI = dyn_cast<InsertValueInst>(Inst))
     return hash_combine(IVI->getOpcode(), IVI->getOperand(0),
-                        IVI->getOperand(1), hash_combine_range(IVI->indices()));
+                        IVI->getOperand(1),
+                        hash_combine_range(IVI->idx_begin(), IVI->idx_end()));
 
   assert((isa<CallInst>(Inst) || isa<ExtractElementInst>(Inst) ||
           isa<InsertElementInst>(Inst) || isa<ShuffleVectorInst>(Inst) ||
@@ -319,7 +322,7 @@ static unsigned getHashValueImpl(SimpleValue Val) {
       std::swap(LHS, RHS);
     return hash_combine(
         II->getOpcode(), LHS, RHS,
-        hash_combine_range(drop_begin(II->operand_values(), 2)));
+        hash_combine_range(II->value_op_begin() + 2, II->value_op_end()));
   }
 
   // gc.relocate is 'special' call: its second and third operands are
@@ -335,8 +338,9 @@ static unsigned getHashValueImpl(SimpleValue Val) {
     return hashCallInst(CI);
 
   // Mix in the opcode.
-  return hash_combine(Inst->getOpcode(),
-                      hash_combine_range(Inst->operand_values()));
+  return hash_combine(
+      Inst->getOpcode(),
+      hash_combine_range(Inst->value_op_begin(), Inst->value_op_end()));
 }
 
 unsigned DenseMapInfo<SimpleValue>::getHashValue(SimpleValue Val) {
@@ -604,8 +608,9 @@ unsigned DenseMapInfo<GEPValue>::getHashValue(const GEPValue &Val) {
   if (Val.ConstantOffset.has_value())
     return hash_combine(GEP->getOpcode(), GEP->getPointerOperand(),
                         Val.ConstantOffset.value());
-  return hash_combine(GEP->getOpcode(),
-                      hash_combine_range(GEP->operand_values()));
+  return hash_combine(
+      GEP->getOpcode(),
+      hash_combine_range(GEP->value_op_begin(), GEP->value_op_end()));
 }
 
 bool DenseMapInfo<GEPValue>::isEqual(const GEPValue &LHS, const GEPValue &RHS) {

@@ -15,7 +15,6 @@
 #include "clang/Basic/OpenACCKinds.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
-#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/SemaOpenACC.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -537,8 +536,6 @@ ClauseParensKind getClauseParensKind(OpenACCDirectiveKind DirKind,
   case OpenACCClauseKind::Tile:
     return ClauseParensKind::Required;
 
-  case OpenACCClauseKind::Shortloop:
-    llvm_unreachable("Shortloop shouldn't be generated in clang");
   case OpenACCClauseKind::Auto:
   case OpenACCClauseKind::Finalize:
   case OpenACCClauseKind::IfPresent:
@@ -817,7 +814,7 @@ bool Parser::ParseOpenACCIntExprList(OpenACCDirectiveKind DK,
 ///
 /// The device_type clause may be abbreviated to dtype.
 bool Parser::ParseOpenACCDeviceTypeList(
-    llvm::SmallVector<IdentifierLoc> &Archs) {
+    llvm::SmallVector<std::pair<IdentifierInfo *, SourceLocation>> &Archs) {
 
   if (expectIdentifierOrKeyword(*this)) {
     SkipUntil(tok::r_paren, tok::annot_pragma_openacc_end,
@@ -825,7 +822,7 @@ bool Parser::ParseOpenACCDeviceTypeList(
     return true;
   }
   IdentifierInfo *Ident = getCurToken().getIdentifierInfo();
-  Archs.emplace_back(ConsumeToken(), Ident);
+  Archs.emplace_back(Ident, ConsumeToken());
 
   while (!getCurToken().isOneOf(tok::r_paren, tok::annot_pragma_openacc_end)) {
     ExpectAndConsume(tok::comma);
@@ -836,7 +833,7 @@ bool Parser::ParseOpenACCDeviceTypeList(
       return true;
     }
     Ident = getCurToken().getIdentifierInfo();
-    Archs.emplace_back(ConsumeToken(), Ident);
+    Archs.emplace_back(Ident, ConsumeToken());
   }
   return false;
 }
@@ -1157,12 +1154,11 @@ Parser::OpenACCClauseParseResult Parser::ParseOpenACCClauseParams(
     }
     case OpenACCClauseKind::DType:
     case OpenACCClauseKind::DeviceType: {
-      llvm::SmallVector<IdentifierLoc> Archs;
+      llvm::SmallVector<std::pair<IdentifierInfo *, SourceLocation>> Archs;
       if (getCurToken().is(tok::star)) {
         // FIXME: We want to mark that this is an 'everything else' type of
         // device_type in Sema.
-        ParsedClause.setDeviceTypeDetails(
-            {IdentifierLoc(ConsumeToken(), nullptr)});
+        ParsedClause.setDeviceTypeDetails({{nullptr, ConsumeToken()}});
       } else if (!ParseOpenACCDeviceTypeList(Archs)) {
         ParsedClause.setDeviceTypeDetails(std::move(Archs));
       } else {

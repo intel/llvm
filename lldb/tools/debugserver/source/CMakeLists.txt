@@ -203,6 +203,7 @@ set(lldbDebugserverCommonSources
   libdebugserver.cpp
   PseudoTerminal.cpp
   PThreadEvent.cpp
+  PThreadMutex.cpp
   RNBContext.cpp
   RNBRemote.cpp
   RNBServices.cpp

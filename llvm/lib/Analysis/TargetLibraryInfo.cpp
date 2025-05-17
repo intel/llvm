@@ -1466,21 +1466,21 @@ static const VecDesc VecFuncs_SVML[] = {
 static const VecDesc VecFuncs_SLEEFGNUABI_VF2[] = {
 #define TLI_DEFINE_SLEEFGNUABI_VF2_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, VABI_PREFIX)                         \
-  {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX, /* CC = */ std::nullopt},
+  {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_SLEEFGNUABI_VF2_VECFUNCS
 };
 static const VecDesc VecFuncs_SLEEFGNUABI_VF4[] = {
 #define TLI_DEFINE_SLEEFGNUABI_VF4_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, VABI_PREFIX)                         \
-  {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX, /* CC = */ std::nullopt},
+  {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_SLEEFGNUABI_VF4_VECFUNCS
 };
 static const VecDesc VecFuncs_SLEEFGNUABI_VFScalable[] = {
 #define TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX, /* CC = */ std::nullopt},
+  {SCAL, VEC, VF, MASK, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS
 };
@@ -1488,15 +1488,15 @@ static const VecDesc VecFuncs_SLEEFGNUABI_VFScalable[] = {
 static const VecDesc VecFuncs_SLEEFGNUABI_VFScalableRISCV[] = {
 #define TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS_RISCV
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX, /* CC = */ std::nullopt},
+  {SCAL, VEC, VF, MASK, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS_RISCV
 };
 
 static const VecDesc VecFuncs_ArmPL[] = {
 #define TLI_DEFINE_ARMPL_VECFUNCS
-#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX, CC)               \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX, CC},
+#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
+  {SCAL, VEC, VF, MASK, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_ARMPL_VECFUNCS
 };
@@ -1504,7 +1504,7 @@ static const VecDesc VecFuncs_ArmPL[] = {
 const VecDesc VecFuncs_AMDLIBM[] = {
 #define TLI_DEFINE_AMDLIBM_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX, /* CC = */ std::nullopt},
+  {SCAL, VEC, VF, MASK, VABI_PREFIX},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_AMDLIBM_VECFUNCS
 };
@@ -1631,14 +1631,20 @@ unsigned TargetLibraryInfoImpl::getSizeTSize(const Module &M) const {
 }
 
 TargetLibraryInfoWrapperPass::TargetLibraryInfoWrapperPass()
-    : ImmutablePass(ID), TLA(TargetLibraryInfoImpl()) {}
+    : ImmutablePass(ID), TLA(TargetLibraryInfoImpl()) {
+  initializeTargetLibraryInfoWrapperPassPass(*PassRegistry::getPassRegistry());
+}
 
 TargetLibraryInfoWrapperPass::TargetLibraryInfoWrapperPass(const Triple &T)
-    : ImmutablePass(ID), TLA(TargetLibraryInfoImpl(T)) {}
+    : ImmutablePass(ID), TLA(TargetLibraryInfoImpl(T)) {
+  initializeTargetLibraryInfoWrapperPassPass(*PassRegistry::getPassRegistry());
+}
 
 TargetLibraryInfoWrapperPass::TargetLibraryInfoWrapperPass(
     const TargetLibraryInfoImpl &TLIImpl)
-    : ImmutablePass(ID), TLA(TLIImpl) {}
+    : ImmutablePass(ID), TLA(TLIImpl) {
+  initializeTargetLibraryInfoWrapperPassPass(*PassRegistry::getPassRegistry());
+}
 
 TargetLibraryInfoWrapperPass::TargetLibraryInfoWrapperPass(
     const TargetLibraryInfo &TLIOther)

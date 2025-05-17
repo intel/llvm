@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <clc/math/clc_fdim.h>
+#include <clc/math/math.h>
 
-#define FUNCTION fdim
-#define __CLC_BODY <clc/shared/binary_def.inc>
+#define __CLC_BODY <fdim.inc>
 #include <clc/math/gentype.inc>

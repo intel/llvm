@@ -4,13 +4,13 @@
 ; not cause %u and %t to get merged.
 
 ; CHECK: %u = type opaque
-; CHECK: external global %u
+; CHECK: define %u @g(%u %a) {
 
 %u = type opaque
 %u2 = type { %u, i8 }
 
-@g = external global %u
+declare %u2 @f()
 
-define ptr @test() {
-  ret ptr @g
+define %u @g(%u %a) {
+  ret %u %a
 }

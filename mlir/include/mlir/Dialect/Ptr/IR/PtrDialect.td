@@ -37,7 +37,6 @@ class Ptr_Type<string name, string typeMnemonic, list<Trait> traits = []>
 
 def Ptr_PtrType : Ptr_Type<"Ptr", "ptr", [
     MemRefElementTypeInterface,
-    VectorElementTypeInterface,
     DeclareTypeInterfaceMethods<DataLayoutTypeInterface, [
       "areCompatible", "getIndexBitwidth", "verifyEntries",
       "getPreferredAlignment"]>

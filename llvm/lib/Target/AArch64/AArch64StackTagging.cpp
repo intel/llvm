@@ -309,7 +309,9 @@ public:
       : FunctionPass(ID),
         MergeInit(ClMergeInit.getNumOccurrences() ? ClMergeInit : !IsOptNone),
         UseStackSafety(ClUseStackSafety.getNumOccurrences() ? ClUseStackSafety
-                                                            : !IsOptNone) {}
+                                                            : !IsOptNone) {
+    initializeAArch64StackTaggingPass(*PassRegistry::getPassRegistry());
+  }
 
   void tagAlloca(AllocaInst *AI, Instruction *InsertBefore, Value *Ptr,
                  uint64_t Size);

@@ -2098,8 +2098,8 @@ void SemaSYCL::handleIntelNamedSubGroupSizeAttr(Decl *D, const ParsedAttr &AL) {
   SourceLocation Loc;
   if (AL.isArgIdent(0)) {
     IdentifierLoc *IL = AL.getArgAsIdent(0);
-    SizeStr = IL->getIdentifierInfo()->getName();
-    Loc = IL->getLoc();
+    SizeStr = IL->Ident->getName();
+    Loc = IL->Loc;
   } else if (!SemaRef.checkStringLiteralArgumentAttr(AL, 0, SizeStr, &Loc)) {
     return;
   }
@@ -2736,7 +2736,7 @@ void SemaSYCL::handleSYCLTypeAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  IdentifierInfo *II = AL.getArgAsIdent(0)->getIdentifierInfo();
+  IdentifierInfo *II = AL.getArgAsIdent(0)->Ident;
   SYCLTypeAttr::SYCLType Type;
 
   if (!SYCLTypeAttr::ConvertStrToSYCLType(II->getName(), Type)) {

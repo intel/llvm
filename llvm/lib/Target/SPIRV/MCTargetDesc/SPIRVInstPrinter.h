@@ -28,7 +28,8 @@ public:
 
   void printInst(const MCInst *MI, uint64_t Address, StringRef Annot,
                  const MCSubtargetInfo &STI, raw_ostream &OS) override;
-  void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
+  void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O,
+                    const char *Modifier = nullptr);
 
   void printStringImm(const MCInst *MI, unsigned OpNo, raw_ostream &O);
 

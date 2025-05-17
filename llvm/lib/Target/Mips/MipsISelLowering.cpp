@@ -3400,6 +3400,7 @@ MipsTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SDValue StackPtr =
       DAG.getCopyFromReg(Chain, DL, ABI.IsN64() ? Mips::SP_64 : Mips::SP,
                          getPointerTy(DAG.getDataLayout()));
+
   std::deque<std::pair<unsigned, SDValue>> RegsToPass;
   SmallVector<SDValue, 8> MemOpChains;
 
@@ -4653,7 +4654,7 @@ void MipsTargetLowering::writeVarArgRegs(std::vector<SDValue> &OutChains,
                                          SDValue Chain, const SDLoc &DL,
                                          SelectionDAG &DAG,
                                          CCState &State) const {
-  ArrayRef<MCPhysReg> ArgRegs = ABI.getVarArgRegs(Subtarget.isGP64bit());
+  ArrayRef<MCPhysReg> ArgRegs = ABI.GetVarArgRegs();
   unsigned Idx = State.getFirstUnallocated(ArgRegs);
   unsigned RegSizeInBytes = Subtarget.getGPRSizeInBytes();
   MVT RegTy = MVT::getIntegerVT(RegSizeInBytes * 8);

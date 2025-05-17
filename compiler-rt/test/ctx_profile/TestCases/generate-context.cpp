@@ -16,8 +16,7 @@
 #include <iostream>
 
 using namespace llvm::ctx_profile;
-extern "C" void
-__llvm_ctx_profile_start_collection(unsigned AutoDetectDuration = 0);
+extern "C" void __llvm_ctx_profile_start_collection();
 extern "C" bool __llvm_ctx_profile_fetch(ProfileWriter &);
 
 // avoid name mangling
@@ -98,7 +97,7 @@ class TestProfileWriter : public ProfileWriter {
     for (const auto *P = Unhandled; P; P = P->next())
       std::cout << "Unhandled GUID: " << P->guid() << " entered "
                 << P->entrycount() << " times" << std::endl;
-    printProfile(RootNode, " ", " ");
+    printProfile(RootNode, "", "");
   }
 
   void startFlatSection() override {

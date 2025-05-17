@@ -35,10 +35,8 @@ def MemorySpaceAttrInterface : AttrInterface<"MemorySpaceAttrInterface"> {
         This method checks if it's valid to load a value from the memory space
         with a specific type, alignment, and atomic ordering.
         If `emitError` is non-null then the method is allowed to emit errors.
-        Furthermore, if `emitError` is non-null and the result is `false` an
-        error must have been emitted.
       }],
-      /*returnType=*/  "bool",
+      /*returnType=*/  "::mlir::LogicalResult",
       /*methodName=*/  "isValidLoad",
       /*args=*/        (ins "::mlir::Type":$type,
                             "::mlir::ptr::AtomicOrdering":$ordering,
@@ -50,10 +48,8 @@ def MemorySpaceAttrInterface : AttrInterface<"MemorySpaceAttrInterface"> {
         This method checks if it's valid to store a value in the memory space
         with a specific type, alignment, and atomic ordering.
         If `emitError` is non-null then the method is allowed to emit errors.
-        Furthermore, if `emitError` is non-null and the result is `false` an
-        error must have been emitted.
       }],
-      /*returnType=*/  "bool",
+      /*returnType=*/  "::mlir::LogicalResult",
       /*methodName=*/  "isValidStore",
       /*args=*/        (ins "::mlir::Type":$type,
                             "::mlir::ptr::AtomicOrdering":$ordering,
@@ -65,10 +61,8 @@ def MemorySpaceAttrInterface : AttrInterface<"MemorySpaceAttrInterface"> {
         This method checks if it's valid to perform an atomic operation in the
         memory space with a specific type, alignment, and atomic ordering.
         If `emitError` is non-null then the method is allowed to emit errors.
-        Furthermore, if `emitError` is non-null and the result is `false` an
-        error must have been emitted.
       }],
-      /*returnType=*/  "bool",
+      /*returnType=*/  "::mlir::LogicalResult",
       /*methodName=*/  "isValidAtomicOp",
       /*args=*/        (ins "::mlir::ptr::AtomicBinOp":$op,
                             "::mlir::Type":$type,
@@ -82,10 +76,8 @@ def MemorySpaceAttrInterface : AttrInterface<"MemorySpaceAttrInterface"> {
         in the memory space with a specific type, alignment, and atomic
         orderings.
         If `emitError` is non-null then the method is allowed to emit errors.
-        Furthermore, if `emitError` is non-null and the result is `false` an
-        error must have been emitted.
       }],
-      /*returnType=*/  "bool",
+      /*returnType=*/  "::mlir::LogicalResult",
       /*methodName=*/  "isValidAtomicXchg",
       /*args=*/        (ins "::mlir::Type":$type,
                             "::mlir::ptr::AtomicOrdering":$successOrdering,
@@ -98,10 +90,8 @@ def MemorySpaceAttrInterface : AttrInterface<"MemorySpaceAttrInterface"> {
         This method checks if it's valid to perform an `addrspacecast` op
         in the memory space.
         If `emitError` is non-null then the method is allowed to emit errors.
-        Furthermore, if `emitError` is non-null and the result is `false` an
-        error must have been emitted.
       }],
-      /*returnType=*/  "bool",
+      /*returnType=*/  "::mlir::LogicalResult",
       /*methodName=*/  "isValidAddrSpaceCast",
       /*args=*/        (ins "::mlir::Type":$tgt,
                             "::mlir::Type":$src,
@@ -111,13 +101,11 @@ def MemorySpaceAttrInterface : AttrInterface<"MemorySpaceAttrInterface"> {
       /*desc=*/        [{
         This method checks if it's valid to perform a `ptrtoint` or `inttoptr`
         op in the memory space.
-        The first type is expected to be integer-like, while the second must be
-        a ptr-like type.
+        The first type is expected to be integer-like, while the second must be a
+        ptr-like type.
         If `emitError` is non-null then the method is allowed to emit errors.
-        Furthermore, if `emitError` is non-null and the result is `false` an
-        error must have been emitted.
       }],
-      /*returnType=*/  "bool",
+      /*returnType=*/  "::mlir::LogicalResult",
       /*methodName=*/  "isValidPtrIntCast",
       /*args=*/        (ins "::mlir::Type":$intLikeTy,
                             "::mlir::Type":$ptrLikeTy,

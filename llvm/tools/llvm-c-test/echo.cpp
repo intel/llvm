@@ -317,18 +317,11 @@ static LLVMValueRef clone_constant_impl(LLVMValueRef Cst, LLVMModuleRef M) {
     return LLVMConstNull(TypeCloner(M).Clone(Cst));
   }
 
-  // Try constant data array
-  if (LLVMIsAConstantDataArray(Cst)) {
-    check_value_kind(Cst, LLVMConstantDataArrayValueKind);
-    LLVMTypeRef Ty = TypeCloner(M).Clone(Cst);
-    size_t SizeInBytes;
-    const char *Data = LLVMGetRawDataValues(Cst, &SizeInBytes);
-    return LLVMConstDataArray(LLVMGetElementType(Ty), Data, SizeInBytes);
-  }
-
-  // Try constant array
-  if (LLVMIsAConstantArray(Cst)) {
-    check_value_kind(Cst, LLVMConstantArrayValueKind);
+  // Try constant array or constant data array
+  if (LLVMIsAConstantArray(Cst) || LLVMIsAConstantDataArray(Cst)) {
+    check_value_kind(Cst, LLVMIsAConstantArray(Cst)
+                              ? LLVMConstantArrayValueKind
+                              : LLVMConstantDataArrayValueKind);
     LLVMTypeRef Ty = TypeCloner(M).Clone(Cst);
     uint64_t EltCount = LLVMGetArrayLength2(Ty);
     SmallVector<LLVMValueRef, 8> Elts;

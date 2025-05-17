@@ -353,7 +353,8 @@ std::optional<MCFixupKind> MipsAsmBackend::getFixupKind(StringRef Name) const {
       .Default(MCAsmBackend::getFixupKind(Name));
 }
 
-MCFixupKindInfo MipsAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+const MCFixupKindInfo &MipsAsmBackend::
+getFixupKindInfo(MCFixupKind Kind) const {
   const static MCFixupKindInfo LittleEndianInfos[] = {
       // This table *must* be in same the order of fixup_* kinds in
       // MipsFixupKinds.h.
@@ -526,7 +527,7 @@ MCFixupKindInfo MipsAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   static_assert(std::size(BigEndianInfos) == Mips::NumTargetFixupKinds,
                 "Not all MIPS big endian fixup kinds added!");
 
-  if (mc::isRelocation(Kind))
+  if (Kind >= FirstLiteralRelocationKind)
     return MCAsmBackend::getFixupKindInfo(FK_NONE);
   if (Kind < FirstTargetFixupKind)
     return MCAsmBackend::getFixupKindInfo(Kind);
@@ -599,6 +600,14 @@ bool MipsAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
   case Mips::fixup_MICROMIPS_JALR:
     return true;
   }
+}
+
+bool MipsAsmBackend::isMicroMips(const MCSymbol *Sym) const {
+  if (const auto *ElfSym = dyn_cast<const MCSymbolELF>(Sym)) {
+    if (ElfSym->getOther() & ELF::STO_MIPS_MICROMIPS)
+      return true;
+  }
+  return false;
 }
 
 namespace {

@@ -32,7 +32,7 @@ public:
 
   lldb::ChildCacheState Update() override;
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
   ValueObject *m_start = nullptr;
@@ -90,8 +90,7 @@ lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::Update() {
 
   llvm::Expected<uint64_t> size_or_err = m_element_type.GetByteSize(nullptr);
   if (!size_or_err)
-    LLDB_LOG_ERRORV(GetLog(LLDBLog::DataFormatters), size_or_err.takeError(),
-                    "{0}");
+    LLDB_LOG_ERRORV(GetLog(LLDBLog::Types), size_or_err.takeError(), "{0}");
   else {
     m_element_size = *size_or_err;
     // Store raw pointers or end up with a circular dependency.
@@ -101,19 +100,11 @@ lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::Update() {
   return lldb::ChildCacheState::eRefetch;
 }
 
-llvm::Expected<size_t>
-lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::
+size_t lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::
     GetIndexOfChildWithName(ConstString name) {
-  if (!m_start) {
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
-  }
-  size_t idx = ExtractIndexFromString(name.GetCString());
-  if (idx == UINT32_MAX) {
-    return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString());
-  }
-  return idx;
+  if (!m_start)
+    return UINT32_MAX;
+  return ExtractIndexFromString(name.GetCString());
 }
 
 lldb_private::SyntheticChildrenFrontEnd *

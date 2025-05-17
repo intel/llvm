@@ -30,8 +30,8 @@ LVStringPool &llvm::logicalview::getStringPool() { return StringPool; }
 // - '//' into '/'
 std::string llvm::logicalview::transformPath(StringRef Path) {
   std::string Name(Path);
-  llvm::transform(Name, Name.begin(), tolower);
-  llvm::replace(Name, '\\', '/');
+  std::transform(Name.begin(), Name.end(), Name.begin(), tolower);
+  std::replace(Name.begin(), Name.end(), '\\', '/');
 
   // Remove all duplicate slashes.
   size_t Pos = 0;
@@ -47,7 +47,7 @@ std::string llvm::logicalview::transformPath(StringRef Path) {
 //   '/', '\', '<', '>', '.', ':', '%', '*', '?', '|', '"', ' '.
 std::string llvm::logicalview::flattenedFilePath(StringRef Path) {
   std::string Name(Path);
-  llvm::transform(Name, Name.begin(), tolower);
+  std::transform(Name.begin(), Name.end(), Name.begin(), tolower);
 
   const char *CharSet = "/\\<>.:%*?|\" ";
   char *Input = Name.data();

@@ -9,7 +9,6 @@
 #include "Procfs.h"
 
 #include "lldb/Host/linux/Support.h"
-#include "lldb/Host/posix/Support.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -119,11 +118,3 @@ TEST(Perf, RealPtraceScope) {
   ASSERT_LE(*ptrace_scope, 3)
       << "Sensible values of ptrace_scope are between 0 and 3";
 }
-
-#ifdef LLVM_ENABLE_THREADING
-TEST(Support, getProcFile_Tid) {
-  auto BufferOrError = getProcFile(getpid(), llvm::get_threadid(), "comm");
-  ASSERT_TRUE(BufferOrError);
-  ASSERT_TRUE(*BufferOrError);
-}
-#endif /*ifdef LLVM_ENABLE_THREADING */

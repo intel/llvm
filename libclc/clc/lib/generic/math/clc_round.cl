@@ -8,8 +8,7 @@
 
 #include <clc/internal/clc.h>
 
-#define FUNCTION __clc_round
-#define __CLC_FUNCTION(x) __builtin_elementwise_round
-#define __CLC_BODY <clc/shared/unary_def.inc>
-
-#include <clc/math/gentype.inc>
+#undef __CLC_FUNCTION
+#define __CLC_FUNCTION __clc_round
+#define __CLC_BUILTIN __builtin_elementwise_round
+#include <clc/math/unary_builtin.inc>

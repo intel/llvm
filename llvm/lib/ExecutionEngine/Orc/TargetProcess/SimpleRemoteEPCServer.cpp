@@ -191,6 +191,7 @@ Error SimpleRemoteEPCServer::sendSetupMessage(
 
   using namespace SimpleRemoteEPCDefaultBootstrapSymbolNames;
 
+  std::vector<char> SetupPacket;
   SimpleRemoteEPCExecutorInfo EI;
   EI.TargetTriple = sys::getProcessTriple();
   if (auto PageSize = sys::Process::getPageSize())

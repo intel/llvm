@@ -60,8 +60,10 @@ ParseTemplateParameterList(ParserState &PS,
     } else if (Arg->isSubClassOf("NTTP")) {
       auto Type = Arg->getValueAsString("TypeName");
 
-      if (!TemplateNameToParmName.contains(Type.str()))
+      if (TemplateNameToParmName.find(Type.str()) ==
+          TemplateNameToParmName.end()) {
         PrintFatalError("Unkown Type Name");
+      }
 
       auto TSIName = "TSI" + std::to_string(PS.UniqueCounter++);
       Code << " auto *" << TSIName << " = C.getTrivialTypeSourceInfo(QualType("
@@ -105,7 +107,7 @@ ParseTemplateParameterList(ParserState &PS,
   }
 
   bool First = true;
-  for (const auto &e : Params) {
+  for (auto e : Params) {
     if (First) {
       First = false;
       Code << e;

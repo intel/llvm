@@ -13,7 +13,6 @@
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticIDs.h"
-#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
@@ -136,9 +135,8 @@ public:
 
     SourceModule module;
 
-    for (const IdentifierLoc &component : path)
-      module.path.push_back(
-          ConstString(component.getIdentifierInfo()->getName()));
+    for (const std::pair<IdentifierInfo *, SourceLocation> &component : path)
+      module.path.push_back(ConstString(component.first->getName()));
 
     StreamString error_stream;
 
@@ -789,7 +787,7 @@ ClangExpressionParser::ClangExpressionParser(
 
   if (auto *target_info = TargetInfo::CreateTargetInfo(
           m_compiler->getDiagnostics(),
-          m_compiler->getInvocation().getTargetOpts())) {
+          m_compiler->getInvocation().TargetOpts)) {
     if (log) {
       LLDB_LOGF(log, "Target datalayout string: '%s'",
                 target_info->getDataLayoutString());

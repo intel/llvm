@@ -42,7 +42,7 @@ public:
 
   void finishedMainFile(DiagnosticsEngine &Diags) override {
     auto NewDeps = getDependencies();
-    llvm::append_range(Deps, NewDeps);
+    Deps.insert(Deps.end(), NewDeps.begin(), NewDeps.end());
   }
 
 private:
@@ -57,8 +57,8 @@ public:
                      FileManager *FileMgr,
                      std::shared_ptr<PCHContainerOperations> PCHContainerOps,
                      DiagnosticConsumer *DiagConsumer) override {
-    CompilerInstance Compiler(std::move(Invocation),
-                              std::move(PCHContainerOps));
+    CompilerInstance Compiler(std::move(PCHContainerOps));
+    Compiler.setInvocation(std::move(Invocation));
     Compiler.setFileManager(FileMgr);
 
     Compiler.createDiagnostics(FileMgr->getVirtualFileSystem(), DiagConsumer,

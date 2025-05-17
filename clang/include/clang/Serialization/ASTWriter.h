@@ -75,10 +75,6 @@ class StoredDeclsList;
 class SwitchCase;
 class Token;
 
-namespace serialization {
-enum class DeclUpdateKind;
-} // namespace serialization
-
 namespace SrcMgr {
 class FileInfo;
 } // namespace SrcMgr
@@ -378,7 +374,8 @@ private:
 
   /// An update to a Decl.
   class DeclUpdate {
-    serialization::DeclUpdateKind Kind;
+    /// A DeclUpdateKind.
+    unsigned Kind;
     union {
       const Decl *Dcl;
       void *Type;
@@ -389,21 +386,18 @@ private:
     };
 
   public:
-    DeclUpdate(serialization::DeclUpdateKind Kind) : Kind(Kind), Dcl(nullptr) {}
-    DeclUpdate(serialization::DeclUpdateKind Kind, const Decl *Dcl)
-        : Kind(Kind), Dcl(Dcl) {}
-    DeclUpdate(serialization::DeclUpdateKind Kind, QualType Type)
+    DeclUpdate(unsigned Kind) : Kind(Kind), Dcl(nullptr) {}
+    DeclUpdate(unsigned Kind, const Decl *Dcl) : Kind(Kind), Dcl(Dcl) {}
+    DeclUpdate(unsigned Kind, QualType Type)
         : Kind(Kind), Type(Type.getAsOpaquePtr()) {}
-    DeclUpdate(serialization::DeclUpdateKind Kind, SourceLocation Loc)
+    DeclUpdate(unsigned Kind, SourceLocation Loc)
         : Kind(Kind), Loc(Loc.getRawEncoding()) {}
-    DeclUpdate(serialization::DeclUpdateKind Kind, unsigned Val)
-        : Kind(Kind), Val(Val) {}
-    DeclUpdate(serialization::DeclUpdateKind Kind, Module *M)
-        : Kind(Kind), Mod(M) {}
-    DeclUpdate(serialization::DeclUpdateKind Kind, const Attr *Attribute)
-        : Kind(Kind), Attribute(Attribute) {}
+    DeclUpdate(unsigned Kind, unsigned Val) : Kind(Kind), Val(Val) {}
+    DeclUpdate(unsigned Kind, Module *M) : Kind(Kind), Mod(M) {}
+    DeclUpdate(unsigned Kind, const Attr *Attribute)
+          : Kind(Kind), Attribute(Attribute) {}
 
-    serialization::DeclUpdateKind getKind() const { return Kind; }
+    unsigned getKind() const { return Kind; }
     const Decl *getDecl() const { return Dcl; }
     QualType getType() const { return QualType::getFromOpaquePtr(Type); }
 

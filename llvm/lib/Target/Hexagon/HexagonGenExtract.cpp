@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Hexagon.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/IR/BasicBlock.h"
@@ -47,13 +46,22 @@ static cl::opt<bool> NoSR0("extract-nosr0", cl::init(true), cl::Hidden,
 static cl::opt<bool> NeedAnd("extract-needand", cl::init(true), cl::Hidden,
   cl::desc("Require & in extract patterns"));
 
+namespace llvm {
+
+void initializeHexagonGenExtractPass(PassRegistry&);
+FunctionPass *createHexagonGenExtract();
+
+} // end namespace llvm
+
 namespace {
 
   class HexagonGenExtract : public FunctionPass {
   public:
     static char ID;
 
-    HexagonGenExtract() : FunctionPass(ID) {}
+    HexagonGenExtract() : FunctionPass(ID) {
+      initializeHexagonGenExtractPass(*PassRegistry::getPassRegistry());
+    }
 
     StringRef getPassName() const override {
       return "Hexagon generate \"extract\" instructions";

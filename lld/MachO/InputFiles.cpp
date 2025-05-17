@@ -1580,19 +1580,14 @@ static DylibFile *findDylib(StringRef path, DylibFile *umbrella,
   // Search order:
   // 1. Install name basename in -F / -L directories.
   {
-    // Framework names can be in multiple formats:
-    // - Foo.framework/Foo
-    // - Foo.framework/Versions/A/Foo
     StringRef stem = path::stem(path);
-    SmallString<128> frameworkName("/");
-    frameworkName += stem;
-    frameworkName += ".framework/";
-    size_t i = path.rfind(frameworkName);
-    if (i != StringRef::npos) {
-      StringRef frameworkPath = path.substr(i + 1);
+    SmallString<128> frameworkName;
+    path::append(frameworkName, path::Style::posix, stem + ".framework", stem);
+    bool isFramework = path.ends_with(frameworkName);
+    if (isFramework) {
       for (StringRef dir : config->frameworkSearchPaths) {
         SmallString<128> candidate = dir;
-        path::append(candidate, frameworkPath);
+        path::append(candidate, frameworkName);
         if (std::optional<StringRef> dylibPath =
                 resolveDylibPath(candidate.str()))
           return loadDylib(*dylibPath, umbrella);
@@ -1629,17 +1624,6 @@ static DylibFile *findDylib(StringRef path, DylibFile *umbrella,
     path = newPath;
   } else if (path.starts_with("@rpath/")) {
     for (StringRef rpath : umbrella->rpaths) {
-      newPath.clear();
-      if (rpath.consume_front("@loader_path/")) {
-        fs::real_path(umbrella->getName(), newPath);
-        path::remove_filename(newPath);
-      }
-      path::append(newPath, rpath, path.drop_front(strlen("@rpath/")));
-      if (std::optional<StringRef> dylibPath = resolveDylibPath(newPath.str()))
-        return loadDylib(*dylibPath, umbrella);
-    }
-    // If not found in umbrella, try the rpaths specified via -rpath too.
-    for (StringRef rpath : config->runtimePaths) {
       newPath.clear();
       if (rpath.consume_front("@loader_path/")) {
         fs::real_path(umbrella->getName(), newPath);
@@ -1694,16 +1678,9 @@ static bool isImplicitlyLinked(StringRef path) {
 void DylibFile::loadReexport(StringRef path, DylibFile *umbrella,
                          const InterfaceFile *currentTopLevelTapi) {
   DylibFile *reexport = findDylib(path, umbrella, currentTopLevelTapi);
-  if (!reexport) {
-    // If not found in umbrella, retry since some rpaths might have been
-    // defined in "this" dylib (which contains the LC_REEXPORT_DYLIB cmd) and
-    // not in the umbrella.
-    DylibFile *reexport2 = findDylib(path, this, currentTopLevelTapi);
-    if (!reexport2) {
-      error(toString(this) + ": unable to locate re-export with install name " +
-            path);
-    }
-  }
+  if (!reexport)
+    error(toString(this) + ": unable to locate re-export with install name " +
+          path);
 }
 
 DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
@@ -1902,9 +1879,6 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
   installName = saver().save(interface.getInstallName());
   compatibilityVersion = interface.getCompatibilityVersion().rawValue();
   currentVersion = interface.getCurrentVersion().rawValue();
-  for (const auto &rpath : interface.rpaths())
-    if (rpath.first == config->platformInfo.target)
-      rpaths.push_back(saver().save(rpath.second));
 
   if (config->printEachFile)
     message(toString(this));
@@ -2182,30 +2156,8 @@ ArchiveFile::ArchiveFile(std::unique_ptr<object::Archive> &&f, bool forceHidden)
 void ArchiveFile::addLazySymbols() {
   // Avoid calling getMemoryBufferRef() on zero-symbol archive
   // since that crashes.
-  if (file->isEmpty() ||
-      (file->hasSymbolTable() && file->getNumberOfSymbols() == 0))
+  if (file->isEmpty() || file->getNumberOfSymbols() == 0)
     return;
-
-  if (!file->hasSymbolTable()) {
-    // No index, treat each child as a lazy object file.
-    Error e = Error::success();
-    for (const object::Archive::Child &c : file->children(e)) {
-      // Check `seen` but don't insert so a future eager load can still happen.
-      if (seen.contains(c.getChildOffset()))
-        continue;
-      if (!seenLazy.insert(c.getChildOffset()).second)
-        continue;
-      auto file = childToObjectFile(c, /*lazy=*/true);
-      if (!file)
-        error(toString(this) +
-              ": couldn't process child: " + toString(file.takeError()));
-      inputFiles.insert(*file);
-    }
-    if (e)
-      error(toString(this) +
-            ": Archive::children failed: " + toString(std::move(e)));
-    return;
-  }
 
   Error err = Error::success();
   auto child = file->child_begin(err);
@@ -2236,17 +2188,16 @@ void ArchiveFile::addLazySymbols() {
 
 static Expected<InputFile *>
 loadArchiveMember(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName,
-                  uint64_t offsetInArchive, bool forceHidden, bool compatArch,
-                  bool lazy) {
+                  uint64_t offsetInArchive, bool forceHidden, bool compatArch) {
   if (config->zeroModTime)
     modTime = 0;
 
   switch (identify_magic(mb.getBuffer())) {
   case file_magic::macho_object:
-    return make<ObjFile>(mb, modTime, archiveName, lazy, forceHidden,
+    return make<ObjFile>(mb, modTime, archiveName, /*lazy=*/false, forceHidden,
                          compatArch);
   case file_magic::bitcode:
-    return make<BitcodeFile>(mb, archiveName, offsetInArchive, lazy,
+    return make<BitcodeFile>(mb, archiveName, offsetInArchive, /*lazy=*/false,
                              forceHidden, compatArch);
   default:
     return createStringError(inconvertibleErrorCode(),
@@ -2258,7 +2209,19 @@ loadArchiveMember(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName,
 Error ArchiveFile::fetch(const object::Archive::Child &c, StringRef reason) {
   if (!seen.insert(c.getChildOffset()).second)
     return Error::success();
-  auto file = childToObjectFile(c, /*lazy=*/false);
+
+  Expected<MemoryBufferRef> mb = c.getMemoryBufferRef();
+  if (!mb)
+    return mb.takeError();
+
+  Expected<TimePoint<std::chrono::seconds>> modTime = c.getLastModified();
+  if (!modTime)
+    return modTime.takeError();
+
+  Expected<InputFile *> file =
+      loadArchiveMember(*mb, toTimeT(*modTime), getName(), c.getChildOffset(),
+                        forceHidden, compatArch);
+
   if (!file)
     return file.takeError();
 
@@ -2283,21 +2246,6 @@ void ArchiveFile::fetch(const object::Archive::Symbol &sym) {
   if (Error e = fetch(c, symCopy.getName()))
     error(toString(this) + ": could not get the member defining symbol " +
           toMachOString(symCopy) + ": " + toString(std::move(e)));
-}
-
-Expected<InputFile *>
-ArchiveFile::childToObjectFile(const llvm::object::Archive::Child &c,
-                               bool lazy) {
-  Expected<MemoryBufferRef> mb = c.getMemoryBufferRef();
-  if (!mb)
-    return mb.takeError();
-
-  Expected<TimePoint<std::chrono::seconds>> modTime = c.getLastModified();
-  if (!modTime)
-    return modTime.takeError();
-
-  return loadArchiveMember(*mb, toTimeT(*modTime), getName(),
-                           c.getChildOffset(), forceHidden, compatArch, lazy);
 }
 
 static macho::Symbol *createBitcodeSymbol(const lto::InputFile::Symbol &objSym,

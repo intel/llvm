@@ -392,8 +392,8 @@ bool maybeSharedMutable(const Value *Addr) {
   if (!Addr)
     return true;
 
-  const AllocaInst *AI = findAllocaForValue(Addr);
-  if (AI && !PointerMayBeCaptured(AI, /*ReturnCaptures=*/true))
+  if (isa<AllocaInst>(getUnderlyingObject(Addr)) &&
+      !PointerMayBeCaptured(Addr, /*ReturnCaptures=*/true))
     return false; // Object is on stack but does not escape.
 
   Addr = Addr->stripInBoundsOffsets();

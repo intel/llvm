@@ -13,6 +13,7 @@
 #include "llvm/ProfileData/PGOCtxProfWriter.h"
 #include "llvm/Bitstream/BitCodeEnums.h"
 #include "llvm/ProfileData/CtxInstrContextNode.h"
+#include "llvm/ProfileData/PGOCtxProfReader.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/YAMLTraits.h"

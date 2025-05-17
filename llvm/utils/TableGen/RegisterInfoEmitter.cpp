@@ -1487,7 +1487,7 @@ void RegisterInfoEmitter::runTargetDesc(raw_ostream &OS) {
   // each register. Fill with zero for values which are not explicitly given.
   for (const auto &Reg : Regs) {
     auto Costs = Reg.CostPerUse;
-    llvm::append_range(AllRegCostPerUse, Costs);
+    AllRegCostPerUse.insert(AllRegCostPerUse.end(), Costs.begin(), Costs.end());
     if (NumRegCosts > Costs.size())
       AllRegCostPerUse.insert(AllRegCostPerUse.end(),
                               NumRegCosts - Costs.size(), 0);

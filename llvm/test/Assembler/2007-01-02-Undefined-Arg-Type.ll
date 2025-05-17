@@ -1,7 +1,7 @@
 ; The assembler should catch an undefined argument type .
 ; RUN: not llvm-as %s -o /dev/null 2>&1 | FileCheck %s
 
-; CHECK: invalid type for function argument
+; CHECK: use of undefined type named 'typedef.bc_struct'
 
 ; %typedef.bc_struct = type opaque
 

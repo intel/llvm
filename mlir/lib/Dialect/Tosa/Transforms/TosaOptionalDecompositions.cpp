@@ -21,7 +21,7 @@
 
 namespace mlir {
 namespace tosa {
-#define GEN_PASS_DEF_TOSAOPTIONALDECOMPOSITIONSPASS
+#define GEN_PASS_DEF_TOSAOPTIONALDECOMPOSITIONS
 #include "mlir/Dialect/Tosa/Transforms/Passes.h.inc"
 } // namespace tosa
 } // namespace mlir
@@ -31,7 +31,7 @@ using namespace mlir;
 namespace {
 
 struct TosaOptionalDecompositions
-    : public tosa::impl::TosaOptionalDecompositionsPassBase<
+    : public tosa::impl::TosaOptionalDecompositionsBase<
           TosaOptionalDecompositions> {
   void runOnOperation() override {
     auto *ctx = &getContext();
@@ -47,3 +47,7 @@ struct TosaOptionalDecompositions
 };
 
 } // namespace
+
+std::unique_ptr<Pass> mlir::tosa::createTosaOptionalDecompositions() {
+  return std::make_unique<TosaOptionalDecompositions>();
+}

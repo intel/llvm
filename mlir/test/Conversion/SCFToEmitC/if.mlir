@@ -1,5 +1,4 @@
 // RUN: mlir-opt -allow-unregistered-dialect -convert-scf-to-emitc %s | FileCheck %s
-// RUN: mlir-opt -allow-unregistered-dialect -convert-to-emitc="filter-dialects=scf" %s | FileCheck %s
 
 func.func @test_if(%arg0: i1, %arg1: f32) {
   scf.if %arg0 {

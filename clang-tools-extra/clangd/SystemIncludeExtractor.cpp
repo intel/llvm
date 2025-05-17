@@ -239,7 +239,8 @@ template <> struct DenseMapInfo<DriverArgs> {
         Val.Stdlib,
     });
 
-    unsigned SpecsHash = llvm::hash_combine_range(Val.Specs);
+    unsigned SpecsHash =
+        llvm::hash_combine_range(Val.Specs.begin(), Val.Specs.end());
 
     return llvm::hash_combine(FixedFieldsHash, SpecsHash);
   }
@@ -256,7 +257,7 @@ bool isValidTarget(llvm::StringRef Triple) {
   DiagnosticsEngine Diags(new DiagnosticIDs, new DiagnosticOptions,
                           new IgnoringDiagConsumer);
   llvm::IntrusiveRefCntPtr<TargetInfo> Target =
-      TargetInfo::CreateTargetInfo(Diags, *TargetOpts);
+      TargetInfo::CreateTargetInfo(Diags, TargetOpts);
   return bool(Target);
 }
 

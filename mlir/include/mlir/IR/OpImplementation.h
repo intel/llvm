@@ -21,19 +21,6 @@
 #include "llvm/Support/SMLoc.h"
 #include <optional>
 
-namespace {
-// reference https://stackoverflow.com/a/16000226
-template <typename T, typename = void>
-struct HasStaticName : std::false_type {};
-
-template <typename T>
-struct HasStaticName<T,
-                     typename std::enable_if<
-                         std::is_same<::llvm::StringLiteral,
-                                      std::decay_t<decltype(T::name)>>::value,
-                         void>::type> : std::true_type {};
-} // namespace
-
 namespace mlir {
 class AsmParsedResourceEntry;
 class AsmResourceBuilder;
@@ -1251,13 +1238,8 @@ public:
 
     // Check for the right kind of type.
     result = llvm::dyn_cast<TypeT>(type);
-    if (!result) {
-      InFlightDiagnostic diag =
-          emitError(loc, "invalid kind of type specified");
-      if constexpr (HasStaticName<TypeT>::value)
-        diag << ": expected " << TypeT::name << ", but found " << type;
-      return diag;
-    }
+    if (!result)
+      return emitError(loc, "invalid kind of type specified");
 
     return success();
   }
@@ -1288,13 +1270,8 @@ public:
 
     // Check for the right kind of Type.
     result = llvm::dyn_cast<TypeT>(type);
-    if (!result) {
-      InFlightDiagnostic diag =
-          emitError(loc, "invalid kind of type specified");
-      if constexpr (HasStaticName<TypeT>::value)
-        diag << ": expected " << TypeT::name << ", but found " << type;
-      return diag;
-    }
+    if (!result)
+      return emitError(loc, "invalid kind of Type specified");
     return success();
   }
 
@@ -1330,13 +1307,8 @@ public:
 
     // Check for the right kind of type.
     result = llvm::dyn_cast<TypeType>(type);
-    if (!result) {
-      InFlightDiagnostic diag =
-          emitError(loc, "invalid kind of type specified");
-      if constexpr (HasStaticName<TypeType>::value)
-        diag << ": expected " << TypeType::name << ", but found " << type;
-      return diag;
-    }
+    if (!result)
+      return emitError(loc, "invalid kind of type specified");
 
     return success();
   }

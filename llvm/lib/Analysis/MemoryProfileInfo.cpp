@@ -181,7 +181,8 @@ void CallStackTrie::addCallStack(
     Curr = New;
   }
   assert(Curr);
-  llvm::append_range(Curr->ContextSizeInfo, ContextSizeInfo);
+  Curr->ContextSizeInfo.insert(Curr->ContextSizeInfo.end(),
+                               ContextSizeInfo.begin(), ContextSizeInfo.end());
 }
 
 void CallStackTrie::addCallStack(MDNode *MIB) {
@@ -234,7 +235,8 @@ static MDNode *createMIBNode(LLVMContext &Ctx, ArrayRef<uint64_t> MIBCallStack,
 
 void CallStackTrie::collectContextSizeInfo(
     CallStackTrieNode *Node, std::vector<ContextTotalSize> &ContextSizeInfo) {
-  llvm::append_range(ContextSizeInfo, Node->ContextSizeInfo);
+  ContextSizeInfo.insert(ContextSizeInfo.end(), Node->ContextSizeInfo.begin(),
+                         Node->ContextSizeInfo.end());
   for (auto &Caller : Node->Callers)
     collectContextSizeInfo(Caller.second, ContextSizeInfo);
 }

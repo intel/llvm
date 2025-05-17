@@ -163,12 +163,8 @@ void EvaluateRequestHandler::operator()(
     if (frame.IsValid()) {
       dap.focus_tid = frame.GetThread().GetThreadID();
     }
-
-    bool required_command_failed = false;
-    std::string result = RunLLDBCommands(
-        dap.debugger, llvm::StringRef(), {expression}, required_command_failed,
-        /*parse_command_directives=*/false, /*echo_commands=*/false);
-
+    auto result = RunLLDBCommandsVerbatim(dap.debugger, llvm::StringRef(),
+                                          {std::string(expression)});
     EmplaceSafeString(body, "result", result);
     body.try_emplace("variablesReference", (int64_t)0);
   } else {

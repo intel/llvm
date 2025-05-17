@@ -56,6 +56,7 @@ public:
   void emitAssemblerFlag(MCAssemblerFlag Flag) override;
   void emitWeakReference(MCSymbol *Alias, const MCSymbol *Symbol) override;
   bool emitSymbolAttribute(MCSymbol *Symbol, MCSymbolAttr Attribute) override;
+  void emitSymbolDesc(MCSymbol *Symbol, unsigned DescValue) override;
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                         Align ByteAlignment) override;
 
@@ -66,6 +67,11 @@ public:
   void emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                              Align ByteAlignment) override;
 
+  void emitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
+                    uint64_t Size = 0, Align ByteAlignment = Align(1),
+                    SMLoc L = SMLoc()) override;
+  void emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol, uint64_t Size,
+                      Align ByteAlignment = Align(1)) override;
   void emitValueImpl(const MCExpr *Value, unsigned Size,
                      SMLoc Loc = SMLoc()) override;
 

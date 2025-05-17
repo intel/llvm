@@ -2827,7 +2827,7 @@ static void CompactMacroExpandedPieces(PathPieces &path,
   // Now take the pieces and construct a new PathDiagnostic.
   path.clear();
 
-  llvm::append_range(path, Pieces);
+  path.insert(path.end(), Pieces.begin(), Pieces.end());
 }
 
 /// Generate notes from all visitors.
@@ -3377,6 +3377,8 @@ PathSensitiveBugReporter::generateDiagnosticForConsumerMap(
     BugReport *exampleReport,
     ArrayRef<std::unique_ptr<PathDiagnosticConsumer>> consumers,
     ArrayRef<BugReport *> bugReports) {
+  std::vector<BasicBugReport *> BasicBugReports;
+  std::vector<PathSensitiveBugReport *> PathSensitiveBugReports;
   if (isa<BasicBugReport>(exampleReport))
     return BugReporter::generateDiagnosticForConsumerMap(exampleReport,
                                                          consumers, bugReports);

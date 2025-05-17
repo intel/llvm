@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "UnintendedCharOstreamOutputCheck.h"
-#include "../utils/Matchers.h"
-#include "../utils/OptionsUtils.h"
 #include "clang/AST/Type.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
@@ -37,14 +35,10 @@ AST_MATCHER(Type, isChar) {
 
 UnintendedCharOstreamOutputCheck::UnintendedCharOstreamOutputCheck(
     StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context),
-      AllowedTypes(utils::options::parseStringList(
-          Options.get("AllowedTypes", "unsigned char;signed char"))),
-      CastTypeName(Options.get("CastTypeName")) {}
+    : ClangTidyCheck(Name, Context), CastTypeName(Options.get("CastTypeName")) {
+}
 void UnintendedCharOstreamOutputCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "AllowedTypes",
-                utils::options::serializeStringList(AllowedTypes));
   if (CastTypeName.has_value())
     Options.store(Opts, "CastTypeName", CastTypeName.value());
 }
@@ -56,20 +50,13 @@ void UnintendedCharOstreamOutputCheck::registerMatchers(MatchFinder *Finder) {
                     // with char / unsigned char / signed char
                     classTemplateSpecializationDecl(
                         hasTemplateArgument(0, refersToType(isChar()))));
-  auto IsDeclRefExprFromAllowedTypes = declRefExpr(to(varDecl(
-      hasType(matchers::matchesAnyListedTypeName(AllowedTypes, false)))));
-  auto IsExplicitCastExprFromAllowedTypes = explicitCastExpr(hasDestinationType(
-      matchers::matchesAnyListedTypeName(AllowedTypes, false)));
   Finder->addMatcher(
       cxxOperatorCallExpr(
           hasOverloadedOperatorName("<<"),
           hasLHS(hasType(hasUnqualifiedDesugaredType(
               recordType(hasDeclaration(cxxRecordDecl(
                   anyOf(BasicOstream, isDerivedFrom(BasicOstream)))))))),
-          hasRHS(expr(hasType(hasUnqualifiedDesugaredType(isNumericChar())),
-                      unless(ignoringParenImpCasts(
-                          anyOf(IsDeclRefExprFromAllowedTypes,
-                                IsExplicitCastExprFromAllowedTypes))))))
+          hasRHS(hasType(hasUnqualifiedDesugaredType(isNumericChar()))))
           .bind("x"),
       this);
 }

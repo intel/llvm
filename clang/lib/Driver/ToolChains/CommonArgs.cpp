@@ -1260,9 +1260,6 @@ void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
                     options::OPT_fno_rtlib_add_rpath, false))
     return;
 
-  if (TC.getTriple().isOSAIX()) // TODO: AIX doesn't support -rpath option.
-    return;
-
   SmallVector<std::string> CandidateRPaths(TC.getArchSpecificLibPaths());
   if (const auto CandidateRPath = TC.getStdlibPath())
     CandidateRPaths.emplace_back(*CandidateRPath);
@@ -1317,6 +1314,10 @@ bool tools::addOpenMPRuntime(const Compilation &C, ArgStringList &CmdArgs,
 
   if (IsOffloadingHost)
     CmdArgs.push_back("-lomptarget");
+
+  if (IsOffloadingHost &&
+      Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true))
+    CmdArgs.push_back("-lomptarget.devicertl");
 
   addArchSpecificRPath(TC, Args, CmdArgs);
 
@@ -1555,14 +1556,14 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     RequiredSymbols.push_back("__safestack_init");
   }
   if (!(SanArgs.needsSharedRt() && SanArgs.needsUbsanRt())) {
-    if (SanArgs.needsCfiCrossDsoRt())
+    if (SanArgs.needsCfiRt())
       StaticRuntimes.push_back("cfi");
-    if (SanArgs.needsCfiCrossDsoDiagRt())
+    if (SanArgs.needsCfiDiagRt())
       StaticRuntimes.push_back("cfi_diag");
   }
   if (SanArgs.linkCXXRuntimes() && !SanArgs.requiresMinimalRuntime() &&
       ((!SanArgs.needsSharedRt() && SanArgs.needsUbsanCXXRt()) ||
-       SanArgs.needsCfiCrossDsoDiagRt())) {
+       SanArgs.needsCfiDiagRt())) {
     StaticRuntimes.push_back("ubsan_standalone_cxx");
   }
   if (SanArgs.needsStatsRt()) {
@@ -2546,6 +2547,7 @@ static void GetSDLFromOffloadArchive(
 
   C.addTempFile(C.getArgs().MakeArgString(OutputLib));
 
+  ArgStringList CmdArgs;
   SmallString<128> DeviceTriple;
   DeviceTriple += Action::GetOffloadKindName(JA.getOffloadingDeviceKind());
   DeviceTriple += '-';
@@ -2822,11 +2824,6 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
   // Check all of the standard library search paths used by the compiler.
   for (const auto &LibPath : HostTC.getFilePaths())
     LibraryPaths.emplace_back(LibPath);
-
-  // Check the target specific library path for the triple as well.
-  SmallString<128> P(D.Dir);
-  llvm::sys::path::append(P, "..", "lib", Triple.getTriple());
-  LibraryPaths.emplace_back(P);
 
   OptSpecifier LibomptargetBCPathOpt =
       Triple.isAMDGCN()  ? options::OPT_libomptarget_amdgpu_bc_path_EQ

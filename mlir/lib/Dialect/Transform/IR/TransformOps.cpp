@@ -41,7 +41,6 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/InterleavedRange.h"
 #include <optional>
 
 #define DEBUG_TYPE "transform-dialect"
@@ -394,16 +393,16 @@ DiagnosedSilenceableFailure transform::ApplyPatternsOp::applyToOne(
 
   // Configure the GreedyPatternRewriteDriver.
   GreedyRewriteConfig config;
-  config.setListener(
-      static_cast<RewriterBase::Listener *>(rewriter.getListener()));
+  config.listener =
+      static_cast<RewriterBase::Listener *>(rewriter.getListener());
   FrozenRewritePatternSet frozenPatterns(std::move(patterns));
 
-  config.setMaxIterations(getMaxIterations() == static_cast<uint64_t>(-1)
+  config.maxIterations = getMaxIterations() == static_cast<uint64_t>(-1)
+                             ? GreedyRewriteConfig::kNoLimit
+                             : getMaxIterations();
+  config.maxNumRewrites = getMaxNumRewrites() == static_cast<uint64_t>(-1)
                               ? GreedyRewriteConfig::kNoLimit
-                              : getMaxIterations());
-  config.setMaxNumRewrites(getMaxNumRewrites() == static_cast<uint64_t>(-1)
-                               ? GreedyRewriteConfig::kNoLimit
-                               : getMaxNumRewrites());
+                              : getMaxNumRewrites();
 
   // Apply patterns and CSE repetitively until a fixpoint is reached. If no CSE
   // was requested, apply the greedy pattern rewrite only once. (The greedy
@@ -2073,7 +2072,7 @@ transform::MergeHandlesOp::apply(transform::TransformRewriter &rewriter,
       return DiagnosedSilenceableFailure::success();
     }
 
-    SetVector<Operation *> uniqued(llvm::from_range, operations);
+    SetVector<Operation *> uniqued(operations.begin(), operations.end());
     results.set(llvm::cast<OpResult>(getResult()), uniqued.getArrayRef());
     return DiagnosedSilenceableFailure::success();
   }
@@ -2087,7 +2086,7 @@ transform::MergeHandlesOp::apply(transform::TransformRewriter &rewriter,
       return DiagnosedSilenceableFailure::success();
     }
 
-    SetVector<Attribute> uniqued(llvm::from_range, attrs);
+    SetVector<Attribute> uniqued(attrs.begin(), attrs.end());
     results.setParams(cast<OpResult>(getResult()), uniqued.getArrayRef());
     return DiagnosedSilenceableFailure::success();
   }
@@ -2103,7 +2102,7 @@ transform::MergeHandlesOp::apply(transform::TransformRewriter &rewriter,
     return DiagnosedSilenceableFailure::success();
   }
 
-  SetVector<Value> uniqued(llvm::from_range, payloadValues);
+  SetVector<Value> uniqued(payloadValues.begin(), payloadValues.end());
   results.setValues(cast<OpResult>(getResult()), uniqued.getArrayRef());
   return DiagnosedSilenceableFailure::success();
 }
@@ -2631,8 +2630,11 @@ static void printSequenceOpOperands(OpAsmPrinter &printer, Operation *op,
     printer << "(";
 
   printer << rootType;
-  if (hasExtras)
-    printer << ", " << llvm::interleaved(extraBindingTypes) << ')';
+  if (hasExtras) {
+    printer << ", ";
+    llvm::interleaveComma(extraBindingTypes, printer.getStream());
+    printer << ")";
+  }
 }
 
 /// Returns `true` if the given op operand may be consuming the handle value in

@@ -1175,8 +1175,7 @@ std::string Triple::normalize(StringRef Str, CanonicalForm Form) {
   OSType OS = UnknownOS;
   if (Components.size() > 2) {
     OS = parseOS(Components[2]);
-    IsCygwin = Components[2].starts_with("cygwin") ||
-               Components[2].starts_with("msys");
+    IsCygwin = Components[2].starts_with("cygwin");
     IsMinGW32 = Components[2].starts_with("mingw");
   }
   EnvironmentType Environment = UnknownEnvironment;
@@ -1221,7 +1220,7 @@ std::string Triple::normalize(StringRef Str, CanonicalForm Form) {
         break;
       case 2:
         OS = parseOS(Comp);
-        IsCygwin = Comp.starts_with("cygwin") || Comp.starts_with("msys");
+        IsCygwin = Comp.starts_with("cygwin");
         IsMinGW32 = Comp.starts_with("mingw");
         Valid = OS != UnknownOS || IsCygwin || IsMinGW32;
         break;

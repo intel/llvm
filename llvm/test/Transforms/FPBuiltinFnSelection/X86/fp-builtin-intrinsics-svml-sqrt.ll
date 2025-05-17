@@ -3,7 +3,7 @@
 ; RUN: opt -mattr=+sse2 -alt-math-library=svml -fpbuiltin-fn-selection -S < %s | FileCheck %s -check-prefix=SSE2
 ; RUN: opt -mattr=+avx2 -alt-math-library=svml -fpbuiltin-fn-selection -S < %s | FileCheck %s -check-prefix=AVX2
 ; RUN: opt -mattr=+avx512f -alt-math-library=svml -fpbuiltin-fn-selection -S < %s | FileCheck %s -check-prefix=AVX512F
-; RUN: opt -mattr=+avx512fp16,avx512vl -alt-math-library=svml -fpbuiltin-fn-selection -S < %s | FileCheck %s -check-prefix=AVX512FP16
+; RUN: opt -mattr=+avx512fp16 -alt-math-library=svml -fpbuiltin-fn-selection -S < %s | FileCheck %s -check-prefix=AVX512FP16
 
 ; Test if fpbuiltin.sqrt for float/double could be transformed to llvm builtins
 ; when SSE2, AVX2, AVX512F, AVX512FP16 is available.

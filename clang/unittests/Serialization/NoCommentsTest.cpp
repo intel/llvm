@@ -97,8 +97,9 @@ void foo() {}
       createInvocation(Args, CIOpts);
   ASSERT_TRUE(Invocation);
 
-  CompilerInstance Instance(std::move(Invocation));
+  CompilerInstance Instance;
   Instance.setDiagnostics(Diags.get());
+  Instance.setInvocation(Invocation);
   Instance.getFrontendOpts().OutputFile = CacheBMIPath;
   GenerateReducedModuleInterfaceAction Action;
   ASSERT_TRUE(Instance.ExecuteAction(Action));

@@ -24,6 +24,11 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 template <class _Tp, size_t _Dim = 0>
 struct _LIBCPP_TEMPLATE_VIS extent : integral_constant<size_t, __array_extent(_Tp, _Dim)> {};
 
+#  if _LIBCPP_STD_VER >= 17
+template <class _Tp, unsigned _Ip = 0>
+inline constexpr size_t extent_v = __array_extent(_Tp, _Ip);
+#  endif
+
 #else // __has_builtin(__array_extent)
 
 template <class _Tp, unsigned _Ip = 0>
@@ -36,6 +41,11 @@ template <class _Tp, size_t _Np>
 struct _LIBCPP_TEMPLATE_VIS extent<_Tp[_Np], 0> : public integral_constant<size_t, _Np> {};
 template <class _Tp, size_t _Np, unsigned _Ip>
 struct _LIBCPP_TEMPLATE_VIS extent<_Tp[_Np], _Ip> : public integral_constant<size_t, extent<_Tp, _Ip - 1>::value> {};
+
+#  if _LIBCPP_STD_VER >= 17
+template <class _Tp, unsigned _Ip = 0>
+inline constexpr size_t extent_v = extent<_Tp, _Ip>::value;
+#  endif
 
 #endif // __has_builtin(__array_extent)
 

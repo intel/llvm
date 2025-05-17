@@ -411,17 +411,14 @@ bool ItaniumPartialDemangler::partialDemangle(const char *MangledName) {
   RootNode = Parser->parse();
   return RootNode == nullptr;
 }
-static char *printNode(const Node *RootNode, OutputBuffer &OB, size_t *N) {
+
+static char *printNode(const Node *RootNode, char *Buf, size_t *N) {
+  OutputBuffer OB(Buf, N);
   RootNode->print(OB);
   OB += '\0';
   if (N != nullptr)
     *N = OB.getCurrentPosition();
   return OB.getBuffer();
-}
-
-static char *printNode(const Node *RootNode, char *Buf, size_t *N) {
-  OutputBuffer OB(Buf, N);
-  return printNode(RootNode, OB, N);
 }
 
 char *ItaniumPartialDemangler::getFunctionBaseName(char *Buf, size_t *N) const {
@@ -541,14 +538,6 @@ char *ItaniumPartialDemangler::getFunctionReturnType(
 char *ItaniumPartialDemangler::finishDemangle(char *Buf, size_t *N) const {
   assert(RootNode != nullptr && "must call partialDemangle()");
   return printNode(static_cast<Node *>(RootNode), Buf, N);
-}
-
-char *ItaniumPartialDemangler::finishDemangle(void *OB) const {
-  assert(RootNode != nullptr && "must call partialDemangle()");
-  assert(OB != nullptr && "valid OutputBuffer argument required");
-  return printNode(static_cast<Node *>(RootNode),
-                   *static_cast<OutputBuffer *>(OB),
-                   /*N=*/nullptr);
 }
 
 bool ItaniumPartialDemangler::hasFunctionQualifiers() const {

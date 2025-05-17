@@ -23,14 +23,8 @@ enum HeaderIncludeFormatKind { HIFMT_None, HIFMT_Textual, HIFMT_JSON };
 
 /// Whether header information is filtered or not. If HIFIL_Only_Direct_System
 /// is used, only information on system headers directly included from
-/// non-system files is emitted. The HIFIL_Direct_Per_File filtering shows the
-/// direct imports and includes for each non-system source and header file
-/// separately.
-enum HeaderIncludeFilteringKind {
-  HIFIL_None,
-  HIFIL_Only_Direct_System,
-  HIFIL_Direct_Per_File
-};
+/// non-system headers is emitted.
+enum HeaderIncludeFilteringKind { HIFIL_None, HIFIL_Only_Direct_System };
 
 inline HeaderIncludeFormatKind
 stringToHeaderIncludeFormatKind(const char *Str) {
@@ -46,7 +40,6 @@ inline bool stringToHeaderIncludeFiltering(const char *Str,
       llvm::StringSwitch<std::pair<bool, HeaderIncludeFilteringKind>>(Str)
           .Case("none", {true, HIFIL_None})
           .Case("only-direct-system", {true, HIFIL_Only_Direct_System})
-          .Case("direct-per-file", {true, HIFIL_Direct_Per_File})
           .Default({false, HIFIL_None});
   Kind = P.second;
   return P.first;
@@ -71,8 +64,6 @@ headerIncludeFilteringKindToString(HeaderIncludeFilteringKind K) {
     return "none";
   case HIFIL_Only_Direct_System:
     return "only-direct-system";
-  case HIFIL_Direct_Per_File:
-    return "direct-per-file";
   }
   llvm_unreachable("Unknown HeaderIncludeFilteringKind enum");
 }

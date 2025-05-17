@@ -739,9 +739,8 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
     SPIRVType *TranslatedTy = nullptr;
     if (ET->isPointerTy() &&
         BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
-      TranslatedTy = BM->addPointerType(
-          SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)),
-          nullptr);
+      TranslatedTy = BM->addUntypedPointerKHRType(
+          SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
     } else {
       ElementType = transType(ET);
       TranslatedTy = transPointerType(ElementType, AddrSpc);
@@ -766,9 +765,8 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
     return transPointerType(ET, SPIRAS_Private);
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
       !(ET->isTypeArray() || ET->isTypeVector() || ET->isSPIRVOpaqueType())) {
-    TranslatedTy = BM->addPointerType(
-        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)),
-        nullptr);
+    TranslatedTy = BM->addUntypedPointerKHRType(
+        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
   } else {
     TranslatedTy = BM->addPointerType(
         SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)), ET);
@@ -2350,8 +2348,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     }
     SPIRVType *VarTy = TranslatedTy;
     if (V->getType()->getPointerAddressSpace() == SPIRAS_Generic) {
+      // TODO: refactor addPointerType and addUntypedPointerKHRType in one
+      // method if possible.
       if (TranslatedTy->isTypeUntypedPointerKHR())
-        VarTy = BM->addPointerType(StorageClassFunction, nullptr);
+        VarTy = BM->addUntypedPointerKHRType(StorageClassFunction);
       else
         VarTy = BM->addPointerType(StorageClassFunction,
                                    TranslatedTy->getPointerElementType());
@@ -2697,9 +2697,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
 SPIRVType *LLVMToSPIRVBase::mapType(Type *T, SPIRVType *BT) {
   assert(!T->isPointerTy() && "Pointer types cannot be stored in the type map");
-  [[maybe_unused]] auto EmplaceStatus = TypeMap.try_emplace(T, BT);
-  assert(EmplaceStatus.second && "The type was already added to the map");
+  auto EmplaceStatus = TypeMap.try_emplace(T, BT);
+  // TODO: Uncomment the assertion, once the type mapping issue is resolved
+  // assert(EmplaceStatus.second && "The type was already added to the map");
   SPIRVDBG(dbgs() << "[mapType] " << *T << " => "; spvdbgs() << *BT << '\n');
+  if (!EmplaceStatus.second)
+    return TypeMap[T];
   return BT;
 }
 
@@ -4300,8 +4303,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVType *IntegralTy = transType(II->getType()->getStructElementType(1));
     // IntegralTy is the type of the result. We want to create a pointer to this
     // that we can pass to OpenCLLIB::modf to store the integral part.
-    SPIRVType *GenericPtrTy = BM->addPointerType(StorageClassFunction, IntegralTy);
-    auto *IntegralPtrTy = dyn_cast<SPIRVTypePointer>(GenericPtrTy);
+    SPIRVTypePointer *IntegralPtrTy =
+        BM->addPointerType(StorageClassFunction, IntegralTy);
     // We need to use the entry BB of the function calling llvm.modf.*, instead
     // of the current BB. For that, we'll find current BB's parent and get its
     // first BB, which is the entry BB of the function.
@@ -4827,7 +4830,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     auto *SrcTy = PtrOp->getType();
     SPIRVType *DstTy = nullptr;
     if (SrcTy->isTypeUntypedPointerKHR())
-      DstTy = BM->addPointerType(StorageClassFunction, nullptr);
+      DstTy = BM->addUntypedPointerKHRType(StorageClassFunction);
     else
       DstTy = BM->addPointerType(StorageClassFunction,
                                  SrcTy->getPointerElementType());

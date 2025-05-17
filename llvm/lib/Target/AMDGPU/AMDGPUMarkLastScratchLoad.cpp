@@ -42,7 +42,10 @@ class AMDGPUMarkLastScratchLoadLegacy : public MachineFunctionPass {
 public:
   static char ID;
 
-  AMDGPUMarkLastScratchLoadLegacy() : MachineFunctionPass(ID) {}
+  AMDGPUMarkLastScratchLoadLegacy() : MachineFunctionPass(ID) {
+    initializeAMDGPUMarkLastScratchLoadLegacyPass(
+        *PassRegistry::getPassRegistry());
+  }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 

@@ -589,7 +589,8 @@ TEST(ToolChainTest, UEFICallingConventionTest) {
 
   compiler.getTargetOpts().Triple = Tr.getTriple();
   compiler.setTarget(clang::TargetInfo::CreateTargetInfo(
-      compiler.getDiagnostics(), compiler.getTargetOpts()));
+      compiler.getDiagnostics(),
+      std::make_shared<clang::TargetOptions>(compiler.getTargetOpts())));
 
   EXPECT_EQ(compiler.getTarget().getCallingConvKind(true),
             TargetInfo::CallingConvKind::CCK_MicrosoftWin64);

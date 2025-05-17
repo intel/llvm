@@ -754,8 +754,9 @@ void Parser::HandlePragmaMSStruct() {
 
 void Parser::HandlePragmaAlign() {
   assert(Tok.is(tok::annot_pragma_align));
-  PragmaOptionsAlignKind Kind = static_cast<PragmaOptionsAlignKind>(
-      reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
+  Sema::PragmaOptionsAlignKind Kind =
+    static_cast<Sema::PragmaOptionsAlignKind>(
+    reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
   Actions.ActOnPragmaOptionsAlign(Kind, Tok.getLocation());
   // Consume the token after processing the pragma to enable pragma-specific
   // #include warnings.
@@ -1418,16 +1419,16 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
       static_cast<PragmaLoopHintInfo *>(Tok.getAnnotationValue());
 
   IdentifierInfo *PragmaNameInfo = Info->PragmaName.getIdentifierInfo();
-  Hint.PragmaNameLoc = new (Actions.Context)
-      IdentifierLoc(Info->PragmaName.getLocation(), PragmaNameInfo);
+  Hint.PragmaNameLoc = IdentifierLoc::create(
+      Actions.Context, Info->PragmaName.getLocation(), PragmaNameInfo);
 
   // It is possible that the loop hint has no option identifier, such as
   // #pragma unroll(4).
   IdentifierInfo *OptionInfo = Info->Option.is(tok::identifier)
                                    ? Info->Option.getIdentifierInfo()
                                    : nullptr;
-  Hint.OptionLoc = new (Actions.Context)
-      IdentifierLoc(Info->Option.getLocation(), OptionInfo);
+  Hint.OptionLoc = IdentifierLoc::create(
+      Actions.Context, Info->Option.getLocation(), OptionInfo);
 
   llvm::ArrayRef<Token> Toks = Info->Toks;
 
@@ -1507,7 +1508,7 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
     if (Toks.size() > 2)
       Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
           << PragmaLoopHintString(Info->PragmaName, Info->Option);
-    Hint.StateLoc = new (Actions.Context) IdentifierLoc(StateLoc, StateInfo);
+    Hint.StateLoc = IdentifierLoc::create(Actions.Context, StateLoc, StateInfo);
   } else if (OptionInfo && OptionInfo->getName() == "vectorize_width") {
     PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/false,
                         /*IsReinject=*/false);
@@ -1528,7 +1529,8 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
           ConsumeAnyToken();
       }
 
-      Hint.StateLoc = new (Actions.Context) IdentifierLoc(StateLoc, StateInfo);
+      Hint.StateLoc =
+          IdentifierLoc::create(Actions.Context, StateLoc, StateInfo);
 
       ConsumeToken(); // Consume the constant expression eof terminator.
     } else {
@@ -1552,7 +1554,7 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
           Arg2Error = true;
         } else
           Hint.StateLoc =
-              new (Actions.Context) IdentifierLoc(StateLoc, StateInfo);
+              IdentifierLoc::create(Actions.Context, StateLoc, StateInfo);
 
         PP.Lex(Tok); // Identifier
       }
@@ -2313,7 +2315,7 @@ void PragmaClangSectionHandler::HandlePragma(Preprocessor &PP,
                                              Token &FirstToken) {
 
   Token Tok;
-  auto SecKind = PragmaClangSectionKind::Invalid;
+  auto SecKind = Sema::PragmaClangSectionKind::PCSK_Invalid;
 
   PP.Lex(Tok); // eat 'section'
   while (Tok.isNot(tok::eod)) {
@@ -2324,15 +2326,15 @@ void PragmaClangSectionHandler::HandlePragma(Preprocessor &PP,
 
     const IdentifierInfo *SecType = Tok.getIdentifierInfo();
     if (SecType->isStr("bss"))
-      SecKind = PragmaClangSectionKind::BSS;
+      SecKind = Sema::PragmaClangSectionKind::PCSK_BSS;
     else if (SecType->isStr("data"))
-      SecKind = PragmaClangSectionKind::Data;
+      SecKind = Sema::PragmaClangSectionKind::PCSK_Data;
     else if (SecType->isStr("rodata"))
-      SecKind = PragmaClangSectionKind::Rodata;
+      SecKind = Sema::PragmaClangSectionKind::PCSK_Rodata;
     else if (SecType->isStr("relro"))
-      SecKind = PragmaClangSectionKind::Relro;
+      SecKind = Sema::PragmaClangSectionKind::PCSK_Relro;
     else if (SecType->isStr("text"))
-      SecKind = PragmaClangSectionKind::Text;
+      SecKind = Sema::PragmaClangSectionKind::PCSK_Text;
     else {
       PP.Diag(Tok.getLocation(), diag::err_pragma_expected_clang_section_name) << "clang section";
       return;
@@ -2341,8 +2343,7 @@ void PragmaClangSectionHandler::HandlePragma(Preprocessor &PP,
     SourceLocation PragmaLocation = Tok.getLocation();
     PP.Lex(Tok); // eat ['bss'|'data'|'rodata'|'text']
     if (Tok.isNot(tok::equal)) {
-      PP.Diag(Tok.getLocation(), diag::err_pragma_clang_section_expected_equal)
-          << SecKind;
+      PP.Diag(Tok.getLocation(), diag::err_pragma_clang_section_expected_equal) << SecKind;
       return;
     }
 
@@ -2350,11 +2351,11 @@ void PragmaClangSectionHandler::HandlePragma(Preprocessor &PP,
     if (!PP.LexStringLiteral(Tok, SecName, "pragma clang section", false))
       return;
 
-    Actions.ActOnPragmaClangSection(PragmaLocation,
-                                    (SecName.size()
-                                         ? PragmaClangSectionAction::Set
-                                         : PragmaClangSectionAction::Clear),
-                                    SecKind, SecName);
+    Actions.ActOnPragmaClangSection(
+        PragmaLocation,
+        (SecName.size() ? Sema::PragmaClangSectionAction::PCSA_Set
+                        : Sema::PragmaClangSectionAction::PCSA_Clear),
+        SecKind, SecName);
   }
 }
 
@@ -2393,20 +2394,20 @@ static void ParseAlignPragma(Preprocessor &PP, Token &FirstTok,
     return;
   }
 
-  PragmaOptionsAlignKind Kind = PragmaOptionsAlignKind::Natural;
+  Sema::PragmaOptionsAlignKind Kind = Sema::POAK_Natural;
   const IdentifierInfo *II = Tok.getIdentifierInfo();
   if (II->isStr("native"))
-    Kind = PragmaOptionsAlignKind::Native;
+    Kind = Sema::POAK_Native;
   else if (II->isStr("natural"))
-    Kind = PragmaOptionsAlignKind::Natural;
+    Kind = Sema::POAK_Natural;
   else if (II->isStr("packed"))
-    Kind = PragmaOptionsAlignKind::Packed;
+    Kind = Sema::POAK_Packed;
   else if (II->isStr("power"))
-    Kind = PragmaOptionsAlignKind::Power;
+    Kind = Sema::POAK_Power;
   else if (II->isStr("mac68k"))
-    Kind = PragmaOptionsAlignKind::Mac68k;
+    Kind = Sema::POAK_Mac68k;
   else if (II->isStr("reset"))
-    Kind = PragmaOptionsAlignKind::Reset;
+    Kind = Sema::POAK_Reset;
   else {
     PP.Diag(Tok.getLocation(), diag::warn_pragma_align_invalid_option)
       << IsOptions;
@@ -3455,6 +3456,7 @@ void PragmaSTDC_FENV_ROUNDHandler::HandlePragma(Preprocessor &PP,
                                                 PragmaIntroducer Introducer,
                                                 Token &Tok) {
   Token PragmaName = Tok;
+  SmallVector<Token, 1> TokenList;
   if (!PP.getTargetInfo().hasStrictFP() && !PP.getLangOpts().ExpStrictFP) {
     PP.Diag(Tok.getLocation(), diag::warn_pragma_fp_ignored)
         << PragmaName.getIdentifierInfo()->getName();

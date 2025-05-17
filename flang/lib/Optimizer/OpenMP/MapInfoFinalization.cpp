@@ -153,15 +153,7 @@ class MapInfoFinalizationPass
     builder.setInsertionPointToStart(allocaBlock);
     auto alloca = builder.create<fir::AllocaOp>(loc, descriptor.getType());
     builder.restoreInsertionPoint(insPt);
-    // We should only emit a store if the passed in data is present, it is
-    // possible a user passes in no argument to an optional parameter, in which
-    // case we cannot store or we'll segfault on the emitted memcpy.
-    auto isPresent =
-        builder.create<fir::IsPresentOp>(loc, builder.getI1Type(), descriptor);
-    builder.genIfOp(loc, {}, isPresent, false)
-        .genThen(
-            [&]() { builder.create<fir::StoreOp>(loc, descriptor, alloca); })
-        .end();
+    builder.create<fir::StoreOp>(loc, descriptor, alloca);
     return slot = alloca;
   }
 

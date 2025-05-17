@@ -400,10 +400,8 @@ FailureOr<FormatElement *> FormatParser::parseOptionalGroup(Context ctx) {
 
 FailureOr<FormatElement *> FormatParser::parseCustomDirective(SMLoc loc,
                                                               Context ctx) {
-  if (ctx != TopLevelContext && ctx != StructDirectiveContext) {
-    return emitError(loc, "`custom` can only be used at the top-level context "
-                          "or within a `struct` directive");
-  }
+  if (ctx != TopLevelContext)
+    return emitError(loc, "'custom' is only valid as a top-level directive");
 
   FailureOr<FormatToken> nameTok;
   if (failed(parseToken(FormatToken::less,

@@ -167,7 +167,7 @@ public:
 
   std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
 
-  MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override;
+  const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
 
   void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                   const MCValue &Target, MutableArrayRef<char> Data,
@@ -177,9 +177,11 @@ public:
   bool mayNeedRelaxation(const MCInst &Inst,
                          const MCSubtargetInfo &STI) const override;
 
-  bool fixupNeedsRelaxationAdvanced(const MCAssembler &,
-                                    const MCFixup &, const MCValue &, uint64_t,
-                                    bool) const override;
+  bool fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
+                                    const MCFixup &Fixup, bool Resolved,
+                                    uint64_t Value,
+                                    const MCRelaxableFragment *DF,
+                                    const bool WasForced) const override;
 
   void relaxInstruction(MCInst &Inst,
                         const MCSubtargetInfo &STI) const override;
@@ -620,7 +622,7 @@ std::optional<MCFixupKind> X86AsmBackend::getFixupKind(StringRef Name) const {
   return MCAsmBackend::getFixupKind(Name);
 }
 
-MCFixupKindInfo X86AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+const MCFixupKindInfo &X86AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   const static MCFixupKindInfo Infos[X86::NumTargetFixupKinds] = {
       // clang-format off
       {"reloc_riprel_4byte", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
@@ -639,7 +641,7 @@ MCFixupKindInfo X86AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
 
   // Fixup kinds from .reloc directive are like R_386_NONE/R_X86_64_NONE. They
   // do not require any extra processing.
-  if (mc::isRelocation(Kind))
+  if (Kind >= FirstLiteralRelocationKind)
     return MCAsmBackend::getFixupKindInfo(FK_NONE);
 
   if (Kind < FirstTargetFixupKind)
@@ -691,8 +693,8 @@ void X86AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                                const MCValue &, MutableArrayRef<char> Data,
                                uint64_t Value, bool IsResolved,
                                const MCSubtargetInfo *STI) const {
-  auto Kind = Fixup.getKind();
-  if (mc::isRelocation(Kind))
+  unsigned Kind = Fixup.getKind();
+  if (Kind >= FirstLiteralRelocationKind)
     return;
   unsigned Size = getFixupKindSize(Kind);
 
@@ -729,22 +731,22 @@ bool X86AsmBackend::mayNeedRelaxation(const MCInst &MI,
           MI.getOperand(MI.getNumOperands() - 1 - SkipOperands).isExpr());
 }
 
-bool X86AsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &,
+bool X86AsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
                                                  const MCFixup &Fixup,
-                                                 const MCValue &Target,
-                                                 uint64_t Value,
-                                                 bool Resolved) const {
+                                                 bool Resolved, uint64_t Value,
+                                                 const MCRelaxableFragment *DF,
+                                                 const bool WasForced) const {
   // If resolved, relax if the value is too big for a (signed) i8.
-  //
-  // Currently, `jmp local@plt` relaxes JMP even if the offset is small,
-  // different from gas.
   if (Resolved)
-    return !isInt<8>(Value) || Target.getSpecifier();
+    return !isInt<8>(Value);
 
   // Otherwise, relax unless there is a @ABS8 specifier.
-  if (Fixup.getKind() == FK_Data_1 && Target.getAddSym() &&
-      Target.getSpecifier() == X86MCExpr::VK_ABS8)
-    return false;
+  if (Fixup.getKind() == FK_Data_1) {
+    MCValue Target;
+    if (Fixup.getValue()->evaluateAsRelocatable(Target, &Asm) &&
+        Target.getAddSym() && Target.getSpecifier() == X86MCExpr::VK_ABS8)
+      return false;
+  }
   return true;
 }
 

@@ -78,8 +78,9 @@ public:
         createInvocation(Args, CIOpts);
     EXPECT_TRUE(Invocation);
 
-    CompilerInstance Instance(std::move(Invocation));
+    CompilerInstance Instance;
     Instance.setDiagnostics(Diags.get());
+    Instance.setInvocation(Invocation);
     Instance.getFrontendOpts().OutputFile = CacheBMIPath;
     // Avoid memory leaks.
     Instance.getFrontendOpts().DisableFree = false;

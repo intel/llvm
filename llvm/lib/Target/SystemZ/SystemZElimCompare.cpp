@@ -65,7 +65,9 @@ class SystemZElimCompare : public MachineFunctionPass {
 public:
   static char ID;
 
-  SystemZElimCompare() : MachineFunctionPass(ID) {}
+  SystemZElimCompare() : MachineFunctionPass(ID) {
+    initializeSystemZElimComparePass(*PassRegistry::getPassRegistry());
+  }
 
   bool processBlock(MachineBasicBlock &MBB);
   bool runOnMachineFunction(MachineFunction &F) override;

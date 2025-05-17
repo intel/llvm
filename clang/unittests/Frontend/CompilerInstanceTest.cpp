@@ -66,8 +66,9 @@ TEST(CompilerInstance, DefaultVFSOverlayFromInvocation) {
     FAIL() << "could not create compiler invocation";
   // Create a minimal CompilerInstance which should use the VFS we specified
   // in the CompilerInvocation (as we don't explicitly set our own).
-  CompilerInstance Instance(std::move(CInvok));
+  CompilerInstance Instance;
   Instance.setDiagnostics(Diags.get());
+  Instance.setInvocation(CInvok);
   Instance.createFileManager();
 
   // Check if the virtual file exists which means that our VFS is used by the

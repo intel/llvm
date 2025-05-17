@@ -102,9 +102,6 @@ def HasStdExtZicboz : Predicate<"Subtarget->hasStdExtZicboz()">,
 def FeatureStdExtZiccamoa
     : RISCVExtension<1, 0, "Main Memory Supports All Atomics in A">;
 
-def FeatureStdExtZiccamoc
-    : RISCVExtension<1, 0, "Main Memory Supports Atomics in Zacas">;
-
 def FeatureStdExtZiccif
     : RISCVExtension<1, 0,
                      "Main Memory Supports Instruction Fetch with Atomicity Requirement">;
@@ -157,8 +154,7 @@ def FeatureStdExtZihpm
     : RISCVExtension<2, 0, "Hardware Performance Counters",
                      [FeatureStdExtZicsr]>;
 
-def FeatureStdExtZimop : RISCVExtension<1, 0, "May-Be-Operations">,
-                         RISCVExtensionBitmask<1, 1>;
+def FeatureStdExtZimop : RISCVExtension<1, 0, "May-Be-Operations">;
 def HasStdExtZimop : Predicate<"Subtarget->hasStdExtZimop()">,
                      AssemblerPredicate<(all_of FeatureStdExtZimop),
                                         "'Zimop' (May-Be-Operations)">;
@@ -182,8 +178,7 @@ def NoHasStdExtZicfiss : Predicate<"!Subtarget->hasStdExtZicfiss()">;
 
 def FeatureStdExtZilsd
     : RISCVExtension<1, 0,
-                     "Load/Store Pair Instructions">,
-      RISCVExtensionBitmask<1, 8>;
+                     "Load/Store Pair Instructions">;
 def HasStdExtZilsd : Predicate<"Subtarget->hasStdExtZilsd()">,
                        AssemblerPredicate<(all_of FeatureStdExtZilsd),
                                           "'Zilsd' (Load/Store pair instructions)">;
@@ -267,8 +262,7 @@ def HasStdExtZalasr : Predicate<"Subtarget->hasStdExtZalasr()">,
 def FeatureStdExtZama16b
     : RISCVExtension<1, 0, "Atomic 16-byte misaligned loads, stores and AMOs">;
 
-def FeatureStdExtZawrs : RISCVExtension<1, 0, "Wait on Reservation Set">,
-                         RISCVExtensionBitmask<1, 7>;
+def FeatureStdExtZawrs : RISCVExtension<1, 0, "Wait on Reservation Set">;
 def HasStdExtZawrs : Predicate<"Subtarget->hasStdExtZawrs()">,
                      AssemblerPredicate<(all_of FeatureStdExtZawrs),
                                         "'Zawrs' (Wait on Reservation Set)">;
@@ -374,8 +368,7 @@ def HasRVCHints : Predicate<"Subtarget->enableRVCHintInstrs()">,
 def FeatureStdExtZca
     : RISCVExtension<1, 0,
                      "part of the C extension, excluding compressed "
-                     "floating point loads/stores">,
-      RISCVExtensionBitmask<1, 2>;
+                     "floating point loads/stores">;
 
 def FeatureStdExtC
     : RISCVExtension<2, 0, "Compressed Instructions", [FeatureStdExtZca]>,
@@ -394,8 +387,7 @@ def HasStdExtCOrZca
 
 def FeatureStdExtZcb
     : RISCVExtension<1, 0, "Compressed basic bit manipulation instructions",
-                     [FeatureStdExtZca]>,
-      RISCVExtensionBitmask<1, 3>;
+                     [FeatureStdExtZca]>;
 def HasStdExtZcb : Predicate<"Subtarget->hasStdExtZcb()">,
                    AssemblerPredicate<(all_of FeatureStdExtZcb),
                        "'Zcb' (Compressed basic bit manipulation instructions)">;
@@ -403,8 +395,7 @@ def HasStdExtZcb : Predicate<"Subtarget->hasStdExtZcb()">,
 def FeatureStdExtZcd
     : RISCVExtension<1, 0,
                      "Compressed Double-Precision Floating-Point Instructions",
-                     [FeatureStdExtD, FeatureStdExtZca]>,
-      RISCVExtensionBitmask<1, 4>;
+                     [FeatureStdExtD, FeatureStdExtZca]>;
 
 def HasStdExtCOrZcd
     : Predicate<"Subtarget->hasStdExtCOrZcd()">,
@@ -415,14 +406,12 @@ def HasStdExtCOrZcd
 def FeatureStdExtZcf
     : RISCVExtension<1, 0,
                      "Compressed Single-Precision Floating-Point Instructions",
-                     [FeatureStdExtF, FeatureStdExtZca]>,
-      RISCVExtensionBitmask<1, 5>;
+                     [FeatureStdExtF, FeatureStdExtZca]>;
 
 def FeatureStdExtZclsd
     : RISCVExtension<1, 0,
                      "Compressed Load/Store Pair Instructions",
-                     [FeatureStdExtZilsd, FeatureStdExtZca]>,
-      RISCVExtensionBitmask<1, 9>;
+                     [FeatureStdExtZilsd, FeatureStdExtZca]>;
 def HasStdExtZclsd : Predicate<"Subtarget->hasStdExtZclsd()">,
                     AssemblerPredicate<(all_of FeatureStdExtZclsd),
                         "'Zclsd' (Compressed Load/Store pair instructions)">;
@@ -430,8 +419,7 @@ def HasStdExtZclsd : Predicate<"Subtarget->hasStdExtZclsd()">,
 def FeatureStdExtZcmp
     : RISCVExtension<1, 0,
                      "sequenced instructions for code-size reduction",
-                     [FeatureStdExtZca]>,
-      RISCVExtensionBitmask<1, 10>;
+                     [FeatureStdExtZca]>;
 def HasStdExtZcmp : Predicate<"Subtarget->hasStdExtZcmp() && !Subtarget->hasStdExtC()">,
                     AssemblerPredicate<(all_of FeatureStdExtZcmp),
                         "'Zcmp' (sequenced instructions for code-size reduction)">;
@@ -459,8 +447,7 @@ def HasStdExtCOrZcfOrZce
 
 def FeatureStdExtZcmop
     : RISCVExtension<1, 0, "Compressed May-Be-Operations",
-                     [FeatureStdExtZca]>,
-      RISCVExtensionBitmask<1, 6>;
+                     [FeatureStdExtZca]>;
 def HasStdExtZcmop : Predicate<"Subtarget->hasStdExtZcmop()">,
                      AssemblerPredicate<(all_of FeatureStdExtZcmop),
                          "'Zcmop' (Compressed May-Be-Operations)">;
@@ -641,37 +628,32 @@ def FeatureStdExtZve32x
     : RISCVExtension<1, 0,
                      "Vector Extensions for Embedded Processors "
                      "with maximal 32 EEW",
-                     [FeatureStdExtZicsr, FeatureStdExtZvl32b]>,
-      RISCVExtensionBitmask<0, 60>;
+                     [FeatureStdExtZicsr, FeatureStdExtZvl32b]>;
 
 
 def FeatureStdExtZve32f
     : RISCVExtension<1, 0,
                      "Vector Extensions for Embedded Processors "
                      "with maximal 32 EEW and F extension",
-                     [FeatureStdExtZve32x, FeatureStdExtF]>,
-      RISCVExtensionBitmask<0, 61>;
+                     [FeatureStdExtZve32x, FeatureStdExtF]>;
 
 def FeatureStdExtZve64x
     : RISCVExtension<1, 0,
                      "Vector Extensions for Embedded Processors "
                      "with maximal 64 EEW",
-                     [FeatureStdExtZve32x, FeatureStdExtZvl64b]>,
-      RISCVExtensionBitmask<0, 62>;
+                     [FeatureStdExtZve32x, FeatureStdExtZvl64b]>;
 
 def FeatureStdExtZve64f
     : RISCVExtension<1, 0,
                      "Vector Extensions for Embedded Processors "
                      "with maximal 64 EEW and F extension",
-                     [FeatureStdExtZve32f, FeatureStdExtZve64x]>,
-      RISCVExtensionBitmask<0, 63>;
+                     [FeatureStdExtZve32f, FeatureStdExtZve64x]>;
 
 def FeatureStdExtZve64d
     : RISCVExtension<1, 0,
                      "Vector Extensions for Embedded Processors "
                      "with maximal 64 EEW, F and D extension",
-                     [FeatureStdExtZve64f, FeatureStdExtD]>,
-      RISCVExtensionBitmask<1, 0>;
+                     [FeatureStdExtZve64f, FeatureStdExtD]>;
 
 def FeatureStdExtV
     : RISCVExtension<1, 0,
@@ -904,9 +886,6 @@ def FeatureStdExtSmaia
 def FeatureStdExtSsaia
     : RISCVExtension<1, 0,
                      "Advanced Interrupt Architecture Supervisor Level">;
-
-def FeatureStdExtSmcntrpmf
-    : RISCVExtension<1, 0, "Cycle and Instret Privilege Mode Filtering">;
 
 def FeatureStdExtSmcsrind
     : RISCVExtension<1, 0, "Indirect CSR Access Machine Level">;
@@ -1257,14 +1236,6 @@ def HasVendorXSfcease
       AssemblerPredicate<(all_of FeatureVendorXSfcease),
                          "'XSfcease' (SiFive sf.cease Instruction)">;
 
-def FeatureVendorXSfmclic
-    : RISCVExperimentalExtension<0, 1,
-                                 "SiFive CLIC Machine-mode CSRs">;
-
-def FeatureVendorXSfsclic
-    : RISCVExperimentalExtension<0, 1,
-                                 "SiFive CLIC Supervisor-mode CSRs">;
-
 // Core-V Extensions
 
 def FeatureVendorXCVelw
@@ -1317,12 +1288,12 @@ def HasVendorXCVbi
                          "'XCVbi' (CORE-V Immediate Branching)">;
 // MIPS Extensions
 
-def FeatureVendorXMIPSCMov
-    : RISCVExtension<1, 0, "MIPS conditional move instruction (mips.ccmov)">;
-def HasVendorXMIPSCMov
-    : Predicate<"Subtarget->hasVendorXMIPSCMov()">,
-      AssemblerPredicate<(all_of FeatureVendorXMIPSCMov),
-                         "'Xmipscmov' ('mips.ccmov' instruction)">;
+def FeatureVendorXMIPSCMove
+    : RISCVExtension<1, 0, "MIPS conditional move instruction(s) (ccmov)">;
+def HasVendorXMIPSCMove
+    : Predicate<"Subtarget->hasVendorXMIPSCMove()">,
+      AssemblerPredicate<(all_of FeatureVendorXMIPSCMove),
+                         "'Xmipscmove' ('mips.ccmov' instruction)">;
 def UseCCMovInsn : Predicate<"Subtarget->useCCMovInsn()">;
 def FeatureVendorXMIPSLSP
     : RISCVExtension<1, 0, "MIPS optimization for hardware load-store bonding">;
@@ -1507,15 +1478,6 @@ def HasVendorXRivosVizip
     : Predicate<"Subtarget->hasVendorXRivosVizip()">,
       AssemblerPredicate<(all_of FeatureVendorXRivosVizip),
                          "'XRivosVizip' (Rivos Vector Register Zips)">;
-
-// Andes Extension(s)
-
-def FeatureVendorXAndesPerf
-    : RISCVExtension<5, 0, "Andes Performance Extension">;
-def HasVendorXAndesPerf
-    : Predicate<"Subtarget->hasVendorXAndesPerf()">,
-      AssemblerPredicate<(all_of FeatureVendorXAndesPerf),
-                         "'XAndesPerf' (Andes Performance Extension)">;
 
 //===----------------------------------------------------------------------===//
 // LLVM specific features and extensions

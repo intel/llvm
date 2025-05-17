@@ -26,13 +26,16 @@
 
 using namespace llvm;
 
+namespace llvm {
+void initializeLanaiMemAluCombinerPass(PassRegistry &);
+} // namespace llvm
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeLanaiTarget() {
   // Register the target.
   RegisterTargetMachine<LanaiTargetMachine> registered_target(
       getTheLanaiTarget());
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeLanaiDAGToDAGISelLegacyPass(PR);
-  initializeLanaiMemAluCombinerPass(PR);
 }
 
 static std::string computeDataLayout() {
@@ -67,7 +70,7 @@ LanaiTargetMachine::LanaiTargetMachine(
 
 TargetTransformInfo
 LanaiTargetMachine::getTargetTransformInfo(const Function &F) const {
-  return TargetTransformInfo(std::make_unique<LanaiTTIImpl>(this, F));
+  return TargetTransformInfo(LanaiTTIImpl(this, F));
 }
 
 MachineFunctionInfo *LanaiTargetMachine::createMachineFunctionInfo(
