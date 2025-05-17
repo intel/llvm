@@ -35,8 +35,6 @@ int main() {
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
   // CHECK-CACHE: <--- urEnqueueKernelLaunch
-  // CHECK-CACHE: <--- urKernelRelease
-  // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
   q.single_task([] {}).wait();
 
@@ -98,6 +96,8 @@ int main() {
 // windows should handle the memory cleanup.
 
 // (Program cache releases)
+// CHECK-CACHE: <--- urKernelRelease
+// CHECK-CACHE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
