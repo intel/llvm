@@ -12937,7 +12937,7 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
     return false;
 
   if (LangOpts.SYCLIsDevice && !D->hasAttr<OpenCLKernelAttr>() &&
-      !D->hasAttr<SYCLDeviceAttr>())
+      !D->hasAttr<SYCLDeviceAttr>() && !D->hasAttr<SYCLKernelEntryPointAttr>())
     return false;
 
   // Aliases and used decls are required.
