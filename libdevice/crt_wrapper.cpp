@@ -126,5 +126,20 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
       __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
       __spirv_LocalInvocationId_z());
 }
+
+// In GCC-15, std::__glibcxx_assert_fail is added to do runtime check for some
+// STL items such as std::array in debug mode, its behavior is same as assert,
+// so just handle it in the same way as '__assert_fail'.
+namespace std {
+DEVICE_EXTERN_CPP
+void __glibcxx_assert_fail(const char *file, int line, const char *func,
+                           const char *cond) {
+  __devicelib_assert_fail(
+      cond, file, line, func, __spirv_GlobalInvocationId_x(),
+      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
+      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
+      __spirv_LocalInvocationId_z());
+}
+} // namespace std
 #endif
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
