@@ -11,11 +11,13 @@ void singleTaskKernelReference(int &Ref) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<2>)
 void ndRangeKernelReference(int &Ref) {}
 
-// expected-error@+2 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
+// expected-error@+2 {{a function with a default argument value cannot
+// be used to define SYCL free function kernel}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskKernelDefaultParameterValue(int DefVal = 1024) {}
 
-// expected-error@+2 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
+// expected-error@+2 {{a function with a default argument value
+// cannot be used to define SYCL free function kernel}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<3>)
 void ndRangeKernelReferenceDefaultParameterValue(int DefVal = 1024) {}
 
@@ -27,25 +29,21 @@ void singleTaskKernelVariadic(...) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
 void ndRangeKernelVariadic(...) {}
 
-class DummyClass{
-    public:
-    // Diagnostic for these violations of the restrictions haven't been implemented  
-    // yet.
-    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
-    void singleTaskKernelNonStaticMemberFunc(int* Ptr) {}
-    
-    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<2>)
-    void ndRangeKernelNonStaticMemberFunc(float* Ptr){}
+class DummyClass {
+public:
+  // Diagnostic for these violations of the restrictions haven't been
+  // implemented yet.
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
+  void singleTaskKernelNonStaticMemberFunc(int *Ptr) {}
+
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<2>)
+  void ndRangeKernelNonStaticMemberFunc(float *Ptr) {}
 };
 
 // expected-error@+2 {{SYCL free function kernel should have return type 'void'}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
-float singleTaskKernelNonVoid() {
-    return 0.0F;
-}
+float singleTaskKernelNonVoid() { return 0.0F; }
 
 // expected-error@+2 {{SYCL free function kernel should have return type 'void'}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<3>)
-int ndRangeKernelNonVoid() {
-    return 0;
-}
+int ndRangeKernelNonVoid() { return 0; }
