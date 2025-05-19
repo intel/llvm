@@ -349,8 +349,6 @@ SYCL runtime over low-level runtimes (such as Level Zero or OpenCL):
 - Removed a busy-wait loop from the implementation of
   `-fsycl-max-parallel-link-jobs` flag, making it consume less resources when
   waiting. intel/llvm#17260
-- Made `-O0` to be the default optimization level when debug info is enabled
-  through `-g` flag. intel/llvm#16408
 - Uplifted maximum version of SPIR-V that compiler can generate to 1.5.
   intel/llvm#16626
 - Made compiler embed device library needed for `bfloat16` support into the
