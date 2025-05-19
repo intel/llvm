@@ -129,7 +129,7 @@ kernel_command_data::kernel_command_data(
     ValidKernelHandles.insert(KernelAlternatives,
                               KernelAlternatives + NumKernelAlternatives);
   }
-};
+}
 
 /// Helper function for finding the Cuda Nodes associated with the
 /// commands in a command-buffer, each event is pointed to by a sync-point in
