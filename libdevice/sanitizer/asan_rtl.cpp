@@ -905,7 +905,8 @@ static __SYCL_CONSTANT__ const char __asan_print_private_base[] =
 DEVICE_EXTERN_C_NOINLINE void
 __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
-  if (!launch_info || launch_info->PrivateShadowOffset == 0)
+  if (!launch_info || launch_info->PrivateShadowOffset == 0 ||
+      launch_info->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
   if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
