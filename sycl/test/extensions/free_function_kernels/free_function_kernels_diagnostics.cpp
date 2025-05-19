@@ -11,13 +11,11 @@ void singleTaskKernelReference(int &Ref) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<2>)
 void ndRangeKernelReference(int &Ref) {}
 
-// expected-error@+2 {{a function with a default argument value cannot
-// be used to define SYCL free function kernel}}
+// expected-error@+2 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskKernelDefaultParameterValue(int DefVal = 1024) {}
 
-// expected-error@+2 {{a function with a default argument value
-// cannot be used to define SYCL free function kernel}}
+// expected-error@+2 {{a function with a default argument value cannot be used to define SYCL free function kernel}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<3>)
 void ndRangeKernelReferenceDefaultParameterValue(int DefVal = 1024) {}
 
