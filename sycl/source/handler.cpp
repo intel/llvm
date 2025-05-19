@@ -572,8 +572,8 @@ event handler::finalize() {
         }
         enqueueImpKernel(
             MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
-            MKernel.get(), MKernelName.data(), impl->MKernelNameBasedCachePtr, RawEvents,
-            DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
+            MKernel.get(), MKernelName.data(), impl->MKernelNameBasedCachePtr,
+            RawEvents, DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
             impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
