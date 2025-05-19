@@ -1393,7 +1393,7 @@ public:
       }
     }
     CASE(ext_oneapi_is_composite) {
-      auto components = get_info<
+      auto components = CALL_GET_INFO<
           sycl::ext::oneapi::experimental::info::device::component_devices>();
       // Any device with ext_oneapi_is_composite aspect will have at least two
       // constituent component devices.
