@@ -190,19 +190,25 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     const typename Desc::return_type value;
   };
 
+  // We optimize `init` signature so that it could be immediately
+  // passed to `std::call_once` in the `CallOnceCached` below with an
+  // expectation that it's easier to inline this lambda than outline a
+  // creation of lambda in `CallOnceCached` if we'd be forced to have
+  // one if `init` returned by value.
+  //
+  // Can't be an inline lambda because old gcc had a bug:
+  // https://godbolt.org/z/h5K9TYceK.
+  template <typename Desc, typename Initializer>
+  static typename Desc::return_type getInitValue(device_impl &device) {
+    typename Desc::return_type value;
+    Initializer::template init<Desc>(device, value);
+    return value;
+  }
+
   template <typename Initializer, typename... Descs>
   struct EagerCache : EagerCached<Descs>... {
     EagerCache(device_impl &device)
-        : EagerCached<Descs>{[&]() {
-            // We optimize `init` signature so that it could be immediately
-            // passed to `std::call_once` in the `CallOnceCached` below with an
-            // expectation that it's easier to inline this lambda than outline a
-            // creation of lambda in `CallOnceCached` if we'd be forced to have
-            // one if `init` returned by value.
-            typename Descs::return_type res;
-            Initializer::template init<Descs>(device, res);
-            return res;
-          }()}... {}
+        : EagerCached<Descs>{getInitValue<Descs, Initializer>(device)}... {}
 
     template <typename Desc> static constexpr bool has() {
       return ((std::is_same_v<Desc, Descs> || ...));
