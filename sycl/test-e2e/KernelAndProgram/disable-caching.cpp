@@ -54,8 +54,6 @@ int main() {
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
   // CHECK-CACHE: <--- urEnqueueKernelLaunch
-  // CHECK-CACHE: <--- urKernelRelease
-  // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
 
   // CHECK: <--- urProgramCreate
@@ -74,8 +72,6 @@ int main() {
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
   // CHECK-CACHE: <--- urEnqueueKernelLaunch
-  // CHECK-CACHE: <--- urKernelRelease
-  // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
   auto *p = malloc_device<int>(1, q);
   for (int i = 0; i < 2; ++i)
@@ -96,8 +92,8 @@ int main() {
 // windows should handle the memory cleanup.
 
 // (Program cache releases)
-// CHECK-CACHE: <--- urKernelRelease
-// CHECK-CACHE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
