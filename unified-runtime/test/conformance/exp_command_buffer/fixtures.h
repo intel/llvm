@@ -97,8 +97,9 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
 
+    // in-order command buffer
     ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
-                                      nullptr, false, false, false};
+                                      nullptr, false, true /* WAS: false */, false};
     ASSERT_SUCCESS(
         urCommandBufferCreateExp(context, device, &desc, &cmd_buf_handle));
     ASSERT_NE(cmd_buf_handle, nullptr);
@@ -112,6 +113,7 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   }
 
   ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
+  ur_exp_command_buffer_handle_t cmd_buf_in_order = nullptr;
 };
 
 struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
