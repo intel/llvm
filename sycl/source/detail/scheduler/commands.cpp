@@ -3268,7 +3268,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert =
           (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(KernelName);
+          ProgramManager::getInstance().kernelUsesAssert(
+              KernelName, ExecKernel->MKernelNameBasedCachePtr);
       if (KernelUsesAssert) {
         EventImpl = MEvent.get();
       }
