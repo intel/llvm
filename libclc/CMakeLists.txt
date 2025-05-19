@@ -569,7 +569,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     list( APPEND spirv_build_flags
       -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
       -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
-      # FIXME: Fix libclc to not require disabling this noisy warning
+      # FIXME: Fix libspirv to not require disabling this noisy warning
       -Wno-bitwise-conditional-parentheses
     )
 

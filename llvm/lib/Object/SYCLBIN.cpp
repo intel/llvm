@@ -224,6 +224,8 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
     OS << StringRef(reinterpret_cast<char *>(&AMHeader), sizeof(AMHeader));
     OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
     HeaderTrackedMetadataOffset += AMHeader.MetadataSize;
+    IRModuleOffset += AMHeader.IRModuleCount;
+    NativeDeviceCodeImageOffset += AMHeader.NativeDeviceCodeImageCount;
     BinariesCount +=
         AMHeader.IRModuleCount + AMHeader.NativeDeviceCodeImageCount;
   }
