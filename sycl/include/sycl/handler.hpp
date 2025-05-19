@@ -769,6 +769,12 @@ private:
     MHostKernel.reset(new detail::HostKernel<KernelType, LambdaArgType, Dims>(
         std::forward<KernelTypeUniversalRef>(KernelFunc)));
 
+    // Instantiating the kernel on the host improves debugging.
+    // We assign it to a member to ensure the compiler cannot optimize it away.
+    MInstantiateKernelOnHostPtr =
+        detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
+                                              Dims>();
+
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
         detail::getKernelName<KernelName>()[0] != '\0';
@@ -3322,6 +3328,9 @@ private:
   std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
+
+  // Pointer for debugging purposes.
+  void *MInstantiateKernelOnHostPtr = nullptr;
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;
