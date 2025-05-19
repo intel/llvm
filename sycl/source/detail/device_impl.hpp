@@ -255,7 +255,14 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     JointCache(device_impl &device) : Caches(device)... {}
 
     template <typename Desc> static constexpr bool has() {
-      return ((Caches::template has<Desc>() || ...));
+      constexpr int NumFound = []() constexpr {
+        int found = 0;
+        (((found = Caches::template has<Desc>() ? found + 1 : found), ...));
+        return found;
+      }();
+      static_assert(NumFound <= 1,
+                    "Multiple caches must not contain the same descriptor");
+      return NumFound == 1;
     }
 
     template <ur_device_info_t Desc> static constexpr bool has() {
@@ -263,21 +270,14 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     }
 
     template <typename Desc> decltype(auto) get() {
-      // Couldn't find a smarter way for this...
-      constexpr auto N = sizeof...(Caches);
-      if constexpr (N >= 1 && nth_type_t<0, Caches...>::template has<Desc>())
-        return nth_type_t<0, Caches...>::template get<Desc>();
-      else if constexpr (N >= 2 &&
-                         nth_type_t<1, Caches...>::template has<Desc>())
-        return nth_type_t<1, Caches...>::template get<Desc>();
-      else if constexpr (N >= 3 &&
-                         nth_type_t<2, Caches...>::template has<Desc>())
-        return nth_type_t<2, Caches...>::template get<Desc>();
-      else if constexpr (N >= 4 &&
-                         nth_type_t<3, Caches...>::template has<Desc>())
-        return nth_type_t<3, Caches...>::template get<Desc>();
-      else
-        static_assert(N <= 4 && N > 0);
+      static_assert(has<Desc>());
+      constexpr auto Idx = []() constexpr {
+        int i = 0;
+        int found = 0;
+        (((found = Caches::template has<Desc>() ? i : found, ++i), ...));
+        return found;
+      }();
+      return nth_type_t<Idx, Caches...>::template get<Desc>();
     }
     template <ur_device_info_t Desc> decltype(auto) get() {
       return get<URDesc<Desc>>();
