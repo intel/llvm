@@ -1880,7 +1880,7 @@ static int getTypeSizeFromManglingName(StringRef Name) {
   };
 
   // Name should always be long enough since it has other unmeaningful chars,
-  // it should has at least 5 chars, such as "Dv16_d"
+  // it should have at least 6 chars, such as "Dv16_d"
   if (Name.size() < 6)
     return 0;
 

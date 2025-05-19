@@ -219,6 +219,7 @@ inline void __msan_exit() {
     __devicelib_exit();
 }
 
+// This function is only used for shadow propagation
 template <typename T>
 void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride) {
   auto DestPtr = (__SYCL_GLOBAL__ T *)Dest;
