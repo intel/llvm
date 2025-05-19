@@ -344,7 +344,8 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
                        const sycl::device &SyclDevice,
                        const sycl::property_list &PropList)
     : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-      MEventsMap(), MInorderQueueMap(), MGraphMemPool(SyclContext, SyclDevice),
+      MEventsMap(), MInorderQueueMap(),
+      MGraphMemPool(*this, SyclContext, SyclDevice),
       MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
   checkGraphPropertiesAndThrow(PropList);
   if (PropList.has_property<property::graph::no_cycle_check>()) {
@@ -509,6 +510,10 @@ graph_impl::add(std::function<void(handler &)> CGF,
   sycl::handler Handler{shared_from_this()};
 #endif
 
+  // Pass the node deps to the handler so they are available when processing the
+  // CGF, need for async_malloc nodes.
+  Handler.impl->MNodeDeps = Deps;
+
 #if XPTI_ENABLE_INSTRUMENTATION
   // Save code location if one was set in TLS.
   // Ideally it would be nice to capture user's call code location
@@ -532,6 +537,10 @@ graph_impl::add(std::function<void(handler &)> CGF,
 
   Handler.finalize();
 
+  // In explicit mode the handler processing of the CGF does not need a write
+  // lock as it does not modify the graph, we extract information from it here
+  // and modify the graph.
+  graph_impl::WriteLock Lock(MMutex);
   node_type NodeType =
       Handler.impl->MUserFacingNodeType !=
               ext::oneapi::experimental::node_type::empty
@@ -601,6 +610,14 @@ graph_impl::add(node_type NodeType,
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
+
+  if (NodeType == node_type::async_free) {
+    auto AsyncFreeCG =
+        static_cast<CGAsyncFree *>(NodeImpl->MCommandGroup.get());
+    // If this is an async free node mark that it is now available for reuse,
+    // and pass the async free node for tracking.
+    MGraphMemPool.markAllocationAsAvailable(AsyncFreeCG->getPtr(), NodeImpl);
+  }
 
   return NodeImpl;
 }
@@ -1791,7 +1808,6 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
   }
 
-  graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
