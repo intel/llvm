@@ -226,7 +226,7 @@ ur_result_t urProgramBuildExp(
       ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
       break;
     default:
-      assert(false && "Unknown code format");
+      ur::unreachable();
       return UR_RESULT_ERROR_INVALID_PROGRAM;
     }
     ZeModuleDesc.inputSize = hProgram->getCodeSize(ZeDevice);
@@ -451,7 +451,7 @@ ur_result_t urProgramLinkExp(
       ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
       break;
     default:
-      assert(false && "Unexpected code format");
+      ur::unreachable();
       return UR_RESULT_ERROR_INVALID_PROGRAM;
     }
 
