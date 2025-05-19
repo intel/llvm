@@ -2559,7 +2559,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
     EliminatedArgMask = KernelCacheVal->MKernelArgMask;
     UrProgram = KernelCacheVal->MProgramHandle;
     // UrProgram/UrKernel are used after KernelCacheVal is destroyed, so caller
-    // must call ur*Release
+    // must call ur*Release.
     ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(UrProgram);
     ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(UrKernel);
 
