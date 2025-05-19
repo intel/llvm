@@ -12,6 +12,8 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -265,7 +267,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
 
     for (const auto &FPS : DevImgInfo.Properties) {
       bool IsDeviceGlobalsPropSet =
-          FPS.Name == __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS;
+          FPS.Name == llvm::util::PropertySetRegistry::SYCL_DEVICE_GLOBALS;
       PropertySetContainer PropSet{FPS.Name.c_str()};
       for (const auto &FPV : FPS.Values) {
         if (FPV.IsUIntValue) {
