@@ -374,7 +374,7 @@ SYCL runtime over low-level runtimes (such as Level Zero or OpenCL):
   `rint` for HIP targets. intel/lllvm#16373
 - Improved check for unsupported data types to actually rely on target
   information instead of hardcoded knowledge. For example, this allows 128-bit
-  integeres to be used in device code when targeting CUDA backend.
+  integers to be used in device code when targeting CUDA backend.
   intel/llvm#17036
 - Fixed hangs on AMD and crashes on NVIDA when `atomic_ref` is used with
   `work_item` memory scope. intel/llvm#16172
