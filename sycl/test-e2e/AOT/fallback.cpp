@@ -11,7 +11,7 @@
 // UNSUPPORTED-INTENDED: Remove support for platform used as compile target
 // since AOT image should be not applicable.
 
-// AOT-compiled image for absent gen platform, run on GPU
+// AOT-compiled image for absent gen platform, run on GPU.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,intel_gpu_tgl %S/Inputs/aot.cpp -o %t_spv_gpu.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" SYCL_UR_TRACE=2 %{run-unfiltered-devices} %t_spv_gpu.out | FileCheck %s
 
