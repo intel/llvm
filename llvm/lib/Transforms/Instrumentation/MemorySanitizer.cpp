@@ -1863,18 +1863,17 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
 static int getTypeSizeFromManglingName(StringRef Name) {
   auto GetTypeSize = [](const char C) {
     switch (C) {
-    case 'c':
+    case 'a': // signed char
+    case 'c': // char
       return 1;
-    case 'd':
-      return 8;
-    case 'f':
-      return 4;
-    case 'i':
-      return 4;
-    case 'l':
-      return 8;
-    case 's':
+    case 's': // short
       return 2;
+    case 'f': // float
+    case 'i': // int
+      return 4;
+    case 'd': // double
+    case 'l': // long
+      return 8;
     default:
       return 0;
     }
@@ -6481,6 +6480,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           const size_t kManglingPrefixLength = 33;
           int ElementSize = getTypeSizeFromManglingName(
               FuncName.substr(kManglingPrefixLength));
+          assert(ElementSize != 0 &&
+                 "Unsupported __spirv_GroupAsyncCopy element type");
 
           IRB.CreateCall(
               MS.Spirv.MsanUnpoisonStridedCopyFunc,
