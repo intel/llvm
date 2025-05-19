@@ -146,6 +146,11 @@ void preloadLibraries() {
   loadAdapter(UR_LIBRARY_NAME(adapter_cuda));
   loadAdapter(UR_LIBRARY_NAME(adapter_hip));
   loadAdapter(UR_LIBRARY_NAME(adapter_native_cpu));
+  // Load the Level Zero loader dynamic library to ensure it is loaded during
+  // the runtime. This is necessary to avoid the level zero loader from being
+  // unloaded prematurely. the Only trusted loader is the one that is loaded
+  // from the system32 directory.
+  LoadLibraryExW(L"ze_loader.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
