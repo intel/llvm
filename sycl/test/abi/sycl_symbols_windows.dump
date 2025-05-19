@@ -4460,8 +4460,6 @@
 ??0dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
 ??0dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_K@Z
 ?updateLocalAccessor@dynamic_local_accessor_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXV?$range@$02@67@@Z
-?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVdynamic_local_accessor_base@detail@experimental@oneapi@ext@23@@Z
-?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVdynamic_work_group_memory_base@detail@experimental@oneapi@ext@23@@Z
 ??0dynamic_local_accessor_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??4dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV0123456@$$QEAV0123456@@Z
 ??0dynamic_local_accessor_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
