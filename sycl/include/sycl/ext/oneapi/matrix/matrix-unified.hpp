@@ -491,7 +491,7 @@ void joint_matrix_copy(
   auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
   auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
   for (int i = 0; i < wi_data_c.length(); i++) {
-    wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
+        wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
   }
 #endif // defined(__NVPTX__)
 #else
