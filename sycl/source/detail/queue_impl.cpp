@@ -295,7 +295,7 @@ queue_impl::getLastEvent(const std::shared_ptr<queue_impl> &Self) {
   auto &LastEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                      : MExtGraphDeps.LastEventPtr;
   // If the event comes from a graph, we must return it.
-  if (LastEvent && (!LastEvent->isNOP() || LastEvent->hasCommandGraph()))
+  if (LastEvent)
     return detail::createSyclObjFromImpl<event>(LastEvent);
   // We insert a marker to represent an event at end.
   return detail::createSyclObjFromImpl<event>(insertMarkerEvent(Self));
@@ -500,7 +500,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         }
       }
 
-      if (isInOrder() && !isNoEventsMode) {
+      if (isInOrder() &&
+          (!isNoEventsMode || MContext->getBackend() == backend::opencl)) {
         auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                                 : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
