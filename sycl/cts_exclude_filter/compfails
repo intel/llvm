@@ -1,2 +1,4 @@
 # Please use "#" to add comments here.
 # Do not delete the file even if it's empty.
+# https://github.com/intel/llvm/issues/18540
+bit_cast
