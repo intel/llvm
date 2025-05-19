@@ -464,6 +464,13 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, uint32_t size) {
 #endif
 }
 
+DEVICE_EXTERN_C_NOINLINE void __tsan_func_exit() {
+  Sid sid = GetCurrentSid();
+  // sync current thread clock to global state
+  TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
+      TsanLaunchInfo->Clock[sid].clk_[sid];
+}
+
 DEVICE_EXTERN_C_INLINE void __tsan_device_barrier() {
   Sid sid = GetCurrentSid();
   __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,

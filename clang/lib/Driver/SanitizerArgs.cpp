@@ -1281,10 +1281,6 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-msan-poison-stack-with-call=1");
     } else if (Sanitizers.has(SanitizerKind::Thread)) {
       CmdArgs.push_back("-fsanitize=thread");
-      // The tsan function entry/exit builtins are used to record stack
-      // position, we don't need them in device offloading.
-      CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back("-tsan-instrument-func-entry-exit=0");
       // In device offloading, user can't call memory instrinsics explicitly, so
       // we can safely skip them.
       CmdArgs.push_back("-mllvm");

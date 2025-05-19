@@ -361,8 +361,7 @@ void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
   auto &Loc = I->getDebugLoc();
 
   // SPIR constant address space
-  PointerType *ConstASPtrTy =
-      PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+  PointerType *ConstASPtrTy = PointerType::get(C, kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {
@@ -959,19 +958,25 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
     Res |= Spirv->instrumentAllocInst(&F, Allocas);
 
   // Instrument function entry/exit points if there were instrumented accesses.
-  if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
-    InstrumentationIRBuilder IRB(&F.getEntryBlock(),
-                                 F.getEntryBlock().getFirstNonPHIIt());
-    Value *ReturnAddress =
-        IRB.CreateIntrinsic(Intrinsic::returnaddress, IRB.getInt32(0));
-    IRB.CreateCall(TsanFuncEntry, ReturnAddress);
-
-    EscapeEnumerator EE(F, "tsan_cleanup", ClHandleCxxExceptions);
-    while (IRBuilder<> *AtExit = EE.Next()) {
-      InstrumentationIRBuilder::ensureDebugInfo(*AtExit, F);
-      AtExit->CreateCall(TsanFuncExit, {});
+  // Alway instrument function exit points for spir kernel.
+  if ((Res || HasCalls || Spirv) && ClInstrumentFuncEntryExit) {
+    if (!Spirv) {
+      InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                                   F.getEntryBlock().getFirstNonPHIIt());
+      Value *ReturnAddress =
+          IRB.CreateIntrinsic(Intrinsic::returnaddress, IRB.getInt32(0));
+      IRB.CreateCall(TsanFuncEntry, ReturnAddress);
+      Res |= true;
     }
-    Res = true;
+
+    if (!Spirv || F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      EscapeEnumerator EE(F, "tsan_cleanup", ClHandleCxxExceptions);
+      while (IRBuilder<> *AtExit = EE.Next()) {
+        InstrumentationIRBuilder::ensureDebugInfo(*AtExit, F);
+        AtExit->CreateCall(TsanFuncExit, {});
+      }
+      Res |= true;
+    }
   }
   return Res;
 }
