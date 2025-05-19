@@ -558,6 +558,9 @@ Improvements to Clang's diagnostics
   between different Unicode character types (``char8_t``, ``char16_t``, ``char32_t``).
   This warning only triggers in C++ as these types are aliases in C. (#GH138526)
 
+- Fixed a crash when checking a ``__thread``-specified variable declaration
+  with a dependent type in C++. (#GH140509)
+
 Improvements to Clang's time-trace
 ----------------------------------
 
@@ -725,6 +728,7 @@ Bug Fixes to C++ Support
   in a ``constexpr`` function. (#GH131432)
 - Fixed an incorrect TreeTransform for calls to ``consteval`` functions if a conversion template is present. (#GH137885)
 - Clang now emits a warning when class template argument deduction for alias templates is used in C++17. (#GH133806)
+- Fix missed initializer instantiation bug for variable templates. (#GH138122)
 - Fix a crash when checking the template template parameters of a dependent lambda appearing in an alias declaration.
   (#GH136432), (#GH137014), (#GH138018)
 - Fixed an assertion when trying to constant-fold various builtins when the argument
@@ -740,6 +744,8 @@ Bug Fixes to C++ Support
 - Fixed a function declaration mismatch that caused inconsistencies between concepts and variable template declarations. (#GH139476)
 - Clang no longer segfaults when there is a configuration mismatch between modules and their users (http://crbug.com/400353616).
 - Fix an incorrect deduction when calling an explicit object member function template through an overload set address.
+- Fixed bug in constant evaluation that would allow using the value of a
+  reference in its own initializer in C++23 mode (#GH131330).
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^

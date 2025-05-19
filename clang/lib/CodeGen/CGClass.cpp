@@ -2820,6 +2820,9 @@ void CodeGenFunction::EmitVTablePtrCheckForCall(const CXXRecordDecl *RD,
   if (!SanOpts.has(SanitizerKind::CFICastStrict))
     RD = LeastDerivedClassWithSameLayout(RD);
 
+  auto [Ordinal, _] = SanitizerInfoFromCFICheckKind(TCK);
+  ApplyDebugLocation ApplyTrapDI(*this, SanitizerAnnotateDebugInfo(Ordinal));
+
   EmitVTablePtrCheck(RD, VTable, TCK, Loc);
 }
 
@@ -2841,6 +2844,9 @@ void CodeGenFunction::EmitVTablePtrCheckForCast(QualType T, Address Derived,
 
   if (!SanOpts.has(SanitizerKind::CFICastStrict))
     ClassDecl = LeastDerivedClassWithSameLayout(ClassDecl);
+
+  auto [Ordinal, _] = SanitizerInfoFromCFICheckKind(TCK);
+  ApplyDebugLocation ApplyTrapDI(*this, SanitizerAnnotateDebugInfo(Ordinal));
 
   llvm::BasicBlock *ContBlock = nullptr;
 
@@ -2943,6 +2949,8 @@ llvm::Value *CodeGenFunction::EmitVTableTypeCheckedLoad(
   SanitizerScope SanScope(this);
 
   EmitSanitizerStatReport(llvm::SanStat_CFI_VCall);
+  ApplyDebugLocation ApplyTrapDI(
+      *this, SanitizerAnnotateDebugInfo(SanitizerKind::SO_CFIVCall));
 
   llvm::Metadata *MD =
       CGM.CreateMetadataIdentifierForType(QualType(RD->getTypeForDecl(), 0));

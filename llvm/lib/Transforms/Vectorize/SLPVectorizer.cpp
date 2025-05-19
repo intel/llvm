@@ -13626,11 +13626,10 @@ BoUpSLP::getEntryCost(const TreeEntry *E, ArrayRef<Value *> VectorizedVals,
         SmallVector<Value *> PointerOps(Scalars.size());
         for (auto [I, V] : enumerate(Scalars))
           PointerOps[I] = cast<LoadInst>(V)->getPointerOperand();
-        [[maybe_unused]] bool IsVectorized = isMaskedLoadCompress(
+        (void)isMaskedLoadCompress(
             Scalars, PointerOps, E->ReorderIndices, *TTI, *DL, *SE, *AC, *DT,
             *TLI, [](Value *) { return true; }, IsMasked, InterleaveFactor,
             CompressMask, LoadVecTy);
-        assert(IsVectorized && "Expected to be vectorized");
         CompressEntryToData.try_emplace(E, CompressMask, LoadVecTy,
                                         InterleaveFactor, IsMasked);
         Align CommonAlignment = LI0->getAlign();
@@ -16204,7 +16203,7 @@ void BoUpSLP::setInsertPointAfterBundle(const TreeEntry *E) {
   }
   if (IsPHI ||
       (!E->isGather() && E->State != TreeEntry::SplitVectorize &&
-       all_of(E->Scalars, areAllOperandsNonInsts)) ||
+       doesNotNeedToSchedule(E->Scalars)) ||
       (GatheredLoadsEntriesFirst.has_value() &&
        E->Idx >= *GatheredLoadsEntriesFirst && !E->isGather() &&
        E->getOpcode() == Instruction::Load)) {
@@ -17611,6 +17610,8 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
     if (VecTy)
       ScalarTy = getWidenedType(ScalarTy, VecTy->getNumElements());
   }
+  if (E->VectorizedValue)
+    return E->VectorizedValue;
   auto *VecTy = getWidenedType(ScalarTy, E->Scalars.size());
   if (E->isGather()) {
     // Set insert point for non-reduction initial nodes.
@@ -17800,20 +17801,11 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
 
         Builder.SetInsertPoint(IBB->getTerminator());
         Builder.SetCurrentDebugLocation(PH->getDebugLoc());
-        const TreeEntry *OpE = getOperandEntry(E, I);
-        Value *Vec;
-        if (OpE->isGather()) {
-          assert(OpE->VectorizedValue && "Expected vectorized value.");
-          Vec = OpE->VectorizedValue;
-          if (auto *IVec = dyn_cast<Instruction>(Vec))
-            Builder.SetInsertPoint(IVec->getNextNonDebugInstruction());
-        } else {
-          Vec = vectorizeOperand(E, I);
-        }
+        Value *Vec = vectorizeOperand(E, I);
         if (VecTy != Vec->getType()) {
-          assert(
-              (It != MinBWs.end() || OpE->isGather() || MinBWs.contains(OpE)) &&
-              "Expected item in MinBWs.");
+          assert((It != MinBWs.end() || getOperandEntry(E, I)->isGather() ||
+                  MinBWs.contains(getOperandEntry(E, I))) &&
+                 "Expected item in MinBWs.");
           Vec = Builder.CreateIntCast(Vec, VecTy, GetOperandSignedness(I));
         }
         NewPhi->addIncoming(Vec, IBB);
@@ -18700,25 +18692,19 @@ Value *BoUpSLP::vectorizeTree(
   else
     Builder.SetInsertPoint(&F->getEntryBlock(), F->getEntryBlock().begin());
 
-  // Vectorize gather operands of the PHI nodes.
-  for (const std::unique_ptr<TreeEntry> &TE : reverse(VectorizableTree)) {
-    if (TE->isGather() && TE->UserTreeIndex.UserTE &&
+ // Vectorize gather operands of the nodes with the external uses only.
+  for (const std::unique_ptr<TreeEntry> &TE : VectorizableTree) {
+    if (TE->isGather() && !TE->VectorizedValue && TE->UserTreeIndex.UserTE &&
         TE->UserTreeIndex.UserTE->hasState() &&
-        !TE->UserTreeIndex.UserTE->isAltShuffle() &&
         TE->UserTreeIndex.UserTE->State == TreeEntry::Vectorize &&
-        TE->UserTreeIndex.UserTE->getOpcode() == Instruction::PHI &&
-        !TE->VectorizedValue) {
-      auto *PH = cast<PHINode>(TE->UserTreeIndex.UserTE->getMainOp());
-      BasicBlock *IBB = PH->getIncomingBlock(TE->UserTreeIndex.EdgeIdx);
-      // If there is the same incoming block earlier - skip, it will be handled
-      // in PHI node.
-      if (TE->UserTreeIndex.EdgeIdx > 0 &&
-          any_of(seq<unsigned>(TE->UserTreeIndex.EdgeIdx), [&](unsigned Idx) {
-            return PH->getIncomingBlock(Idx) == IBB;
-          }))
-        continue;
-      Builder.SetInsertPoint(IBB->getTerminator());
-      Builder.SetCurrentDebugLocation(PH->getDebugLoc());
+        (TE->UserTreeIndex.UserTE->getOpcode() != Instruction::PHI ||
+         TE->UserTreeIndex.UserTE->isAltShuffle()) &&
+        all_of(TE->UserTreeIndex.UserTE->Scalars,
+               [](Value *V) { return isUsedOutsideBlock(V); })) {
+      Instruction &LastInst =
+          getLastInstructionInBundle(TE->UserTreeIndex.UserTE);
+      Builder.SetInsertPoint(&LastInst);
+      Builder.SetCurrentDebugLocation(LastInst.getDebugLoc());
       (void)vectorizeTree(TE.get());
     }
   }
