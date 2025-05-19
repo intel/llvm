@@ -732,11 +732,11 @@ protected:
 
     if (MContext->getBackend() == backend::opencl && MGraph.expired()) {
       // This is needed to support queue_empty() call
-      auto event = Handler.finalize();
-      if (!getSyclObjImpl(event)->isDiscarded()) {
-        MDefaultGraphDeps.LastEventPtr = getSyclObjImpl(event);
+      auto Event = Handler.finalize();
+      if (!getSyclObjImpl(Event)->isDiscarded()) {
+        MDefaultGraphDeps.LastEventPtr = getSyclObjImpl(Event);
       }
-      return event;
+      return Event;
     } else {
       return Handler.finalize();
     }
