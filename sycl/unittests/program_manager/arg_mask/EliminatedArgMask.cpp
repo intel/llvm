@@ -38,18 +38,36 @@ template <>
 struct KernelInfo<EAMTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
   static constexpr const char *getName() { return EAMTestKernelName; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 template <>
 struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return 0; }
   static constexpr const char *getName() { return EAMTestKernel2Name; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 template <>
 struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
   static constexpr const char *getName() { return EAMTestKernel3Name; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 } // namespace detail

@@ -1969,7 +1969,9 @@ void ASTStmtWriter::VisitCXXNewExpr(CXXNewExpr *E) {
   Record.push_back(E->isParenTypeId());
 
   Record.push_back(E->isGlobalNew());
-  Record.push_back(E->passAlignment());
+  ImplicitAllocationParameters IAP = E->implicitAllocationParameters();
+  Record.push_back(isAlignedAllocation(IAP.PassAlignment));
+  Record.push_back(isTypeAwareAllocation(IAP.PassTypeIdentity));
   Record.push_back(E->doesUsualArrayDeleteWantSize());
   Record.push_back(E->CXXNewExprBits.HasInitializer);
   Record.push_back(E->CXXNewExprBits.StoredInitializationStyle);
@@ -2263,9 +2265,7 @@ void ASTStmtWriter::VisitSubstNonTypeTemplateParmExpr(
   Record.AddDeclRef(E->getAssociatedDecl());
   CurrentPackingBits.addBit(E->isReferenceParameter());
   CurrentPackingBits.addBits(E->getIndex(), /*Width=*/12);
-  CurrentPackingBits.addBit((bool)E->getPackIndex());
-  if (auto PackIndex = E->getPackIndex())
-    Record.push_back(*PackIndex + 1);
+  Record.writeUnsignedOrNone(E->getPackIndex());
   CurrentPackingBits.addBit(E->getFinal());
 
   Record.AddSourceLocation(E->getNameLoc());
@@ -2277,6 +2277,7 @@ void ASTStmtWriter::VisitSubstNonTypeTemplateParmPackExpr(
                                           SubstNonTypeTemplateParmPackExpr *E) {
   VisitExpr(E);
   Record.AddDeclRef(E->getAssociatedDecl());
+  CurrentPackingBits.addBit(E->getFinal());
   Record.push_back(E->getIndex());
   Record.AddTemplateArgument(E->getArgumentPack());
   Record.AddSourceLocation(E->getParameterPackLocation());

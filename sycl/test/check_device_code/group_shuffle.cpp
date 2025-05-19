@@ -17,7 +17,7 @@ using namespace sycl::ext::oneapi;
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META8:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META11:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP14_I]]), !noalias [[META8]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 1, !noalias [[META8]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META8]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -55,7 +55,7 @@ SYCL_EXTERNAL void test_shuffle1(sycl::sub_group &sg, vec<bfloat16, 4> *buf,
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META26:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META29:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP14_I]]), !noalias [[META26]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 1, !noalias [[META26]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META26]]
 // CHECK-NEXT:    br label [[ARRAYINIT_BODY_I_I_I:%.*]]
 // CHECK:       arrayinit.body.i.i.i:
 // CHECK-NEXT:    [[ARRAYINIT_CUR_IDX_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[ARRAYINIT_CUR_ADD_I_I_I:%.*]], [[ARRAYINIT_BODY_I_I_I]] ]
