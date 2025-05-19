@@ -141,5 +141,6 @@ void __glibcxx_assert_fail(const char *file, int line, const char *func,
       __spirv_LocalInvocationId_z());
 }
 } // namespace std
+
 #endif
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
