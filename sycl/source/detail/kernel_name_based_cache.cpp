@@ -1,4 +1,4 @@
-//==--- kernel_program_cache.cpp - Cache for kernel and program -*- C++-*---==//
+//==--------------------- kernel_name_based_cache.cpp ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,19 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/adapter.hpp>
-#include <detail/context_impl.hpp>
-#include <detail/kernel_program_cache.hpp>
+#include <detail/global_handler.hpp>
+#include <sycl/detail/kernel_name_based_cache.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-const AdapterPtr &KernelProgramCache::getAdapter() {
-  return MParentContext->getAdapter();
-}
 
-ur_context_handle_t KernelProgramCache::getURContext() const {
-  return MParentContext->getHandleRef();
+KernelNameBasedCacheT *createKernelNameBasedCache() {
+  return GlobalHandler::instance().createKernelNameBasedCache();
 }
 
 } // namespace detail

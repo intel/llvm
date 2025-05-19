@@ -14,6 +14,7 @@
 #include <detail/adapter.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -250,6 +251,15 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   static ThreadPool &TP = getOrCreate(
       MHostTaskThreadPool, SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get());
   return TP;
+}
+
+KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
+  static std::vector<std::unique_ptr<KernelNameBasedCacheT>>
+      &KernelNameBasedCaches = getOrCreate(MKernelNameBasedCaches);
+  LockGuard LG{MKernelNameBasedCaches.Lock};
+  return KernelNameBasedCaches
+      .emplace_back(std::make_unique<KernelNameBasedCacheT>())
+      .get();
 }
 
 void GlobalHandler::releaseDefaultContexts() {
