@@ -73,8 +73,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       isUpdatable(desc ? desc->isUpdatable : false),
       isInOrder(desc ? desc->isInOrder : false), NextSyncPoint(0),
       context(context), device(device) {
-        std::cout << "ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_"
-                  << std::endl;
       }
 
 ur_exp_command_buffer_sync_point_t
@@ -314,7 +312,6 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  std::cout << "urCommandBufferAppendUSMMemcpyExp" << std::endl;
   UR_CALL(commandListLocked->appendUSMMemcpy(false, pDst, pSrc, size,
                                              numSyncPointsInWaitList,
                                              eventsWaitList, event));

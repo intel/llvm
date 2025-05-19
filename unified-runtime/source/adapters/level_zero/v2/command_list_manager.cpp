@@ -21,16 +21,6 @@ ur_command_list_manager::ur_command_list_manager(
     ur_queue_t_ *queue, bool isImmediate)
     : context(context), device(device), zeCommandList(std::move(commandList)),
       queue(queue) {
-  if (isImmediate) {
-    std::cout << "ur_command_list_manager::ur_command_list_manager "
-                 "isImmediate"
-              << std::endl;
-  }
-  else {
-    std::cout << "ur_command_list_manager::ur_command_list_manager "
-                 "isImmediate false"
-              << std::endl;
-  }
   auto &eventPoolTmp = isImmediate ? context->getEventPoolCacheImmediate()
                                    : context->getEventPoolCacheRegular();
   eventPool = eventPoolTmp.borrow(device->Id.value(), flags);
@@ -262,7 +252,6 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMMemcpy");
 
-  std::cout << "ur_command_list_manager::appendUSMMemcpy" << std::endl;
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_MEMCPY);
 
   auto [pWaitEvents, numWaitEvents] =
