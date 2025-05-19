@@ -72,8 +72,7 @@ public:
     static const char *LocalMemSzPtrPI =
         std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE");
     static const char *LocalMemSzPtr =
-        LocalMemSzPtrUR ? LocalMemSzPtrUR
-                        : (LocalMemSzPtrPI ? LocalMemSzPtrPI : nullptr);
+        LocalMemSzPtrUR ? LocalMemSzPtrUR : LocalMemSzPtrPI;
 
     if (LocalMemSzPtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSzPtr);

@@ -68,8 +68,7 @@ public:
     static const char *LocalMemSizePtrPI =
         std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
     static const char *LocalMemSizePtr =
-        LocalMemSizePtrUR ? LocalMemSizePtrUR
-                          : (LocalMemSizePtrPI ? LocalMemSizePtrPI : nullptr);
+        LocalMemSizePtrUR ? LocalMemSizePtrUR : LocalMemSizePtrPI;
 
     if (LocalMemSizePtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
