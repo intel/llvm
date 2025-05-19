@@ -618,7 +618,7 @@ Parameters:
 |
 [source,c++]
 ----
-ValueT& get();
+ValueT& get() const;
 ----
 
 | Returns a reference to the underlying value that
@@ -716,7 +716,7 @@ public:
         range<Dimensions> accessRange,
         id<Dimensions> accessOffset);
 
-  accessor<DataT, Dimensions, AccessMode, AccessTarget> get();
+  accessor<DataT, Dimensions, AccessMode, AccessTarget> get() const;
 };
 }
 ----
@@ -1033,7 +1033,7 @@ Throws an exception with the `errc::invalid` error code if the sum of
 |
 [source,c++]
 ----
-accessor<DataT, Dimensions, AccessMode, AccessTarget> get();
+accessor<DataT, Dimensions, AccessMode, AccessTarget> get() const;
 ----
 
 | Returns a `sycl::accessor` to use in the current kernel.
@@ -1070,7 +1070,7 @@ public:
 
   void update(range<Dimensions> newAllocationSize);
 
-  local_accessor<DataT, Dimensions> get();
+  local_accessor<DataT, Dimensions> get() const;
 };
 }
 ----
@@ -1108,7 +1108,8 @@ Table {counter: tableNumber}. Member functions of the `dynamic_local_accessor` c
 template <typename DataT, int Dimensions = 1>
 dynamic_local_accessor(
         command_graph<graph_state::modifiable> graph,
-        range<Dimensions> allocationSize);
+        range<Dimensions> allocationSize,
+        const property_list &propList = {});
 ----
 |Constructs a dynamic local accessor object that can be registered with command graph.
 
@@ -1141,7 +1142,7 @@ use in all the graph nodes where it is registered.
 |
 [source,c++]
 ----
-local_accessor<DataT, Dimensions> get();
+local_accessor<DataT, Dimensions> get() const;
 ----
 
 |
@@ -1185,7 +1186,7 @@ public:
 
   void update(size_t newNum);
 
-  work_group_memory<DataT, PropertyListT> get();
+  work_group_memory<DataT, PropertyListT> get() const;
 };
 }
 ----
@@ -1252,7 +1253,7 @@ Parameters:
 |
 [source,c++]
 ----
-work_group_memory<DataT, PropertyListT> get();
+work_group_memory<DataT, PropertyListT> get() const;
 ----
 
 |
