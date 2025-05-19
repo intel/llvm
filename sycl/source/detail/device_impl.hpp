@@ -255,6 +255,10 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     JointCache(device_impl &device) : Caches(device)... {}
 
     template <typename Desc> static constexpr bool has() {
+      // GCC 7.* had a bug: https://godbolt.org/z/cKeoTqMba, workaround it by
+      // not performing extra checks. Builds with unaffected compilers would
+      // catch all the issues.
+#if !(defined(__GNUC__) && !defined(__clang__)) || (__GNUC__ >= 8)
       constexpr int NumFound = []() constexpr {
         int found = 0;
         (((found = Caches::template has<Desc>() ? found + 1 : found), ...));
@@ -263,6 +267,9 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
       static_assert(NumFound <= 1,
                     "Multiple caches must not contain the same descriptor");
       return NumFound == 1;
+#else
+      return ((Caches::template has<Desc>() || ...));
+#endif
     }
 
     template <ur_device_info_t Desc> static constexpr bool has() {
