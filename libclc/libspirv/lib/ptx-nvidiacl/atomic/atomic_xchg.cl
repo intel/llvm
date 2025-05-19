@@ -12,8 +12,6 @@
 
 __CLC_NVVM_ATOMIC(int, int, i, xchg, __spirv_AtomicExchange)
 __CLC_NVVM_ATOMIC(long, long, l, xchg, __spirv_AtomicExchange)
-__CLC_NVVM_ATOMIC(unsigned int, int, i, xchg, __spirv_AtomicExchange)
-__CLC_NVVM_ATOMIC(unsigned long, long, l, xchg, __spirv_AtomicExchange)
 __CLC_NVVM_ATOMIC(float, float, f, xchg, __spirv_AtomicExchange)
 __CLC_NVVM_ATOMIC(double, double, d, xchg, __spirv_AtomicExchange)
 

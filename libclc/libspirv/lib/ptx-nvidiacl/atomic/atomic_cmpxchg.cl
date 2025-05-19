@@ -138,8 +138,6 @@ Memory order is stored in the lowest 5 bits */                                 \
 
 __CLC_NVVM_ATOMIC_CAS(int, int, i, cas, CompareExchange)
 __CLC_NVVM_ATOMIC_CAS(long, long, l, cas, CompareExchange)
-__CLC_NVVM_ATOMIC_CAS(unsigned int, int, i, cas, CompareExchange)
-__CLC_NVVM_ATOMIC_CAS(unsigned long, long, l, cas, CompareExchange)
 __CLC_NVVM_ATOMIC_CAS(float, float, f, cas, CompareExchange)
 __CLC_NVVM_ATOMIC_CAS(double, double, d, cas, CompareExchange)
 

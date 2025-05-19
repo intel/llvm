@@ -15,15 +15,11 @@
   }
 
 IMPL(int, global, __sync_fetch_and_or)
-IMPL(unsigned int, global, __sync_fetch_and_or)
 IMPL(int, local, __sync_fetch_and_or)
-IMPL(unsigned int, local, __sync_fetch_and_or)
 
 #ifdef cl_khr_int64_extended_atomics
 IMPL(long, global, __sync_fetch_and_or_8)
-IMPL(unsigned long, global, __sync_fetch_and_or_8)
 IMPL(long, local, __sync_fetch_and_or_8)
-IMPL(unsigned long, local, __sync_fetch_and_or_8)
 #endif
 
 #if _CLC_GENERIC_AS_SUPPORTED
@@ -31,11 +27,9 @@ IMPL(unsigned long, local, __sync_fetch_and_or_8)
 #define IMPL_GENERIC(TYPE, FN_NAME) IMPL(TYPE, , FN_NAME)
 
 IMPL_GENERIC(int, __sync_fetch_and_or)
-IMPL_GENERIC(unsigned int, __sync_fetch_and_or)
 
 #ifdef cl_khr_int64_base_atomics
 IMPL_GENERIC(long, __sync_fetch_and_or_8)
-IMPL_GENERIC(unsigned long, __sync_fetch_and_or_8)
 #endif
 
 #endif //_CLC_GENERIC_AS_SUPPORTED

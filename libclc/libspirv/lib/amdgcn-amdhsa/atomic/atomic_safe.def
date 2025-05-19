@@ -2,8 +2,4 @@
 // and include atomic_helpers.h to get AMDGPU_SAFE_ATOMIC
 
 AMDGPU_SAFE_ATOMIC(__SPIRV_BUILTIN, int, __CLC_OP, __HIP_BUILTIN)
-AMDGPU_SAFE_ATOMIC(__SPIRV_BUILTIN, unsigned int, __CLC_OP,
-                   __HIP_BUILTIN)
 AMDGPU_SAFE_ATOMIC(__SPIRV_BUILTIN, long, __CLC_OP, __HIP_BUILTIN)
-AMDGPU_SAFE_ATOMIC(__SPIRV_BUILTIN, unsigned long, __CLC_OP,
-                   __HIP_BUILTIN)

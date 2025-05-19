@@ -20,6 +20,7 @@ atomic/atomic_xchg.cl
 atomic/atomic_xor.cl
 atomic/atomic_load.cl
 atomic/atomic_store.cl
+atomic/atomic_unsigned.cl
 common/degrees.cl
 common/mix.cl
 common/radians.cl

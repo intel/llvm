@@ -6,9 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifdef __SPIRV_NO_VALUE_ARG
+#define __CLC_DECLARE_ATOMIC(ADDRSPACE, TYPE, NAME)                            \
+  _CLC_OVERLOAD _CLC_DECL TYPE NAME(ADDRSPACE TYPE *, int Scope,               \
+                                    int MemorySemanticsMask);
+#elif defined(__SPIRV_RETURN_VOID)
+#define __CLC_DECLARE_ATOMIC(ADDRSPACE, TYPE, NAME)                            \
+  _CLC_OVERLOAD _CLC_DECL void NAME(ADDRSPACE TYPE *, int Scope,               \
+                                    int MemorySemanticsMask, TYPE);
+#else
 #define __CLC_DECLARE_ATOMIC(ADDRSPACE, TYPE, NAME)                            \
   _CLC_OVERLOAD _CLC_DECL TYPE NAME(ADDRSPACE TYPE *, int Scope,               \
                                     int MemorySemanticsMask, TYPE);
+#endif
 
 #define __CLC_DECLARE_ATOMIC_ADDRSPACE(TYPE, NAME)                             \
   __CLC_DECLARE_ATOMIC(global, TYPE, NAME)                                     \
@@ -18,10 +28,20 @@
 __CLC_DECLARE_ATOMIC_ADDRSPACE(int, __SPIRV_FUNCTION_S)
 __CLC_DECLARE_ATOMIC_ADDRSPACE(uint, __SPIRV_FUNCTION_U)
 
+#ifdef __SPIRV_FLOATING_POINT
+__CLC_DECLARE_ATOMIC_ADDRSPACE(float, __SPIRV_FUNCTION)
+#endif
+
 #ifdef __SPIRV_INT64_EXTENDED
 #ifdef cl_khr_int64_extended_atomics
 __CLC_DECLARE_ATOMIC_ADDRSPACE(long, __SPIRV_FUNCTION_S)
 __CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, __SPIRV_FUNCTION_U)
+#endif
+
+#ifdef __SPIRV_INT64_BASE
+#ifdef __SPIRV_FLOATING_POINT
+__CLC_DECLARE_ATOMIC_ADDRSPACE(double, __SPIRV_FUNCTION)
+#endif
 #endif
 #endif
 
@@ -35,9 +55,13 @@ __CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, __SPIRV_FUNCTION_U)
 #undef __CLC_DECLARE_ATOMIC_ADDRSPACE
 #undef __CLC_DECLARE_ATOMIC
 
+#undef __SPIRV_FUNCTION
 #undef __SPIRV_FUNCTION_S
 #undef __SPIRV_FUNCTION_S_LEN
 #undef __SPIRV_FUNCTION_U
 #undef __SPIRV_FUNCTION_U_LEN
 #undef __SPIRV_INT64_BASE
 #undef __SPIRV_INT64_EXTENDED
+#undef __SPIRV_NO_VALUE_ARG
+#undef __SPIRV_RETURN_VOID
+#undef __SPIRV_FLOATING_POINT

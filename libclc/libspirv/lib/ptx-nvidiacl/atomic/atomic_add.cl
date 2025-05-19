@@ -11,9 +11,7 @@
 #include <libspirv/spirv_types.h>
 
 __CLC_NVVM_ATOMIC(int, int, i, add, __spirv_AtomicIAdd)
-__CLC_NVVM_ATOMIC(uint, int, i, add, __spirv_AtomicIAdd)
 __CLC_NVVM_ATOMIC(long, long, l, add, __spirv_AtomicIAdd)
-__CLC_NVVM_ATOMIC(ulong, long, l, add, __spirv_AtomicIAdd)
 
 __CLC_NVVM_ATOMIC(float, float, f, add, __spirv_AtomicFAddEXT)
 #ifdef cl_khr_int64_base_atomics

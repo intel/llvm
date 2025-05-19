@@ -12,8 +12,6 @@
 
 __CLC_NVVM_ATOMIC(int, int, i, and, __spirv_AtomicAnd)
 __CLC_NVVM_ATOMIC(long, long, l, and, __spirv_AtomicAnd)
-__CLC_NVVM_ATOMIC(unsigned int, int, i, and, __spirv_AtomicAnd)
-__CLC_NVVM_ATOMIC(unsigned long, long, l, and, __spirv_AtomicAnd)
 
 #undef __CLC_NVVM_ATOMIC_TYPES
 #undef __CLC_NVVM_ATOMIC

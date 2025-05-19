@@ -82,9 +82,7 @@ Memory order is stored in the lowest 5 bits */                                 \
   __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, , _gen_)
 
 __CLC_NVVM_ATOMIC_LOAD(int, int, i)
-__CLC_NVVM_ATOMIC_LOAD(uint, int, i)
 __CLC_NVVM_ATOMIC_LOAD(long, long, l)
-__CLC_NVVM_ATOMIC_LOAD(ulong, long, l)
 
 __CLC_NVVM_ATOMIC_LOAD(float, float, f)
 #ifdef cl_khr_int64_base_atomics

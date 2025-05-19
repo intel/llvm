@@ -27,15 +27,11 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_AtomicExchange(local float *p, int scope,
   }
 
 IMPL(int, global, __sync_swap_4)
-IMPL(unsigned int, global, __sync_swap_4)
 IMPL(int, local, __sync_swap_4)
-IMPL(unsigned int, local, __sync_swap_4)
 
 #ifdef cl_khr_int64_base_atomics
 IMPL(long, global, __sync_swap_8)
-IMPL(unsigned long, global, __sync_swap_8)
 IMPL(long, local, __sync_swap_8)
-IMPL(unsigned long, local, __sync_swap_8)
 #endif
 
 #if _CLC_GENERIC_AS_SUPPORTED
@@ -43,11 +39,9 @@ IMPL(unsigned long, local, __sync_swap_8)
 #define IMPL_GENERIC(TYPE, FN_NAME) IMPL(TYPE, , FN_NAME)
 
 IMPL_GENERIC(int, __sync_swap_4)
-IMPL_GENERIC(unsigned int, __sync_swap_4)
 
 #ifdef cl_khr_int64_base_atomics
 IMPL_GENERIC(long, __sync_swap_8)
-IMPL_GENERIC(unsigned long, __sync_swap_8)
 #endif
 
 #endif //_CLC_GENERIC_AS_SUPPORTED

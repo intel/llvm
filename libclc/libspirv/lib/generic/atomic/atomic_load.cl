@@ -32,11 +32,9 @@
   IMPL(TYPE, local, PREFIX, BYTE_SIZE)
 
 IMPL_AS(int, , 4)
-IMPL_AS(unsigned int, u, 4)
 
 #ifdef cl_khr_int64_base_atomics
 IMPL_AS(long, , 8)
-IMPL_AS(unsigned long, u, 8)
 #endif
 
 #if _CLC_GENERIC_AS_SUPPORTED
@@ -44,11 +42,9 @@ IMPL_AS(unsigned long, u, 8)
 #define IMPL_GENERIC(TYPE, PREFIX, BYTE_SIZE) IMPL(TYPE, , PREFIX, BYTE_SIZE)
 
 IMPL_GENERIC(int, , 4)
-IMPL_GENERIC(unsigned int, u, 4)
 
 #ifdef cl_khr_int64_base_atomics
 IMPL_GENERIC(long, , 8)
-IMPL_GENERIC(unsigned long, u, 8)
 #endif
 
 #endif //_CLC_GENERIC_AS_SUPPORTED

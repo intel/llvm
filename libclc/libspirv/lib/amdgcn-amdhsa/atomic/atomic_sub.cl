@@ -24,9 +24,7 @@
   AMDGPU_ATOMIC_SUB_IMPL(FUNC_NAME, TYPE, , BUILTIN)
 
 AMDGPU_ATOMIC_SUB(__spirv_AtomicISub, int, __atomic_fetch_add)
-AMDGPU_ATOMIC_SUB(__spirv_AtomicISub, unsigned int, __atomic_fetch_add)
 AMDGPU_ATOMIC_SUB(__spirv_AtomicISub, long, __atomic_fetch_add)
-AMDGPU_ATOMIC_SUB(__spirv_AtomicISub, unsigned long, __atomic_fetch_add)
 
 #undef AMDGPU_ATOMIC
 #undef AMDGPU_ATOMIC_IMPL

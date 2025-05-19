@@ -10,8 +10,8 @@
 #include <libspirv/spirv.h>
 #include <libspirv/spirv_types.h>
 
-__CLC_NVVM_ATOMIC_INCDEC(unsigned int, IDecrement, -1)
-__CLC_NVVM_ATOMIC_INCDEC(unsigned long, IDecrement, -1)
+__CLC_NVVM_ATOMIC_INCDEC(int, IDecrement, -1)
+__CLC_NVVM_ATOMIC_INCDEC(long, IDecrement, -1)
 
 #undef __CLC_NVVM_ATOMIC_INCDEC_IMPL
 #undef __CLC_NVVM_ATOMIC_INCDEC

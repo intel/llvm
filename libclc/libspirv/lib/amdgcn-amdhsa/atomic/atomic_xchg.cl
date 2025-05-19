@@ -11,9 +11,7 @@
 #include <libspirv/spirv_types.h>
 
 AMDGPU_ATOMIC(__spirv_AtomicExchange, int, __hip_atomic_exchange)
-AMDGPU_ATOMIC(__spirv_AtomicExchange, unsigned int, __hip_atomic_exchange)
 AMDGPU_ATOMIC(__spirv_AtomicExchange, long, __hip_atomic_exchange)
-AMDGPU_ATOMIC(__spirv_AtomicExchange, unsigned long, __hip_atomic_exchange)
 AMDGPU_ATOMIC(__spirv_AtomicExchange, float, __hip_atomic_exchange)
 
 // TODO implement for fp64

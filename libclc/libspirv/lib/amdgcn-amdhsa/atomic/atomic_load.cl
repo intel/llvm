@@ -24,9 +24,7 @@
   AMDGPU_ATOMIC_LOAD_IMPL(TYPE, )
 
 AMDGPU_ATOMIC_LOAD(int)
-AMDGPU_ATOMIC_LOAD(unsigned int)
 AMDGPU_ATOMIC_LOAD(long)
-AMDGPU_ATOMIC_LOAD(unsigned long)
 AMDGPU_ATOMIC_LOAD(float)
 
 // TODO implement for fp64

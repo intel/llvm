@@ -18,16 +18,6 @@ _CLC_OVERLOAD _CLC_DECL int __spirv_AtomicIIncrement(global int *p, int scope,
   return __sync_fetch_and_add(p, (int)1);
 }
 
-_CLC_OVERLOAD _CLC_DECL uint __spirv_AtomicIIncrement(local uint *p, int scope,
-                                                      int semantics) {
-  return __sync_fetch_and_add(p, (uint)1);
-}
-
-_CLC_OVERLOAD _CLC_DECL uint __spirv_AtomicIIncrement(global uint *p, int scope,
-                                                      int semantics) {
-  return __sync_fetch_and_add(p, (uint)1);
-}
-
 #ifdef cl_khr_int64_base_atomics
 _CLC_OVERLOAD _CLC_DECL long __spirv_AtomicIIncrement(local long *p, int scope,
                                                       int semantics) {
@@ -37,17 +27,5 @@ _CLC_OVERLOAD _CLC_DECL long __spirv_AtomicIIncrement(local long *p, int scope,
 _CLC_OVERLOAD _CLC_DECL long __spirv_AtomicIIncrement(global long *p, int scope,
                                                       int semantics) {
   return __sync_fetch_and_add(p, (long)1);
-}
-
-_CLC_OVERLOAD _CLC_DECL ulong __spirv_AtomicIIncrement(local ulong *p,
-                                                       int scope,
-                                                       int semantics) {
-  return __sync_fetch_and_add(p, (ulong)1);
-}
-
-_CLC_OVERLOAD _CLC_DECL ulong __spirv_AtomicIIncrement(global ulong *p,
-                                                       int scope,
-                                                       int semantics) {
-  return __sync_fetch_and_add(p, (ulong)1);
 }
 #endif

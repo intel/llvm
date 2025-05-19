@@ -13,9 +13,7 @@
 extern constant int __oclc_ISA_version;
 
 AMDGPU_ATOMIC(__spirv_AtomicIAdd, int, __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(__spirv_AtomicIAdd, unsigned int, __hip_atomic_fetch_add)
 AMDGPU_ATOMIC(__spirv_AtomicIAdd, long, __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(__spirv_AtomicIAdd, unsigned long, __hip_atomic_fetch_add)
 
 #define AMDGPU_ATOMIC_FP32_ADD_IMPL(AS, CHECK, NEW_BUILTIN)                    \
   _CLC_OVERLOAD _CLC_DECL float __spirv_AtomicFAddEXT(                         \

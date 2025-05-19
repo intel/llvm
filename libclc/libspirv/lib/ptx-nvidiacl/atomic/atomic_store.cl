@@ -87,9 +87,7 @@ Memory order is stored in the lowest 5 bits */                                 \
   __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, , _gen_)
 
 __CLC_NVVM_ATOMIC_STORE(int, int, i)
-__CLC_NVVM_ATOMIC_STORE(uint, int, i)
 __CLC_NVVM_ATOMIC_STORE(long, long, l)
-__CLC_NVVM_ATOMIC_STORE(ulong, long, l)
 
 __CLC_NVVM_ATOMIC_STORE(float, float, f)
 #ifdef cl_khr_int64_base_atomics
