@@ -120,6 +120,8 @@ jobs:
       target_devices: "level_zero:gpu"
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       cxx: icx
+      # https://github.com/intel/llvm/issues/18458
+      env: "{'LIT_FILTER_OUT':'std_array.cpp'}"
 
   macos_default:
     name: macOS
