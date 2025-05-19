@@ -67,34 +67,9 @@ Release notes for commit range
 
 ### KHR extensions
 
-Please note that KHR extensions are being specified and released by Khronos
-Group. The process of completing and publishing a KHR extension takes a while,
-but as implementors we need to prototype them early to help find possible issues
-with specifications and ensure that they are implementable.
-
-During that stage in an extension development its specification is incomplete
-and subject to change without any notice. Therefore, we will refer to those
-extensions using **prototyped** word. Their implementation is not available by
-default and requires `__DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS` macro to be set
-_before_ including `<sycl/sycl.hpp>` header to make them available. Considering
-that specifications of such extensions are not final and not versioned, their
-prototypes may not exactly match the latest publicly available versions of the
-corresponding specifications. There is no guarantee of completeness either.
-You can find more details on our development processes in
-[this document](sycl/doc/developer/KHRExtensions.md).
-
-The only reason those extensions are mentioned here is to give you a glimpse of
-the future about which extensions will be supported in future releases. We do
-not recommend to use such extensions right know, but advanced users who are
-driving those extension specifications forward can do early experiments with
-them to provide feedback to the Khronos Group.
-
 - Implemented
   [`sycl_khr_default_context`](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-default-context)
   extension. intel/llvm#15645
-- **Prototyped**
-  [`sycl_khr_free_function_commands`](https://github.com/KhronosGroup/SYCL-Docs/pull/644)
-  extension. intel/llvm#16770, intel/llvm#17222
 
 ### Other extensions
 
