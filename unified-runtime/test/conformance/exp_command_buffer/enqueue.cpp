@@ -17,22 +17,23 @@
 // enqueue_update.cpp test for a test verifying the order of submissions, as
 // the input/output to the kernels can be modified between the submissions.
 struct urEnqueueCommandBufferExpTest
-    : uur::command_buffer::urCommandBufferExpExecutionTest {
+    : uur::command_buffer::urCommandBufferExpExecutionTestWithParam<ur_queue_flags_t> {
   virtual void SetUp() override {
     program_name = "increment";
-    UUR_RETURN_ON_FATAL_FAILURE(urCommandBufferExpExecutionTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urCommandBufferExpExecutionTestWithParam::SetUp());
 
     // Create an in-order queue
+    queue_type = std::get<1>(GetParam());
     ur_queue_properties_t queue_properties = {
-        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
+        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, queue_type}; //GetParam()}; //0};
     ASSERT_SUCCESS(
-        urQueueCreate(context, device, &queue_properties, &in_order_queue));
+        urQueueCreate(context, device, &queue_properties, &in_or_out_of_order_queue));
 
-    // Create an out-of-order queue
-    queue_properties.flags = UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    ASSERT_SUCCESS(
-        urQueueCreate(context, device, &queue_properties, &out_of_order_queue));
-    ASSERT_NE(out_of_order_queue, nullptr);
+    // // Create an out-of-order queue
+    // queue_properties.flags = UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    // ASSERT_SUCCESS(
+    //     urQueueCreate(context, device, &queue_properties, &out_of_order_queue));
+    // ASSERT_NE(out_of_order_queue, nullptr);
 
     ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
                                     allocation_size, &device_ptr));
@@ -42,6 +43,17 @@ struct urEnqueueCommandBufferExpTest
     ASSERT_SUCCESS(urEnqueueUSMFill(queue, device_ptr, sizeof(zero_pattern),
                                     &zero_pattern, allocation_size, 0, nullptr,
                                     nullptr));
+
+    std::vector<int> temp_val(buffer_size, 3);
+
+    for (int i = 0; i < num_copy_buffers; i++) {
+      ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr, buffer_size * sizeof(int), (void**) &(dst_buffers[i])));
+      ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr, buffer_size * sizeof(int), (void**) &(src_buffers[i])));
+
+      ASSERT_SUCCESS(urEnqueueUSMMemcpy(in_or_out_of_order_queue, false, src_buffers[i], temp_val.data(), buffer_size * sizeof(int), 0, nullptr, nullptr));
+    }
+
+
     ASSERT_SUCCESS(urQueueFinish(queue));
 
     // Create command-buffer with a single kernel that does "Ptr[i] += 1;"
@@ -50,53 +62,108 @@ struct urEnqueueCommandBufferExpTest
         cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
         nullptr, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
         nullptr));
+
+
+    for (int i = 0; i < num_copy_buffers; i++) {
+       ASSERT_SUCCESS(urCommandBufferAppendUSMMemcpyExp(cmd_buf_handle, dst_buffers[i], src_buffers[i], buffer_size * sizeof(int), 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
+    }
+
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   }
 
   virtual void TearDown() override {
-    if (in_order_queue) {
-      EXPECT_SUCCESS(urQueueRelease(in_order_queue));
+    if (in_or_out_of_order_queue) {
+      EXPECT_SUCCESS(urQueueRelease(in_or_out_of_order_queue));
     }
 
-    if (out_of_order_queue) {
-      EXPECT_SUCCESS(urQueueRelease(out_of_order_queue));
-    }
+    // if (out_of_order_queue) {
+    //   EXPECT_SUCCESS(urQueueRelease(out_of_order_queue));
+    // }
 
     if (device_ptr) {
       EXPECT_SUCCESS(urUSMFree(context, device_ptr));
     }
 
-    UUR_RETURN_ON_FATAL_FAILURE(urCommandBufferExpExecutionTest::TearDown());
+    for (int i = 0; i < num_copy_buffers; i++) {
+      if (dst_buffers[i]) {
+        EXPECT_SUCCESS(urUSMFree(context, dst_buffers[i]));
+      }
+
+      if (src_buffers[i]) {
+        EXPECT_SUCCESS(urUSMFree(context, src_buffers[i]));
+      }
+    }
+
+    UUR_RETURN_ON_FATAL_FAILURE(urCommandBufferExpExecutionTestWithParam::TearDown());
   }
 
-  ur_queue_handle_t in_order_queue = nullptr;
-  ur_queue_handle_t out_of_order_queue = nullptr;
+  ur_queue_handle_t in_or_out_of_order_queue = nullptr;
+  ur_queue_flags_t queue_type; // = 0;
+
+  // ur_queue_handle_t out_of_order_queue = nullptr;
 
   static constexpr size_t global_size = 16;
   static constexpr size_t global_offset = 0;
   static constexpr size_t n_dimensions = 1;
   static constexpr size_t allocation_size = sizeof(uint32_t) * global_size;
   void *device_ptr = nullptr;
+
+  static constexpr int num_copy_buffers = 10;
+  static constexpr int buffer_size = 512;
+  int* dst_buffers[num_copy_buffers];
+  int* src_buffers[num_copy_buffers];
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueCommandBufferExpTest);
+
+std::string deviceTestWithQueueTypePrinter(
+    const ::testing::TestParamInfo<std::tuple<uur::DeviceTuple, ur_queue_flags_t>> &info) {
+  auto device = std::get<0>(info.param).device;
+  auto queue_type = std::get<1>(info.param);
+
+  std::stringstream ss;
+
+  switch (queue_type) {
+    case 0:
+      ss << "InOrderQueue";
+      break;
+
+      // change to if and bitwise and?
+    case UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE:
+      ss << "OutOfOrderQueue";
+      break;
+
+    default:
+      ss << "UnspecifiedQueueType" << queue_type;
+  }
+
+
+  return uur::GetPlatformAndDeviceName(device) + "__" +
+         uur::GTestSanitizeString(ss.str());
+}
+
+// UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueCommandBufferExpTest);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(urEnqueueCommandBufferExpTest, testing::Values(0, UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE), deviceTestWithQueueTypePrinter);
 
 // Tests that the same command-buffer submitted across different in-order
 // queues has an implicit dependency on first submission
 TEST_P(urEnqueueCommandBufferExpTest, SerializeAcrossQueues) {
   // Execute command-buffer to first in-order queue (created by parent
   // urQueueTest fixture)
+  if (queue_type == UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    GTEST_SKIP() << "unwantedoutoforder";
+  }
+
   ASSERT_SUCCESS(
       urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Execute command-buffer to second in-order queue, should have implicit
   // dependency on first submission.
-  ASSERT_SUCCESS(urEnqueueCommandBufferExp(in_order_queue, cmd_buf_handle, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(in_or_out_of_order_queue, cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Wait for both submissions to complete
   ASSERT_SUCCESS(urQueueFlush(queue));
-  ASSERT_SUCCESS(urQueueFinish(in_order_queue));
+  ASSERT_SUCCESS(urQueueFinish(in_or_out_of_order_queue));
 
   std::vector<uint32_t> Output(global_size);
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, Output.data(), device_ptr,
@@ -110,24 +177,46 @@ TEST_P(urEnqueueCommandBufferExpTest, SerializeAcrossQueues) {
   }
 }
 
-// Tests that submitting a command-buffer twice to an out-of-order queue
-// relying on implicit serialization semantics for dependencies.
-TEST_P(urEnqueueCommandBufferExpTest, SerializeOutofOrderQueue) {
-  ASSERT_SUCCESS(urEnqueueCommandBufferExp(out_of_order_queue, cmd_buf_handle,
+// // Tests that submitting a command-buffer twice to an out-of-order queue
+// // relying on implicit serialization semantics for dependencies.
+// TEST_P(urEnqueueCommandBufferExpTest, SerializeOutofOrderQueue) {
+//   ASSERT_SUCCESS(urEnqueueCommandBufferExp(out_of_order_queue, cmd_buf_handle,
+//                                            0, nullptr, nullptr));
+//   ASSERT_SUCCESS(urEnqueueCommandBufferExp(out_of_order_queue, cmd_buf_handle,
+//                                            0, nullptr, nullptr));
+
+//   // Wait for both submissions to complete
+//   ASSERT_SUCCESS(urQueueFinish(out_of_order_queue));
+
+//   std::vector<uint32_t> Output(global_size);
+//   ASSERT_SUCCESS(urEnqueueUSMMemcpy(out_of_order_queue, true, Output.data(),
+//                                     device_ptr, allocation_size, 0, nullptr,
+//                                     nullptr));
+
+//   // Verify
+//   const uint32_t reference = 2;
+//   for (size_t i = 0; i < global_size; i++) {
+//     ASSERT_EQ(reference, Output[i]);
+//   }
+// }
+
+TEST_P(urEnqueueCommandBufferExpTest, SerializeInOrOutOfOrderQueue) {
+  const int iterations = 5;
+  for (int i = 0; i < iterations; i++) {
+    ASSERT_SUCCESS(urEnqueueCommandBufferExp(in_or_out_of_order_queue, cmd_buf_handle,
                                            0, nullptr, nullptr));
-  ASSERT_SUCCESS(urEnqueueCommandBufferExp(out_of_order_queue, cmd_buf_handle,
-                                           0, nullptr, nullptr));
+  }
 
   // Wait for both submissions to complete
-  ASSERT_SUCCESS(urQueueFinish(out_of_order_queue));
+  ASSERT_SUCCESS(urQueueFinish(in_or_out_of_order_queue));
 
   std::vector<uint32_t> Output(global_size);
-  ASSERT_SUCCESS(urEnqueueUSMMemcpy(out_of_order_queue, true, Output.data(),
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(in_or_out_of_order_queue, true, Output.data(),
                                     device_ptr, allocation_size, 0, nullptr,
                                     nullptr));
 
   // Verify
-  const uint32_t reference = 2;
+  const uint32_t reference = iterations;
   for (size_t i = 0; i < global_size; i++) {
     ASSERT_EQ(reference, Output[i]);
   }
