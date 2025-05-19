@@ -79,7 +79,7 @@ struct PrintingPolicy {
         MSVCFormatting(false), ConstantsAsWritten(false),
         SuppressImplicitBase(false), FullyQualifiedName(false),
         EnforceScopeForElaboratedTypes(false), SuppressDefinition(false),
-        SuppressDefaultTemplateArguments(false), PrintCanonicalTypes(false),
+        SuppressDefaultTemplateArguments(false), PrintAsCanonical(false),
         SkipCanonicalizationOfTemplateTypeParms(false),
         PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
         AlwaysIncludeTypeForTemplateArgument(false),
@@ -370,12 +370,12 @@ struct PrintingPolicy {
   ///   \endcode
   unsigned SuppressDefaultTemplateArguments : 1;
 
-  /// Whether to print types as written or canonically.
+  /// Whether to print entities as written or canonically.
   LLVM_PREFERRED_TYPE(bool)
-  unsigned PrintCanonicalTypes : 1;
+  unsigned PrintAsCanonical : 1;
 
-  /// Whether to skip the canonicalization (when PrintCanonicalTypes is set) for
-  /// TemplateTypeParmTypes. This has no effect if PrintCanonicalTypes isn't
+  /// Whether to skip the canonicalization (when PrintAsCanonical is set) for
+  /// TemplateTypeParmTypes. This has no effect if PrintAsCanonical isn't
   /// set. This is useful for non-type-template-parameters, since the canonical
   /// version of:
   ///   \code
