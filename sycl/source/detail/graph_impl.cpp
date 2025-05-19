@@ -813,8 +813,8 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
                                         CGExec->MLine, CGExec->MColumn);
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
         StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-        CGExec->MKernelName.data(), nullptr, CGExec->MNDRDesc,
-        CGExec->MKernelBundle, CGExec->MArgs);
+        CGExec->MKernelName.data(), CGExec->MKernelNameBasedCachePtr, nullptr,
+        CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(
           StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
@@ -1503,7 +1503,8 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, ExecCG.MKernelName);
+            ContextImpl, DeviceImpl, ExecCG.MKernelName,
+            ExecCG.MKernelNameBasedCachePtr);
     BundleObjs = std::make_pair(UrProgram, UrKernel);
   }
 
