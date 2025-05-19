@@ -1856,7 +1856,7 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
     I.setNoSanitizeMetadata();
 }
 
-// This is not a gerneral-purpose function, but a helper for demangling
+// This is not a general-purpose function, but a helper for demangling
 // "__spirv_GroupAsyncCopy" function name
 static int getTypeSizeFromManglingName(StringRef Name) {
   auto GetTypeSize = [](const char C) {
@@ -6395,8 +6395,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           auto *NumElements = CB.getArgOperand(3);
           auto *Stride = CB.getArgOperand(4);
 
-          // Skip "_Z22__spirv_GroupAsyncCopyiPU3AS3", get the size of parameter type directly
-          int ElementSize = getTypeSizeFromManglingName(FuncName.substr(33));
+          // Skip "_Z22__spirv_GroupAsyncCopyiPU3AS3" (33 char), get the size of
+          // parameter type directly
+          const size_t kManglingPrefixLength = 33;
+          int ElementSize = getTypeSizeFromManglingName(
+              FuncName.substr(kManglingPrefixLength));
 
           IRB.CreateCall(
               MS.Spirv.MsanUnpoisonStridedCopyFunc,

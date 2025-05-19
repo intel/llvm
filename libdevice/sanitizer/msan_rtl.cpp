@@ -219,11 +219,12 @@ inline void __msan_exit() {
     __devicelib_exit();
 }
 
-template <typename dataT>
-void GroupAsyncCopy(dataT *Dest, const dataT *Src, size_t NumElements,
-                    size_t Stride) {
+template <typename T>
+void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride) {
+  auto DestPtr = (__SYCL_GLOBAL__ T *)Dest;
+  auto SrcPtr = (const __SYCL_GLOBAL__ T *)Src;
   for (size_t i = 0; i < NumElements; i++) {
-    Dest[i] = Src[i * Stride];
+    DestPtr[i] = SrcPtr[i * Stride];
   }
 }
 
@@ -598,7 +599,7 @@ __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
 }
 
 static __SYCL_CONSTANT__ const char __msan_print_strided_copy_unsupport_type[] =
-    "[kernel] __msan_unpoison_strided_copy: unsupport type(%d)\n";
+    "[kernel] __msan_unpoison_strided_copy: unsupported type(%d)\n";
 
 DEVICE_EXTERN_C_NOINLINE void
 __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
@@ -615,20 +616,16 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
 
   switch (element_size) {
   case 1:
-    GroupAsyncCopy<int8_t>((int8_t *)shadow_dest, (int8_t *)shadow_src, counts,
-                           stride);
+    GroupAsyncCopy<int8_t>(shadow_dest, shadow_src, counts, stride);
     break;
   case 2:
-    GroupAsyncCopy<int16_t>((int16_t *)shadow_dest, (int16_t *)shadow_src,
-                            counts, stride);
+    GroupAsyncCopy<int16_t>(shadow_dest, shadow_src, counts, stride);
     break;
   case 4:
-    GroupAsyncCopy<int32_t>((int32_t *)shadow_dest, (int32_t *)shadow_src,
-                            counts, stride);
+    GroupAsyncCopy<int32_t>(shadow_dest, shadow_src, counts, stride);
     break;
   case 8:
-    GroupAsyncCopy<int64_t>((int64_t *)shadow_dest, (int64_t *)shadow_src,
-                            counts, stride);
+    GroupAsyncCopy<int64_t>(shadow_dest, shadow_src, counts, stride);
     break;
   default:
     __spirv_ocl_printf(__msan_print_strided_copy_unsupport_type, element_size);
