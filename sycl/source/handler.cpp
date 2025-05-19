@@ -1090,6 +1090,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     switch (AccTarget) {
     case access::target::local: {
 
+      // We need to recover the inheritance layout by casting to
+      // dynamic_parameter_impl first. Casting directly to
+      // dynamic_local_accessor_impl would result in an incorrect pointer.
       auto *DynParamImpl = static_cast<
           ext::oneapi::experimental::detail::dynamic_parameter_impl *>(Ptr);
 
@@ -1112,6 +1115,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   }
   case kernel_param_kind_t::kind_dynamic_work_group_memory: {
 
+    // We need to recover the inheritance layout by casting to
+    // dynamic_parameter_impl first. Casting directly to
+    // dynamic_work_group_memory_impl would result in an incorrect pointer.
     auto *DynParamImpl = static_cast<
         ext::oneapi::experimental::detail::dynamic_parameter_impl *>(Ptr);
 
