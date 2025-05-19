@@ -19,6 +19,7 @@
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/split_string.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
@@ -169,7 +170,7 @@ struct KernelCompilerBinaryInfo {
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
       : MLanguage{Lang}, MKernelNames{std::move(KernelNames)},
         MMangledKernelNames{std::move(MangledKernelNames)},
-        MPrefix{std::move(Prefix)},
+        MPrefixes{std::move(Prefix)},
         MDeviceGlobalRegistries{std::move(DeviceGlobalRegistry)} {}
 
   static std::optional<KernelCompilerBinaryInfo>
@@ -191,12 +192,6 @@ struct KernelCompilerBinaryInfo {
         throw sycl::exception(make_error_code(errc::invalid),
                               "Linking binaries with different source "
                               "languages is not currently supported.");
-
-      if (!RTCInfo->MPrefix.empty() && !Result->MPrefix.empty() &&
-          RTCInfo->MPrefix != Result->MPrefix)
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Linking binaries with different kernel prefixes "
-                              "is not currently supported.");
 
       for (const std::string &KernelName : RTCInfo->MKernelNames)
         Result->MKernelNames.insert(KernelName);
@@ -223,6 +218,9 @@ struct KernelCompilerBinaryInfo {
           Result->MDeviceGlobalRegistries.end(),
           RTCInfo->MDeviceGlobalRegistries.begin(),
           RTCInfo->MDeviceGlobalRegistries.end());
+
+      for (const std::string &Prefix : RTCInfo->MPrefixes)
+        Result->MPrefixes.insert(Prefix);
     }
     return Result;
   }
@@ -230,7 +228,7 @@ struct KernelCompilerBinaryInfo {
   syclex::source_language MLanguage;
   KernelNameSetT MKernelNames;
   MangledKernelNameMapT MMangledKernelNames;
-  std::string MPrefix;
+  std::set<std::string> MPrefixes;
   include_pairs_t MIncludePairs;
   std::vector<std::shared_ptr<ManagedDeviceGlobalsRegistry>>
       MDeviceGlobalRegistries;
@@ -267,20 +265,21 @@ public:
     updateSpecConstSymMap();
   }
 
-  device_image_impl(const RTDeviceBinaryImage *BinImage, const context &Context,
-                    const std::vector<device> &Devices, bundle_state State,
-                    std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    ur_program_handle_t Program,
-                    const SpecConstMapT &SpecConstMap,
-                    const std::vector<unsigned char> &SpecConstsBlob,
-                    uint8_t Origins,
-                    std::optional<KernelCompilerBinaryInfo> &&RTCInfo)
+  device_image_impl(
+      const RTDeviceBinaryImage *BinImage, const context &Context,
+      std::vector<device> &&Devices, bundle_state State,
+      std::shared_ptr<std::vector<kernel_id>> KernelIDs,
+      ur_program_handle_t Program, const SpecConstMapT &SpecConstMap,
+      const std::vector<unsigned char> &SpecConstsBlob, uint8_t Origins,
+      std::optional<KernelCompilerBinaryInfo> &&RTCInfo,
+      std::unique_ptr<DynRTDeviceBinaryImage> &&MergedImageStorage = nullptr)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MSpecConstSymMap(SpecConstMap), MOrigins(Origins),
-        MRTCBinInfo(std::move(RTCInfo)) {}
+        MRTCBinInfo(std::move(RTCInfo)),
+        MMergedImageStorage(std::move(MergedImageStorage)) {}
 
   device_image_impl(const RTDeviceBinaryImage *BinImage, const context &Context,
                     const std::vector<device> &Devices, bundle_state State,
@@ -629,18 +628,21 @@ public:
     std::string AdjustedName = adjustKernelName(Name);
     if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
       auto &PM = ProgramManager::getInstance();
-      auto KID = PM.tryGetSYCLKernelID(MRTCBinInfo->MPrefix + AdjustedName);
+      for (const std::string &Prefix : MRTCBinInfo->MPrefixes) {
+        auto KID = PM.tryGetSYCLKernelID(Prefix + AdjustedName);
 
-      if (!KID || !has_kernel(*KID))
-        return nullptr;
+        if (!KID || !has_kernel(*KID))
+          continue;
 
-      auto UrProgram = get_ur_program_ref();
-      auto [UrKernel, CacheMutex, ArgMask] =
-          PM.getOrCreateKernel(Context, AdjustedName,
-                               /*PropList=*/{}, UrProgram);
-      return std::make_shared<kernel_impl>(UrKernel, getSyclObjImpl(Context),
-                                           Self, OwnerBundle, ArgMask,
-                                           UrProgram, CacheMutex);
+        auto UrProgram = get_ur_program_ref();
+        auto [UrKernel, CacheMutex, ArgMask] =
+            PM.getOrCreateKernel(Context, AdjustedName,
+                                 /*PropList=*/{}, UrProgram);
+        return std::make_shared<kernel_impl>(UrKernel, getSyclObjImpl(Context),
+                                             Self, OwnerBundle, ArgMask,
+                                             UrProgram, CacheMutex);
+      }
+      return nullptr;
     }
 
     ur_program_handle_t UrProgram = get_ur_program_ref();
@@ -692,9 +694,10 @@ public:
   }
 
   std::vector<std::shared_ptr<device_image_impl>> buildFromSource(
-      const std::vector<device> Devices,
-      const std::vector<std::string> &BuildOptions, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames,
+      const std::vector<device> &Devices,
+      const std::vector<sycl::detail::string_view> &BuildOptions,
+      std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &RegisteredKernelNames,
       std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
       const {
     assert(!std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage));
@@ -705,12 +708,12 @@ public:
         getSyclObjImpl(MContext);
 
     for (const auto &SyclDev : Devices) {
-      const DeviceImplPtr &DevImpl = getSyclObjImpl(SyclDev);
+      device_impl &DevImpl = *getSyclObjImpl(SyclDev);
       if (!ContextImpl->hasDevice(DevImpl)) {
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
       }
-      if (!DevImpl->extOneapiCanCompile(MRTCBinInfo->MLanguage)) {
+      if (!DevImpl.extOneapiCanBuild(MRTCBinInfo->MLanguage)) {
         // This error cannot not be exercised in the current implementation, as
         // compatibility with a source language depends on the backend's
         // capabilities and all devices in one context share the same backend in
@@ -721,170 +724,9 @@ public:
       }
     }
 
-    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
-      assert(std::holds_alternative<std::string>(MBinImage));
-
-      // Build device images via the program manager.
-      const std::string &SourceStr = std::get<std::string>(MBinImage);
-      std::ostringstream SourceExt;
-      if (!RegisteredKernelNames.empty()) {
-        SourceExt << SourceStr << '\n';
-
-        auto EmitEntry =
-            [&SourceExt](const std::string &Name) -> std::ostringstream & {
-          SourceExt << "  {\"" << Name << "\", " << Name << "}";
-          return SourceExt;
-        };
-
-        SourceExt << "[[__sycl_detail__::__registered_kernels__(\n";
-        for (auto It = RegisteredKernelNames.begin(),
-                  SecondToLast = RegisteredKernelNames.end() - 1;
-             It != SecondToLast; ++It) {
-          EmitEntry(*It) << ",\n";
-        }
-        EmitEntry(RegisteredKernelNames.back()) << "\n";
-        SourceExt << ")]];\n";
-      }
-
-      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_Compile(
-          RegisteredKernelNames.empty() ? SourceStr : SourceExt.str(),
-          MRTCBinInfo->MIncludePairs, BuildOptions, LogPtr);
-
-      auto &PM = detail::ProgramManager::getInstance();
-
-      // Add all binaries and keep the images for processing.
-      std::vector<std::pair<RTDeviceBinaryImage *,
-                            std::shared_ptr<std::vector<kernel_id>>>>
-          NewImages;
-      NewImages.reserve(Binaries->NumDeviceBinaries);
-      for (int I = 0; I < Binaries->NumDeviceBinaries; I++) {
-        sycl_device_binary Binary = &(Binaries->DeviceBinaries[I]);
-        RTDeviceBinaryImage *NewImage = nullptr;
-        auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
-        PM.addImage(Binary, &NewImage, KernelIDs.get());
-        if (NewImage)
-          NewImages.push_back(
-              std::make_pair(std::move(NewImage), std::move(KernelIDs)));
-      }
-
-      // Now bring all images into the proper state. Note that we do this in a
-      // separate pass over NewImages to make sure dependency images have been
-      // registered beforehand.
-      std::vector<std::shared_ptr<device_image_impl>> Result;
-      Result.reserve(NewImages.size());
-      for (auto &[NewImage, KernelIDs] : NewImages) {
-        KernelNameSetT KernelNames;
-        MangledKernelNameMapT MangledKernelNames;
-        std::unordered_set<std::string> DeviceGlobalIDSet;
-        std::vector<std::string> DeviceGlobalIDVec;
-        std::vector<std::string> DeviceGlobalNames;
-        std::vector<std::unique_ptr<std::byte[]>> DeviceGlobalAllocations;
-
-        for (const auto &KernelID : *KernelIDs) {
-          std::string_view KernelName{KernelID.get_name()};
-          if (KernelName.find(Prefix) == 0) {
-            KernelName.remove_prefix(Prefix.length());
-            KernelNames.emplace(KernelName);
-            static constexpr std::string_view SYCLKernelMarker{
-                "__sycl_kernel_"};
-            if (KernelName.find(SYCLKernelMarker) == 0) {
-              // extern "C" declaration, implicitly register kernel without the
-              // marker.
-              std::string_view KernelNameWithoutMarker{KernelName};
-              KernelNameWithoutMarker.remove_prefix(SYCLKernelMarker.length());
-              MangledKernelNames.emplace(KernelNameWithoutMarker, KernelName);
-            }
-          }
-
-          for (const sycl_device_binary_property &RKProp :
-               NewImage->getRegisteredKernels()) {
-            // Mangled names.
-            auto BA = DeviceBinaryProperty(RKProp).asByteArray();
-            auto MangledNameLen = BA.consume<uint64_t>() / 8 /*bits in a byte*/;
-            std::string_view MangledName{
-                reinterpret_cast<const char *>(BA.begin()), MangledNameLen};
-            MangledKernelNames.emplace(RKProp->Name, MangledName);
-          }
-
-          // Device globals.
-          for (const auto &DeviceGlobalProp : NewImage->getDeviceGlobals()) {
-            std::string_view DeviceGlobalName{DeviceGlobalProp->Name};
-            assert(DeviceGlobalName.find(Prefix) == 0);
-            bool Inserted = false;
-            std::tie(std::ignore, Inserted) =
-                DeviceGlobalIDSet.emplace(DeviceGlobalName);
-            if (Inserted) {
-              DeviceGlobalIDVec.emplace_back(DeviceGlobalName);
-              DeviceGlobalName.remove_prefix(Prefix.length());
-              DeviceGlobalNames.emplace_back(DeviceGlobalName);
-            }
-          }
-        }
-
-        // Device globals are usually statically allocated and registered in the
-        // integration footer, which we don't have in the RTC context. Instead,
-        // we dynamically allocate storage tied to the executable kernel bundle.
-        for (DeviceGlobalMapEntry *DeviceGlobalEntry :
-             PM.getDeviceGlobalEntries(DeviceGlobalIDVec)) {
-
-          size_t AllocSize =
-              DeviceGlobalEntry->MDeviceGlobalTSize; // init value
-          if (!DeviceGlobalEntry->MIsDeviceImageScopeDecorated) {
-            // Consider storage for device USM pointer.
-            AllocSize += sizeof(void *);
-          }
-          auto Alloc = std::make_unique<std::byte[]>(AllocSize);
-          std::string_view DeviceGlobalName{DeviceGlobalEntry->MUniqueId};
-          PM.addOrInitDeviceGlobalEntry(Alloc.get(), DeviceGlobalName.data());
-          DeviceGlobalAllocations.push_back(std::move(Alloc));
-
-          // Drop the RTC prefix from the entry's symbol name. Note that the PM
-          // still manages this device global under its prefixed name.
-          assert(DeviceGlobalName.find(Prefix) == 0);
-          DeviceGlobalName.remove_prefix(Prefix.length());
-          DeviceGlobalEntry->MUniqueId = DeviceGlobalName;
-        }
-
-        auto DGRegs = std::make_shared<ManagedDeviceGlobalsRegistry>(
-            ContextImpl, std::string{Prefix}, std::move(DeviceGlobalNames),
-            std::move(DeviceGlobalAllocations));
-
-        // Mark the image as input so the program manager will bring it into
-        // the right state.
-        auto DevImgImpl = std::make_shared<device_image_impl>(
-            NewImage, MContext, Devices, bundle_state::input,
-            std::move(KernelIDs), MRTCBinInfo->MLanguage,
-            std::move(KernelNames), std::move(MangledKernelNames),
-            std::string{Prefix}, std::move(DGRegs));
-
-        // Resolve dependencies.
-        // TODO: Consider making a collectDeviceImageDeps variant that takes a
-        //       set reference and inserts into that instead.
-        std::set<RTDeviceBinaryImage *> ImgDeps;
-        for (const device &Device : Devices) {
-          std::set<RTDeviceBinaryImage *> DevImgDeps =
-              PM.collectDeviceImageDeps(*NewImage, Device);
-          ImgDeps.insert(DevImgDeps.begin(), DevImgDeps.end());
-        }
-
-        // Pack main image and dependencies together.
-        std::vector<device_image_plain> NewImageAndDeps;
-        NewImageAndDeps.reserve(1 + ImgDeps.size());
-        NewImageAndDeps.push_back(
-            createSyclObjFromImpl<device_image_plain>(std::move(DevImgImpl)));
-        for (RTDeviceBinaryImage *ImgDep : ImgDeps)
-          NewImageAndDeps.push_back(PM.createDependencyImage(
-              MContext, Devices, ImgDep, bundle_state::input));
-
-        DevImgPlainWithDeps ImgWithDeps(std::move(NewImageAndDeps));
-        PM.bringSYCLDeviceImageToState(ImgWithDeps, bundle_state::executable);
-        Result.push_back(getSyclObjImpl(ImgWithDeps.getMain()));
-      }
-
-      OutDeviceBins.emplace_back(
-          std::make_shared<ManagedDeviceBinaries>(std::move(Binaries)));
-      return Result;
-    }
+    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl)
+      return createSYCLImages(Devices, bundle_state::executable, BuildOptions,
+                              LogPtr, RegisteredKernelNames, OutDeviceBins);
 
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
@@ -902,51 +744,8 @@ public:
 
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
-    if (!FetchedFromCache) {
-      const auto spirv = [&]() -> std::vector<uint8_t> {
-        switch (MRTCBinInfo->MLanguage) {
-        case syclex::source_language::opencl: {
-          // if successful, the log is empty. if failed, throws an error with
-          // the compilation log.
-          std::vector<uint32_t> IPVersionVec(Devices.size());
-          std::transform(DeviceVec.begin(), DeviceVec.end(),
-                         IPVersionVec.begin(), [&](ur_device_handle_t d) {
-                           uint32_t ipVersion = 0;
-                           Adapter->call<UrApiKind::urDeviceGetInfo>(
-                               d, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
-                               &ipVersion, nullptr);
-                           return ipVersion;
-                         });
-          return syclex::detail::OpenCLC_to_SPIRV(*SourceStrPtr, IPVersionVec,
-                                                  BuildOptions, LogPtr);
-        }
-        case syclex::source_language::spirv: {
-          const auto &SourceBytes = std::get<std::vector<std::byte>>(MBinImage);
-          std::vector<uint8_t> Result(SourceBytes.size());
-          std::transform(SourceBytes.cbegin(), SourceBytes.cend(),
-                         Result.begin(),
-                         [](std::byte B) { return static_cast<uint8_t>(B); });
-          return Result;
-        }
-        default:
-          break;
-        }
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "SYCL C++, OpenCL C and SPIR-V are the only supported "
-            "languages at this time");
-      }();
-
-      Adapter->call<UrApiKind::urProgramCreateWithIL>(
-          ContextImpl->getHandleRef(), spirv.data(), spirv.size(), nullptr,
-          &UrProgram);
-      // program created by urProgramCreateWithIL is implicitly retained.
-      if (UrProgram == nullptr)
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "urProgramCreateWithIL resulted in a null program handle.");
-
-    } // if(!FetchedFromCache)
+    if (!FetchedFromCache)
+      UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr);
 
     std::string XsFlags = extractXsFlags(BuildOptions);
     auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
@@ -963,18 +762,8 @@ public:
         UrProgram, UR_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
         nullptr);
 
-    // Get the kernel names.
-    size_t KernelNamesSize;
-    Adapter->call<UrApiKind::urProgramGetInfo>(
-        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
-
-    // semi-colon delimited list of kernel names.
-    std::string KernelNamesStr(KernelNamesSize, ' ');
-    Adapter->call<UrApiKind::urProgramGetInfo>(
-        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
-        &KernelNamesStr[0], nullptr);
     std::vector<std::string> KernelNames =
-        detail::split_string(KernelNamesStr, ';');
+        getKernelNamesFromURProgram(Adapter, UrProgram);
     KernelNameSetT KernelNameSet{KernelNames.begin(), KernelNames.end()};
 
     // If caching enabled and kernel not fetched from cache, cache.
@@ -990,13 +779,53 @@ public:
             MRTCBinInfo->MLanguage, std::move(KernelNameSet))};
   }
 
+  std::vector<std::shared_ptr<device_image_impl>> compileFromSource(
+      const std::vector<device> &Devices,
+      const std::vector<sycl::detail::string_view> &CompileOptions,
+      std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &RegisteredKernelNames,
+      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
+      const {
+    assert(!std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage));
+    assert(MRTCBinInfo);
+    assert(MOrigins & ImageOriginKernelCompiler);
+
+    if (MRTCBinInfo->MLanguage != syclex::source_language::sycl)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "compile is only available for kernel_bundle<bundle_state::source> "
+          "when the source language was sycl.");
+
+    std::shared_ptr<sycl::detail::context_impl> ContextImpl =
+        getSyclObjImpl(MContext);
+
+    for (const auto &SyclDev : Devices) {
+      detail::device_impl &DevImpl = *getSyclObjImpl(SyclDev);
+      if (!ContextImpl->hasDevice(DevImpl)) {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "device not part of kernel_bundle context");
+      }
+      if (!DevImpl.extOneapiCanCompile(MRTCBinInfo->MLanguage)) {
+        // This error cannot not be exercised in the current implementation, as
+        // compatibility with a source language depends on the backend's
+        // capabilities and all devices in one context share the same backend in
+        // the current implementation, so this would lead to an error already
+        // during construction of the source bundle.
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "device does not support source language");
+      }
+    }
+    return createSYCLImages(Devices, bundle_state::object, CompileOptions,
+                            LogPtr, RegisteredKernelNames, OutDeviceBins);
+  }
+
 private:
   bool hasRTDeviceBinaryImage() const noexcept {
     return std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage) &&
            get_bin_image_ref() != nullptr;
   }
 
-  static std::string trimXsFlags(std::string &str) {
+  static std::string_view trimXsFlags(std::string_view &str) {
     // Trim first and last quote if they exist, but no others.
     char EncounteredQuote = '\0';
     auto Start = std::find_if(str.begin(), str.end(), [&](char c) {
@@ -1014,31 +843,31 @@ private:
                  return !std::isspace(c);
                }).base();
     if (Start != std::end(str) && End != std::begin(str) && Start < End) {
-      return std::string(Start, End);
+      return std::string_view(&*Start, std::distance(Start, End));
     }
 
     return "";
   }
 
   static std::string
-  extractXsFlags(const std::vector<std::string> &BuildOptions) {
+  extractXsFlags(const std::vector<sycl::detail::string_view> &BuildOptions) {
     std::stringstream SS;
-    for (std::string Option : BuildOptions) {
-      auto Where = Option.find("-Xs");
-      if (Where != std::string::npos) {
+    for (sycl::detail::string_view Option : BuildOptions) {
+      std::string_view OptionSV{Option.data()};
+      auto Where = OptionSV.find("-Xs");
+      if (Where != std::string_view::npos) {
         Where += 3;
-        std::string Flags = Option.substr(Where);
+        std::string_view Flags = OptionSV.substr(Where);
         SS << trimXsFlags(Flags) << " ";
       }
     }
     return SS.str();
   }
 
-  bool
-  extKernelCompilerFetchFromCache(const std::vector<device> Devices,
-                                  const std::vector<std::string> &BuildOptions,
-                                  const std::string &SourceStr,
-                                  ur_program_handle_t &UrProgram) const {
+  bool extKernelCompilerFetchFromCache(
+      const std::vector<device> Devices,
+      const std::vector<sycl::detail::string_view> &BuildOptions,
+      const std::string &SourceStr, ur_program_handle_t &UrProgram) const {
     const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
         getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
@@ -1150,6 +979,284 @@ private:
     }
   }
 
+  std::vector<std::shared_ptr<device_image_impl>> createSYCLImages(
+      const std::vector<device> &Devices, bundle_state State,
+      const std::vector<sycl::detail::string_view> &Options,
+      std::string *LogPtr,
+      const std::vector<sycl::detail::string_view> &RegisteredKernelNames,
+      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
+      const {
+    assert(MRTCBinInfo);
+    assert(MRTCBinInfo->MLanguage == syclex::source_language::sycl);
+    assert(std::holds_alternative<std::string>(MBinImage));
+
+    // Build device images via the program manager.
+    const std::string &SourceStr = std::get<std::string>(MBinImage);
+    std::ostringstream SourceExt;
+    if (!RegisteredKernelNames.empty()) {
+      SourceExt << SourceStr << '\n';
+
+      auto EmitEntry =
+          [&SourceExt](
+              const sycl::detail::string_view &Name) -> std::ostringstream & {
+        SourceExt << "  {\"" << Name.data() << "\", " << Name.data() << "}";
+        return SourceExt;
+      };
+
+      SourceExt << "[[__sycl_detail__::__registered_kernels__(\n";
+      for (auto It = RegisteredKernelNames.begin(),
+                SecondToLast = RegisteredKernelNames.end() - 1;
+           It != SecondToLast; ++It) {
+        EmitEntry(*It) << ",\n";
+      }
+      EmitEntry(RegisteredKernelNames.back()) << "\n";
+      SourceExt << ")]];\n";
+    }
+
+    auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_Compile(
+        RegisteredKernelNames.empty() ? SourceStr : SourceExt.str(),
+        MRTCBinInfo->MIncludePairs, Options, LogPtr);
+
+    auto &PM = detail::ProgramManager::getInstance();
+
+    // Add all binaries and keep the images for processing.
+    std::vector<std::pair<RTDeviceBinaryImage *,
+                          std::shared_ptr<std::vector<kernel_id>>>>
+        NewImages;
+    NewImages.reserve(Binaries->NumDeviceBinaries);
+    for (int I = 0; I < Binaries->NumDeviceBinaries; I++) {
+      sycl_device_binary Binary = &(Binaries->DeviceBinaries[I]);
+      RTDeviceBinaryImage *NewImage = nullptr;
+      auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
+      PM.addImage(Binary, /*RegisterImgExports=*/false, &NewImage,
+                  KernelIDs.get());
+      if (NewImage)
+        NewImages.push_back(
+            std::make_pair(std::move(NewImage), std::move(KernelIDs)));
+    }
+
+    // Now bring all images into the proper state. Note that we do this in a
+    // separate pass over NewImages to make sure dependency images have been
+    // registered beforehand.
+    std::vector<std::shared_ptr<device_image_impl>> Result;
+    Result.reserve(NewImages.size());
+    for (auto &[NewImage, KernelIDs] : NewImages) {
+      const RTDeviceBinaryImage &NewImageRef = *NewImage;
+
+      // Filter the devices that support the image requirements.
+      std::vector<sycl::device> SupportingDevs = Devices;
+      auto NewSupportingDevsEnd = std::remove_if(
+          SupportingDevs.begin(), SupportingDevs.end(),
+          [&NewImageRef](const sycl::device &SDev) {
+            return !doesDevSupportDeviceRequirements(SDev, NewImageRef);
+          });
+
+      // If there are no devices that support the image, we skip it.
+      if (NewSupportingDevsEnd == SupportingDevs.begin())
+        continue;
+      SupportingDevs.erase(NewSupportingDevsEnd, SupportingDevs.end());
+
+      KernelNameSetT KernelNames;
+      MangledKernelNameMapT MangledKernelNames;
+      std::unordered_set<std::string> DeviceGlobalIDSet;
+      std::vector<std::string> DeviceGlobalIDVec;
+      std::vector<std::string> DeviceGlobalNames;
+      std::vector<std::unique_ptr<std::byte[]>> DeviceGlobalAllocations;
+
+      for (const auto &KernelID : *KernelIDs) {
+        std::string_view KernelName{KernelID.get_name()};
+        if (KernelName.find(Prefix) == 0) {
+          KernelName.remove_prefix(Prefix.length());
+          KernelNames.emplace(KernelName);
+          static constexpr std::string_view SYCLKernelMarker{"__sycl_kernel_"};
+          if (KernelName.find(SYCLKernelMarker) == 0) {
+            // extern "C" declaration, implicitly register kernel without the
+            // marker.
+            std::string_view KernelNameWithoutMarker{KernelName};
+            KernelNameWithoutMarker.remove_prefix(SYCLKernelMarker.length());
+            MangledKernelNames.emplace(KernelNameWithoutMarker, KernelName);
+          }
+        }
+
+        for (const sycl_device_binary_property &RKProp :
+             NewImage->getRegisteredKernels()) {
+          // Mangled names.
+          auto BA = DeviceBinaryProperty(RKProp).asByteArray();
+          auto MangledNameLen = BA.consume<uint64_t>() / 8 /*bits in a byte*/;
+          std::string_view MangledName{
+              reinterpret_cast<const char *>(BA.begin()), MangledNameLen};
+          MangledKernelNames.emplace(RKProp->Name, MangledName);
+        }
+
+        // Device globals.
+        for (const auto &DeviceGlobalProp : NewImage->getDeviceGlobals()) {
+          std::string_view DeviceGlobalName{DeviceGlobalProp->Name};
+          assert(DeviceGlobalName.find(Prefix) == 0);
+          bool Inserted = false;
+          std::tie(std::ignore, Inserted) =
+              DeviceGlobalIDSet.emplace(DeviceGlobalName);
+          if (Inserted) {
+            DeviceGlobalIDVec.emplace_back(DeviceGlobalName);
+            DeviceGlobalName.remove_prefix(Prefix.length());
+            DeviceGlobalNames.emplace_back(DeviceGlobalName);
+          }
+        }
+      }
+
+      // Device globals are usually statically allocated and registered in the
+      // integration footer, which we don't have in the RTC context. Instead,
+      // we dynamically allocate storage tied to the executable kernel bundle.
+      for (DeviceGlobalMapEntry *DeviceGlobalEntry :
+           PM.getDeviceGlobalEntries(DeviceGlobalIDVec)) {
+
+        size_t AllocSize = DeviceGlobalEntry->MDeviceGlobalTSize; // init value
+        if (!DeviceGlobalEntry->MIsDeviceImageScopeDecorated) {
+          // Consider storage for device USM pointer.
+          AllocSize += sizeof(void *);
+        }
+        auto Alloc = std::make_unique<std::byte[]>(AllocSize);
+        std::string_view DeviceGlobalName{DeviceGlobalEntry->MUniqueId};
+        PM.addOrInitDeviceGlobalEntry(Alloc.get(), DeviceGlobalName.data());
+        DeviceGlobalAllocations.push_back(std::move(Alloc));
+
+        // Drop the RTC prefix from the entry's symbol name. Note that the PM
+        // still manages this device global under its prefixed name.
+        assert(DeviceGlobalName.find(Prefix) == 0);
+        DeviceGlobalName.remove_prefix(Prefix.length());
+        DeviceGlobalEntry->MUniqueId = DeviceGlobalName;
+      }
+
+      auto DGRegs = std::make_shared<ManagedDeviceGlobalsRegistry>(
+          getSyclObjImpl(MContext), std::string{Prefix},
+          std::move(DeviceGlobalNames), std::move(DeviceGlobalAllocations));
+
+      // Mark the image as input so the program manager will bring it into
+      // the right state.
+      auto DevImgImpl = std::make_shared<device_image_impl>(
+          NewImage, MContext, std::move(SupportingDevs), bundle_state::input,
+          std::move(KernelIDs), MRTCBinInfo->MLanguage, std::move(KernelNames),
+          std::move(MangledKernelNames), std::string{Prefix},
+          std::move(DGRegs));
+
+      // Resolve dependencies.
+      // If we are compiling to object, we do not want to error for unresolved
+      // imports.
+      // TODO: Consider making a collectDeviceImageDeps variant that takes a
+      //       set reference and inserts into that instead.
+      std::set<RTDeviceBinaryImage *> ImgDeps;
+      for (const device &Device : DevImgImpl->get_devices()) {
+        std::set<RTDeviceBinaryImage *> DevImgDeps = PM.collectDeviceImageDeps(
+            *NewImage, Device,
+            /*ErrorOnUnresolvableImport=*/State == bundle_state::executable);
+        ImgDeps.insert(DevImgDeps.begin(), DevImgDeps.end());
+      }
+
+      // Pack main image and dependencies together.
+      std::vector<device_image_plain> NewImageAndDeps;
+      NewImageAndDeps.reserve(
+          1 + ((State == bundle_state::executable) * ImgDeps.size()));
+      NewImageAndDeps.push_back(
+          createSyclObjFromImpl<device_image_plain>(std::move(DevImgImpl)));
+      const std::vector<sycl::device> &SupportingDevsRef =
+          getSyclObjImpl(NewImageAndDeps[0])->get_devices();
+      if (State == bundle_state::executable) {
+        // If target is executable we bundle the image and dependencies together
+        // and bring it into state.
+        for (RTDeviceBinaryImage *ImgDep : ImgDeps)
+          NewImageAndDeps.push_back(PM.createDependencyImage(
+              MContext, SupportingDevsRef, ImgDep, bundle_state::input));
+      } else if (State == bundle_state::object) {
+        // If the target is object, we bring the dependencies into object state
+        // individually and put them in the bundle.
+        for (RTDeviceBinaryImage *ImgDep : ImgDeps) {
+          DevImgPlainWithDeps ImgDepWithDeps{PM.createDependencyImage(
+              MContext, SupportingDevsRef, ImgDep, bundle_state::input)};
+          PM.bringSYCLDeviceImageToState(ImgDepWithDeps, State);
+          Result.push_back(getSyclObjImpl(ImgDepWithDeps.getMain()));
+        }
+      }
+
+      DevImgPlainWithDeps ImgWithDeps(std::move(NewImageAndDeps));
+      PM.bringSYCLDeviceImageToState(ImgWithDeps, State);
+      Result.push_back(getSyclObjImpl(ImgWithDeps.getMain()));
+    }
+
+    OutDeviceBins.emplace_back(
+        std::make_shared<ManagedDeviceBinaries>(std::move(Binaries)));
+    return Result;
+  }
+
+  ur_program_handle_t
+  createProgramFromSource(const std::vector<device> Devices,
+                          const std::vector<sycl::detail::string_view> &Options,
+                          std::string *LogPtr) const {
+    const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
+        getSyclObjImpl(MContext);
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    const auto spirv = [&]() -> std::vector<uint8_t> {
+      switch (MRTCBinInfo->MLanguage) {
+      case syclex::source_language::opencl: {
+        // if successful, the log is empty. if failed, throws an error with
+        // the compilation log.
+        const auto &SourceStr = std::get<std::string>(MBinImage);
+        std::vector<uint32_t> IPVersionVec(Devices.size());
+        std::transform(Devices.begin(), Devices.end(), IPVersionVec.begin(),
+                       [&](const sycl::device &SyclDev) {
+                         uint32_t ipVersion = 0;
+                         Adapter->call<UrApiKind::urDeviceGetInfo>(
+                             getSyclObjImpl(SyclDev)->getHandleRef(),
+                             UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+                             &ipVersion, nullptr);
+                         return ipVersion;
+                       });
+        return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
+                                                Options, LogPtr);
+      }
+      case syclex::source_language::spirv: {
+        const auto &SourceBytes = std::get<std::vector<std::byte>>(MBinImage);
+        std::vector<uint8_t> Result(SourceBytes.size());
+        std::transform(SourceBytes.cbegin(), SourceBytes.cend(), Result.begin(),
+                       [](std::byte B) { return static_cast<uint8_t>(B); });
+        return Result;
+      }
+      default:
+        break;
+      }
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "SYCL C++, OpenCL C and SPIR-V are the only supported "
+          "languages at this time");
+    }();
+
+    ur_program_handle_t UrProgram = nullptr;
+    Adapter->call<UrApiKind::urProgramCreateWithIL>(ContextImpl->getHandleRef(),
+                                                    spirv.data(), spirv.size(),
+                                                    nullptr, &UrProgram);
+    // program created by urProgramCreateWithIL is implicitly retained.
+    if (UrProgram == nullptr)
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "urProgramCreateWithIL resulted in a null program handle.");
+
+    return UrProgram;
+  }
+
+  static std::vector<std::string>
+  getKernelNamesFromURProgram(const AdapterPtr &Adapter,
+                              ur_program_handle_t UrProgram) {
+    // Get the kernel names.
+    size_t KernelNamesSize;
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
+
+    // semi-colon delimited list of kernel names.
+    std::string KernelNamesStr(KernelNamesSize, ' ');
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
+        &KernelNamesStr[0], nullptr);
+    return detail::split_string(KernelNamesStr, ';');
+  }
+
   const std::variant<std::string, std::vector<std::byte>,
                      const RTDeviceBinaryImage *>
       MBinImage = static_cast<const RTDeviceBinaryImage *>(nullptr);
@@ -1186,6 +1293,9 @@ private:
   // Optional information about the binary produced by the kernel compiler
   // extension.
   std::optional<KernelCompilerBinaryInfo> MRTCBinInfo = std::nullopt;
+
+  // Used to store a dynamically created merged binary image, e.g. from linking.
+  std::unique_ptr<DynRTDeviceBinaryImage> MMergedImageStorage = nullptr;
 };
 
 } // namespace detail

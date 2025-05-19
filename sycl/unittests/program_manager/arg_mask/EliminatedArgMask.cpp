@@ -14,6 +14,8 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/ScopedEnvVar.hpp>
@@ -36,18 +38,36 @@ template <>
 struct KernelInfo<EAMTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
   static constexpr const char *getName() { return EAMTestKernelName; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 template <>
 struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return 0; }
   static constexpr const char *getName() { return EAMTestKernel2Name; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 template <>
 struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
   static constexpr const char *getName() { return EAMTestKernel3Name; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 } // namespace detail
@@ -64,7 +84,8 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
+  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
+                 std::move(ImgKPOI));
 
   std::vector<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
@@ -83,7 +104,8 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernel3Image() {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
+  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
+                 std::move(ImgKPOI));
 
   std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({EAMTestKernel3Name});
@@ -285,7 +307,7 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgBefore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                      sycl::detail::getSyclObjImpl(Dev), Name);
+                                      *sycl::detail::getSyclObjImpl(Dev), Name);
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 1);
@@ -310,7 +332,7 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgAfter = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                     sycl::detail::getSyclObjImpl(Dev), Name);
+                                     *sycl::detail::getSyclObjImpl(Dev), Name);
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 0);

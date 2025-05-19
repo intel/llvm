@@ -31,7 +31,6 @@ static ur_result_t redefinedDeviceReleaseAfter(void *) {
 TEST(DevRefCounter, DevRefCounter) {
   {
     sycl::unittest::UrMock<> Mock;
-    sycl::platform Plt = sycl::platform();
 
     mock::getCallbacks().set_after_callback("urDeviceGet",
                                             &redefinedDevicesGetAfter);
@@ -39,6 +38,7 @@ TEST(DevRefCounter, DevRefCounter) {
                                             &redefinedDeviceRetainAfter);
     mock::getCallbacks().set_after_callback("urDeviceRelease",
                                             &redefinedDeviceReleaseAfter);
+    sycl::platform Plt = sycl::platform();
 
     Plt.get_devices();
   }

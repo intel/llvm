@@ -57,7 +57,7 @@ if (LLVM_ENABLE_ZSTD)
 endif()
 
 # TODO Enable xpti tests for Windows
-if (NOT WIN32)
+if (SYCL_ENABLE_XPTI_TRACING AND NOT WIN32)
     add_subdirectory(xpti_trace)
 endif()
 add_subdirectory(sampler)

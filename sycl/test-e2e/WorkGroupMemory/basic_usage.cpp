@@ -1,9 +1,10 @@
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17339
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
+
 #include <cassert>
 #include <cstring>
 #include <sycl/detail/core.hpp>

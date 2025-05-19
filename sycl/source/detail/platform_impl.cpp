@@ -11,7 +11,6 @@
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/platform_info.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
@@ -211,10 +210,10 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   std::vector<int> original_indices;
 
   // Find out backend of the platform
-  ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
+  ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
   MAdapter->call<UrApiKind::urPlatformGetInfo>(
-      MPlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
-      &UrBackend, nullptr);
+      MPlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
+      nullptr);
   backend Backend = convertUrBackend(UrBackend);
 
   int InsertIDx = 0;
@@ -289,26 +288,22 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   return original_indices;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl *platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   return getDeviceImplHelper(UrDevice);
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
-  std::shared_ptr<device_impl> Result = getDeviceImplHelper(UrDevice);
-  if (Result)
-    return Result;
+  if (device_impl *Result = getDeviceImplHelper(UrDevice))
+    return *Result;
 
   // Otherwise make the impl
-  Result = std::make_shared<device_impl>(UrDevice, *this,
-                                         device_impl::private_tag{});
-  MDeviceCache.emplace_back(Result);
+  MDevices.emplace_back(std::make_shared<device_impl>(
+      UrDevice, *this, device_impl::private_tag{}));
 
-  return Result;
+  return *MDevices.back();
 }
 
 static bool supportsAffinityDomain(const device &dev,
@@ -551,9 +546,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_platform_info_string_impl(
-      MPlatform, getAdapter(),
-      detail::UrInfoCode<info::platform::extensions>::value);
+
+  std::string AllExtensionNames = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+      *this, detail::UrInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -567,11 +562,6 @@ ur_native_handle_t platform_impl::getNative() const {
   ur_native_handle_t Handle = 0;
   Adapter->call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
-}
-
-template <typename Param>
-typename Param::return_type platform_impl::get_info() const {
-  return get_platform_info<Param>(this->getHandleRef(), getAdapter());
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -635,22 +625,13 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == UrDevice)
-        return Device;
-    }
+device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
+  for (const std::shared_ptr<device_impl> &Device : MDevices) {
+    if (Device->getHandleRef() == UrDevice)
+      return Device.get();
   }
   return nullptr;
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template ReturnT platform_impl::get_info<info::platform::Desc>() const;
-
-#include <sycl/info/platform_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace _V1

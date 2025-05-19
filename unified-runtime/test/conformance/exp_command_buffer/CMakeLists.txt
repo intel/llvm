@@ -11,6 +11,13 @@ add_conformance_test_with_kernels_environment(exp_command_buffer
   event_sync.cpp
   kernel_event_sync.cpp
   invalid.cpp
+  copy.cpp
+  read.cpp
+  write.cpp
+  rect_read.cpp
+  rect_write.cpp
+  enqueue.cpp
+  in-order.cpp
   update/buffer_fill_kernel_update.cpp
   update/invalid_update.cpp
   update/kernel_handle_update.cpp
@@ -21,6 +28,8 @@ add_conformance_test_with_kernels_environment(exp_command_buffer
   update/event_sync.cpp
   update/kernel_event_sync.cpp
   update/local_memory_update.cpp
+  update/enqueue_update.cpp
+  regression/usm_copy.cpp
 )
 
 add_subdirectory(native-command)

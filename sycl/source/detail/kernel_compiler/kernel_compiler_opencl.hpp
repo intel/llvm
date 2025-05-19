@@ -20,10 +20,11 @@ namespace ext::oneapi::experimental {
 namespace detail {
 
 using spirv_vec_t = std::vector<uint8_t>;
-spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
-                             const std::vector<uint32_t> &IPVersionVec,
-                             const std::vector<std::string> &UserArgs,
-                             std::string *LogPtr);
+spirv_vec_t
+OpenCLC_to_SPIRV(const std::string &Source,
+                 const std::vector<uint32_t> &IPVersionVec,
+                 const std::vector<sycl::detail::string_view> &UserArgs,
+                 std::string *LogPtr);
 // IPVersionVec gets flattened and passed to ocloc as the -dev flag.
 bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec);
 

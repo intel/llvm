@@ -71,15 +71,16 @@ static std::unique_ptr<void, std::function<void(void *)>>
 void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 #ifdef __SYCL_RT_OS_WINDOWS
   // first the environment, if not compatible will move on to absolute path.
-  static const std::vector<std::string> OclocPaths = {
+  static const std::vector<std::string_view> OclocPaths = {
       "ocloc64.dll",
       "C:\\Program Files (x86)\\Intel\\oneAPI\\ocloc\\latest\\ocloc64.dll"};
 #else
-  static const std::vector<std::string> OclocPaths = {"libocloc.so"};
+  static const std::vector<std::string_view> OclocPaths = {"libocloc.so"};
 #endif
 
   // attemptLoad() sets OclocLibrary value by side effect.
-  auto attemptLoad = [&](std::string OclocPath) {
+  auto attemptLoad = [&](std::string_view OclocPath_sv) {
+    std::string OclocPath(OclocPath_sv);
     try {
       // Load then perform checks. Each check throws.
       void *tempPtr = sycl::detail::ur::loadOsLibrary(OclocPath);
@@ -98,7 +99,7 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
     }
     return true;
   };
-  for (auto result : OclocPaths) {
+  for (const std::string_view &result : OclocPaths) {
     if (attemptLoad(result))
       return; // exit on successful attempt
   }
@@ -216,13 +217,11 @@ std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
   return QueryLog;
 }
 
-spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
-                             const std::vector<uint32_t> &IPVersionVec,
-                             const std::vector<std::string> &UserArgs,
-                             std::string *LogPtr) {
-  std::vector<std::string> CMUserArgs = UserArgs;
-  CMUserArgs.push_back("-cmc");
-
+spirv_vec_t
+OpenCLC_to_SPIRV(const std::string &Source,
+                 const std::vector<uint32_t> &IPVersionVec,
+                 const std::vector<sycl::detail::string_view> &UserArgs,
+                 std::string *LogPtr) {
   // handles into ocloc shared lib
   static void *oclocInvokeHandle = nullptr;
   static void *oclocFreeOutputHandle = nullptr;
@@ -232,11 +231,11 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
                IPVersionVec);
 
   // assemble ocloc args
-  std::string CombinedUserArgs =
-      std::accumulate(UserArgs.begin(), UserArgs.end(), std::string(""),
-                      [](const std::string &acc, const std::string &s) {
-                        return acc + s + " ";
-                      });
+  std::string CombinedUserArgs = "";
+  for (const sycl::detail::string_view &UserArg : UserArgs) {
+    CombinedUserArgs += UserArg.data();
+    CombinedUserArgs += " ";
+  }
 
   std::vector<const char *> Args = {"ocloc", "-q", "-spv_only", "-options",
                                     CombinedUserArgs.c_str()};

@@ -49,7 +49,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "9c1ed6fd59a7a40f8829251df4b5c0d847591183"
+        return "49a8c6314875c57fee9b59aea16e721572e3021d"
 
     def setup(self):
         if options.sycl is None:
@@ -88,7 +88,7 @@ class ComputeBench(Suite):
 
         self.built = True
 
-    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+    def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {
             "SubmitKernel": BenchmarkMetadata(
                 type="group",
@@ -168,7 +168,7 @@ class ComputeBench(Suite):
             benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
         # Add GraphApiSubmitGraph benchmarks
-        for runtime in self.enabled_runtimes([RUNTIMES.SYCL, RUNTIMES.UR]):
+        for runtime in self.enabled_runtimes():
             for in_order_queue in [0, 1]:
                 for num_kernels in [4, 10, 32]:
                     for measure_completion_time in [0, 1]:
@@ -196,9 +196,11 @@ class ComputeBench(Suite):
         # Add UR-specific benchmarks
         if options.ur is not None:
             benches += [
-                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
-                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
-                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
+                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1, 1),
+                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1, 1),
+                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 1),
+                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 0),
+                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0, 1),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
                 UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
@@ -538,6 +540,7 @@ class MemcpyExecute(ComputeBenchmark):
         srcUSM,
         dstUSM,
         useEvent,
+        useCopyOffload,
     ):
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
@@ -546,22 +549,39 @@ class MemcpyExecute(ComputeBenchmark):
         self.srcUSM = srcUSM
         self.dstUSM = dstUSM
         self.useEvents = useEvent
+        self.useCopyOffload = useCopyOffload
         super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
+
+    def extra_env_vars(self) -> dict:
+        if not self.useCopyOffload:
+            return {"UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD": "1"}
+        else:
+            return {}
 
     def name(self):
         return (
             f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
             + (" without events" if not self.useEvents else "")
+            + (" without copy offload" if not self.useCopyOffload else "")
+        )
+
+    def explicit_group(self):
+        return (
+            "MemcpyExecute opsPerThread: "
+            + str(self.numOpsPerThread)
+            + " numThreads: "
+            + str(self.numThreads)
         )
 
     def description(self) -> str:
         src_type = "device" if self.srcUSM == 1 else "host"
         dst_type = "device" if self.dstUSM == 1 else "host"
         events = "with" if self.useEvents else "without"
+        copy_offload = "with" if self.useCopyOffload else "without"
         return (
             f"Measures multithreaded memory copy performance with {self.numThreads} threads "
             f"each performing {self.numOpsPerThread} operations on {self.allocSize} bytes "
-            f"from {src_type} to {dst_type} memory {events} events."
+            f"from {src_type} to {dst_type} memory {events} events {copy_offload} driver copy offload."
         )
 
     def get_tags(self):
@@ -628,7 +648,7 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
 
 
 # TODO: once L0 SubmitGraph exists, this needs to be cleaned up split benchmarks into more groups,
-# set all the parameters (NoEvents 0/1, which should get inverted into UseEvents) and
+# set all the parameters (UseEvents 0/1) and
 # unify the benchmark naming scheme with SubmitKernel.
 class GraphApiSubmitGraph(ComputeBenchmark):
     def __init__(
@@ -669,7 +689,8 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--InOrderQueue={self.inOrderQueue}",
             "--Profiling=0",
             "--KernelExecutionTime=1",
-            "--NoEvents=1",  # not all implementations support NoEvents=0
+            "--UseEvents=0",  # not all implementations support UseEvents=1
+            "--UseExplicit=0",
         ]
 
 

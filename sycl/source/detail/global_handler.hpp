@@ -61,6 +61,8 @@ public:
   Sync &getSync();
   std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
 
+  void clearPlatforms();
+
   std::unordered_map<platform_impl *, ContextImplPtr> &
   getPlatformToDefaultContextCache();
 
