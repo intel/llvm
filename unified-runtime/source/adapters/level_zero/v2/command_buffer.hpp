@@ -37,6 +37,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_result_t finalizeCommandBuffer();
   // Indicates if command-buffer commands can be updated after it is closed.
   const bool isUpdatable = false;
+  const bool isInOrder = true;
+
   // Command-buffer profiling is enabled.
   const bool isProfilingEnabled = false;
 
@@ -51,11 +53,25 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
       uint32_t numUpdateCommands,
       const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands);
 
+  ur_exp_command_buffer_sync_point_t getSyncPoint(ur_event_handle_t event);
+  ur_event_handle_t *getWaitListFromSyncPoints(
+      const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+      uint32_t numSyncPointsInWaitList);
+
 private:
+  ur_exp_command_buffer_sync_point_t NextSyncPoint;
+
+  std::unordered_map<ur_exp_command_buffer_sync_point_t, ur_event_handle_t>
+      syncPoints;
+
+  std::vector<ur_event_handle_t> syncPointWaitList;
+
   const ur_context_handle_t context;
   const ur_device_handle_t device;
+
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
       commandHandles;
+
   // Indicates if command-buffer was finalized.
   bool isFinalized = false;
 

@@ -18,10 +18,22 @@
 ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
-    ur_queue_t_ *queue)
-    : context(context), device(device),
-      eventPool(context->getEventPoolCache().borrow(device->Id.value(), flags)),
-      zeCommandList(std::move(commandList)), queue(queue) {
+    ur_queue_t_ *queue, bool isImmediate)
+    : context(context), device(device), zeCommandList(std::move(commandList)),
+      queue(queue) {
+  if (isImmediate) {
+    std::cout << "ur_command_list_manager::ur_command_list_manager "
+                 "isImmediate"
+              << std::endl;
+  }
+  else {
+    std::cout << "ur_command_list_manager::ur_command_list_manager "
+                 "isImmediate false"
+              << std::endl;
+  }
+  auto &eventPoolTmp = isImmediate ? context->getEventPoolCacheImmediate()
+                                   : context->getEventPoolCacheRegular();
+  eventPool = eventPoolTmp.borrow(device->Id.value(), flags);
   UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
   UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));
 }
@@ -250,14 +262,19 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMMemcpy");
 
+  std::cout << "ur_command_list_manager::appendUSMMemcpy" << std::endl;
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_MEMCPY);
 
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
+  (void)pWaitEvents; // TODO: use pWaitEvents
+  (void)numWaitEvents; // TODO: use numWaitEvents
+    (void)zeSignalEvent; // TODO: use zeSignalEvent
+  
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (zeCommandList.get(), pDst, pSrc, size, zeSignalEvent,
-              numWaitEvents, pWaitEvents));
+              0, nullptr));
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize, (zeCommandList.get(), UINT64_MAX));
@@ -320,17 +337,18 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-ur_command_list_manager::appendUSMAdvise(const void *pMem, size_t size,
-                                         ur_usm_advice_flags_t advice,
-                                         ur_event_handle_t *phEvent) {
+ur_result_t ur_command_list_manager::appendUSMAdvise(
+    const void *pMem, size_t size, ur_usm_advice_flags_t advice,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMAdvise");
 
   auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_ADVISE);
 
-  auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
 
   if (pWaitEvents) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
