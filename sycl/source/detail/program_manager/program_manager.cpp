@@ -1114,7 +1114,8 @@ std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   device_impl &DeviceImpl,
                                   KernelNameStrRefT KernelName,
-                                  const NDRDescT &NDRDesc) {
+                                  const NDRDescT &NDRDesc,
+                                  const bool TransferOwnershipToCache) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -1131,12 +1132,16 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
     constexpr size_t Program = 3; // see KernelFastCacheValT tuple
     if (std::get<Kernel>(ret_tuple)) {
-      // Pulling a copy of a kernel and program from the cache,
-      // so we need to retain those resources.
-      ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-          std::get<Kernel>(ret_tuple));
-      ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
-          std::get<Program>(ret_tuple));
+      // No need to retain if cache is the owner as we won't be
+      // releasing them elsewhere.
+      if (!TransferOwnershipToCache) {
+        // Pulling a copy of a kernel and program from the cache,
+        // so we need to retain those resources.
+        ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
+            std::get<Kernel>(ret_tuple));
+        ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
+            std::get<Program>(ret_tuple));
+      }
       return ret_tuple;
     }
   }
@@ -1186,12 +1191,12 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   auto ret_val = std::make_tuple(KernelArgMaskPair.first,
                                  &(BuildResult->MBuildResultMutex),
                                  KernelArgMaskPair.second, Program);
-  // If caching is enabled, one copy of the kernel handle will be
-  // stored in the cache, and one handle is returned to the
-  // caller. In that case, we need to increase the ref count of the
-  // kernel.
-  ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-      KernelArgMaskPair.first);
+  // If cache is the owner, we won't be releasing them elsewhere,
+  // so no need to retain.
+  if (!TransferOwnershipToCache)
+    ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
+        KernelArgMaskPair.first);
+
   Cache.saveKernel(key, ret_val);
   return ret_val;
 }
