@@ -74,15 +74,19 @@ int main() {
 
   // Check event equivalences - This is an implementation detail, but useful
   // for checking behavior.
+  std::cout << "Check1" << std::endl;
   Failed += Check(Q, "single_task", [&]() { return Q.single_task([]() {}); });
+  std::cout << "Check2" << std::endl;
   Failed += Check(Q, "parallel_for",
                   [&]() { return Q.parallel_for(32, [](sycl::id<1>) {}); });
+  std::cout << "Check3" << std::endl;
   Failed += Check(Q, "host_task", [&]() {
     return Q.submit([&](sycl::handler &CGH) { CGH.host_task([]() {}); });
   });
 
   // For external event, the equality of events is guaranteed by the extension.
   sycl::event ExternalEvent = Q.single_task([]() {});
+  std::cout << "Check4" << std::endl;
   Failed += Check(Q, "ext_oneapi_set_external_event", [&]() {
     Q.ext_oneapi_set_external_event(ExternalEvent);
     return ExternalEvent;
@@ -90,18 +94,22 @@ int main() {
 
   if (!Q.get_device().has(sycl::aspect::usm_shared_allocations))
     return Failed;
-  constexpr size_t N = 64;
+  constexpr size_t N = 64 * 1024 * 100;
   int *Data1 = sycl::malloc_shared<int>(N, Q);
   int *Data2 = sycl::malloc_shared<int>(N, Q);
 
+  std::cout << "Check5" << std::endl;
   Failed += Check(Q, "fill", [&]() { return Q.fill<int>(Data1, 0, N); });
 
+  std::cout << "Check6" << std::endl;
   Failed +=
       Check(Q, "memset", [&]() { return Q.memset(Data1, 0, N * sizeof(int)); });
 
+  std::cout << "Check7" << std::endl;
   Failed += Check(Q, "memcpy",
                   [&]() { return Q.memcpy(Data1, Data2, N * sizeof(int)); });
 
+  std::cout << "Check8" << std::endl;
   Failed += Check(Q, "copy", [&]() { return Q.memcpy(Data1, Data2, N); });
 
   Q.wait_and_throw();
