@@ -262,7 +262,7 @@ template <typename KernelNameType> constexpr int64_t getKernelSize() {
 
 template <typename KernelNameType> constexpr bool hasSpecialCaptures() {
   bool FoundSpecialCapture = false;
-  for (int I = 0; I < getKernelNumParams<KernelNameType>(); ++I) {
+  for (unsigned I = 0; I < getKernelNumParams<KernelNameType>(); ++I) {
     auto ParamDesc = getKernelParamDesc<KernelNameType>(I);
     bool IsSpecialCapture =
         (ParamDesc.kind != kernel_param_kind_t::kind_std_layout &&
