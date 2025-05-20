@@ -91,14 +91,20 @@ TEST(DeviceIsAllowedTests, CheckLocalizationDoesNotImpact) {
   // We want to make sure that DeviceVenderId doesn't have a comma
   // inserted (ie "0x8,086" ), which will break the platform retrieval.
 
-  auto previous = std::locale::global(std::locale("en_US.UTF-8"));
-  setenv("SYCL_DEVICE_ALLOWLIST", SyclDeviceAllowList, 1);
+  try {
+    auto previous = std::locale::global(std::locale("en_US.UTF-8"));
+    setenv("SYCL_DEVICE_ALLOWLIST", SyclDeviceAllowList, 1);
 
-  auto post_platforms = sycl::platform::get_platforms();
-  std::locale::global(previous);
-  unsetenv("SYCL_DEVICE_ALLOWLIST");
+    auto post_platforms = sycl::platform::get_platforms();
+    std::locale::global(previous);
+    unsetenv("SYCL_DEVICE_ALLOWLIST");
 
-  EXPECT_NE(size_t{0}, post_platforms.size());
+    EXPECT_NE(size_t{0}, post_platforms.size());
+  } catch (...) {
+    // It is possible that the en_US locale is not available.
+    // In this case, we just skip the test.
+    GTEST_SKIP() << "Locale en_US.UTF-8 not available.";
+  }
 }
 
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLCPUDeviceIsAllowed) {
