@@ -47,8 +47,8 @@ specification.*
 
 This extension is currently implemented in {dpcpp} only for GPU devices. CUDA,
 HIP, and LevelZero backends are supported. Not all image and interoperability
-features may supported on all backends. We provide device aspect queries which
-users can use to check support for specific features.
+features may be supported on all backends. We provide device aspects which users
+can query to check support for specific features.
 
 == Overview
 
@@ -2726,5 +2726,5 @@ This query should be added in a later revision of the proposal.
 |6.9|2025-03-18| - Add new `gather` image type and the accompanying
                    `gather_image` function.
 |6.10|2025-05-09| - Add `unmap_external_image_memory` and 
-                    `unmap_external_lienrar_memory` APIs.
+                    `unmap_external_linear_memory` APIs.
                   - Clarify how and when external memory should be unmapped.
