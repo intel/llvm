@@ -75,7 +75,7 @@ Release notes for commit range
   intel/llvm#17032, intel/llvm#16823, intel/llvm#16702, intel/llvm#16638,
   intel/llvm#16316, intel/llvm#17359, intel/llvm#16485, intel/llvm#16821
 - Known issues and limitations are documented
-  [in the extension specification](https://github.com/intel/llvm/blob/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc#non-normative-implementation-notes-for-dpc). intel/llvm#17307,
+  [in the extension specification](https://github.com/intel/llvm/blob/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc#known-issues-and-limitations-when-the-language-is-sycl). intel/llvm#17307,
   intel/llvm#17459
 
 ### SYCL graphs
@@ -90,7 +90,7 @@ Release notes for commit range
 ### Bindless images
 
 - Added support for more kinds of copy operations (`image_mem_handle` to USM and vice
-  versa, USM to USM, etc.)  intel/llvm#16661, intel/llvm#17507
+  versa, USM to USM, etc.) intel/llvm#16661, intel/llvm#17507
 - Added support for `gather_image` device built-in function. This feature is currently
   only supported on the CUDA backend. intel/llvm#17322
 - Added support for Vulkan timeline semaphores. intel/llvm#17395
