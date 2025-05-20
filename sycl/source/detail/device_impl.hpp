@@ -220,6 +220,22 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     }
   };
 
+#if defined(_GLIBCXX_RELEASE)
+  // libstdc++'s std::call_once is significantly slower than libc++
+  // implementation (30-40ns for libc++ CallOnceCache/EagerCache vs 50-60ns for
+  // CallOnceCache when using libstdc++ for queries of simple types like
+  // `ur_device_usm_access_capability_flags_t`). libc++ implements it via
+  // `__cxa_guard_*` (same as function static variables initialization) but
+  // libstdc++ cannot do that without an ABI break:
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146#c53.
+  //
+  // We do care about performance of the fast path and can pay extra costs in
+  // memory/slow-down during single init call, so add an extra flag to optimize.
+#define GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK 1
+#else
+#define GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK 0
+#endif
+
   // CallOnce - initialize on first query, but exactly once so that we could
   // return cached values by reference. Important for `std::vector` /
   // `std::string` values where returning cached values by value would cause
@@ -227,6 +243,9 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
   template <typename Desc> struct CallOnceCached {
     std::once_flag flag;
     typename Desc::return_type value;
+#if GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
+    std::atomic_bool initialized = false;
+#endif
   };
 
   template <typename Initializer, typename... Descs>
@@ -241,12 +260,23 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
 
     template <typename Desc> decltype(auto) get() {
       auto &Entry = *static_cast<CallOnceCached<Desc> *>(this);
+#if GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
+      if (!Entry.initialized.load(std::memory_order_acquire)) {
+        std::call_once(Entry.flag, [&]() {
+          Initializer::template init<Desc>(device, Entry.value);
+          Entry.initialized.store(true, std::memory_order_release);
+        });
+      }
+#else
       std::call_once(Entry.flag, Initializer::template init<Desc>, device,
                      Entry.value);
+#endif
       // Extra parentheses to return as reference (see `decltype(auto)`).
       return (std::as_const(Entry.value));
     }
   };
+
+#undef GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
 
   // get_info and get_info_impl need to know if a particular query is cacheable.
   // It's easier if all the cache instances (eager/call-once * UR/SYCL) are
