@@ -2734,8 +2734,7 @@ void enqueueImpKernel(
     KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
     KernelCacheVal = detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr,
-            NDRDesc);
+        ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr, NDRDesc);
     Kernel = KernelCacheVal->MKernelHandle;
     KernelMutex = KernelCacheVal->MMutex;
     Program = KernelCacheVal->MProgramHandle;

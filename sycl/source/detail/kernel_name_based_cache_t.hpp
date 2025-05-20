@@ -21,34 +21,34 @@ namespace detail {
 using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
 
 struct FastKernelCacheVal {
-    ur_kernel_handle_t MKernelHandle;    /* UR kernel handle pointer. */
-    std::mutex *MMutex;                  /* Mutex guarding this kernel. */
-    const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
-    ur_program_handle_t MProgramHandle;  /* UR program handle corresponding to
-                                       this kernel. */
-    std::weak_ptr<Adapter> MAdapterWeakPtr; /* Weak pointer to the adapter. */
+  ur_kernel_handle_t MKernelHandle;    /* UR kernel handle pointer. */
+  std::mutex *MMutex;                  /* Mutex guarding this kernel. */
+  const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
+  ur_program_handle_t MProgramHandle;  /* UR program handle corresponding to
+                                     this kernel. */
+  std::weak_ptr<Adapter> MAdapterWeakPtr; /* Weak pointer to the adapter. */
 
-    FastKernelCacheVal(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
-                       const KernelArgMask *KernelArgMask,
-                       ur_program_handle_t ProgramHandle,
-                       const AdapterPtr &Adapter)
-        : MKernelHandle(KernelHandle), MMutex(Mutex),
-          MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle),
-          MAdapterWeakPtr(Adapter) {}
+  FastKernelCacheVal(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
+                     const KernelArgMask *KernelArgMask,
+                     ur_program_handle_t ProgramHandle,
+                     const AdapterPtr &Adapter)
+      : MKernelHandle(KernelHandle), MMutex(Mutex),
+        MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle),
+        MAdapterWeakPtr(Adapter) {}
 
-    ~FastKernelCacheVal() {
-      if (AdapterPtr Adapter = MAdapterWeakPtr.lock()) {
-        if (MKernelHandle)
-          Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(
-              MKernelHandle);
-        if (MProgramHandle)
-          Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(
-              MProgramHandle);
-      }
+  ~FastKernelCacheVal() {
+    if (AdapterPtr Adapter = MAdapterWeakPtr.lock()) {
+      if (MKernelHandle)
+        Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(
+            MKernelHandle);
+      if (MProgramHandle)
+        Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(
+            MProgramHandle);
     }
+  }
 };
 using FastKernelCacheValPtr = std::shared_ptr<FastKernelCacheVal>;
-  
+
 using FastKernelSubcacheMapT =
     ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValPtr>;
 
