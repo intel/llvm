@@ -10,7 +10,6 @@
 
 - Added support for ... intel/llvm#pr
 
-
 ## Improvements and bugfixes
 
 ### Component A
