@@ -1484,7 +1484,7 @@ private:
   /// @param[out] UpdateDesc Base struct in the pointer chain.
   void populateURKernelUpdateStructs(
       const std::shared_ptr<node_impl> &Node,
-      std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
+      FastKernelCacheValPtr &BundleObjs,
       std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
       std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
       std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
