@@ -1334,7 +1334,7 @@ ur_result_t urDeviceGetInfo(
     }
   }
   case UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT:
-    return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE);
+    return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,

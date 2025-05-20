@@ -82,13 +82,12 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
   std::vector<ur_kernel_launch_property_t> props(1);
   props[0].id = UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE;
 
-  ur_kernel_launch_properties_support_flags_t supported_properties = 0;
+  ur_kernel_launch_properties_flags_t supported_properties = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(
       device, UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT,
       sizeof(supported_properties), &supported_properties, nullptr));
 
-  if (supported_properties &
-      UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE) {
+  if (supported_properties & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE) {
     ur_kernel_launch_property_t coop_prop;
     coop_prop.id = UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE;
     coop_prop.value.cooperative = 1;
@@ -96,7 +95,7 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
   }
 
   if (supported_properties &
-      UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION) {
+      UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION) {
     ur_kernel_launch_property_t cluster_dims_prop;
     cluster_dims_prop.id = UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION;
     cluster_dims_prop.value.clusterDim[0] = 16;

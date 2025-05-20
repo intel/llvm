@@ -13,12 +13,12 @@ struct urKernelSuggestMaxCooperativeGroupCountTest
 
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
 
-    ur_kernel_launch_properties_support_flags_t supported_properties = 0;
+    ur_kernel_launch_properties_flags_t supported_properties = 0;
     ASSERT_SUCCESS(urDeviceGetInfo(
         device, UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT,
         sizeof(supported_properties), &supported_properties, nullptr));
     if (!(supported_properties &
-          UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE)) {
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE)) {
       GTEST_SKIP() << "Cooperative launch is not supported.";
     }
   }

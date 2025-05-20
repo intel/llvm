@@ -2305,8 +2305,8 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
   /// [::ur_bool_t] support for native bfloat16 conversions
   UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
-  /// [::ur_kernel_launch_properties_support_flags_t] Bitfield of supported
-  /// kernel launch properties.
+  /// [::ur_kernel_launch_properties_flags_t] Bitfield of supported kernel
+  /// launch properties.
   UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT = 128,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
@@ -2986,22 +2986,22 @@ typedef enum ur_device_throttle_reasons_flag_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Kernel launch properties support
-typedef uint32_t ur_kernel_launch_properties_support_flags_t;
-typedef enum ur_kernel_launch_properties_support_flag_t {
+typedef uint32_t ur_kernel_launch_properties_flags_t;
+typedef enum ur_kernel_launch_properties_flag_t {
   /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and
   /// ::urKernelSuggestMaxCooperativeGroupCount
-  UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE = UR_BIT(0),
+  UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE = UR_BIT(0),
   /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION
-  UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION = UR_BIT(1),
+  UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION = UR_BIT(1),
   /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY
-  UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_WORK_GROUP_MEMORY = UR_BIT(2),
+  UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY = UR_BIT(2),
   /// @cond
-  UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_FORCE_UINT32 = 0x7fffffff
+  UR_KERNEL_LAUNCH_PROPERTIES_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
-} ur_kernel_launch_properties_support_flag_t;
-/// @brief Bit Mask for validating ur_kernel_launch_properties_support_flags_t
-#define UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAGS_MASK 0xfffffff8
+} ur_kernel_launch_properties_flag_t;
+/// @brief Bit Mask for validating ur_kernel_launch_properties_flags_t
+#define UR_KERNEL_LAUNCH_PROPERTIES_FLAGS_MASK 0xfffffff8
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -6788,8 +6788,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If ::UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT returns a
-///         value without the
-///         ::UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_COOPERATIVE bit set.
+///         value without the ::UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE bit
+///         set.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///         + `workDim < 1 || workDim > 3`
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(

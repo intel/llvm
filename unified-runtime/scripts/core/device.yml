@@ -463,7 +463,7 @@ etors:
     - name: BFLOAT16_CONVERSIONS_NATIVE
       desc: "[$x_bool_t] support for native bfloat16 conversions"
     - name: KERNEL_LAUNCH_PROPERTIES_SUPPORT
-      desc: "[$x_kernel_launch_properties_support_flags_t] Bitfield of supported kernel launch properties."
+      desc: "[$x_kernel_launch_properties_flags_t] Bitfield of supported kernel launch properties."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -977,7 +977,7 @@ etors:
 type: enum
 desc: "Kernel launch properties support"
 class: $xDevice
-name: $x_kernel_launch_properties_support_flags_t
+name: $x_kernel_launch_properties_flags_t
 etors:
     - name: COOPERATIVE
       desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and $xKernelSuggestMaxCooperativeGroupCount"

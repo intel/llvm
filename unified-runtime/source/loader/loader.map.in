@@ -373,7 +373,7 @@
 		urPrintKernelGetSuggestedLocalWorkSizeParams;
 		urPrintKernelGroupInfo;
 		urPrintKernelInfo;
-		urPrintKernelLaunchPropertiesSupportFlags;
+		urPrintKernelLaunchPropertiesFlags;
 		urPrintKernelLaunchProperty;
 		urPrintKernelLaunchPropertyId;
 		urPrintKernelNativeProperties;

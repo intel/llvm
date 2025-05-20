@@ -2747,12 +2747,12 @@ TEST_P(urDeviceGetInfoTest, SuccessKernelLaunchPropertiesSupport) {
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
-  ASSERT_EQ(property_size, sizeof(ur_kernel_launch_properties_support_flags_t));
+  ASSERT_EQ(property_size, sizeof(ur_kernel_launch_properties_flags_t));
 
-  ur_kernel_launch_properties_support_flags_t property_value =
-      UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_FORCE_UINT32;
+  ur_kernel_launch_properties_flags_t property_value =
+      UR_KERNEL_LAUNCH_PROPERTIES_FLAG_FORCE_UINT32;
   ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
                                  &property_value, nullptr));
 
-  ASSERT_EQ(property_value & UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAGS_MASK, 0);
+  ASSERT_EQ(property_value & UR_KERNEL_LAUNCH_PROPERTIES_FLAGS_MASK, 0);
 }

@@ -658,8 +658,7 @@ public:
       auto SupportFlags =
           get_info_impl<UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT>();
       return static_cast<bool>(
-          SupportFlags &
-          UR_KERNEL_LAUNCH_PROPERTIES_SUPPORT_FLAG_CLUSTER_DIMENSION);
+          SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
     // ext_codeplay_device_traits.def
