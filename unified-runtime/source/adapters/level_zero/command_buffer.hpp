@@ -136,7 +136,9 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   bool IsFinalized = false;
   // Command-buffer profiling is enabled.
   bool IsProfilingEnabled = false;
-  // Command-buffer can be submitted to an in-order command-list.
+  // User requested an in-order UR command-buffer
+  bool InOrderRequested = false;
+  // Command-buffer will be created from an in-order command-list.
   bool IsInOrderCmdList = false;
   // Whether this command-buffer should use the code path that uses
   // zeCommandListImmediateAppendCommandListsExp during enqueue.

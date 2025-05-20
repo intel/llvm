@@ -111,3 +111,59 @@ TEST_P(urL0CommandBufferNativeAppendTest, Dependencies) {
     ASSERT_EQ(i, val);
   }
 }
+
+// Test using an in-order command-buffer
+struct urL0InOrderCommandBufferNativeAppendTest
+    : urL0CommandBufferNativeAppendTest {
+  virtual void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urL0CommandBufferNativeAppendTest::SetUp());
+
+    ur_exp_command_buffer_desc_t desc{
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, // stype
+        nullptr,                                   // pnext
+        false,                                     // isUpdatable
+        true,                                      // isInOrder
+        false,                                     // enableProfiling
+    };
+    ASSERT_SUCCESS(
+        urCommandBufferCreateExp(context, device, &desc, &in_order_cb));
+    ASSERT_NE(in_order_cb, nullptr);
+  }
+
+  virtual void TearDown() override {
+    if (in_order_cb) {
+      EXPECT_SUCCESS(urCommandBufferReleaseExp(in_order_cb));
+    }
+
+    UUR_RETURN_ON_FATAL_FAILURE(urL0CommandBufferNativeAppendTest::TearDown());
+  }
+  ur_exp_command_buffer_handle_t in_order_cb = nullptr;
+};
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urL0InOrderCommandBufferNativeAppendTest);
+
+// Test command-buffer native command with other command-buffer commands as
+// predecessors and successors, defined using in-order property rather than
+// sync-points
+TEST_P(urL0InOrderCommandBufferNativeAppendTest, Success) {
+  ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
+      in_order_cb, src_device_ptr, &val, sizeof(val), allocation_size, 0,
+      nullptr, 0, nullptr, nullptr, nullptr, nullptr));
+
+  InteropData data{in_order_cb, src_device_ptr, dst_device_ptr};
+  ASSERT_SUCCESS(urCommandBufferAppendNativeCommandExp(
+      in_order_cb, &interop_func, &data, nullptr, 0, nullptr, nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferAppendUSMMemcpyExp(
+      in_order_cb, host_vec.data(), dst_device_ptr, allocation_size, 0, nullptr,
+      0, nullptr, nullptr, nullptr, nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(in_order_cb));
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, in_order_cb, 0, nullptr, nullptr));
+
+  urQueueFinish(queue);
+  for (auto &i : host_vec) {
+    ASSERT_EQ(i, val);
+  }
+}
