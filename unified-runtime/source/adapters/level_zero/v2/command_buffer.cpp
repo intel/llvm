@@ -123,6 +123,20 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   // It is not allowed to append to command list from multiple threads.
   auto commandListLocked = commandListManager.lock();
   UR_ASSERT(!isFinalized, UR_RESULT_ERROR_INVALID_OPERATION);
+
+  if (!isInOrder) {
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
+    for (auto &event : syncPoints) {
+      if (event.second) {
+        ZE2UR_CALL(zeCommandListAppendEventReset,
+                   (commandListLocked->getZeCommandList(),
+                    event.second->getZeEvent()));
+      }
+    }
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
+  }
   // Close the command lists and have them ready for dispatch.
   ZE2UR_CALL(zeCommandListClose, (commandListLocked->getZeCommandList()));
   isFinalized = true;

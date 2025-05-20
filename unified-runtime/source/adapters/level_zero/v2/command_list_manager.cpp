@@ -259,7 +259,7 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy(
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (zeCommandList.get(), pDst, pSrc, size, zeSignalEvent,
-             numWaitEvents, pWaitEvents));
+              numWaitEvents, pWaitEvents));
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize, (zeCommandList.get(), UINT64_MAX));
