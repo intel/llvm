@@ -1485,6 +1485,8 @@ public:
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
     }
+    assert(false && "Why doesn't has<aspect>() cover it?");
+    return false;
   }
 
   /// Queries SYCL queue for SYCL backend-specific information.
