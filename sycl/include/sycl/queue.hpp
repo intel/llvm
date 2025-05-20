@@ -66,7 +66,7 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class queue_impl;
 
-inline event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(const queue &, event &, queue *,
                                  const detail::code_location &);
 
 // Function to postprocess submitted command
@@ -3582,7 +3582,7 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-  friend event detail::submitAssertCapture(queue &, event &, queue *,
+  friend event detail::submitAssertCapture(const queue &, event &, queue *,
                                            const detail::code_location &);
 #endif
 
@@ -3647,7 +3647,7 @@ private:
   event submit_with_event_impl(std::function<void(handler &)> CGH,
                                const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
+                               bool IsTopCodeLoc) const;
 
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
@@ -3656,7 +3656,7 @@ private:
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
+                               bool IsTopCodeLoc) const;
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
@@ -3667,7 +3667,7 @@ private:
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::v1::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc);
+                               bool IsTopCodeLoc) const;
 
   /// A template-free version of submit_without_event.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
@@ -3688,10 +3688,11 @@ private:
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
   template <bool UseFallbackAssert, typename PropertiesT>
-  event submit_with_event(
-      PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
-      queue *SecondaryQueuePtr,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+  event submit_with_event(PropertiesT Props,
+                          const detail::type_erased_cgfo_ty &CGF,
+                          queue *SecondaryQueuePtr,
+                          const detail::code_location &CodeLoc =
+                              detail::code_location::current()) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::v1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
@@ -3727,9 +3728,10 @@ private:
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
   template <bool UseFallbackAssert, typename PropertiesT>
-  event submit_with_event(
-      PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+  event submit_with_event(PropertiesT Props,
+                          const detail::type_erased_cgfo_ty &CGF,
+                          const detail::code_location &CodeLoc =
+                              detail::code_location::current()) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::v1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
@@ -3949,7 +3951,8 @@ class AssertInfoCopier;
  * which it gets compiled and exported without any integration header and, thus,
  * with no proper KernelInfo instance.
  */
-event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
+event submitAssertCapture(const queue &Self, event &Event,
+                          queue *SecondaryQueue,
                           const detail::code_location &CodeLoc) {
   buffer<detail::AssertHappened, 1> Buffer{1};
 
