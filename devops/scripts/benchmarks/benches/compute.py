@@ -367,7 +367,7 @@ class SubmitKernel(ComputeBenchmark):
             "--iterations=100000",
             "--Profiling=0",
             "--NumKernels=10",
-            "--KernelExecTime=1",
+            "--KernelExecTime=20",
             f"--UseEvents={self.UseEvents}",
         ]
 
