@@ -60,7 +60,7 @@ template <size_t N> struct signal_events_handle {
 
 struct ur_queue_immediate_out_of_order_t : ur_object, ur_queue_t_ {
 private:
-  static constexpr size_t numCommandLists = 16;
+  static constexpr size_t numCommandLists = 4;
 
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
