@@ -24,25 +24,15 @@ namespace detail {
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                          device_impl::private_tag)
     : MDevice(Device), MPlatform(Platform.shared_from_this()),
-      MDeviceHostBaseTime(std::make_pair(0, 0)) {
-  const AdapterPtr &Adapter = Platform.getAdapter();
-
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  MType = get_info_impl<UR_DEVICE_INFO_TYPE>();
-
-  // No need to set MRootDevice when MAlwaysRootDevice is true
-  // TODO: Is get_info aligned with this?
-  if (!Platform.MAlwaysRootDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    MRootDevice = get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>();
-  }
-
-  // TODO catch an exception and put it to list of asynchronous exceptions
+      // No need to set MRootDevice when MAlwaysRootDevice is true
+      MRootDevice(Platform.MAlwaysRootDevice
+                      ? nullptr
+                      : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
+      // TODO catch an exception and put it to list of asynchronous exceptions:
+      MCache{*this} {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
-  Adapter->call<UrApiKind::urDeviceRetain>(MDevice);
-
-  MUseNativeAssert = get_info_impl<UR_DEVICE_INFO_USE_NATIVE_ASSERT>();
+  getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
 }
 
 device_impl::~device_impl() {
@@ -415,7 +405,7 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_srgb:
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
-    return useNativeAssert();
+    return get_info_impl<UR_DEVICE_INFO_USE_NATIVE_ASSERT>();
   case aspect::ext_oneapi_cuda_async_barrier: {
     return get_info_impl_nocheck<UR_DEVICE_INFO_ASYNC_BARRIER>().value_or(0);
   }
@@ -647,24 +637,6 @@ bool device_impl::has(aspect Aspect) const {
   }
 
   return false; // This device aspect has not been implemented yet.
-}
-
-bool device_impl::useNativeAssert() const { return MUseNativeAssert; }
-
-std::string device_impl::getDeviceName() const {
-  std::call_once(MDeviceNameFlag,
-                 [this]() { MDeviceName = get_info<info::device::name>(); });
-
-  return MDeviceName;
-}
-
-ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
-  std::call_once(MDeviceArchFlag, [this]() {
-    MDeviceArch =
-        get_info<ext::oneapi::experimental::info::device::architecture>();
-  });
-
-  return MDeviceArch;
 }
 
 // On the first call this function queries for device timestamp
