@@ -9,6 +9,7 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/detail/defines.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/multi_ptr.hpp>
 
@@ -115,6 +116,9 @@ private:
   friend class sycl::handler; // needed in order for handler class to be aware
                               // of the private inheritance with
                               // work_group_memory_impl as base class
+
+  template <typename, typename> friend class dynamic_work_group_memory;
+
   decoratedPtr ptr = nullptr;
 };
 } // namespace ext::oneapi::experimental

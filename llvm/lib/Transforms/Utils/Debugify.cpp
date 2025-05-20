@@ -214,30 +214,27 @@ bool llvm::applyDebugifyMetadata(
   return true;
 }
 
-static bool
-applyDebugify(Function &F,
-              enum DebugifyMode Mode = DebugifyMode::SyntheticDebugInfo,
-              DebugInfoPerPass *DebugInfoBeforePass = nullptr,
-              StringRef NameOfWrappedPass = "") {
+static bool applyDebugify(Function &F, enum DebugifyMode Mode,
+                          DebugInfoPerPass *DebugInfoBeforePass,
+                          StringRef NameOfWrappedPass = "") {
   Module &M = *F.getParent();
   auto FuncIt = F.getIterator();
   if (Mode == DebugifyMode::SyntheticDebugInfo)
     return applyDebugifyMetadata(M, make_range(FuncIt, std::next(FuncIt)),
                                  "FunctionDebugify: ", /*ApplyToMF*/ nullptr);
-  assert(DebugInfoBeforePass);
+  assert(DebugInfoBeforePass && "Missing debug info metadata");
   return collectDebugInfoMetadata(M, M.functions(), *DebugInfoBeforePass,
                                   "FunctionDebugify (original debuginfo)",
                                   NameOfWrappedPass);
 }
 
-static bool
-applyDebugify(Module &M,
-              enum DebugifyMode Mode = DebugifyMode::SyntheticDebugInfo,
-              DebugInfoPerPass *DebugInfoBeforePass = nullptr,
-              StringRef NameOfWrappedPass = "") {
+static bool applyDebugify(Module &M, enum DebugifyMode Mode,
+                          DebugInfoPerPass *DebugInfoBeforePass,
+                          StringRef NameOfWrappedPass = "") {
   if (Mode == DebugifyMode::SyntheticDebugInfo)
     return applyDebugifyMetadata(M, M.functions(),
                                  "ModuleDebugify: ", /*ApplyToMF*/ nullptr);
+  assert(DebugInfoBeforePass && "Missing debug info metadata");
   return collectDebugInfoMetadata(M, M.functions(), *DebugInfoBeforePass,
                                   "ModuleDebugify (original debuginfo)",
                                   NameOfWrappedPass);
@@ -291,6 +288,16 @@ bool llvm::stripDebugifyMetadata(Module &M) {
     NMD->eraseFromParent();
 
   return Changed;
+}
+
+bool hasLoc(const Instruction &I) {
+  const DILocation *Loc = I.getDebugLoc().get();
+#if LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING
+  DebugLocKind Kind = I.getDebugLoc().getKind();
+  return Loc || Kind != DebugLocKind::Normal;
+#else
+  return Loc;
+#endif
 }
 
 bool llvm::collectDebugInfoMetadata(Module &M,
@@ -365,9 +372,7 @@ bool llvm::collectDebugInfoMetadata(Module &M,
         LLVM_DEBUG(dbgs() << "  Collecting info for inst: " << I << '\n');
         DebugInfoBeforePass.InstToDelete.insert({&I, &I});
 
-        const DILocation *Loc = I.getDebugLoc().get();
-        bool HasLoc = Loc != nullptr;
-        DebugInfoBeforePass.DILocations.insert({&I, HasLoc});
+        DebugInfoBeforePass.DILocations.insert({&I, hasLoc(I)});
       }
     }
   }
@@ -610,10 +615,7 @@ bool llvm::checkDebugInfoMetadata(Module &M,
 
         LLVM_DEBUG(dbgs() << "  Collecting info for inst: " << I << '\n');
 
-        const DILocation *Loc = I.getDebugLoc().get();
-        bool HasLoc = Loc != nullptr;
-
-        DebugInfoAfterPass.DILocations.insert({&I, HasLoc});
+        DebugInfoAfterPass.DILocations.insert({&I, hasLoc(I)});
       }
     }
   }

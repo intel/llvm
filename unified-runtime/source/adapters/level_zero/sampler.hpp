@@ -11,7 +11,7 @@
 
 #include "common.hpp"
 
-struct ur_sampler_handle_t_ : _ur_object {
+struct ur_sampler_handle_t_ : ur_object {
   ur_sampler_handle_t_(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
 
   // Level Zero sampler handle.
@@ -19,3 +19,8 @@ struct ur_sampler_handle_t_ : _ur_object {
 
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
 };
+
+// Construct ZE sampler desc from UR sampler desc.
+ur_result_t ur2zeSamplerDesc(ze_api_version_t ZeApiVersion,
+                             const ur_sampler_desc_t *SamplerDesc,
+                             ZeStruct<ze_sampler_desc_t> &ZeSamplerDesc);

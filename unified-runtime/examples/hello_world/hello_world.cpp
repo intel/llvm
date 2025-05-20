@@ -47,21 +47,24 @@ int main(int, char *[]) {
     return 1;
   }
 
-  status =
-      urPlatformGet(adapters.data(), adapterCount, 1, nullptr, &platformCount);
-  if (status != UR_RESULT_SUCCESS) {
-    std::cout << "urPlatformGet failed with return code: " << status
-              << std::endl;
-    goto out;
-  }
+  for (auto adapter : adapters) {
+    uint32_t adapterPlatformCount = 0;
+    status = urPlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
+    if (status != UR_RESULT_SUCCESS) {
+      std::cout << "urPlatformGet failed with return code: " << status
+                << std::endl;
+      goto out;
+    }
 
-  platforms.resize(platformCount);
-  status = urPlatformGet(adapters.data(), adapterCount, platformCount,
-                         platforms.data(), nullptr);
-  if (status != UR_RESULT_SUCCESS) {
-    std::cout << "urPlatformGet failed with return code: " << status
-              << std::endl;
-    goto out;
+    platforms.resize(platformCount + adapterPlatformCount);
+    status = urPlatformGet(adapter, adapterPlatformCount,
+                           &platforms[platformCount], &adapterPlatformCount);
+    if (status != UR_RESULT_SUCCESS) {
+      std::cout << "urPlatformGet failed with return code: " << status
+                << std::endl;
+      goto out;
+    }
+    platformCount += adapterPlatformCount;
   }
 
   for (auto p : platforms) {

@@ -3,6 +3,7 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
+include(CheckLinkerFlag)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -26,12 +27,16 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   check_cxx_compiler_flag(-Winstantiation-after-specialization
     HAS_INST_AFTER_SPEC)
+  check_cxx_compiler_flag(-ffunction-sections HAS_FUNCTION_SECTIONS_FLAG)
+  check_cxx_compiler_flag(-fdata-sections HAS_DATA_SECTIONS_FLAG)
 
   target_compile_options(
     ${LIB_OBJ_NAME}
     PRIVATE
       ${ARG_COMPILE_OPTIONS}
       $<$<BOOL:${HAS_INST_AFTER_SPEC}>:-Winstantiation-after-specialization>
+      $<$<BOOL:${HAS_FUNCTION_SECTIONS_FLAG}>:-ffunction-sections>
+      $<$<BOOL:${HAS_DATA_SECTIONS_FLAG}>:-fdata-sections>
     PUBLIC
       $<$<NOT:$<BOOL:${MSVC}>>:-fvisibility=hidden -fvisibility-inlines-hidden>
       # Sycl math built-in macros cause a GCC 4.6 'note' to be output
@@ -45,6 +50,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   target_compile_definitions(
     ${LIB_OBJ_NAME}
     PRIVATE
+      __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
       __SYCL_INTERNAL_API
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
@@ -85,15 +91,8 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Feature-specific compilation and link step setup
 
-  # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
-  # so, we link LLVMSupport lib to matching sycl version only.
   if (SYCL_ENABLE_STACK_PRINTING)
-    if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
-      (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
-        add_dependencies(${LIB_NAME} LLVMSupport)
-        target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
-        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
-    endif()
+    target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
   endif()
 
   # TODO: Enabled for MSVC
@@ -187,6 +186,18 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     endif()
   endif()
 
+  # Link with LLVMSupport for shared utilities.
+  add_dependencies(${LIB_NAME} LLVMSupport)
+  target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+  target_include_directories(${LIB_OBJ_NAME} SYSTEM PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
+
+  check_linker_flag(CXX "-Wl,--gc-sections" LINKER_SUPPORTS_WL_GC_SECTIONS)
+  if(LINKER_SUPPORTS_WL_GC_SECTIONS)
+    # Reduces the size of the resulting library by having the linker perform
+    # garbage collection.
+    target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
+  endif()
+
   if(SYCL_ENABLE_EXTENSION_JIT)
     if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
       message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR variable: Must be set when extension to JIT SYCL kernels is enabled")
@@ -262,6 +273,7 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
+    "detail/kernel_name_based_cache.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
     "detail/pipes.cpp"
@@ -307,6 +319,10 @@ set(SYCL_COMMON_SOURCES
     "stream.cpp"
     "spirv_ops.cpp"
     "virtual_mem.cpp"
+    "detail/memory_pool_impl.cpp"
+    "detail/async_alloc.cpp"
+    "detail/memory_pool.cpp"
+    "detail/graph_memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )

@@ -40,6 +40,8 @@ public:
   event_pool(const event_pool &) = delete;
   event_pool &operator=(const event_pool &) = delete;
 
+  ~event_pool() = default;
+
   // Allocate an event from the pool. Thread safe.
   ur_event_handle_t allocate();
 

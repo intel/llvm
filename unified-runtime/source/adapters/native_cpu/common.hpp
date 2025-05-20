@@ -16,41 +16,45 @@
 
 constexpr size_t MaxMessageSize = 256;
 
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 #define DIE_NO_IMPLEMENTATION                                                  \
   do {                                                                         \
-    logger::error("Not Implemented : {} - File : {} / Line : {}",              \
-                  __FUNCTION__, __FILE__, __LINE__);                           \
-                                                                               \
+    UR_LOG(ERR, "Not Implemented : {}", __FUNCTION__)                          \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;                                \
   } while (false)
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   do {                                                                         \
-    logger::warning("Not Implemented : {} - File : {} / Line : {}",            \
-                    __FUNCTION__, __FILE__, __LINE__);                         \
+    UR_LOG(WARN, "Not Implemented : {}", __FUNCTION__)                         \
     return UR_RESULT_SUCCESS;                                                  \
   } while (false)
 
 #define CASE_UR_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
-    logger::error("Unsupported UR case : {} in {}:{}({})", #not_supported,     \
-                  __FUNCTION__, __LINE__, __FILE__);                           \
+    UR_LOG(ERR, "Unsupported UR case : {} in {}", #not_supported,              \
+           __FUNCTION__)                                                       \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
+namespace ur::native_cpu {
+struct ddi_getter {
+  static const ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ddi_getter>;
+} // namespace ur::native_cpu
+
 // Todo: replace this with a common helper once it is available
-struct RefCounted {
+struct RefCounted : ur::native_cpu::handle_base {
   std::atomic_uint32_t _refCount;
   uint32_t incrementReferenceCount() { return ++_refCount; }
   uint32_t decrementReferenceCount() { return --_refCount; }
-  RefCounted() : _refCount{1} {}
+  RefCounted() : handle_base(), _refCount{1} {}
   uint32_t getReferenceCount() const { return _refCount; }
 };
 
 // Base class to store common data
-struct _ur_object : RefCounted {
+struct ur_object : RefCounted {
   ur_shared_mutex Mutex;
 };
 

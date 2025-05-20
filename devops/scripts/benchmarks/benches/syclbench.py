@@ -56,6 +56,11 @@ class SyclBench(Suite):
                 f"-DCMAKE_CXX_FLAGS=-fsycl -fsycl-targets=nvptx64-nvidia-cuda"
             ]
 
+        if options.ur_adapter == "hip":
+            configure_command += [
+                f"-DCMAKE_CXX_FLAGS=-fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch={options.hip_arch}"
+            ]
+
         run(configure_command, add_sycl=True)
         run(f"cmake --build {build_path} -j {options.build_jobs}", add_sycl=True)
 

@@ -13,6 +13,7 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/kernel_name_str_t.hpp>
 
 #include <functional>
 #include <gmock/gmock.h>
@@ -219,7 +220,7 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue,
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> &Queue,
               bool CallerNeedsEvent)
       : sycl::handler(Queue, CallerNeedsEvent) {}
   // Methods
@@ -252,12 +253,12 @@ public:
     return impl->CGData.MEvents;
   }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
-  std::string getKernelName() { return MKernelName.c_str(); }
+  std::string getKernelName() { return MKernelName.data(); }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
   }
-  std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
+  const std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
 
   void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 
@@ -286,7 +287,7 @@ public:
 
 class MockHandlerCustomFinalize : public MockHandler {
 public:
-  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
+  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> &Queue,
                             bool CallerNeedsEvent)
       : MockHandler(Queue, CallerNeedsEvent) {}
 
@@ -300,8 +301,8 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), getStreamStorage(), impl->MAuxiliaryResources,
-          getType(), {}, impl->MKernelIsCooperative,
+          getKernelName(), impl->MKernelNameBasedCachePtr, getStreamStorage(),
+          impl->MAuxiliaryResources, getType(), {}, impl->MKernelIsCooperative,
           impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
           getCodeLoc()));
       break;

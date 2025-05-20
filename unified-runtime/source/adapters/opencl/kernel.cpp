@@ -7,21 +7,83 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "kernel.hpp"
+#include "adapter.hpp"
 #include "common.hpp"
 #include "device.hpp"
+#include "memory.hpp"
+#include "program.hpp"
+#include "queue.hpp"
+#include "sampler.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <memory>
 
+ur_result_t ur_kernel_handle_t_::makeWithNative(native_type NativeKernel,
+                                                ur_program_handle_t Program,
+                                                ur_context_handle_t Context,
+                                                ur_kernel_handle_t &Kernel) {
+  try {
+    cl_context CLContext;
+    CL_RETURN_ON_FAILURE(clGetKernelInfo(NativeKernel, CL_KERNEL_CONTEXT,
+                                         sizeof(CLContext), &CLContext,
+                                         nullptr));
+    cl_program CLProgram;
+    CL_RETURN_ON_FAILURE(clGetKernelInfo(NativeKernel, CL_KERNEL_PROGRAM,
+                                         sizeof(CLProgram), &CLProgram,
+                                         nullptr));
+
+    if (Context->CLContext != CLContext) {
+      return UR_RESULT_ERROR_INVALID_CONTEXT;
+    }
+    if (Program) {
+      if (Program->CLProgram != CLProgram) {
+        return UR_RESULT_ERROR_INVALID_PROGRAM;
+      }
+    } else {
+      ur_native_handle_t hNativeHandle =
+          reinterpret_cast<ur_native_handle_t>(CLProgram);
+      UR_RETURN_ON_FAILURE(urProgramCreateWithNativeHandle(
+          hNativeHandle, Context, nullptr, &Program));
+    }
+
+    auto URKernel =
+        std::make_unique<ur_kernel_handle_t_>(NativeKernel, Program, Context);
+    Kernel = URKernel.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {
+  try {
+    cl_int CLResult;
+    cl_kernel Kernel =
+        clCreateKernel(hProgram->CLProgram, pKernelName, &CLResult);
 
-  cl_int CLResult;
-  *phKernel = cl_adapter::cast<ur_kernel_handle_t>(clCreateKernel(
-      cl_adapter::cast<cl_program>(hProgram), pKernelName, &CLResult));
-  CL_RETURN_ON_FAILURE(CLResult);
+    if (CLResult == CL_INVALID_KERNEL_DEFINITION) {
+      cl_adapter::setErrorMessage(
+          "clCreateKernel failed with CL_INVALID_KERNEL_DEFINITION", CLResult);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
+    CL_RETURN_ON_FAILURE(CLResult);
+    auto URKernel = std::make_unique<ur_kernel_handle_t_>(Kernel, hProgram,
+                                                          hProgram->Context);
+    *phKernel = URKernel.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -29,9 +91,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
 
-  CL_RETURN_ON_FAILURE(clSetKernelArg(cl_adapter::cast<cl_kernel>(hKernel),
-                                      cl_adapter::cast<cl_uint>(argIndex),
-                                      argSize, pArgValue));
+  CL_RETURN_ON_FAILURE(clSetKernelArg(
+      hKernel->CLKernel, static_cast<cl_uint>(argIndex), argSize, pArgValue));
 
   return UR_RESULT_SUCCESS;
 }
@@ -40,15 +101,19 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
                     size_t argSize, const ur_kernel_arg_local_properties_t *) {
 
-  CL_RETURN_ON_FAILURE(clSetKernelArg(cl_adapter::cast<cl_kernel>(hKernel),
-                                      cl_adapter::cast<cl_uint>(argIndex),
-                                      argSize, nullptr));
+  CL_RETURN_ON_FAILURE(clSetKernelArg(
+      hKernel->CLKernel, static_cast<cl_uint>(argIndex), argSize, nullptr));
 
   return UR_RESULT_SUCCESS;
 }
 
-static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
+// Querying the number of registers that a kernel uses is supported unofficially
+// on some devices.
+#ifndef CL_KERNEL_REGISTER_COUNT_INTEL
+#define CL_KERNEL_REGISTER_COUNT_INTEL 0x425B
+#endif
 
+static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
   switch (static_cast<uint32_t>(URPropName)) {
   case UR_KERNEL_INFO_FUNCTION_NAME:
     return CL_KERNEL_FUNCTION_NAME;
@@ -62,9 +127,10 @@ static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
     return CL_KERNEL_PROGRAM;
   case UR_KERNEL_INFO_ATTRIBUTES:
     return CL_KERNEL_ATTRIBUTES;
-  // NUM_REGS doesn't have a CL equivalent
-  case UR_KERNEL_INFO_NUM_REGS:
   case UR_KERNEL_INFO_SPILL_MEM_SIZE:
+    return CL_KERNEL_SPILL_MEM_SIZE_INTEL;
+  case UR_KERNEL_INFO_NUM_REGS:
+    return CL_KERNEL_REGISTER_COUNT_INTEL;
   default:
     return -1;
   }
@@ -75,23 +141,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     size_t propSize,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
-  // OpenCL doesn't have a way to support this.
-  if (propName == UR_KERNEL_INFO_NUM_REGS) {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_KERNEL_INFO_PROGRAM: {
+    return ReturnValue(hKernel->Program);
   }
-  if (propName == UR_KERNEL_INFO_SPILL_MEM_SIZE) {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_KERNEL_INFO_CONTEXT: {
+    return ReturnValue(hKernel->Context);
   }
-  size_t CheckPropSize = 0;
-  cl_int ClResult = clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                    mapURKernelInfoToCL(propName), propSize,
-                                    pPropValue, &CheckPropSize);
-  if (pPropValue && CheckPropSize != propSize) {
-    return UR_RESULT_ERROR_INVALID_SIZE;
+  case UR_KERNEL_INFO_REFERENCE_COUNT: {
+    return ReturnValue(hKernel->getReferenceCount());
   }
-  CL_RETURN_ON_FAILURE(ClResult);
-  if (pPropSizeRet) {
-    *pPropSizeRet = CheckPropSize;
+  default: {
+    size_t CheckPropSize = 0;
+    cl_int ClResult =
+        clGetKernelInfo(hKernel->CLKernel, mapURKernelInfoToCL(propName),
+                        propSize, pPropValue, &CheckPropSize);
+    if (pPropValue && CheckPropSize != propSize) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    if (ClResult == CL_INVALID_VALUE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    CL_RETURN_ON_FAILURE(ClResult);
+    if (pPropSizeRet) {
+      *pPropSizeRet = CheckPropSize;
+    }
+  }
   }
 
   return UR_RESULT_SUCCESS;
@@ -128,9 +206,9 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   // to deter naive use of the query.
   if (propName == UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE) {
     cl_device_type ClDeviceType;
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_TYPE,
-                        sizeof(ClDeviceType), &ClDeviceType, nullptr));
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice, CL_DEVICE_TYPE,
+                                         sizeof(ClDeviceType), &ClDeviceType,
+                                         nullptr));
     if (ClDeviceType != CL_DEVICE_TYPE_CUSTOM) {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
@@ -140,9 +218,8 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
   CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
-      cl_adapter::cast<cl_kernel>(hKernel),
-      cl_adapter::cast<cl_device_id>(hDevice),
-      mapURKernelGroupInfoToCL(propName), propSize, pPropValue, pPropSizeRet));
+      hKernel->CLKernel, hDevice->CLDevice, mapURKernelGroupInfoToCL(propName),
+      propSize, pPropValue, pPropSizeRet));
 
   return UR_RESULT_SUCCESS;
 }
@@ -199,31 +276,27 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   cl_ext::clGetKernelSubGroupInfoKHR_fn GetKernelSubGroupInfo = nullptr;
 
   oclv::OpenCLVersion DevVer;
-  CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
-      cl_adapter::cast<cl_device_id>(hDevice), DevVer));
+  CL_RETURN_ON_FAILURE(hDevice->getDeviceVersion(DevVer));
 
   if (DevVer < oclv::V2_1) {
     bool SubgroupExtSupported = false;
 
-    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
-        cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_subgroups"},
-        SubgroupExtSupported));
+    UR_RETURN_ON_FAILURE(hDevice->checkDeviceExtensions({"cl_khr_subgroups"},
+                                                        SubgroupExtSupported));
     if (!SubgroupExtSupported) {
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
     cl_context Context = nullptr;
-    CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                         CL_KERNEL_CONTEXT, sizeof(Context),
-                                         &Context, nullptr));
+    CL_RETURN_ON_FAILURE(clGetKernelInfo(hKernel->CLKernel, CL_KERNEL_CONTEXT,
+                                         sizeof(Context), &Context, nullptr));
     UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext(
-        Context, cl_ext::ExtFuncPtrCache->clGetKernelSubGroupInfoKHRCache,
+        Context, ur::cl::getAdapter()->fnCache.clGetKernelSubGroupInfoKHRCache,
         cl_ext::GetKernelSubGroupInfoName, &GetKernelSubGroupInfo));
   } else {
     GetKernelSubGroupInfo = clGetKernelSubGroupInfo;
   }
 
-  cl_int Ret = GetKernelSubGroupInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                     cl_adapter::cast<cl_device_id>(hDevice),
+  cl_int Ret = GetKernelSubGroupInfo(hKernel->CLKernel, hDevice->CLDevice,
                                      mapURKernelSubGroupInfoToCL(propName),
                                      InputValueSize, InputValue.get(),
                                      sizeof(size_t), &RetVal, pPropSizeRet);
@@ -270,13 +343,15 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  CL_RETURN_ON_FAILURE(clRetainKernel(cl_adapter::cast<cl_kernel>(hKernel)));
+  hKernel->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  CL_RETURN_ON_FAILURE(clReleaseKernel(cl_adapter::cast<cl_kernel>(hKernel)));
+  if (hKernel->decrementReferenceCount() == 0) {
+    delete hKernel;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -294,41 +369,38 @@ static ur_result_t usmSetIndirectAccess(ur_kernel_handle_t hKernel) {
 
   /* We test that each alloc type is supported before we actually try to set
    * KernelExecInfo. */
-  CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                       CL_KERNEL_CONTEXT, sizeof(cl_context),
-                                       &CLContext, nullptr));
+  CL_RETURN_ON_FAILURE(clGetKernelInfo(hKernel->CLKernel, CL_KERNEL_CONTEXT,
+                                       sizeof(cl_context), &CLContext,
+                                       nullptr));
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clHostMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
       cl_ext::HostMemAllocName, &HFunc));
 
   if (HFunc) {
-    CL_RETURN_ON_FAILURE(
-        clSetKernelExecInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                            CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-                            sizeof(cl_bool), &TrueVal));
+    CL_RETURN_ON_FAILURE(clSetKernelExecInfo(
+        hKernel->CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+        sizeof(cl_bool), &TrueVal));
   }
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clDeviceMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clDeviceMemAllocINTELCache,
       cl_ext::DeviceMemAllocName, &DFunc));
 
   if (DFunc) {
-    CL_RETURN_ON_FAILURE(
-        clSetKernelExecInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                            CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-                            sizeof(cl_bool), &TrueVal));
+    CL_RETURN_ON_FAILURE(clSetKernelExecInfo(
+        hKernel->CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+        sizeof(cl_bool), &TrueVal));
   }
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clSharedMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clSharedMemAllocINTELCache,
       cl_ext::SharedMemAllocName, &SFunc));
 
   if (SFunc) {
-    CL_RETURN_ON_FAILURE(
-        clSetKernelExecInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                            CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-                            sizeof(cl_bool), &TrueVal));
+    CL_RETURN_ON_FAILURE(clSetKernelExecInfo(
+        hKernel->CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+        sizeof(cl_bool), &TrueVal));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -350,9 +422,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     return UR_RESULT_SUCCESS;
   }
   case UR_KERNEL_EXEC_INFO_USM_PTRS: {
-    CL_RETURN_ON_FAILURE(clSetKernelExecInfo(
-        cl_adapter::cast<cl_kernel>(hKernel),
-        CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL, propSize, pPropValue));
+    CL_RETURN_ON_FAILURE(clSetKernelExecInfo(hKernel->CLKernel,
+                                             CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL,
+                                             propSize, pPropValue));
     return UR_RESULT_SUCCESS;
   }
   default: {
@@ -365,30 +437,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
 
-  cl_context CLContext;
-  CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                       CL_KERNEL_CONTEXT, sizeof(cl_context),
-                                       &CLContext, nullptr));
-
-  clSetKernelArgMemPointerINTEL_fn FuncPtr = nullptr;
-  UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
-          CLContext,
-          cl_ext::ExtFuncPtrCache->clSetKernelArgMemPointerINTELCache,
-          cl_ext::SetKernelArgMemPointerName, &FuncPtr));
-
-  if (FuncPtr) {
-    CL_RETURN_ON_FAILURE(FuncPtr(cl_adapter::cast<cl_kernel>(hKernel),
-                                 cl_adapter::cast<cl_uint>(argIndex),
-                                 pArgValue));
+  if (hKernel->clSetKernelArgMemPointerINTEL == nullptr) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+
+  CL_RETURN_ON_FAILURE(hKernel->clSetKernelArgMemPointerINTEL(
+      hKernel->CLKernel, static_cast<cl_uint>(argIndex), pArgValue));
 
   return UR_RESULT_SUCCESS;
 }
+
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
 
-  *phNativeKernel = reinterpret_cast<ur_native_handle_t>(hKernel);
+  *phNativeKernel = reinterpret_cast<ur_native_handle_t>(hKernel->CLKernel);
   return UR_RESULT_SUCCESS;
 }
 
@@ -403,13 +465,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ur_context_handle_t, ur_program_handle_t,
-    const ur_kernel_native_properties_t *pProperties,
+    ur_native_handle_t hNativeKernel, ur_context_handle_t hContext,
+    ur_program_handle_t hProgram,
+    [[maybe_unused]] const ur_kernel_native_properties_t *pProperties,
     ur_kernel_handle_t *phKernel) {
-  *phKernel = reinterpret_cast<ur_kernel_handle_t>(hNativeKernel);
-  if (!pProperties || !pProperties->isNativeHandleOwned) {
-    return urKernelRetain(*phKernel);
-  }
+  cl_kernel NativeHandle = reinterpret_cast<cl_kernel>(hNativeKernel);
+
+  UR_RETURN_ON_FAILURE(ur_kernel_handle_t_::makeWithNative(
+      NativeHandle, hProgram, hContext, *phKernel));
+
+  (*phKernel)->IsNativeHandleOwned =
+      pProperties ? pProperties->isNativeHandleOwned : false;
   return UR_RESULT_SUCCESS;
 }
 
@@ -417,10 +483,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_mem_obj_properties_t *, ur_mem_handle_t hArgValue) {
 
-  cl_int RetErr = clSetKernelArg(
-      cl_adapter::cast<cl_kernel>(hKernel), cl_adapter::cast<cl_uint>(argIndex),
-      sizeof(hArgValue), cl_adapter::cast<const cl_mem *>(&hArgValue));
-  CL_RETURN_ON_FAILURE(RetErr);
+  cl_mem CLArgValue = hArgValue ? hArgValue->CLMemory : nullptr;
+  CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                      static_cast<cl_uint>(argIndex),
+                                      sizeof(CLArgValue), &CLArgValue));
   return UR_RESULT_SUCCESS;
 }
 
@@ -428,9 +494,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_sampler_properties_t *, ur_sampler_handle_t hArgValue) {
 
-  cl_int RetErr = clSetKernelArg(
-      cl_adapter::cast<cl_kernel>(hKernel), cl_adapter::cast<cl_uint>(argIndex),
-      sizeof(hArgValue), cl_adapter::cast<const cl_sampler *>(&hArgValue));
+  cl_sampler CLArgSampler = hArgValue->CLSampler;
+  cl_int RetErr =
+      clSetKernelArg(hKernel->CLKernel, static_cast<cl_uint>(argIndex),
+                     sizeof(CLArgSampler), &CLArgSampler);
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
@@ -442,9 +509,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   cl_device_id Device;
   cl_platform_id Platform;
 
-  CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
-      cl_adapter::cast<cl_command_queue>(hQueue), CL_QUEUE_DEVICE,
-      sizeof(cl_device_id), &Device, nullptr));
+  CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(hQueue->CLQueue, CL_QUEUE_DEVICE,
+                                             sizeof(cl_device_id), &Device,
+                                             nullptr));
 
   CL_RETURN_ON_FAILURE(clGetDeviceInfo(
       Device, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &Platform, nullptr));
@@ -457,8 +524,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   CL_RETURN_ON_FAILURE(GetKernelSuggestedLocalWorkSizeFuncPtr(
-      cl_adapter::cast<cl_command_queue>(hQueue),
-      cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
+      hQueue->CLQueue, hKernel->CLKernel, workDim, pGlobalWorkOffset,
       pGlobalWorkSize, pSuggestedLocalWorkSize));
   return UR_RESULT_SUCCESS;
 }

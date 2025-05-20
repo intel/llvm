@@ -46,7 +46,10 @@ on:
         default: 3
       e2e_binaries_artifact:
         type: string
-        required: False
+        required: false
+      pack_release:
+        type: string
+        required: false
 
     outputs:
       build_conclusion:
@@ -99,6 +102,10 @@ on:
         type: choice
         options:
           - 3
+
+      pack_release:
+        type: string
+        required: false
 
 permissions: read-all
 
@@ -215,11 +222,26 @@ jobs:
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         LIT_OPTS="--allow-empty-runs" LIT_FILTER="e2e_test_requirements" cmake --build $GITHUB_WORKSPACE/build --target check-sycl
-    - name: Install
+    - name: Install sycl-toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
+
+    - name: Pack toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .
+    - name: Upload toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_linux_release
+        path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
         cmake --build $GITHUB_WORKSPACE/build --target utils/FileCheck/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/count/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/not/install
@@ -278,7 +300,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
 
     - name: Remove E2E tests before spirv-backend run
@@ -293,5 +315,5 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_spirv_backend
-        cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param spirv-backend=True

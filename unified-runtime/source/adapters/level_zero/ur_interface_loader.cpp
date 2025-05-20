@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <mutex>
 #include <ur_api.h>
 #include <ur_ddi.h>
 
@@ -48,6 +49,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnSetLoggerCallback = ur::level_zero::urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel =
+      ur::level_zero::urAdapterSetLoggerCallbackLevel;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     ur_api_version_t version, ur_bindless_images_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -69,6 +84,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   pDdiTable->pfnImageCopyExp = ur::level_zero::urBindlessImagesImageCopyExp;
   pDdiTable->pfnImageGetInfoExp =
       ur::level_zero::urBindlessImagesImageGetInfoExp;
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      ur::level_zero::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+  pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+      ur::level_zero::urBindlessImagesGetImageUnsampledHandleSupportExp;
+  pDdiTable->pfnGetImageSampledHandleSupportExp =
+      ur::level_zero::urBindlessImagesGetImageSampledHandleSupportExp;
   pDdiTable->pfnMipmapGetLevelExp =
       ur::level_zero::urBindlessImagesMipmapGetLevelExp;
   pDdiTable->pfnMipmapFreeExp = ur::level_zero::urBindlessImagesMipmapFreeExp;
@@ -80,6 +101,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       ur::level_zero::urBindlessImagesMapExternalLinearMemoryExp;
   pDdiTable->pfnReleaseExternalMemoryExp =
       ur::level_zero::urBindlessImagesReleaseExternalMemoryExp;
+  pDdiTable->pfnFreeMappedLinearMemoryExp =
+      ur::level_zero::urBindlessImagesFreeMappedLinearMemoryExp;
   pDdiTable->pfnImportExternalSemaphoreExp =
       ur::level_zero::urBindlessImagesImportExternalSemaphoreExp;
   pDdiTable->pfnReleaseExternalSemaphoreExp =
@@ -456,10 +479,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   pDdiTable->pfnPoolCreateExp = ur::level_zero::urUSMPoolCreateExp;
   pDdiTable->pfnPoolDestroyExp = ur::level_zero::urUSMPoolDestroyExp;
-  pDdiTable->pfnPoolSetThresholdExp = ur::level_zero::urUSMPoolSetThresholdExp;
   pDdiTable->pfnPoolGetDefaultDevicePoolExp =
       ur::level_zero::urUSMPoolGetDefaultDevicePoolExp;
   pDdiTable->pfnPoolGetInfoExp = ur::level_zero::urUSMPoolGetInfoExp;
+  pDdiTable->pfnPoolSetInfoExp = ur::level_zero::urUSMPoolSetInfoExp;
   pDdiTable->pfnPoolSetDevicePoolExp =
       ur::level_zero::urUSMPoolSetDevicePoolExp;
   pDdiTable->pfnPoolGetDevicePoolExp =
@@ -536,101 +559,125 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 } // extern "C"
 #endif
 
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
-namespace ur::level_zero {
-ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
+namespace {
+ur_result_t populateDdiTable(ur_dditable_t *ddi) {
   if (ddi == nullptr) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   ur_result_t result;
 
-  result = ur::level_zero::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
-                                                    &ddi->Global);
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#define NAMESPACE_ ::ur::level_zero
+#else
+#define NAMESPACE_
+#endif
+
+  result = NAMESPACE_::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->Global);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetBindlessImagesExpProcAddrTable(
+  result = NAMESPACE_::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Adapter);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetBindlessImagesExpProcAddrTable(
       UR_API_VERSION_CURRENT, &ddi->BindlessImagesExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetCommandBufferExpProcAddrTable(
+  result = NAMESPACE_::urGetCommandBufferExpProcAddrTable(
       UR_API_VERSION_CURRENT, &ddi->CommandBufferExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Context);
+  result = NAMESPACE_::urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Context);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetEnqueueProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Enqueue);
+  result = NAMESPACE_::urGetEnqueueProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Enqueue);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetEnqueueExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &ddi->EnqueueExp);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = ur::level_zero::urGetEventProcAddrTable(UR_API_VERSION_CURRENT,
-                                                   &ddi->Event);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = ur::level_zero::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
-                                                    &ddi->Kernel);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = ur::level_zero::urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                       &ddi->KernelExp);
+  result = NAMESPACE_::urGetEnqueueExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->EnqueueExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result =
-      ur::level_zero::urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Mem);
+      NAMESPACE_::urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Event);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &ddi->PhysicalMem);
+  result = NAMESPACE_::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->Kernel);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetPlatformProcAddrTable(UR_API_VERSION_CURRENT,
-                                                      &ddi->Platform);
+  result = NAMESPACE_::urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->KernelExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetProgramProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Program);
+  result = NAMESPACE_::urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Mem);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetProgramExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &ddi->ProgramExp);
+  result = NAMESPACE_::urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                                     &ddi->PhysicalMem);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
-                                                   &ddi->Queue);
+  result = NAMESPACE_::urGetPlatformProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->Platform);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Sampler);
+  result = NAMESPACE_::urGetProgramProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Program);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetProgramExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->ProgramExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result =
-      ur::level_zero::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &ddi->USM);
+      NAMESPACE_::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Queue);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetUSMExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                    &ddi->USMExp);
+  result = NAMESPACE_::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Sampler);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetUsmP2PExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                       &ddi->UsmP2PExp);
+  result = NAMESPACE_::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &ddi->USM);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetVirtualMemProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &ddi->VirtualMem);
+  result = NAMESPACE_::urGetUSMExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->USMExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
-                                                    &ddi->Device);
+  result = NAMESPACE_::urGetUsmP2PExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->UsmP2PExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetVirtualMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->VirtualMem);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->Device);
   if (result != UR_RESULT_SUCCESS)
     return result;
 
+#undef NAMESPACE_
+
   return result;
 }
-} // namespace ur::level_zero
+} // namespace
+
+namespace ur::level_zero {
+const ur_dditable_t *ddi_getter::value() {
+  static std::once_flag flag;
+  static ur_dditable_t table;
+
+  std::call_once(flag, []() { populateDdiTable(&table); });
+  return &table;
+}
+
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
+  return populateDdiTable(ddi);
+}
 #endif
+} // namespace ur::level_zero

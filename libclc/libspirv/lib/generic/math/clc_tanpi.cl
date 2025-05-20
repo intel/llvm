@@ -1,26 +1,13 @@
-/*
- * Copyright (c) 2014 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 #include "sincos_helpers.h"
+#include <clc/math/clc_sincos_helpers.h>
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <clc/math/tables.h>
@@ -29,11 +16,11 @@
 
 _CLC_DEF _CLC_OVERLOAD float __clc_tanpi(float x)
 {
-    int ix = as_int(x);
+    int ix = __clc_as_int(x);
     int xsgn = ix & 0x80000000;
     int xnsgn = xsgn ^ 0x80000000;
     ix ^= xsgn;
-    float ax = as_float(ix);
+    float ax = __clc_as_float(ix);
     int iax = (int)ax;
     float r = ax - iax;
     int xodd = xsgn ^ (iax & 0x1 ? 0x80000000 : 0);
@@ -73,13 +60,13 @@ _CLC_DEF _CLC_OVERLOAD float __clc_tanpi(float x)
 
     float t = __clc_tanf_piby4(a * M_PI_F, 0);
     float tr = -__spirv_ocl_native_recip(t);
-    int jr = s ^ as_int(e ? tr : t);
+    int jr = s ^ __clc_as_int(e ? tr : t);
 
     jr = r == 0.5f ? xodd | 0x7f800000 : jr;
 
     ir = ix < 0x4b000000 ? jr : ir;
 
-    return as_float(ir);
+    return __clc_as_float(ir);
 }
 _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, float, __clc_tanpi, float);
 
@@ -88,11 +75,11 @@ _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, float, __clc_tanpi, float);
 
 _CLC_DEF _CLC_OVERLOAD double __clc_tanpi(double x)
 {
-    long ix = as_long(x);
+    long ix = __clc_as_long(x);
     long xsgn = ix & 0x8000000000000000L;
     long xnsgn = xsgn ^ 0x8000000000000000L;
     ix ^= xsgn;
-    double ax = as_double(ix);
+    double ax = __clc_as_double(ix);
     long iax = (long)ax;
     double r = ax - iax;
     long xodd = xsgn ^ (iax & 0x1 ? 0x8000000000000000L : 0L);
@@ -134,14 +121,14 @@ _CLC_DEF _CLC_OVERLOAD double __clc_tanpi(double x)
 
     double api = a * M_PI;
     double2 tt = __clc_tan_piby4(api, 0.0);
-    long jr = s ^ as_long(e ? tt.hi : tt.lo);
+    long jr = s ^ __clc_as_long(e ? tt.hi : tt.lo);
 
     long si = xodd | 0x7ff0000000000000L;
     jr = r == 0.5 ? si : jr;
 
     ir = ix < 0x4330000000000000L ? jr : ir;
 
-    return as_double(ir);
+    return __clc_as_double(ir);
 }
 _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_tanpi, double);
 #endif

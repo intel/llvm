@@ -47,7 +47,7 @@ jobs:
     outputs:
       ref: ${{ steps.inputs.outputs.ref }}
       export-args: ${{ steps.inputs.outputs.export-args }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - id: inputs
         run: |
@@ -63,7 +63,7 @@ jobs:
   release-sources:
     name: Package Release Sources
     if: github.repository_owner == 'llvm'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - inputs
     permissions:
@@ -92,7 +92,7 @@ jobs:
       - name: Attest Build Provenance
         if: github.event_name != 'pull_request'
         id: provenance
-        uses: actions/attest-build-provenance@bd77c077858b8d561b7a36cbe48ef4cc642ca39d # v2.2.2
+        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
         with:
           subject-path: "*.xz"
       - if: github.event_name != 'pull_request'

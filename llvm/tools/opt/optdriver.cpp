@@ -84,8 +84,12 @@ static cl::opt<bool> EnableLegacyPassManager(
 static cl::opt<std::string> PassPipeline(
     "passes",
     cl::desc(
-        "A textual description of the pass pipeline. To have analysis passes "
-        "available before a certain pass, add \"require<foo-analysis>\"."));
+        "A textual (comma separated) description of the pass pipeline e.g.,"
+        "-passes=\"foo,bar\", to have analysis passes available before a pass, "
+        "add \"require<foo-analysis>\". See "
+        "https://llvm.org/docs/NewPassManager.html#invoking-opt "
+        "for more details on the pass pipeline syntax. "));
+
 static cl::alias PassPipeline2("p", cl::aliasopt(PassPipeline),
                                cl::desc("Alias for -passes"));
 
@@ -280,13 +284,6 @@ static cl::list<std::string>
     PassPlugins("load-pass-plugin",
                 cl::desc("Load passes from plugin library"));
 
-static cl::opt<bool> TryUseNewDbgInfoFormat(
-    "try-experimental-debuginfo-iterators",
-    cl::desc("Enable debuginfo iterator positions, if they're built in"),
-    cl::init(false), cl::Hidden);
-
-extern cl::opt<bool> UseNewDbgInfoFormat;
-
 //===----------------------------------------------------------------------===//
 // CodeGen-related helper functions.
 //
@@ -375,7 +372,7 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "expand-large-div-rem",
       "structurizecfg",
       "fix-irreducible",
-      "expand-large-fp-convert",
+      "expand-fp",
       "fpbuiltin-fn-selection",
       "callbrprepare",
       "scalarizer",
@@ -428,7 +425,7 @@ extern "C" int optMain(
   // For codegen passes, only passes that do IR to IR transformation are
   // supported.
   initializeExpandLargeDivRemLegacyPassPass(Registry);
-  initializeExpandLargeFpConvertLegacyPassPass(Registry);
+  initializeExpandFpLegacyPassPass(Registry);
   initializeExpandMemCmpLegacyPassPass(Registry);
   initializeScalarizeMaskedMemIntrinLegacyPassPass(Registry);
   initializeSelectOptimizePass(Registry);
@@ -466,7 +463,7 @@ extern "C" int optMain(
   PassPlugins.setCallback([&](const std::string &PluginPath) {
     auto Plugin = PassPlugin::Load(PluginPath);
     if (!Plugin)
-      report_fatal_error(Plugin.takeError(), /*gen_crash_diag=*/false);
+      reportFatalUsageError(Plugin.takeError());
     PluginList.emplace_back(Plugin.get());
   });
 
@@ -475,13 +472,6 @@ extern "C" int optMain(
 
   cl::ParseCommandLineOptions(
       argc, argv, "llvm .bc -> .bc modular optimizer and analysis printer\n");
-
-  // RemoveDIs debug-info transition: tests may request that we /try/ to use the
-  // new debug-info format.
-  if (TryUseNewDbgInfoFormat) {
-    // Turn the new debug-info format on.
-    UseNewDbgInfoFormat = true;
-  }
 
   LLVMContext Context;
 
@@ -590,7 +580,7 @@ extern "C" int optMain(
 
   // If we are supposed to override the target triple, do so now.
   if (!TargetTriple.empty())
-    M->setTargetTriple(Triple::normalize(TargetTriple));
+    M->setTargetTriple(Triple(Triple::normalize(TargetTriple)));
 
   // Immediately run the verifier to catch any problems before starting up the
   // pass pipelines.  Otherwise we can crash on broken code during

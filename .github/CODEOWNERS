@@ -36,10 +36,8 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
 # Unified Runtime
 unified-runtime/ @intel/unified-runtime-reviewers
-# TODO: Use specific UR Level Zero adapter team
-unified-runtime/*/adapters/level_zero/ @intel/unified-runtime-reviewers
-# TODO: Use specific UR OpenCL adapter team
-unified-runtime/*/adapters/opencl/ @intel/unified-runtime-reviewers
+unified-runtime/*/adapters/level_zero/ @intel/unified-runtime-reviewers-level-zero
+unified-runtime/*/adapters/opencl/ @intel/unified-runtime-reviewers-opencl
 unified-runtime/*/adapters/cuda/  @intel/llvm-reviewers-cuda
 unified-runtime/*/adapters/hip/  @intel/llvm-reviewers-cuda
 unified-runtime/*/adapters/native_cpu/ @intel/dpcpp-nativecpu-reviewers
@@ -58,6 +56,7 @@ sycl/source/detail/posix_ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/windows_ur.cpp @intel/unified-runtime-reviewers
 sycl/test-e2e/Adapters/ @intel/unified-runtime-reviewers
+sycl/test-e2e/Adapters/level_zero/ @intel/unified-runtime-reviewers-level-zero
 
 # Win Proxy Loader
 sycl/ur_win_proxy_loader @intel/llvm-reviewers-runtime
@@ -75,6 +74,7 @@ llvm/include/llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h @intel/llvm-reviewers-
 llvm/lib/SYCLLowerIR/SYCLCreateNVVMAnnotations.cpp @intel/llvm-reviewers-cuda
 llvm/lib/Target/NVPTX @intel/llvm-reviewers-cuda
 llvm/lib/Target/AMDGPU @intel/llvm-reviewers-cuda
+unified-runtime/source/common/cuda-hip @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
@@ -124,6 +124,7 @@ sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers
 .github/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
+sycl/cts_exclude_filter/ @intel/dpcpp-devops-reviewers
 
 # dev-igc driver update
 devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd-reviewers @intel/dpcpp-devops-reviewers
@@ -202,9 +203,11 @@ llvm/include/llvm/Transforms/Instrumentation/AddressSanitizer.h @intel/dpcpp-san
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/ThreadSanitizer.h @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/MemorySanitizer.cpp @intel/dpcpp-sanitizers-review
+llvm/lib/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.cpp @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/ThreadSanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/MemorySanitizer/ @intel/dpcpp-sanitizers-review

@@ -253,14 +253,13 @@ public:
   template <class T> T *addType(T *Ty);
   SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) override;
   SPIRVTypeBool *addBoolType() override;
-  SPIRVTypeFloat *addFloatType(unsigned BitWidth) override;
+  SPIRVTypeFloat *addFloatType(unsigned BitWidth,
+                               unsigned FloatingPointEncoding) override;
   SPIRVTypeFunction *addFunctionType(SPIRVType *,
                                      const std::vector<SPIRVType *> &) override;
   SPIRVTypeInt *addIntegerType(unsigned BitWidth) override;
   SPIRVTypeOpaque *addOpaqueType(const std::string &) override;
-  SPIRVTypePointer *addPointerType(SPIRVStorageClassKind, SPIRVType *) override;
-  SPIRVTypeUntypedPointerKHR *
-      addUntypedPointerKHRType(SPIRVStorageClassKind) override;
+  SPIRVType *addPointerType(SPIRVStorageClassKind, SPIRVType *) override;
   SPIRVTypeImage *addImageType(SPIRVType *,
                                const SPIRVTypeImageDescriptor &) override;
   SPIRVTypeImage *addImageType(SPIRVType *, const SPIRVTypeImageDescriptor &,
@@ -577,7 +576,8 @@ private:
   SmallDenseMap<SPIRVStorageClassKind, SPIRVTypeUntypedPointerKHR *>
       UntypedPtrTyMap;
   SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
-  SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
+  SmallDenseMap<std::pair<unsigned, unsigned>, SPIRVTypeFloat *, 4>
+      FloatTypeMap;
   SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
       PointerTypeMap;
   std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
@@ -1007,35 +1007,38 @@ SPIRVTypeInt *SPIRVModuleImpl::addIntegerType(unsigned BitWidth) {
   return addType(Ty);
 }
 
-SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth) {
-  auto Loc = FloatTypeMap.find(BitWidth);
+SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth,
+                                              unsigned FloatingPointEncoding) {
+  auto Desc = std::make_pair(BitWidth, FloatingPointEncoding);
+  auto Loc = FloatTypeMap.find(Desc);
   if (Loc != FloatTypeMap.end())
     return Loc->second;
-  auto *Ty = new SPIRVTypeFloat(this, getId(), BitWidth);
-  FloatTypeMap[BitWidth] = Ty;
+  auto *Ty = new SPIRVTypeFloat(this, getId(), BitWidth, FloatingPointEncoding);
+  FloatTypeMap[Desc] = Ty;
   return addType(Ty);
 }
 
-SPIRVTypePointer *
-SPIRVModuleImpl::addPointerType(SPIRVStorageClassKind StorageClass,
-                                SPIRVType *ElementType) {
+SPIRVType *SPIRVModuleImpl::addPointerType(SPIRVStorageClassKind StorageClass,
+                                           SPIRVType *ElementType = nullptr) {
+  if (ElementType == nullptr) {
+    // Untyped pointer
+    auto Loc = UntypedPtrTyMap.find(StorageClass);
+    if (Loc != UntypedPtrTyMap.end())
+      return Loc->second;
+
+    auto *Ty = new SPIRVTypeUntypedPointerKHR(this, getId(), StorageClass);
+    UntypedPtrTyMap[StorageClass] = Ty;
+    return addType(Ty);
+  }
+
+  // Typed pointer
   auto Desc = std::make_pair(StorageClass, ElementType);
   auto Loc = PointerTypeMap.find(Desc);
   if (Loc != PointerTypeMap.end())
     return Loc->second;
+
   auto *Ty = new SPIRVTypePointer(this, getId(), StorageClass, ElementType);
   PointerTypeMap[Desc] = Ty;
-  return addType(Ty);
-}
-
-SPIRVTypeUntypedPointerKHR *
-SPIRVModuleImpl::addUntypedPointerKHRType(SPIRVStorageClassKind StorageClass) {
-  auto Loc = UntypedPtrTyMap.find(StorageClass);
-  if (Loc != UntypedPtrTyMap.end())
-    return Loc->second;
-
-  auto *Ty = new SPIRVTypeUntypedPointerKHR(this, getId(), StorageClass);
-  UntypedPtrTyMap[StorageClass] = Ty;
   return addType(Ty);
 }
 

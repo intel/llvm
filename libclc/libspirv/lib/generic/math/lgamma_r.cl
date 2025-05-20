@@ -96,9 +96,9 @@
 #define w6_f -1.6309292987e-03f /* 0xbad5c4e8 */
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_lgamma_r(float x, private int *signp) {
-  int hx = as_int(x);
+  int hx = __clc_as_int(x);
   int ix = hx & 0x7fffffff;
-  float absx = as_float(ix);
+  float absx = __clc_as_float(ix);
 
   if (ix >= 0x7f800000) {
     *signp = 1;
@@ -292,7 +292,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_lgamma_r(float x, private int *signp) {
   if (x < 0.0f) {
     float t = __spirv_ocl_sinpi(x);
     r = __spirv_ocl_log(pi_f / __spirv_ocl_fabs(t * x)) - r;
-    r = t == 0.0f ? as_float(PINFBITPATT_SP32) : r;
+    r = t == 0.0f ? __clc_as_float(PINFBITPATT_SP32) : r;
     s = t < 0.0f ? -1 : s;
   }
 
@@ -451,9 +451,9 @@ _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_lgamma_r,
 #define w6 -1.63092934096575273989e-03 /* 0xBF5AB89D, 0x0B9E43E4 */
 
 _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_lgamma_r(double x, private int *ip) {
-  ulong ux = as_ulong(x);
+  ulong ux = __clc_as_ulong(x);
   ulong ax = ux & EXSIGNBIT_DP64;
-  double absx = as_double(ax);
+  double absx = __clc_as_double(ax);
 
   if (ax >= 0x7ff0000000000000UL) {
     // +-Inf, NaN
@@ -625,7 +625,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_lgamma_r(double x, private int *ip) {
   if (x < 0.0) {
     double t = __spirv_ocl_sinpi(x);
     r = __spirv_ocl_log(pi / __spirv_ocl_fabs(t * x)) - r;
-    r = t == 0.0 ? as_double(PINFBITPATT_DP64) : r;
+    r = t == 0.0 ? __clc_as_double(PINFBITPATT_DP64) : r;
     *ip = t < 0.0 ? -1 : 1;
   } else
     *ip = 1;

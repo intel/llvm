@@ -102,7 +102,7 @@ __spirv_ocl_log(float x)
   const float LOG2_TAIL = 0x1.0bfbe8p-15f; // 0.0000319461833
 #endif
 
-  uint xi = as_uint(x);
+  uint xi = __clc_as_uint(x);
   uint ax = xi & EXSIGNBIT_SP32;
 
   // Calculations for |x-1| < 2^-4
@@ -119,14 +119,14 @@ __spirv_ocl_log(float x)
       u, __spirv_ocl_mad(v, 0x1.99999ap-7f, 0x1.555556p-4f) * v, -corr);
 
 #if defined(COMPILING_LOG2)
-  z1 = as_float(as_int(r) & 0xffff0000);
+  z1 = __clc_as_float(__clc_as_int(r) & 0xffff0000);
   z2 = z2 + (r - z1);
   znear1 = __spirv_ocl_mad(
       z1, LOG2E_HEAD,
       __spirv_ocl_mad(z2, LOG2E_HEAD,
                       __spirv_ocl_mad(z1, LOG2E_TAIL, z2 * LOG2E_TAIL)));
 #elif defined(COMPILING_LOG10)
-  z1 = as_float(as_int(r) & 0xffff0000);
+  z1 = __clc_as_float(__clc_as_int(r) & 0xffff0000);
   z2 = z2 + (r - z1);
   znear1 = __spirv_ocl_mad(
       z1, LOG10E_HEAD,
@@ -140,7 +140,7 @@ __spirv_ocl_log(float x)
   int m = (int)(xi >> EXPSHIFTBITS_SP32) - EXPBIAS_SP32;
 
   // Normalize subnormal
-  uint xis = as_uint(as_float(xi | 0x3f800000) - 1.0f);
+  uint xis = __clc_as_uint(__clc_as_float(xi | 0x3f800000) - 1.0f);
   int ms = (int)(xis >> EXPSHIFTBITS_SP32) - 253;
   int c = m == -127;
   m = c ? ms : m;
@@ -150,8 +150,8 @@ __spirv_ocl_log(float x)
   uint indx = (xin & 0x007f0000) + ((xin & 0x00008000) << 1);
 
   // F - Y
-  float f = as_float(0x3f000000 | indx) -
-            as_float(0x3f000000 | (xin & MANTBITS_SP32));
+  float f = __clc_as_float(0x3f000000 | indx) -
+            __clc_as_float(0x3f000000 | (xin & MANTBITS_SP32));
 
   indx = indx >> 16;
   r = f * USE_TABLE(log_inv_tbl, indx);
@@ -179,8 +179,8 @@ __spirv_ocl_log(float x)
 
   // Corner cases
   z = ax >= PINFBITPATT_SP32 ? x : z;
-  z = xi != ax ? as_float(QNANBITPATT_SP32) : z;
-  z = ax == 0 ? as_float(NINFBITPATT_SP32) : z;
+  z = xi != ax ? __clc_as_float(QNANBITPATT_SP32) : z;
+  z = ax == 0 ? __clc_as_float(NINFBITPATT_SP32) : z;
 
   return z;
 }
@@ -245,7 +245,7 @@ __spirv_ocl_log(double x)
 
 #if defined(COMPILING_LOG10)
   r = r1;
-  r1 = as_double(as_ulong(r1) & 0xffffffff00000000);
+  r1 = __clc_as_double(__clc_as_ulong(r1) & 0xffffffff00000000);
   r2 = r2 + (r - r1);
   double ret_near = __spirv_ocl_fma(
       log10e_lead, r1,
@@ -253,7 +253,7 @@ __spirv_ocl_log(double x)
                       __spirv_ocl_fma(log10e_tail, r1, log10e_tail * r2)));
 #elif defined(COMPILING_LOG2)
   r = r1;
-  r1 = as_double(as_ulong(r1) & 0xffffffff00000000);
+  r1 = __clc_as_double(__clc_as_ulong(r1) & 0xffffffff00000000);
   r2 = r2 + (r - r1);
   double ret_near = __spirv_ocl_fma(
       log2e_lead, r1,
@@ -266,20 +266,20 @@ __spirv_ocl_log(double x)
   // This is the far from 1 code
 
   // Deal with subnormal
-  ulong ux = as_ulong(x);
-  ulong uxs = as_ulong(as_double(0x03d0000000000000UL | ux) - 0x1.0p-962);
+  ulong ux = __clc_as_ulong(x);
+  ulong uxs =
+      __clc_as_ulong(__clc_as_double(0x03d0000000000000UL | ux) - 0x1.0p-962);
   int c = ux < IMPBIT_DP64;
   ux = c ? uxs : ux;
   int expadjust = c ? 60 : 0;
 
-  int xexp = ((as_int2(ux).hi >> 20) & 0x7ff) - EXPBIAS_DP64 - expadjust;
-  double f = as_double(HALFEXPBITS_DP64 | (ux & MANTBITS_DP64));
-  int index = as_int2(ux).hi >> 13;
+  int xexp = ((__clc_as_int2(ux).hi >> 20) & 0x7ff) - EXPBIAS_DP64 - expadjust;
+  double f = __clc_as_double(HALFEXPBITS_DP64 | (ux & MANTBITS_DP64));
+  int index = __clc_as_int2(ux).hi >> 13;
   index = ((0x80 | (index & 0x7e)) >> 1) + (index & 0x1);
 
-  double2 tv = USE_TABLE(ln_tbl, index - 64);
-  double z1 = tv.s0;
-  double q = tv.s1;
+  double z1 = USE_TABLE(ln_tbl_lo, (index - 64));
+  double q = USE_TABLE(ln_tbl_hi, (index - 64));
 
   double f1 = index * 0x1.0p-7;
   double f2 = f - f1;
@@ -315,9 +315,9 @@ __spirv_ocl_log(double x)
 
   double ret = is_near ? ret_near : ret_far;
 
-  ret = __spirv_IsInf(x) ? as_double(PINFBITPATT_DP64) : ret;
-  ret = __spirv_IsNan(x) || (x < 0.0) ? as_double(QNANBITPATT_DP64) : ret;
-  ret = x == 0.0 ? as_double(NINFBITPATT_DP64) : ret;
+  ret = __spirv_IsInf(x) ? __clc_as_double(PINFBITPATT_DP64) : ret;
+  ret = __spirv_IsNan(x) || (x < 0.0) ? __clc_as_double(QNANBITPATT_DP64) : ret;
+  ret = x == 0.0 ? __clc_as_double(NINFBITPATT_DP64) : ret;
   return ret;
 }
 

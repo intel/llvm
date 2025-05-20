@@ -84,7 +84,8 @@ public:
   bool isTypeEvent() const;
   bool isTypeDeviceEvent() const;
   bool isTypeReserveId() const;
-  bool isTypeFloat(unsigned Bits = 0) const;
+  bool isTypeFloat(unsigned Bits = 0,
+                   unsigned FloatingPointEncoding = FPEncodingMax) const;
   bool isTypeImage() const;
   bool isTypeOCLImage() const;
   bool isTypePipe() const;
@@ -204,16 +205,31 @@ class SPIRVTypeFloat : public SPIRVType {
 public:
   static const Op OC = OpTypeFloat;
   // Complete constructor
-  SPIRVTypeFloat(SPIRVModule *M, SPIRVId TheId, unsigned TheBitWidth)
-      : SPIRVType(M, 3, OC, TheId), BitWidth(TheBitWidth) {}
+  SPIRVTypeFloat(SPIRVModule *M, SPIRVId TheId, unsigned TheBitWidth,
+                 unsigned TheFloatingPointEncoding)
+      : SPIRVType(M, 3 + (TheFloatingPointEncoding != FPEncodingMax), OC,
+                  TheId),
+        BitWidth(TheBitWidth), FloatingPointEncoding(TheFloatingPointEncoding) {
+  }
   // Incomplete constructor
-  SPIRVTypeFloat() : SPIRVType(OC), BitWidth(0) {}
+  SPIRVTypeFloat()
+      : SPIRVType(OC), BitWidth(0), FloatingPointEncoding(FPEncodingMax) {}
 
   unsigned getBitWidth() const { return BitWidth; }
 
+  unsigned getFloatingPointEncoding() const { return FloatingPointEncoding; }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    if (isTypeFloat(16, FPEncodingBFloat16KHR))
+      return ExtensionID::SPV_KHR_bfloat16;
+    return {};
+  }
+
   SPIRVCapVec getRequiredCapability() const override {
     SPIRVCapVec CV;
-    if (isTypeFloat(16)) {
+    if (isTypeFloat(16, FPEncodingBFloat16KHR)) {
+      CV.push_back(CapabilityBFloat16TypeKHR);
+    } else if (isTypeFloat(16)) {
       CV.push_back(CapabilityFloat16Buffer);
       auto Extensions = getModule()->getSourceExtension();
       if (std::any_of(Extensions.begin(), Extensions.end(),
@@ -225,14 +241,34 @@ public:
   }
 
 protected:
-  _SPIRV_DEF_ENCDEC2(Id, BitWidth)
+  void encode(spv_ostream &O) const override {
+    assert(WordCount == 3 || WordCount == 4);
+    auto Encoder = getEncoder(O);
+    Encoder << Id << BitWidth;
+    if (WordCount == 4)
+      Encoder << FloatingPointEncoding;
+  }
+
+  void decode(std::istream &I) override {
+    assert(WordCount == 3 || WordCount == 4);
+    auto Decoder = getDecoder(I);
+    Decoder >> Id >> BitWidth;
+    if (WordCount == 4)
+      Decoder >> FloatingPointEncoding;
+  }
+
   void validate() const override {
     SPIRVEntry::validate();
     assert(BitWidth >= 16 && BitWidth <= 64 && "Invalid bit width");
+    assert(
+        (FloatingPointEncoding == FPEncodingMax ||
+         (BitWidth == 16 && FloatingPointEncoding == FPEncodingBFloat16KHR)) &&
+        "Invalid floating point encoding");
   }
 
 private:
   unsigned BitWidth; // Bit width
+  unsigned FloatingPointEncoding;
 };
 
 template <Op TheOpCode = OpTypePointer, SPIRVWord WC = 3>
@@ -286,6 +322,9 @@ public:
   }
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     return std::vector<SPIRVEntry *>(1, getEntry(ElemTypeId));
+  }
+  static bool classof(const SPIRVEntry *E) {
+    return E->getOpCode() == OpTypePointer;
   }
 
 protected:
@@ -1186,7 +1225,10 @@ public:
     return ExtensionID::SPV_KHR_cooperative_matrix;
   }
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityCooperativeMatrixKHR);
+    auto CV = getVec(CapabilityCooperativeMatrixKHR);
+    if (CompType->isTypeFloat(16, FPEncodingBFloat16KHR))
+      CV.push_back(CapabilityBFloat16CooperativeMatrixKHR);
+    return CV;
   }
 
   SPIRVType *getCompType() const { return CompType; }

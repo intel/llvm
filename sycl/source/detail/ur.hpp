@@ -17,6 +17,7 @@
 #include <ur_api.h>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace sycl {
@@ -38,7 +39,31 @@ template <backend BE> const AdapterPtr &getAdapter();
 } // namespace ur
 
 // Convert from UR backend to SYCL backend enum
-backend convertUrBackend(ur_platform_backend_t UrBackend);
+backend convertUrBackend(ur_backend_t UrBackend);
+
+template <auto ApiKind, typename SyclImplTy, typename DescTy>
+std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
+  // Avoid explicit type to keep template-type-dependent.
+  auto &Adapter = SyclImpl.getAdapter();
+  size_t ResultSize = 0;
+  auto Handle = SyclImpl.getHandleRef();
+  Adapter->template call<ApiKind>(Handle, Desc,
+                                  /*propSize=*/0,
+                                  /*pPropValue=*/nullptr, &ResultSize);
+  if (ResultSize == 0)
+    return std::string{};
+
+  std::string Result;
+  // C++23's `resize_and_overwrite` would be better...
+  //
+  // UR counts null terminator in the size, std::string doesn't. Adjust by "-1"
+  // for that.
+  Result.resize(ResultSize - 1);
+  Adapter->template call<ApiKind>(Handle, Desc, ResultSize, Result.data(),
+                                  nullptr);
+
+  return Result;
+}
 
 } // namespace detail
 } // namespace _V1

@@ -79,7 +79,7 @@ def get_improved_regressed_summary(is_improved: bool, rows_count: int):
         "\n<details>\n"
         "<summary>\n"
         f"{title} {rows_count} "
-        f"(threshold {options.epsilon*100:.2f}%)\n"
+        f"(threshold {options.stddev_threshold*100:.2f}%)\n"
         "</summary>\n\n"
     )
 
@@ -138,17 +138,6 @@ def generate_markdown_details(
         env_dict = res.env
         command = res.command
 
-        # If data is collected from already saved results,
-        # the content is parsed as strings
-        if isinstance(res.env, str):
-            # Since the scripts would be used solely on data prepared
-            # by our scripts, this should be safe
-            # However, maybe needs an additional blessing
-            # https://docs.python.org/3/library/ast.html#ast.literal_eval
-            env_dict = ast.literal_eval(res.env)
-        if isinstance(res.command, str):
-            command = ast.literal_eval(res.command)
-
         section = (
             "\n<details>\n"
             f"<summary>{res.label}</summary>\n\n"
@@ -179,7 +168,7 @@ def generate_markdown_details(
             return "\nBenchmark details contain too many chars to display\n"
 
 
-def generate_summary_table_and_chart(
+def generate_summary_table(
     chart_data: dict[str, list[Result]], baseline_name: str, markdown_size: MarkdownSize
 ):
     summary_table = get_chart_markdown_header(
@@ -276,7 +265,7 @@ def generate_summary_table_and_chart(
                 delta = oln.diff - 1
                 oln.row += f" {delta*100:.2f}%"
 
-                if abs(delta) > options.epsilon:
+                if abs(delta) > options.stddev_threshold:
                     if delta > 0:
                         improved_rows.append(oln.row + " | \n")
                     else:
@@ -374,10 +363,27 @@ def generate_summary_table_and_chart(
                 return "\n# Summary\n" "Benchmark output is too large to display\n\n"
 
 
+def generate_failures_section(failures: dict[str, str]) -> str:
+    if not failures:
+        return ""
+
+    section = "\n# Failures\n"
+    section += "| Name | Failure |\n"
+    section += "|---|---|\n"
+
+    for name, failure in failures.items():
+        section += f"| {name} | {failure} |\n"
+
+    return section
+
+
 def generate_markdown(
-    name: str, chart_data: dict[str, list[Result]], markdown_size: MarkdownSize
+    name: str,
+    chart_data: dict[str, list[Result]],
+    failures: dict[str, str],
+    markdown_size: MarkdownSize,
 ):
-    (summary_line, summary_table) = generate_summary_table_and_chart(
+    (summary_line, summary_table) = generate_summary_table(
         chart_data, name, markdown_size
     )
 
@@ -396,4 +402,6 @@ def generate_markdown(
         )
         generated_markdown += "\n# Details\n" f"{markdown_details}\n"
 
-    return generated_markdown
+    failures_section = generate_failures_section(failures)
+
+    return failures_section + generated_markdown

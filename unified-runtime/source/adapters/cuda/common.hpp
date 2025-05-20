@@ -10,18 +10,13 @@
 #pragma once
 
 #include <cuda.h>
+#include <nvml.h>
 #include <ur/ur.hpp>
 
 #include <umf/base.h>
+#include <umf/memory_pool.h>
+#include <umf/memory_provider.h>
 #include <umf/providers/provider_cuda.h>
-
-#define UMF_RETURN_UMF_ERROR(UmfResult)                                        \
-  do {                                                                         \
-    umf_result_t UmfResult_ = (UmfResult);                                     \
-    if (UmfResult_ != UMF_RESULT_SUCCESS) {                                    \
-      return UmfResult_;                                                       \
-    }                                                                          \
-  } while (0)
 
 ur_result_t mapErrorUR(CUresult Result);
 
@@ -35,6 +30,9 @@ ur_result_t mapErrorUR(CUresult Result);
 void checkErrorUR(CUresult Result, const char *Function, int Line,
                   const char *File);
 
+void checkErrorUR(nvmlReturn_t Result, const char *Function, int Line,
+                  const char *File);
+
 void checkErrorUR(ur_result_t Result, const char *Function, int Line,
                   const char *File);
 
@@ -44,46 +42,24 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
 std::string getCudaVersionString();
 
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode);
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode);
 
 void setPluginSpecificMessage(CUresult cu_res);
 
-/// ------ Error handling, matching OpenCL plugin semantics.
-namespace detail {
-namespace ur {
-
-// Reports error messages
-void cuPrint(const char *Message);
-
-void assertion(bool Condition, const char *Message = nullptr);
-
-} // namespace ur
-} // namespace detail
-
 namespace umf {
-
-inline umf_result_t setCUMemoryProviderParams(
-    umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams,
-    int cuDevice, void *cuContext, umf_usm_memory_type_t memType) {
-
-  umf_result_t UmfResult =
-      umfCUDAMemoryProviderParamsSetContext(CUMemoryProviderParams, cuContext);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  UmfResult =
-      umfCUDAMemoryProviderParamsSetDevice(CUMemoryProviderParams, cuDevice);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  UmfResult =
-      umfCUDAMemoryProviderParamsSetMemoryType(CUMemoryProviderParams, memType);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  return UMF_RESULT_SUCCESS;
-}
-
+ur_result_t CreateProviderPool(int cuDevice, void *cuContext,
+                               umf_usm_memory_type_t type,
+                               umf_memory_provider_handle_t *provider,
+                               umf_memory_pool_handle_t *pool);
 } // namespace umf
+
+namespace ur::cuda {
+struct ddi_getter {
+  const static ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ddi_getter>;
+} // namespace ur::cuda

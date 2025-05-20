@@ -16,16 +16,10 @@ class OneAPI:
         Path(self.oneapi_dir).mkdir(parents=True, exist_ok=True)
         self.oneapi_instance_id = self.generate_unique_oneapi_id(self.oneapi_dir)
 
-        # can we just hardcode these links?
         self.install_package(
-            "dnnl",
-            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/87e117ab-039b-437d-9c80-dcd5c9e675d5/intel-onednn-2025.0.0.862_offline.sh",
-            "6866feb5b8dfefd6ff45d6bfabed44f01d7fba8fd452480ae1fd86b92e9481ae052c24842da14f112f672f5c4859945b",
-        )
-        self.install_package(
-            "mkl",
-            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/79153e0f-74d7-45af-b8c2-258941adf58a/intel-onemkl-2025.0.0.940_offline.sh",
-            "122bb84cf943ea27753cb399c81ab2ae218ebd51b789c74d273240157722925ab4d5a43cb0b5de41b854f2c5a59a4002",
+            "base",
+            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/cca951e1-31e7-485e-b300-fe7627cb8c08/intel-oneapi-base-toolkit-2025.1.0.651_offline.sh",
+            "98cad2489f2c90a2b328568a59371cf35855a3338643f61a9fc2d16a265d29f22feb2d673916dd7be18fa12a5e6d2475",
         )
         return
 

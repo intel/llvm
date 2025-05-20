@@ -61,7 +61,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  switch (uint32_t{propName}) {
+  switch (propName) {
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(static_cast<uint32_t>(hContext->Devices.size()));
   case UR_CONTEXT_INFO_DEVICES:
@@ -106,8 +106,6 @@ urContextRetain(ur_context_handle_t hContext) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetNativeHandle([[maybe_unused]] ur_context_handle_t hContext,
                          [[maybe_unused]] ur_native_handle_t *phNativeContext) {
-  std::ignore = hContext;
-  std::ignore = phNativeContext;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

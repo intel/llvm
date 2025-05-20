@@ -202,9 +202,9 @@ By default, no messages are printed.
 
 By default, there is a guarantee that *error* messages are flushed immediately. One can change this behavior to flush on lower-level messages.
 
-Loggers redirect messages to *stdout*, *stderr*, or a file (default: *stderr*).
+Loggers redirect messages to *stdout*, *stderr*, a file, or a user configurable callback function (default: *stderr*).
 
-All of these logging options can be set with **UR_LOG_LOADER** and **UR_LOG_NULL** environment variables described in the **Environment Variables** section below.
+All of these logging options (except the callback) can be set with **UR_LOG_LOADER** and **UR_LOG_NULL** environment variables described in the **Environment Variables** section below.
 Both of these environment variables have the same syntax for setting logger options:
 
   "[level:debug|info|warning|error];[flush:<debug|info|warning|error>];[output:stdout|stderr|file,<path>]"
@@ -231,6 +231,10 @@ the ``out.log`` file::
 An example of an environment variable for setting up the null adapter library with logging level set to *warning* and output set to stdout::
 
   UR_LOG_NULL="level:warning;output:stdout"
+
+Logging callback
+^^^^^^^^^^^^^^^^^^^^^
+An API is available to configure the logging callback function :ref:`urAdapterSetLoggerCallback`. Additionally, the logging level can be set using :ref:`urAdapterSetLoggerCallbackLevel`.
 
 Adapter Discovery
 ---------------------
@@ -415,20 +419,6 @@ The following environment variables are used by the CTS runner and can be used t
 framework should run on. This can be used during development and testing to run CTS tests in case multiple platforms
 are available. If both filters are specified, then they both must match a platform for it to be selected. If there are
 no valid platforms, then the tests will fail. Command line arguments take priority over these variables.
-
-.. envvar:: UR_CTS_ADAPTER_PLATFORM
-
-    A specifier list in the form of `[(backend):](platform name)[;[(backend)]:(platform name)]...`. If a backend
-    specific specifier is present in the list and the test is running for that backend, the device with the given name
-    is chosen. Otherwise, it must match the name of the specifier from the list with no backend. Backend names are case-
-    insensitive, however platform names must match exactly.
-
-    For example, if the test device has multiple platforms and you want to run tests on the "ABC Corp" backend when
-    testing OpenCL and "XYZ Org" when testing level zero, you'd use `OPENCL:ABC Corp;LEVEL_ZERO:XYZ Org`. This form is
-    useful when running the `build` target with a build with multiple backends.
-
-    For testing only one platform, the backend can be omitted. For example, just `ABC Corp` is sufficient if the tests
-    are only going to be testing OpenCL.
 
 .. envvar:: UR_CTS_BACKEND
 

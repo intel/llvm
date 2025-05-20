@@ -25,78 +25,30 @@
 #include <unistd.h>
 #endif
 
+#include <loader/ze_loader.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <level_zero/include/level_zero/ze_intel_gpu.h>
+#include <level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
 struct _ur_platform_handle_t;
 
 [[maybe_unused]] static bool checkL0LoaderTeardown() {
-  bool loaderStable = true;
-#ifdef _WIN32
-  uint32_t ZeDriverCount = 0;
-  HMODULE zeLoader = LoadLibrary("ze_loader.dll");
-  if (zeLoader) {
-    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
-    zeDriverGet_t zeDriverGetLoader =
-        (zeDriverGet_t)GetProcAddress(zeLoader, "zeDriverGet");
-    if (zeDriverGetLoader) {
-      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
-      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
-        loaderStable = false;
-      }
-    } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
-      loaderStable = false;
+  try {
+    if (!zelCheckIsLoaderInTearDown()) {
+      return true;
     }
-    FreeLibrary(zeLoader);
-  } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
-    loaderStable = false;
+  } catch (...) {
   }
-#else
-  uint32_t ZeDriverCount = 0;
-  void *zeLoader = dlopen("libze_loader.so.1", RTLD_LAZY);
-  if (zeLoader) {
-    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
-    zeDriverGet_t zeDriverGetLoader =
-        (zeDriverGet_t)dlsym(zeLoader, "zeDriverGet");
-    if (zeDriverGetLoader) {
-      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
-      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
-        loaderStable = false;
-      }
-    } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
-      loaderStable = false;
-    }
-    dlclose(zeLoader);
-  } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
-    loaderStable = false;
-  }
-#endif
-  if (!loaderStable) {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Loader is not stable, returning false");
-  }
-  return loaderStable;
+  UR_LOG(DEBUG,
+         "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  return false;
 }
 
 // Controls UR L0 calls tracing.
@@ -305,8 +257,8 @@ private:
 };
 
 // Base class to store common data
-struct _ur_object {
-  _ur_object() : RefCount{} {}
+struct ur_object : ur::handle_base<ur::level_zero::ddi_getter> {
+  ur_object() : handle_base(), RefCount{} {}
 
   // Must be atomic to prevent data race when incrementing/decrementing.
   ReferenceCounter RefCount;
@@ -329,14 +281,11 @@ struct _ur_object {
   // Indicates if we own the native handle or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnNativeHandle = false;
-
-  // Indicates if this object is an interop handle.
-  bool IsInteropNativeHandle = false;
 };
 
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
-struct MemAllocRecord : _ur_object {
+struct MemAllocRecord : ur_object {
   MemAllocRecord(ur_context_handle_t Context, bool OwnZeMemHandle = true)
       : Context(Context) {
     OwnNativeHandle = OwnZeMemHandle;
@@ -425,13 +374,10 @@ constexpr char ZE_SUPPORTED_EXTENSIONS[] =
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 extern thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode);
-
-#define L0_DRIVER_INORDER_MIN_VERSION 29534

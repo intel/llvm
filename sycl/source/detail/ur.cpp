@@ -77,6 +77,13 @@ void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 
 ur_code_location_t codeLocationCallback(void *);
 
+void urLoggerCallback([[maybe_unused]] ur_logger_level_t level, const char *msg,
+                      [[maybe_unused]] void *userData) {
+  if (level == UR_LOGGER_LEVEL_WARN) {
+    std::cerr << msg << std::endl;
+  }
+}
+
 namespace ur {
 bool trace(TraceLevel Level) {
   auto TraceLevelMask = SYCLConfig<SYCL_UR_TRACE>::get();
@@ -138,6 +145,11 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
   auto adapterGetInfo =
       adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterSetLoggerCallback>
+      adapterSetLoggerCallbackInfo;
+  auto adapterSetLoggerCallback =
+      adapterSetLoggerCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
@@ -193,17 +205,17 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
   CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 
-  auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> sycl::backend {
+  auto UrToSyclBackend = [](ur_backend_t backend) -> sycl::backend {
     switch (backend) {
-    case UR_ADAPTER_BACKEND_LEVEL_ZERO:
+    case UR_BACKEND_LEVEL_ZERO:
       return backend::ext_oneapi_level_zero;
-    case UR_ADAPTER_BACKEND_OPENCL:
+    case UR_BACKEND_OPENCL:
       return backend::opencl;
-    case UR_ADAPTER_BACKEND_CUDA:
+    case UR_BACKEND_CUDA:
       return backend::ext_oneapi_cuda;
-    case UR_ADAPTER_BACKEND_HIP:
+    case UR_BACKEND_HIP:
       return backend::ext_oneapi_hip;
-    case UR_ADAPTER_BACKEND_NATIVE_CPU:
+    case UR_BACKEND_NATIVE_CPU:
       return backend::ext_oneapi_native_cpu;
     default:
       // Throw an exception, this should be unreachable.
@@ -213,12 +225,18 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   };
 
   for (const auto &UrAdapter : adapters) {
-    ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
+    ur_backend_t adapterBackend = UR_BACKEND_UNKNOWN;
     CHECK_UR_SUCCESS(adapterGetInfo(UrAdapter, UR_ADAPTER_INFO_BACKEND,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
     Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
+
+    const char *env_value = std::getenv("UR_LOG_CALLBACK");
+    if (env_value == nullptr || std::string(env_value) != "disabled") {
+      CHECK_UR_SUCCESS(adapterSetLoggerCallback(UrAdapter, urLoggerCallback,
+                                                nullptr, UR_LOGGER_LEVEL_WARN));
+    }
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

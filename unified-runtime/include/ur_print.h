@@ -93,6 +93,17 @@ urPrintRectRegion(const struct ur_rect_region_t params, char *buffer,
                   const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_backend_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBackend(enum ur_backend_t value,
+                                                   char *buffer,
+                                                   const size_t buff_size,
+                                                   size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_init_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -133,14 +144,14 @@ urPrintAdapterInfo(enum ur_adapter_info_t value, char *buffer,
                    const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_adapter_backend_t enum
+/// @brief Print ur_logger_level_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL
-urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
-                      const size_t buff_size, size_t *out_size);
+urPrintLoggerLevel(enum ur_logger_level_t value, char *buffer,
+                   const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_platform_info_t enum
@@ -171,16 +182,6 @@ urPrintApiVersion(enum ur_api_version_t value, char *buffer,
 UR_APIEXPORT ur_result_t UR_APICALL urPrintPlatformNativeProperties(
     const struct ur_platform_native_properties_t params, char *buffer,
     const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_platform_backend_t enum
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL
-urPrintPlatformBackend(enum ur_platform_backend_t value, char *buffer,
-                       const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_binary_t struct
@@ -1153,6 +1154,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpAsyncUsmAllocProperties(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_usm_pool_buffer_desc_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolBufferDesc(
+    const struct ur_usm_pool_buffer_desc_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_image_copy_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1191,6 +1202,16 @@ urPrintExpExternalMemType(enum ur_exp_external_mem_type_t value, char *buffer,
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpExternalSemaphoreType(
     enum ur_exp_external_semaphore_type_t value, char *buffer,
     const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_image_mem_type_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpImageMemType(enum ur_exp_image_mem_type_t value, char *buffer,
+                       const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_file_descriptor_t struct
@@ -1493,6 +1514,26 @@ urPrintLoaderConfigSetCodeLocationCallbackParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintLoaderConfigSetMockingEnabledParams(
     const struct ur_loader_config_set_mocking_enabled_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_adapter_set_logger_callback_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintAdapterSetLoggerCallbackParams(
+    const struct ur_adapter_set_logger_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_adapter_set_logger_callback_level_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintAdapterSetLoggerCallbackLevelParams(
+    const struct ur_adapter_set_logger_callback_level_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2848,16 +2889,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolDestroyExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_usm_pool_set_threshold_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolSetThresholdExpParams(
-    const struct ur_usm_pool_set_threshold_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_pool_get_default_device_pool_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2875,6 +2906,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolGetDefaultDevicePoolExpParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolGetInfoExpParams(
     const struct ur_usm_pool_get_info_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_usm_pool_set_info_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolSetInfoExpParams(
+    const struct ur_usm_pool_set_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3026,6 +3067,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImageGetInfoExpParams(
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print
+/// ur_bindless_images_get_image_memory_handle_type_support_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_memory_handle_type_support_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print
+/// ur_bindless_images_get_image_unsampled_handle_support_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_unsampled_handle_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print
+/// ur_bindless_images_get_image_sampled_handle_support_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintBindlessImagesGetImageSampledHandleSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_sampled_handle_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_mipmap_get_level_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3090,6 +3171,19 @@ urPrintBindlessImagesMapExternalLinearMemoryExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL
 urPrintBindlessImagesReleaseExternalMemoryExpParams(
     const struct ur_bindless_images_release_external_memory_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_bindless_images_free_mapped_linear_memory_exp_params_t
+/// struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintBindlessImagesFreeMappedLinearMemoryExpParams(
+    const struct ur_bindless_images_free_mapped_linear_memory_exp_params_t
         *params,
     char *buffer, const size_t buff_size, size_t *out_size);
 

@@ -1,3 +1,5 @@
+// XFAIL: gpu-intel-gen12
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17872
 // RUN: echo "Running parallel_for benchmark without range rounding"
 // RUN: %{build} -fsycl-range-rounding=disable -o %t1.out
 // RUN: %{run} %t1.out

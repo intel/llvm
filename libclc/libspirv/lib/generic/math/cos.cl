@@ -10,13 +10,14 @@
 
 #include "sincos_helpers.h"
 #include <clc/clcmacro.h>
+#include <clc/math/clc_sincos_helpers.h>
 #include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cos(float x)
 {
-    int ix = as_int(x);
+    int ix = __clc_as_int(x);
     int ax = ix & 0x7fffffff;
-    float dx = as_float(ax);
+    float dx = __clc_as_float(ax);
 
     float r0, r1;
     int regn = __clc_argReductionS(&r0, &r1, dx);
@@ -25,9 +26,9 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cos(float x)
     float cc =  __clc_cosf_piby4(r0, r1);
 
     float c =  (regn & 1) != 0 ? ss : cc;
-    c = as_float(as_int(c) ^ ((regn > 1) << 31));
+    c = __clc_as_float(__clc_as_int(c) ^ ((regn > 1) << 31));
 
-    c = ax >= PINFBITPATT_SP32 ? as_float(QNANBITPATT_SP32) : c;
+    c = ax >= PINFBITPATT_SP32 ? __clc_as_float(QNANBITPATT_SP32) : c;
 
     return c;
 }
@@ -52,11 +53,11 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_cos(double x) {
     double2 sc = __clc_sincos_piby4(r, rr);
     sc.lo = -sc.lo;
 
-    int2 c = as_int2(regn & 1 ? sc.lo : sc.hi);
+    int2 c = __clc_as_int2(regn & 1 ? sc.lo : sc.hi);
     c.hi ^= (regn > 1) << 31;
 
-    return __spirv_IsNan(x) || __spirv_IsInf(x) ? as_double(QNANBITPATT_DP64)
-                                                : as_double(c);
+    return __spirv_IsNan(x) || __spirv_IsInf(x) ? __clc_as_double(QNANBITPATT_DP64)
+                                                : __clc_as_double(c);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_cos, double);

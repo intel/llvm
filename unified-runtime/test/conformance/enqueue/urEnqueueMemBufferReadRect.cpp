@@ -197,7 +197,7 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidSize) {
 
   std::vector<uint32_t> dst(count);
 
-  // region.width == 0 || region.height == 0 || region.width == 0
+  // region.width == 0 || region.height == 0 || region.depth == 0
   region.width = 0;
   ASSERT_EQ_RESULT(urEnqueueMemBufferReadRect(
                        queue, buffer, true, buffer_offset, host_offset, region,

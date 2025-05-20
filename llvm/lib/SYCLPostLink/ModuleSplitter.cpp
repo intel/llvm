@@ -60,11 +60,6 @@ constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
-cl::opt<bool> AllowDeviceImageDependencies{
-    "allow-device-image-dependencies",
-    cl::desc("Allow dependencies between device images"),
-    cl::cat(getModuleSplitCategory()), cl::init(false)};
-
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
                                                  IRSplitMode Mode,
                                                  bool AutoSplitIsGlobalScope) {
@@ -121,8 +116,9 @@ bool isGenericBuiltin(StringRef FName) {
 }
 
 bool isKernel(const Function &F) {
-  return F.getCallingConv() == CallingConv::SPIR_KERNEL ||
-         F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
+  const auto CC = F.getCallingConv();
+  return CC == CallingConv::SPIR_KERNEL || CC == CallingConv::AMDGPU_KERNEL ||
+         CC == CallingConv::PTX_Kernel;
 }
 
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
@@ -177,7 +173,7 @@ class DependencyGraph {
 public:
   using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
-  DependencyGraph(const Module &M) {
+  DependencyGraph(const Module &M, bool AllowDeviceImageDependencies) {
     // Group functions by their signature to handle case (2) described above
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncsMap;
@@ -195,7 +191,7 @@ public:
     }
 
     for (const auto &F : M.functions()) {
-      if (canBeImportedFunction(F))
+      if (canBeImportedFunction(F, AllowDeviceImageDependencies))
         continue;
 
       // case (1), see comment above the class definition
@@ -310,7 +306,9 @@ static bool isIntrinsicOrBuiltin(const Function &F) {
 }
 
 // Checks for use of undefined user functions and emits a warning message.
-static void checkForCallsToUndefinedFunctions(const Module &M) {
+static void
+checkForCallsToUndefinedFunctions(const Module &M,
+                                  bool AllowDeviceImageDependencies) {
   if (AllowDeviceImageDependencies)
     return;
   for (const Function &F : M) {
@@ -390,22 +388,24 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
 // The function produces a copy of input LLVM IR module M with only those
 // functions and globals that can be called from entry points that are specified
 // in ModuleEntryPoints vector, in addition to the entry point functions.
-ModuleDesc extractCallGraph(const ModuleDesc &MD,
-                            EntryPointGroup &&ModuleEntryPoints,
-                            const DependencyGraph &CG,
-                            const std::function<bool(const Function *)>
-                                &IncludeFunctionPredicate = nullptr) {
+ModuleDesc extractCallGraph(
+    const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
+    const DependencyGraph &CG, bool AllowDeviceImageDependencies,
+    const std::function<bool(const Function *)> &IncludeFunctionPredicate =
+        nullptr) {
   SetVector<const GlobalValue *> GVs;
   collectFunctionsAndGlobalVariablesToExtract(
       GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
-  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
+  ModuleDesc SplitM =
+      extractSubModule(MD, std::move(GVs), std::move(ModuleEntryPoints));
   // TODO: cleanup pass is now called for each output module at the end of
   // sycl-post-link. This call is redundant. However, we subsequently run
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
   // can be removed once that pass no longer depends on this cleanup.
-  SplitM.cleanup();
-  checkForCallsToUndefinedFunctions(SplitM.getModule());
+  SplitM.cleanup(AllowDeviceImageDependencies);
+  checkForCallsToUndefinedFunctions(SplitM.getModule(),
+                                    AllowDeviceImageDependencies);
 
   return SplitM;
 }
@@ -413,11 +413,11 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
 // The function is similar to 'extractCallGraph', but it produces a copy of
 // input LLVM IR module M with _all_ ESIMD functions and kernels included,
 // regardless of whether or not they are listed in ModuleEntryPoints.
-ModuleDesc extractESIMDSubModule(const ModuleDesc &MD,
-                                 EntryPointGroup &&ModuleEntryPoints,
-                                 const DependencyGraph &CG,
-                                 const std::function<bool(const Function *)>
-                                     &IncludeFunctionPredicate = nullptr) {
+ModuleDesc extractESIMDSubModule(
+    const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
+    const DependencyGraph &CG, bool AllowDeviceImageDependencies,
+    const std::function<bool(const Function *)> &IncludeFunctionPredicate =
+        nullptr) {
   SetVector<const GlobalValue *> GVs;
   for (const auto &F : MD.getModule().functions())
     if (isESIMDFunction(F))
@@ -426,12 +426,13 @@ ModuleDesc extractESIMDSubModule(const ModuleDesc &MD,
   collectFunctionsAndGlobalVariablesToExtract(
       GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
-  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
+  ModuleDesc SplitM =
+      extractSubModule(MD, std::move(GVs), std::move(ModuleEntryPoints));
   // TODO: cleanup pass is now called for each output module at the end of
   // sycl-post-link. This call is redundant. However, we subsequently run
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
   // can be removed once that pass no longer depends on this cleanup.
-  SplitM.cleanup();
+  SplitM.cleanup(AllowDeviceImageDependencies);
 
   return SplitM;
 }
@@ -448,19 +449,22 @@ public:
     // sycl-post-link. This call is redundant. However, we subsequently run
     // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup
     // call can be removed once that pass no longer depends on this cleanup.
-    Desc.cleanup();
+    Desc.cleanup(AllowDeviceImageDependencies);
     return Desc;
   }
 };
 
 class ModuleSplitter : public ModuleSplitterBase {
 public:
-  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
-      : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule()) {}
+  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
+                 bool AllowDeviceImageDependencies)
+      : ModuleSplitterBase(std::move(MD), std::move(GroupVec),
+                           AllowDeviceImageDependencies),
+        CG(Input.getModule(), AllowDeviceImageDependencies) {}
 
   ModuleDesc nextSplit() override {
-    return extractCallGraph(Input, nextGroup(), CG);
+    return extractCallGraph(Input, nextGroup(), CG,
+                            AllowDeviceImageDependencies);
   }
 
 private:
@@ -486,11 +490,6 @@ std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
 
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
-}
-
-cl::OptionCategory &getModuleSplitCategory() {
-  static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
-  return ModuleSplitCategory;
 }
 
 Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
@@ -691,15 +690,21 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
 // tries to internalize absolutely everything. This function serves as "input
 // from a linker" that tells the pass what must be preserved in order to make
 // the transformation safe.
-static bool mustPreserveGV(const GlobalValue &GV) {
+static bool mustPreserveGV(const GlobalValue &GV,
+                           bool AllowDeviceImageDependencies) {
   if (const Function *F = dyn_cast<Function>(&GV)) {
     // When dynamic linking is supported, we internalize everything (except
     // kernels which are the entry points from host code to device code) that
     // cannot be imported which also means that there is no point of having it
     // visible outside of the current module.
-    if (AllowDeviceImageDependencies)
-      return F->getCallingConv() == CallingConv::SPIR_KERNEL ||
-             canBeImportedFunction(*F);
+    if (AllowDeviceImageDependencies) {
+      const auto CC = F->getCallingConv();
+      const bool SpirOrGPU = CC == CallingConv::SPIR_KERNEL ||
+                             CC == CallingConv::AMDGPU_KERNEL ||
+                             CC == CallingConv::PTX_Kernel;
+      return SpirOrGPU ||
+             canBeImportedFunction(*F, AllowDeviceImageDependencies);
+    }
 
     // Otherwise, we are being even more aggressive: SYCL modules are expected
     // to be self-contained, meaning that they have no external dependencies.
@@ -749,7 +754,7 @@ void cleanupSYCLRegisteredKernels(Module *M) {
 
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
-void ModuleDesc::cleanup() {
+void ModuleDesc::cleanup(bool AllowDeviceImageDependencies) {
   // Any definitions of virtual functions should be removed and turned into
   // declarations, they are supposed to be provided by a different module.
   if (!EntryPoints.Props.HasVirtualFunctionDefinitions) {
@@ -776,7 +781,10 @@ void ModuleDesc::cleanup() {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
-  MPM.addPass(InternalizePass(mustPreserveGV));
+  MPM.addPass(
+      InternalizePass([AllowDeviceImageDependencies](const GlobalValue &GV) {
+        return mustPreserveGV(GV, AllowDeviceImageDependencies);
+      }));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
@@ -1152,7 +1160,8 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints) {
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool AllowDeviceImageDependencies) {
   FunctionsCategorizer Categorizer;
 
   EntryPointsGroupScope Scope =
@@ -1247,9 +1256,11 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),
+                                            AllowDeviceImageDependencies);
 
-  return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+  return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups),
+                                        AllowDeviceImageDependencies);
 }
 
 // Splits input module into two:
@@ -1272,7 +1283,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // avoid undefined behavior at later stages. That is done at higher level,
 // outside of this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints) {
+                                        bool EmitOnlyKernelsAsEntryPoints,
+                                        bool AllowDeviceImageDependencies) {
 
   SmallVector<module_split::ModuleDesc, 2> Result;
   EntryPointGroupVec EntryPointGroups{};
@@ -1315,12 +1327,13 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     return Result;
   }
 
-  DependencyGraph CG(MD.getModule());
+  DependencyGraph CG(MD.getModule(), AllowDeviceImageDependencies);
   for (auto &Group : EntryPointGroups) {
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
       // ESIMD functions.
-      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG));
+      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG,
+                                                AllowDeviceImageDependencies));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
       // is needed, because there could be uses of ESIMD functions from
@@ -1329,7 +1342,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // were processed and therefore it is fine to return an "incomplete"
       // module here.
       Result.emplace_back(extractCallGraph(
-          MD, std::move(Group), CG,
+          MD, std::move(Group), CG, AllowDeviceImageDependencies,
           [=](const Function *F) -> bool { return !isESIMDFunction(*F); }));
     }
   }
@@ -1447,7 +1460,7 @@ bool runPreSplitProcessingPipeline(Module &M) {
   // to keep the optimizer from wrongfully removing them. llvm.compiler.used
   // symbols are usually removed at backend lowering, but this is handled here
   // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
-  if (M.getTargetTriple().find("spir") != std::string::npos)
+  if (M.getTargetTriple().str().find("spir") != std::string::npos)
     MPM.addPass(RemoveDeviceGlobalFromLLVMCompilerUsed());
 
   // Sanitizer specific passes.
@@ -1472,7 +1485,8 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   // FIXME: false arguments are temporary for now.
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
                                         /*IROutputOnly=*/false,
-                                        /*EmitOnlyKernelsAsEntryPoints=*/false);
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false,
+                                        Settings.AllowDeviceImageDependencies);
 
   size_t ID = 0;
   std::vector<SplitModule> OutputImages;
@@ -1493,7 +1507,8 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   return OutputImages;
 }
 
-bool canBeImportedFunction(const Function &F) {
+bool canBeImportedFunction(const Function &F,
+                           bool AllowDeviceImageDependencies) {
 
   // We use sycl dynamic library mechanism to involve bf16 devicelib when
   // necessary, all __devicelib_* functions from native or fallback bf16

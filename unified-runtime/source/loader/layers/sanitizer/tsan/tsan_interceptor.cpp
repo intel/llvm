@@ -33,8 +33,8 @@ TsanRuntimeData *TsanRuntimeDataWrapper::getDevicePtr() {
         Context, Device, nullptr, nullptr, sizeof(TsanRuntimeData),
         (void **)&DevicePtr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error(
-          "Failed to alloc device usm for asan runtime data: {}", Result);
+      UR_LOG(ERR, "Failed to alloc device usm for asan runtime data: {}",
+             Result);
     }
   }
   return DevicePtr;
@@ -63,9 +63,8 @@ ur_result_t DeviceInfo::allocShadowMemory() {
   Shadow = GetShadowMemory(ShadowContext, Handle, Type);
   assert(Shadow && "Failed to get shadow memory");
   UR_CALL(Shadow->Setup());
-  getContext()->logger.info("ShadowMemory(Global): {} - {}",
-                            (void *)Shadow->ShadowBegin,
-                            (void *)Shadow->ShadowEnd);
+  UR_LOG_L(getContext()->logger, INFO, "ShadowMemory(Global): {} - {}",
+           (void *)Shadow->ShadowBegin, (void *)Shadow->ShadowEnd);
   return UR_RESULT_SUCCESS;
 }
 
@@ -76,7 +75,7 @@ void ContextInfo::insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI) {
   } else {
     for (auto Device : DeviceList) {
       std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-      AllocInfosMap[Device].emplace_back(std::move(AI));
+      AllocInfosMap[Device].emplace_back(AI);
     }
   }
 }
@@ -111,12 +110,13 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
 }
 
 ur_result_t TsanInterceptor::registerProgram(ur_program_handle_t Program) {
-  getContext()->logger.info("registerDeviceGlobals");
+  UR_LOG_L(getContext()->logger, INFO, "registerDeviceGlobals");
   UR_CALL(registerDeviceGlobals(Program));
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
+ur_result_t
+TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   std::vector<ur_device_handle_t> Devices = GetDevices(Program);
   assert(Devices.size() != 0 && "No devices in registerDeviceGlobals");
   auto Context = GetContext(Program);
@@ -131,7 +131,7 @@ ur_result_t TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) 
         Device, Program, kSPIR_TsanDeviceGlobalMetadata, &MetadataSize,
         &MetadataPtr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.info("No device globals");
+      UR_LOG_L(getContext()->logger, INFO, "No device globals");
       continue;
     }
 
@@ -143,8 +143,8 @@ ur_result_t TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) 
         Queue, true, &GVInfos[0], MetadataPtr,
         sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Device Global[{}] Read Failed: {}",
-                                 kSPIR_TsanDeviceGlobalMetadata, Result);
+      UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
+               kSPIR_TsanDeviceGlobalMetadata, Result);
       return Result;
     }
 
@@ -183,6 +183,24 @@ ur_result_t TsanInterceptor::eraseContext(ur_context_handle_t Context) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t TsanInterceptor::insertKernel(ur_kernel_handle_t Kernel) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+  if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  m_KernelMap.emplace(Kernel, Kernel);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::eraseKernel(ur_kernel_handle_t Kernel) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+  assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
+  m_KernelMap.erase(Kernel);
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t TsanInterceptor::insertDevice(ur_device_handle_t Device,
                                           std::shared_ptr<DeviceInfo> &DI) {
   std::scoped_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
@@ -200,6 +218,32 @@ ur_result_t TsanInterceptor::insertDevice(ur_device_handle_t Device,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t
+TsanInterceptor::insertMemBuffer(std::shared_ptr<MemBuffer> MemBuffer) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+  assert(m_MemBufferMap.find(ur_cast<ur_mem_handle_t>(MemBuffer.get())) ==
+         m_MemBufferMap.end());
+  m_MemBufferMap.emplace(reinterpret_cast<ur_mem_handle_t>(MemBuffer.get()),
+                         MemBuffer);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::eraseMemBuffer(ur_mem_handle_t MemHandle) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+  assert(m_MemBufferMap.find(MemHandle) != m_MemBufferMap.end());
+  m_MemBufferMap.erase(MemHandle);
+  return UR_RESULT_SUCCESS;
+}
+
+std::shared_ptr<MemBuffer>
+TsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
+  std::shared_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+  if (m_MemBufferMap.find(MemHandle) != m_MemBufferMap.end()) {
+    return m_MemBufferMap[MemHandle];
+  }
+  return nullptr;
+}
+
 ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                              ur_queue_handle_t Queue,
                                              LaunchInfo &LaunchInfo) {
@@ -208,7 +252,7 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ManagedQueue InternalQueue(CI->Handle, DI->Handle);
   if (!InternalQueue) {
-    getContext()->logger.error("Failed to create internal queue");
+    UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
     return UR_RESULT_ERROR_INVALID_QUEUE;
   }
 
@@ -241,6 +285,24 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
                                            ur_queue_handle_t Queue,
                                            ur_kernel_handle_t Kernel,
                                            LaunchInfo &LaunchInfo) {
+  // Set membuffer arguments
+  auto &KernelInfo = getKernelInfo(Kernel);
+  {
+    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
+      char *ArgPointer = nullptr;
+      UR_CALL(MemBuffer->getHandle(DI->Handle, ArgPointer));
+      ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
+          Kernel, ArgIndex, nullptr, ArgPointer);
+      if (URes != UR_RESULT_SUCCESS) {
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to set buffer {} as the {} arg to kernel {}: {}",
+                 ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
+                 URes);
+      }
+    }
+  }
+
   // Prepare launch info data
   LaunchInfo.Data.Host.GlobalShadowOffset = DI->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DI->Shadow->ShadowEnd;
@@ -256,9 +318,10 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
           Queue, GetProgram(Kernel), "__TsanLaunchInfo", true,
           sizeof(LaunchInfoPtr), 0, &LaunchInfoPtr, 0, nullptr, nullptr);
   if (URes != UR_RESULT_SUCCESS) {
-    getContext()->logger.info("EnqueueWriteGlobal(__TsanLaunchInfo) "
-                              "failed, maybe empty kernel: {}",
-                              URes);
+    UR_LOG_L(getContext()->logger, INFO,
+             "EnqueueWriteGlobal(__TsanLaunchInfo) "
+             "failed, maybe empty kernel: {}",
+             URes);
   }
 
   return UR_RESULT_SUCCESS;

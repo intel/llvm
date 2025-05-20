@@ -51,8 +51,11 @@ name: AdapterRelease
 decl: static
 ordinal: "3"
 details:
-    - "When the reference count of the adapter reaches zero, the adapter may perform adapter-specififc resource teardown. Resources
-       must be left in a state where it safe for the adapter to be subsequently reinitialized with $xAdapterGet"
+    - "When the reference count of the adapter reaches zero, the adapter may
+       perform adapter-specififc resource teardown. Any objects associated with
+       the adapter should be considered invalid after this point."
+    - "Calling $xAdapterGet after any adapter handle's reference count has
+       reached zero will result in undefined behaviour."
 params:
   - type: "$x_adapter_handle_t"
     name: hAdapter
@@ -130,7 +133,7 @@ name: $x_adapter_info_t
 typed_etors: True
 etors:
     - name: BACKEND
-      desc: "[$x_adapter_backend_t] Identifies the native backend supported by the adapter."
+      desc: "[$x_backend_t] Identifies the native backend supported by the adapter."
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the adapter.
@@ -184,25 +187,74 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: enum
-desc: "Identifies backend of the adapter"
-class: $x
-name: $x_adapter_backend_t
+desc: "Minimum level of messages to be processed by the logger."
+class: $xAdapter
+name: $x_logger_level_t
 etors:
-    - name: UNKNOWN
+    - name: DEBUG
       value: "0"
-      desc: "The backend is not a recognized one"
-    - name: LEVEL_ZERO
+      desc: "Debugging messages used for development purposes."
+    - name: INFO
       value: "1"
-      desc: "The backend is Level Zero"
-    - name: OPENCL
+      desc: "General messages not related to debugging, warnings or errors."
+    - name: WARN
       value: "2"
-      desc: "The backend is OpenCL"
-    - name: CUDA
+      desc: "Used to warn users about potential problems."
+    - name: ERROR
       value: "3"
-      desc: "The backend is CUDA"
-    - name: HIP
+      desc: "Used when an error has occurred."
+    - name: QUIET
       value: "4"
-      desc: "The backend is HIP"
-    - name: NATIVE_CPU
-      value: "5"
-      desc: "The backend is Native CPU"
+      desc: "Restrict logger processing any messages."
+--- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Callback function to retrieve output from the logger."
+name: $x_logger_callback_t
+return: "void"
+params:
+    - type: $x_logger_level_t
+      name: level
+      desc: "[out] Minimum level of messages to be processed by the logger."
+      init: DEBUG
+    - type: const char*
+      name: pLoggerMsg
+      desc: "[in][out] pointer to data to be passed to callback"
+    - type: void*
+      name: pUserData
+      desc: "[in][out] pointer to data to be passed to callback"
+--- #--------------------------------------------------------------------------
+type: function
+desc: |
+      Set a callback function for use by the logger to retrieve logging output.
+      It is a requirement that the callback function is thread safe and the
+      creator of the function will be responsible for this.
+class: $xAdapter
+name: SetLoggerCallback
+decl: static
+params:
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter"
+    - type: $x_logger_callback_t
+      name: pfnLoggerCallback
+      desc: "[in] Function pointer to callback from the logger."
+    - type: void*
+      name: pUserData
+      desc: "[in][out][optional] pointer to data to be passed to callback"
+    - type: $x_logger_level_t
+      name: level
+      desc: "[in] logging level"
+      init: 0
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set the minimum logging level for the logger Callback function."
+class: $xAdapter
+name: SetLoggerCallbackLevel
+decl: static
+params:
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter"
+    - type: $x_logger_level_t
+      name: level
+      desc: "[in] logging level"

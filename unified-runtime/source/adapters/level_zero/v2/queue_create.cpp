@@ -15,9 +15,6 @@
 #include "queue_handle.hpp"
 #include "queue_immediate_in_order.hpp"
 
-#include <tuple>
-#include <utility>
-
 namespace ur::level_zero {
 ur_result_t urQueueCreate(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice,
@@ -59,7 +56,7 @@ ur_result_t urQueueCreateWithNativeHandle(
   }
 
   *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
-      hContext, hDevice, hNativeQueue, flags, ownNativeHandle, true);
+      hContext, hDevice, hNativeQueue, flags, ownNativeHandle);
 
   return UR_RESULT_SUCCESS;
 } catch (...) {

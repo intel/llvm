@@ -6,10 +6,12 @@
 from dataclasses import dataclass
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
+from abc import ABC, abstractmethod
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -34,10 +36,26 @@ benchmark_tags = [
 benchmark_tags_dict = {tag.name: tag for tag in benchmark_tags}
 
 
-class Benchmark:
+class Benchmark(ABC):
     def __init__(self, directory, suite):
         self.directory = directory
         self.suite = suite
+
+    @abstractmethod
+    def name(self) -> str:
+        pass
+
+    @abstractmethod
+    def setup(self):
+        pass
+
+    @abstractmethod
+    def teardown(self):
+        pass
+
+    @abstractmethod
+    def run(self, env_vars) -> list[Result]:
+        pass
 
     @staticmethod
     def get_adapter_full_path():
@@ -51,7 +69,9 @@ class Benchmark:
             False
         ), f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
-    def run_bench(self, command, env_vars, ld_library=[], add_sycl=True):
+    def run_bench(
+        self, command, env_vars, ld_library=[], add_sycl=True, use_stdout=True
+    ):
         env_vars = env_vars.copy()
         if options.ur is not None:
             env_vars.update(
@@ -63,13 +83,18 @@ class Benchmark:
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        return run(
+        result = run(
             command=command,
             env_vars=env_vars,
             add_sycl=add_sycl,
             cwd=options.benchmark_cwd,
             ld_library=ld_libraries,
-        ).stdout.decode()
+        )
+
+        if use_stdout:
+            return result.stdout.decode()
+        else:
+            return result.stderr.decode()
 
     def create_data_path(self, name, skip_data_dir=False):
         if skip_data_dir:
@@ -99,23 +124,11 @@ class Benchmark:
     def lower_is_better(self):
         return True
 
-    def setup(self):
-        raise NotImplementedError()
-
-    def run(self, env_vars) -> list[Result]:
-        raise NotImplementedError()
-
-    def teardown(self):
-        raise NotImplementedError()
-
     def stddev_threshold(self):
         return None
 
     def get_suite_name(self) -> str:
         return self.suite.name()
-
-    def name(self):
-        raise NotImplementedError()
 
     def description(self):
         return ""
@@ -129,25 +142,34 @@ class Benchmark:
     def get_tags(self) -> list[str]:
         return []
 
+    def range(self) -> tuple[float, float]:
+        return None
+
     def get_metadata(self) -> BenchmarkMetadata:
+        range = self.range()
+
         return BenchmarkMetadata(
             type="benchmark",
             description=self.description(),
             notes=self.notes(),
             unstable=self.unstable(),
             tags=self.get_tags(),
+            range_min=range[0] if range else None,
+            range_max=range[1] if range else None,
         )
 
 
-class Suite:
+class Suite(ABC):
+    @abstractmethod
     def benchmarks(self) -> list[Benchmark]:
-        raise NotImplementedError()
+        pass
 
+    @abstractmethod
     def name(self) -> str:
-        raise NotImplementedError()
+        pass
 
     def setup(self):
         return
 
-    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+    def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {}

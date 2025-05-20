@@ -53,16 +53,16 @@ Command-Buffer Creation
 --------------------------------------------------------------------------------
 
 Command-Buffers are tied to a specific ${x}_context_handle_t and
-${x}_device_handle_t. ${x}CommandBufferCreateExp optionally takes a descriptor
+${x}_device_handle_t. ${x}CommandBufferCreateExp takes a descriptor
 to provide additional properties for how the command-buffer should be
 constructed. The members defined in ${x}_exp_command_buffer_desc_t are:
 
 * ``isUpdatable``, which should be set to ``true`` to support :ref:`updating
-command-buffer commands`.
-* ``isInOrder``, which should be set to ``true`` to enable commands enqueued to
-a command-buffer to be executed in an in-order fashion where possible.
+  command-buffer commands`.
+* ``isInOrder``, which should be set to ``true`` to enforce commands appended
+  to a command-buffer to be executed in an in-order fashion.
 * ``enableProfiling``, which should be set to ``true`` to enable profiling of
-the command-buffer.
+  the command-buffer.
 
 Command-buffers are reference counted and can be retained and released by
 calling ${x}CommandBufferRetainExp and ${x}CommandBufferReleaseExp respectively.
@@ -108,8 +108,9 @@ Sync-Points
 A sync-point is a value which represents a command inside of a command-buffer
 which is returned from command-buffer append function calls. These can be
 optionally passed to these functions to define execution dependencies on other
-commands within the command-buffer. Sync-points passed to functions may be
-ignored if the command-buffer was created in-order.
+commands within the command-buffer. Both wait-list and return sync-point
+parameters to append functions are ignored if the command-buffer was created
+with the in-order property.
 
 Sync-points are unique and valid for use only within the command-buffer they
 were obtained from.
@@ -224,16 +225,32 @@ Enqueueing Command-Buffers
 --------------------------------------------------------------------------------
 
 Command-buffers are submitted for execution on a ${x}_queue_handle_t with an
-optional list of dependent events. An event is returned which tracks the
+optional list of dependent events. An event can be returned which tracks the
 execution of the command-buffer, and will be complete when all appended commands
-have finished executing. It is adapter specific whether command-buffers can be
-enqueued or executed simultaneously, and submissions may be serialized.
+have finished executing.
 
 .. parsed-literal::
     ${x}_event_handle_t executionEvent;
-
     ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
                                 &executionEvent);
+
+A command-buffer can be submitted for execution while a previous submission
+of the same command-buffer is still awaiting completion. That is, the user is not
+required to do a blocking wait on the completion of the first command-buffer
+submission before making a second submission of the command-buffer.
+
+Each submissions of a command-buffer is ordered behind previous submissions of
+the same command-buffer. As well as respecting the other synchronization
+dependencies set by the user, such as events, barriers, or in-order queue
+dependencies.
+
+.. parsed-literal::
+    // Submission of hCommandBuffer to hQueueB as an implicit dependency on
+    // prior submission to hQueueA.
+    ${x}EnqueueCommandBufferExp(hQueueA, hCommandBuffer, 0, nullptr,
+                                nullptr);
+    ${x}EnqueueCommandBufferExp(hQueueB, hCommandBuffer, 0, nullptr,
+                                nullptr);
 
 
 Updating Command-Buffer Commands
@@ -533,6 +550,9 @@ Changelog
 |           | primary mechanism for reporting support.              |
 +-----------+-------------------------------------------------------+
 | 1.11      | Support native commands.                              |
++-----------+-------------------------------------------------------+
+| 1.12      | Strengthen in-order property such that sync-points    |
+|           | parameters to append APIs are ignored.                |
 +-----------+-------------------------------------------------------+
 
 Contributors

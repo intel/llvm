@@ -12,11 +12,7 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
-
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -528,16 +524,15 @@ int main() {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     return -1;
   }
-
+  // Run test_device_libraries twice to verify bfloat16 device library.
   return test_build_and_run(q) || test_device_code_split(q) ||
          test_device_libraries(q) || test_esimd(q) ||
-         test_unsupported_options(q) || test_error(q) ||
-         test_no_visible_ids(q) || test_warning(q);
+         test_device_libraries(q) || test_unsupported_options(q) ||
+         test_error(q) || test_no_visible_ids(q) || test_warning(q);
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

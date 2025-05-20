@@ -27,25 +27,23 @@ namespace v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
 
-struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_t_ {
+struct ur_queue_immediate_in_order_t : ur_object, public ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
   ur_queue_flags_t flags;
 
   lockable<ur_command_list_manager> commandListManager;
-  std::vector<ur_event_handle_t> deferredEvents;
   std::vector<ur_kernel_handle_t> submittedKernels;
 
-  wait_list_view getWaitListView(locked<ur_command_list_manager> &commandList,
-                                 const ur_event_handle_t *phWaitEvents,
-                                 uint32_t numWaitEvents);
+  wait_list_view
+  getWaitListView(locked<ur_command_list_manager> &commandList,
+                  const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
+                  ur_event_handle_t additionalWaitEvent = nullptr);
 
   ze_event_handle_t getSignalEvent(locked<ur_command_list_manager> &commandList,
                                    ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
-
-  void deferEventFree(ur_event_handle_t hEvent) override;
 
   ur_result_t enqueueGenericFillUnlocked(
       ur_mem_buffer_t *hBuffer, size_t offset, size_t patternSize,
@@ -56,7 +54,8 @@ private:
   ur_result_t enqueueGenericCommandListsExp(
       uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
       ur_event_handle_t *phEvent, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_command_t callerCommand);
+      const ur_event_handle_t *phEventWaitList, ur_command_t callerCommand,
+      ur_event_handle_t additionalWaitEvent);
 
   ur_result_t
   enqueueEventsWaitWithBarrierImpl(uint32_t numEventsInWaitList,
@@ -70,7 +69,7 @@ public:
                                 const ur_queue_properties_t *);
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
                                 ur_native_handle_t, ur_queue_flags_t,
-                                bool ownZeQueue, bool interopNativeHandle);
+                                bool ownZeQueue);
 
   ~ur_queue_immediate_in_order_t();
 

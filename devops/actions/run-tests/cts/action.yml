@@ -67,7 +67,7 @@ runs:
         # SYCL_CTS_EXCLUDE_TEST_CATEGORIES - Optional file specifying a list
         # of test categories to be excluded from the build.
         echo "::group::Excluded test categories"
-        cat $cts_exclude_filter
+        [ -f "$cts_exclude_filter" ] && cat "$cts_exclude_filter"
         echo "::endgroup::"
       fi
 
@@ -134,11 +134,13 @@ runs:
         cts_exclude_filter=$PWD/sycl/cts_exclude_filter/L0_GPU
       fi
 
-      while IFS= read -r line; do
-        if [[ $line != \#* ]]; then
-          rm "./build-cts/bin/test_$line"
-        fi
-      done < "$cts_exclude_filter"
+      if [ -f "$cts_exclude_filter" ]; then
+        while IFS= read -r line; do
+          if [[ $line != \#* ]]; then
+            rm "./build-cts/bin/test_$line"
+          fi
+        done < "$cts_exclude_filter"
+      fi
 
   - name: Run SYCL CTS tests
     # Proceed with execution even if the previous two steps did not succeed.

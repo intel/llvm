@@ -6,6 +6,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from benches.compute import *
+from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
@@ -17,6 +18,8 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
+from utils.validate import Validate
+from presets import enabled_suites, presets
 
 import argparse
 import re
@@ -140,7 +143,7 @@ def collect_metadata(suites):
     metadata = {}
 
     for s in suites:
-        metadata.update(s.additionalMetadata())
+        metadata.update(s.additional_metadata())
         suite_benchmarks = s.benchmarks()
         for benchmark in suite_benchmarks:
             metadata[benchmark.name()] = benchmark.get_metadata()
@@ -164,8 +167,12 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         SyclBench(directory),
         LlamaCppBench(directory),
         UMFSuite(directory),
+        GromacsBench(directory),
         TestSuite(),
     ]
+
+    # Collect metadata from all benchmarks without setting them up
+    metadata = collect_metadata(suites)
 
     # If dry run, we're done
     if options.dry_run:
@@ -175,6 +182,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     failures = {}
 
     for s in suites:
+        if s.name() not in enabled_suites(options.preset):
+            continue
+
         suite_benchmarks = s.benchmarks()
         if filter:
             suite_benchmarks = [
@@ -190,6 +200,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             except Exception as e:
                 failures[s.name()] = f"Suite setup failure: {e}"
                 print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
+                print(f"failed: {e}")
             else:
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
@@ -242,7 +253,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             print(f"tearing down {benchmark.name()}... ", flush=True)
         benchmark.teardown()
         if options.verbose:
-            print("{benchmark.name()} teardown complete.")
+            print(f"{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -251,8 +262,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         chart_data = {this_name: results}
 
     results_dir = directory
-    if options.custom_results_dir:
-        results_dir = Path(options.custom_results_dir)
+    if options.results_directory_override:
+        results_dir = Path(options.results_directory_override)
     history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
@@ -270,14 +281,18 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
     if options.output_markdown:
         markdown_content = generate_markdown(
-            this_name, chart_data, options.output_markdown
+            this_name, chart_data, failures, options.output_markdown
         )
 
-        with open("benchmark_results.md", "w") as file:
+        md_path = options.output_directory
+        if options.output_directory is None:
+            md_path = os.getcwd()
+
+        with open(os.path.join(md_path, "benchmark_results.md"), "w") as file:
             file.write(markdown_content)
 
         print(
-            f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md"
+            f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
     saved_name = save_name if save_name is not None else this_name
@@ -291,14 +306,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             compare_names.append(saved_name)
 
     if options.output_html:
-        html_content = generate_html(history.runs, "intel/llvm", compare_names)
-
-        with open("benchmark_results.html", "w") as file:
-            file.write(html_content)
-
-        print(
-            f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html"
-        )
+        html_path = options.output_directory
+        if options.output_directory is None:
+            html_path = os.path.join(os.path.dirname(__file__), "html")
+        generate_html(history.runs, compare_names, html_path, metadata)
 
 
 def validate_and_parse_env_args(env_args):
@@ -382,12 +393,6 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
-        "--epsilon",
-        type=float,
-        help="Threshold to consider change of performance significant",
-        default=options.epsilon,
-    )
-    parser.add_argument(
         "--verbose", help="Print output of all the commands.", action="store_true"
     )
     parser.add_argument(
@@ -413,7 +418,17 @@ if __name__ == "__main__":
         help="Specify whether markdown output should fit the content size limit for request validation",
     )
     parser.add_argument(
-        "--output-html", help="Create HTML output", action="store_true", default=False
+        "--output-html",
+        help="Create HTML output. Local output is for direct local viewing of the html file, remote is for server deployment.",
+        nargs="?",
+        const=options.output_html,
+        choices=["local", "remote"],
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        help="Location for output files, if --output-html or --output-markdown was specified.",
+        default=options.output_directory,
     )
     parser.add_argument(
         "--dry-run",
@@ -446,28 +461,76 @@ if __name__ == "__main__":
         default=options.current_run_name,
     )
     parser.add_argument(
-        "--cudnn_directory",
+        "--cudnn-directory",
         type=str,
         help="Directory for cudnn library",
         default=None,
     )
     parser.add_argument(
-        "--cublas_directory",
+        "--cublas-directory",
         type=str,
         help="Directory for cublas library",
         default=None,
     )
     parser.add_argument(
-        "--results-dir",
+        "--preset",
         type=str,
-        help="Specify a custom results directory",
-        default=options.custom_results_dir,
+        choices=[p for p in presets.keys()],
+        help="Benchmark preset to run",
+        default=options.preset,
     )
     parser.add_argument(
         "--build-jobs",
         type=int,
         help="Number of build jobs to run simultaneously",
         default=options.build_jobs,
+    )
+    parser.add_argument(
+        "--hip-arch",
+        type=str,
+        help="HIP device architecture",
+        default=None,
+    )
+
+    # Options intended for CI:
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom directory to load/store (historical) results from",
+        default=options.results_directory_override,
+    )
+    parser.add_argument(
+        "--timestamp-override",
+        type=lambda ts: Validate.timestamp(
+            ts,
+            throw=argparse.ArgumentTypeError(
+                "Specified timestamp not in YYYYMMDD_HHMMSS format."
+            ),
+        ),
+        help="Manually specify timestamp used in metadata",
+        default=options.timestamp_override,
+    )
+    parser.add_argument(
+        "--github-repo",
+        type=lambda gh_repo: Validate.github_repo(
+            gh_repo,
+            throw=argparse.ArgumentTypeError(
+                "Specified github repo not in <owner>/<repo> format."
+            ),
+        ),
+        help="Manually specify github repo metadata of component tested (e.g. SYCL, UMF)",
+        default=options.github_repo_override,
+    )
+    parser.add_argument(
+        "--git-commit",
+        type=lambda commit: Validate.commit_hash(
+            commit,
+            throw=argparse.ArgumentTypeError(
+                "Specified commit is not a valid commit hash."
+            ),
+        ),
+        help="Manually specify commit hash metadata of component tested (e.g. SYCL, UMF)",
+        default=options.git_commit_override,
     )
 
     args = parser.parse_args()
@@ -480,7 +543,6 @@ if __name__ == "__main__":
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
-    options.epsilon = args.epsilon
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
@@ -495,14 +557,32 @@ if __name__ == "__main__":
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
-    options.custom_results_dir = args.results_dir
+    options.preset = args.preset
+    options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
+    options.hip_arch = args.hip_arch
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
     if args.compute_runtime is not None:
         options.build_compute_runtime = True
         options.compute_runtime_tag = args.compute_runtime
+    if args.output_dir is not None:
+        if not os.path.isdir(args.output_dir):
+            parser.error("Specified --output-dir is not a valid path")
+        options.output_directory = os.path.abspath(args.output_dir)
+
+    # Options intended for CI:
+    options.timestamp_override = args.timestamp_override
+    if args.results_dir is not None:
+        if not os.path.isdir(args.results_dir):
+            parser.error("Specified --results-dir is not a valid path")
+        options.results_directory_override = os.path.abspath(args.results_dir)
+    if args.github_repo is not None or args.git_commit is not None:
+        if args.github_repo is None or args.git_commit is None:
+            parser.error("--github-repo and --git_commit must both be defined together")
+        options.github_repo_override = args.github_repo
+        options.git_commit_override = args.git_commit
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

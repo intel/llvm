@@ -99,7 +99,7 @@ Value *BuiltinCallMutator::doConversion() {
 
   // Sanitize the return type, in case it's a TypedPointerType.
   if (auto *TPT = dyn_cast<TypedPointerType>(ReturnTy))
-    ReturnTy = PointerType::get(TPT->getElementType(), TPT->getAddressSpace());
+    ReturnTy = PointerType::get(CI->getContext(), TPT->getAddressSpace());
 
   CallInst *NewCall =
       Builder.Insert(addCallInst(CI->getModule(), FuncName, ReturnTy, Args,
@@ -238,7 +238,7 @@ Value *BuiltinCallHelper::addSPIRVCall(IRBuilder<> &Builder, spv::Op Opcode,
                                        const Twine &Name) {
   // Sanitize the return type, in case it's a TypedPointerType.
   if (auto *TPT = dyn_cast<TypedPointerType>(ReturnTy))
-    ReturnTy = PointerType::get(TPT->getElementType(), TPT->getAddressSpace());
+    ReturnTy = PointerType::get(Builder.getContext(), TPT->getAddressSpace());
 
   // Copy the types into the mangling info.
   BuiltinFuncMangleInfo BtnInfo;
@@ -352,7 +352,7 @@ Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
     STy = StructType::create(M->getContext(), FullName);
 
   unsigned AddrSpace = getOCLOpaqueTypeAddrSpace(TypeOpcode);
-  return UseRealType ? (Type *)PointerType::get(STy, AddrSpace)
+  return UseRealType ? (Type *)PointerType::get(M->getContext(), AddrSpace)
                      : TypedPointerType::get(STy, AddrSpace);
 }
 

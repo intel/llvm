@@ -22,31 +22,23 @@
 
 #include <cuda.h>
 
-namespace umf {
-ur_result_t getProviderNativeError(const char *, int32_t) {
-  // TODO: implement when UMF supports CUDA
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
-
 /// USM: Implements USM Host allocations using CUDA Pinned Memory
 /// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#page-locked-host-memory
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t hPool, size_t size, void **ppMem) {
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
-  UR_ASSERT(!pUSMDesc ||
-                (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (!hPool) {
-    return USMHostAllocImpl(ppMem, hContext, /* flags */ 0, size, alignment);
+  auto pool = hPool ? hPool->HostMemPool.get() : hContext->MemoryPoolHost;
+  if (alignment) {
+    UR_ASSERT(isPowerOf2(alignment), UR_RESULT_ERROR_INVALID_VALUE);
+    *ppMem = umfPoolAlignedMalloc(pool, size, alignment);
+  } else {
+    *ppMem = umfPoolMalloc(pool, size);
   }
 
-  auto UMFPool = hPool->HostMemPool.get();
-  *ppMem = umfPoolAlignedMalloc(UMFPool, size, alignment);
   if (*ppMem == nullptr) {
-    auto umfErr = umfPoolGetLastAllocationError(UMFPool);
+    auto umfErr = umfPoolGetLastAllocationError(pool);
     return umf::umf2urResult(umfErr);
   }
   return UR_RESULT_SUCCESS;
@@ -55,23 +47,22 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
 /// USM: Implements USM device allocations using a normal CUDA device pointer
 ///
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+urUSMDeviceAlloc(ur_context_handle_t, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t hPool,
                  size_t size, void **ppMem) {
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
-  UR_ASSERT(!pUSMDesc ||
-                (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (!hPool) {
-    return USMDeviceAllocImpl(ppMem, hContext, hDevice, /* flags */ 0, size,
-                              alignment);
+  ScopedContext SC(hDevice);
+  auto pool = hPool ? hPool->DeviceMemPool.get() : hDevice->MemoryPoolDevice;
+  if (alignment) {
+    UR_ASSERT(isPowerOf2(alignment), UR_RESULT_ERROR_INVALID_VALUE);
+    *ppMem = umfPoolAlignedMalloc(pool, size, alignment);
+  } else {
+    *ppMem = umfPoolMalloc(pool, size);
   }
 
-  auto UMFPool = hPool->DeviceMemPool.get();
-  *ppMem = umfPoolAlignedMalloc(UMFPool, size, alignment);
   if (*ppMem == nullptr) {
-    auto umfErr = umfPoolGetLastAllocationError(UMFPool);
+    auto umfErr = umfPoolGetLastAllocationError(pool);
     return umf::umf2urResult(umfErr);
   }
   return UR_RESULT_SUCCESS;
@@ -80,23 +71,22 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 /// USM: Implements USM Shared allocations using CUDA Managed Memory
 ///
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+urUSMSharedAlloc(ur_context_handle_t, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t hPool,
                  size_t size, void **ppMem) {
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
-  UR_ASSERT(!pUSMDesc ||
-                (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (!hPool) {
-    return USMSharedAllocImpl(ppMem, hContext, hDevice, /*host flags*/ 0,
-                              /*device flags*/ 0, size, alignment);
+  ScopedContext SC(hDevice);
+  auto pool = hPool ? hPool->SharedMemPool.get() : hDevice->MemoryPoolShared;
+  if (alignment) {
+    UR_ASSERT(isPowerOf2(alignment), UR_RESULT_ERROR_INVALID_VALUE);
+    *ppMem = umfPoolAlignedMalloc(pool, size, alignment);
+  } else {
+    *ppMem = umfPoolMalloc(pool, size);
   }
 
-  auto UMFPool = hPool->SharedMemPool.get();
-  *ppMem = umfPoolAlignedMalloc(UMFPool, size, alignment);
   if (*ppMem == nullptr) {
-    auto umfErr = umfPoolGetLastAllocationError(UMFPool);
+    auto umfErr = umfPoolGetLastAllocationError(pool);
     return umf::umf2urResult(umfErr);
   }
   return UR_RESULT_SUCCESS;
@@ -108,68 +98,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
   (void)hContext; // unused
   return umf::umf2urResult(umfFree(pMem));
-}
-
-ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
-                               ur_device_handle_t Device,
-                               ur_usm_device_mem_flags_t, size_t Size,
-                               uint32_t Alignment) {
-  try {
-    ScopedContext Active(Device);
-    *ResultPtr = umfPoolMalloc(Device->MemoryPoolDevice, Size);
-    UMF_CHECK_PTR(*ResultPtr);
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-
-#ifdef NDEBUG
-  std::ignore = Alignment;
-#else
-  assert((Alignment == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
-                               ur_device_handle_t Device,
-                               ur_usm_host_mem_flags_t,
-                               ur_usm_device_mem_flags_t, size_t Size,
-                               uint32_t Alignment) {
-  try {
-    ScopedContext Active(Device);
-    *ResultPtr = umfPoolMalloc(Device->MemoryPoolShared, Size);
-    UMF_CHECK_PTR(*ResultPtr);
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-
-#ifdef NDEBUG
-  std::ignore = Alignment;
-#else
-  assert((Alignment == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t hContext,
-                             ur_usm_host_mem_flags_t, size_t Size,
-                             uint32_t Alignment) {
-  try {
-    *ResultPtr = umfPoolMalloc(hContext->MemoryPoolHost, Size);
-    UMF_CHECK_PTR(*ResultPtr);
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-
-#ifdef NDEBUG
-  std::ignore = Alignment;
-#else
-  assert((Alignment == 0 ||
-          reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
-  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -242,8 +170,8 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 
       // cuda backend has only one platform containing all devices
       ur_platform_handle_t platform;
-      ur_adapter_handle_t AdapterHandle = &adapter;
-      Result = urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr);
+      ur_adapter_handle_t AdapterHandle = ur::cuda::adapter;
+      Result = urPlatformGet(AdapterHandle, 1, &platform, nullptr);
 
       // get the device from the platform
       ur_device_handle_t Device = platform->Devices[DeviceIndex].get();
@@ -269,24 +197,20 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
-                                                   void *HostPtr, size_t Size) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t, void *,
+                                                   size_t Size) {
   UR_ASSERT(Size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
-                                                    void *HostPtr) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t,
+                                                    void *) {
   return UR_RESULT_SUCCESS;
 }
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
-    : Context{Context} {
+    : handle_base(), Context{Context} {
   const void *pNext = PoolDesc->pNext;
   while (pNext != nullptr) {
     const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
@@ -301,7 +225,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       break;
     }
     default: {
-      throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     }
     pNext = BaseDesc->pNext;
@@ -347,27 +271,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
     /// [out] pointer to USM memory pool
     ur_usm_pool_handle_t *Pool) {
   // Without pool tracking we can't free pool allocations.
-#ifdef UMF_ENABLE_POOL_TRACKING
   if (PoolDesc->flags & UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
   try {
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
-  } catch (const UsmAllocationException &Ex) {
-    return Ex.getError();
+  } catch (ur_result_t e) {
+    return e;
   } catch (umf_result_t e) {
     return umf::umf2urResult(e);
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
-#else
-  std::ignore = Context;
-  std::ignore = PoolDesc;
-  std::ignore = Pool;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRetain(
@@ -414,33 +331,211 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t,
-                                                       ur_device_handle_t,
-                                                       ur_usm_pool_desc_t *,
-                                                       ur_usm_pool_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                                             ur_device_handle_t Device,
+                                             ur_usm_pool_desc_t *PoolDesc)
+    : Context{Context}, Device{Device} {
+  if (!(PoolDesc->flags & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP))
+    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+
+  CUmemPoolProps MemPoolProps{};
+  size_t threshold = 0;
+
+  const void *pNext = PoolDesc->pNext;
+  while (pNext != nullptr) {
+    const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
+    switch (BaseDesc->stype) {
+    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
+      const ur_usm_pool_limits_desc_t *Limits =
+          reinterpret_cast<const ur_usm_pool_limits_desc_t *>(BaseDesc);
+#if CUDA_VERSION >= 12020
+      // maxSize as a member of CUmemPoolProps was introduced in CUDA 12.2.
+      MemPoolProps.maxSize =
+          Limits->maxPoolableSize; // CUDA lazily reserves memory for pools in
+                                   // 32MB chunks. maxSize is elevated to the
+                                   // next 32MB multiple. Each 32MB chunk is
+                                   // only reserved when it's needed for the
+                                   // first time (cuMemAllocFromPoolAsync).
+#else
+      // Only warn if the user set a value >0 for the maximum size.
+      // Otherwise, do nothing.
+      // Set maximum size is effectively ignored.
+      if (Limits->maxPoolableSize > 0)
+        UR_LOG(WARN, "The memory pool maximum size feature requires CUDA "
+                     "12.2 or later.\n");
+#endif
+      maxSize = Limits->maxPoolableSize;
+      size_t chunkSize = 33554432; // 32MB
+      size_t remainder = Limits->maxPoolableSize % chunkSize;
+      if (remainder != 0) {
+        maxSize = maxSize + chunkSize - remainder;
+      }
+
+      threshold = Limits->minDriverAllocSize;
+      break;
+    }
+    default: {
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+    }
+    pNext = BaseDesc->pNext;
+  }
+
+  MemPoolProps.allocType = CU_MEM_ALLOCATION_TYPE_PINNED;
+  // Clarification of what id means here:
+  // https://forums.developer.nvidia.com/t/incomplete-description-in-cumemlocation-v1-struct-reference/318701
+  MemPoolProps.location.id = Device->getIndex();
+  MemPoolProps.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+  UR_CHECK_ERROR(cuMemPoolCreate(&CUmemPool, &MemPoolProps));
+
+  // Release threshold is not a property when creating a pool.
+  // It must be set separately.
+  UR_CHECK_ERROR(urUSMPoolSetInfoExp(this,
+                                     UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP,
+                                     &threshold, 8 /*uint64_t*/));
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t,
-                                                        ur_device_handle_t,
-                                                        ur_usm_pool_handle_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                                             ur_device_handle_t Device,
+                                             CUmemoryPool CUmemPool)
+    : Context{Context}, Device{Device}, CUmemPool(CUmemPool) {}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
+                   ur_usm_pool_desc_t *pPoolDesc, ur_usm_pool_handle_t *pPool) {
+  // This entry point only supports native mem pools.
+  if (!(pPoolDesc->flags & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP))
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Zero-init is on by default in CUDA.
+  // Read-only has no support in CUDA.
+  try {
+    *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
+        new ur_usm_pool_handle_t_(Context, Device, pPoolDesc));
+  } catch (ur_result_t e) {
+    return e;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t, size_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolDestroyExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                    ur_usm_pool_handle_t hPool) {
+
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedContext Active(hDevice);
+
+  try {
+    UR_CHECK_ERROR(cuMemPoolDestroy(hPool->getCudaPool()));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_usm_pool_handle_t *pPool) {
+
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedContext Active(hDevice);
+
+  try {
+    CUmemoryPool cuPool;
+    UR_CHECK_ERROR(cuDeviceGetDefaultMemPool(&cuPool, hDevice->get()));
+
+    *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
+        new ur_usm_pool_handle_t_(hContext, hDevice, cuPool));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t,
-                                                        ur_usm_pool_info_t,
-                                                        void *, size_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
+                    void *pPropValue, size_t *pPropSizeRet) {
+
+  CUmemPool_attribute attr;
+
+  switch (propName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    attr = CU_MEMPOOL_ATTR_RELEASE_THRESHOLD;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP:
+    attr = CU_MEMPOOL_ATTR_RESERVED_MEM_CURRENT;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    attr = CU_MEMPOOL_ATTR_RESERVED_MEM_HIGH;
+    break;
+  case UR_USM_POOL_INFO_USED_CURRENT_EXP:
+    attr = CU_MEMPOOL_ATTR_USED_MEM_CURRENT;
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    attr = CU_MEMPOOL_ATTR_USED_MEM_HIGH;
+    break;
+  default:
+    // Unknown enumerator
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  uint64_t value = 0;
+  UR_CHECK_ERROR(
+      cuMemPoolGetAttribute(hPool->getCudaPool(), attr, (void *)&value));
+
+  if (pPropValue) {
+    *(size_t *)pPropValue = value;
+  }
+  if (pPropSizeRet) {
+    *(size_t *)pPropSizeRet = sizeof(size_t);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
+                    void *pPropValue, size_t) {
+
+  CUmemPool_attribute attr;
+
+  // All current values are expected to be of size uint64_t
+  switch (propName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    attr = CU_MEMPOOL_ATTR_RELEASE_THRESHOLD;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    attr = CU_MEMPOOL_ATTR_RESERVED_MEM_HIGH;
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    attr = CU_MEMPOOL_ATTR_USED_MEM_HIGH;
+    break;
+  default:
+    // Unknown enumerator
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+  try {
+    UR_CHECK_ERROR(
+        cuMemPoolSetAttribute(hPool->getCudaPool(), attr, pPropValue));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
@@ -453,9 +548,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
-                                                       ur_device_handle_t,
-                                                       ur_usm_pool_handle_t,
-                                                       size_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                   ur_usm_pool_handle_t hPool, size_t minBytesToKeep) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedContext Active(hDevice);
+
+  try {
+    UR_CHECK_ERROR(cuMemPoolTrimTo(hPool->getCudaPool(), minBytesToKeep));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }

@@ -20,7 +20,8 @@ inline namespace _V1 {
 namespace access {
 
 enum class target {
-  global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
+  device = 2014,
+  global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = device,
   constant_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2015,
   local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
@@ -28,7 +29,6 @@ enum class target {
   host_image = 2019,
   image_array = 2020,
   host_task = 2021,
-  device = global_buffer,
 };
 
 enum class mode {
@@ -381,6 +381,7 @@ auto dynamic_address_cast(ElementType *Ptr) {
   constexpr auto SrcAS = deduce_AS<ElementType *>::value;
   using dst_type = typename DecoratedType<
       std::remove_pointer_t<remove_decoration_t<ElementType *>>, Space>::type *;
+  using RemoveCvT = std::remove_cv_t<ElementType>;
 
   if constexpr (!address_space_cast_is_possible(SrcAS, Space)) {
     return (dst_type) nullptr;
@@ -403,18 +404,18 @@ auto dynamic_address_cast(ElementType *Ptr) {
 #endif
   } else if constexpr (Space == global_space) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToGlobal(
-        Ptr, __spv::StorageClass::CrossWorkgroup);
+        const_cast<RemoveCvT *>(Ptr), __spv::StorageClass::CrossWorkgroup);
   } else if constexpr (Space == local_space) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToLocal(
-        Ptr, __spv::StorageClass::Workgroup);
+        const_cast<RemoveCvT *>(Ptr), __spv::StorageClass::Workgroup);
   } else if constexpr (Space == private_space) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToPrivate(
-        Ptr, __spv::StorageClass::Function);
+        const_cast<RemoveCvT *>(Ptr), __spv::StorageClass::Function);
 #if !defined(__ENABLE_USM_ADDR_SPACE__)
   } else if constexpr (SrcAS == generic_space &&
                        (Space == global_device || Space == global_host)) {
     return (dst_type)__spirv_GenericCastToPtrExplicit_ToGlobal(
-        Ptr, __spv::StorageClass::CrossWorkgroup);
+        const_cast<RemoveCvT *>(Ptr), __spv::StorageClass::CrossWorkgroup);
 #endif
   } else {
     static_assert(SupressNotImplementedAssert || Space != Space,

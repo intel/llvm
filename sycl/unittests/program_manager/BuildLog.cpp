@@ -5,9 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include "gtest/internal/gtest-internal.h"
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>

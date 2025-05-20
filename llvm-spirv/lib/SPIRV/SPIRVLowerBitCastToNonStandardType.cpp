@@ -86,7 +86,8 @@ static Value *removeBitCasts(Value *OldValue, Type *NewTy, NFIRBuilder &Builder,
 
   if (auto *ASCI = dyn_cast<AddrSpaceCastInst>(OldValue)) {
     Builder.SetInsertPoint(ASCI);
-    Type *NewSrcTy = PointerType::get(NewTy, ASCI->getSrcAddressSpace());
+    Type *NewSrcTy =
+        PointerType::get(Builder.getContext(), ASCI->getSrcAddressSpace());
     Value *Pointer = removeBitCasts(ASCI->getPointerOperand(), NewSrcTy,
                                     Builder, InstsToErase);
     return RauwBitcasts(ASCI, Builder.CreateAddrSpaceCast(Pointer, NewTy));

@@ -5,6 +5,12 @@
 		urAdapterGetLastError;
 		urAdapterRelease;
 		urAdapterRetain;
+		urAdapterSetLoggerCallback;
+		urAdapterSetLoggerCallbackLevel;
+		urBindlessImagesFreeMappedLinearMemoryExp;
+		urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+		urBindlessImagesGetImageSampledHandleSupportExp;
+		urBindlessImagesGetImageUnsampledHandleSupportExp;
 		urBindlessImagesImageAllocateExp;
 		urBindlessImagesImageCopyExp;
 		urBindlessImagesImageFreeExp;
@@ -105,6 +111,7 @@
 		urEventRetain;
 		urEventSetCallback;
 		urEventWait;
+		urGetAdapterProcAddrTable;
 		urGetBindlessImagesExpProcAddrTable;
 		urGetCommandBufferExpProcAddrTable;
 		urGetContextProcAddrTable;
@@ -172,16 +179,22 @@
 		urPlatformGetBackendOption;
 		urPlatformGetInfo;
 		urPlatformGetNativeHandle;
-		urPrintAdapterBackend;
 		urPrintAdapterGetInfoParams;
 		urPrintAdapterGetLastErrorParams;
 		urPrintAdapterGetParams;
 		urPrintAdapterInfo;
 		urPrintAdapterReleaseParams;
 		urPrintAdapterRetainParams;
+		urPrintAdapterSetLoggerCallbackLevelParams;
+		urPrintAdapterSetLoggerCallbackParams;
 		urPrintApiVersion;
+		urPrintBackend;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
+		urPrintBindlessImagesFreeMappedLinearMemoryExpParams;
+		urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams;
+		urPrintBindlessImagesGetImageSampledHandleSupportExpParams;
+		urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams;
 		urPrintBindlessImagesImageAllocateExpParams;
 		urPrintBindlessImagesImageCopyExpParams;
 		urPrintBindlessImagesImageFreeExpParams;
@@ -334,6 +347,7 @@
 		urPrintExpFileDescriptor;
 		urPrintExpImageCopyFlags;
 		urPrintExpImageCopyRegion;
+		urPrintExpImageMemType;
 		urPrintExpLaunchProperty;
 		urPrintExpLaunchPropertyId;
 		urPrintExpPeerInfo;
@@ -388,6 +402,7 @@
 		urPrintLoaderConfigSetMockingEnabledParams;
 		urPrintLoaderInitParams;
 		urPrintLoaderTearDownParams;
+		urPrintLoggerLevel;
 		urPrintMapFlags;
 		urPrintMemBufferCreateParams;
 		urPrintMemBufferCreateWithNativeHandleParams;
@@ -412,7 +427,6 @@
 		urPrintPhysicalMemProperties;
 		urPrintPhysicalMemReleaseParams;
 		urPrintPhysicalMemRetainParams;
-		urPrintPlatformBackend;
 		urPrintPlatformCreateWithNativeHandleParams;
 		urPrintPlatformGetApiVersionParams;
 		urPrintPlatformGetBackendOptionParams;
@@ -495,6 +509,7 @@
 		urPrintUsmP2pEnablePeerAccessExpParams;
 		urPrintUsmP2pPeerAccessGetInfoExpParams;
 		urPrintUsmPitchedAllocExpParams;
+		urPrintUsmPoolBufferDesc;
 		urPrintUsmPoolCreateExpParams;
 		urPrintUsmPoolCreateParams;
 		urPrintUsmPoolDesc;
@@ -509,7 +524,7 @@
 		urPrintUsmPoolReleaseParams;
 		urPrintUsmPoolRetainParams;
 		urPrintUsmPoolSetDevicePoolExpParams;
-		urPrintUsmPoolSetThresholdExpParams;
+		urPrintUsmPoolSetInfoExpParams;
 		urPrintUsmPoolTrimToExpParams;
 		urPrintUsmReleaseExpParams;
 		urPrintUsmSharedAllocParams;
@@ -571,7 +586,7 @@
 		urUSMPoolRelease;
 		urUSMPoolRetain;
 		urUSMPoolSetDevicePoolExp;
-		urUSMPoolSetThresholdExp;
+		urUSMPoolSetInfoExp;
 		urUSMPoolTrimToExp;
 		urUSMReleaseExp;
 		urUSMSharedAlloc;

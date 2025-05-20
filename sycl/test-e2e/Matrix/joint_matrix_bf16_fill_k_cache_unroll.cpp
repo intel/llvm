@@ -8,15 +8,16 @@
 // UNSUPPORTED: target-nvidia, target-amd
 // UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
 // other triples
+// XFAIL: run-mode && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
+// XFAIL-TRACKER: CMPLRLLVM-66371
 
 // REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -mllvm -inline-threshold=5000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI
+// RUN: %{build} -mllvm -inline-threshold=2000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI
 // RUN: %{run} %t.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,
 // since IGC doesn't support some variants of IR for Joint Matrix currently
-// -inline-threshold increased to 5000 to workaround bug in IGC: GSD-10534
 // -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "common.hpp"

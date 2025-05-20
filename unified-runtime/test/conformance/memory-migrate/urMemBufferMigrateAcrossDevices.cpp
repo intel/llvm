@@ -71,9 +71,10 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
     for (auto i = 0u; i < num_devices; ++i) {
-      ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-          platform, context, devices[i], *il_binary, &properties,
-          &programs[i]));
+      UUR_RETURN_ON_FATAL_FAILURE(
+          uur::KernelsEnvironment::instance->CreateProgram(
+              platform, context, devices[i], *il_binary, &properties,
+              &programs[i]));
       ASSERT_SUCCESS(urProgramBuild(context, programs[i], nullptr));
       auto kernel_names =
           uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
@@ -97,10 +98,10 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     // the AMD backend handles this differently and uses three separate
     // arguments for each of the three dimensions of the accessor.
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,

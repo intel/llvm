@@ -51,11 +51,14 @@ int test_persistent_cache() {
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
-  sycl::context ctx = q.get_context();
+  // This test uses a very small cache eviction threshold,
+  // so we make a queue with a context of exactly one device
+  // not "all devices" like the default context might have.
+  sycl::device d;
+  sycl::context ctx{d};
+  sycl::queue q{ctx, d};
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source kernel "
                  "bundle extension: "

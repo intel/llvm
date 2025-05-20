@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <relational.h>
+#include <libspirv/relational.h>
 
 _CLC_DEF _CLC_OVERLOAD bool __spirv_IsInf(float x) { return __nv_isinff(x); }
 

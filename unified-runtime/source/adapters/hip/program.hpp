@@ -17,7 +17,7 @@
 #include "context.hpp"
 
 /// Implementation of UR Program on HIP Module object
-struct ur_program_handle_t_ {
+struct ur_program_handle_t_ : ur::hip::handle_base {
   using native_type = hipModule_t;
   native_type Module;
   const char *Binary;
@@ -48,17 +48,13 @@ struct ur_program_handle_t_ {
   ur_program_build_status_t BuildStatus = UR_PROGRAM_BUILD_STATUS_NONE;
 
   ur_program_handle_t_(ur_context_handle_t Ctxt, ur_device_handle_t Device)
-      : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-        Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
+      : handle_base(), Module{nullptr}, Binary{}, BinarySizeInBytes{0},
+        RefCount{1}, Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
         KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
-    urDeviceRetain(Device);
   }
 
-  ~ur_program_handle_t_() {
-    urContextRelease(Context);
-    urDeviceRelease(Device);
-  }
+  ~ur_program_handle_t_() { urContextRelease(Context); }
 
   ur_result_t setMetadata(const ur_program_metadata_t *Metadata, size_t Length);
 

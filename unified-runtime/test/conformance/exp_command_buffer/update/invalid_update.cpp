@@ -7,6 +7,7 @@
 #include "../fixtures.h"
 #include <array>
 #include <cstring>
+#include <uur/known_failure.h>
 
 // Negative tests that correct error codes are thrown on invalid update usage.
 struct InvalidUpdateTest

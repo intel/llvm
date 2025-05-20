@@ -74,7 +74,8 @@ def warn_drv_fp_accuracy_override : Warning <
   InGroup<FPAccOverride>;
 
 def err_drv_no_rocm_device_lib : Error<
-  "cannot find ROCm device library%select{| for %1| for ABI version %1}0; provide its path via "
+  "cannot find ROCm device library%select{| for %1| for ABI version %1"
+  "%select{|, which requires ROCm %3 or higher}2}0; provide its path via "
   "'--rocm-path' or '--rocm-device-lib-path', or pass '-nogpulib' to build "
   "without ROCm device library">;
 def err_drv_no_hip_runtime : Error<
@@ -99,10 +100,6 @@ def err_drv_hipspv_no_hip_path : Error<
   "'--hip-path' must be specified when offloading to SPIR-V unless '-nogpuinc' "
   "is given">;
 
-// TODO: Remove when COV6 is fully supported by ROCm.
-def warn_drv_amdgpu_cov6: Warning<
-  "code object v6 is still in development and not ready for production use yet;"
-  " use at your own risk">;
 def err_drv_undetermined_gpu_arch : Error<
   "cannot determine %0 architecture: %1; consider passing it via '%2'; "
   "environment variable CLANG_TOOLCHAIN_PROGRAM_TIMEOUT specifies the tool "
@@ -238,6 +235,8 @@ def err_drv_cannot_open_randomize_layout_seed_file : Error<
   "cannot read randomize layout seed file '%0'">;
 def err_drv_invalid_version_number : Error<
   "invalid version number in '%0'">;
+def err_drv_kcfi_arity_unsupported_target : Error<
+  "target '%0' is unsupported by -fsanitize-kcfi-arity">;
 def err_drv_no_linker_llvm_support : Error<
   "'%0': unable to pass LLVM bit-code files to linker">;
 def err_drv_no_ast_support : Error<
@@ -305,6 +304,11 @@ def err_cpu_unsupported_isa
   : Error<"CPU '%0' does not support '%1' execution mode">;
 def err_arch_unsupported_isa
   : Error<"architecture '%0' does not support '%1' execution mode">;
+
+def err_zos_target_release_discontinued
+  : Error<"z/OS target level \"%0\" is discontinued">;
+def err_zos_target_unrecognized_release
+  : Error<"z/OS target level \"%0\" is invalid">;
 
 def err_drv_I_dash_not_supported : Error<
   "'%0' not supported, please use -iquote instead">;
@@ -420,6 +424,10 @@ def err_drv_fsycl_wrong_optimization_options : Error<
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
   "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT)">,
   InGroup<SyclTarget>;
+def warn_drv_fsycl_device_obj_asm_device_only : Warning<
+  "-fsycl-device-obj=asm flag has an effect only when compiling device code "
+  "and emitting assembly, make sure both -fsycl-device-only and -S flags are "
+  "present; will be ignored">, InGroup<UnusedCommandLineArgument>;
 def warn_drv_ftarget_register_alloc_mode_pvc : Warning<
   "using '%0' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:%1'">,
   InGroup<Deprecated>;
@@ -457,8 +465,14 @@ def err_drv_print_header_env_var : Error<
   "environment variable CC_PRINT_HEADERS_%select{FORMAT|FILTERING}0 has invalid value %1">;
 def err_drv_print_header_env_var_combination : Error<
   "unsupported combination: CC_PRINT_HEADERS_FORMAT=%0 and CC_PRINT_HEADERS_FILTERING=%1">;
-def err_drv_print_header_env_var_combination_cc1 : Error<
+def err_drv_print_header_env_var_invalid_format : Error<
+  "environment variable CC_PRINT_HEADERS_FORMAT=%0 requires a compatible value for CC_PRINT_HEADERS_FILTERING">;
+def err_drv_print_header_cc1_invalid_combination : Error<
   "unsupported combination: -header-include-format=%0 and -header-include-filtering=%1">;
+def err_drv_print_header_cc1_invalid_filtering : Error<
+  "-header-include-filtering=%0 requires a compatible value for -header-include-format">;
+def err_drv_print_header_cc1_invalid_format : Error<
+  "-header-include-format=%0 requires a compatible value for -header-include-filtering">;
 
 def warn_O4_is_O3 : Warning<"-O4 is equivalent to -O3">, InGroup<Deprecated>;
 def warn_unsupported_fsycl_fp64_conv_emu_use : Warning<"'-fsycl-fp64-conv-emu' option is supported only for AOT compilation of Intel GPUs. It will be ignored for other targets">,
@@ -635,6 +649,11 @@ def err_test_module_file_extension_format : Error<
 
 def err_drv_module_output_with_multiple_arch : Error<
   "option '-fmodule-output' cannot be used with multiple arch options">;
+
+def err_drv_reduced_module_output_overrided : Warning<
+  "the implicit output of reduced BMI may be overrided by the output file specified by '--precompile'. "
+  "please consider use '-fmodule-output=' to specify the output file for reduced BMI explicitly">,
+  InGroup<DiagGroup<"reduced-bmi-output-overrided">>;
 
 def warn_drv_delayed_template_parsing_after_cxx20 : Warning<
   "-fdelayed-template-parsing is deprecated after C++20">,
@@ -923,4 +942,9 @@ def warn_missing_include_dirs : Warning<
 
 def err_drv_malformed_warning_suppression_mapping : Error<
   "failed to process suppression mapping file '%0': %1">;
+
+def warn_drv_openacc_without_cir
+    : Warning<"OpenACC directives will result in no runtime behavior; use "
+              "-fclangir to enable runtime effect">,
+      InGroup<SourceUsesOpenACC>;
 }

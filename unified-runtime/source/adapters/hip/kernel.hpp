@@ -11,6 +11,7 @@
 
 #include <ur_api.h>
 
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <numeric>
@@ -32,7 +33,7 @@
 /// A compiler pass converts the UR API local memory model into the
 /// HIP shared model. This object simply calculates the total of
 /// shared memory, and the initial offsets of each parameter.
-struct ur_kernel_handle_t_ {
+struct ur_kernel_handle_t_ : ur::hip::handle_base {
   using native_type = hipFunction_t;
 
   native_type Function;
@@ -235,8 +236,9 @@ struct ur_kernel_handle_t_ {
   ur_kernel_handle_t_(hipFunction_t Func, hipFunction_t FuncWithOffsetParam,
                       const char *Name, ur_program_handle_t Program,
                       ur_context_handle_t Ctxt)
-      : Function{Func}, FunctionWithOffsetParam{FuncWithOffsetParam},
-        Name{Name}, Context{Ctxt}, Program{Program}, RefCount{1} {
+      : handle_base(), Function{Func},
+        FunctionWithOffsetParam{FuncWithOffsetParam}, Name{Name}, Context{Ctxt},
+        Program{Program}, RefCount{1} {
     assert(Program->getDevice());
     UR_CHECK_ERROR(urKernelGetGroupInfo(
         this, Program->getDevice(),

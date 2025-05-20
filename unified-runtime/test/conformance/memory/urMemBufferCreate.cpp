@@ -85,22 +85,73 @@ TEST_P(urMemBufferCreateTest, InvalidHostPtrValidHost) {
       urMemBufferCreate(context, flags, 4096, &properties, buffer.ptr()));
 }
 
-using urMemBufferCreateWithHostPtrFlagsTest =
-    urMemBufferCreateTestWithFlagsParam;
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
-    urMemBufferCreateWithHostPtrFlagsTest,
-    ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
-                      UR_MEM_FLAG_USE_HOST_POINTER),
-    uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
-
-TEST_P(urMemBufferCreateWithHostPtrFlagsTest, SUCCESS) {
-  uur::raii::Mem host_ptr_buffer = nullptr;
-  ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_ALLOC_HOST_POINTER,
-                                   4096, nullptr, host_ptr_buffer.ptr()));
+TEST_P(urMemBufferCreateTest, CopyHostPointer) {
+  std::vector<unsigned char> dataWrite{};
+  dataWrite.resize(4096);
+  std::vector<unsigned char> dataRead{};
+  dataRead.resize(dataWrite.size());
+  for (size_t i = 0; i < dataWrite.size(); i++) {
+    dataWrite[i] = i & 0xff;
+    dataRead[i] = 1;
+  }
 
   ur_buffer_properties_t properties{UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
-                                    nullptr, host_ptr_buffer.ptr()};
+                                    nullptr, dataWrite.data()};
+
+  ur_queue_handle_t queue;
+  ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &queue));
+
   uur::raii::Mem buffer = nullptr;
-  ASSERT_SUCCESS(
-      urMemBufferCreate(context, getParam(), 4096, &properties, buffer.ptr()));
+  ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
+                                   dataWrite.size(), &properties,
+                                   buffer.ptr()));
+
+  for (size_t i = 0; i < dataWrite.size(); i++) {
+    dataWrite[i] = 2;
+  }
+  dataWrite.resize(0);
+
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0, dataRead.size(),
+                                        dataRead.data(), 0, nullptr, nullptr));
+
+  for (size_t i = 0; i < dataWrite.size(); i++) {
+    ASSERT_EQ(dataRead[i], i & 0xff);
+  }
+}
+
+TEST_P(urMemBufferCreateTest, UseHostPointer) {
+  // These all copy memory instead of mapping it
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{}, uur::HIP{},
+                       uur::CUDA{}, uur::OpenCL{"Intel(R) UHD Graphics 770"});
+
+  std::vector<unsigned char> dataWrite{};
+  dataWrite.resize(4096);
+  std::vector<unsigned char> dataRead{};
+  dataRead.resize(dataWrite.size());
+  for (size_t i = 0; i < dataWrite.size(); i++) {
+    dataWrite[i] = i & 0xff;
+    dataRead[i] = 1;
+  }
+
+  ur_buffer_properties_t properties{UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
+                                    nullptr, dataWrite.data()};
+
+  ur_queue_handle_t queue;
+  ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &queue));
+
+  uur::raii::Mem buffer = nullptr;
+  ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_USE_HOST_POINTER,
+                                   dataWrite.size(), &properties,
+                                   buffer.ptr()));
+
+  for (size_t i = 0; i < dataWrite.size(); i++) {
+    dataWrite[i] = i & 0x0f;
+  }
+
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0, dataRead.size(),
+                                        dataRead.data(), 0, nullptr, nullptr));
+
+  for (size_t i = 0; i < dataWrite.size(); i++) {
+    ASSERT_EQ(dataRead[i], i & 0x0f);
+  }
 }

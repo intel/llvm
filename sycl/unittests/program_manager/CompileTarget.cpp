@@ -5,12 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
+
+#include <llvm/Support/PropertySetIO.h>
 
 #include <gtest/gtest.h>
 
@@ -27,7 +26,7 @@ generateImageWithCompileTarget(std::string KernelName,
   MockProperty CompileTargetProperty("compile_target", Data,
                                      SYCL_PROPERTY_TYPE_BYTE_ARRAY);
   MockPropertySet PropSet;
-  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
+  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS,
                  std::move(CompileTargetProperty));
 
   std::vector<unsigned char> Bin(CompileTarget.begin(), CompileTarget.end());

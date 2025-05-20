@@ -1,6 +1,7 @@
 #pragma once
 #include <random>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/image.hpp>
 
 template <typename DType, int NChannels>
@@ -16,6 +17,17 @@ std::ostream &operator<<(std::ostream &os,
 }
 
 namespace bindless_helpers {
+
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+bool memoryAllocationSupported(syclexp::image_descriptor &imgDesc,
+                               syclexp::image_memory_handle_type memHandleType,
+                               sycl::queue &syclQueue) {
+  auto supportedMemTypes =
+      syclexp::get_image_memory_support(imgDesc, syclQueue);
+  return std::find(supportedMemTypes.begin(), supportedMemTypes.end(),
+                   memHandleType) != supportedMemTypes.end();
+}
 
 template <int NDims>
 static void printTestName(std::string name, sycl::range<NDims> globalSize,

@@ -1,15 +1,9 @@
 // Ensure -fsycl-allow-device-dependencies can work with free function kernels.
 
-// REQUIRES: aspect-usm_shared_allocations
+// REQUIRES: aspect-usm_shared_allocations, pdtracker
+// PDTRACKER: https://github.com/intel/llvm/issues/18432
 // RUN: %{build} -o %t.out --offload-new-driver -fsycl-allow-device-image-dependencies
 // RUN: %{run} %t.out
-
-// The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: target-nvidia
-// UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
-
-// XFAIL: target-amd
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15742
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

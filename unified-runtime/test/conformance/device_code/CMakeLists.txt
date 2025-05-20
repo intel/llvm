@@ -16,10 +16,6 @@ else()
   set(NULDEV /dev/null)
 endif()
 
-cmake_path(GET UR_DPCXX EXTENSION EXE)
-cmake_path(REPLACE_FILENAME UR_DPCXX "clang-offload-extract${EXE}" OUTPUT_VARIABLE DEFAULT_EXTRACTOR_NAME)
-set(UR_DEVICE_CODE_EXTRACTOR "${DEFAULT_EXTRACTOR_NAME}" CACHE PATH "Path to clang-offload-extract")
-
 if("${AMD_ARCH}" STREQUAL "" AND "${TARGET_TRIPLES}" MATCHES "amd")
     find_package(RocmAgentEnumerator)
     if(NOT ROCM_AGENT_ENUMERATOR_FOUND)
@@ -110,15 +106,15 @@ macro(add_device_binary SOURCE_FILE)
 
         add_custom_command(OUTPUT ${BIN_PATH}
             COMMAND LD_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR}:$ENV{LD_LIBRARY_PATH} 
-            ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} 
-            -fsycl-device-code-split=off ${AMD_TARGET_BACKEND} 
-            ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB} ${DPCXX_BUILD_FLAGS_LIST} 
+            ${UR_FOUND_DPCXX} -fsycl -fsycl-targets=${TRIPLE}
+            -fsycl-device-code-split=off ${AMD_TARGET_BACKEND}
+            ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB} ${DPCXX_BUILD_FLAGS_LIST}
             ${SOURCE_FILE} -o ${EXE_PATH}
 
-            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_DEVICE_CODE_EXTRACTOR} -q --stem="${TRIPLE}.bin" ${EXE_PATH}
+            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_FOUND_DEVICE_CODE_EXTRACTOR} -q --stem="${TRIPLE}.bin" ${EXE_PATH}
 
             WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
-            DEPENDS ${SOURCE_FILE}
+            DEPENDS ${SOURCE_FILE} ${UR_DPCXX_DEPS}
         )
         add_custom_target(generate_${KERNEL_NAME}_${TRIPLE} DEPENDS ${BIN_PATH})
         add_dependencies(generate_device_binaries generate_${KERNEL_NAME}_${TRIPLE})
@@ -126,7 +122,7 @@ macro(add_device_binary SOURCE_FILE)
 
     set(IH_PATH "${DEVICE_BINARY_DIR}/${KERNEL_NAME}.ih")
     add_custom_command(OUTPUT "${IH_PATH}"
-        COMMAND ${UR_DPCXX} -fsycl -fsycl-device-code-split=off
+        COMMAND ${UR_FOUND_DPCXX} -fsycl -fsycl-device-code-split=off
         -fsycl-device-only -c -Xclang -fsycl-int-header="${IH_PATH}"
         ${DPCXX_BUILD_FLAGS_LIST} ${SOURCE_FILE} -o ${NULDEV}
 

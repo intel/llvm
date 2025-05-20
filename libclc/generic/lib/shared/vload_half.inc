@@ -1,11 +1,19 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #if __CLC_FPSIZE == 32
 
-#ifdef __CLC_VECSIZE
+#ifndef __CLC_SCALAR
 
 #if __CLC_VECSIZE == 3
-#  define __CLC_OFFSET 4
+#define __CLC_OFFSET 4
 #else
-#  define __CLC_OFFSET __CLC_VECSIZE
+#define __CLC_OFFSET __CLC_VECSIZE
 #endif
 
   FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __private);

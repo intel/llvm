@@ -12,22 +12,22 @@
 #include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_atanh(float x) {
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint ax = ux & EXSIGNBIT_SP32;
   uint xs = ux ^ ax;
 
   // |x| > 1 or NaN
-  float z = as_float(QNANBITPATT_SP32);
+  float z = __clc_as_float(QNANBITPATT_SP32);
 
   // |x| == 1
-  float t = as_float(xs | PINFBITPATT_SP32);
+  float t = __clc_as_float(xs | PINFBITPATT_SP32);
   z = ax == 0x3f800000U ? t : z;
 
   // 1/2 <= |x| < 1
-  t = as_float(ax);
+  t = __clc_as_float(ax);
   t = MATH_DIVIDE(2.0f * t, 1.0f - t);
   t = 0.5f * __spirv_ocl_log1p(t);
-  t = as_float(xs | as_uint(t));
+  t = __clc_as_float(xs | __clc_as_uint(t));
   z = ax < 0x3f800000U ? t : z;
 
   // |x| < 1/2
@@ -57,7 +57,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_atanh(double x) {
   double absx = __spirv_ocl_fabs(x);
 
   double ret =
-      absx == 1.0 ? as_double(PINFBITPATT_DP64) : as_double(QNANBITPATT_DP64);
+      absx == 1.0 ? __clc_as_double(PINFBITPATT_DP64) : __clc_as_double(QNANBITPATT_DP64);
 
   // |x| >= 0.5
   // Note that atanh(x) = 0.5 * ln((1+x)/(1-x))

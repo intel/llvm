@@ -40,9 +40,9 @@ device::device(cl_device_id DeviceId) {
   Adapter->call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
       detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter->getUrAdapter(),
       nullptr, &Device);
-  auto Platform =
-      detail::platform_impl::getPlatformFromUrDevice(Device, Adapter);
-  impl = Platform->getOrMakeDeviceImpl(Device, Platform);
+  impl = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
+             .getOrMakeDeviceImpl(Device)
+             .shared_from_this();
   __SYCL_OCL_CALL(clRetainDevice, DeviceId);
 }
 
@@ -263,6 +263,11 @@ bool device::ext_oneapi_architecture_is(
 }
 
 // kernel_compiler extension methods
+bool device::ext_oneapi_can_build(
+    ext::oneapi::experimental::source_language Language) {
+  return impl->extOneapiCanBuild(Language);
+}
+
 bool device::ext_oneapi_can_compile(
     ext::oneapi::experimental::source_language Language) {
   return impl->extOneapiCanCompile(Language);

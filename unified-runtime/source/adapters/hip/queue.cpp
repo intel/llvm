@@ -12,105 +12,38 @@
 #include "context.hpp"
 #include "event.hpp"
 
-void ur_queue_handle_t_::computeStreamWaitForBarrierIfNeeded(
-    hipStream_t Stream, uint32_t Stream_i) {
+template <>
+void hip_stream_queue::computeStreamWaitForBarrierIfNeeded(hipStream_t Stream,
+                                                           uint32_t Stream_i) {
   if (BarrierEvent && !ComputeAppliedBarrier[Stream_i]) {
     UR_CHECK_ERROR(hipStreamWaitEvent(Stream, BarrierEvent, 0));
     ComputeAppliedBarrier[Stream_i] = true;
   }
 }
 
-void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
-    hipStream_t Stream, uint32_t Stream_i) {
+template <>
+void hip_stream_queue::transferStreamWaitForBarrierIfNeeded(hipStream_t Stream,
+                                                            uint32_t Stream_i) {
   if (BarrierEvent && !TransferAppliedBarrier[Stream_i]) {
     UR_CHECK_ERROR(hipStreamWaitEvent(Stream, BarrierEvent, 0));
     TransferAppliedBarrier[Stream_i] = true;
   }
 }
 
-hipStream_t ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
-  if (getThreadLocalStream() != hipStream_t{0})
-    return getThreadLocalStream();
-  uint32_t Stream_i;
-  uint32_t Token;
-  while (true) {
-    if (NumComputeStreams < ComputeStreams.size()) {
-      // the check above is for performance - so as not to lock mutex every time
-      std::lock_guard<std::mutex> guard(ComputeStreamMutex);
-      // The second check is done after mutex is locked so other threads can not
-      // change NumComputeStreams after that
-      if (NumComputeStreams < ComputeStreams.size()) {
-        UR_CHECK_ERROR(hipStreamCreateWithPriority(
-            &ComputeStreams[NumComputeStreams++], Flags, Priority));
-      }
-    }
-    Token = ComputeStreamIdx++;
-    Stream_i = Token % ComputeStreams.size();
-    // if a stream has been reused before it was next selected round-robin
-    // fashion, we want to delay its next use and instead select another one
-    // that is more likely to have completed all the enqueued work.
-    if (DelayCompute[Stream_i]) {
-      DelayCompute[Stream_i] = false;
-    } else {
-      break;
-    }
-  }
-  if (StreamToken) {
-    *StreamToken = Token;
-  }
-  hipStream_t Res = ComputeStreams[Stream_i];
-  computeStreamWaitForBarrierIfNeeded(Res, Stream_i);
-  return Res;
+template <>
+ur_queue_handle_t hip_stream_queue::getEventQueue(const ur_event_handle_t e) {
+  return e->getQueue();
 }
 
-hipStream_t ur_queue_handle_t_::getNextComputeStream(
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_stream_guard &Guard, uint32_t *StreamToken) {
-  if (getThreadLocalStream() != hipStream_t{0})
-    return getThreadLocalStream();
-  for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-    uint32_t Token = EventWaitList[i]->getComputeStreamToken();
-    if (EventWaitList[i]->getQueue() == this && canReuseStream(Token)) {
-      std::unique_lock<std::mutex> ComputeSyncGuard(ComputeStreamSyncMutex);
-      // redo the check after lock to avoid data races on
-      // LastSyncComputeStreams
-      if (canReuseStream(Token)) {
-        uint32_t Stream_i = Token % DelayCompute.size();
-        DelayCompute[Stream_i] = true;
-        if (StreamToken) {
-          *StreamToken = Token;
-        }
-        Guard = ur_stream_guard{std::move(ComputeSyncGuard)};
-        hipStream_t Res = EventWaitList[i]->getStream();
-        computeStreamWaitForBarrierIfNeeded(Res, Stream_i);
-        return Res;
-      }
-    }
-  }
-  Guard = {};
-  return getNextComputeStream(StreamToken);
+template <>
+uint32_t
+hip_stream_queue::getEventComputeStreamToken(const ur_event_handle_t e) {
+  return e->getComputeStreamToken();
 }
 
-hipStream_t ur_queue_handle_t_::getNextTransferStream() {
-  if (getThreadLocalStream() != hipStream_t{0})
-    return getThreadLocalStream();
-  if (TransferStreams.empty()) { // for example in in-order queue
-    return getNextComputeStream();
-  }
-  if (NumTransferStreams < TransferStreams.size()) {
-    // the check above is for performance - so as not to lock mutex every time
-    std::lock_guard<std::mutex> Guard(TransferStreamMutex);
-    // The second check is done after mutex is locked so other threads can not
-    // change NumTransferStreams after that
-    if (NumTransferStreams < TransferStreams.size()) {
-      UR_CHECK_ERROR(hipStreamCreateWithPriority(
-          &TransferStreams[NumTransferStreams++], Flags, Priority));
-    }
-  }
-  uint32_t Stream_i = TransferStreamIdx++ % TransferStreams.size();
-  hipStream_t Res = TransferStreams[Stream_i];
-  transferStreamWaitForBarrierIfNeeded(Res, Stream_i);
-  return Res;
+template <>
+hipStream_t hip_stream_queue::getEventStream(const ur_event_handle_t e) {
+  return e->getStream();
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -147,14 +80,8 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
         pProps ? pProps->flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE
                : false;
 
-    std::vector<hipStream_t> ComputeHipStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumComputeStreams : 1);
-    std::vector<hipStream_t> TransferHipStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumTransferStreams : 0);
-
     QueueImpl = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        std::move(ComputeHipStreams), std::move(TransferHipStreams), hContext,
-        hDevice, Flags, URFlags, Priority});
+        {}, {IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority}});
 
     *phQueue = QueueImpl.release();
 
@@ -246,17 +173,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
-  // set default result to a negative result (avoid false-positve tests)
-  ur_result_t Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-
     ScopedDevice Active(hQueue->getDevice());
 
-    hQueue->syncStreams<true>([&Result](hipStream_t S) {
-      UR_CHECK_ERROR(hipStreamSynchronize(S));
-      Result = UR_RESULT_SUCCESS;
-    });
+    hQueue->syncStreams</*ResetUsed=*/true>(
+        [](hipStream_t S) { UR_CHECK_ERROR(hipStreamSynchronize(S)); });
 
   } catch (ur_result_t Err) {
     Result = Err;
@@ -285,7 +208,7 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
                        ur_native_handle_t *phNativeQueue) {
   ScopedDevice Active(hQueue->getDevice());
   *phNativeQueue =
-      reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
+      reinterpret_cast<ur_native_handle_t>(hQueue->getInteropStream());
   return UR_RESULT_SUCCESS;
 }
 
@@ -308,30 +231,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   UR_CHECK_ERROR(hipStreamGetFlags(HIPStream, &HIPFlags));
 
   ur_queue_flags_t Flags = 0;
-  if (HIPFlags == hipStreamDefault)
+  if (HIPFlags == hipStreamDefault) {
     Flags = UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
-  else if (HIPFlags == hipStreamNonBlocking)
+  } else if (HIPFlags == hipStreamNonBlocking) {
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
-  else
-    die("Unknown hip stream");
-
-  std::vector<hipStream_t> ComputeHIPStreams(1, HIPStream);
-  std::vector<hipStream_t> TransferHIPStreams(0);
+  } else {
+    setErrorMessage("Incorrect native stream flags, expecting "
+                    "hipStreamDefault or hipStreamNonBlocking",
+                    UR_RESULT_ERROR_INVALID_VALUE);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
 
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
 
   // Create queue and set num_compute_streams to 1, as computeHIPStreams has
   // valid stream
-  *phQueue = new ur_queue_handle_t_{std::move(ComputeHIPStreams),
-                                    std::move(TransferHIPStreams),
-                                    hContext,
-                                    hDevice,
-                                    HIPFlags,
-                                    Flags,
-                                    /*priority*/ 0,
-                                    /*backend_owns*/ isNativeHandleOwned};
-  (*phQueue)->NumComputeStreams = 1;
+  *phQueue = new ur_queue_handle_t_{
+      {}, {HIPStream, hContext, hDevice, HIPFlags, Flags, isNativeHandleOwned}};
 
   return UR_RESULT_SUCCESS;
 }

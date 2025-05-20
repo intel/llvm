@@ -165,8 +165,7 @@ ur_result_t ur_program_handle_t_::finalizeRelocatable() {
 
   std::string ISA = "amdgcn-amd-amdhsa--";
   hipDeviceProp_t Props;
-  detail::ur::assertion(hipGetDeviceProperties(&Props, getDevice()->get()) ==
-                        hipSuccess);
+  UR_CHECK_ERROR(hipGetDeviceProperties(&Props, getDevice()->get()));
   ISA += Props.gcnArchName;
   UR_CHECK_ERROR(amd_comgr_action_info_set_isa_name(Action, ISA.data()));
 
@@ -266,8 +265,6 @@ ur_result_t ur_program_handle_t_::getGlobalVariablePointer(
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
                       const ur_program_properties_t *, ur_program_handle_t *) {
-  die("urProgramCreateWithIL not implemented for HIP adapter"
-      " please use urProgramCreateWithBinary instead");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -304,18 +301,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
                                                    ur_program_handle_t hProgram,
                                                    const char *pOptions) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     ScopedDevice Active(hProgram->getDevice());
 
     hProgram->buildProgram(pOptions);
     hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
-
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
@@ -440,26 +435,18 @@ urProgramRelease(ur_program_handle_t hProgram) {
 
   // decrement ref count. If it is 0, delete the program.
   if (hProgram->decrementReferenceCount() == 0) {
-
     std::unique_ptr<ur_program_handle_t_> ProgramPtr{hProgram};
-
-    ur_result_t Result = UR_RESULT_ERROR_INVALID_PROGRAM;
-
     try {
       ScopedDevice Active(hProgram->getDevice());
       auto HIPModule = hProgram->get();
       if (HIPModule) {
         UR_CHECK_ERROR(hipModuleUnload(HIPModule));
-        Result = UR_RESULT_SUCCESS;
-      } else {
-        // no module to unload
-        Result = UR_RESULT_SUCCESS;
       }
+    } catch (ur_result_t Err) {
+      return Err;
     } catch (...) {
-      Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
-
-    return Result;
   }
 
   return UR_RESULT_SUCCESS;
@@ -525,6 +512,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     RetProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
 
     *phProgram = RetProgram.release();
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -549,16 +538,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   hipFunction_t Func;
   hipError_t Ret = hipModuleGetFunction(&Func, hProgram->get(), pFunctionName);
   *ppFunctionPointer = Func;
-  ur_result_t Result = UR_RESULT_SUCCESS;
 
-  if (Ret != hipSuccess && Ret != hipErrorNotFound)
-    UR_CHECK_ERROR(Ret);
   if (Ret == hipErrorNotFound) {
     *ppFunctionPointer = 0;
-    Result = UR_RESULT_ERROR_INVALID_KERNEL_NAME;
+    return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
+  } else if (Ret != hipSuccess) {
+    return mapErrorUR(Ret);
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
