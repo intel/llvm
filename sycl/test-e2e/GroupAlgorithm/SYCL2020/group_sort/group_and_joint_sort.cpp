@@ -1,7 +1,7 @@
 // REQUIRES: sg-8
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
-// XFAIL: linux && run-mode && gpu-intel-gen12
+// XFAIL: linux && run-mode && (gpu-intel-gen12 || gpu-intel-dg2)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18577
 // not supported
 
