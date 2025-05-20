@@ -160,7 +160,7 @@ struct image_descriptor;
 
 namespace detail {
 template <typename CommandGroupFunc, typename PropertiesT>
-void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc);
 
 template <typename CommandGroupFunc, typename PropertiesT>
@@ -3588,7 +3588,7 @@ private:
 
   template <typename CommandGroupFunc, typename PropertiesT>
   friend void ext::oneapi::experimental::detail::submit_impl(
-      queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+      const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
   template <typename CommandGroupFunc, typename PropertiesT>
@@ -3760,7 +3760,6 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
-  //public:
   template <bool UseFallbackAssert, typename PropertiesT>
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,
