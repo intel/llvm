@@ -18,10 +18,8 @@
 
 ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t context, ur_device_handle_t device,
-    v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
-    ur_queue_t_ *queue)
-    : hContext(context), hDevice(device), queue(queue),
-      eventPool(context->getEventPoolCache().borrow(device->Id.value(), flags)),
+    v2::raii::command_list_unique_handle &&commandList)
+    : hContext(context), hDevice(device),
       zeCommandList(std::move(commandList)) {
   UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
   UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));
@@ -35,11 +33,9 @@ ur_command_list_manager::~ur_command_list_manager() {
 ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
     ur_mem_buffer_t *dst, size_t offset, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
-    ur_command_t commandType) {
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
-  auto zeSignalEvent = getSignalEvent(phEvent, commandType);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
@@ -79,10 +75,8 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
 ur_result_t ur_command_list_manager::appendGenericCopyUnlocked(
     ur_mem_buffer_t *src, ur_mem_buffer_t *dst, bool blocking, size_t srcOffset,
     size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
-    ur_command_t commandType) {
-  auto zeSignalEvent = getSignalEvent(phEvent, commandType);
-
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
@@ -119,13 +113,11 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
     ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
     ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
     size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
-    ur_command_t commandType) {
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto zeParams = ur2zeRegionParams(srcOrigin, dstOrigin, region, srcRowPitch,
                                     dstRowPitch, srcSlicePitch, dstSlicePitch);
 
-  auto zeSignalEvent = getSignalEvent(phEvent, commandType);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
@@ -175,11 +167,8 @@ wait_list_view ur_command_list_manager::getWaitListView(
 }
 
 ze_event_handle_t
-ur_command_list_manager::getSignalEvent(ur_event_handle_t *hUserEvent,
-                                        ur_command_t commandType) {
+ur_command_list_manager::getSignalEvent(ur_event_handle_t *hUserEvent) {
   if (hUserEvent) {
-    *hUserEvent = eventPool->allocate();
-    (*hUserEvent)->resetQueueAndCommand(queue, commandType);
     return (*hUserEvent)->getZeEvent();
   } else {
     return nullptr;
@@ -209,8 +198,7 @@ ur_result_t ur_command_list_manager::enqueueKernelLaunch(
                                         zeThreadGroupDimensions, WG, workDim,
                                         pGlobalWorkSize, pLocalWorkSize));
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto memoryMigrate = [&](void *src, void *dst, size_t size) {
@@ -251,8 +239,7 @@ ur_result_t ur_command_list_manager::enqueueUSMMemcpy(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::enqueueUSMMemcpy");
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_MEMCPY);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
@@ -280,7 +267,7 @@ ur_result_t ur_command_list_manager::enqueueMemBufferFill(
 
   return appendGenericFillUnlocked(hBuffer, offset, patternSize, pPattern, size,
                                    numEventsInWaitList, phEventWaitList,
-                                   phEvent, UR_COMMAND_MEM_BUFFER_FILL);
+                                   phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueUSMFill(
@@ -292,7 +279,7 @@ ur_result_t ur_command_list_manager::enqueueUSMFill(
   ur_usm_handle_t dstHandle(hContext, size, pMem);
   return appendGenericFillUnlocked(&dstHandle, 0, patternSize, pPattern, size,
                                    numEventsInWaitList, phEventWaitList,
-                                   phEvent, UR_COMMAND_USM_FILL);
+                                   phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueUSMPrefetch(
@@ -301,8 +288,7 @@ ur_result_t ur_command_list_manager::enqueueUSMPrefetch(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::enqueueUSMPrefetch");
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_PREFETCH);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
@@ -329,8 +315,7 @@ ur_command_list_manager::enqueueUSMAdvise(const void *pMem, size_t size,
 
   auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_ADVISE);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0);
 
   if (pWaitEvents) {
@@ -363,7 +348,7 @@ ur_result_t ur_command_list_manager::enqueueMemBufferRead(
 
   return appendGenericCopyUnlocked(hBuffer, &dstHandle, blockingRead, offset, 0,
                                    size, numEventsInWaitList, phEventWaitList,
-                                   phEvent, UR_COMMAND_MEM_BUFFER_READ);
+                                   phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueMemBufferWrite(
@@ -379,9 +364,9 @@ ur_result_t ur_command_list_manager::enqueueMemBufferWrite(
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
-  return appendGenericCopyUnlocked(
-      &srcHandle, hBuffer, blockingWrite, 0, offset, size, numEventsInWaitList,
-      phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_WRITE);
+  return appendGenericCopyUnlocked(&srcHandle, hBuffer, blockingWrite, 0,
+                                   offset, size, numEventsInWaitList,
+                                   phEventWaitList, phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueMemBufferCopy(
@@ -403,8 +388,7 @@ ur_result_t ur_command_list_manager::enqueueMemBufferCopy(
 
   return appendGenericCopyUnlocked(hBufferSrc, hBufferDst, false, srcOffset,
                                    dstOffset, size, numEventsInWaitList,
-                                   phEventWaitList, phEvent,
-                                   UR_COMMAND_MEM_BUFFER_COPY);
+                                   phEventWaitList, phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueMemBufferReadRect(
@@ -423,8 +407,7 @@ ur_result_t ur_command_list_manager::enqueueMemBufferReadRect(
   return appendRegionCopyUnlocked(
       hBuffer, &dstHandle, blockingRead, bufferOrigin, hostOrigin, region,
       bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
-      numEventsInWaitList, phEventWaitList, phEvent,
-      UR_COMMAND_MEM_BUFFER_READ_RECT);
+      numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueMemBufferWriteRect(
@@ -443,8 +426,7 @@ ur_result_t ur_command_list_manager::enqueueMemBufferWriteRect(
   return appendRegionCopyUnlocked(
       &srcHandle, hBuffer, blockingWrite, hostOrigin, bufferOrigin, region,
       hostRowPitch, hostSlicePitch, bufferRowPitch, bufferSlicePitch,
-      numEventsInWaitList, phEventWaitList, phEvent,
-      UR_COMMAND_MEM_BUFFER_WRITE_RECT);
+      numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueMemBufferCopyRect(
@@ -464,7 +446,7 @@ ur_result_t ur_command_list_manager::enqueueMemBufferCopyRect(
   return appendRegionCopyUnlocked(
       hBufferSrc, hBufferDst, false, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList,
-      phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_COPY_RECT);
+      phEventWaitList, phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueUSMMemcpy2D(
@@ -479,10 +461,9 @@ ur_result_t ur_command_list_manager::enqueueUSMMemcpy2D(
   ur_usm_handle_t srcHandle(hContext, 0, pSrc);
   ur_usm_handle_t dstHandle(hContext, 0, pDst);
 
-  return appendRegionCopyUnlocked(&srcHandle, &dstHandle, blocking, zeroOffset,
-                                  zeroOffset, region, srcPitch, 0, dstPitch, 0,
-                                  numEventsInWaitList, phEventWaitList, phEvent,
-                                  UR_COMMAND_MEM_BUFFER_COPY_RECT);
+  return appendRegionCopyUnlocked(
+      &srcHandle, &dstHandle, blocking, zeroOffset, zeroOffset, region,
+      srcPitch, 0, dstPitch, 0, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_command_list_manager::enqueueCooperativeKernelLaunchExp(
@@ -509,8 +490,7 @@ ur_result_t ur_command_list_manager::enqueueCooperativeKernelLaunchExp(
                                         zeThreadGroupDimensions, WG, workDim,
                                         pGlobalWorkSize, pLocalWorkSize));
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto memoryMigrate = [&](void *src, void *dst, size_t size) {
@@ -555,7 +535,7 @@ ur_result_t ur_command_list_manager::enqueueTimestampRecordingExp(
   if (!phEvent) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
-  getSignalEvent(phEvent, UR_COMMAND_TIMESTAMP_RECORDING_EXP);
+
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
@@ -582,8 +562,7 @@ ur_result_t ur_command_list_manager::enqueueGenericCommandListsExp(
     ur_event_handle_t additionalWaitEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::enqueueGenericCommandListsExp");
 
-  auto zeSignalEvent = getSignalEvent(phEvent, callerCommand);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto [pWaitEvents, numWaitEvents] = getWaitListView(
       phEventWaitList, numEventsInWaitList, additionalWaitEvent);
 
@@ -627,7 +606,7 @@ ur_result_t ur_command_list_manager::enqueueMemImageRead(
 
   auto hImage = hMem->getImage();
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_READ);
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto [zeImage, zeRegion] =
@@ -653,7 +632,7 @@ ur_result_t ur_command_list_manager::enqueueMemImageWrite(
 
   auto hImage = hMem->getImage();
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_WRITE);
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto [zeImage, zeRegion] =
@@ -680,7 +659,7 @@ ur_result_t ur_command_list_manager::enqueueMemImageCopy(
   auto hImageSrc = hSrc->getImage();
   auto hImageDst = hDst->getImage();
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto desc = ur_mem_image_t::getCopyRegions(*hImageSrc, *hImageDst, srcOrigin,
@@ -708,8 +687,7 @@ ur_result_t ur_command_list_manager::enqueueMemBufferMap(
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_BUFFER_MAP);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
@@ -746,8 +724,7 @@ ur_result_t ur_command_list_manager::enqueueMemUnmap(
 
   auto hBuffer = hMem->getBuffer();
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_UNMAP);
-
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   // TODO: currently unmapHostPtr deallocates memory immediately,
@@ -890,7 +867,7 @@ ur_result_t ur_command_list_manager::bindlessImagesImageCopyExp(
     ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   return bindlessImagesHandleCopyFlags(
@@ -952,7 +929,7 @@ ur_result_t ur_command_list_manager::enqueueEventsWait(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::enqueueEventsWait");
 
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_EVENTS_WAIT);
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
@@ -974,8 +951,7 @@ ur_result_t ur_command_list_manager::enqueueEventsWaitWithBarrier(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::enqueueEventsWaitWithBarrier");
 
-  auto zeSignalEvent =
-      getSignalEvent(phEvent, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER);
+  auto zeSignalEvent = getSignalEvent(phEvent);
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 

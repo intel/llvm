@@ -37,8 +37,7 @@ struct wait_list_view {
 struct ur_command_list_manager {
   ur_command_list_manager(ur_context_handle_t context,
                           ur_device_handle_t device,
-                          v2::raii::command_list_unique_handle &&commandList,
-                          v2::event_flags_t flags, ur_queue_t_ *queue);
+                          v2::raii::command_list_unique_handle &&commandList);
   ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
 
@@ -64,8 +63,7 @@ struct ur_command_list_manager {
   wait_list_view
   getWaitListView(const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
                   ur_event_handle_t additionalWaitEvent = nullptr);
-  ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
-                                   ur_command_t commandType);
+  ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent);
 
   /************ Generic queue methods *************/
   ur_result_t enqueueEventsWait(uint32_t numEventsInWaitList,
@@ -262,35 +260,30 @@ struct ur_command_list_manager {
                           uint32_t, const ur_event_handle_t *,
                           ur_event_handle_t *);
 
-protected:
+private:
   ur_result_t appendGenericFillUnlocked(
       ur_mem_buffer_t *hBuffer, size_t offset, size_t patternSize,
       const void *pPattern, size_t size, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
-      ur_command_t commandType);
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
 
-  ur_result_t appendGenericCopyUnlocked(
-      ur_mem_buffer_t *src, ur_mem_buffer_t *dst, bool blocking,
-      size_t srcOffset, size_t dstOffset, size_t size,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent, ur_command_t commandType);
+  ur_result_t
+  appendGenericCopyUnlocked(ur_mem_buffer_t *src, ur_mem_buffer_t *dst,
+                            bool blocking, size_t srcOffset, size_t dstOffset,
+                            size_t size, uint32_t numEventsInWaitList,
+                            const ur_event_handle_t *phEventWaitList,
+                            ur_event_handle_t *phEvent);
 
   ur_result_t appendRegionCopyUnlocked(
       ur_mem_buffer_t *src, ur_mem_buffer_t *dst, bool blocking,
       ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
       ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
       size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
-      ur_command_t commandType);
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
 
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
-  ur_queue_t_ *queue;
 
   std::vector<ur_kernel_handle_t> submittedKernels;
-
-  v2::raii::cache_borrowed_event_pool eventPool;
   v2::raii::command_list_unique_handle zeCommandList;
-
   std::vector<ze_event_handle_t> waitList;
 };

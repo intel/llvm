@@ -25,21 +25,81 @@
 
 namespace v2 {
 
+template <size_t N> struct signal_events_handle {
+  std::array<ur_event_handle_t, N> events;
+  std::array<bool, N> isExternal;
+
+  signal_events_handle() {
+    for (size_t i = 0; i < N; ++i) {
+      events[i] = nullptr;
+      isExternal[i] = false;
+    }
+  }
+
+  ~signal_events_handle() {
+    for (size_t i = 0; i < N; ++i) {
+      if (isExternal[i] && events[i] != nullptr) {
+        events[i]->release();
+      }
+    }
+  }
+
+  void assign(size_t index, ur_event_handle_t event, bool external) {
+    if (isExternal[index] && events[index] != nullptr) {
+      events[index]->release();
+    }
+
+    events[index] = event;
+    isExternal[index] = external;
+
+    if (isExternal[index]) {
+      events[index]->retain();
+    }
+  }
+};
+
 struct ur_queue_immediate_out_of_order_t : ur_object, ur_queue_t_ {
 private:
   static constexpr size_t numCommandLists = 16;
 
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
+
+  signal_events_handle<numCommandLists> signalEvents;
   std::atomic<uint32_t> commandListIndex = 0;
+  std::array<ur_event_handle_t, numCommandLists> internalSignalEvents;
+
   std::array<lockable<ur_command_list_manager>, numCommandLists>
       commandListManagers;
+
+  v2::raii::cache_borrowed_event_pool eventPool;
+
   ur_queue_flags_t flags;
 
   uint32_t getNextCommandListId() {
     return commandListIndex.fetch_add(1, std::memory_order_relaxed) %
            numCommandLists;
   }
+
+  ur_event_handle_t *createOrForwardSignalEvent(uint32_t cmdListId,
+                                                ur_event_handle_t *phEvent,
+                                                ur_command_t commandType) {
+    if (phEvent == nullptr) {
+      phEvent = &internalSignalEvents[cmdListId];
+      signalEvents.assign(cmdListId, *phEvent, false);
+    } else {
+      (*phEvent) = eventPool->allocate();
+      signalEvents.assign(cmdListId, *phEvent, true);
+    }
+
+    (*phEvent)->resetQueueAndCommand(this, commandType);
+    return phEvent;
+  }
+
+  ur_result_t
+  enqueueEventsWaitWithBarrierImpl(uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent);
 
 public:
   ur_queue_immediate_out_of_order_t(ur_context_handle_t, ur_device_handle_t,
@@ -77,7 +137,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemBufferRead(
         hBuffer, blockingRead, offset, size, pDst, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_BUFFER_READ));
   }
 
   ur_result_t enqueueMemBufferWrite(ur_mem_handle_t hBuffer, bool blockingWrite,
@@ -89,7 +151,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemBufferWrite(
         hBuffer, blockingWrite, offset, size, pSrc, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_BUFFER_WRITE));
   }
 
   ur_result_t enqueueMemBufferReadRect(
@@ -103,7 +167,9 @@ public:
     return commandListManagers[cmdListId].lock()->enqueueMemBufferReadRect(
         hBuffer, blockingRead, bufferOrigin, hostOrigin, region, bufferRowPitch,
         bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_BUFFER_READ));
   }
 
   ur_result_t enqueueMemBufferWriteRect(
@@ -117,7 +183,9 @@ public:
     return commandListManagers[cmdListId].lock()->enqueueMemBufferWriteRect(
         hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_BUFFER_WRITE));
   }
 
   ur_result_t enqueueMemBufferCopy(ur_mem_handle_t hBufferSrc,
@@ -129,7 +197,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemBufferCopy(
         hBufferSrc, hBufferDst, srcOffset, dstOffset, size, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_BUFFER_COPY));
   }
 
   ur_result_t enqueueMemBufferCopyRect(
@@ -143,7 +213,9 @@ public:
     return commandListManagers[cmdListId].lock()->enqueueMemBufferCopyRect(
         hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region, srcRowPitch,
         srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_BUFFER_COPY_RECT));
   }
 
   ur_result_t enqueueMemBufferFill(ur_mem_handle_t hBuffer,
@@ -155,7 +227,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemBufferFill(
         hBuffer, pPattern, patternSize, offset, size, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_BUFFER_FILL));
   }
 
   ur_result_t enqueueMemImageRead(ur_mem_handle_t hImage, bool blockingRead,
@@ -168,7 +242,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemImageRead(
         hImage, blockingRead, origin, region, rowPitch, slicePitch, pDst,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_IMAGE_READ));
   }
 
   ur_result_t enqueueMemImageWrite(ur_mem_handle_t hImage, bool blockingWrite,
@@ -181,7 +257,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemImageWrite(
         hImage, blockingWrite, origin, region, rowPitch, slicePitch, pSrc,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_IMAGE_WRITE));
   }
 
   ur_result_t
@@ -193,7 +271,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemImageCopy(
         hImageSrc, hImageDst, srcOrigin, dstOrigin, region, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_IMAGE_COPY));
   }
 
   ur_result_t enqueueMemBufferMap(ur_mem_handle_t hBuffer, bool blockingMap,
@@ -205,7 +285,10 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemBufferMap(
         hBuffer, blockingMap, mapFlags, offset, size, numEventsInWaitList,
-        phEventWaitList, phEvent, ppRetMap);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_BUFFER_MAP),
+        ppRetMap);
   }
 
   ur_result_t enqueueMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
@@ -214,7 +297,8 @@ public:
                               ur_event_handle_t *phEvent) override {
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueMemUnmap(
-        hMem, pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent);
+        hMem, pMappedPtr, numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent, UR_COMMAND_MEM_UNMAP));
   }
 
   ur_result_t enqueueUSMFill(void *pMem, size_t patternSize,
@@ -225,7 +309,7 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMFill(
         pMem, patternSize, pPattern, size, numEventsInWaitList, phEventWaitList,
-        phEvent);
+        createOrForwardSignalEvent(cmdListId, phEvent, UR_COMMAND_USM_FILL));
   }
 
   ur_result_t enqueueUSMMemcpy(bool blocking, void *pDst, const void *pSrc,
@@ -235,7 +319,7 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMMemcpy(
         blocking, pDst, pSrc, size, numEventsInWaitList, phEventWaitList,
-        phEvent);
+        createOrForwardSignalEvent(cmdListId, phEvent, UR_COMMAND_USM_MEMCPY));
   }
 
   ur_result_t enqueueUSMFill2D(void *pMem, size_t pitch, size_t patternSize,
@@ -246,7 +330,8 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMFill2D(
         pMem, pitch, patternSize, pPattern, width, height, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent, UR_COMMAND_USM_FILL_2D));
   }
 
   ur_result_t enqueueUSMMemcpy2D(bool blocking, void *pDst, size_t dstPitch,
@@ -258,7 +343,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMMemcpy2D(
         blocking, pDst, dstPitch, pSrc, srcPitch, width, height,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_USM_MEMCPY_2D));
   }
 
   ur_result_t enqueueUSMPrefetch(const void *pMem, size_t size,
@@ -268,7 +355,9 @@ public:
                                  ur_event_handle_t *phEvent) override {
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMPrefetch(
-        pMem, size, flags, numEventsInWaitList, phEventWaitList, phEvent);
+        pMem, size, flags, numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_USM_PREFETCH));
   }
 
   ur_result_t enqueueUSMAdvise(const void *pMem, size_t size,
@@ -276,7 +365,8 @@ public:
                                ur_event_handle_t *phEvent) override {
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMAdvise(
-        pMem, size, advice, phEvent);
+        pMem, size, advice,
+        createOrForwardSignalEvent(cmdListId, phEvent, UR_COMMAND_USM_ADVISE));
   }
 
   ur_result_t enqueueDeviceGlobalVariableWrite(
@@ -287,9 +377,11 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId]
         .lock()
-        ->enqueueDeviceGlobalVariableWrite(hProgram, name, blockingWrite, count,
-                                           offset, pSrc, numEventsInWaitList,
-                                           phEventWaitList, phEvent);
+        ->enqueueDeviceGlobalVariableWrite(
+            hProgram, name, blockingWrite, count, offset, pSrc,
+            numEventsInWaitList, phEventWaitList,
+            createOrForwardSignalEvent(
+                cmdListId, phEvent, UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE));
   }
 
   ur_result_t enqueueDeviceGlobalVariableRead(
@@ -300,9 +392,11 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId]
         .lock()
-        ->enqueueDeviceGlobalVariableRead(hProgram, name, blockingRead, count,
-                                          offset, pDst, numEventsInWaitList,
-                                          phEventWaitList, phEvent);
+        ->enqueueDeviceGlobalVariableRead(
+            hProgram, name, blockingRead, count, offset, pDst,
+            numEventsInWaitList, phEventWaitList,
+            createOrForwardSignalEvent(cmdListId, phEvent,
+                                       UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ));
   }
 
   ur_result_t enqueueReadHostPipe(ur_program_handle_t hProgram,
@@ -314,7 +408,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueReadHostPipe(
         hProgram, pipe_symbol, blocking, pDst, size, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_READ_HOST_PIPE));
   }
 
   ur_result_t enqueueWriteHostPipe(ur_program_handle_t hProgram,
@@ -326,7 +422,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueWriteHostPipe(
         hProgram, pipe_symbol, blocking, pSrc, size, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_WRITE_HOST_PIPE));
   }
 
   ur_result_t enqueueUSMDeviceAllocExp(
@@ -337,7 +435,8 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMDeviceAllocExp(
         pPool, size, pProperties, numEventsInWaitList, phEventWaitList, ppMem,
-        phEvent);
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP));
   }
 
   ur_result_t enqueueUSMSharedAllocExp(
@@ -348,7 +447,8 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMSharedAllocExp(
         pPool, size, pProperties, numEventsInWaitList, phEventWaitList, ppMem,
-        phEvent);
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP));
   }
 
   ur_result_t
@@ -360,7 +460,8 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMHostAllocExp(
         pPool, size, pProperties, numEventsInWaitList, phEventWaitList, ppMem,
-        phEvent);
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_ENQUEUE_USM_HOST_ALLOC_EXP));
   }
 
   ur_result_t enqueueUSMFreeExp(ur_usm_pool_handle_t pPool, void *pMem,
@@ -369,7 +470,9 @@ public:
                                 ur_event_handle_t *phEvent) override {
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueUSMFreeExp(
-        pPool, pMem, numEventsInWaitList, phEventWaitList, phEvent);
+        pPool, pMem, numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_ENQUEUE_USM_FREE_EXP));
   }
 
   ur_result_t bindlessImagesImageCopyExp(
@@ -385,7 +488,9 @@ public:
     return commandListManagers[cmdListId].lock()->bindlessImagesImageCopyExp(
         pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
         pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_MEM_IMAGE_COPY));
   }
 
   ur_result_t bindlessImagesWaitExternalSemaphoreExp(
@@ -396,9 +501,11 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId]
         .lock()
-        ->bindlessImagesWaitExternalSemaphoreExp(hSemaphore, hasWaitValue,
-                                                 waitValue, numEventsInWaitList,
-                                                 phEventWaitList, phEvent);
+        ->bindlessImagesWaitExternalSemaphoreExp(
+            hSemaphore, hasWaitValue, waitValue, numEventsInWaitList,
+            phEventWaitList,
+            createOrForwardSignalEvent(cmdListId, phEvent,
+                                       UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP));
   }
 
   ur_result_t bindlessImagesSignalExternalSemaphoreExp(
@@ -411,7 +518,9 @@ public:
         .lock()
         ->bindlessImagesSignalExternalSemaphoreExp(
             hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
-            phEventWaitList, phEvent);
+            phEventWaitList,
+            createOrForwardSignalEvent(
+                cmdListId, phEvent, UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP));
   }
 
   ur_result_t enqueueCooperativeKernelLaunchExp(
@@ -425,7 +534,9 @@ public:
         .lock()
         ->enqueueCooperativeKernelLaunchExp(
             hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-            pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
+            pLocalWorkSize, numEventsInWaitList, phEventWaitList,
+            createOrForwardSignalEvent(cmdListId, phEvent,
+                                       UR_COMMAND_KERNEL_LAUNCH));
   }
 
   ur_result_t
@@ -434,7 +545,9 @@ public:
                                ur_event_handle_t *phEvent) override {
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueTimestampRecordingExp(
-        blocking, numEventsInWaitList, phEventWaitList, phEvent);
+        blocking, numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_TIMESTAMP_RECORDING_EXP));
   }
 
   ur_result_t
@@ -444,7 +557,9 @@ public:
                           ur_event_handle_t *phEvent) override {
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueCommandBufferExp(
-        hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
+        hCommandBuffer, numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP));
   }
 
   ur_result_t enqueueKernelLaunch(ur_kernel_handle_t hKernel, uint32_t workDim,
@@ -457,7 +572,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueKernelLaunch(
         hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_KERNEL_LAUNCH));
   }
 
   ur_result_t enqueueKernelLaunchCustomExp(
@@ -471,7 +588,9 @@ public:
     return commandListManagers[cmdListId].lock()->enqueueKernelLaunchCustomExp(
         hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
         numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_KERNEL_LAUNCH));
   }
 
   ur_result_t enqueueNativeCommandExp(
@@ -483,7 +602,9 @@ public:
     auto cmdListId = getNextCommandListId();
     return commandListManagers[cmdListId].lock()->enqueueNativeCommandExp(
         pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numEventsInWaitList, phEventWaitList,
+        createOrForwardSignalEvent(cmdListId, phEvent,
+                                   UR_COMMAND_ENQUEUE_NATIVE_EXP));
   }
 };
 
