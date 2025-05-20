@@ -9,6 +9,7 @@
 // Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit
 // FPGA emulator affected by same issue as OpenCL CPU runtime
 // UNSUPPORTED: cpu, accelerator
+// UNSUPPORTED-TRACKER: CMPLRLLVM-37365
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
