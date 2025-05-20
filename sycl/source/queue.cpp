@@ -461,9 +461,11 @@ sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
     return std::nullopt;
 
   // If the last event was discarded or a NOP, we insert a marker to represent
-  // an event at end.
+  // an event at end. If the event comes from a graph we must skip this because
+  // the original event is used for tracking nodes in the graph.
   auto LastEventImpl = detail::getSyclObjImpl(*LastEvent);
-  if (LastEventImpl->isDiscarded() || LastEventImpl->isNOP())
+  if (!LastEventImpl->hasCommandGraph() &&
+      (LastEventImpl->isDiscarded() || LastEventImpl->isNOP()))
     LastEvent =
         detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));
   return LastEvent;
