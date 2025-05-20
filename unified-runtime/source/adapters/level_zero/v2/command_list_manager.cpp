@@ -257,13 +257,9 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy(
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  (void)pWaitEvents; // TODO: use pWaitEvents
-  (void)numWaitEvents; // TODO: use numWaitEvents
-    (void)zeSignalEvent; // TODO: use zeSignalEvent
-  
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (zeCommandList.get(), pDst, pSrc, size, zeSignalEvent,
-              0, nullptr));
+             numWaitEvents, pWaitEvents));
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize, (zeCommandList.get(), UINT64_MAX));

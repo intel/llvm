@@ -66,14 +66,13 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList,
     const ur_exp_command_buffer_desc_t *desc)
-    : commandListManager(
+    : isUpdatable(desc ? desc->isUpdatable : false),
+      isInOrder(desc ? desc->isInOrder : false),
+      commandListManager(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList),
-          v2::EVENT_FLAGS_COUNTER, nullptr, false),
-      isUpdatable(desc ? desc->isUpdatable : false),
-      isInOrder(desc ? desc->isInOrder : false), NextSyncPoint(0),
-      context(context), device(device) {
-      }
+          isInOrder ? v2::EVENT_FLAGS_COUNTER : 0, nullptr, false),
+      NextSyncPoint(0), context(context), device(device) {}
 
 ur_exp_command_buffer_sync_point_t
 ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
@@ -312,9 +311,8 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
   if (pSyncPoint != nullptr) {
     event = &signalEvent;
   }
-  UR_CALL(commandListLocked->appendUSMMemcpy(false, pDst, pSrc, size,
-                                             numSyncPointsInWaitList,
-                                             eventsWaitList, event));
+  UR_CALL(commandListLocked->appendUSMMemcpy(
+      false, pDst, pSrc, size, numSyncPointsInWaitList, eventsWaitList, event));
 
   if (pSyncPoint != nullptr) {
     *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);

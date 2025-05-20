@@ -32,12 +32,13 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_result_t
   registerExecutionEventUnlocked(ur_event_handle_t nextExecutionEvent);
 
+  const bool isUpdatable = false;
+  const bool isInOrder = true;
+
   lockable<ur_command_list_manager> commandListManager;
 
   ur_result_t finalizeCommandBuffer();
   // Indicates if command-buffer commands can be updated after it is closed.
-  const bool isUpdatable = false;
-  const bool isInOrder = true;
 
   // Command-buffer profiling is enabled.
   const bool isProfilingEnabled = false;
