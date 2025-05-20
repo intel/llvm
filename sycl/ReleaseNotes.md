@@ -2,19 +2,55 @@
 
 ## New Features
 
+### Component A
+
 - Added support for ... intel/llvm#pr
 
-## Improvements
+### Component B
+
+- Added support for ... intel/llvm#pr
+
+
+## Improvements and bugfixes
+
+### Component A
 
 - Improved handling of ... intel/llvm#pr
+- Fixed ... intel/llvm#pr
 
-## Bug Fixes
+### Component B
 
+- Improved handling of ... intel/llvm#pr
 - Fixed ... intel/llvm#pr
 
 ## Misc
 
 - Did this and that ... intel/llvm#pr
+
+## API/ABI breakages
+
+### Changes that are effective immediately
+
+- Removed ... intel/llvm#pr
+
+### Deprecations
+
+Those APIs are still present and tested, but they will be removed in future
+releases:
+
+- Deprecated ... intel/llvm#pr
+
+### Upcoming API/ABI breakages
+
+This changes are available for preview under `-fpreview-breaking-changes` flag.
+They will be enabled by default (with no option to switch to the old behavior)
+in the next ABI-breaking release:
+
+- Removed ... intel/llvm#pr
+
+## Known Issues
+
+- ...
 
 # Release notes Mar'25
 
@@ -44,22 +80,20 @@ Release notes for commit range
 
 ### SYCL graphs
 
-- Introduced and implemented
+- Implemented
   [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc)
-  extension which allows to include custom commands for interoperability with
-  native runtimes into graphs built using `sycl_ext_oneapi_graph` extension.
+  extension which allows submitting custom commands for interoperability with
+  native runtimes to graphs built using the `sycl_ext_oneapi_graph` extension.
   intel/llvm#16871
+- Introduced ability to update host-task nodes in graphs. intel/llvm#16853
 
 ### Bindless images
 
-- Extended the extension
-  [specification](https://github.com/intel/llvm/blob/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc)
-  to support more kinds of copy operations (`image_mem_handle` to USM and vice
-  versa, USM to USM, etc.) and implemented them. intel/llvm#16661,
-  intel/llvm#17507
-- Extended the extension specification and implementation to support
-  `gather_image` device built-in function. The implementation was only done for
-  CUDA backend so far. intel/llvm#17322
+- Added support for more kinds of copy operations (`image_mem_handle` to USM and vice
+  versa, USM to USM, etc.)  intel/llvm#16661, intel/llvm#17507
+- Added support for `gather_image` device built-in function. This feature is currently
+  only supported on the CUDA backend. intel/llvm#17322
+- Added support for Vulkan timeline semaphores. intel/llvm#17395
 
 ### Native CPU Device
 
@@ -89,7 +123,8 @@ Release notes for commit range
   extensions that provide different ways of allocating and accessing device
   local memory (i.e. shared by all work-items within a work-group).
   intel/llvm#15061, intel/llvm#16325
-  - The former is only supported on CUDA backend
+  - [`sycl_ext_oneapi_work_group_static`](https://github.com/intel/llvm/blob/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/doc/extensions/experimental/sycl_ext_oneapi_work_group_static.asciidoc)
+    is currently only supported on CUDA backend
 - Introduced and implemented
   [`sycl_ext_intel_kernel_queries`](https://github.com/intel/llvm/blob/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/doc/extensions/supported/sycl_ext_intel_kernel_queries.asciidoc)
   extension. intel/llvm#16834
@@ -111,7 +146,7 @@ Release notes for commit range
 
 ### New compiler options
 
-- Added support for ``-f[no]-offload-fp32-prec-div` and
+- Added support for `-f[no]-offload-fp32-prec-div` and
   `-f[no-]-offload-fp32-prec-sqrt` compiler flags to control precision of
   floating-point division and square root. intel/llvm#15836, intel/llvm#16107,
   intel/llvm#16993, intel/llvm#17044, intel/llvm#17033, intel/llvm#16942,
@@ -135,7 +170,8 @@ Release notes for commit range
 
 #### Thread Sanitizer
 
-- Introduced thread sanitizer support for device code. intel/llvm#17345,
+- Introduced thread sanitizer support for SYCL and OpenMP C/C++ device code. It
+  features data race detection in USM and device global memory. intel/llvm#17345,
   intel/llvm#17211, intel/llvm#17155, intel/llvm#17181
 
 ## Improvements and bugfixes
@@ -147,8 +183,7 @@ Release notes for commit range
   improve performance. intel/llvm#17495
 - Documented kernel binary update feature which allows to update kernel nodes
   in graphs. This feature had been implemented earlier already. intel/llvm#14896
-- Introduced ability to update host-task nodes in graphs. intel/llvm#16853
-- Fixed race condition in `mutable_command_graph` node queries. intel/llvm#17012
+- Fixed race condition in `command_graph` node queries. intel/llvm#17012
 - Fixed the issue with not all graph-related classes fully implementing
   common reference semantics. intel/llvm#16788
 - Documented interaction with `sycl_ext_oneapi_local_memory` extension.
@@ -158,15 +193,16 @@ Release notes for commit range
 - Made `ext_oneapi_weak_object` extension work with graph objects.
   intel/llvm#16209
 - Fixed a bug where using `local_accessor` or `work_group_memory` objects as
-  part of whole graph update would function incorrectly on CUDA & HIP backends.
+  part of graph update would function incorrectly on CUDA & HIP backends.
   intel/llvm#16025
 
 ### SYCLcompat library
 
 - Introduced new set of group utility functions and classes aimed to reduce the
   gap between `syclcompat` and `dpct` namespaces. intel/llvm#17263
-- 73e6b224aacf [SYCLCOMPAT] Forward launch arguments to avoid copies (#16965)
-  - Definitely user-visible, but I'm not sure how to word that
+- Fixed an issue where `CUTensorMap` objects would be unintentionally copied,
+  causing `CUDA_ERROR_ILLEGAL_ADDRESS` when running on the CUDA backend. 
+  intel/llvm#16965
 - Fixed `compare_mask` putting results in the wrong 2-byte segment of 4-byte
   output. intel/llvm#16768
 - Optimized implementation of `permute_sub_group_by_xor` for the case when
@@ -207,36 +243,22 @@ Release notes for commit range
 - Fixed ASAN throwing an exception with `UR_RESULT_ERROR_INVALID_ARGUMENT` when
   detecting incorect memory free operation. intel/llvm#16706
 
-
-
-
-- bee8a397ac72 [UR][DeviceASAN] Sync the latest changes in asan_libdevice.hpp (#15911)
-- 6347914485a8 [DeviceAsan] bugfixes for UR (#16257)
-- e9143ca66108 [DeviceAsan] Report error when using unsupported API (#16281)
-- 092cd2dfc034 [UR][DeviceASAN] Bugfix for mmap (#16466)
-- 696514238e2e [DeviceASAN] Fix kernel release order (#16688)
-- cc6148dfd17c [UR][DeviceASAN] Bugfix for GetDeviceType (#16745)
-- 76c665363565 [DeviceSanitizers] Adjust backtrace addresses to call instruction (#17404)
-- e2ab2b9ba963 [DevSan][Refactor] Make Options an unified class shared by all sanitizers (#17157)
-
 ### Bindless images
 
-- Added support for timeline semaphores. intel/llvm#17395
 - Added support for `ext_oneapi_bindless_sampled_image_fetch_1d`,
   `ext_oneapi_bindless_sampled_image_fetch_1d_usm`,
   `ext_oneapi_bindless_sampled_image_fetch_2d`,
   `ext_oneapi_bindless_sampled_image_fetch_2d_usm` and
   `ext_oneapi_bindless_sampled_image_fetch_3d` aspects on Level Zero backend.
   intel/llvm#16862
+- Added the initial support for bindless images on AMD GPUs. intel/llvm#16439
 - Fixed return types of image extent queries to match the specification.
   intel/llvm#16829
 - Clarified the types of supported USM memory in the extension specification.
   intel/llvm#16622
-
-- 3161af314190 [SYCL][Ext][Bindless] Initial implementation of image spirv builtins on HIP (#16439)
-  - What exactly does it mean for end user?
-- b732a3c4c9cb [SYCL][Bindless] Fix incorrect mangling of bindless images builtin functions (#16135)
-  - What was the user-visible effect of the issue?
+- Fixed compiler crash caused by the use of anisotropic sampling operations on 3D mipmaps,
+  due to the intrinsic being generated with an incorrect number of LOD gradient parameters.
+  intel/llvm#16135
 
 ### Native CPU device
 
@@ -343,7 +365,7 @@ SYCL runtime over low-level runtimes (such as Level Zero or OpenCL):
 
 ### Other changes in SYCL Compiler
 
-- Introduced a new optimization to eliminate back-to-back barriers when its
+- Introduced a new optimization to eliminate back-to-back barriers when it is
   safe. Such chain of barriers may occur when multiple group algorithms are
   used next to each other. intel/llvm#16750
 - Removed a busy-wait loop from the implementation of
@@ -355,7 +377,7 @@ SYCL runtime over low-level runtimes (such as Level Zero or OpenCL):
   application (if it is used). This change will allow us to reduce the size
   of redistributable SYCL RT package by eliminating some files from it.
   intel/llvm#16729
-- Added a compiler diagnostic (warning) about undefined `SYCL_EXTERNAL`
+- Added a compiler warning diagnostic about undefined `SYCL_EXTERNAL`
   functions used in a module to help catch linking errors earlier.
   intel/llvm#17346
 - Addressed issue intel/llvm#11531 where the compiler would generate invalid
@@ -583,104 +605,7 @@ in the next ABI-breaking release:
     to see the list of working and non-working examples.
 
 
-43ee65117935 [UR] Fix potential deadlock in the WaitEvent path of CmdBuffers (#16697)
 40f0a6a0630b [SYCL][Graph] Fix L0 multi-device kernel bundles (#16343)
-c5c0be57c660 [UR][CUDA][HIP] Add missing catch for native commands (#17524)
-55a098709da2 [UR] Regenerate ur_valddi.cpp (#17487)
-9c5762226d4f [UR] Fix cfi initialization (#17472)
-a0df523df9c1 [UR] Deprecate UR_DEVICE_INFO_BFLOAT16 (#17053)
-7650d831bb0f [UR] Check null pointer before handle in validation layer (#17474)
-d6214ad114f8 [SYCL][UR][CUDA] Fix CMake CUPTI config (#17457)
-44f120e92c12 [UR] Remove unnecessary unique pointer from cl program helper. (#17101)
-19dbfb7605e9 [UR][L0] Create pool descriptors from subdevices... (#17465)
-a9cb8f1e8540 [UR] Bump UMF to v0.11.0-dev4 (#17468)
-1167ee6b388e [UR][CMake]Set CMAKE_MSVC_RUNTIME_LIBRARY to fix UMF linking issues (#17366)
-fb582a748e42 [UR] [V2] Fix synchronization between command_list_manager usages (#17297)
-b2db12abbb33 [UR] Fix typo in cfi flags handling. (#17452)
-a1065507ce1f [UR] Handle adapters returning no platforms during testing (#17410)
-768c5eaf4aca [UR] Generated code hidden by default in PR diffs (#17414)
-2975d26c7050  [SYCL][UR][L0 v2] use blocking free when returning memory to the driver (#17375)
-c342667c7e4f [UR] Updates to source checks job (#17160)
-17df762be147 [SYCL][UR][CUDA] Use FindCUDAToolkit CMake module instead of FindCUDA (#17315)
-0e155f0c1ab0 [SYCL][CUDA] Fix cupti library dynamic loading (#17272)
-a000e56a9542 [UR][SYCL] Remove UR context atomic queries. (#16160)
-38d750678fae [UR][L0] Manage UMF pools through usm::pool_manager (#17065)
-c07039e2263d [UR] Add  device info query for native assert. (#15929)
-f870412188a5 [UR] Add UNSUPPORTED_FEATURE return for urDeviceGetGlobalTimestamps (#17389)
-16713eae8c44 [UR] Allow loader to skip adapters based on prefilter device type. (#17072)
-6ef844897f8a [UR][L0] Fix bfloat16 lookup to check for the extension (#17364)
-68cacbfed4f5 [UR][L0] Disable Immediate Command List DG2 Windows (#17334)
-607dff4c92a1 [UR] Stop using extension strings to report support for exp features. (#16046)
-60ffdc3a97de [UR][L0] fix external semaphore with updated headers and report device info support (#17286)
-255760e5af11 [UR] Fix various defects from static analysis (#17299)
-fad173cbd14f [UR] Add UR_EXTERNAL_DEPENDENCIES CMake option (#17291)
-a7774f2a74c5 [UR] Fix some tests that are broken when run with multiple cuda devices available. (#17216)
-f01edd3abbb4 [UR] [L0] Update UR to link the Loader as static (#17104)
-f36f787137d1 [UR][L0] Fix assignment of the in order flag for sync immediate list (#17199)
-feed8b11e4fd [SYCL][CUDA] Fix adapter cupti linking (#17224)
-b183751df103 [AsyncAlloc][UR][Exp] Initial API for async alloc entry points (#17117)
-35fba198274c [UR][CUDA] Avoid unnecessary calls to cuFuncSetAttribute (#16928)
-8fa2a120729b [UR] Improvements to align CTS and Spec for Program (#17094)
-a4f976433067 [UR][CUDA] Change MAX_MEMORY_BANDWIDTH device query to uint64 (#16869)
-5c76d4cd47ad [UR] Remove unnecessary and confusing unique_ptr usage (#17144)
-1eccddb52284 [UR][L0 v2] check if copy offload is supported before requesting it (#17120)
-646a5088f0d4 [UR] Update dependentloadflag for L0 adapters dlls (#17078)
-2e288b083bc3 [UR] Improvements to align CTS and Spec for Device (#16746)
-1515afacc6ae [UR][L0] Disable command-buffer immediate append path  (#17097)
-ae09897ff29d [UR] Use relative xpti/xptifw source when available (#17099)
-d5bcb59367f7 [UR] Correct copyright string in Windows proxy loader (#17060)
-5aa3157aba07 [SYCL][CUDA] Use UMF Proxy pool manager with UMF CUDA memory provider in UR (#17015)
-e925b2b9f4c5 [SYCL][CUDA] Update UMF in UR to fix issue in LLVM (#17034)
-5e01636b22ae Move Unified Runtime code into intel/llvm
-f3d12f0167da Do not fetch cudart from gitlab for UMF (#16941)
-23b2457304bd Use UMF CUDA provider in Unified Runtime (#16761)
-64a095c36113 [SYCL][UR] Improve header copy dependencies (#17093)
-928ed3e5a470 [UR][L0] Fix issue with command-buffer local mem update (#17069)
-1638be92ec1d [UR] Choose in-tree unified-runtime directory if present (#16833)
-113b46788672 [UR][L0]: MAX_COMPUTE_UNITS using ze_eu_count_ext_t (#16818)
-d3e825ca3058 [UR][L0]: fix missing destroy of event given enqueue wait out event (#16759)
-479da1d68964 [UR] Bump tag to 08d36b76 (#16810)
-a6ebaa40ec28 [UR] Move urMemImageGetInfo success test from a switch to individual test (#16655)
-a739d3418140 [UR] Make each profiling info variant for urEventGetProfilingInfo optional and improve its conformance test (#17067)
-5f7043dc931a [UR] Don't set -pie on shared objects (#16880)
-988c4777a709 [UR] In-order path for OpenCL command-buffers (#17056)
-69941b863470 [UR] Make command-buffer creation descriptor mandatory (#17058)
-0b979bf73689 [UR] Add remaining calls shared with queue in level-zero v2 adapter (#17061)
-d142923d2a61 [UR][CL] Fix invalid use of dlopen() (#16736)
-cf19f7758c6e [UR] fix parseDisjointPoolConfig and add tests (#16791)
-02d2e34c1c83 [UR] Fix kernel arguments being overwritten in the CUDA and HIP adapters (#16733)
-73f54e5296c5 [UR] Make adapters check native properties before dereferencing. (#16730)
-9c65739ea12b [UR] Bump with DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS (#16659)
-16ca790241fe [UR] Update tag to 8b7a9957 for https://github.com/oneapi-src/unified-runtime/pull/2582 (#16689)
-b9a755831a77 [SYCL] Update UR tag for L0 synchronize fix (#16629)
-8998b9b54f85 [UR] Unified clang format (#16672)
-69cbf2a86d94 [UR] Bump UR version (main) with UMF v0.10.1 release (#16571)
-a204f4031b45 [UR] Wrap urEventSetCallback when ran through loader (#16572)
-48297dfbd765 [UR] Pull in fix needed for CTS device parameterization. (#16519)
-c6b1edfb7512 [UR] Use reference counting on factories (#15296)
-93de8f1c6127 [UR] Improve Kernel CTS  (#16555)
-c0e2fd19641e [UR] Bump tag to 3472b5bda (#16531)
-8329e7bffca4 Bump for uninitialized-cuda-events-fix (#16469)
-dcfdcfa249ab [UR] Update tag to ad288bb  (#16512)
-788ff7ffc01d [UR] Bump UR with zeCommandListImmediateAppendCommandListsExp usages fixes (#16458)
-931a93b3fecf Bump UR and adjust use of urKernelSuggestMaxCooperativeGroupCountExp (#15966)
-7a4a978e3483 [UR][L0] Fix Event Memory Leak due to no destroy on delete (#16410)
-f1627498fc10 [UR][OpenCL] add a few missing Intel GPU device queries, fix device ID query (#16299)
-a37bba8086f5 [UR] Update tag to 6d4eec8c for UR#2272 and UR#2336 (#15965)
-fe88f1dc4e61 UR [SYCL][CUDA][HIP] Update images enable variable (#16147)
-    Has something to do with disabling images by default
-5d8a55236008 [UR][L0] Bump main tag to 39df0317 (#16365)
-28e84168b5e4 [UR] Update tag to 58e4d76 (#16322)
-8106796a4093 [UR] Update tag to 45f3d8  (#16327)
-8a41b47be40d [SYCL][UR][L0] Fix issue with event caching causing profiling tag conflicts (#16233)
-06e57374b23d [UR] Pull in fixes for issues raised in latest coverity scan. (#16158)
-33a0411c0bbf [UR] Interrupt-based event implementation (#16252)
-590960a4205f [UR][L0] Add Support for External Semaphores (#16162)
-c3eb1603adb2 [UR][L0] Disabling Driver In Order Lists by default (#16263)
-6fd5143b5431 [UR] Update UR tag to include the fix to set the execution flag for all kernels (#16241)
-b56ffc5f7c98 [UR] Update tag to 3fdf7e3 for UR #2353 and #2413 (#16262)
-130a901922bc [UR][L0] fix event caching (#16207)
-73b99be383ac [UR] Bump UR tag to eb076da (#16216)
 
 # Release notes Nov'24
 
