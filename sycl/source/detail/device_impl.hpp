@@ -146,8 +146,8 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
 
   template <ur_device_info_t Desc, bool InitializingCache = false>
   decltype(auto) get_info_impl() const {
-    if constexpr (decltype(MCache)::has<Desc>() && !InitializingCache) {
-      return MCache.get<Desc>();
+    if constexpr (decltype(MCache)::has<URDesc<Desc>>() && !InitializingCache) {
+      return MCache.get<URDesc<Desc>>();
     } else {
       using ur_ret_t = ur_ret_type<Desc>;
       if constexpr (std::is_same_v<ur_ret_t, std::string>) {
@@ -272,14 +272,6 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
 #endif
     }
 
-    template <ur_device_info_t Desc> static constexpr bool has() {
-      return has<URDesc<Desc>>();
-    }
-
-    template <aspect Aspect> static constexpr bool has() {
-      return has<AspectDesc<Aspect>>();
-    }
-
     template <typename Desc> decltype(auto) get() {
       static_assert(has<Desc>());
       constexpr auto Idx = []() constexpr {
@@ -290,12 +282,9 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
       }();
       return nth_type_t<Idx, Caches...>::template get<Desc>();
     }
-    template <ur_device_info_t Desc> decltype(auto) get() {
-      return get<URDesc<Desc>>();
-    }
-    template <aspect Aspect> decltype(auto) get() {
-      return get<AspectDesc<Aspect>>();
-    }
+
+    //  Can't provide `has<ur_device_info_t>`/`has<aspect>` (or similar for
+    //  `get`) due to MSVC bug: https://godbolt.org/z/s6bP6qK4f.
   };
 
   // With generic infrastructure above finished, provide the customization
@@ -1123,8 +1112,9 @@ public:
   // template version is necessary to make this cacheable (cache lookup needs
   // compile-time data).
   template <aspect Aspect, bool InitializingCache = false> bool has() const {
-    if constexpr (decltype(MCache)::has<Aspect>() && !InitializingCache) {
-      return MCache.get<Aspect>();
+    if constexpr (decltype(MCache)::has<AspectDesc<Aspect>>() &&
+                  !InitializingCache) {
+      return MCache.get<AspectDesc<Aspect>>();
     }
 #define CASE(ASPECT) else if constexpr (Aspect == aspect::ASPECT)
     CASE(host) {
