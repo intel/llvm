@@ -13,8 +13,6 @@
 #include <sycl/ext/oneapi/experimental/address_cast.hpp>
 #include <sycl/multi_ptr.hpp>
 
-#define SYCL_KHR_STATIC_ADDRSPACE_CAST 1
-
 namespace sycl {
 inline namespace _V1 {
 namespace khr {
