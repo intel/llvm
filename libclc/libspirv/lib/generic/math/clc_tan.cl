@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <clc/math/clc_fabs.h>
 #include <clc/math/clc_sincos_helpers.h>
 #include <clc/math/math.h>
 #include <clc/math/tables.h>
+#include <clc/opencl/clc.h>
 #include <clc/relational/clc_isinf.h>
 #include <clc/relational/clc_isnan.h>
 
