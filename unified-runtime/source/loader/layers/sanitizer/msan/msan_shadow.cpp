@@ -29,9 +29,9 @@ namespace msan {
 
 #define CPU_SHADOW_MASK 0x500000000000ULL
 
-std::shared_ptr<ShadowMemory>
-GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
-                    DeviceType Type) {
+std::shared_ptr<ShadowMemory> GetMsanShadowMemory(ur_context_handle_t Context,
+                                                  ur_device_handle_t Device,
+                                                  DeviceType Type) {
   if (Type == DeviceType::CPU) {
     static std::shared_ptr<ShadowMemory> ShadowCPU =
         std::make_shared<ShadowMemoryCPU>(Context, Device);
@@ -106,9 +106,7 @@ ur_result_t ShadowMemoryCPU::Destory() {
   return Result;
 }
 
-uptr ShadowMemoryCPU::MemToShadow(uptr Ptr) {
-  return Ptr ^ CPU_SHADOW_MASK;
-}
+uptr ShadowMemoryCPU::MemToShadow(uptr Ptr) { return Ptr ^ CPU_SHADOW_MASK; }
 
 ur_result_t ShadowMemoryCPU::EnqueuePoisonShadow(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
@@ -183,10 +181,10 @@ ur_result_t ShadowMemoryGPU::Destory() {
   return Result;
 }
 
-ur_result_t ShadowMemoryGPU::EnqueueMapShadow(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size,
-    std::vector<ur_event_handle_t> &EventWaitList,
-    ur_event_handle_t *OutEvent) {
+ur_result_t
+ShadowMemoryGPU::EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+                                  std::vector<ur_event_handle_t> &EventWaitList,
+                                  ur_event_handle_t *OutEvent) {
 
   const size_t PageSize = GetVirtualMemGranularity(Context, Device);
 
@@ -276,8 +274,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(
   return Result;
 }
 
-ur_result_t
-ShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
+ur_result_t ShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
   uptr ShadowBegin = MemToShadow(AI->AllocBegin);
   uptr ShadowEnd = MemToShadow(AI->AllocBegin + AI->AllocSize);
   assert(ShadowBegin <= ShadowEnd);
@@ -305,8 +302,8 @@ ShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
 }
 
 ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
-                                                  uint32_t NumWG, uptr &Begin,
-                                                  uptr &End) {
+                                              uint32_t NumWG, uptr &Begin,
+                                              uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
   const size_t RequiredShadowSize = NumWG * LocalMemorySize;
   static size_t LastAllocedSize = 0;
@@ -344,9 +341,9 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
 }
 
 ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
-                                                    uint64_t NumWI,
-                                                    uint32_t NumWG, uptr *&Base,
-                                                    uptr &Begin, uptr &End) {
+                                                uint64_t NumWI, uint32_t NumWG,
+                                                uptr *&Base, uptr &Begin,
+                                                uptr &End) {
   {
     const size_t Size = NumWI * sizeof(uptr);
     ur_usm_desc_t Properties{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
