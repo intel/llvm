@@ -36,11 +36,11 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::host_buffer> A
 // Global buffer accessor.
 //----------------------------------------------------------------------------//
 
-void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer> Acc) {
+void hostAcc(accessor<int, 1, access::mode::read, access::target::device> Acc) {
   (void)Acc.get_size();
 }
 
-// CHECK:      0 | class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer>
+// CHECK:      0 | class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::device>
 // CHECK-NEXT: 0 |   class sycl::detail::AccessorBaseHost (base)
 // CHECK-NEXT: 0 |     class std::shared_ptr<class sycl::detail::AccessorImplHost> impl
 // CHECK-NEXT: 0 |       class std::__shared_ptr<class sycl::detail::AccessorImplHost> (base)
@@ -48,8 +48,8 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer>
 // CHECK-NEXT: 0 |         element_type * _M_ptr
 // CHECK-NEXT: 8 |         class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 8 |           _Sp_counted_base<(__gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer> > (base) (empty)
+// CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::device, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::device> > (base) (empty)
 // CHECK-NEXT: 16 | detail::AccHostDataT * MAccData
 // CHECK-NEXT: 24 |   char[8] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,

@@ -611,7 +611,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
 #endif
 
-  if (MGraph.lock()) {
+  if (!MGraph.expired()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait cannot be called for a queue which is "
                           "recording to a command graph.");
@@ -706,7 +706,8 @@ void queue_impl::constructorNotification() {
 
       xpti::addMetadata(TEvent, "sycl_context",
                         reinterpret_cast<size_t>(MContext->getHandleRef()));
-      xpti::addMetadata(TEvent, "sycl_device_name", MDevice.getDeviceName());
+      xpti::addMetadata(TEvent, "sycl_device_name",
+                        MDevice.get_info<info::device::name>());
       xpti::addMetadata(TEvent, "sycl_device",
                         reinterpret_cast<size_t>(MDevice.getHandleRef()));
       xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
