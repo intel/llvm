@@ -1108,21 +1108,6 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
-
-  StringRef OutputFilePath = *OutputFileOrErr;
-  if (Verbose || DryRun) {
-    std::string InputFiles;
-    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-      InputFiles += SplitModules[I].ModuleFilePath;
-      if (I + 1 < E)
-        InputFiles += ',';
-    }
-
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}, "
-                      "compile-opts: {2}, link-opts: {3}\n",
-                      InputFiles, OutputFilePath, CompileOptions, LinkOptions);
-  }
-
   if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
@@ -1132,6 +1117,7 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   // TODO: Once "clang tool->runCompile" migration is finished we need to remove
   // this scope and use community flow.
   int FD = -1;
+  StringRef OutputFilePath = *OutputFileOrErr;
   if (std::error_code EC = sys::fs::openFileForWrite(OutputFilePath, FD))
     return errorCodeToError(EC);
 
