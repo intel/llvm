@@ -3598,7 +3598,7 @@ private:
 
   template <typename PropertiesT>
   void ProcessSubmitProperties(PropertiesT Props,
-                               detail::v1::SubmissionInfo &SI) {
+                               detail::v1::SubmissionInfo &SI) const {
     if constexpr (Props.template has_property<
                       ext::oneapi::experimental::event_mode_key>()) {
       ext::oneapi::experimental::event_mode EventModeProp =
@@ -3621,10 +3621,10 @@ private:
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
   void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::code_location &CodeLoc);
+                                 const detail::code_location &CodeLoc) const;
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
+                                 bool IsTopCodeLoc) const;
   event
   submit_impl_and_postprocess(std::function<void(handler &)> CGH,
                               const detail::code_location &CodeLoc,
@@ -3652,7 +3652,7 @@ private:
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
+                                 bool IsTopCodeLoc) const;
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
@@ -3660,7 +3660,7 @@ private:
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
+                                 bool IsTopCodeLoc) const;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// A template-free versions of submit.
@@ -3673,7 +3673,7 @@ private:
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                  const detail::v1::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc);
+                                 bool IsTopCodeLoc) const;
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -3760,10 +3760,11 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
+  //public:
   template <bool UseFallbackAssert, typename PropertiesT>
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,
-                            const detail::code_location &CodeLoc) {
+                            const detail::code_location &CodeLoc) const {
     if constexpr (UseFallbackAssert) {
       // If post-processing is needed, fall back to the regular submit.
       // TODO: Revisit whether we can avoid this.

@@ -97,8 +97,8 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 };
 
 template <typename CommandGroupFunc, typename PropertiesT>
-void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
-                 const sycl::detail::code_location &CodeLoc) {
+void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+                 const sycl::detail::code_location &CodeLoc) {   
   Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT>(
       Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
@@ -113,7 +113,7 @@ event submit_with_event_impl(queue &Q, PropertiesT Props,
 } // namespace detail
 
 template <typename CommandGroupFunc, typename PropertiesT>
-void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
+void submit(const queue& Q, PropertiesT Props, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::detail::submit_impl(
@@ -121,10 +121,10 @@ void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
 }
 
 template <typename CommandGroupFunc>
-void submit(queue Q, CommandGroupFunc &&CGF,
+void submit(const queue& Q, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
-  submit(std::move(Q), empty_properties_t{},
+  submit(Q, empty_properties_t{},
          std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 

@@ -221,12 +221,12 @@ event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
 }
 
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
-                                      const detail::code_location &CodeLoc) {
+                                      const detail::code_location &CodeLoc) const {
   submit_without_event_impl(std::move(CGH), {}, CodeLoc, true);
 }
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       const detail::code_location &CodeLoc,
-                                      bool IsTopCodeLoc) {
+                                      bool IsTopCodeLoc) const {
   submit_without_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
 }
 
@@ -269,7 +269,7 @@ event queue::submit_with_event_impl(std::function<void(handler &)> CGH,
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       const detail::SubmissionInfo &SubmitInfo,
                                       const detail::code_location &CodeLoc,
-                                      bool IsTopCodeLoc) {
+                                      bool IsTopCodeLoc) const {
   impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
@@ -284,7 +284,7 @@ event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
 void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                       const detail::SubmissionInfo &SubmitInfo,
                                       const detail::code_location &CodeLoc,
-                                      bool IsTopCodeLoc) {
+                                      bool IsTopCodeLoc) const {
   detail::v1::SubmissionInfo SI{SubmitInfo};
   impl->submit_without_event(CGH, impl, SI, CodeLoc, IsTopCodeLoc);
 }
@@ -298,10 +298,10 @@ event queue::submit_with_event_impl(
   return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
-void queue::submit_without_event_impl(
+void queue::submit_without_event_impl (
     const detail::type_erased_cgfo_ty &CGH,
     const detail::v1::SubmissionInfo &SubmitInfo,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
   impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
