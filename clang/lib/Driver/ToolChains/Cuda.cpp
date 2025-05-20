@@ -984,6 +984,27 @@ void CudaToolChain::addClangTargetOptions(
       CC1Args.append({"-std=c++17", "-fsycl-is-host"});
   }
 
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    StringRef OOpt = "3";
+    if (Arg *A = DriverArgs.getLastArg(options::OPT_O_Group)) {
+      if (A->getOption().matches(options::OPT_O4) ||
+          A->getOption().matches(options::OPT_Ofast))
+        OOpt = "3";
+      else if (A->getOption().matches(options::OPT_O0))
+        OOpt = "0";
+      else if (A->getOption().matches(options::OPT_O)) {
+        // -Os, -Oz, and -O(anything else) map to -O2, for lack of better options.
+        OOpt = llvm::StringSwitch<const char *>(A->getValue())
+                  .Case("1", "1")
+                  .Case("2", "2")
+                  .Case("3", "3")
+                  .Case("s", "2")
+                  .Case("z", "2")
+                  .Default("2");
+      }
+    }
+    CC1Args.push_back(DriverArgs.MakeArgString(llvm::Twine("-O") + OOpt));
+  }
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
                     getDriver().offloadDeviceOnly();
   if (DeviceOffloadingKind == Action::OFK_SYCL && !NoLibSpirv) {
