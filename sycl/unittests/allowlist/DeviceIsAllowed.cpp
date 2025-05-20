@@ -11,6 +11,10 @@
 
 #include <gtest/gtest.h>
 
+#ifdef _WIN32
+#include <windows.h> // SetEnvironmentVariable
+#endif
+
 constexpr char SyclDeviceAllowList[] =
     "BackendName:opencl,DeviceType:gpu,DeviceVendorId:0x8086,DriverVersion:{{("
     "19\\.(4[3-9]|[5-9]\\d)\\..*)|([2-9][0-9]\\.\\d+\\..*)|(\\d+\\.\\d+\\."
@@ -93,11 +97,19 @@ TEST(DeviceIsAllowedTests, CheckLocalizationDoesNotImpact) {
 
   try {
     auto previous = std::locale::global(std::locale("en_US.UTF-8"));
+#ifdef _WIN32
+    SetEnvironmentVariableA("SYCL_DEVICE_ALLOWLIST", SyclDeviceAllowList);
+#else
     setenv("SYCL_DEVICE_ALLOWLIST", SyclDeviceAllowList, 1);
+#endif
 
     auto post_platforms = sycl::platform::get_platforms();
     std::locale::global(previous);
+#ifdef _WIN32
+    SetEnvironmentVariableA("SYCL_DEVICE_ALLOWLIST", nullptr);
+#else
     unsetenv("SYCL_DEVICE_ALLOWLIST");
+#endif
 
     EXPECT_NE(size_t{0}, post_platforms.size());
   } catch (...) {
