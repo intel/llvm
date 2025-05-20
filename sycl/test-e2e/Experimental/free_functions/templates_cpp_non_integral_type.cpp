@@ -54,7 +54,7 @@ template <typename T>
 static void call_kernel_code(sycl::queue &q, sycl::kernel &kernel) {
   T *ptr = sycl::malloc_shared<T>(NUM, q);
   q.submit([&](sycl::handler &cgh) {
-     cgh.set_args(3.14f, ptr);
+     cgh.set_args(T(), ptr);
      sycl::nd_range ndr{{NUM}, {WGSIZE}};
      cgh.parallel_for(ndr, kernel);
    }).wait();

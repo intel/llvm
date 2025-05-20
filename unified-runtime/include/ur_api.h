@@ -10061,6 +10061,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 /// @remarks
 ///   _Analogues_
 ///     - **cuTexObjectCreate**
+///     - **hipTexObjectCreate**
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -10070,11 +10071,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
+///         + `NULL == pSamplerDesc`
 ///         + `NULL == phImage`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT <
+///         pSamplerDesc->addressingMode`
+///         + `::UR_SAMPLER_FILTER_MODE_LINEAR < pSamplerDesc->filterMode`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
@@ -10094,8 +10099,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [in] sampler to be used
-    ur_sampler_handle_t hSampler,
+    /// [in] pointer to sampler description to be used
+    const ur_sampler_desc_t *pSamplerDesc,
     /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage);
 
@@ -14772,7 +14777,7 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
   ur_exp_image_mem_native_handle_t *phImageMem;
   const ur_image_format_t **ppImageFormat;
   const ur_image_desc_t **ppImageDesc;
-  ur_sampler_handle_t *phSampler;
+  const ur_sampler_desc_t **ppSamplerDesc;
   ur_exp_image_native_handle_t **pphImage;
 } ur_bindless_images_sampled_image_create_exp_params_t;
 
