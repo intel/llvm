@@ -288,7 +288,7 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
           (DeviceInfo->Type == DeviceType::GPU_PVC &&
            ShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
           (DeviceInfo->Type == DeviceType::GPU_DG2 &&
-           MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
+           ShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
         UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
                                                         GVInfo.Size, 0));
         ContextInfo->CleanShadowSize =
