@@ -26,7 +26,7 @@
 #define _CLC_GENERIC_AS_SUPPORTED 1
 // Note that we hard-code the assumption that a non-distinct address space means
 // that the target maps the generic address space to the private address space.
-#if __CLC_DISTINCT_GENERIC_ADDRSPACE__
+#ifdef __CLC_DISTINCT_GENERIC_ADDRSPACE__
 #define _CLC_DISTINCT_GENERIC_AS_SUPPORTED 1
 #else
 #define _CLC_DISTINCT_GENERIC_AS_SUPPORTED 0
