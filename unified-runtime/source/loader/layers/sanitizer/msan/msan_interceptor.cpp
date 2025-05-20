@@ -286,7 +286,7 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
       // Only support device global USM
       if (DeviceInfo->Type == DeviceType::CPU ||
           (DeviceInfo->Type == DeviceType::GPU_PVC &&
-           MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
+           ShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
           (DeviceInfo->Type == DeviceType::GPU_DG2 &&
            MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
         UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,

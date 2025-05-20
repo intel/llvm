@@ -21,11 +21,11 @@
 namespace ur_sanitizer_layer {
 namespace msan {
 
-struct MsanShadowMemory {
-  MsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
+struct ShadowMemory {
+  ShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
       : Context(Context), Device(Device) {}
 
-  virtual ~MsanShadowMemory() {}
+  virtual ~ShadowMemory() {}
 
   virtual ur_result_t Setup() = 0;
 
@@ -78,9 +78,9 @@ struct MsanShadowMemory {
 /// 0x740000000000 ~ 0x800000000000 "app-3"
 ///
 // clang-format on
-struct MsanShadowMemoryCPU final : public MsanShadowMemory {
-  MsanShadowMemoryCPU(ur_context_handle_t Context, ur_device_handle_t Device)
-      : MsanShadowMemory(Context, Device) {}
+struct ShadowMemoryCPU final : public ShadowMemory {
+  ShadowMemoryCPU(ur_context_handle_t Context, ur_device_handle_t Device)
+      : ShadowMemory(Context, Device) {}
 
   ur_result_t Setup() override;
 
@@ -111,9 +111,9 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
   }
 };
 
-struct MsanShadowMemoryGPU : public MsanShadowMemory {
-  MsanShadowMemoryGPU(ur_context_handle_t Context, ur_device_handle_t Device)
-      : MsanShadowMemory(Context, Device) {}
+struct ShadowMemoryGPU : public ShadowMemory {
+  ShadowMemoryGPU(ur_context_handle_t Context, ur_device_handle_t Device)
+      : ShadowMemory(Context, Device) {}
 
   ur_result_t Setup() override;
 
@@ -170,9 +170,9 @@ private:
 ///     MSAN_SHADOW_END1      - MSAN_SHADOW_END2      : "shadow-2" (MSAN_SHADOW_END2 - MSAN_SHADOW_END1 == 0xff01_0000_0000_0000 - MSAN_SHADOW_END2)
 ///     MSAN_SHADOW_END2      - 0xff01_0000_0000_0000 : "app-2"
 // clang-format on
-struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
-  MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
-      : MsanShadowMemoryGPU(Context, Device) {}
+struct ShadowMemoryPVC final : public ShadowMemoryGPU {
+  ShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
+      : ShadowMemoryGPU(Context, Device) {}
 
   static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 52 == 0xff0; }
 
@@ -193,9 +193,9 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
 /// Shadow Memory Mapping is similar to PVC
 ///
 // clang-format on
-struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
-  MsanShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
-      : MsanShadowMemoryGPU(Context, Device) {}
+struct ShadowMemoryDG2 final : public ShadowMemoryGPU {
+  ShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
+      : ShadowMemoryGPU(Context, Device) {}
 
   static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 48; }
 
@@ -204,7 +204,7 @@ struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
   size_t GetShadowSize() override { return 0x4000'0000'0000ULL; }
 };
 
-std::shared_ptr<MsanShadowMemory>
+std::shared_ptr<ShadowMemory>
 GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
                     DeviceType Type);
 
