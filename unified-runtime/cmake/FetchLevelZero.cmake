@@ -64,9 +64,6 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         GIT_REPOSITORY    ${UR_LEVEL_ZERO_LOADER_REPO}
         GIT_TAG           ${UR_LEVEL_ZERO_LOADER_TAG}
     )
-    if(MSVC)
-        set(USE_Z7 ON)
-    endif()
     FetchContent_MakeAvailable(level-zero-loader)
     FetchContent_GetProperties(level-zero-loader)
 
