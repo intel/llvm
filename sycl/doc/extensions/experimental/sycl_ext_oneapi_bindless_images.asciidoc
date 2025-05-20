@@ -43,14 +43,12 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for GPU devices and
-only when using the CUDA backend.  Attempting to use this extension in
-kernels that run on other devices or backends will not work. 
-Be aware that the compiler may not be able to issue a diagnostic to
-warn you if this happens.
+This extension is currently implemented in {dpcpp} only for GPU devices. CUDA,
+HIP, and LevelZero backends are supported. Not all image and interoperability
+features may supported on all backends. We provide device aspect queries which
+users can use to check support for specific features.
 
 == Overview
 
@@ -2481,13 +2479,6 @@ include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp
 include::../../../test-e2e/bindless_images/examples/example_6_import_memory_and_semaphores.cpp[lines=14..-1]
 ```
 
-== Implementation notes
-
-The current DPC++ prototype only implements the proposal for the CUDA backend,
-however we are actively exploring Level Zero with SPIR-V.
-We are looking at other backend as well in order to ensure the extension can 
-work across different backends.
-
 == Issues
 
 === No dependency tracking
@@ -2514,12 +2505,6 @@ There are dimension specific limitations:
 The ability to create an image with 3 channels depends on the backend.
 There is currently no way to query a backend whether it supports this feature.
 This query should be added in a later revision of the proposal.
-
-=== Not supported yet
-
-These features still need to be handled:
-
-* Level Zero and SPIR-V support
 
 == Revision History
 
@@ -2740,3 +2725,6 @@ These features still need to be handled:
 |6.8|2025-03-13| - Add support for importing timeline semaphores.
 |6.9|2025-03-18| - Add new `gather` image type and the accompanying
                    `gather_image` function.
+|6.10|2025-05-09| - Add `unmap_external_image_memory` and 
+                    `unmap_external_lienrar_memory` APIs.
+                  - Clarify how and when external memory should be unmapped.
