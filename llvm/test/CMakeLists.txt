@@ -29,6 +29,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_INCLUDE_SPIRV_TOOLS_TESTS
   LLVM_APPEND_VC_REV
   LLVM_HAS_LOGF128
+  LLVM_EXPERIMENTAL_KEY_INSTRUCTIONS
   )
 
 configure_lit_site_cfg(
@@ -114,7 +115,6 @@ set(LLVM_TEST_DEPENDS
           llvm-ml
           llvm-ml64
           llvm-modextract
-          llvm-mt
           llvm-nm
           llvm-objcopy
           llvm-objdump
@@ -178,6 +178,10 @@ endif()
 if(TARGET LTO)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} LTO)
 endif()
+
+if (TARGET llvm-mt)
+  list(APPEND LLVM_TEST_DEPENDS llvm-mt)
+endif ()
 
 if(TARGET llvm-spirv)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} llvm-spirv)

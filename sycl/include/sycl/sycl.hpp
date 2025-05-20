@@ -74,7 +74,6 @@
 #include <sycl/ext/intel/experimental/task_sequence_properties.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
-#include <sycl/ext/khr/free_function_commands.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
@@ -124,5 +123,6 @@
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
 #include <sycl/khr/dynamic_addrspace_cast.hpp>
+#include <sycl/khr/free_function_commands.hpp>
 #include <sycl/khr/group_interface.hpp>
 #include <sycl/khr/static_addrspace_cast.hpp>
