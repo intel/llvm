@@ -1096,7 +1096,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
     constexpr unsigned long long NVMLThrottleFlags[] = {
         nvmlClocksThrottleReasonSwPowerCap,
-        nvmlClocksThrottleReasonHwThermalSlowdown ||
+        nvmlClocksThrottleReasonHwThermalSlowdown |
             nvmlClocksThrottleReasonSwThermalSlowdown,
         nvmlClocksThrottleReasonHwPowerBrakeSlowdown,
         nvmlClocksThrottleReasonApplicationsClocksSetting};
