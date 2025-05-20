@@ -182,7 +182,7 @@ Release notes for commit range
   execution order to avoid issues with overflowing stack on huge graphs and
   improve performance. intel/llvm#17495
 - Documented kernel binary update feature which allows to update kernel nodes
-  in graphs. This feature had been implemented earlier already. intel/llvm#14896
+  in graphs. intel/llvm#14896
 - Fixed race condition in `command_graph` node queries. intel/llvm#17012
 - Fixed the issue with not all graph-related classes fully implementing
   common reference semantics. intel/llvm#16788
