@@ -2562,7 +2562,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
     // UrProgram/UrKernel are used after KernelCacheVal is destroyed, so caller
     // must call ur*Release.
-    ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(FastKernelCacheVal->MProgramHandle);
+    ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
+        FastKernelCacheVal->MProgramHandle);
     ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(UrKernel);
 
     UrKernelsToRelease.push_back(UrKernel);
