@@ -407,8 +407,8 @@ SYCL runtime over low-level runtimes (such as Level Zero or OpenCL):
 - Fixed a bug that linking static libraries with SYCL code in them using
   `-l:libname.a` spelling would ignore device code from those libraries.
   intel/llvm#17149
-- Fixed a bug where having a pure virtual function marked as device one would
-  cause unresolved symbol errors emitted by device compiler on Windows.
+- Fixed a bug where having a pure virtual function during device compilation
+  would cause unresolved symbol errors emitted by device compiler on Windows.
   intel/llvm#16231
 - Fixed a bug where having two kernels (one annotated with
   `reqd_work_group_size` attribute/property and another without it) together
