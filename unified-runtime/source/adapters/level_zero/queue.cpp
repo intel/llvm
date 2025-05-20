@@ -630,11 +630,12 @@ ur_result_t urQueueRelease(
       UR_CALL(Queue->synchronize());
 
     // Cleanup the allocations from 'AsyncPool' made by this queue.
-
     Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+    std::shared_lock<ur_shared_mutex> ContextLock(Queue->Context->Mutex);
     for (auto &Pool : Queue->Context->UsmPoolHandles) {
       Pool->cleanupPoolsForQueue(Queue);
     }
+    ContextLock.unlock();
 
     // Destroy all the fences created associated with this queue.
     for (auto it = Queue->CommandListMap.begin();
@@ -913,9 +914,11 @@ ur_result_t urQueueFinish(
   }
 
   Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+  std::shared_lock<ur_shared_mutex> ContextLock(Queue->Context->Mutex);
   for (auto &Pool : Queue->Context->UsmPoolHandles) {
     Pool->cleanupPoolsForQueue(Queue);
   }
+  ContextLock.unlock();
 
   return UR_RESULT_SUCCESS;
 }
