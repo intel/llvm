@@ -98,7 +98,7 @@ ur_result_t urPlatformGetInfo(
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
+    return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(GlobalAdapter);
   default:

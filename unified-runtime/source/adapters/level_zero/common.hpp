@@ -35,6 +35,7 @@
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
 struct _ur_platform_handle_t;
 
@@ -74,7 +75,6 @@ const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
   if (!UrRet)
     return 0;
-
   return std::atoi(UrRet);
 }();
 
@@ -257,8 +257,8 @@ private:
 };
 
 // Base class to store common data
-struct ur_object {
-  ur_object() : RefCount{} {}
+struct ur_object : ur::handle_base<ur::level_zero::ddi_getter> {
+  ur_object() : handle_base(), RefCount{} {}
 
   // Must be atomic to prevent data race when incrementing/decrementing.
   ReferenceCounter RefCount;

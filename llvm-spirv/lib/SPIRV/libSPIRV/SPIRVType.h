@@ -323,6 +323,9 @@ public:
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     return std::vector<SPIRVEntry *>(1, getEntry(ElemTypeId));
   }
+  static bool classof(const SPIRVEntry *E) {
+    return E->getOpCode() == OpTypePointer;
+  }
 
 protected:
   _SPIRV_DEF_ENCDEC3(Id, ElemStorageClass, ElemTypeId)

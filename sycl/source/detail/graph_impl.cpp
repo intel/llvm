@@ -139,7 +139,7 @@ void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
 /// @param HostTaskList List of host tasks that have already been processed and
 /// are encountered as successors to the node Node.
 void propagatePartitionDown(
-    std::shared_ptr<node_impl> Node, int PartitionNum,
+    const std::shared_ptr<node_impl> &Node, int PartitionNum,
     std::list<std::shared_ptr<node_impl>> &HostTaskList) {
   if (Node->MCGType == sycl::detail::CGType::CodeplayHostTask) {
     if (Node->MPartitionNum != -1) {
@@ -753,7 +753,7 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
 }
 
 void graph_impl::beginRecording(
-    std::shared_ptr<sycl::detail::queue_impl> Queue) {
+    const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
   graph_impl::WriteLock Lock(MMutex);
   if (!Queue->hasCommandGraph()) {
     Queue->setCommandGraph(shared_from_this());
@@ -813,8 +813,8 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
                                         CGExec->MLine, CGExec->MColumn);
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
         StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-        CGExec->MKernelName.data(), nullptr, CGExec->MNDRDesc,
-        CGExec->MKernelBundle, CGExec->MArgs);
+        CGExec->MKernelName.data(), CGExec->MKernelNameBasedCachePtr, nullptr,
+        CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(
           StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
@@ -1024,9 +1024,10 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
                MExecutionEvents.begin();
            It != MExecutionEvents.end();) {
-        auto Event = *It;
+        EventImplPtr &Event = *It;
         if (!Event->isCompleted()) {
-          auto &AttachedEventsList = Event->getPostCompleteEvents();
+          const std::vector<EventImplPtr> &AttachedEventsList =
+              Event->getPostCompleteEvents();
           CGData.MEvents.reserve(CGData.MEvents.size() +
                                  AttachedEventsList.size() + 1);
           CGData.MEvents.push_back(Event);
@@ -1502,7 +1503,8 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, ExecCG.MKernelName);
+            ContextImpl, DeviceImpl, ExecCG.MKernelName,
+            ExecCG.MKernelNameBasedCachePtr);
     BundleObjs = std::make_pair(UrProgram, UrKernel);
   }
 

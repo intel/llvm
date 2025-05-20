@@ -56,3 +56,10 @@ ur_result_t CreateProviderPool(int cuDevice, void *cuContext,
                                umf_memory_provider_handle_t *provider,
                                umf_memory_pool_handle_t *pool);
 } // namespace umf
+
+namespace ur::cuda {
+struct ddi_getter {
+  const static ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ddi_getter>;
+} // namespace ur::cuda

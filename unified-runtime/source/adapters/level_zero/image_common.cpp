@@ -293,7 +293,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
                                      ur_exp_image_mem_native_handle_t hImageMem,
                                      const ur_image_format_t *pImageFormat,
                                      const ur_image_desc_t *pImageDesc,
-                                     ur_sampler_handle_t hSampler,
+                                     const ur_sampler_desc_t *pSamplerDesc,
                                      ur_exp_image_native_handle_t *phImage) {
   UR_ASSERT(hContext && hDevice && hImageMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -308,8 +308,10 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   ZeImageDesc.pNext = &BindlessDesc;
 
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
-  if (hSampler) {
-    ZeSamplerDesc = hSampler->ZeSamplerDesc;
+  const bool Sampled = (pSamplerDesc != nullptr);
+  if (Sampled) {
+    ze_api_version_t ZeApiVersion = hContext->getPlatform()->ZeApiVersion;
+    UR_CALL(ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc, ZeSamplerDesc));
     BindlessDesc.pNext = &ZeSamplerDesc;
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
   }
@@ -344,7 +346,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
              MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
     ZeStruct<ze_image_pitched_exp_desc_t> PitchedDesc;
     PitchedDesc.ptr = reinterpret_cast<void *>(hImageMem);
-    if (hSampler) {
+    if (Sampled) {
       ZeSamplerDesc.pNext = &PitchedDesc;
     } else {
       BindlessDesc.pNext = &PitchedDesc;
@@ -1127,9 +1129,10 @@ ur_result_t urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_native_handle_t hImageMem,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_sampler_handle_t hSampler, ur_exp_image_native_handle_t *phImage) {
+    const ur_sampler_desc_t *pSamplerDesc,
+    ur_exp_image_native_handle_t *phImage) {
   UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
-                                   pImageDesc, hSampler, phImage));
+                                   pImageDesc, pSamplerDesc, phImage));
   return UR_RESULT_SUCCESS;
 }
 
@@ -1158,7 +1161,8 @@ ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
   // Sampled image is a combination of unsampled image and sampler.
-  // Sampler is released in urSamplerRelease.
+  // The sampler is tied to the image on creation, and is destroyed together
+  // with the image.
   return ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
       hContext, hDevice, hImage);
 }

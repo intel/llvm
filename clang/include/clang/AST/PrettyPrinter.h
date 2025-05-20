@@ -79,12 +79,13 @@ struct PrintingPolicy {
         MSVCFormatting(false), ConstantsAsWritten(false),
         SuppressImplicitBase(false), FullyQualifiedName(false),
         EnforceScopeForElaboratedTypes(false), SuppressDefinition(false),
-        SuppressDefaultTemplateArguments(false), PrintCanonicalTypes(false),
+        SuppressDefaultTemplateArguments(false), PrintAsCanonical(false),
         SkipCanonicalizationOfTemplateTypeParms(false),
         PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
         AlwaysIncludeTypeForTemplateArgument(false),
         CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
-        UseEnumerators(true), UseHLSLTypes(LO.HLSL) {}
+        UseEnumerators(true), UseFullyQualifiedEnumerators(false),
+        UseHLSLTypes(LO.HLSL) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -369,12 +370,12 @@ struct PrintingPolicy {
   ///   \endcode
   unsigned SuppressDefaultTemplateArguments : 1;
 
-  /// Whether to print types as written or canonically.
+  /// Whether to print entities as written or canonically.
   LLVM_PREFERRED_TYPE(bool)
-  unsigned PrintCanonicalTypes : 1;
+  unsigned PrintAsCanonical : 1;
 
-  /// Whether to skip the canonicalization (when PrintCanonicalTypes is set) for
-  /// TemplateTypeParmTypes. This has no effect if PrintCanonicalTypes isn't
+  /// Whether to skip the canonicalization (when PrintAsCanonical is set) for
+  /// TemplateTypeParmTypes. This has no effect if PrintAsCanonical isn't
   /// set. This is useful for non-type-template-parameters, since the canonical
   /// version of:
   ///   \code
@@ -418,6 +419,12 @@ struct PrintingPolicy {
   /// enumerator name or via cast of an integer.
   LLVM_PREFERRED_TYPE(bool)
   unsigned UseEnumerators : 1;
+
+  /// Whether to print the names of enumerator non-type template parameters
+  /// with all the namespace scope qualifiers regardless of the way the user
+  /// wrote them in the source code. No effect if UseEnumerators is not set.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned UseFullyQualifiedEnumerators : 1;
 
   /// Whether or not we're printing known HLSL code and should print HLSL
   /// sugared types when possible.
