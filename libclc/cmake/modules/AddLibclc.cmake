@@ -575,23 +575,17 @@ endfunction(add_libclc_builtin_set)
 # LIB_FILE_LIST may be pre-populated and is appended to.
 #
 # Arguments:
-# * CLC_INTERNAL
-#     Pass if compiling the internal CLC builtin libraries, which have a
-#     different directory structure.
 # * LIB_ROOT_DIR <string>
 #     Root directory containing target's lib files, relative to libclc root
 #     directory. If not provided, is set to '.'.
-# * LIB_DIR <string>
-#     Name of the directory containing the target's lib files. If not provided,
-#     is set to 'lib'.
 # * DIRS <string> ...
 #     List of directories under LIB_ROOT_DIR to walk over searching for SOURCES
 #     files. Directories earlier in the list have lower priority than
 #     subsequent ones.
 function(libclc_configure_lib_source LIB_FILE_LIST)
   cmake_parse_arguments(ARG
-    "CLC_INTERNAL"
-    "LIB_DIR;LIB_ROOT_DIR"
+    ""
+    "LIB_ROOT_DIR"
     "DIRS"
     ${ARGN}
   )
@@ -600,19 +594,11 @@ function(libclc_configure_lib_source LIB_FILE_LIST)
     set(ARG_LIB_ROOT_DIR  ".")
   endif()
 
-  if( NOT ARG_LIB_DIR )
-    set(ARG_LIB_DIR  "lib")
-  endif()
-
   # Enumerate SOURCES* files
   set( source_list )
   foreach( l IN LISTS ARG_DIRS )
     foreach( s "SOURCES" "SOURCES_${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}" )
-      if( ARG_CLC_INTERNAL OR ARG_LIB_ROOT_DIR STREQUAL libspirv )
-        file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${ARG_LIB_DIR}/${l}/${s} file_loc )
-      else()
-        file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${l}/${ARG_LIB_DIR}/${s} file_loc )
-      endif()
+      file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/lib/${l}/${s} file_loc )
       file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${file_loc} loc )
       # Prepend the location to give higher priority to the specialized
       # implementation

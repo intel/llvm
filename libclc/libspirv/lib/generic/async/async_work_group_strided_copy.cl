@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/async/common.h>
+#include <clc/opencl/async/common.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <async_work_group_strided_copy.inc>
