@@ -1848,7 +1848,8 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
         }
       } else {
         auto FuncName = Func->getName();
-        if (FuncName.contains("__spirv_") && !FuncName.contains("__spirv_GroupAsyncCopy"))
+        if (FuncName.contains("__spirv_") &&
+            !FuncName.contains("__spirv_GroupAsyncCopy"))
           I.setNoSanitizeMetadata();
       }
     }
