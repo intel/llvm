@@ -110,8 +110,9 @@ static void addDeviceMetadata(xpti_td *TraceEvent, const QueueImplPtr &Queue) {
   if (Queue) {
     xpti::addMetadata(TraceEvent, "sycl_device",
                       deviceToID(Queue->get_device()));
-    xpti::addMetadata(TraceEvent, "sycl_device_name",
-                      getSyclObjImpl(Queue->get_device())->getDeviceName());
+    xpti::addMetadata(
+        TraceEvent, "sycl_device_name",
+        getSyclObjImpl(Queue->get_device())->get_info<info::device::name>());
   }
 }
 

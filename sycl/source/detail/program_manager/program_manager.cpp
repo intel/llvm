@@ -34,8 +34,6 @@
 
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -1480,7 +1478,7 @@ ProgramManager::ProgramManager()
 
 const char *getArchName(const device_impl *DeviceImpl) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  auto Arch = DeviceImpl->getDeviceArch();
+  auto Arch = DeviceImpl->get_info<syclex::info::device::architecture>();
   switch (Arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
@@ -1865,8 +1863,7 @@ static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_METADATA,
-                ImgPS->Name)) {
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
       if (!LibVersion)
         return true;
 
@@ -1894,8 +1891,7 @@ getExportedSymbolPS(sycl_device_binary RawImg) {
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS,
-                ImgPS->Name))
+        !strcmp(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS, ImgPS->Name))
       return ImgPS;
   }
 
