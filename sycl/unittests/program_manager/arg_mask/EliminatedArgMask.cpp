@@ -36,18 +36,36 @@ template <>
 struct KernelInfo<EAMTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
   static constexpr const char *getName() { return EAMTestKernelName; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 template <>
 struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return 0; }
   static constexpr const char *getName() { return EAMTestKernel2Name; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 template <>
 struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
   static constexpr const char *getName() { return EAMTestKernel3Name; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 } // namespace detail
@@ -129,10 +147,11 @@ public:
           std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(impl->MKernelBundle),
           std::move(impl->CGData), std::move(impl->MArgs),
-          CGH->MKernelName.data(), std::move(CGH->MStreamStorage),
-          std::move(impl->MAuxiliaryResources), impl->MCGType, {},
-          impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
-          impl->MKernelWorkGroupMemorySize, CGH->MCodeLoc));
+          CGH->MKernelName.data(), impl->MKernelNameBasedCachePtr,
+          std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
+          impl->MCGType, {}, impl->MKernelIsCooperative,
+          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+          CGH->MCodeLoc));
       break;
     }
     default:

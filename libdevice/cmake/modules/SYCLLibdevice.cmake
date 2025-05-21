@@ -55,7 +55,7 @@ set(compile_opts
 set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 
 if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
-  list(APPEND compile_opts "--gcc-toolchain=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+  list(APPEND compile_opts "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
 endif()
 
 if (WIN32)
@@ -245,6 +245,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/asan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     ${sycl-compiler_deps})
 
   set(sanitizer_generic_compile_opts ${compile_opts}
@@ -303,6 +304,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/msan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     sycl-compiler)
 
   set(tsan_obj_deps
@@ -311,6 +313,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/tsan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     sycl-compiler)
 endif()
 
@@ -516,6 +519,10 @@ set(imf_host_cxx_flags -c
   --target=${LLVM_HOST_TRIPLE}
   -D__LIBDEVICE_HOST_IMPL__
 )
+
+if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
+  list(APPEND imf_host_cxx_flags "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
 
 macro(mangle_name str output)
   string(STRIP "${str}" strippedStr)

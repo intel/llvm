@@ -411,6 +411,24 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  const auto &type = getType();
+  const bool KernelFastPath =
+      (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
+       !MQueue->hasCommandGraph() && !impl->CGData.MRequirements.size() &&
+       !MStreamStorage.size() &&
+       detail::Scheduler::areEventsSafeForSchedulerBypass(
+           impl->CGData.MEvents, MQueue->getContextImplPtr()));
+
+  // Extract arguments from the kernel lambda, if required.
+  // Skipping this is currently limited to simple kernels on the fast path.
+  if (type == detail::CGType::Kernel && impl->MKernelFuncPtr &&
+      (!KernelFastPath || impl->MKernelHasSpecialCaptures)) {
+    clearArgs();
+    extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
+                                 impl->MKernelParamDescGetter,
+                                 impl->MKernelNumArgs, impl->MKernelIsESIMD);
+  }
+
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
   // be thrown.
@@ -448,7 +466,6 @@ event handler::finalize() {
     }
   }
 
-  const auto &type = getType();
   if (type == detail::CGType::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
@@ -507,11 +524,7 @@ event handler::finalize() {
       }
     }
 
-    if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-        !MQueue->hasCommandGraph() && !impl->CGData.MRequirements.size() &&
-        !MStreamStorage.size() &&
-        detail::Scheduler::areEventsSafeForSchedulerBypass(
-            impl->CGData.MEvents, MQueue->getContextImplPtr())) {
+    if (KernelFastPath) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -544,8 +557,8 @@ event handler::finalize() {
           StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), MQueue, impl->MNDRDesc, KernelBundleImpPtr,
-              impl->MArgs);
+              MKernelName.data(), impl->MKernelNameBasedCachePtr, MQueue,
+              impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
@@ -557,13 +570,14 @@ event handler::finalize() {
               detail::retrieveKernelBinary(MQueue, MKernelName.data());
           assert(BinImage && "Failed to obtain a binary image.");
         }
-        enqueueImpKernel(MQueue, impl->MNDRDesc, impl->MArgs,
-                         KernelBundleImpPtr, MKernel.get(), MKernelName.data(),
-                         RawEvents,
-                         DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
-                         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-                         impl->MKernelUsesClusterLaunch,
-                         impl->MKernelWorkGroupMemorySize, BinImage);
+        enqueueImpKernel(
+            MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
+            MKernel.get(), MKernelName.data(), impl->MKernelNameBasedCachePtr,
+            RawEvents, DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
+            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+            impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+            BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
+            impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         if (xptiEnabled) {
           // Emit signal only when event is created
@@ -613,7 +627,8 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), MKernelName.data(), std::move(MStreamStorage),
+        std::move(impl->MArgs), MKernelName.data(),
+        impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
@@ -2258,6 +2273,22 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::range<3> LocalSize,
                                          sycl::id<3> Offset, int Dims) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+}
+
+void handler::setKernelNameBasedCachePtr(
+    sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
+  impl->MKernelNameBasedCachePtr = KernelNameBasedCachePtr;
+}
+
+void handler::setKernelInfo(
+    void *KernelFuncPtr, int KernelNumArgs,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
+  impl->MKernelFuncPtr = KernelFuncPtr;
+  impl->MKernelNumArgs = KernelNumArgs;
+  impl->MKernelParamDescGetter = KernelParamDescGetter;
+  impl->MKernelIsESIMD = KernelIsESIMD;
+  impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {

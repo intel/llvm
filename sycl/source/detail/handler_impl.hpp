@@ -175,6 +175,9 @@ public:
   std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
+  /// Storage for node dependencies passed when adding a graph node explicitly
+  std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+      MNodeDeps;
 
   /// Storage for lambda/function when using HostTask
   std::shared_ptr<detail::HostTask> MHostTask;
@@ -198,6 +201,16 @@ public:
 
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
+
+  // Store information about the kernel arguments.
+  void *MKernelFuncPtr = nullptr;
+  int MKernelNumArgs = 0;
+  detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
+  bool MKernelIsESIMD = false;
+  bool MKernelHasSpecialCaptures = true;
+
+  // A pointer to a kernel name based cache retrieved on the application side.
+  KernelNameBasedCacheT *MKernelNameBasedCachePtr;
 };
 
 } // namespace detail

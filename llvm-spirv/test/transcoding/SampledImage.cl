@@ -34,6 +34,8 @@ void sample_kernel_int(image2d_t input, float2 coords, global int4 *results, sam
 // CHECK-SPIRV: TypeSampledImage [[SampledImageTy:[0-9]+]]
 // CHECK-SPIRV: ConstantSampler [[TypeSampler]] [[ConstSampler1:[0-9]+]] 0 0 1
 // CHECK-SPIRV: ConstantSampler [[TypeSampler]] [[ConstSampler2:[0-9]+]] 3 0 0
+// CHECK-SPIRV: ConstantSampler [[TypeSampler]] [[#]] 0 0 1
+// CHECK-SPIRV: ConstantSampler [[TypeSampler]] [[#]] 3 0 0
 // CHECK-SPIRV: ConstantSampler [[TypeSampler]] [[ConstSampler3:[0-9]+]] 0 0 1
 // CHECK-SPIRV: ConstantSampler [[TypeSampler]] [[ConstSampler4:[0-9]+]] 3 0 0
 
