@@ -36,8 +36,20 @@ int Check(const sycl::queue &Q, const char *CheckName, const F &CheckFunc) {
               << std::endl;
     return 1;
   }
-  if (*E != *LastEvent) {
-    std::cout << "Failed " << CheckName << std::endl;
+  if (Q.get_backend() == sycl::backend::opencl) {
+    if (*E != *LastEvent) {
+      std::cout << "opencl backend should store last event in the queue"
+                << std::endl;
+      return 1;
+    }
+  } else if (LastEvent->get_info<
+                 sycl::info::event::command_execution_status>() ==
+                 sycl::info::event_command_status::complete &&
+             E->get_info<sycl::info::event::command_execution_status>() !=
+                 sycl::info::event_command_status::complete) {
+    std::cout << "ext_oneapi_get_last_event() returned an event that is "
+                 "complete, but the event returned by CheckFunc() is not."
+              << std::endl;
     return 1;
   }
   return 0;
