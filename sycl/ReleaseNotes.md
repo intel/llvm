@@ -279,7 +279,7 @@ Release notes for commit range
   intel/llvm#16737
 - Fixed segfaults happening in SYCL CTS tests for `async_work_group_copy`
   API. intel/llvm#16500
-- Improved support for sub-groups by updating version of OneAPI Construction
+- Improved support for sub-groups by updating version of oneAPI Construction
   Kit. intel/llvm#16785
 
 ### Matrix
