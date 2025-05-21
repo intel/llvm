@@ -1423,7 +1423,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT:
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.

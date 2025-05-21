@@ -345,7 +345,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
                              UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE);
   std::cout << prefix;
   printDeviceInfo<ur_kernel_launch_properties_flags_t>(
-      hDevice, UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT);
+      hDevice, UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);

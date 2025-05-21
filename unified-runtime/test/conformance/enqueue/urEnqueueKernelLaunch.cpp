@@ -84,7 +84,7 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
 
   ur_kernel_launch_properties_flags_t supported_properties = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(
-      device, UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT,
+      device, UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES,
       sizeof(supported_properties), &supported_properties, nullptr));
 
   if (supported_properties & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE) {

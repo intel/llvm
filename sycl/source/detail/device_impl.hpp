@@ -814,7 +814,7 @@ public:
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
       auto SupportFlags =
-          get_info_impl<UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT>();
+          get_info_impl<UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES>();
       return static_cast<bool>(
           SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }

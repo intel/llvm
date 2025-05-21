@@ -462,7 +462,7 @@ etors:
       desc: "[int32_t][optional-query] return max power limit in milliwatts."
     - name: BFLOAT16_CONVERSIONS_NATIVE
       desc: "[$x_bool_t] support for native bfloat16 conversions"
-    - name: KERNEL_LAUNCH_PROPERTIES_SUPPORT
+    - name: KERNEL_LAUNCH_CAPABILITIES
       desc: "[$x_kernel_launch_properties_flags_t] Bitfield of supported kernel launch properties."
 --- #--------------------------------------------------------------------------
 type: function

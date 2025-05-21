@@ -2742,7 +2742,7 @@ TEST_P(urDeviceGetInfoComponentDevicesTest, SuccessComponentDevices) {
 TEST_P(urDeviceGetInfoTest, SuccessKernelLaunchPropertiesSupport) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT;
+      UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),

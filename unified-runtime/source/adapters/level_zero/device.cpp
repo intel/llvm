@@ -1333,7 +1333,7 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(int32_t{PowerProperties.maxLimit});
     }
   }
-  case UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT:
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");

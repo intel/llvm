@@ -2982,8 +2982,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
     os << "UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE";
     break;
-  case UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT:
-    os << "UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT";
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    os << "UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4721,7 +4721,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT: {
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
     const ur_kernel_launch_properties_flags_t *tptr =
         (const ur_kernel_launch_properties_flags_t *)ptr;
     if (sizeof(ur_kernel_launch_properties_flags_t) > size) {

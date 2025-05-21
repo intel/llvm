@@ -2307,7 +2307,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
   /// [::ur_kernel_launch_properties_flags_t] Bitfield of supported kernel
   /// launch properties.
-  UR_DEVICE_INFO_KERNEL_LAUNCH_PROPERTIES_SUPPORT = 128,
+  UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES = 128,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
