@@ -14,8 +14,6 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/ScopedEnvVar.hpp>
@@ -84,8 +82,7 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
@@ -104,8 +101,7 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernel3Image() {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({EAMTestKernel3Name});
@@ -151,10 +147,11 @@ public:
           std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(impl->MKernelBundle),
           std::move(impl->CGData), std::move(impl->MArgs),
-          CGH->MKernelName.data(), std::move(CGH->MStreamStorage),
-          std::move(impl->MAuxiliaryResources), impl->MCGType, {},
-          impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
-          impl->MKernelWorkGroupMemorySize, CGH->MCodeLoc));
+          CGH->MKernelName.data(), impl->MKernelNameBasedCachePtr,
+          std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
+          impl->MCGType, {}, impl->MKernelIsCooperative,
+          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+          CGH->MCodeLoc));
       break;
     }
     default:

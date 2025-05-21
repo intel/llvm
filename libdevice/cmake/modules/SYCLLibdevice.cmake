@@ -245,6 +245,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/asan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     ${sycl-compiler_deps})
 
   set(sanitizer_generic_compile_opts ${compile_opts}
@@ -303,6 +304,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/msan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     sycl-compiler)
 
   set(tsan_obj_deps
@@ -311,6 +313,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/tsan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     sycl-compiler)
 endif()
 

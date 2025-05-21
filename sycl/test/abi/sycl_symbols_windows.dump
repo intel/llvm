@@ -3823,6 +3823,7 @@
 ?contextSetExtendedDeleter@pi@detail@_V1@sycl@@YAXAEBVcontext@34@P6AXPEAX@Z1@Z
 ?copyCodeLoc@handler@_V1@sycl@@AEAAXAEBV123@@Z
 ?cpu_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
+?createKernelNameBasedCache@detail@_V1@sycl@@YAPEAUKernelNameBasedCacheT@123@XZ
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@AEAVimage_mem@12345@AEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@AEAVimage_mem@12345@AEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@PEAX_KAEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
@@ -4380,6 +4381,7 @@
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
 ?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
+?setKernelNameBasedCachePtr@handler@_V1@sycl@@AEAAXPEAUKernelNameBasedCacheT@detail@23@@Z
 ?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@H@Z
