@@ -631,7 +631,6 @@ event handler::finalize() {
           LastEventImpl->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
-
       return MLastEvent;
     }
   }
