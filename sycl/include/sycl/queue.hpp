@@ -3621,10 +3621,10 @@ private:
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
   void submit_without_event_impl(std::function<void(handler &)> CGH,
-                                 const detail::code_location &CodeLoc) const;
+                                 const detail::code_location &CodeLoc);
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc) const;
+                                 bool IsTopCodeLoc);
   event
   submit_impl_and_postprocess(std::function<void(handler &)> CGH,
                               const detail::code_location &CodeLoc,
@@ -3647,29 +3647,40 @@ private:
   event submit_with_event_impl(std::function<void(handler &)> CGH,
                                const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc) const;
+                               bool IsTopCodeLoc);
 
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc) const;
+                                 bool IsTopCodeLoc);
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
-                               bool IsTopCodeLoc) const;
+                               bool IsTopCodeLoc);
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc) const;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+                                 bool IsTopCodeLoc);
 
   /// A template-free versions of submit.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::v1::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc);
+  /// A template-free version of submit_without_event.
+  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+  /// A template-free versions of submit as const member function.
+  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                               const detail::v1::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
-  /// A template-free version of submit_without_event.
+  /// A template-free version of submit_without_event as const member function.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                  const detail::v1::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
