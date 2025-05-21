@@ -497,8 +497,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         }
       }
 
-      if (isInOrder() &&
-          (!isNoEventsMode || MContext->getBackend() == backend::opencl)) {
+      if (isInOrder() && !isNoEventsMode) {
         auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                                 : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
