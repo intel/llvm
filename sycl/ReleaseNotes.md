@@ -224,25 +224,8 @@ Release notes for commit range
 
 ### Sanitizers
 
-- Only report warning if passing host ptr to kernel intel/llvm#16654
-- Make ShadowMemory one instance per type intel/llvm#16687
-- Fixed kernel name addressspace intel/llvm#16425
-- Fix ASAN with kernel assert intel/llvm#16256
-- Fix AcceeChain to a matrix for bfloat16 intel/llvm/16323
-- Reduce the frequency of shadow memory reallocation to reduce memory overhead and improve runtime performance intel/llvm#16280, intel/llvm#16258
-- Fix device global type of KernelMetadata intel/llvm#16357
-
-- ada16682e8c3 [DevASAN] Only report warning if passing host ptr to kernel (#16654)
-  - seems like a potentially important bugfix
-- ce4a320806b2 [DeivceASAN] Make ShadowMemory one instance per type (#16687)
-  - seems like some kind of bugfix
-- ef4d66af3b74 [DeviceSAN] Fix kernel name addressspace (#16425)
-- 1fba00d3be7d [DeviceASAN] Fix ASAN with kernel assert (#16256)
-- 34aeabab551e [SYCL][DeviceASAN] Fix AcceeChain to a matrix for bfloat16 (#16323)
-- 6f3b0e857d15 [DevASAN] Do allocation with USM pool to reduce memory overhead (#16280)
-- a8c6e7715be2 [DeviceASAN] Re-use shadow if required size is not larger than last one (#16258)
-  - As the above, some optimization of memory usage by ASAN?
-- 201725664cc5 [DeviceSanitizer] Fix device global type of KernelMetadata (#16357)
+- Reduce the frequency of shadow memory reallocation to reduce memory overhead
+  and improve runtime performance intel/llvm#16280, intel/llvm#16258
 
 #### Address Sanitizer
 
