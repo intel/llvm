@@ -17,7 +17,7 @@ void submit(const queue &q, CommandGroupFunc &&cgf,
 }
 
 template <typename CommandGroupFunc>
-event submit_tracked(queue q, CommandGroupFunc &&cgf,
+event submit_tracked(const queue &q, CommandGroupFunc &&cgf,
                      const sycl::detail::code_location &codeLoc =
                          sycl::detail::code_location::current()) {
   return sycl::ext::oneapi::experimental::submit_with_event(

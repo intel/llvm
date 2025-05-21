@@ -164,7 +164,7 @@ void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc);
 
 template <typename CommandGroupFunc, typename PropertiesT>
-event submit_with_event_impl(queue &Q, PropertiesT Props,
+event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc);
 } // namespace detail
@@ -3593,7 +3593,7 @@ private:
 
   template <typename CommandGroupFunc, typename PropertiesT>
   friend event ext::oneapi::experimental::detail::submit_with_event_impl(
-      queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+      const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
   template <typename PropertiesT>
