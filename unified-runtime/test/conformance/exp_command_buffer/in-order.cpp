@@ -16,6 +16,10 @@ struct urInOrderCommandBufferExpTest
   virtual void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urCommandBufferExpExecutionTest::SetUp());
 
+    // Level-Zero bug https://github.com/intel/llvm/issues/18544
+    // Re-enable these tests once fixed
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ur_exp_command_buffer_desc_t desc{
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, // stype
         nullptr,                                   // pnext
