@@ -11,6 +11,7 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
+#include <deque>
 #include <memory>
 #include <unordered_map>
 
@@ -130,8 +131,7 @@ private:
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
-  InstWithLock<std::vector<std::unique_ptr<KernelNameBasedCacheT>>>
-      MKernelNameBasedCaches;
+  InstWithLock<std::deque<KernelNameBasedCacheT>> MKernelNameBasedCaches;
 };
 } // namespace detail
 } // namespace _V1
