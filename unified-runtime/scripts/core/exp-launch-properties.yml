@@ -60,7 +60,7 @@ members:
       tag: $X_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY
     - type: int
       name: opportunistic_queue_serialize
-      desc: "[in] non-zero value indicates a opportunistic native queue serialized kernel"
+      desc: "[in] non-zero value indicates an opportunistic native queue serialized kernel"
       tag: $X_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE
 --- #--------------------------------------------------------------------------
 type: struct
