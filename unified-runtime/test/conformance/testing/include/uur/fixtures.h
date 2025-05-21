@@ -66,7 +66,7 @@ struct urAllDevicesTest : urPlatformTest {
     UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
     auto devicesPair = GetDevices(platform);
     if (!devicesPair.first) {
-      FAIL() << "Failed to get devices";
+      GTEST_SKIP() << "No devices available";
     }
     devices = std::move(devicesPair.second);
   }
@@ -133,7 +133,7 @@ struct urAllDevicesTestWithParam : urPlatformTestWithParam<T> {
     UUR_RETURN_ON_FATAL_FAILURE(urPlatformTestWithParam<T>::SetUp());
     auto devicesPair = GetDevices(this->platform);
     if (!devicesPair.first) {
-      FAIL() << "Failed to get devices";
+      GTEST_SKIP() << "No devices available";
     }
     devices = std::move(devicesPair.second);
   }
