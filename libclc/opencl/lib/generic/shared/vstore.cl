@@ -56,6 +56,13 @@
 #define VSTORE_VECTORIZE_GENERIC(X,Y)
 #endif
 
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
+#define VSTORE_VECTORIZE_GENERIC VSTORE_VECTORIZE
+#else
+// The generic address space isn't available, so make the macro do nothing
+#define VSTORE_VECTORIZE_GENERIC(X, Y)
+#endif
+
 #define VSTORE_ADDR_SPACES(__CLC_SCALAR___CLC_GENTYPE)                         \
   VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __private)                      \
   VSTORE_VECTORIZE(__CLC_SCALAR___CLC_GENTYPE, __local)                        \
