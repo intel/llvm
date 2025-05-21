@@ -124,32 +124,25 @@ struct KernelLambdaHasKernelHandlerArgT {
 
 // Helpers for running kernel lambda on the host device
 
-template <typename KernelType>
-typename std::enable_if_t<KernelLambdaHasKernelHandlerArgT<KernelType>::value>
-runKernelWithoutArg(KernelType KernelName) {
-  kernel_handler KH;
-  KernelName(KH);
+template <typename KernelType, bool HasKernelHandlerArg>
+void runKernelWithoutArg(KernelType KernelName,
+                         const std::bool_constant<HasKernelHandlerArg> &) {
+  if constexpr (HasKernelHandlerArg) {
+    kernel_handler KH;
+    KernelName(KH);
+  } else {
+    KernelName();
+  }
 }
-
-template <typename KernelType>
-typename std::enable_if_t<!KernelLambdaHasKernelHandlerArgT<KernelType>::value>
-runKernelWithoutArg(KernelType KernelName) {
-  KernelName();
-}
-
-template <typename ArgType, typename KernelType>
-typename std::enable_if_t<
-    KernelLambdaHasKernelHandlerArgT<KernelType, ArgType>::value>
-runKernelWithArg(KernelType KernelName, ArgType Arg) {
-  kernel_handler KH;
-  KernelName(Arg, KH);
-}
-
-template <typename ArgType, typename KernelType>
-typename std::enable_if_t<
-    !KernelLambdaHasKernelHandlerArgT<KernelType, ArgType>::value>
-runKernelWithArg(KernelType KernelName, ArgType Arg) {
-  KernelName(Arg);
+template <typename ArgType, typename KernelType, bool HasKernelHandlerArg>
+void runKernelWithArg(KernelType KernelName, ArgType Arg,
+                      const std::bool_constant<HasKernelHandlerArg> &) {
+  if constexpr (HasKernelHandlerArg) {
+    kernel_handler KH;
+    KernelName(Arg, KH);
+  } else {
+    KernelName(Arg);
+  }
 }
 
 // The pure virtual class aimed to store lambda/functors of any type.
@@ -185,11 +178,14 @@ public:
   // NOTE: InstatiateKernelOnHost() should not be called.
   void InstantiateKernelOnHost() override {
     using IDBuilder = sycl::detail::Builder;
+    constexpr bool HasKernelHandlerArg =
+        KernelLambdaHasKernelHandlerArgT<KernelType, KernelArgType>::value;
     if constexpr (std::is_same_v<KernelArgType, void>) {
-      runKernelWithoutArg(MKernel);
+      runKernelWithoutArg(MKernel, std::bool_constant<HasKernelHandlerArg>());
     } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
       sycl::id ID = InitializedVal<Dims, id>::template get<0>();
-      runKernelWithArg<const KernelArgType &>(MKernel, ID);
+      runKernelWithArg<const KernelArgType &>(
+          MKernel, ID, std::bool_constant<HasKernelHandlerArg>());
     } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
                          std::is_same_v<KernelArgType, item<Dims, false>>) {
       constexpr bool HasOffset =
@@ -198,13 +194,15 @@ public:
         KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
             InitializedVal<Dims, range>::template get<1>(),
             InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(MKernel, Item);
+        runKernelWithArg<KernelArgType>(
+            MKernel, Item, std::bool_constant<HasKernelHandlerArg>());
       } else {
         KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
             InitializedVal<Dims, range>::template get<1>(),
             InitializedVal<Dims, id>::template get<0>(),
             InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(MKernel, Item);
+        runKernelWithArg<KernelArgType>(
+            MKernel, Item, std::bool_constant<HasKernelHandlerArg>());
       }
     } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
       sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
@@ -217,18 +215,21 @@ public:
           IDBuilder::createItem<Dims, false>(Range, ID);
       KernelArgType NDItem =
           IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-      runKernelWithArg<const KernelArgType>(MKernel, NDItem);
+      runKernelWithArg<const KernelArgType>(
+          MKernel, NDItem, std::bool_constant<HasKernelHandlerArg>());
     } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
       sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
       sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
       KernelArgType Group =
           IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      runKernelWithArg<KernelArgType>(MKernel, Group);
+      runKernelWithArg<KernelArgType>(
+          MKernel, Group, std::bool_constant<HasKernelHandlerArg>());
     } else {
       // Assume that anything else can be default-constructed. If not, this
       // should fail to compile and the implementor should implement a generic
       // case for the new argument type.
-      runKernelWithArg<KernelArgType>(MKernel, KernelArgType{});
+      runKernelWithArg<KernelArgType>(
+          MKernel, KernelArgType{}, std::bool_constant<HasKernelHandlerArg>());
     }
   }
 #endif
@@ -240,10 +241,15 @@ public:
 template <class KernelType, class KernelArgType, int Dims>
 constexpr void *GetInstantiateKernelOnHostPtr() {
   if constexpr (std::is_same_v<KernelArgType, void>) {
-    return reinterpret_cast<void *>(&runKernelWithoutArg<KernelType>);
-  } else {
+    constexpr bool HasKernelHandlerArg =
+        KernelLambdaHasKernelHandlerArgT<KernelType>::value;
     return reinterpret_cast<void *>(
-        &runKernelWithArg<KernelArgType, KernelType>);
+        &runKernelWithoutArg<KernelType, HasKernelHandlerArg>);
+  } else {
+    constexpr bool HasKernelHandlerArg =
+        KernelLambdaHasKernelHandlerArgT<KernelType, KernelArgType>::value;
+    return reinterpret_cast<void *>(
+        &runKernelWithArg<KernelArgType, KernelType, HasKernelHandlerArg>);
   }
 }
 
