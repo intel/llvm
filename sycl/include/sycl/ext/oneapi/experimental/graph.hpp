@@ -510,10 +510,17 @@ protected:
 namespace detail {
 class __SYCL_EXPORT dynamic_parameter_base {
 public:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  dynamic_parameter_base(size_t ParamSize, const void *Data);
+  dynamic_parameter_base();
+#else
   dynamic_parameter_base() = default;
+#endif
+
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph);
+
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
@@ -556,10 +563,17 @@ class dynamic_work_group_memory_base
 public:
   dynamic_work_group_memory_base() = default;
 #ifndef __SYCL_DEVICE_ONLY__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+
+  dynamic_work_group_memory_base(size_t Size)
+      : dynamic_parameter_base(), BufferSize(Size) {}
+#endif
+  // TODO: Remove in next ABI breaking window
   dynamic_work_group_memory_base(
       experimental::command_graph<graph_state::modifiable> Graph, size_t Size)
       : dynamic_parameter_base(Graph), BufferSize(Size) {}
 #else
+  dynamic_work_group_memory_base(size_t Size) : BufferSize(Size) {}
   dynamic_work_group_memory_base(
       experimental::command_graph<graph_state::modifiable> /*Graph*/,
       size_t Size)
@@ -592,6 +606,19 @@ public:
   // closed.
   dynamic_work_group_memory() = default;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs a new dynamic_work_group_memory object.
+  /// @param Num Number of elements in the unbounded array DataT.
+  dynamic_work_group_memory(size_t Num)
+      : detail::dynamic_work_group_memory_base(
+            Num * sizeof(std::remove_extent_t<DataT>)) {}
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED("Dynamic_work_group_memory constructors taking a graph "
+                    "object have been deprecated "
+                    "and will be removed in the next ABI breaking window.")
+#endif
   /// Constructs a new dynamic_work_group_memory object.
   /// @param Graph The graph associated with this object.
   /// @param Num Number of elements in the unbounded array DataT.
@@ -642,6 +669,19 @@ class dynamic_parameter : public detail::dynamic_parameter_base {
           : sycl::detail::kernel_param_kind_t::kind_std_layout;
 
 public:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs a new dynamic parameter.
+  /// @param Graph The graph associated with this parameter.
+  /// @param Param A reference value for this parameter used for CTAD.
+  dynamic_parameter(const ValueT &Param)
+      : detail::dynamic_parameter_base(sizeof(ValueT), &Param) {}
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED("Dynamic_parameter constructors taking a graph object have "
+                    "been deprecated "
+                    "and will be removed in the next ABI breaking window.")
+#endif
   /// Constructs a new dynamic parameter.
   /// @param Graph The graph associated with this parameter.
   /// @param Param A reference value for this parameter used for CTAD.

@@ -41,6 +41,7 @@ event_instances_t *GRecordsInProgress = nullptr;
 xpti::utils::timer::measurement_t GMeasure;
 
 constexpr const char *GStreamBasic = "sycl";
+constexpr const char *GStreamPerf = "sycl.perf";
 constexpr const char *GStreamPI = "ur.call";
 constexpr const char *GStreamMemory = "sycl.experimental.mem_alloc";
 constexpr const char *GStreamL0 = "sycl.experimental.level_zero.call";
@@ -291,12 +292,14 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // In order to determine if the environment variable contains valid stream
     // names, a catalog of all streams must be check against to validate the
     // strings
-    if (ShowVerboseOutput && StreamsToMonitor) {
-      std::cout << "Monitoring streams: ";
+    if (StreamsToMonitor) {
+      if (ShowVerboseOutput)
+        std::cout << "Monitoring streams: ";
 
       auto streams = D.decode(StreamsToMonitor);
       for (auto &s : streams) {
-        std::cout << s << ", ";
+        if (ShowVerboseOutput)
+          std::cout << s << ", ";
         GAllStreams.add(s.c_str());
       }
       if (ShowVerboseOutput)
@@ -394,17 +397,17 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     InitStreams = false;
   } // First time inititalization complete
 
-  if (ShowVerboseOutput)
-    std::cout << "Initializing stream: " << stream_name << "\n";
-
   // Post initialization: Once the needed data structures are created, we
   // register callbacks to the streams requsted by the end-user;
   //
   // Check == TRUE if the stream has been requested by end-user
   //
   auto Check = GAllStreams.check(stream_name);
-  if (Check)
+  if (Check) {
     GStreams->add(stream_name);
+    if (ShowVerboseOutput)
+      std::cout << "Initializing stream: " << stream_name << "\n";
+  }
 
   if (std::string(GStreamBasic) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
@@ -436,10 +439,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // Handles SelfNotification events
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,
-                         syclPiCallback);
+                         syclURCallback);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
-                         syclPiCallback);
+                         syclURCallback);
   } else if (std::string(GStreamMemory) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
@@ -461,6 +464,14 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                          (uint16_t)xpti::trace_point_type_t::mem_release_end,
                          syclMemCallback);
   } else if (std::string(GStreamPI) == stream_name && Check) {
+    auto StreamID = xptiRegisterStream(stream_name);
+    xptiRegisterCallback(StreamID,
+                         (uint16_t)xpti::trace_point_type_t::function_begin,
+                         syclURCallback);
+    xptiRegisterCallback(StreamID,
+                         (uint16_t)xpti::trace_point_type_t::function_end,
+                         syclURCallback);
+  } else if (std::string(GStreamPerf) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,
@@ -515,7 +526,7 @@ std::once_flag GFinalize, GCompaction;
 // terminated sending events in its stream
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   {
-    if (ShowVerboseOutput)
+    if (ShowVerboseOutput && GStreams->check(stream_name))
       std::cout << "Unregistering stream: " << stream_name << "\n";
     std::lock_guard<std::mutex> _{GStreamMutex};
     // Filter the streams to what is requested by the user that intersects with

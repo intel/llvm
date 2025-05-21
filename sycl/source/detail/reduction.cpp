@@ -72,9 +72,15 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
   return NumThreads;
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT size_t
+reduGetMaxWGSize(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+                 size_t LocalMemBytesPerWorkItem) {
+#else
 __SYCL_EXPORT size_t
 reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
                  size_t LocalMemBytesPerWorkItem) {
+#endif
   device Dev = Queue->get_device();
   size_t MaxWGSize = Dev.get_info<sycl::info::device::max_work_group_size>();
 
@@ -113,8 +119,13 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   return WGSize;
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT size_t reduGetPreferredWGSize(
+    const std::shared_ptr<queue_impl> &Queue, size_t LocalMemBytesPerWorkItem) {
+#else
 __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
                                             size_t LocalMemBytesPerWorkItem) {
+#endif
   // TODO: Graphs extension explicit API uses a handler with a null queue to
   // process CGFs, in future we should have access to the device so we can
   // correctly calculate this.

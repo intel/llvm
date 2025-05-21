@@ -12,9 +12,6 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
-
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 

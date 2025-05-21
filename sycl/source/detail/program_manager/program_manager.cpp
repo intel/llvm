@@ -13,6 +13,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -32,6 +33,8 @@
 #include <sycl/exception.hpp>
 
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
+
+#include <llvm/Support/PropertySetIO.h>
 
 #include <algorithm>
 #include <cassert>
@@ -1109,10 +1112,10 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 // already have their ref count incremented.
 std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
            ur_program_handle_t>
-ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
-                                  device_impl &DeviceImpl,
-                                  KernelNameStrRefT KernelName,
-                                  const NDRDescT &NDRDesc) {
+ProgramManager::getOrCreateKernel(
+    const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -1122,12 +1125,14 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
-
-  auto key = std::make_pair(UrDevice, KernelName);
+  FastKernelSubcacheT *CacheHintPtr =
+      KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcache
+                              : nullptr;
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    auto ret_tuple = Cache.tryToGetKernelFast(key);
-    constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
-    constexpr size_t Program = 3; // see KernelFastCacheValT tuple
+    auto ret_tuple =
+        Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr);
+    constexpr size_t Kernel = 0;  // see FastKernelCacheValT tuple
+    constexpr size_t Program = 3; // see FastKernelCacheValT tuple
     if (std::get<Kernel>(ret_tuple)) {
       // Pulling a copy of a kernel and program from the cache,
       // so we need to retain those resources.
@@ -1190,7 +1195,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   // kernel.
   ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
-  Cache.saveKernel(key, ret_val);
+  Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);
   return ret_val;
 }
 
@@ -1475,7 +1480,7 @@ ProgramManager::ProgramManager()
 
 const char *getArchName(const device_impl *DeviceImpl) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  auto Arch = DeviceImpl->getDeviceArch();
+  auto Arch = DeviceImpl->get_info<syclex::info::device::architecture>();
   switch (Arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
@@ -1654,22 +1659,18 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   // one underlying device doesn't support cl_khr_fp64.
   const bool fp64Support = std::all_of(
       Devices.begin(), Devices.end(), [&Context](ur_device_handle_t Device) {
-        std::string DevExtList =
-            Context->getPlatformImpl()
-                .getDeviceImpl(Device)
-                ->get_device_info_string(
-                    UrInfoCode<info::device::extensions>::value);
-        return (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
+        return Context->getPlatformImpl().getDeviceImpl(Device)->has_extension(
+            "cl_khr_fp64");
       });
 
   // Load a fallback library for an extension if the any device does not
   // support it.
   for (auto Device : Devices) {
-    std::string DevExtList =
-        Context->getPlatformImpl()
-            .getDeviceImpl(Device)
-            ->get_device_info_string(
-                UrInfoCode<info::device::extensions>::value);
+    // TODO: device_impl::has_extension should cache extension string, then we'd
+    // be able to use that in the loop below directly.
+    std::string DevExtList = urGetInfoString<UrApiKind::urDeviceGetInfo>(
+        *Context->getPlatformImpl().getDeviceImpl(Device),
+        UR_DEVICE_INFO_EXTENSIONS);
 
     for (auto &Pair : RequiredDeviceLibExt) {
       DeviceLibExt Ext = Pair.first;
@@ -1864,7 +1865,8 @@ static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
+        !strcmp(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_METADATA,
+                ImgPS->Name)) {
       if (!LibVersion)
         return true;
 
@@ -1892,7 +1894,8 @@ getExportedSymbolPS(sycl_device_binary RawImg) {
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS, ImgPS->Name))
+        !strcmp(llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS,
+                ImgPS->Name))
       return ImgPS;
   }
 

@@ -60,7 +60,6 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
       return {nullptr, nullptr};
     }
     auto ContextImpl = Queue->getContextImplPtr();
-    auto Device = detail::createSyclObjFromImpl<device>(Dev);
     ur_program_handle_t Program =
         detail::ProgramManager::getInstance().createURProgram(
             **DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});

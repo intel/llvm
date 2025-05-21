@@ -12,6 +12,8 @@
 // For device image compression.
 #include <detail/compression.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -185,28 +187,39 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
     // try to determine the format; may remain "NONE"
     Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
 
-  SpecConstIDMap.init(Bin, __SYCL_PROPERTY_SET_SPEC_CONST_MAP);
+  SpecConstIDMap.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS);
   SpecConstDefaultValuesMap.init(
-      Bin, __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
-  DeviceLibReqMask.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
-  DeviceLibMetadata.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_METADATA);
-  KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
-  AssertUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
-  ImplicitLocalArg.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG);
-  ProgramMetadata.init(Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
+      Bin, llvm::util::PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES);
+  DeviceLibReqMask.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK);
+  DeviceLibMetadata.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_DEVICELIB_METADATA);
+  KernelParamOptInfo.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO);
+  AssertUsed.init(Bin, llvm::util::PropertySetRegistry::SYCL_ASSERT_USED);
+  ImplicitLocalArg.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_IMPLICIT_LOCAL_ARG);
+  ProgramMetadata.init(Bin,
+                       llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA);
   // Convert ProgramMetadata into the UR format
   for (const auto &Prop : ProgramMetadata) {
     ProgramMetadataUR.push_back(
         ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
   }
-  ExportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
-  ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
-  DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
-  DeviceRequirements.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
-  HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
-  VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
-  RegisteredKernels.init(Bin, __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS);
-  Misc.init(Bin, __SYCL_PROPERTY_SET_SYCL_MISC_PROP);
+  ExportedSymbols.init(Bin,
+                       llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS);
+  ImportedSymbols.init(Bin,
+                       llvm::util::PropertySetRegistry::SYCL_IMPORTED_SYMBOLS);
+  DeviceGlobals.init(Bin, llvm::util::PropertySetRegistry::SYCL_DEVICE_GLOBALS);
+  DeviceRequirements.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS);
+  HostPipes.init(Bin, llvm::util::PropertySetRegistry::SYCL_HOST_PIPES);
+  VirtualFunctions.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS);
+  RegisteredKernels.init(
+      Bin, llvm::util::PropertySetRegistry::SYCL_REGISTERED_KERNELS);
+  Misc.init(Bin, llvm::util::PropertySetRegistry::SYCL_MISC_PROP);
 }
 
 std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;
@@ -594,20 +607,25 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   const size_t PropertySectionSize = PropertyCount * PaddedPropertyByteSize;
 
   // Allocate the memory aligned to the property entry alignment.
+#ifdef _MSC_VER
   // Note: MSVC does not implement std::aligned_alloc.
   Data = std::unique_ptr<char[], std::function<void(void *)>>(
-#ifdef _MSC_VER
       static_cast<char *>(_aligned_malloc(sizeof(char) * PropertySectionSize +
                                               PropertyContentByteSize,
                                           PropertyAlignment)),
-      _aligned_free
+      _aligned_free);
 #else
-      static_cast<char *>(std::aligned_alloc(
-          PropertyAlignment,
-          sizeof(char) * PropertySectionSize + PropertyContentByteSize)),
-      std::free
+  // std::aligned_alloc requires the allocation size to be a multiple of the
+  // alignment, so we may over-allocate a little.
+  const size_t AllocSize =
+      sizeof(char) * PropertySectionSize + PropertyContentByteSize;
+  const size_t AlignedAllocSize = (AllocSize + PropertyAlignment - 1) /
+                                  PropertyAlignment * PropertyAlignment;
+  Data = std::unique_ptr<char[], std::function<void(void *)>>(
+      static_cast<char *>(
+          std::aligned_alloc(PropertyAlignment, AlignedAllocSize)),
+      std::free);
 #endif
-  );
 
   auto NextFreeProperty =
       reinterpret_cast<sycl_device_binary_property>(Data.get());

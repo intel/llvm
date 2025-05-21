@@ -110,8 +110,9 @@ static void addDeviceMetadata(xpti_td *TraceEvent, const QueueImplPtr &Queue) {
   if (Queue) {
     xpti::addMetadata(TraceEvent, "sycl_device",
                       deviceToID(Queue->get_device()));
-    xpti::addMetadata(TraceEvent, "sycl_device_name",
-                      getSyclObjImpl(Queue->get_device())->getDeviceName());
+    xpti::addMetadata(
+        TraceEvent, "sycl_device_name",
+        getSyclObjImpl(Queue->get_device())->get_info<info::device::name>());
   }
 }
 
@@ -1979,6 +1980,7 @@ void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
@@ -2008,7 +2010,8 @@ void instrumentationAddExtraKernelMetadata(
     ur_program_handle_t Program = nullptr;
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName);
+            Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName,
+            KernelNameBasedCachePtr);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2093,7 +2096,8 @@ void instrumentationFillCommonData(const std::string &KernelName,
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string_view SyclKernelName, const QueueImplPtr &Queue,
+    const std::string_view SyclKernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, const QueueImplPtr &Queue,
     const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
@@ -2133,7 +2137,8 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                    getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(
         CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
-        std::string(SyclKernelName), SyclKernel, Queue, CGArgs);
+        std::string(SyclKernelName), KernelNameBasedCachePtr, SyclKernel, Queue,
+        CGArgs);
 
     xptiNotifySubscribers(
         StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,
@@ -2188,8 +2193,8 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle(),
-          KernelCG->MKernelName, KernelCG->MSyclKernel, MQueue,
-          KernelCG->MArgs);
+          KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
+          KernelCG->MSyclKernel, MQueue, KernelCG->MArgs);
     }
 
     xptiNotifySubscribers(
@@ -2380,13 +2385,15 @@ static ur_result_t SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
-    std::vector<ur_event_handle_t> &RawEvents,
-    const detail::EventImplPtr &OutEventImpl,
+    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    KernelNameStrRefT KernelName) {
+    KernelNameStrRefT KernelName, void *KernelFuncPtr = nullptr,
+    int KernelNumArgs = 0,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
+    bool KernelHasSpecialCaptures = true) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2398,13 +2405,38 @@ static ur_result_t SetKernelParamsAndLaunch(
                               : Empty);
   }
 
-  auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
-                  &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-    SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                      Queue->getContextImplPtr(), Arg, NextTrueIndex);
-  };
-
-  applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+  if (KernelFuncPtr && !KernelHasSpecialCaptures) {
+    auto setFunc = [&Adapter, Kernel,
+                    KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
+                                   size_t NextTrueIndex) {
+      const void *ArgPtr = (const char *)KernelFuncPtr + ParamDesc.offset;
+      switch (ParamDesc.kind) {
+      case kernel_param_kind_t::kind_std_layout: {
+        int Size = ParamDesc.info;
+        Adapter->call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
+                                                      Size, nullptr, ArgPtr);
+        break;
+      }
+      case kernel_param_kind_t::kind_pointer: {
+        const void *Ptr = *static_cast<const void *const *>(ArgPtr);
+        Adapter->call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
+                                                        nullptr, Ptr);
+        break;
+      }
+      default:
+        throw std::runtime_error("Direct kernel argument copy failed.");
+      }
+    };
+    applyFuncOnFilteredArgs(EliminatedArgMask, KernelNumArgs,
+                            KernelParamDescGetter, setFunc);
+  } else {
+    auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
+                    &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
+      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
+                        Queue->getContextImplPtr(), Arg, NextTrueIndex);
+    };
+    applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+  }
 
   std::optional<int> ImplicitLocalArg =
       ProgramManager::getInstance().kernelImplicitLocalArgPos(KernelName);
@@ -2501,9 +2533,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   return Error;
 }
 
-namespace {
-std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
-           const KernelArgMask *>
+static std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
+                  const KernelArgMask *>
 getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
                 device_impl &DeviceImpl,
                 std::vector<ur_kernel_handle_t> &UrKernelsToRelease,
@@ -2529,13 +2560,13 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName,
+            CommandGroup.MKernelNameBasedCachePtr);
     UrKernelsToRelease.push_back(UrKernel);
     UrProgramsToRelease.push_back(UrProgram);
   }
   return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
 }
-} // anonymous namespace
 
 ur_result_t enqueueImpCommandBufferKernel(
     context Ctx, device_impl &DeviceImpl,
@@ -2651,13 +2682,15 @@ ur_result_t enqueueImpCommandBufferKernel(
 void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
-    const detail::EventImplPtr &OutEventImpl,
+    const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
-    const RTDeviceBinaryImage *BinImage) {
+    const RTDeviceBinaryImage *BinImage, void *KernelFuncPtr, int KernelNumArgs,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    bool KernelHasSpecialCaptures) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto &ContextImpl = Queue->getContextImplPtr();
@@ -2698,7 +2731,8 @@ void enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, NDRDesc);
+            ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr,
+            NDRDesc);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2741,7 +2775,8 @@ void enqueueImpKernel(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, KernelName);
+        BinImage, KernelName, KernelFuncPtr, KernelNumArgs,
+        KernelParamDescGetter, KernelHasSpecialCaptures);
 
     const AdapterPtr &Adapter = Queue->getAdapter();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -2761,7 +2796,7 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
                                      const std::string &PipeName, bool blocking,
                                      void *ptr, size_t size,
                                      std::vector<ur_event_handle_t> &RawEvents,
-                                     const detail::EventImplPtr &OutEventImpl,
+                                     detail::event_impl *OutEventImpl,
                                      bool read) {
   assert(Queue &&
          "ReadWrite host pipe submissions should have an associated queue");
@@ -3112,17 +3147,16 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  // We can omit creating a UR event and create a "discarded" event if either
-  // the queue has the discard property or the command has been explicitly
-  // marked as not needing an event, e.g. if the user did not ask for one, and
-  // if the queue supports discarded UR event and there are no requirements.
-  bool DiscardUrEvent = MQueue && (MQueue->MDiscardEvents || !MEventNeeded) &&
+  // We can omit creating a UR event and create a "discarded" event if the
+  // command has been explicitly marked as not needing an event, e.g. if the
+  // user did not ask for one, and there are no requirements.
+  bool DiscardUrEvent = MQueue && !MEventNeeded &&
                         MQueue->supportsDiscardingPiEvents() &&
                         MCommandGroup->getRequirements().size() == 0;
 
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
-  detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
+  detail::event_impl *EventImpl = DiscardUrEvent ? nullptr : MEvent.get();
 
   auto SetEventHandleOrDiscard = [&]() {
     if (Event)
@@ -3237,7 +3271,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(KernelName);
       if (KernelUsesAssert) {
-        EventImpl = MEvent;
+        EventImpl = MEvent.get();
       }
     }
 
@@ -3247,12 +3281,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           retrieveKernelBinary(MQueue, KernelName.data());
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
-                     SyclKernel, KernelName, RawEvents, EventImpl,
-                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
-                     ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch,
-                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
+    enqueueImpKernel(
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel.get(),
+        KernelName, ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
+        getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+        ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
+        ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
@@ -3645,7 +3679,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     bool read = ExecReadWriteHostPipe->isReadHostPipe();
 
     if (!EventImpl) {
-      EventImpl = MEvent;
+      EventImpl = MEvent.get();
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, EventImpl, read);

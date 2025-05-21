@@ -142,6 +142,7 @@ Enums
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
@@ -198,6 +199,7 @@ Functions
    * ${x}BindlessImagesMapExternalArrayExp
    * ${x}BindlessImagesMapExternalLinearMemoryExp
    * ${x}BindlessImagesReleaseExternalMemoryExp
+   * ${x}BindlessImagesFreeMappedLinearMemoryExp
    * ${x}BindlessImagesImportExternalSemaphoreExp
    * ${x}BindlessImagesReleaseExternalSemaphoreExp
    * ${x}BindlessImagesWaitExternalSemaphoreExp
@@ -286,6 +288,11 @@ Changelog
 |          ||  - GetImageUnsampledHandleSupportExp                       |
 |          ||  - GetImageSampledHandleSupportExp                         |
 +----------+-------------------------------------------------------------+
+| 23.0     | Added BindlessImagesFreeMappedLinearMemory function.        |
++----------+-------------------------------------------------------------+
+| 24.0     || Update the ${x}BindlessImagesSampledImageCreateExp API     |
+|          || to take a sampler description instead of sampler handle.   |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
@@ -296,3 +303,4 @@ Contributors
 * Chedy Najjar `chedy.najjar@codeplay.com <chedy.najjar@codeplay.com>`_
 * Sean Stirling `sean.stirling@codeplay.com <sean.stirling@codeplay.com>`_
 * Peter Zuzek `peter@codeplay.com peter@codeplay.com <peter@codeplay.com>`_
+* Georgi Mirazchiyski `georgi.mirazchiyski@codeplay.com <georgi.mirazchiyski@codeplay.com>`_

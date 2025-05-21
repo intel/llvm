@@ -58,7 +58,7 @@ on:
         default: '{}'
         required: False
 
-      compiler:
+      cxx:
         type: string
         required: false
         default: "cl"
@@ -117,7 +117,7 @@ jobs:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -164,6 +164,7 @@ jobs:
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
         retention-days: ${{ inputs.artifact_retention_days }}
+        cxx: ${{ inputs.cxx }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
