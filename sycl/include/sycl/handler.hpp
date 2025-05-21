@@ -18,6 +18,7 @@
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/kernel_name_based_cache.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
@@ -813,6 +814,7 @@ private:
       // later during finalize.
       setArgsToAssociatedAccessors();
     }
+    setKernelNameBasedCachePtr(detail::getKernelNameBasedCache<KernelName>());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
@@ -3788,6 +3790,9 @@ private:
   __SYCL_EXPORT friend void *ext::oneapi::experimental::async_malloc_from_pool(
       sycl::handler &h, size_t size,
       const ext::oneapi::experimental::memory_pool &pool);
+
+  void setKernelNameBasedCachePtr(
+      detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
 
 protected:
   /// Registers event dependencies in this command group.
