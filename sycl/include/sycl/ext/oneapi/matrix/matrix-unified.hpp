@@ -485,13 +485,23 @@ void joint_matrix_copy(
   std::ignore = sg;
   dst.matrix_impl.wi_marray = src.matrix_impl.wi_marray;
 #else
+  auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
+  auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
           T2>::storage_element_type;
-  auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
-  auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
-  for (int i = 0; i < wi_data_c.length(); i++) {
-        wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
+  if constexpr (std::is_same_v<T1, half>) {
+    using src_storage_element_type =
+        typename oneapi::detail::jm_type_interpretation_helper_trait<
+            T1>::storage_element_type;
+    for (int i = 0; i < wi_data_c.length(); i++) {
+          wi_data_dst[i] = static_cast<storage_element_type>(static_cast<src_storage_element_type>(wi_data_c[i]));
+    }
+  }
+  else {
+    for (int i = 0; i < wi_data_c.length(); i++) {
+      wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
+    }
   }
 #endif // defined(__NVPTX__)
 #else
