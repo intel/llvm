@@ -1357,8 +1357,7 @@ public:
     }
     CASE(ext_oneapi_tangle_group) {
       // TODO: tangle_group is not currently supported for CUDA devices. Add
-      // when
-      //       implemented.
+      // when implemented.
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl);
     }
