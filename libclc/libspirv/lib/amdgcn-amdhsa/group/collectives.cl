@@ -335,7 +335,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
   return (id.z * size_y * size_x + id.y * size_x + id.x);
 }
 
-#define __CLC_GROUP_BROADCAST(TYPE)                              \
+#define __CLC_GROUP_BROADCAST(TYPE)                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
       int scope, TYPE x, ulong local_id) {                                     \
     if (scope == Subgroup) {                                                   \
