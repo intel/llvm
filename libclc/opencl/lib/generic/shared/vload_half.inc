@@ -16,22 +16,22 @@
 #define __CLC_OFFSET __CLC_VECSIZE
 #endif
 
-  FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __private);
-  FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __local);
-  FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __global);
-  FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __constant);
+FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __private);
+FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __local);
+FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __global);
+FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __constant);
 #if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
-  FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __generic);
+FUNC(__CLC_VECSIZE, __CLC_VECSIZE, __CLC_OFFSET, __CLC_GENTYPE, __generic);
 #endif
 
 #undef __CLC_OFFSET
 #else
-  FUNC(, 1, 1, __CLC_GENTYPE, __private);
-  FUNC(, 1, 1, __CLC_GENTYPE, __local);
-  FUNC(, 1, 1, __CLC_GENTYPE, __global);
-  FUNC(, 1, 1, __CLC_GENTYPE, __constant);
+FUNC(, 1, 1, __CLC_GENTYPE, __private);
+FUNC(, 1, 1, __CLC_GENTYPE, __local);
+FUNC(, 1, 1, __CLC_GENTYPE, __global);
+FUNC(, 1, 1, __CLC_GENTYPE, __constant);
 #if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
-  FUNC(, 1, 1, __CLC_GENTYPE, __generic);
+FUNC(, 1, 1, __CLC_GENTYPE, __generic);
 #endif
 #endif
 #endif

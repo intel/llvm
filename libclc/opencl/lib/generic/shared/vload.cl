@@ -55,7 +55,7 @@
 #define VLOAD_VECTORIZE_GENERIC VLOAD_VECTORIZE
 #else
 // The generic address space isn't available, so make the macro do nothing
-#define VLOAD_VECTORIZE_GENERIC(X,Y)
+#define VLOAD_VECTORIZE_GENERIC(X, Y)
 #endif
 
 #define VLOAD_ADDR_SPACES(__CLC_SCALAR_GENTYPE)                                \
