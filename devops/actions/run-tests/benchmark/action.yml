@@ -125,8 +125,6 @@ runs:
       # accurately reflect the current compute_runtime version used, as the
       # docker images are built nightly. 
       export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
-      echo $COMPUTE_RUNTIME_TAG_CACHE
-      
 
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
