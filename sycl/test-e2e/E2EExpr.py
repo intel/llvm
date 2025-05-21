@@ -45,6 +45,7 @@ class E2EExpr(BooleanExpression):
         "true",
         "false",
         "pdtracker",
+        "ze_debug",
     }
 
     def __init__(self, string, variables, build_only_mode, final_unknown_value):
