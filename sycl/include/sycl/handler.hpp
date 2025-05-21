@@ -770,10 +770,10 @@ private:
         std::forward<KernelTypeUniversalRef>(KernelFunc)));
 
     // Instantiating the kernel on the host improves debugging.
-    // We assign it to a member to ensure the compiler cannot optimize it away.
-    MInstantiateKernelOnHostPtr =
-        detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
-                                              Dims>();
+    // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+    instantiateKernelOnHost(detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType, Dims>());
+#endif
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -3329,9 +3329,6 @@ private:
   /// Storage for a lambda or function object.
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
 
-  // Pointer for debugging purposes.
-  void *MInstantiateKernelOnHostPtr = nullptr;
-
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;
   event MLastEvent;
@@ -3778,6 +3775,8 @@ private:
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
                      bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+
+  void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
 
