@@ -373,11 +373,11 @@ bool handler::isStateExplicitKernelBundle() const {
   return impl->isStateExplicitKernelBundle();
 }
 
-// Returns a shared_ptr to the kernel_bundle.
+// Returns a reference to shared_ptr to the kernel_bundle.
 // If there is no kernel_bundle created:
 // returns newly created kernel_bundle if Insert is true
 // returns shared_ptr(nullptr) if Insert is false
-std::shared_ptr<detail::kernel_bundle_impl>&
+std::shared_ptr<detail::kernel_bundle_impl> &
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (!impl->MKernelBundle && Insert) {
     auto Ctx =

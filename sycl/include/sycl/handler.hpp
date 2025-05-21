@@ -1633,7 +1633,7 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
-  std::shared_ptr<detail::kernel_bundle_impl>&
+  std::shared_ptr<detail::kernel_bundle_impl> &
   getOrInsertHandlerKernelBundle(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
