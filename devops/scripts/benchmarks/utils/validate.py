@@ -4,7 +4,7 @@ class Validate:
     """Static class containing methods for validating various fields"""
 
     @staticmethod
-    def on_re(val: str, regex: re.Pattern, throw: Exception = None):
+    def on_re(val: str, regex: str, throw: Exception = None):
         """
         Returns True if val is matched by pattern defined by regex, otherwise
         False.

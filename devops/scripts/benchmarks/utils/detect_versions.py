@@ -35,7 +35,7 @@ class DetectVersion:
     def init(cls, detect_ver_path: Path, dpcpp_exec: str = "clang++"):
         """
         Constructs the singleton instance for DetectVersion, and initializes by
-        building and run detect _version.cpp, which outputs:
+        building and run detect_version.cpp, which outputs:
           - L0 driver version via ZE_intel_get_driver_version_string extension,
           - DPC++ version via `__clang_version__` builtin.
 
