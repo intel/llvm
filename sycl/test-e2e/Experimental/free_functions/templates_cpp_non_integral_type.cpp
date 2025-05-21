@@ -27,7 +27,7 @@ using AliasType = float;
 
 template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void tempalted_func(T start, T *ptr) {
+void templated_func(T start, T *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
 }
 
@@ -40,13 +40,13 @@ void templated_func_uses_id(sycl::id<1> idx, T *ptr) {
 
 template <typename T = TestStruct>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void tempalted_func_with_default_type(T start, T *ptr) {
+void templated_func_with_default_type(T start, T *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
 }
 
 template <typename T, class Y>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void tempalted_func_with_different_types(T *ptr1, Y *ptr2) {
+void templated_func_with_different_types(T *ptr1, Y *ptr2) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
 }
 
@@ -87,16 +87,16 @@ static void call_kernel_code_with_different_types(sycl::queue &q,
 }
 
 template <typename T>
-void test_tempalted_func(sycl::queue &q, sycl::context &ctxt) {
+void test_templated_func(sycl::queue &q, sycl::context &ctxt) {
   // Get a kernel bundle that contains the free function kernel
-  // "tempalted_func".
+  // "templated_func".
   auto exe_bndl =
-      syclexp::get_kernel_bundle<tempalted_func<T>,
+      syclexp::get_kernel_bundle<templated_func<T>,
                                  sycl::bundle_state::executable>(ctxt);
-  // Get a kernel object for the "tempalted_func" function from that bundle.
-  sycl::kernel k_tempalted_func =
-      exe_bndl.template ext_oneapi_get_kernel<tempalted_func<T>>();
-  call_kernel_code<T>(q, k_tempalted_func);
+  // Get a kernel object for the "templated_func" function from that bundle.
+  sycl::kernel k_templated_func =
+      exe_bndl.template ext_oneapi_get_kernel<templated_func<T>>();
+  call_kernel_code<T>(q, k_templated_func);
 }
 
 template <typename T>
@@ -104,31 +104,31 @@ void test_templated_func_with_id(sycl::queue &q, sycl::context &ctxt) {
   auto exe_bndl =
       syclexp::get_kernel_bundle<templated_func_uses_id<T>,
                                  sycl::bundle_state::executable>(ctxt);
-  sycl::kernel k_tempalted_func =
+  sycl::kernel k_templated_func =
       exe_bndl.template ext_oneapi_get_kernel<templated_func_uses_id<T>>();
-  call_kernel_code_with_id<T>(q, k_tempalted_func);
+  call_kernel_code_with_id<T>(q, k_templated_func);
 }
 
 template <typename T = TestStruct>
 void test_templated_func_with_default_type(sycl::queue &q,
                                            sycl::context &ctxt) {
   auto exe_bndl =
-      syclexp::get_kernel_bundle<tempalted_func_with_default_type<T>,
+      syclexp::get_kernel_bundle<templated_func_with_default_type<T>,
                                  sycl::bundle_state::executable>(ctxt);
-  sycl::kernel k_tempalted_func = exe_bndl.template ext_oneapi_get_kernel<
-      tempalted_func_with_default_type<T>>();
-  call_kernel_code<T>(q, k_tempalted_func);
+  sycl::kernel k_templated_func = exe_bndl.template ext_oneapi_get_kernel<
+      templated_func_with_default_type<T>>();
+  call_kernel_code<T>(q, k_templated_func);
 }
 
 template <typename T, class Y>
 void test_templated_func_with_different_types(sycl::queue &q,
                                               sycl::context &ctxt) {
   auto exe_bndl =
-      syclexp::get_kernel_bundle<tempalted_func_with_different_types<T, Y>,
+      syclexp::get_kernel_bundle<templated_func_with_different_types<T, Y>,
                                  sycl::bundle_state::executable>(ctxt);
-  sycl::kernel k_tempalted_func = exe_bndl.template ext_oneapi_get_kernel<
-      tempalted_func_with_different_types<T, Y>>();
-  call_kernel_code_with_different_types<T, Y>(q, k_tempalted_func);
+  sycl::kernel k_templated_func = exe_bndl.template ext_oneapi_get_kernel<
+      templated_func_with_different_types<T, Y>>();
+  call_kernel_code_with_different_types<T, Y>(q, k_templated_func);
 }
 
 // TODO: Add tests to check accessors
@@ -136,15 +136,15 @@ void test_templated_func_with_different_types(sycl::queue &q,
 int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
-  test_tempalted_func<TestClass>(q, ctxt);
-  test_tempalted_func<TestStruct>(q, ctxt);
-  test_tempalted_func<free_functions::tests::TestClass>(q, ctxt);
-  test_tempalted_func<free_functions::tests::TestStruct>(q, ctxt);
-  test_tempalted_func<AliasType>(q, ctxt);
-  test_tempalted_func<sycl::id<1>>(q, ctxt);
-  test_tempalted_func<sycl::range<2>>(q, ctxt);
-  test_tempalted_func<sycl::marray<int, 4>>(q, ctxt);
-  test_tempalted_func<sycl::vec<int, 4>>(q, ctxt);
+  test_templated_func<TestClass>(q, ctxt);
+  test_templated_func<TestStruct>(q, ctxt);
+  test_templated_func<free_functions::tests::TestClass>(q, ctxt);
+  test_templated_func<free_functions::tests::TestStruct>(q, ctxt);
+  test_templated_func<AliasType>(q, ctxt);
+  test_templated_func<sycl::id<1>>(q, ctxt);
+  test_templated_func<sycl::range<2>>(q, ctxt);
+  test_templated_func<sycl::marray<int, 4>>(q, ctxt);
+  test_templated_func<sycl::vec<int, 4>>(q, ctxt);
   test_templated_func_with_default_type<free_functions::tests::TestClass>(q,
                                                                           ctxt);
   test_templated_func_with_default_type(q, ctxt);
