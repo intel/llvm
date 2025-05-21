@@ -3557,10 +3557,14 @@ public:
 
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 
+  __SYCL_DEPRECATED("To get event representing last operation use"
+                    "ext_oneapi_submit_barrier()")
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
   }
 
+  __SYCL_DEPRECATED("To specify external dependency, use handler::depends_on() "
+                    "or submit a barrier using ext_oneapi_submit_barrier()")
   void ext_oneapi_set_external_event(const event &external_event);
 
 private:
