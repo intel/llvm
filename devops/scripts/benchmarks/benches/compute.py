@@ -717,7 +717,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         return [
             "--iterations=10000",
             f"--wgs={self.wgs}",
-            f"--wgc={self.wgs}",
+            f"--wgc={self.wgc}",
         ]
 
 
