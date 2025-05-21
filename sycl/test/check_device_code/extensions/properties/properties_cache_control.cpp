@@ -81,6 +81,15 @@ void cache_control_read_write_func() {
   });
 }
 
+// Test that annotated pointer parameter functions don't crash.
+SYCL_EXTERNAL void annotated_ptr_func_param_test(float *p) {
+  *(store_hint{p /*+1*/}) = 42.0f;
+}
+
+// CHECK-IR: spir_func{{.*}}annotated_ptr_func_param_test
+// CHECK-IR: {{.*}}call ptr addrspace(4) @llvm.ptr.annotation.p4.p1{{.*}}!spirv.Decorations [[WHINT:.*]]
+// CHECK-IR: ret void
+
 // CHECK-IR: spir_kernel{{.*}}cache_control_read_hint_func
 // CHECK-IR: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[RHINT:.*]]
 // CHECK-IR: ret void
@@ -90,12 +99,18 @@ void cache_control_read_write_func() {
 // CHECK-IR: ret void
 
 // CHECK-IR: spir_kernel{{.*}}cache_control_write_hint_func
-// CHECK-IR: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[WHINT:.*]]
+// CHECK-IR: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[WHINT]]
 // CHECK-IR: ret void
 
 // CHECK-IR: spir_kernel{{.*}}cache_control_read_write_func
 // CHECK-IR: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[RWHINT:.*]]
 // CHECK-IR: ret void
+
+// CHECK-IR: [[WHINT]] = !{[[WHINT1:.*]], [[WHINT2:.*]], [[WHINT3:.*]], [[WHINT4:.*]]}
+// CHECK-IR: [[WHINT1]] = !{i32 6443, i32 3, i32 3}
+// CHECK-IR: [[WHINT2]] = !{i32 6443, i32 0, i32 1}
+// CHECK-IR: [[WHINT3]] = !{i32 6443, i32 1, i32 2}
+// CHECK-IR: [[WHINT4]] = !{i32 6443, i32 2, i32 2}
 
 // CHECK-IR: [[RHINT]] = !{[[RHINT1:.*]], [[RHINT2:.*]], [[RHINT3:.*]]}
 // CHECK-IR: [[RHINT1]] = !{i32 6442, i32 1, i32 0}
@@ -106,12 +121,6 @@ void cache_control_read_write_func() {
 // CHECK-IR: [[RASSERT1]] = !{i32 6442, i32 1, i32 3}
 // CHECK-IR: [[RASSERT2]] = !{i32 6442, i32 2, i32 3}
 // CHECK-IR: [[RASSERT3]] = !{i32 6442, i32 0, i32 4}
-
-// CHECK-IR: [[WHINT]] = !{[[WHINT1:.*]], [[WHINT2:.*]], [[WHINT3:.*]], [[WHINT4:.*]]}
-// CHECK-IR: [[WHINT1]] = !{i32 6443, i32 3, i32 3}
-// CHECK-IR: [[WHINT2]] = !{i32 6443, i32 0, i32 1}
-// CHECK-IR: [[WHINT3]] = !{i32 6443, i32 1, i32 2}
-// CHECK-IR: [[WHINT4]] = !{i32 6443, i32 2, i32 2}
 
 // CHECK-IR: [[RWHINT]] = !{[[RWHINT1:.*]], [[RWHINT2:.*]], [[RWHINT3:.*]]}
 // CHECK-IR: [[RWHINT1]] = !{i32 6442, i32 2, i32 1}
