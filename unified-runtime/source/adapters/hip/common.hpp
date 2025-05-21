@@ -106,98 +106,11 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
 hipError_t getHipVersionString(std::string &Version);
 
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *Message,
-                                      ur_result_t ErrorCode);
-
-/// ------ Error handling, matching OpenCL plugin semantics.
-namespace detail {
-namespace ur {
-
-// Reports error messages
-void hipPrint(const char *pMessage);
-
-void assertion(bool Condition, const char *pMessage = nullptr);
-
-} // namespace ur
-} // namespace detail
-
-/// RAII object that calls the reference count release function on the held UR
-/// object on destruction.
-///
-/// The `dismiss` function stops the release from happening on destruction.
-template <typename T> class ReleaseGuard {
-private:
-  T Captive;
-
-  static ur_result_t callRelease(ur_device_handle_t Captive) {
-    return urDeviceRelease(Captive);
-  }
-
-  static ur_result_t callRelease(ur_context_handle_t Captive) {
-    return urContextRelease(Captive);
-  }
-
-  static ur_result_t callRelease(ur_mem_handle_t Captive) {
-    return urMemRelease(Captive);
-  }
-
-  static ur_result_t callRelease(ur_program_handle_t Captive) {
-    return urProgramRelease(Captive);
-  }
-
-  static ur_result_t callRelease(ur_kernel_handle_t Captive) {
-    return urKernelRelease(Captive);
-  }
-
-  static ur_result_t callRelease(ur_queue_handle_t Captive) {
-    return urQueueRelease(Captive);
-  }
-
-  static ur_result_t callRelease(ur_event_handle_t Captive) {
-    return urEventRelease(Captive);
-  }
-
-public:
-  ReleaseGuard() = delete;
-  /// Obj can be `nullptr`.
-  explicit ReleaseGuard(T Obj) : Captive(Obj) {}
-  ReleaseGuard(ReleaseGuard &&Other) noexcept : Captive(Other.Captive) {
-    Other.Captive = nullptr;
-  }
-
-  ReleaseGuard(const ReleaseGuard &) = delete;
-
-  /// Calls the related UR object release function if the object held is not
-  /// `nullptr` or if `dismiss` has not been called.
-  ~ReleaseGuard() {
-    if (Captive != nullptr) {
-      ur_result_t ret = callRelease(Captive);
-      if (ret != UR_RESULT_SUCCESS) {
-        // A reported HIP error is either an implementation or an asynchronous
-        // HIP error for which it is unclear if the function that reported it
-        // succeeded or not. Either way, the state of the program is compromised
-        // and likely unrecoverable.
-        die("Unrecoverable program state reached in piMemRelease");
-      }
-    }
-  }
-
-  ReleaseGuard &operator=(const ReleaseGuard &) = delete;
-
-  ReleaseGuard &operator=(ReleaseGuard &&Other) {
-    Captive = Other.Captive;
-    Other.Captive = nullptr;
-    return *this;
-  }
-
-  /// End the guard and do not release the reference count of the held
-  /// UR object.
-  void dismiss() { Captive = nullptr; }
-};
+[[maybe_unused]] void setErrorMessage(const char *Message, int32_t ErrorCode);
 
 // Helper method to return a (non-null) pointer's attributes, or std::nullopt in
 // the case that the pointer is unknown to the HIP subsystem.
@@ -233,3 +146,10 @@ inline static unsigned getMemoryType(hipPointerAttribute_t hipPointerAttrs) {
   return hipPointerAttrs.memoryType;
 #endif
 }
+
+namespace ur::hip {
+struct ddi_getter {
+  static const ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ddi_getter>;
+} // namespace ur::hip

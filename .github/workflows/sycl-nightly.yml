@@ -163,6 +163,7 @@ jobs:
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
+      target_devices: level_zero:gpu
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
 
   cuda-aws-start:
@@ -216,6 +217,9 @@ jobs:
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    # Normally these jobs take less than 10m. But sometimes the job hangs up and
+    # reaches the 360m limit. Set a lower limit to free up the runner earlier.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -249,7 +253,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Build SYCL-CTS for Windows
-      runner: '["Windows", "build-e2e"]'
+      runner: '["Windows", "build"]'
       cts_testing_mode: 'build-only'
       tests_selector: cts
       repo_ref: ${{ github.sha }}
@@ -277,35 +281,30 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       sycl_cts_artifact: sycl_cts_bin_win
 
-  aggregate_benchmark_results:
-    if: github.repository == 'intel/llvm' && !cancelled()
-    name: Aggregate benchmark results and produce historical averages
-    uses: ./.github/workflows/sycl-benchmark-aggregate.yml
-    secrets:
-      LLVM_SYCL_BENCHMARK_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
-    with:
-      lookback_days: 100
-      
   run-sycl-benchmarks:
-    needs: [ubuntu2204_build, aggregate_benchmark_results]
+    needs: [ubuntu2204_build]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
-      fail-fast: false
       matrix:
         include:
-          - name: Run compute-benchmarks on L0 PVC
+          - ref: ${{ github.sha }}
+            save_name: Baseline
             runner: '["PVC_PERF"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu
+            backend: 'level_zero:gpu'
+            preset: Minimal
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      name: ${{ matrix.name }}
+      name: Run compute-benchmarks (${{ matrix.runner }}, ${{ matrix.backend }})
       runner: ${{ matrix.runner }}
-      image_options: ${{ matrix.image_options }}
-      target_devices: ${{ matrix.target_devices }}
-      tests_selector: compute-benchmarks
-      repo_ref: ${{ github.sha }}
+      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      target_devices: ${{ matrix.backend }}
+      tests_selector: benchmarks
+      benchmark_upload_results: true
+      benchmark_save_name: ${{ matrix.save_name }}
+      benchmark_preset: ${{ matrix.preset }}
+      repo_ref: ${{ matrix.ref }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
@@ -334,7 +333,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@v2.2.1
+      uses: softprops/action-gh-release@v2.2.2
       with:
         files: |
           sycl_linux.tar.gz

@@ -79,7 +79,7 @@ ur_native_handle_t interop_handle::getNativeGraph() const {
   }
 
   auto Adapter = MQueue->getAdapter();
-  ur_native_handle_t Handle;
+  ur_native_handle_t Handle = 0;
   Adapter->call<detail::UrApiKind::urCommandBufferGetNativeHandleExp>(Graph,
                                                                       &Handle);
   return Handle;

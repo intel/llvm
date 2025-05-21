@@ -25,7 +25,7 @@ struct ur_single_device_kernel_t {
   mutable ZeCache<ZeStruct<ze_kernel_properties_t>> zeKernelProperties;
 };
 
-struct ur_kernel_handle_t_ : _ur_object {
+struct ur_kernel_handle_t_ : ur_object {
 private:
   struct pending_memory_allocation_t;
 

@@ -260,6 +260,7 @@ endif()
 find_package( Python3 REQUIRED COMPONENTS Interpreter )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_convert.py spirv_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_convert_common.py spirv_common_script_loc )
 add_custom_command(
   OUTPUT convert.cl
   COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert.cl
@@ -277,7 +278,7 @@ set_target_properties( generate-clc-convert.cl PROPERTIES FOLDER "libclc/Sourceg
 add_custom_command(
   OUTPUT spirv-convert.cl
   COMMAND ${Python3_EXECUTABLE} ${spirv_script_loc} > spirv-convert.cl
-  DEPENDS ${spirv_script_loc} )
+  DEPENDS ${spirv_script_loc} ${spirv_common_script_loc} )
 add_custom_target( generate-spirv-convert.cl DEPENDS spirv-convert.cl )
 set_target_properties( generate-spirv-convert.cl PROPERTIES FOLDER "libclc/Sourcegenning" )
 
@@ -289,6 +290,45 @@ if ( clspv-- IN_LIST LIBCLC_TARGETS_TO_BUILD OR clspv64-- IN_LIST LIBCLC_TARGETS
   add_custom_target( generate-clspv-convert.cl DEPENDS clspv-convert.cl )
   set_target_properties( generate-clspv-convert.cl PROPERTIES FOLDER "libclc/Sourcegenning" )
 endif()
+
+set_source_files_properties(
+  # CLC builtins
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_cos.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_divide.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_exp10.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_exp2.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_exp.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_log10.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_log2.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_log.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_powr.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_recip.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_rsqrt.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_sin.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_sqrt.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/generic/math/clc_native_tan.cl
+  # Target-specific CLC builtins
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/amdgpu/math/clc_native_exp2.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/amdgpu/math/clc_native_exp.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/amdgpu/math/clc_native_log10.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/clc/lib/r600/math/clc_native_rsqrt.cl
+  # OpenCL builtins
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_cos.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_divide.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_exp.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_exp10.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_exp2.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_log.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_log10.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_log2.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_powr.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_recip.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_rsqrt.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_sin.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_sqrt.cl
+  ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/math/native_tan.cl
+  PROPERTIES COMPILE_OPTIONS -fapprox-func
+)
 
 enable_testing()
 
@@ -530,7 +570,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     list( APPEND spirv_build_flags
       -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
       -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
-      # FIXME: Fix libclc to not require disabling this noisy warning
+      # FIXME: Fix libspirv to not require disabling this noisy warning
       -Wno-bitwise-conditional-parentheses
     )
 
@@ -546,7 +586,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       ALIASES ${${d}_aliases}
       PARENT_TARGET libspirv-builtins
       # Link in the CLC builtins and internalize their symbols
-      INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
+      INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
     )
 
     set( opencl_build_flags ${build_flags} )
@@ -569,7 +609,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       ALIASES ${${d}_aliases}
       PARENT_TARGET libopencl-builtins
       # Link in the CLC builtins and internalize their symbols
-      INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
+      INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
     )
   endforeach( d )
 endforeach( t )

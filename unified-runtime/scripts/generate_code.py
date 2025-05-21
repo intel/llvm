@@ -1,22 +1,16 @@
-"""
-Copyright (C) 2022 Intel Corporation
-
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-"""
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
 import re
 import util
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
 
 def _mako_api_h(path, namespace, tags, version, revision, specs, meta):
+    """generates c/c++ files from the specification documents"""
     template = "api.h.mako"
     fin = os.path.join("templates", template)
 
@@ -36,12 +30,8 @@ def _mako_api_h(path, namespace, tags, version, revision, specs, meta):
     )
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _mako_api_cpp(path, namespace, tags, version, revision, specs, meta):
+    """generates c/c++ files from the specification documents"""
     template = "api.cpp.mako"
     fin = os.path.join("templates", template)
 
@@ -61,12 +51,8 @@ def _mako_api_cpp(path, namespace, tags, version, revision, specs, meta):
     )
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _mako_ddi_h(path, namespace, tags, version, revision, specs, meta):
+    """generates c/c++ files from the specification documents"""
     template = "ddi.h.mako"
     fin = os.path.join("templates", template)
 
@@ -86,12 +72,8 @@ def _mako_ddi_h(path, namespace, tags, version, revision, specs, meta):
     )
 
 
-"""
-    generates c/c++ files from the mako template
-"""
-
-
 def _mako_print_h(path, namespace, tags, version, specs, meta):
+    """generates c/c++ files from the mako template"""
     template = "print.h.mako"
     fin = os.path.join("templates", template)
 
@@ -104,12 +86,8 @@ def _mako_print_h(path, namespace, tags, version, specs, meta):
     )
 
 
-"""
-    generates c/c++ files from the mako template
-"""
-
-
 def _mako_print_cpp(path, namespace, tags, version, specs, meta):
+    """generates c/c++ files from the mako template"""
     template = "print.cpp.mako"
     fin = os.path.join("templates", template)
 
@@ -144,14 +122,10 @@ def _mako_api_funcs(path, namespace, tags, version, revision, specs, meta):
     )
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _generate_api_cpp(
     incpath, srcpath, namespace, tags, version, revision, specs, meta
 ):
+    """generates c/c++ files from the specification documents"""
     loc = _mako_api_h(incpath, namespace, tags, version, revision, specs, meta)
     loc += _mako_api_cpp(srcpath, namespace, tags, version, revision, specs, meta)
     loc += _mako_ddi_h(incpath, namespace, tags, version, revision, specs, meta)
@@ -161,13 +135,11 @@ def _generate_api_cpp(
     return loc
 
 
-"""
-Entry-point:
-    generates api code
-"""
-
-
 def generate_api(incpath, srcpath, namespace, tags, version, revision, specs, meta):
+    """
+    Entry-point:
+        generates api code
+    """
     util.makePath(incpath)
     util.makePath(srcpath)
 
@@ -181,12 +153,9 @@ def generate_api(incpath, srcpath, namespace, tags, version, revision, specs, me
 
 templates_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "templates")
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
 
 def _mako_lib_cpp(path, namespace, tags, version, specs, meta):
+    """generates c/c++ files from the specification documents"""
     loc = 0
     template = "libapi.cpp.mako"
     fin = os.path.join(templates_dir, template)
@@ -248,35 +217,12 @@ def _mako_lib_cpp(path, namespace, tags, version, specs, meta):
     return loc
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
+    """generates c/c++ files from the specification documents"""
     print(
         "make_loader_cpp path %s namespace %s version %s\n" % (path, namespace, version)
     )
     loc = 0
-    template = "ldrddi.hpp.mako"
-    fin = os.path.join(templates_dir, template)
-
-    name = "%s_ldrddi" % (namespace)
-    filename = "%s.hpp" % (name)
-    fout = os.path.join(path, filename)
-
-    print("Generating %s..." % fout)
-    loc += util.makoWrite(
-        fin,
-        fout,
-        name=name,
-        ver=version,
-        namespace=namespace,
-        tags=tags,
-        specs=specs,
-        meta=meta,
-    )
-
     template = "ldrddi.cpp.mako"
     fin = os.path.join(templates_dir, template)
 
@@ -298,12 +244,8 @@ def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
     return loc
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _mako_mock_adapter_cpp(path, namespace, tags, version, specs, meta):
+    """generates c/c++ files from the specification documents"""
     dstpath = os.path.join(path, "mock")
     os.makedirs(dstpath, exist_ok=True)
 
@@ -327,12 +269,8 @@ def _mako_mock_adapter_cpp(path, namespace, tags, version, specs, meta):
     )
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _mako_validation_layer_cpp(path, namespace, tags, version, specs, meta):
+    """generates c/c++ files from the specification documents"""
     dstpath = os.path.join(path, "validation")
     os.makedirs(dstpath, exist_ok=True)
 
@@ -356,12 +294,8 @@ def _mako_validation_layer_cpp(path, namespace, tags, version, specs, meta):
     )
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _mako_tracing_layer_cpp(path, namespace, tags, version, specs, meta):
+    """generates c/c++ files from the specification documents"""
     dstpath = os.path.join(path, "tracing")
     os.makedirs(dstpath, exist_ok=True)
 
@@ -385,12 +319,8 @@ def _mako_tracing_layer_cpp(path, namespace, tags, version, specs, meta):
     )
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _mako_print_hpp(path, namespace, tags, version, revision, specs, meta):
+    """generates c/c++ files from the specification documents"""
     template = "print.hpp.mako"
     fin = os.path.join(templates_dir, template)
 
@@ -412,13 +342,11 @@ def _mako_print_hpp(path, namespace, tags, version, revision, specs, meta):
     )
 
 
-"""
-Entry-point:
-    generates tools code
-"""
-
-
 def _mako_info_hpp(path, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates tools code
+    """
     fin = os.path.join(templates_dir, "tools-info.hpp.mako")
     name = f"{namespace}info"
     filename = f"{name}.hpp"
@@ -436,13 +364,11 @@ def _mako_info_hpp(path, namespace, tags, version, specs, meta):
     )
 
 
-"""
-Entry-point:
-    generates linker version scripts
-"""
-
-
 def _mako_linker_scripts(path, name, ext, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates linker version scripts
+    """
     filename = f"{name}.{ext}.in"
     fin = os.path.join(templates_dir, f"{filename}.mako")
     fout = os.path.join(path, filename)
@@ -459,13 +385,11 @@ def _mako_linker_scripts(path, name, ext, namespace, tags, version, specs, meta)
     )
 
 
-"""
-Entry-point:
-    generates lib code
-"""
-
-
 def generate_lib(path, section, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates lib code
+    """
     dstpath = os.path.join(path, "loader")  # lib code lives alongside the loader
     os.makedirs(dstpath, exist_ok=True)
 
@@ -474,13 +398,11 @@ def generate_lib(path, section, namespace, tags, version, specs, meta):
     print("Generated %s lines of code.\n" % loc)
 
 
-"""
-Entry-point:
-    generates loader for unified_runtime adapter
-"""
-
-
 def generate_loader(path, section, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates loader for unified_runtime adapter
+    """
     dstpath = os.path.join(path, "loader")
     os.makedirs(dstpath, exist_ok=True)
 
@@ -496,14 +418,10 @@ def generate_loader(path, section, namespace, tags, version, specs, meta):
     print("Generated %s lines of code.\n" % loc)
 
 
-"""
-    generates c/c++ files from the specification documents
-"""
-
-
 def _mako_interface_loader_api(
     path, adapter, ext, namespace, tags, version, specs, meta
 ):
+    """generates c/c++ files from the specification documents"""
     dstpath = os.path.join(path, adapter)
     os.makedirs(dstpath, exist_ok=True)
 
@@ -529,13 +447,11 @@ def _mako_interface_loader_api(
     )
 
 
-"""
-Entry-point:
-    generates adapter for unified_runtime
-"""
-
-
 def generate_adapters(path, section, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates adapter for unified_runtime
+    """
     dstpath = os.path.join(path, "adapters")
     os.makedirs(dstpath, exist_ok=True)
 
@@ -558,13 +474,11 @@ def generate_adapters(path, section, namespace, tags, version, specs, meta):
     print("Generated %s lines of code.\n" % loc)
 
 
-"""
-Entry-point:
-    generates layers for unified_runtime adapter
-"""
-
-
 def generate_layers(path, section, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates layers for unified_runtime adapter
+    """
     print("GL section %s\n" % section)
     print("GL namespace %s\n" % namespace)
     layer_dstpath = os.path.join(path, "loader", "layers")
@@ -583,13 +497,11 @@ def generate_layers(path, section, namespace, tags, version, specs, meta):
     print("TRACING Generated %s lines of code.\n" % loc)
 
 
-"""
-Entry-point:
-    generates common utilities for unified_runtime
-"""
-
-
 def generate_common(path, section, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates common utilities for unified_runtime
+    """
     template = "stype_map_helpers.hpp.mako"
     fin = os.path.join("templates", template)
 
@@ -606,13 +518,11 @@ def generate_common(path, section, namespace, tags, version, specs, meta):
     print("COMMON Generated %s lines of code.\n" % loc)
 
 
-"""
-Entry-point:
-    generates tools for unified_runtime
-"""
-
-
 def generate_tools(path, section, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates tools for unified_runtime
+    """
     loc = 0
 
     infodir = os.path.join(path, f"{namespace}info")
@@ -622,13 +532,11 @@ def generate_tools(path, section, namespace, tags, version, specs, meta):
     print("TOOLS Generated %s lines of code.\n" % loc)
 
 
-"""
-Entry-point:
-    generates API functions that accept queue for level_zero
-"""
-
-
 def generate_level_zero_queue_api(path, section, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates API functions that accept queue for level_zero
+    """
     template = "queue_api.cpp.mako"
     fin = os.path.join("templates", template)
 
@@ -672,14 +580,12 @@ def generate_level_zero_queue_api(path, section, namespace, tags, version, specs
     print("QUEUE Generated %s lines of code.\n" % loc)
 
 
-"""
-Entry-point:
-    generates headers used by the CTS, for example containing meta-information
-    about info query enums
-"""
-
-
 def generate_cts_headers(path, section, namespace, tags, version, specs, meta):
+    """
+    Entry-point:
+        generates headers used by the CTS, for example containing meta-information
+        about info query enums
+    """
     template = "optional_queries.h.mako"
     fin = os.path.join("templates", template)
     name = "optional_queries"

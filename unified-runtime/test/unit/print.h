@@ -69,7 +69,7 @@ struct UrPlatformGet {
 struct UrPlatformGetEmptyArray : UrPlatformGet {
   UrPlatformGetEmptyArray() : UrPlatformGet() {}
   const char *get_expected() {
-    return ".phAdapters = nullptr, .NumAdapters = 0, .NumEntries = 0, "
+    return ".hAdapter = nullptr, .NumEntries = 0, "
            ".phPlatforms = nullptr, .pNumPlatforms = "
            "nullptr";
   };
@@ -86,7 +86,7 @@ struct UrPlatformGetTwoPlatforms : UrPlatformGet {
     pNumPlatforms = &num_platforms;
   }
   const char *get_expected() {
-    return ".phAdapters = nullptr, .NumAdapters = 0, .NumEntries = 2, "
+    return ".hAdapter = nullptr, .NumEntries = 2, "
            ".phPlatforms = .+ \\{.+, .+\\}, "
            ".pNumPlatforms = .+ \\(2\\)";
   };

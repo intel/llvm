@@ -25,7 +25,10 @@ on:
         description: 'Artifacts retention period'
         type: string
         default: 3
-      compiler:
+      e2e_binaries_artifact:
+        type: string
+        required: false
+      cxx:
         type: string
         required: false
         default: "cl"
@@ -64,7 +67,7 @@ on:
         type: choice
         options:
           - 3
-      compiler:
+      cxx:
         type: choice
         options:
           - cl
@@ -86,9 +89,8 @@ jobs:
     - name:  Detect hung tests
       if: always()
       shell: powershell
-      continue-on-error: true
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
@@ -102,7 +104,7 @@ jobs:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -130,8 +132,8 @@ jobs:
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
           --ci-defaults %ARGS% ^
-          "-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
-          "-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
+          "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
+          "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
@@ -227,11 +229,28 @@ jobs:
         name: sycl_windows_default
         path: ${{ inputs.artifact_archive_name }}
         retention-days: ${{ inputs.retention-days }}
+
+    - name: Setup SYCL toolchain
+      run: |
+        echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Build E2E tests
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/windows/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        extra_lit_opts: --param sycl_build_targets="spir"
+        cxx: ${{ inputs.cxx }}
+
     - name:  Detect hung tests
       if: always()
       shell: powershell
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"      
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"

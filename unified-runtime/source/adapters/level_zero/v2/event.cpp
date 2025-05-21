@@ -60,6 +60,21 @@ uint64_t event_profiling_data_t::getEventEndTimestamp() {
   return adjustedEventEndTimestamp;
 }
 
+void event_profiling_data_t::reset() {
+  // This ensures that the event is consider as not timestamped.
+  // We can't touch the recordEventEndTimestamp
+  // as it may still be overwritten by the driver.
+  // In case event is resued and recordStartTimestamp
+  // is called again, adjustedEventEndTimestamp will always be updated correctly
+  // to the new value as we wait for the event to be signaled.
+  // If the event is reused on another queue, this means that the original
+  // queue must have been destroyed (and the even pool released back to the
+  // context) and the timstamp is already wrriten, so there's no race-condition
+  // possible.
+  adjustedEventStartTimestamp = 0;
+  adjustedEventEndTimestamp = 0;
+}
+
 void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
   zeTimerResolution = hDevice->ZeDeviceProperties->timerResolution;
   timestampMaxValue = hDevice->getTimestampMask();
@@ -98,16 +113,22 @@ void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
                                               ur_command_t commandType) {
   this->hQueue = hQueue;
   this->commandType = commandType;
-  profilingData = event_profiling_data_t(getZeEvent());
+
+  if (hQueue) {
+    UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
+                                        reinterpret_cast<void *>(&hDevice),
+                                        nullptr));
+  } else {
+    hDevice = nullptr;
+  }
+
+  profilingData.reset();
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {
-  assert(hQueue); // queue must be set before calling this
-
-  ur_device_handle_t hDevice;
-  UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
-                                      reinterpret_cast<void *>(&hDevice),
-                                      nullptr));
+  // queue and device must be set before calling this
+  assert(hQueue);
+  assert(hDevice);
 
   profilingData.recordStartTimestamp(hDevice);
 }
@@ -141,33 +162,17 @@ ur_result_t ur_event_handle_t_::retain() {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_event_handle_t_::releaseDeferred() {
-  assert(zeEventQueryStatus(getZeEvent()) == ZE_RESULT_SUCCESS);
-  assert(RefCount.load() == 0);
-
-  return this->forceRelease();
-}
-
 ur_result_t ur_event_handle_t_::release() {
   if (!RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
-  // Need to take a lock before checking if the event is timestamped.
-  std::unique_lock<ur_shared_mutex> lock(Mutex);
-
-  if (isTimestamped() && !getEventEndTimestamp()) {
-    // L0 will write end timestamp to this event some time in the future,
-    // so we can't release it yet.
-    assert(hQueue);
-    hQueue->deferEventFree(this);
-    return UR_RESULT_SUCCESS;
+  if (event_pool) {
+    event_pool->free(this);
+  } else {
+    std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
+    delete this;
   }
-
-  // Need to unlock now, as forceRelease might deallocate memory backing
-  // the Mutex.
-  lock.unlock();
-
-  return this->forceRelease();
+  return UR_RESULT_SUCCESS;
 }
 
 bool ur_event_handle_t_::isTimestamped() const {
@@ -189,6 +194,8 @@ ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 
 ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
 
+ur_device_handle_t ur_event_handle_t_::getDevice() const { return hDevice; }
+
 ur_event_handle_t_::ur_event_handle_t_(
     ur_context_handle_t hContext,
     v2::raii::cache_borrowed_event eventAllocation, v2::event_pool *pool)
@@ -208,16 +215,6 @@ ur_event_handle_t_::ur_event_handle_t_(
                                                zeEventGetPool */
           ,
           nullptr) {}
-
-ur_result_t ur_event_handle_t_::forceRelease() {
-  if (event_pool) {
-    event_pool->free(this);
-  } else {
-    std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
-    delete this;
-  }
-  return UR_RESULT_SUCCESS;
-}
 
 namespace ur::level_zero {
 ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
@@ -262,7 +259,9 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     return returnValue(hEvent->RefCount.load());
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
-    return returnValue(hEvent->getQueue());
+    auto urQueueHandle = reinterpret_cast<uintptr_t>(hEvent->getQueue()) -
+                         ur_queue_handle_t_::queue_offset;
+    return returnValue(urQueueHandle);
   }
   case UR_EVENT_INFO_CONTEXT: {
     return returnValue(hEvent->getContext());
@@ -271,9 +270,8 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     return returnValue(hEvent->getCommandType());
   }
   default:
-    logger::error(
-        "Unsupported ParamName in urEventGetInfo: ParamName=ParamName={}(0x{})",
-        propName, logger::toHex(propName));
+    UR_LOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
+           propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -318,23 +316,18 @@ ur_result_t urEventGetProfilingInfo(
       return returnValue(hEvent->getEventEndTimestamp());
     }
     default:
-      logger::error("urEventGetProfilingInfo: not supported ParamName");
+      UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
 
-  auto hQueue = hEvent->getQueue();
-  if (!hQueue) {
+  auto hDevice = hEvent->getDevice();
+  if (!hDevice) {
     // no command has been enqueued with this event yet
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
   ze_kernel_timestamp_result_t tsResult;
-
-  ur_device_handle_t hDevice;
-  UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
-                                      reinterpret_cast<void *>(&hDevice),
-                                      nullptr));
 
   auto zeTimerResolution = hDevice->ZeDeviceProperties->timerResolution;
   auto timestampMaxValue = hDevice->getTimestampMask();
@@ -368,7 +361,7 @@ ur_result_t urEventGetProfilingInfo(
     //
     return returnValue(uint64_t{0});
   default:
-    logger::error("urEventGetProfilingInfo: not supported ParamName");
+    UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 

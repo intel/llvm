@@ -13,6 +13,7 @@
 #include "CodeGenTypes.h"
 #include "CGCXXABI.h"
 #include "CGCall.h"
+#include "CGDebugInfo.h"
 #include "CGHLSLRuntime.h"
 #include "CGOpenCLRuntime.h"
 #include "CGRecordLayout.h"
@@ -57,7 +58,7 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
   OS << RD->getKindName() << '.';
 
   // FIXME: We probably want to make more tweaks to the printing policy. For
-  // example, we should probably enable PrintCanonicalTypes and
+  // example, we should probably enable PrintAsCanonical and
   // FullyQualifiedNames.
   PrintingPolicy Policy = RD->getASTContext().getPrintingPolicy();
   Policy.SuppressInlineNamespace =
@@ -809,7 +810,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   case Type::MemberPointer: {
     auto *MPTy = cast<MemberPointerType>(Ty);
     if (!getCXXABI().isMemberPointerConvertible(MPTy)) {
-      auto *C = MPTy->getClass();
+      auto *C = MPTy->getMostRecentCXXRecordDecl()->getTypeForDecl();
       auto Insertion = RecordsWithOpaqueMemberPointers.insert({C, nullptr});
       if (Insertion.second)
         Insertion.first->second = llvm::StructType::create(getLLVMContext());
@@ -931,12 +932,14 @@ CodeGenTypes::getCGRecordLayout(const RecordDecl *RD) {
 }
 
 bool CodeGenTypes::isPointerZeroInitializable(QualType T) {
-  assert((T->isAnyPointerType() || T->isBlockPointerType()) && "Invalid type");
+  assert((T->isAnyPointerType() || T->isBlockPointerType() ||
+          T->isNullPtrType()) &&
+         "Invalid type");
   return isZeroInitializable(T);
 }
 
 bool CodeGenTypes::isZeroInitializable(QualType T) {
-  if (T->getAs<PointerType>())
+  if (T->getAs<PointerType>() || T->isNullPtrType())
     return Context.getTargetNullPointerValue(T) == 0;
 
   if (const auto *AT = Context.getAsArrayType(T)) {

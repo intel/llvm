@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "atomic.hpp"
+#include "group_utils.hpp"
 #include "spir_global_var.hpp"
 #include <cstdint>
 

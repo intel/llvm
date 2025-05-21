@@ -28,7 +28,9 @@ size_t imageElementByteSize(hipArray_Format ArrayFormat) {
   case HIP_AD_FORMAT_FLOAT:
     return 4;
   default:
-    die("Invalid HIP format specifier");
+    setErrorMessage("Invalid HIP format specifier",
+                    UR_RESULT_ERROR_INVALID_VALUE);
+    throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
   return 0;
 }
@@ -59,30 +61,25 @@ checkSupportedImageChannelType(ur_image_channel_type_t ImageChannelType) {
 /// If this is zero, calls the relevant HIP Free function
 /// \return UR_RESULT_SUCCESS unless deallocation error
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
-
     // Do nothing if there are other references
     if (hMem->decrementReferenceCount() > 0) {
       return UR_RESULT_SUCCESS;
     }
 
     // Call destructor
-    std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
-
+    delete hMem;
   } catch (ur_result_t Err) {
-    Result = Err;
-  } catch (...) {
-    Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
-  }
-
-  if (Result != UR_RESULT_SUCCESS) {
     // A reported HIP error is either an implementation or an asynchronous HIP
     // error for which it is unclear if the function that reported it succeeded
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
-    die("Unrecoverable program state reached in urMemRelease");
+    setErrorMessage("Error in native free, program state may be "
+                    "compromised.",
+                    UR_RESULT_ERROR_UNKNOWN);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  } catch (...) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
   return UR_RESULT_SUCCESS;
@@ -95,17 +92,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
-  // Validate flags
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-  if (flags &
-      (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) {
-    UR_ASSERT(pProperties && pProperties->pHost,
-              UR_RESULT_ERROR_INVALID_HOST_PTR);
-  }
-  // Need input memory object
-  UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
-
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.
@@ -166,11 +152,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing HIP allocation.
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
-    ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
-    ur_buffer_create_type_t bufferCreateType, const ur_buffer_region_t *pRegion,
-    ur_mem_handle_t *phMem) {
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
+    ur_mem_handle_t hBuffer, ur_mem_flags_t flags, ur_buffer_create_type_t,
+    const ur_buffer_region_t *pRegion, ur_mem_handle_t *phMem) {
   UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(!hBuffer->isSubBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -192,11 +175,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
               UR_RESULT_ERROR_INVALID_VALUE);
   }
 
-  UR_ASSERT(bufferCreateType == UR_BUFFER_CREATE_TYPE_REGION,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-
-  UR_ASSERT(pRegion->size != 0u, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
-
   auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
   UR_ASSERT(((pRegion->origin + pRegion->size) <= BufferImpl.getSize()),
             UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
@@ -204,8 +182,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     BufferImpl.getPtr(Device); // This is allocating a dev ptr behind the scenes
                                // which is necessary before SubBuffer partition
   }
-
-  ReleaseGuard<ur_mem_handle_t> ReleaseGuard(hBuffer);
 
   std::unique_ptr<ur_mem_handle_t_> RetMemObj{nullptr};
   try {
@@ -222,7 +198,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  ReleaseGuard.dismiss();
   *phMem = RetMemObj.release();
   return UR_RESULT_SUCCESS;
 }
@@ -351,15 +326,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     void *pHost, ur_mem_handle_t *phMem) {
-
-  // Need input memory object
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-  if (flags &
-      (UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER | UR_MEM_FLAG_USE_HOST_POINTER)) {
-    UR_ASSERT(pHost, UR_RESULT_ERROR_INVALID_HOST_PTR);
-  }
-
   const bool PerformInitialCopy =
       (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) ||
       ((flags & UR_MEM_FLAG_USE_HOST_POINTER));
@@ -439,9 +405,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
         return UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
       case HIP_AD_FORMAT_FLOAT:
         return UR_IMAGE_CHANNEL_TYPE_FLOAT;
-
       default:
-        die("Invalid Hip format specified.");
+        throw UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
       }
     };
 

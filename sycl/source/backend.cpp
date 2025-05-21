@@ -48,19 +48,19 @@ static const AdapterPtr &getAdapter(backend Backend) {
   }
 }
 
-backend convertUrBackend(ur_platform_backend_t UrBackend) {
+backend convertUrBackend(ur_backend_t UrBackend) {
   switch (UrBackend) {
-  case UR_PLATFORM_BACKEND_UNKNOWN:
+  case UR_BACKEND_UNKNOWN:
     return backend::all; // No specific backend
-  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+  case UR_BACKEND_LEVEL_ZERO:
     return backend::ext_oneapi_level_zero;
-  case UR_PLATFORM_BACKEND_OPENCL:
+  case UR_BACKEND_OPENCL:
     return backend::opencl;
-  case UR_PLATFORM_BACKEND_CUDA:
+  case UR_BACKEND_CUDA:
     return backend::ext_oneapi_cuda;
-  case UR_PLATFORM_BACKEND_HIP:
+  case UR_BACKEND_HIP:
     return backend::ext_oneapi_hip;
-  case UR_PLATFORM_BACKEND_NATIVE_CPU:
+  case UR_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
   default:
     throw exception(make_error_code(errc::runtime),
@@ -87,9 +87,11 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
   ur_device_handle_t UrDevice = nullptr;
   Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
       NativeHandle, Adapter->getUrAdapter(), nullptr, &UrDevice);
+
   // Construct the SYCL device from UR device.
   return detail::createSyclObjFromImpl<device>(
-      std::make_shared<device_impl>(UrDevice, Adapter));
+      platform_impl::getPlatformFromUrDevice(UrDevice, Adapter)
+          .getOrMakeDeviceImpl(UrDevice));
 }
 
 __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
@@ -286,10 +288,9 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   std::transform(
       ProgramDevices.begin(), ProgramDevices.end(), std::back_inserter(Devices),
       [&Adapter](const auto &Dev) {
-        auto Platform =
-            detail::platform_impl::getPlatformFromUrDevice(Dev, Adapter);
-        auto DeviceImpl = Platform->getOrMakeDeviceImpl(Dev, Platform);
-        return createSyclObjFromImpl<device>(DeviceImpl);
+        return createSyclObjFromImpl<device>(
+            detail::platform_impl::getPlatformFromUrDevice(Dev, Adapter)
+                .getOrMakeDeviceImpl(Dev));
       });
 
   // Unlike SYCL, other backends, like OpenCL or Level Zero, may not support

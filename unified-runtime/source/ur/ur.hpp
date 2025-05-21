@@ -37,10 +37,10 @@
 #define UR_CALL(Call)                                                          \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
+      UR_LOG(QUIET, "UR <--- {}({})", #Call, getUrResultString(Result));       \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
   }
@@ -49,10 +49,10 @@
 #define UR_CALL_THROWS(Call)                                                   \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
+      UR_LOG(QUIET, "UR <--- {}({})", #Call, getUrResultString(Result));       \
     if (Result != UR_RESULT_SUCCESS)                                           \
       throw Result;                                                            \
   }
@@ -61,10 +61,10 @@
 #define UR_CALL_NOCHECK(Call)                                                  \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
     (void)(Call);                                                              \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call);                                 \
+      UR_LOG(QUIET, "UR <--- {}", #Call);                                      \
   }
 
 static auto getUrResultString = [](ur_result_t Result) {
@@ -123,8 +123,6 @@ static auto getUrResultString = [](ur_result_t Result) {
     return "UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE";
   case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
     return "UR_RESULT_ERROR_INVALID_WORK_DIMENSION";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ARGS";
   case UR_RESULT_ERROR_INVALID_KERNEL:
     return "UR_RESULT_ERROR_INVALID_KERNEL";
   case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
@@ -244,7 +242,7 @@ const ur_command_t UR_EXT_COMMAND_TYPE_USER =
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
-  logger::always("ur_die: {}", Message);
+  UR_LOG(QUIET, "ur_die: {}", Message);
   std::terminate();
 }
 
@@ -371,8 +369,10 @@ template <class T> struct ZeCache : private T {
   T *operator->() { return &get(); }
 };
 
+struct ur_dditable_t;
+
 // TODO: populate with target agnostic handling of UR platforms
-struct _ur_platform {};
+struct ur_platform {};
 
 // Controls tracing UR calls from within the UR itself.
 extern bool PrintTrace;
@@ -380,6 +380,11 @@ extern bool PrintTrace;
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
 namespace ur {
+template <typename getddi> struct handle_base {
+  handle_base() { ddi_table = getddi::value(); };
+  const ur_dditable_t *ddi_table = nullptr;
+};
+
 template <typename T, typename Assign>
 ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
                         size_t *param_value_size_ret, T value,
@@ -408,8 +413,7 @@ template <typename T>
 ur_result_t getInfo(size_t param_value_size, void *param_value,
                     size_t *param_value_size_ret, T value) {
 
-  auto assignment = [](void *param_value, T value, size_t value_size) {
-    std::ignore = value_size;
+  auto assignment = [](void *param_value, T value, size_t /*value_size*/) {
     *static_cast<T *>(param_value) = value;
   };
 

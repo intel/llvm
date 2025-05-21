@@ -1,4 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_msan_flags -O0 -g -o %t1.out
+// RUN: %{run} not %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -O1 -g -o %t2.out
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
@@ -6,9 +8,6 @@
 
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
-
-// XFAIL: linux && cpu && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17959
 
 #include "sycl/detail/core.hpp"
 #include <sycl/vector.hpp>

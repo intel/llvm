@@ -236,7 +236,7 @@ template <typename... Ts>
 void cannot_be_called_on_host([[maybe_unused]] const char *API,
                               Ts &&.../* ignore */) {
 #ifndef __SYCL_DEVICE_ONLY__
-  std::fprintf(stderr, "%s cannot be called on host!\n", API);
+  std::cerr << API << " cannot be called on host!" << std::endl;
   std::abort();
 #endif
 }

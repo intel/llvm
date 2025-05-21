@@ -108,15 +108,15 @@ public:
     setNDRangeLeftover();
   }
 
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
-
   NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
            sycl::id<3> Offset, int DimsArg)
       : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
         Dims{size_t(DimsArg)} {
     setNDRangeLeftover();
   }
+
+  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
+      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange, int DimsArg)
@@ -256,7 +256,8 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  std::string MKernelName;
+  KernelNameStrT MKernelName;
+  KernelNameBasedCacheT *MKernelNameBasedCachePtr;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -271,7 +272,8 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName,
+               KernelNameStrT KernelName,
+               KernelNameBasedCacheT *KernelNameBasedCachePtr,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -281,7 +283,9 @@ public:
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
+        MKernelName(std::move(KernelName)),
+        MKernelNameBasedCachePtr(KernelNameBasedCachePtr),
+        MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),
@@ -293,7 +297,7 @@ public:
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
   const std::vector<ArgDesc> &getArguments() const { return MArgs; }
-  const std::string &getKernelName() const { return MKernelName; }
+  KernelNameStrRefT getKernelName() const { return MKernelName; }
   const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }

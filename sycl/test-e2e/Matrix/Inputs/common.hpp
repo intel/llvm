@@ -261,3 +261,9 @@ template <typename T, layout Layout> constexpr int vnni_factor() {
   static_assert(sizeof(T) <= 4 && "Unsupported type in vnni_factor().");
   return 4 / sizeof(T);
 }
+
+inline float gelu(float val) {
+  return val *
+         (0.5f + 0.5f * sycl::tanh(val * (0.7978845608028654f +
+                                          0.035677408136300125f * val * val)));
+}

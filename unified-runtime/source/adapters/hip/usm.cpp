@@ -19,8 +19,13 @@
 #include "usm.hpp"
 
 namespace umf {
-ur_result_t getProviderNativeError(const char *, int32_t) {
-  // TODO: implement when UMF supports HIP
+ur_result_t getProviderNativeError(const char *providerName,
+                                   int32_t nativeError) {
+  if (strcmp(providerName, "HIP") == 0) {
+    // HIP provider stores native errors of ur_result_t type
+    return static_cast<ur_result_t>(nativeError);
+  }
+
   return UR_RESULT_ERROR_UNKNOWN;
 }
 } // namespace umf
@@ -263,18 +268,14 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
-                                                   void *HostPtr, size_t Size) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t, void *,
+                                                   size_t Size) {
   UR_ASSERT(Size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
-                                                    void *HostPtr) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t,
+                                                    void *) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -347,7 +348,7 @@ ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
-    : Context(Context) {
+    : handle_base(), Context(Context) {
 
   const void *pNext = PoolDesc->pNext;
   while (pNext != nullptr) {
@@ -363,7 +364,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       break;
     }
     default: {
-      throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     }
     pNext = BaseDesc->pNext;
@@ -424,8 +425,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
   try {
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
-  } catch (const UsmAllocationException &Ex) {
-    return Ex.getError();
+  } catch (ur_result_t e) {
+    return e;
   } catch (umf_result_t e) {
     return umf::umf2urResult(e);
   } catch (...) {

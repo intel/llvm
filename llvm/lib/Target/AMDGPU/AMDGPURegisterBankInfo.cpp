@@ -1135,7 +1135,6 @@ bool AMDGPURegisterBankInfo::applyMappingLoad(
   if (LoadSize <= MaxNonSmrdLoadSize)
     return false;
 
-  SmallVector<Register, 16> DefRegs(OpdMapper.getVRegs(0));
   SmallVector<Register, 1> SrcRegs(OpdMapper.getVRegs(1));
 
   if (SrcRegs.empty())
@@ -2630,8 +2629,6 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
     assert(MRI.getRegBankOrNull(DstReg) == &AMDGPU::VGPRRegBank &&
            "The destination operand should be in vector registers.");
 
-    DebugLoc DL = MI.getDebugLoc();
-
     // Extract the lower subregister from the first operand.
     Register Op0L = MRI.createVirtualRegister(&AMDGPU::VGPR_32RegClass);
     MRI.setRegClass(Op0L, &AMDGPU::VGPR_32RegClass);
@@ -3239,10 +3236,16 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
     applyMappingImage(B, MI, OpdMapper, RSrcIntrin->RsrcArg);
     return;
   }
-  case AMDGPU::G_AMDGPU_BVH_INTERSECT_RAY: {
-    unsigned N = MI.getNumExplicitOperands() - 2;
+  case AMDGPU::G_AMDGPU_BVH_INTERSECT_RAY:
+  case AMDGPU::G_AMDGPU_BVH8_INTERSECT_RAY:
+  case AMDGPU::G_AMDGPU_BVH_DUAL_INTERSECT_RAY: {
+    bool IsDualOrBVH8 =
+        MI.getOpcode() == AMDGPU::G_AMDGPU_BVH_DUAL_INTERSECT_RAY ||
+        MI.getOpcode() == AMDGPU::G_AMDGPU_BVH8_INTERSECT_RAY;
+    unsigned NumMods = IsDualOrBVH8 ? 0 : 1; // Has A16 modifier
+    unsigned LastRegOpIdx = MI.getNumExplicitOperands() - 1 - NumMods;
     applyDefaultMapping(OpdMapper);
-    executeInWaterfallLoop(B, MI, {N});
+    executeInWaterfallLoop(B, MI, {LastRegOpIdx});
     return;
   }
   case AMDGPU::G_INTRINSIC_W_SIDE_EFFECTS:
@@ -4579,6 +4582,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_dot4_f32_bf8_bf8:
     case Intrinsic::amdgcn_cvt_f32_fp8:
     case Intrinsic::amdgcn_cvt_f32_bf8:
+    case Intrinsic::amdgcn_cvt_off_f32_i4:
     case Intrinsic::amdgcn_cvt_pk_f32_fp8:
     case Intrinsic::amdgcn_cvt_pk_f32_bf8:
     case Intrinsic::amdgcn_cvt_pk_fp8_f32:
@@ -4694,7 +4698,6 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_set_inactive_chain_arg:
     case Intrinsic::amdgcn_permlane64:
     case Intrinsic::amdgcn_ds_bpermute_fi_b32:
-    case Intrinsic::amdgcn_dead:
       return getDefaultMappingAllVGPR(MI);
     case Intrinsic::amdgcn_cvt_pkrtz:
       if (Subtarget.hasSALUFloatInsts() && isSALUMapping(MI))
@@ -5032,11 +5035,27 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     assert(RSrcIntrin->IsImage);
     return getImageMapping(MRI, MI, RSrcIntrin->RsrcArg);
   }
-  case AMDGPU::G_AMDGPU_BVH_INTERSECT_RAY: {
-    unsigned N = MI.getNumExplicitOperands() - 2;
-    OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, 128);
-    OpdsMapping[N] = getSGPROpMapping(MI.getOperand(N).getReg(), MRI, *TRI);
-    if (N == 3) {
+  case AMDGPU::G_AMDGPU_BVH_INTERSECT_RAY:
+  case AMDGPU::G_AMDGPU_BVH8_INTERSECT_RAY:
+  case AMDGPU::G_AMDGPU_BVH_DUAL_INTERSECT_RAY: {
+    bool IsDualOrBVH8 =
+        MI.getOpcode() == AMDGPU::G_AMDGPU_BVH_DUAL_INTERSECT_RAY ||
+        MI.getOpcode() == AMDGPU::G_AMDGPU_BVH8_INTERSECT_RAY;
+    unsigned NumMods = IsDualOrBVH8 ? 0 : 1; // Has A16 modifier
+    unsigned LastRegOpIdx = MI.getNumExplicitOperands() - 1 - NumMods;
+    unsigned DstSize = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
+    OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, DstSize);
+    if (IsDualOrBVH8) {
+      OpdsMapping[1] = AMDGPU::getValueMapping(
+          AMDGPU::VGPRRegBankID,
+          MRI.getType(MI.getOperand(1).getReg()).getSizeInBits());
+      OpdsMapping[2] = AMDGPU::getValueMapping(
+          AMDGPU::VGPRRegBankID,
+          MRI.getType(MI.getOperand(2).getReg()).getSizeInBits());
+    }
+    OpdsMapping[LastRegOpIdx] =
+        getSGPROpMapping(MI.getOperand(LastRegOpIdx).getReg(), MRI, *TRI);
+    if (LastRegOpIdx == 3) {
       // Sequential form: all operands combined into VGPR256/VGPR512
       unsigned Size = MRI.getType(MI.getOperand(2).getReg()).getSizeInBits();
       if (Size > 256)
@@ -5044,7 +5063,8 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, Size);
     } else {
       // NSA form
-      for (unsigned I = 2; I < N; ++I) {
+      unsigned FirstSrcOpIdx = IsDualOrBVH8 ? 4 : 2;
+      for (unsigned I = FirstSrcOpIdx; I < LastRegOpIdx; ++I) {
         unsigned Size = MRI.getType(MI.getOperand(I).getReg()).getSizeInBits();
         OpdsMapping[I] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, Size);
       }

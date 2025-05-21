@@ -16,6 +16,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -29,7 +30,6 @@
 namespace llvm {
 
 class Function;
-class Module;
 
 namespace cl {
 class OptionCategory;
@@ -40,8 +40,6 @@ namespace module_split {
 constexpr char SYCL_ESIMD_SPLIT_MD_NAME[] = "sycl-esimd-split-status";
 constexpr std::array<const char *, 2> SYCLDeviceLibs = {
     "libsycl-fallback-bfloat16.bc", "libsycl-native-bfloat16.bc"};
-
-extern cl::OptionCategory &getModuleSplitCategory();
 
 enum IRSplitMode {
   SPLIT_PER_TU,     // one module per translation unit
@@ -221,7 +219,7 @@ public:
   void restoreLinkageOfDirectInvokeSimdTargets();
 
   // Cleans up module IR - removes dead globals, debug info etc.
-  void cleanup();
+  void cleanup(bool AllowDeviceImageDependencies);
 
   bool isSpecConstantDefault() const;
   void setSpecConstantDefault(bool Value);
@@ -252,6 +250,7 @@ class ModuleSplitterBase {
 protected:
   ModuleDesc Input;
   EntryPointGroupVec Groups;
+  bool AllowDeviceImageDependencies;
 
 protected:
   EntryPointGroup nextGroup() {
@@ -268,8 +267,10 @@ protected:
   }
 
 public:
-  ModuleSplitterBase(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
-      : Input(std::move(MD)), Groups(std::move(GroupVec)) {
+  ModuleSplitterBase(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
+                     bool AllowDeviceImageDependencies)
+      : Input(std::move(MD)), Groups(std::move(GroupVec)),
+        AllowDeviceImageDependencies(AllowDeviceImageDependencies) {
     assert(!Groups.empty() && "Entry points groups collection is empty!");
   }
 
@@ -294,11 +295,13 @@ public:
 };
 
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints);
+                                        bool EmitOnlyKernelsAsEntryPoints,
+                                        bool AllowDeviceImageDependencies);
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints);
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool AllowDeviceImageDependencies);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
@@ -327,6 +330,7 @@ struct ModuleSplitterSettings {
   IRSplitMode Mode;
   bool OutputAssembly = false; // Bitcode or LLVM IR.
   StringRef OutputPrefix;
+  bool AllowDeviceImageDependencies = false;
 };
 
 /// Parses the output table file from sycl-post-link tool.
@@ -342,7 +346,8 @@ Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
 bool isESIMDFunction(const Function &F);
-bool canBeImportedFunction(const Function &F);
+bool canBeImportedFunction(const Function &F,
+                           bool AllowDeviceImageDependencies);
 
 } // namespace module_split
 

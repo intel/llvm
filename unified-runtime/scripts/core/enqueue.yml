@@ -19,6 +19,8 @@ name: KernelLaunch
 ordinal: "0"
 analogue:
     - "**clEnqueueNDRangeKernel**"
+details:
+    - "Providing invalid kernel arguments is Undefined Behavior."
 params:
     - type: $x_queue_handle_t
       name: hQueue
@@ -65,8 +67,6 @@ returns:
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
     - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGS
-        - "The kernel argument values have not been specified."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -328,7 +328,7 @@ returns:
         - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
-        - "`region.width == 0 || region.height == 0 || region.width == 0`"
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
         - "`bufferRowPitch != 0 && bufferRowPitch < region.width`"
         - "`hostRowPitch != 0 && hostRowPitch < region.width`"
         - "`bufferSlicePitch != 0 && bufferSlicePitch < region.height * (bufferRowPitch != 0 ? bufferRowPitch : region.width)`"
@@ -406,7 +406,7 @@ returns:
         - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
-        - "`region.width == 0 || region.height == 0 || region.width == 0`"
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
         - "`bufferRowPitch != 0 && bufferRowPitch < region.width`"
         - "`hostRowPitch != 0 && hostRowPitch < region.width`"
         - "`bufferSlicePitch != 0 && bufferSlicePitch < region.height * (bufferRowPitch != 0 ? bufferRowPitch : region.width)`"

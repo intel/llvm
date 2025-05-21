@@ -17,7 +17,7 @@
 #include "event_pool_cache.hpp"
 #include "usm.hpp"
 
-struct ur_context_handle_t_ : _ur_object {
+struct ur_context_handle_t_ : ur_object {
   ur_context_handle_t_(ze_context_handle_t hContext, uint32_t numDevices,
                        const ur_device_handle_t *phDevices, bool ownZeContext);
 

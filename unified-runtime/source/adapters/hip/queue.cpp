@@ -81,7 +81,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                : false;
 
     QueueImpl = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        {IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority}});
+        {}, {IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority}});
 
     *phQueue = QueueImpl.release();
 
@@ -231,12 +231,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   UR_CHECK_ERROR(hipStreamGetFlags(HIPStream, &HIPFlags));
 
   ur_queue_flags_t Flags = 0;
-  if (HIPFlags == hipStreamDefault)
+  if (HIPFlags == hipStreamDefault) {
     Flags = UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
-  else if (HIPFlags == hipStreamNonBlocking)
+  } else if (HIPFlags == hipStreamNonBlocking) {
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
-  else
-    die("Unknown hip stream");
+  } else {
+    setErrorMessage("Incorrect native stream flags, expecting "
+                    "hipStreamDefault or hipStreamNonBlocking",
+                    UR_RESULT_ERROR_INVALID_VALUE);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
 
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
@@ -244,7 +248,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   // Create queue and set num_compute_streams to 1, as computeHIPStreams has
   // valid stream
   *phQueue = new ur_queue_handle_t_{
-      {HIPStream, hContext, hDevice, HIPFlags, Flags, isNativeHandleOwned}};
+      {}, {HIPStream, hContext, hDevice, HIPFlags, Flags, isNativeHandleOwned}};
 
   return UR_RESULT_SUCCESS;
 }

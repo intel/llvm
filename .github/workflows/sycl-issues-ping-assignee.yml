@@ -18,6 +18,7 @@ permissions: read-all
 
 jobs:
   run:
+    if: github.repository == 'intel/llvm'
     permissions:
       issues: write 
     runs-on: ubuntu-latest

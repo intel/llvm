@@ -8,8 +8,6 @@
 // UNSUPPORTED: target-nvidia, target-amd
 // UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
 // other triples
-// XFAIL: run-mode
-// XFAIL-TRACKER: CMPLRLLVM-66371
 
 // REQUIRES: aspect-ext_intel_matrix
 
@@ -22,8 +20,6 @@
 // test.
 // XFAIL: gpu-intel-dg2 && run-mode
 // XFAIL-TRACKER: GSD-10510
-// XFAIL: arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16922
 
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

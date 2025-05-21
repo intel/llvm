@@ -38,6 +38,7 @@ config.sycl_build_targets = set("target-" + t for t in lit_config.params.get(
 config.amd_arch = lit_config.params.get("amd_arch", "@AMD_ARCH@")
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
+config.extra_system_environment = lit_config.params.get("extra_system_environment", "@LIT_EXTRA_SYSTEM_ENVIRONMENT@")
 config.cxx_flags = lit_config.params.get("cxx_flags", "@SYCL_E2E_CLANG_CXX_FLAGS@")
 config.c_flags = "@CMAKE_C_FLAGS@"
 config.external_tests = "@SYCL_EXTERNAL_TESTS@"

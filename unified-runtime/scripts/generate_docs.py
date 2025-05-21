@@ -1,11 +1,8 @@
-"""
-Copyright (C) 2022-2024 Intel Corporation
-
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-"""
+# Copyright (C) 2022-2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
 import subprocess
@@ -32,12 +29,8 @@ RE_VERSION_BEGIN = r"\%if\s+(ver\s+[\<\=\>]+\s+[-+]?\d*\.\d+|\d+).*"
 RE_VERSION_END = r"\%endif\s+#\s+.*"
 
 
-"""
-    determines if the symbol is known
-"""
-
-
 def _find_symbol_type(name, meta):
+    """determines if the symbol is known"""
     for group in meta:
         if name in meta[group]:
             return group
@@ -50,18 +43,9 @@ def _find_symbol_type(name, meta):
     return None
 
 
-"""
-    fix up tag for template (e.g. $x to ${x})
-"""
-
-
 def _fixup_tag(name):
+    """fix up tag for template (e.g. $x to ${x})"""
     return re.sub(r"\$(?P<tag>\w)", r"${\g<tag>}", name)
-
-
-"""
-    find the enum type name for a given enumerator
-"""
 
 
 def _find_enum_from_etor(etor, meta):
@@ -72,13 +56,9 @@ def _find_enum_from_etor(etor, meta):
     return None
 
 
-"""
-    make restructedtext reference from symbol.
-"""
-
-
 def _make_ref(symbol, symbol_type, meta):
-    if not re.match(r"function|struct|union|enum|etor", symbol_type):
+    """make restructedtext reference from symbol."""
+    if not re.match(r"function|struct|union|enum|etor|macro", symbol_type):
         return ""
 
     ref = _fixup_tag(symbol)
@@ -100,12 +80,8 @@ def _make_ref(symbol, symbol_type, meta):
     return ref
 
 
-"""
-    generate a valid reStructuredText file
-"""
-
-
 def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta, fast_mode):
+    """generate a valid reStructuredText file"""
     ver = Version(ver)
     enable = True
     code_block = False
@@ -117,7 +93,6 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta, fast_mode):
     outlines = []
     iter = enumerate(util.textRead(fin))
     for iline, line in iter:
-
         if re.match(RE_ENABLE, line) or re.match(RE_PYCODE_BLOCK_END, line):
             enable = True
         elif re.match(RE_DISABLE, line) or re.match(RE_PYCODE_BLOCK_BEGIN, line):
@@ -205,7 +180,7 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta, fast_mode):
                         line = tuple[2]
                     else:
                         # ignore reference links for specific types that have no API documentation for them.
-                        if not re.match(r"env|handle|typedef|macro", symbol_type):
+                        if not re.match(r"env|handle|typedef", symbol_type):
                             print(
                                 "%s(%s) : warning : reference link %s (type=%s) not used."
                                 % (fin, iline + 1, symbol, symbol_type)
@@ -236,13 +211,11 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta, fast_mode):
     )
 
 
-"""
-Entry-point:
-    generate restructuredtext documents from templates
-"""
-
-
 def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta, fast_mode):
+    """
+    Entry-point:
+        generate restructuredtext documents from templates
+    """
     srcpath = os.path.join("./", section)
     dstpath = os.path.join(docpath, "source", section)
 
@@ -275,13 +248,11 @@ def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta, fast_
         )
 
 
-"""
-Entry-point:
-    generate doxygen xml and setup source path.
-"""
-
-
 def generate_common(dstpath, sections, ver, rev):
+    """
+    Entry-point:
+        generate doxygen xml and setup source path.
+    """
     htmlpath = os.path.join(dstpath, "html")
     latexpath = os.path.join(dstpath, "latex")
     xmlpath = os.path.join(dstpath, "xml")
@@ -318,13 +289,11 @@ def generate_common(dstpath, sections, ver, rev):
         raise Exception("Doxygen has unresolved references")
 
 
-"""
-Entry-point:
-    generate HTML files using reStructuredText (rst) and Doxygen template
-"""
-
-
 def generate_html(dstpath):
+    """
+    Entry-point:
+        generate HTML files using reStructuredText (rst) and Doxygen template
+    """
     sourcepath = os.path.join(dstpath, "source")
 
     print("Generating HTML...")
@@ -338,13 +307,11 @@ def generate_html(dstpath):
         raise Exception("Failed to generate html documentation.")
 
 
-"""
-Entry-point:
-    generate PDF file using generated LaTeX files
-"""
-
-
 def generate_pdf(dstpath):
+    """
+    Entry-point:
+        generate PDF file using generated LaTeX files
+    """
     sourcepath = os.path.join(dstpath, "source")
 
     print("Generating PDF...")
@@ -359,13 +326,11 @@ def generate_pdf(dstpath):
         raise Exception("Failed to generate pdf documentation.")
 
 
-"""
-Entry-point:
-    prepare doc folder for documentation.
-"""
-
-
 def prepare(docpath, gen_rst, gen_html, ver):
+    """
+    Entry-point:
+        prepare doc folder for documentation.
+    """
     if gen_html:
         htmlpath = os.path.join(docpath, "html")
         if util.exists(htmlpath):

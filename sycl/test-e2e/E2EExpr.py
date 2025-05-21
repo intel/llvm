@@ -44,6 +44,7 @@ class E2EExpr(BooleanExpression):
         "llvm-link",
         "true",
         "false",
+        "pdtracker",
     }
 
     def __init__(self, string, variables, build_only_mode, final_unknown_value):

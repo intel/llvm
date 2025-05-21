@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 function(add_adapter_tests adapter)
-    if(NOT UR_DPCXX)
+    if(NOT UR_FOUND_DPCXX)
         # Tests that require kernels can't be used if we aren't generating
         # device binaries
         message(WARNING

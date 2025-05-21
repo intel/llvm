@@ -231,12 +231,13 @@ public:
   ur_program_handle_t getProgramRef() const { return MProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
-  std::mutex &getNoncacheableEnqueueMutex() {
+  std::mutex &getNoncacheableEnqueueMutex() const {
     return MNoncacheableEnqueueMutex;
   }
 
   const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
   std::mutex *getCacheMutex() const { return MCacheMutex; }
+  std::string_view getName() const;
 
 private:
   ur_kernel_handle_t MKernel = nullptr;
@@ -246,9 +247,10 @@ private:
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
-  std::mutex MNoncacheableEnqueueMutex;
+  mutable std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
+  mutable std::string MName;
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;

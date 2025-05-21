@@ -332,7 +332,7 @@ private:
         *AST, AST->getTranslationUnitDecl(), SourceLocation{},
         DeclarationNameInfo(), VoidFuncType,
         AST->getTrivialTypeSourceInfo(AST->VoidTy), SC_None, false, false,
-        false, ConstexprSpecKind::Unspecified, nullptr);
+        false, ConstexprSpecKind::Unspecified,/*TrailingRequiresClause=*/{});
     FD->setImplicitlyInline(false);
 
     // Set the name.
@@ -378,7 +378,7 @@ private:
         *AST, AST->getTranslationUnitDecl(), SourceLocation{},
         DeclarationNameInfo(), VoidFuncType,
         AST->getTrivialTypeSourceInfo(AST->VoidTy), SC_None, false, false,
-        false, ConstexprSpecKind::Unspecified, nullptr);
+        false, ConstexprSpecKind::Unspecified,/*TrailingRequiresClause=*/{});
     FDSpecialization->setImplicitlyInline(false);
 
     FDSpecialization->setDeclName(&AST->Idents.get(KernelName));
@@ -607,8 +607,7 @@ private:
         RD = RecordDecl::Create(*AST, TagTypeKind::Struct, SpvNamespace, SL, SL, II);
         auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
         auto RecordQT = AST->getRecordType(RD);
-        NNS = NestedNameSpecifier::Create(*AST, NNS, false,
-                                          RecordQT.getTypePtr());
+        NNS = NestedNameSpecifier::Create(*AST, NNS, RecordQT.getTypePtr());
         auto &EnumName =
             AST->Idents.get(Res.getBaseTypeIdentifier()->getName());
         // We need to recreate the enum, now that we have access to all the
@@ -757,6 +756,8 @@ public:
       CloneTypeReplacements["char"] = "unsigned char";
     }
 
+    ParameterTypeReplacements["half"] = "_Float16";
+
     createRemangledTypeReplacements();
   }
 
@@ -836,6 +837,13 @@ private:
       CloneeName = OriginalName;
     }
 
+    // If the clone name already exists in the module then we have to assume it
+    // does the right thing already. We're only going to end up creating a copy
+    // of that function without external users being able to reach it.
+    if (M->getFunction(CloneName)) {
+      return true;
+    }
+
     if (Function *Clonee = M->getFunction(CloneeName)) {
       ValueToValueMapTy Dummy;
       Function *NewF = CloneFunction(Clonee, Dummy);
@@ -882,6 +890,15 @@ private:
         errs() << "Test run failure!\n";
         return false;
       }
+
+      // If the remangled name already exists in the module then we have to
+      // assume it does the right thing already. We're only going to end up
+      // creating a copy of that function without external users being able to
+      // reach it.
+      if (M->getFunction(RemangledName)) {
+        return true;
+      }
+
       Func.setName(RemangledName);
 
       // Make a clone of a suitable function using the old name if there is a
