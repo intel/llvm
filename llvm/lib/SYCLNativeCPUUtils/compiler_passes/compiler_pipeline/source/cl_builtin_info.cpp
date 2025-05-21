@@ -406,21 +406,6 @@ enum CLBuiltinID : compiler::utils::BuiltinID {
   /// @brief OpenCL builtin 'sub_group_scan_exclusive_logical_xor'.
   eCLBuiltinSubgroupScanLogicalXorExclusive,
 
-  // GLSL builtin functions
-  eCLBuiltinCodeplayFindLSB,
-  eCLBuiltinCodeplayFindMSB,
-  eCLBuiltinCodeplayBitReverse,
-  eCLBuiltinCodeplayFaceForward,
-  eCLBuiltinCodeplayReflect,
-  eCLBuiltinCodeplayRefract,
-  eCLBuiltinCodeplayPackNormalizeChar4,
-  eCLBuiltinCodeplayPackNormalizeUchar4,
-  eCLBuiltinCodeplayPackNormalizeShort2,
-  eCLBuiltinCodeplayPackNormalizeUshort2,
-  eCLBuiltinCodeplayPackHalf2,
-  eCLBuiltinCodeplayUnpackNormalize,
-  eCLBuiltinCodeplayUnpackHalf2,
-
   // 6.12.7 Vector Data Load and Store Functions
   eCLBuiltinVLoad,
   eCLBuiltinVLoadHalf,
@@ -783,21 +768,6 @@ static constexpr CLBuiltinEntry Builtins[] = {
     {eCLBuiltinSubgroupScanLogicalXorExclusive,
      "sub_group_scan_exclusive_logical_xor", OpenCLC30},
 
-    // GLSL builtin functions
-    {eCLBuiltinCodeplayFaceForward, "codeplay_face_forward"},
-    {eCLBuiltinCodeplayReflect, "codeplay_reflect"},
-    {eCLBuiltinCodeplayRefract, "codeplay_refract"},
-    {eCLBuiltinCodeplayFindLSB, "codeplay_pack_find_lsb"},
-    {eCLBuiltinCodeplayFindMSB, "codeplay_pack_find_msb"},
-    {eCLBuiltinCodeplayBitReverse, "codeplay_pack_bit_reverse"},
-    {eCLBuiltinCodeplayPackNormalizeChar4, "codeplay_pack_normalize_char4"},
-    {eCLBuiltinCodeplayPackNormalizeUchar4, "codeplay_pack_normalize_uchar4"},
-    {eCLBuiltinCodeplayPackNormalizeShort2, "codeplay_pack_normalize_short2"},
-    {eCLBuiltinCodeplayPackNormalizeUshort2, "codeplay_pack_normalize_ushort2"},
-    {eCLBuiltinCodeplayPackHalf2, "codeplay_pack_half2"},
-    {eCLBuiltinCodeplayUnpackNormalize, "codeplay_unpack_normalize"},
-    {eCLBuiltinCodeplayUnpackHalf2, "codeplay_unpack_half2"},
-
     {eBuiltinUnknown, nullptr}};
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1133,12 +1103,6 @@ std::optional<Builtin> CLBuiltinInfo::analyzeBuiltin(
     case eCLBuiltinAddSat:
     case eCLBuiltinSubSat:
       Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinCodeplayFaceForward:
-    case eCLBuiltinCodeplayReflect:
-    case eCLBuiltinCodeplayRefract:
-      Properties |= eBuiltinPropertyReduction;
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
       break;
     case eCLBuiltinConvertChar:
     case eCLBuiltinConvertShort:
