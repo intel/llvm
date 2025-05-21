@@ -1824,28 +1824,26 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
       Kernel->setImplicitOffsetArg(sizeof(ImplicitOffset), ImplicitOffset);
     }
 
-    // Set local mem max size if env var is present
-    static const char *LocalMemSzPtrUR =
-        std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE");
-    static const char *LocalMemSzPtrPI =
-        std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE");
-    static const char *LocalMemSzPtr =
-        LocalMemSzPtrUR ? LocalMemSzPtrUR
-                        : (LocalMemSzPtrPI ? LocalMemSzPtrPI : nullptr);
+    uint32_t LocalSize = Kernel->getLocalSize();
+    if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
+      setErrorMessage("Excessive allocation of local memory on the device",
+                      UR_RESULT_ERROR_OUT_OF_RESOURCES);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
 
-    if (LocalMemSzPtr) {
-      int DeviceMaxLocalMem = Device->getDeviceMaxLocalMem();
-      static const int EnvVal = std::atoi(LocalMemSzPtr);
-      if (EnvVal <= 0 || EnvVal > DeviceMaxLocalMem) {
-        setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
-                                          "UR_HIP_MAX_LOCAL_MEM_SIZE"
-                                        : "Invalid value specified for "
-                                          "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_OUT_OF_RESOURCES);
+    if (int MaxLocalMem = Device->getMaxChosenLocalMem()) {
+      if (LocalSize > static_cast<uint32_t>(MaxLocalMem)) {
+        setErrorMessage(
+            "Local memory for kernel exceeds the amount requested using "
+            "UR_HIP_MAX_LOCAL_MEM_SIZE (or deprecated "
+            "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE). Try increasing the maximum "
+            "local memory.",
+            UR_RESULT_ERROR_OUT_OF_RESOURCES);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
+
       UR_CHECK_ERROR(hipFuncSetAttribute(
-          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, EnvVal));
+          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, MaxLocalMem));
     }
   } catch (ur_result_t Err) {
     return Err;

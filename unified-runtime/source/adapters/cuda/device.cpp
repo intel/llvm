@@ -505,7 +505,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to CUDA's "shared memory".
     // CUDA has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    if (hDevice->maxLocalMemSizeChosen()) {
+    if (hDevice->getMaxChosenLocalMem()) {
       return ReturnValue(
           static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
     } else {
@@ -1096,7 +1096,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
     constexpr unsigned long long NVMLThrottleFlags[] = {
         nvmlClocksThrottleReasonSwPowerCap,
-        nvmlClocksThrottleReasonHwThermalSlowdown ||
+        nvmlClocksThrottleReasonHwThermalSlowdown |
             nvmlClocksThrottleReasonSwThermalSlowdown,
         nvmlClocksThrottleReasonHwPowerBrakeSlowdown,
         nvmlClocksThrottleReasonApplicationsClocksSetting};

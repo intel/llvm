@@ -34,8 +34,6 @@
 
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -1865,8 +1863,7 @@ static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_METADATA,
-                ImgPS->Name)) {
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
       if (!LibVersion)
         return true;
 
@@ -1894,8 +1891,7 @@ getExportedSymbolPS(sycl_device_binary RawImg) {
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS,
-                ImgPS->Name))
+        !strcmp(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS, ImgPS->Name))
       return ImgPS;
   }
 
