@@ -2288,7 +2288,7 @@ void handler::setKernelInfo(
 void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {
   // Passing the pointer to the runtime is enough to prevent optimization.
   // We don't need to use the pointer for anything.
-  (void) InstantiateKernelOnHostPtr;
+  (void)InstantiateKernelOnHostPtr;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {

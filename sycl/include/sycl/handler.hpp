@@ -772,7 +772,9 @@ private:
     // Instantiating the kernel on the host improves debugging.
     // Passing this pointer to another translation unit prevents optimization.
 #ifndef NDEBUG
-    instantiateKernelOnHost(detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType, Dims>());
+    instantiateKernelOnHost(
+        detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
+                                              Dims>());
 #endif
 
     constexpr bool KernelHasName =
