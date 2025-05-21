@@ -72,13 +72,12 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList),
           isInOrder ? v2::EVENT_FLAGS_COUNTER : 0, nullptr, false),
-      NextSyncPoint(0), context(context), device(device) {}
+      context(context), device(device) {}
 
 ur_exp_command_buffer_sync_point_t
 ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
-  auto syncPoint = NextSyncPoint++;
-  syncPoints[syncPoint] = event;
-  return syncPoint;
+  syncPoints.push_back(event);
+  return static_cast<ur_exp_command_buffer_sync_point_t>(syncPoints.size() - 1);
 }
 
 ur_event_handle_t *ur_exp_command_buffer_handle_t_::getWaitListFromSyncPoints(
@@ -89,12 +88,11 @@ ur_event_handle_t *ur_exp_command_buffer_handle_t_::getWaitListFromSyncPoints(
   }
   syncPointWaitList.resize(numSyncPointsInWaitList);
   for (uint32_t i = 0; i < numSyncPointsInWaitList; ++i) {
-    auto it = syncPoints.find(pSyncPointWaitList[i]);
-    if (it == syncPoints.end()) {
+    if (pSyncPointWaitList[i] >= syncPoints.size()) {
       UR_LOG(ERR, "Invalid sync point");
       throw UR_RESULT_ERROR_INVALID_VALUE;
     }
-    syncPointWaitList[i] = it->second;
+    syncPointWaitList[i] = syncPoints[pSyncPointWaitList[i]];
   }
   return syncPointWaitList.data();
 }
@@ -128,11 +126,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
     for (auto &event : syncPoints) {
-      if (event.second) {
-        ZE2UR_CALL(zeCommandListAppendEventReset,
-                   (commandListLocked->getZeCommandList(),
-                    event.second->getZeEvent()));
-      }
+      ZE2UR_CALL(zeCommandListAppendEventReset,
+                 (commandListLocked->getZeCommandList(), event->getZeEvent()));
     }
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
@@ -162,6 +157,9 @@ ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   if (currentExecution) {
     currentExecution->release();
+  }
+  for (auto &event : syncPoints) {
+    event->release();
   }
 }
 

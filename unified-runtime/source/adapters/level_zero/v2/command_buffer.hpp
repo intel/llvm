@@ -60,10 +60,7 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
       uint32_t numSyncPointsInWaitList);
 
 private:
-  ur_exp_command_buffer_sync_point_t NextSyncPoint;
-
-  std::unordered_map<ur_exp_command_buffer_sync_point_t, ur_event_handle_t>
-      syncPoints;
+  std::vector<ur_event_handle_t> syncPoints;
 
   std::vector<ur_event_handle_t> syncPointWaitList;
 
