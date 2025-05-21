@@ -837,6 +837,13 @@ private:
       CloneeName = OriginalName;
     }
 
+    // If the clone name already exists in the module then we have to assume it
+    // does the right thing already. We're only going to end up creating a copy
+    // of that function without external users being able to reach it.
+    if (M->getFunction(CloneName)) {
+      return true;
+    }
+
     if (Function *Clonee = M->getFunction(CloneeName)) {
       ValueToValueMapTy Dummy;
       Function *NewF = CloneFunction(Clonee, Dummy);
@@ -883,6 +890,15 @@ private:
         errs() << "Test run failure!\n";
         return false;
       }
+
+      // If the remangled name already exists in the module then we have to
+      // assume it does the right thing already. We're only going to end up
+      // creating a copy of that function without external users being able to
+      // reach it.
+      if (M->getFunction(RemangledName)) {
+        return true;
+      }
+
       Func.setName(RemangledName);
 
       // Make a clone of a suitable function using the old name if there is a
