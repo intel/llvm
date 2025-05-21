@@ -339,8 +339,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
-      !impl->MIsProfilingEnabled) {
+  if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
     if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
@@ -367,8 +366,8 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
         return (EventImpl->isDefaultConstructed() || EventImpl->isNOP()) &&
                !EventImpl->hasCommandGraph();
       });
-  if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
-      !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
+  if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled &&
+      AllEventsEmptyOrNop) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
     if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
@@ -462,9 +461,11 @@ sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
     return std::nullopt;
 
   // If the last event was discarded or a NOP, we insert a marker to represent
-  // an event at end.
+  // an event at end. If the event comes from a graph we must skip this because
+  // the original event is used for tracking nodes in the graph.
   auto LastEventImpl = detail::getSyclObjImpl(*LastEvent);
-  if (LastEventImpl->isDiscarded() || LastEventImpl->isNOP())
+  if (!LastEventImpl->hasCommandGraph() &&
+      (LastEventImpl->isDiscarded() || LastEventImpl->isNOP()))
     LastEvent =
         detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));
   return LastEvent;

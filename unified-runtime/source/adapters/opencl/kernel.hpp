@@ -16,7 +16,7 @@
 
 #include <vector>
 
-struct ur_kernel_handle_t_ {
+struct ur_kernel_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_kernel;
   native_type CLKernel;
   ur_program_handle_t Program;
@@ -27,7 +27,7 @@ struct ur_kernel_handle_t_ {
 
   ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t Program,
                       ur_context_handle_t Context)
-      : CLKernel(Kernel), Program(Program), Context(Context) {
+      : handle_base(), CLKernel(Kernel), Program(Program), Context(Context) {
     RefCount = 1;
     urProgramRetain(Program);
     urContextRetain(Context);

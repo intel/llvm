@@ -547,6 +547,10 @@ with test_env():
     else:
         config.substitutions.append(("%hip_options", ""))
 
+# Add ROCM_PATH from system environment, this is used by clang to find ROCm
+# libraries in non-standard installation locations.
+llvm_config.with_system_environment("ROCM_PATH")
+
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
@@ -874,7 +878,7 @@ def get_sycl_ls_verbose(sycl_device, env):
                 f"stdout:{sp.stdout}\n"
                 f"stderr:{sp.stderr}\n"
             )
-        return sp.stdout.splitlines()
+        return sp
 
 
 # A device filter such as level_zero:gpu can have multiple devices under it and
@@ -887,7 +891,7 @@ def get_sycl_ls_verbose(sycl_device, env):
 # matches that architecture using the backend:device-num device selection
 # scheme.
 filtered_sycl_devices = []
-for sycl_device in remove_level_zero_suffix(config.sycl_devices):
+for sycl_device in config.sycl_devices:
     backend, device_arch = sycl_device.split(":", 1)
 
     if not "arch-" in device_arch:
@@ -901,7 +905,9 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
     detected_architectures = []
 
-    for line in get_sycl_ls_verbose(backend + ":*", env):
+    platform_devices = remove_level_zero_suffix(backend + ":*")
+
+    for line in get_sycl_ls_verbose(platform_devices, env).stdout.splitlines():
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             detected_architectures.append(architecture.strip())
@@ -920,7 +926,7 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
 if not filtered_sycl_devices and not config.test_mode == "build-only":
     lit_config.error(
-        "No sycl devices selected! Check your device " "architecture filters."
+        "No sycl devices selected! Check your device architecture filters."
     )
 
 config.sycl_devices = filtered_sycl_devices
@@ -960,7 +966,8 @@ for full_name, sycl_device in zip(
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
     intel_driver_ver = {}
-    for line in get_sycl_ls_verbose(sycl_device, env):
+    sycl_ls_sp = get_sycl_ls_verbose(sycl_device, env)
+    for line in sycl_ls_sp.stdout.splitlines():
         if re.match(r" *Vendor *: Intel\(R\) Corporation", line):
             is_intel_driver = True
         if re.match(r" *Driver *:", line):
@@ -997,7 +1004,7 @@ for full_name, sycl_device in zip(
     if dev_aspects == []:
         lit_config.error(
             "Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n{}".format(
-                sycl_device, sp.stdout, sp.stderr
+                sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
             )
         )
         dev_aspects.append(set())
@@ -1009,7 +1016,7 @@ for full_name, sycl_device in zip(
     if dev_sg_sizes == []:
         lit_config.error(
             "Cannot detect device SG sizes for {}\nstdout:\n{}\nstderr:\n{}".format(
-                sycl_device, sp.stdout, sp.stderr
+                sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
             )
         )
         dev_sg_sizes.append(set())
@@ -1032,7 +1039,7 @@ for full_name, sycl_device in zip(
             if not config.allow_unknown_arch:
                 lit_config.error(
                     "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
-                        sycl_device, sp.stdout, sp.stderr
+                        sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
                     )
                 )
             architectures = set()

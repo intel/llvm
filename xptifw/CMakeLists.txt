@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20.0)
 
-set(XPTI_VERSION 1.0.0)
+set(XPTI_VERSION 1.0.1)
 
 project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
@@ -70,8 +70,8 @@ endif()
 
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
-  add_subdirectory(samples/syclpi_collector)
   add_subdirectory(samples/sycl_perf_collector)
+  add_subdirectory(samples/syclur_collector)
   add_subdirectory(basic_test)
 endif()
 

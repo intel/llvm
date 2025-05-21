@@ -283,7 +283,9 @@ configure specific single test execution in the command line:
 * **dpcpp_compiler** - full path to dpcpp compiler;
 * **sycl_devices** - `"backend0:device0[;backendN:deviceN]*"` where `backend` is
   one of `opencl`, `hip`, `cuda`, `level_zero` and `device` is one of `cpu`,
-  `gpu` or `acc`.
+  `gpu` or `acc`. Device may also be device architecture as listed in
+  `sycl-ls --verbose` prefixed with `arch-`. Example:
+  `level_zero:arch-intel_gpu_bmg_g21`
 * **dump_ir** - if IR dumping is supported for compiler (True, False);
 * **compatibility_testing** - forces LIT infra to skip the tests compilation to
   support compatibility testing (a SYCL application is built with one version of
