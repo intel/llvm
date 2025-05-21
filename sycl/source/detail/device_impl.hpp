@@ -503,7 +503,7 @@ public:
     // descriptor first when defining the cache data member). For "CallOnce"
     // cache we want to be querying cached value so "false" is the right
     // template parameter for such delegation.
-    constexpr bool DependentFalse = InitializingCache && false;
+    [[maybe_unused]] constexpr bool DependentFalse = InitializingCache && false;
 
     if constexpr (decltype(MCache)::has<Param>() && !InitializingCache) {
       return MCache.get<Param>();
