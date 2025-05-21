@@ -90,9 +90,9 @@ graph_mem_pool::tryReuseExistingAllocation(
     const std::vector<std::shared_ptr<node_impl>> &DepNodes) {
   // If we have no dependencies this is a no-op because allocations must connect
   // to a free node for reuse to be possible.
-  // if (DepNodes.empty()) {
-  //   return std::nullopt;
-  // }
+  if (DepNodes.empty()) {
+    return std::nullopt;
+  }
 
   std::vector<alloc_info> CompatibleAllocs;
   // Compatible allocs can only be as big as MFreeAllocations
@@ -127,26 +127,22 @@ graph_mem_pool::tryReuseExistingAllocation(
     NodesToCheck.push(Dep);
   }
 
-  std::optional<alloc_info> AllocInfo;
-
   // Called when traversing over nodes to check if the current node is a free
   // node for one of the available allocations. If it is we populate AllocInfo
   // with the allocation to be reused.
   auto CheckNodeEqual =
-      [&CompatibleAllocs,
-       &AllocInfo](const std::shared_ptr<node_impl> &CurrentNode) -> bool {
+      [&CompatibleAllocs](const std::shared_ptr<node_impl> &CurrentNode)
+      -> std::optional<alloc_info> {
     for (auto &Alloc : CompatibleAllocs) {
       const auto &AllocFreeNode = Alloc.LastFreeNode;
       // Compare control blocks without having to lock AllocFreeNode to check
       // for node equality
       if (!CurrentNode.owner_before(AllocFreeNode) &&
           !AllocFreeNode.owner_before(CurrentNode)) {
-        Alloc.LastFreeNode.reset();
-        AllocInfo = Alloc;
-        return true;
+        return Alloc;
       }
     }
-    return false;
+    return std::nullopt;
   };
 
   while (!NodesToCheck.empty()) {
@@ -161,11 +157,19 @@ graph_mem_pool::tryReuseExistingAllocation(
     // for any of the allocations which are free for reuse. We should not bother
     // checking nodes that are not free nodes, so we continue and check their
     // predecessors.
-    if (CurrentNode->MNodeType == node_type::async_free &&
-        CheckNodeEqual(CurrentNode)) {
-      // If we found an allocation AllocInfo has already been populated in
-      // CheckNodeEqual(), so we simply break out of the loop
-      break;
+    if (CurrentNode->MNodeType == node_type::async_free) {
+      std::optional<alloc_info> AllocFound = CheckNodeEqual(CurrentNode);
+      if (AllocFound) {
+        // Reset visited nodes tracking
+        MGraph.resetNodeVisitedEdges();
+        // Reset last free node for allocation
+        MAllocations.at(AllocFound.value().Ptr).LastFreeNode.reset();
+        // Remove found allocation from the free list
+        MFreeAllocations.erase(std::find(MFreeAllocations.begin(),
+                                         MFreeAllocations.end(),
+                                         AllocFound.value().Ptr));
+        return AllocFound;
+      }
     }
 
     // Add CurrentNode predecessors to queue
@@ -176,16 +180,8 @@ graph_mem_pool::tryReuseExistingAllocation(
     // Mark node as visited
     CurrentNode->MTotalVisitedEdges = 1;
   }
-  // Reset visited nodes tracking
-  MGraph.resetNodeVisitedEdges();
-  // If we found an allocation, remove it from the free list.
-  if (AllocInfo) {
-    MFreeAllocations.erase(std::find(MFreeAllocations.begin(),
-                                     MFreeAllocations.end(),
-                                     AllocInfo.value().Ptr));
-  }
 
-  return AllocInfo;
+  return std::nullopt;
 }
 
 void graph_mem_pool::markAllocationAsAvailable(
