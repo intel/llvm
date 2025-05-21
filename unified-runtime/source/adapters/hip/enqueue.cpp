@@ -1754,7 +1754,6 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                 hipFunction_t &HIPFunc, size_t (&ThreadsPerBlock)[3],
                 size_t (&BlocksPerGrid)[3]) {
   size_t MaxWorkGroupSize = 0;
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedDevice Active(Device);
     {
@@ -1819,33 +1818,32 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
       Kernel->setImplicitOffsetArg(sizeof(ImplicitOffset), ImplicitOffset);
     }
 
-    // Set local mem max size if env var is present
-    static const char *LocalMemSzPtrUR =
-        std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE");
-    static const char *LocalMemSzPtrPI =
-        std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE");
-    static const char *LocalMemSzPtr =
-        LocalMemSzPtrUR ? LocalMemSzPtrUR
-                        : (LocalMemSzPtrPI ? LocalMemSzPtrPI : nullptr);
+    uint32_t LocalSize = Kernel->getLocalSize();
+    if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
+      setErrorMessage("Excessive allocation of local memory on the device",
+                      UR_RESULT_ERROR_OUT_OF_RESOURCES);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
 
-    if (LocalMemSzPtr) {
-      int DeviceMaxLocalMem = Device->getDeviceMaxLocalMem();
-      static const int EnvVal = std::atoi(LocalMemSzPtr);
-      if (EnvVal <= 0 || EnvVal > DeviceMaxLocalMem) {
-        setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
-                                          "UR_HIP_MAX_LOCAL_MEM_SIZE"
-                                        : "Invalid value specified for "
-                                          "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+    if (int MaxLocalMem = Device->getMaxChosenLocalMem()) {
+      if (LocalSize > static_cast<uint32_t>(MaxLocalMem)) {
+        setErrorMessage(
+            "Local memory for kernel exceeds the amount requested using "
+            "UR_HIP_MAX_LOCAL_MEM_SIZE (or deprecated "
+            "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE). Try increasing the maximum "
+            "local memory.",
+            UR_RESULT_ERROR_OUT_OF_RESOURCES);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
+
       UR_CHECK_ERROR(hipFuncSetAttribute(
-          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, EnvVal));
+          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, MaxLocalMem));
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 void setCopyRectParams(ur_rect_region_t Region, const void *SrcPtr,
@@ -1896,8 +1894,6 @@ void setCopyRectParams(ur_rect_region_t Region, const void *SrcPtr,
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   try {
     ScopedDevice Active(hQueue->getDevice());
@@ -1921,7 +1917,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 
     *phEvent = RetImplEvent.release();
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }

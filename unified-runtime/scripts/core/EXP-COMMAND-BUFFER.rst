@@ -53,14 +53,14 @@ Command-Buffer Creation
 --------------------------------------------------------------------------------
 
 Command-Buffers are tied to a specific ${x}_context_handle_t and
-${x}_device_handle_t. ${x}CommandBufferCreateExp optionally takes a descriptor
+${x}_device_handle_t. ${x}CommandBufferCreateExp takes a descriptor
 to provide additional properties for how the command-buffer should be
 constructed. The members defined in ${x}_exp_command_buffer_desc_t are:
 
 * ``isUpdatable``, which should be set to ``true`` to support :ref:`updating
   command-buffer commands`.
-* ``isInOrder``, which should be set to ``true`` to enable commands enqueued to
-  a command-buffer to be executed in an in-order fashion where possible.
+* ``isInOrder``, which should be set to ``true`` to enforce commands appended
+  to a command-buffer to be executed in an in-order fashion.
 * ``enableProfiling``, which should be set to ``true`` to enable profiling of
   the command-buffer.
 
@@ -108,8 +108,9 @@ Sync-Points
 A sync-point is a value which represents a command inside of a command-buffer
 which is returned from command-buffer append function calls. These can be
 optionally passed to these functions to define execution dependencies on other
-commands within the command-buffer. Sync-points passed to functions may be
-ignored if the command-buffer was created in-order.
+commands within the command-buffer. Both wait-list and return sync-point
+parameters to append functions are ignored if the command-buffer was created
+with the in-order property.
 
 Sync-points are unique and valid for use only within the command-buffer they
 were obtained from.
@@ -549,6 +550,9 @@ Changelog
 |           | primary mechanism for reporting support.              |
 +-----------+-------------------------------------------------------+
 | 1.11      | Support native commands.                              |
++-----------+-------------------------------------------------------+
+| 1.12      | Strengthen in-order property such that sync-points    |
+|           | parameters to append APIs are ignored.                |
 +-----------+-------------------------------------------------------+
 
 Contributors

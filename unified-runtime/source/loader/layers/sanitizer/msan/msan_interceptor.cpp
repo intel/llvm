@@ -506,6 +506,11 @@ ur_result_t MsanInterceptor::prepareLaunch(
              LocalWorkSize[Dim];
   }
 
+  uint64_t NumWI = 1;
+  for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+    NumWI *= LaunchInfo.GlobalWorkSize[Dim];
+  }
+
   // Write shadow memory offset for local memory
   if (KernelInfo.IsCheckLocals) {
     if (DeviceInfo->Shadow->AllocLocalShadow(
@@ -529,7 +534,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
   // Write shadow memory offset for private memory
   if (KernelInfo.IsCheckPrivates) {
     if (DeviceInfo->Shadow->AllocPrivateShadow(
-            Queue, NumWG, LaunchInfo.Data.Host.PrivateShadowOffset,
+            Queue, NumWI, NumWG, LaunchInfo.Data.Host.PrivateBase,
+            LaunchInfo.Data.Host.PrivateShadowOffset,
             LaunchInfo.Data.Host.PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, WARN,
                "Failed to allocate shadow memory for private memory, "
@@ -538,12 +544,16 @@ ur_result_t MsanInterceptor::prepareLaunch(
       UR_LOG_L(getContext()->logger, WARN,
                "Skip checking private memory of kernel <{}>",
                GetKernelName(Kernel));
+      LaunchInfo.Data.Host.PrivateShadowOffset = 0;
     } else {
-      UR_LOG_L(getContext()->logger, DEBUG,
-               "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
-               (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
-               (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
+      UR_LOG_L(
+          getContext()->logger, DEBUG,
+          "ShadowMemory(Private, WorkGroup={}, PrivateBase={}, Shadow={} - {})",
+          NumWG, (void *)LaunchInfo.Data.Host.PrivateBase,
+          (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+          (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
     }
+
     // Write local arguments info
     if (!KernelInfo.LocalArgs.empty()) {
       std::vector<MsanLocalArgsInfo> LocalArgsInfo;
@@ -559,17 +569,19 @@ ur_result_t MsanInterceptor::prepareLaunch(
   // sync msan runtime data to device side
   UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
-  UR_LOG_L(
-      getContext()->logger, INFO,
-      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateShadow={}, "
-      "CleanShadow={}, LocalArgs={}, NumLocalArgs={}, Device={}, Debug={})",
-      (void *)LaunchInfo.Data.getDevicePtr(),
-      (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
-      (void *)LaunchInfo.Data.Host.LocalShadowOffset,
-      (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
-      (void *)LaunchInfo.Data.Host.CleanShadow,
-      (void *)LaunchInfo.Data.Host.LocalArgs, LaunchInfo.Data.Host.NumLocalArgs,
-      ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
+  UR_LOG_L(getContext()->logger, INFO,
+           "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
+           "PrivateShadow={}, CleanShadow={}, LocalArgs={}, NumLocalArgs={}, "
+           "Device={}, Debug={})",
+           (void *)LaunchInfo.Data.getDevicePtr(),
+           (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
+           (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+           (void *)LaunchInfo.Data.Host.PrivateBase,
+           (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+           (void *)LaunchInfo.Data.Host.CleanShadow,
+           (void *)LaunchInfo.Data.Host.LocalArgs,
+           LaunchInfo.Data.Host.NumLocalArgs,
+           ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
   ur_result_t URes =
       getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(

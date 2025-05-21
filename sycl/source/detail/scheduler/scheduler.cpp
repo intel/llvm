@@ -671,8 +671,8 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
   return NewCmdEvent;
 }
 
-bool CheckEventReadiness(const ContextImplPtr &Context,
-                         const EventImplPtr &SyclEventImplPtr) {
+bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
+                                    const EventImplPtr &SyclEventImplPtr) {
   // Events that don't have an initialized context are throwaway events that
   // don't represent actual dependencies. Calling getContextImpl() would set
   // their context, which we wish to avoid as it is expensive.

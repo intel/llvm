@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <mutex>
 #include <ur_api.h>
 #include <ur_ddi.h>
 
@@ -558,105 +559,125 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 } // extern "C"
 #endif
 
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
-namespace ur::level_zero {
-ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
+namespace {
+ur_result_t populateDdiTable(ur_dditable_t *ddi) {
   if (ddi == nullptr) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   ur_result_t result;
 
-  result = ur::level_zero::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
-                                                    &ddi->Global);
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#define NAMESPACE_ ::ur::level_zero
+#else
+#define NAMESPACE_
+#endif
+
+  result = NAMESPACE_::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->Global);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Adapter);
+  result = NAMESPACE_::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Adapter);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetBindlessImagesExpProcAddrTable(
+  result = NAMESPACE_::urGetBindlessImagesExpProcAddrTable(
       UR_API_VERSION_CURRENT, &ddi->BindlessImagesExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetCommandBufferExpProcAddrTable(
+  result = NAMESPACE_::urGetCommandBufferExpProcAddrTable(
       UR_API_VERSION_CURRENT, &ddi->CommandBufferExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Context);
+  result = NAMESPACE_::urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Context);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetEnqueueProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Enqueue);
+  result = NAMESPACE_::urGetEnqueueProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Enqueue);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetEnqueueExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &ddi->EnqueueExp);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = ur::level_zero::urGetEventProcAddrTable(UR_API_VERSION_CURRENT,
-                                                   &ddi->Event);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = ur::level_zero::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
-                                                    &ddi->Kernel);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = ur::level_zero::urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                       &ddi->KernelExp);
+  result = NAMESPACE_::urGetEnqueueExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->EnqueueExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result =
-      ur::level_zero::urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Mem);
+      NAMESPACE_::urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Event);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &ddi->PhysicalMem);
+  result = NAMESPACE_::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->Kernel);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetPlatformProcAddrTable(UR_API_VERSION_CURRENT,
-                                                      &ddi->Platform);
+  result = NAMESPACE_::urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->KernelExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetProgramProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Program);
+  result = NAMESPACE_::urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Mem);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetProgramExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &ddi->ProgramExp);
+  result = NAMESPACE_::urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                                     &ddi->PhysicalMem);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
-                                                   &ddi->Queue);
+  result = NAMESPACE_::urGetPlatformProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->Platform);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &ddi->Sampler);
+  result = NAMESPACE_::urGetProgramProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Program);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetProgramExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->ProgramExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result =
-      ur::level_zero::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &ddi->USM);
+      NAMESPACE_::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Queue);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetUSMExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                    &ddi->USMExp);
+  result = NAMESPACE_::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Sampler);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetUsmP2PExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                       &ddi->UsmP2PExp);
+  result = NAMESPACE_::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &ddi->USM);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetVirtualMemProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &ddi->VirtualMem);
+  result = NAMESPACE_::urGetUSMExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->USMExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
-  result = ur::level_zero::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
-                                                    &ddi->Device);
+  result = NAMESPACE_::urGetUsmP2PExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->UsmP2PExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetVirtualMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->VirtualMem);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->Device);
   if (result != UR_RESULT_SUCCESS)
     return result;
 
+#undef NAMESPACE_
+
   return result;
 }
-} // namespace ur::level_zero
+} // namespace
+
+namespace ur::level_zero {
+const ur_dditable_t *ddi_getter::value() {
+  static std::once_flag flag;
+  static ur_dditable_t table;
+
+  std::call_once(flag, []() { populateDdiTable(&table); });
+  return &table;
+}
+
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
+  return populateDdiTable(ddi);
+}
 #endif
+} // namespace ur::level_zero
