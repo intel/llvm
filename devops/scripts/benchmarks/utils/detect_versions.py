@@ -84,7 +84,7 @@ class DetectVersion:
         l0_ver_patch = _get_patch_from_ver(get_var("L0_VER"))
         env_cache_ver = os.getenv("COMPUTE_RUNTIME_TAG_CACHE", default="")
         env_cache_patch = _get_patch_from_ver(env_cache_ver)
-        # L0 patch often gets padded with 0's: if the environment variable 
+        # L0 patch often gets padded with 0's: if the environment variable
         # matches up with the prefix of the l0 version patch, the cache is
         # indeed referring to the same version.
         if env_cache_patch == l0_ver_patch[: len(env_cache_patch)]:
