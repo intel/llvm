@@ -2187,12 +2187,39 @@ private:
   mutable JointCache<
       UREagerCache<UR_DEVICE_INFO_TYPE, UR_DEVICE_INFO_USE_NATIVE_ASSERT,
                    UR_DEVICE_INFO_EXTENSIONS>, //
-      URCallOnceCache<UR_DEVICE_INFO_NAME>,    //
-      EagerCache<InfoInitializer>,             //
+      URCallOnceCache<UR_DEVICE_INFO_NAME,
+                      // USM:
+                      UR_DEVICE_INFO_USM_DEVICE_SUPPORT,
+                      UR_DEVICE_INFO_USM_HOST_SUPPORT,
+                      UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT,
+                      UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT,
+                      UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT,
+                      //
+                      UR_DEVICE_INFO_ATOMIC_64>, //
+      EagerCache<InfoInitializer>,               //
       CallOnceCache<InfoInitializer,
                     ext::oneapi::experimental::info::device::architecture>, //
       AspectCache<EagerCache, aspect::fp16, aspect::fp64,
-                  aspect::int64_base_atomics, aspect::int64_extended_atomics>>
+                  aspect::int64_base_atomics, aspect::int64_extended_atomics,
+                  aspect::ext_oneapi_atomic16>,
+      AspectCache<
+          CallOnceCache,
+          // Slow, >100ns (for baseline cached ~30..40ns):
+          aspect::ext_intel_pci_address, aspect::ext_intel_gpu_eu_count,
+          aspect::ext_intel_free_memory, aspect::ext_intel_fan_speed,
+          aspect::ext_intel_power_limits,
+          // medium-slow, 60-90ns (for baseline cached ~30..40ns):
+          aspect::ext_intel_gpu_eu_simd_width, aspect::ext_intel_gpu_slices,
+          aspect::ext_intel_gpu_subslices_per_slice,
+          aspect::ext_intel_gpu_eu_count_per_subslice,
+          aspect::ext_intel_device_info_uuid,
+          aspect::ext_intel_gpu_hw_threads_per_eu,
+          aspect::ext_intel_memory_clock_rate,
+          aspect::ext_intel_memory_bus_width,
+          aspect::ext_oneapi_bindless_images,
+          aspect::ext_oneapi_bindless_images_1d_usm,
+          aspect::ext_oneapi_bindless_images_2d_usm,
+          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
       MCache;
 
 }; // class device_impl
