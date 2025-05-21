@@ -119,6 +119,14 @@ runs:
       # TODO accomodate for different GPUs and backends
       SAVE_NAME="${SAVE_PREFIX}_PVC_${SAVE_SUFFIX}"
       SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
+ 
+      # Cache the compute_runtime version from dependencies.json, but perform a
+      # check with L0 version before using it: This value is not guaranteed to
+      # accurately reflect the current compute_runtime version used, as the
+      # docker images are built nightly. 
+      export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
+      echo $COMPUTE_RUNTIME_TAG_CACHE
+      
 
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \

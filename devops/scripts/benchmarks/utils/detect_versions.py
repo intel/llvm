@@ -89,6 +89,7 @@ class DetectVersion:
         # indeed referring to the same version.
         if env_cache_patch == l0_ver_patch[: len(env_cache_patch)]:
             cls._instance.compute_runtime_ver_cache = env_cache_ver
+            print(f"MATCH env var {env_cache_ver} with actual {get_var("L0_VER")}")
 
         return cls._instance
 
