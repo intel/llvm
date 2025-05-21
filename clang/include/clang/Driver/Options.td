@@ -7297,7 +7297,7 @@ defm sycl_allow_device_image_dependencies: BoolOptionWithoutMarshalling<"f", "sy
   PosFlag<SetTrue, [], [ClangOption], "Allow dependencies between device code images">,
   NegFlag<SetFalse, [], [ClangOption], "Do not allow dependencies between device code images (default)">>;
 
-def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
+def fdump_device_code_EQ : Joined<["-"], "fdump-device-code=">,
   Flags<[NoXarchOption]>,
   HelpText<"Dump device code into the user provided directory.">;
 def fsyclbin : Flag<["-"], "fsyclbin">,

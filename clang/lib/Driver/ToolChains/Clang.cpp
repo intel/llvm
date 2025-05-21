@@ -10737,13 +10737,13 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         TCArgs.MakeArgString("--out-file-list=" + OutputFileName));
     ForeachArgs.push_back(
         TCArgs.MakeArgString("--out-replace=" + OutputFileName));
-    // If fsycl-dump-device-code is passed, put the output files from llvm-spirv
-    // into the path provided in fsycl-dump-device-code.
+    // If fdump-device-code is passed, put the output files from llvm-spirv
+    // into the path provided in fdump-device-code.
     if (C.getDriver().isDumpDeviceCodeEnabled()) {
       SmallString<128> OutputDir;
 
       Arg *DumpDeviceCodeArg =
-          C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+          C.getArgs().getLastArg(options::OPT_fdump_device_code_EQ);
 
       OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
 
@@ -11401,10 +11401,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (C.getDriver().isDumpDeviceCodeEnabled()) {
       SmallString<128> DumpDir;
-      Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+      Arg *A = C.getArgs().getLastArg(options::OPT_fdump_device_code_EQ);
       DumpDir = A ? A->getValue() : "";
       CmdArgs.push_back(
-          Args.MakeArgString(Twine("-sycl-dump-device-code=") + DumpDir));
+          Args.MakeArgString(Twine("-dump-device-code=") + DumpDir));
     }
 
     auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
