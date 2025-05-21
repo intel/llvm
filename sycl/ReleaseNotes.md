@@ -198,7 +198,8 @@ Release notes for commit range
 ### SYCLcompat library
 
 - Introduced new set of group utility functions and classes aimed to reduce the
-  gap between `syclcompat` and `dpct` namespaces. intel/llvm#17263
+  gap between `syclcompat` and `dpct` namespaces when migrating CUB functions.
+  intel/llvm#17263
 - Fixed an issue where `CUTensorMap` objects would be unintentionally copied,
   causing `CUDA_ERROR_ILLEGAL_ADDRESS` when running on the CUDA backend. 
   intel/llvm#16965
@@ -209,10 +210,8 @@ Release notes for commit range
 - Added new function `ternary_logic_op` to perform bitwise logical operations
   on three input values based on the specified 8-bit truth table.
   intel/llvm#16509
-- 6e0d90e73ed1 [SYCLCompat] Fix vectorized_binary impl to make SYCLomatic migrated code run pass (#16553)
-  - Not sure how to word that
-- 16c447998836 [SYCL][COMPAT] Replace T{-1} with static_cast<T>(-1) for mask creation (#16527)
-  - bugfix?
+- Fixed issues with multiple vectorized operations returning wrong results.
+  intel/llvm#16553 intel/llvm#16527
 
 ### Explicit SIMD extension
 
@@ -224,6 +223,14 @@ Release notes for commit range
   compiler performs aggressive inlining. intel/llvm#16193
 
 ### Sanitizers
+
+- Only report warning if passing host ptr to kernel intel/llvm#16654
+- Make ShadowMemory one instance per type intel/llvm#16687
+- Fixed kernel name addressspace intel/llvm#16425
+- Fix ASAN with kernel assert intel/llvm#16256
+- Fix AcceeChain to a matrix for bfloat16 intel/llvm/16323
+- Reduce the frequency of shadow memory reallocation to reduce memory overhead and improve runtime performance intel/llvm#16280, intel/llvm#16258
+- Fix device global type of KernelMetadata intel/llvm#16357
 
 - ada16682e8c3 [DevASAN] Only report warning if passing host ptr to kernel (#16654)
   - seems like a potentially important bugfix
@@ -264,7 +271,7 @@ Release notes for commit range
 - Improved support for `dynamic_address_cast` on Native CPU device.
   intel/llvm#16676
 - Improved performance of Native CPU device: less memory allocations and thread
-  launches. intel/llvm#17102
+  launches. intel/llvm#17102, intel/llvm#17215
 - Fixed a bug where submitting the same kernel multiple times at about the same
   time with different argument would lead to incorrect arguments being used.
   intel/llvm#16995
@@ -602,9 +609,6 @@ in the next ABI-breaking release:
     must be in the same translation unit. Please refer to
     [`sycl/test-e2e/VirtualFunctions`](https://github.com/intel/llvm/tree/b23d69e2c3fda1d69351137991897c96bf6a586d/sycl/test-e2e/VirtualFunctions)
     to see the list of working and non-working examples.
-
-
-40f0a6a0630b [SYCL][Graph] Fix L0 multi-device kernel bundles (#16343)
 
 # Release notes Nov'24
 
