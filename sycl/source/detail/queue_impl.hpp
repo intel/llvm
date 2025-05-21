@@ -780,9 +780,8 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    auto Event = parseEvent(Handler.finalize());
-    EventToBuildDeps = Event;
-    return Event;
+    EventToBuildDeps = parseEvent(Handler.finalize());
+    return EventToBuildDeps;
   }
 
   template <typename HandlerType = handler>
@@ -815,10 +814,8 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    auto EventRet = parseEvent(Handler.finalize());
-
-    EventToBuildDeps = EventRet;
-    if (EventRet)
+    EventToBuildDeps = parseEvent(Handler.finalize());
+    if (EventToBuildDeps)
       MNoEventMode = false;
 
     // TODO: if the event is NOP we should be able to discard it.
@@ -826,7 +823,7 @@ protected:
     // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
     // start relying on command buffer in-order property instead.
 
-    return EventRet;
+    return EventToBuildDeps;
   }
 
   template <typename HandlerType = handler>
