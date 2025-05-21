@@ -547,6 +547,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       -D${CLC_TARGET_DEFINE}
       # All libclc builtin libraries see CLC headers
       -I${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+      # Error on undefined macros
+      -Werror=undef
     )
 
     if( NOT "${cpu}" STREQUAL "" )
