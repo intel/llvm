@@ -4229,7 +4229,7 @@
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4bundle_state@23@@Z
 ?has_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NPEBD@Z
 ?increase_threshold_to@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAAX_K@Z
-?instantiateKernelOnHost@handler@_V1@sycl@@AAEXPAX@Z
+?instantiateKernelOnHost@handler@_V1@sycl@@AEAAXPEAX@Z
 ?internalProfilingTagImpl@handler@_V1@sycl@@AEAAXXZ
 ?isBackendSupportedFillSize@handler@_V1@sycl@@CA_N_K@Z
 ?isConstOrGlobal@handler@_V1@sycl@@CA_NW4target@access@23@@Z
