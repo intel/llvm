@@ -1035,7 +1035,7 @@ int main(int argc, const char **argv) {
   CommandLine.push_back("-cc1");
   CommandLine.push_back("-triple");
   CommandLine.push_back(TargetTriple);
-  // Workaround error `unknown argument resource-dir`
+  // Workaround error: unknown argument -resource-dir=, which isn't a CC1Option.
   CommandLine.push_back("-resource-dir");
   CommandLine.push_back(".");
   FixedCompilationDatabase Compilations(".", CommandLine);
