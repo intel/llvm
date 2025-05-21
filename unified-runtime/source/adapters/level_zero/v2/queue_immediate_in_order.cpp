@@ -811,16 +811,6 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
     waitListView.clear();
   };
 
-  // If the offset is {0, 0, 0}, pass NULL instead.
-  // This allows us to skip setting the offset.
-  bool hasOffset = false;
-  for (uint32_t i = 0; i < workDim; ++i) {
-    hasOffset |= pGlobalWorkOffset[i];
-  }
-  if (!hasOffset) {
-    pGlobalWorkOffset = NULL;
-  }
-
   UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
                                         workDim, WG[0], WG[1], WG[2],
                                         memoryMigrate));
