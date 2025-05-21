@@ -1179,9 +1179,9 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
       KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, Program, ContextImpl->getAdapter());
   // If caching is enabled, one copy of the kernel handle will be
-  // stored in KernelProgramCache::KernelFastCacheT, and one is in
-  // KernelProgramCache::MKernelsPerProgramCache. To cover this,
-  // we need to increase the ref count of the kernel.
+  // stored in FastKernelCacheVal, and one is in
+  // KernelProgramCache::MKernelsPerProgramCache. To cover
+  // MKernelsPerProgramCache, we need to increase the ref count of the kernel.
   ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
   Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);

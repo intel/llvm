@@ -516,7 +516,7 @@ public:
     FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcacheHint->Mutex};
     ur_context_handle_t Context = getURContext();
     KernelSubcacheHint->Map.emplace(FastKernelCacheKeyT(Device, Context),
-                                    std::move(CacheVal));
+                                    CacheVal);
   }
 
   // Expects locked program cache
