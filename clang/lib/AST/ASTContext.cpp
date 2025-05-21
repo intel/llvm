@@ -4589,8 +4589,7 @@ QualType ASTContext::getVectorType(QualType vecType, unsigned NumElts,
   assert(vecType->isBuiltinType() ||
          (vecType->isBitIntType() &&
           // Only support _BitInt elements with byte-sized power of 2 NumBits.
-          llvm::isPowerOf2_32(vecType->castAs<BitIntType>()->getNumBits()) &&
-          vecType->castAs<BitIntType>()->getNumBits() >= 8));
+          llvm::isPowerOf2_32(vecType->castAs<BitIntType>()->getNumBits())));
 
   // Check if we've already instantiated a vector of this type.
   llvm::FoldingSetNodeID ID;
@@ -4662,8 +4661,7 @@ QualType ASTContext::getExtVectorType(QualType vecType,
   assert(vecType->isBuiltinType() || vecType->isDependentType() ||
          (vecType->isBitIntType() &&
           // Only support _BitInt elements with byte-sized power of 2 NumBits.
-          llvm::isPowerOf2_32(vecType->castAs<BitIntType>()->getNumBits()) &&
-          vecType->castAs<BitIntType>()->getNumBits() >= 8));
+          llvm::isPowerOf2_32(vecType->castAs<BitIntType>()->getNumBits())));
 
   // Check if we've already instantiated a vector of this type.
   llvm::FoldingSetNodeID ID;

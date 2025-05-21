@@ -3334,8 +3334,7 @@ def warn_attribute_too_few_arguments : Warning<
  InGroup<IgnoredAttributes>;
 def err_attribute_invalid_vector_type : Error<"invalid vector element type %0">;
 def err_attribute_invalid_bitint_vector_type : Error<
-  "'_BitInt' %select{vector|matrix}0 element width must be %select{a power of 2|"
-  "at least as wide as 'CHAR_BIT'}1">;
+  "'_BitInt' %select{vector|matrix}0 element width must be a power of 2">;
 def err_attribute_invalid_matrix_type : Error<"invalid matrix element type %0">;
 def err_attribute_bad_neon_vector_size : Error<
   "Neon vector size must be 64 or 128 bits">;
