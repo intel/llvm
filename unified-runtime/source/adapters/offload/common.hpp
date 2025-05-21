@@ -10,10 +10,14 @@
 
 #pragma once
 
+#include "ur/ur.hpp"
 #include <atomic>
 
 namespace ur::offload {
-struct handle_base {};
+struct ddi_getter {
+  const static ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ur::offload::ddi_getter>;
 } // namespace ur::offload
 
 struct RefCounted : ur::offload::handle_base {
