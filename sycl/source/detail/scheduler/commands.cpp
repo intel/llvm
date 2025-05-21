@@ -2475,8 +2475,8 @@ static ur_result_t SetKernelParamsAndLaunch(
       LocalSize = RequiredWGSize;
   }
 
-  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 &&
-                         NDRDesc.GlobalOffset[1] != 0 &&
+  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
+                         NDRDesc.GlobalOffset[1] != 0 ||
                          NDRDesc.GlobalOffset[2] != 0;
 
   std::vector<ur_exp_launch_property_t> property_list;
