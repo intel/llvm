@@ -16,7 +16,7 @@
 #include <sycl/builtins.hpp>                  // for fabs
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp> // for annotated_ptr
 #include <sycl/group.hpp>     // for group
 #include <sycl/multi_ptr.hpp> // for multi_ptr
@@ -191,7 +191,7 @@ public:
 
 #if __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
-  template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
+  template <typename T2> wi_element &operator op## = (const T2 &rhs) {         \
     storage_element_type *ExtractP =                                           \
         __spirv_AccessChain<storage_element_type, T, NumRows, NumCols,         \
                             spv_matrix_use_traits<Use>::value,                 \
@@ -206,7 +206,7 @@ public:
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
-  template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
+  template <typename T2> wi_element &operator op## = (const T2 &rhs) {         \
     (void)rhs;                                                                 \
     throw exception(make_error_code(errc::runtime),                            \
                     "joint matrix is not supported on host.");                 \
@@ -263,6 +263,40 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
+  operator sycl::detail::half_impl::half() {
+#ifdef __SYCL_DEVICE_ONLY__
+    sycl::detail::half_impl::half *ExtractP =
+        __spirv_AccessChain<sycl::detail::half_impl::half,
+                            sycl::detail::half_impl::half, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    return *ExtractP;
+#else
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  operator float() {
+#ifdef __SYCL_DEVICE_ONLY__
+    sycl::ext::oneapi::bfloat16 *ExtractP =
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    union {
+      uint16_t intStorage;
+      sycl::ext::oneapi::bfloat16 floatValue;
+    };
+    floatValue = *ExtractP;
+    return __devicelib_ConvertBF16ToFINTEL(intStorage);
+
+#else
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
     sycl::ext::oneapi::bfloat16 *ExtractP =
@@ -284,6 +318,21 @@ public:
     sycl::ext::oneapi::bfloat16 *InsertP =
         __spirv_AccessChain<sycl::ext::oneapi::bfloat16,
                             sycl::ext::oneapi::bfloat16, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    *InsertP = rhs;
+    return *this;
+#else
+    (void)rhs;
+    throw exception(make_error_code(errc::runtime),
+                    "joint matrix is not supported on host.");
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  wi_element &operator=(const float &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    float *InsertP =
+        __spirv_AccessChain<float, float, NumRows, NumCols,
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
     *InsertP = rhs;
@@ -320,7 +369,7 @@ public:
 
 #if __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
     sycl::ext::oneapi::bfloat16 *ExtractP =                                    \
         __spirv_AccessChain<sycl::ext::oneapi::bfloat16,                       \
                             sycl::ext::oneapi::bfloat16, NumRows, NumCols,     \
@@ -336,7 +385,7 @@ public:
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
     (void)rhs;                                                                 \
     throw exception(make_error_code(errc::runtime),                            \
                     "joint matrix is not supported on host.");                 \
@@ -455,7 +504,7 @@ class wi_data {
 
   wi_data(sycl::ext::oneapi::experimental::matrix::joint_matrix<
           Group, T, Use, Rows, Cols, Layout> &_jm)
-      : jm(_jm){};
+      : jm(_jm) {};
 
   template <typename Grp, typename Type,
             sycl::ext::oneapi::experimental::matrix::use UseJm, size_t NumRows,
