@@ -85,11 +85,12 @@ private:
                                                 ur_event_handle_t *phEvent,
                                                 ur_command_t commandType) {
     if (phEvent == nullptr) {
-      phEvent = &internalSignalEvents[cmdListId];
-      signalEvents.assign(cmdListId, *phEvent, false);
+      //phEvent = &internalSignalEvents[cmdListId];
+      //signalEvents.assign(cmdListId, *phEvent, false);
+      return nullptr;
     } else {
       (*phEvent) = eventPool->allocate();
-      signalEvents.assign(cmdListId, *phEvent, true);
+      //signalEvents.assign(cmdListId, *phEvent, true);
     }
 
     (*phEvent)->resetQueueAndCommand(this, commandType);

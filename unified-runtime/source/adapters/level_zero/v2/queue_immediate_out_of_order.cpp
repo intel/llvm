@@ -142,11 +142,13 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueFinish() {
   auto lastCommandListId =
       commandListIndex.load(std::memory_order_relaxed) % numCommandLists;
 
-  UR_CALL(commandListManagers[lastCommandListId].lock()->enqueueEventsWait(
-      numCommandLists, signalEvents.events.data(), nullptr));
-  ZE2UR_CALL(zeCommandListHostSynchronize,
-             (commandListManagers[lastCommandListId].lock()->getZeCommandList(),
-              UINT64_MAX));
+  // UR_CALL(commandListManagers[lastCommandListId].lock()->enqueueEventsWait(
+  //     numCommandLists, signalEvents.events.data(), nullptr));
+  for (int i = 0; i < numCommandLists; ++i) {
+    ZE2UR_CALL(zeCommandListHostSynchronize,
+      (commandListManagers[i].lock()->getZeCommandList(),
+       UINT64_MAX));
+  }
 
   return UR_RESULT_SUCCESS;
 }
