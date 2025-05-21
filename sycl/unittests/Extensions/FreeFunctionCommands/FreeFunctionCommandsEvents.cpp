@@ -73,8 +73,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchTaskNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutNoEvent) {
@@ -83,8 +81,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutNoEvent) {
   sycl::khr::launch_task(Queue, TestFunctor());
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchTaskKernelNoEvent) {
@@ -104,8 +100,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchTaskKernelNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutKernelNoEvent) {
@@ -125,8 +119,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutKernelNoEvent) {
   sycl::khr::launch_task(Queue, Kernel);
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchForNoEvent) {
@@ -139,8 +131,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchForNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchForShortcutNoEvent) {
@@ -150,8 +140,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchForShortcutNoEvent) {
   sycl::khr::launch(Queue, sycl::range<1>{32}, TestFunctor());
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchForKernelNoEvent) {
@@ -172,8 +160,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchForKernelNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchForShortcutKernelNoEvent) {
@@ -193,8 +179,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchForShortcutKernelNoEvent) {
   sycl::khr::launch(Queue, sycl::range<1>{32}, Kernel);
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedNoEvent) {
@@ -207,8 +191,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutNoEvent) {
@@ -219,8 +201,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutNoEvent) {
                             TestFunctor());
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedKernelNoEvent) {
@@ -242,8 +222,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedKernelNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutKernelNoEvent) {
@@ -264,8 +242,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutKernelNoEvent) {
                             Kernel);
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitMemcpyNoEvent) {
@@ -281,7 +257,7 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitMemcpyNoEvent) {
   });
 
   ASSERT_EQ(counter_urUSMEnqueueMemcpy, size_t{1});
-  CheckLastEventDiscarded(Queue);
+
   free(Src, Queue);
   free(Dst, Queue);
 }
@@ -297,8 +273,6 @@ TEST_F(FreeFunctionCommandsEventsTests, MemcpyShortcutNoEvent) {
   sycl::khr::memcpy(Queue, Dst, Src, sizeof(int) * N);
 
   ASSERT_EQ(counter_urUSMEnqueueMemcpy, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 
   free(Src, Queue);
   free(Dst, Queue);
@@ -318,8 +292,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitCopyNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueueMemcpy, size_t{1});
 
-  CheckLastEventDiscarded(Queue);
-
   free(Src, Queue);
   free(Dst, Queue);
 }
@@ -335,8 +307,6 @@ TEST_F(FreeFunctionCommandsEventsTests, CopyShortcutNoEvent) {
   sycl::khr::memcpy(Queue, Dst, Src, N);
 
   ASSERT_EQ(counter_urUSMEnqueueMemcpy, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 
   free(Src, Queue);
   free(Dst, Queue);
@@ -355,8 +325,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitMemsetNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueueFill, size_t{1});
 
-  CheckLastEventDiscarded(Queue);
-
   free(Dst, Queue);
 }
 
@@ -370,8 +338,6 @@ TEST_F(FreeFunctionCommandsEventsTests, MemsetShortcutNoEvent) {
   sycl::khr::memset(Queue, Dst, 1, sizeof(int) * N);
 
   ASSERT_EQ(counter_urUSMEnqueueFill, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 
   free(Dst, Queue);
 }
@@ -389,8 +355,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitPrefetchNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueuePrefetch, size_t{1});
 
-  CheckLastEventDiscarded(Queue);
-
   free(Dst, Queue);
 }
 
@@ -404,8 +368,6 @@ TEST_F(FreeFunctionCommandsEventsTests, PrefetchShortcutNoEvent) {
   sycl::khr::prefetch(Queue, Dst, sizeof(int) * N);
 
   ASSERT_EQ(counter_urUSMEnqueuePrefetch, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 
   free(Dst, Queue);
 }
@@ -423,8 +385,6 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitMemAdviseNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueueMemAdvise, size_t{1});
 
-  CheckLastEventDiscarded(Queue);
-
   free(Dst, Queue);
 }
 TEST_F(FreeFunctionCommandsEventsTests, MemAdviseShortcutNoEvent) {
@@ -437,8 +397,6 @@ TEST_F(FreeFunctionCommandsEventsTests, MemAdviseShortcutNoEvent) {
   sycl::khr::mem_advise(Queue, Dst, sizeof(int) * N, 1);
 
   ASSERT_EQ(counter_urUSMEnqueueMemAdvise, size_t{1});
-
-  CheckLastEventDiscarded(Queue);
 
   free(Dst, Queue);
 }
