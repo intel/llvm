@@ -48,7 +48,6 @@ ModulePassManager buildESIMDLoweringPipeline(bool OptLevelO0, bool SplitESIMD) {
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
     MainFPM.addPass(DCEPass{});
-    // TODO: maybe remove some passes below that don't affect code quality
     MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
