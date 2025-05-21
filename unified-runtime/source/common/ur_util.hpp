@@ -548,9 +548,9 @@ static inline std::string groupDigits(Numeric numeric) {
 
 template <typename T> Spinlock<Rc<T>> AtomicSingleton<T>::instance;
 
-inline bool checkUSMImplAlignment(uint32_t Alignment, void **ResultPtr) {
+inline bool isPointerAlignedTo(uint32_t Alignment, void *Ptr) {
   return Alignment == 0 ||
-         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0;
+         reinterpret_cast<std::uintptr_t>(Ptr) % Alignment == 0;
 }
 
 #endif /* UR_UTIL_H */

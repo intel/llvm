@@ -144,7 +144,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
     return Err;
   }
 
-  assert(checkUSMImplAlignment(Alignment, ResultPtr));
+  assert(isPointerAlignedTo(Alignment, *ResultPtr));
   return UR_RESULT_SUCCESS;
 }
 
@@ -160,7 +160,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
     return Err;
   }
 
-  assert(checkUSMImplAlignment(Alignment, ResultPtr));
+  assert(isPointerAlignedTo(Alignment, *ResultPtr));
   return UR_RESULT_SUCCESS;
 }
 
@@ -174,7 +174,7 @@ ur_result_t USMHostAllocImpl(void **ResultPtr,
     return Err;
   }
 
-  assert(checkUSMImplAlignment(Alignment, ResultPtr));
+  assert(isPointerAlignedTo(Alignment, *ResultPtr));
   return UR_RESULT_SUCCESS;
 }
 

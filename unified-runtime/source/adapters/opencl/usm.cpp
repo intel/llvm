@@ -270,7 +270,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   cl_context CLContext = hQueue->Context->CLContext;
 
   if (patternSize <= 128 && isPowerOf2(patternSize) &&
-      checkUSMImplAlignment(patternSize, &ptr)) {
+      isPointerAlignedTo(patternSize, ptr)) {
     clEnqueueMemFillINTEL_fn EnqueueMemFill = nullptr;
     UR_RETURN_ON_FAILURE(
         cl_ext::getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
