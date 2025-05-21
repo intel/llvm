@@ -1,4 +1,4 @@
-// XFAIL: run-mode && gpu-intel-dg2
+// XFAIL: run-mode && gpu-intel-dg2 && !igc-dev
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18579
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
