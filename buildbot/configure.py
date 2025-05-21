@@ -234,6 +234,9 @@ def do_configure(args, passthrough_args):
             "none of them to let download from github.com"
         )
 
+    if args.use_debug_crt_dll:
+        cmake_cmd.extend(["-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL"])
+
     # Add additional CMake options if provided
     if args.cmake_opt:
         cmake_cmd += args.cmake_opt
@@ -422,6 +425,9 @@ def main():
     )
     parser.add_argument(
         "--use-zstd", action="store_true", help="Force zstd linkage while building."
+    )
+    parser.add_argument(
+        "--use-debug-crt-dll", action="store_true", help="Link libraries with MSVC debug dll in release mode."
     )
     args, passthrough_args = parser.parse_known_intermixed_args()
 

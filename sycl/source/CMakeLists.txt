@@ -227,12 +227,6 @@ function(add_sycl_rt_library LIB_TARGET_NAME LIB_OBJ_NAME LIB_OUTPUT_NAME)
       file(REMOVE ${VERSION_FILE})
     endif()
   endif()
-
-  # Ensure that we use the dynamic CRT on Windows, i.e. /MD or /MDd.
-  set_target_properties(${LIB_TARGET_NAME} PROPERTIES
-                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
-  set_target_properties(${LIB_OBJ_NAME} PROPERTIES
-                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endfunction(add_sycl_rt_library)
 
 set(SYCL_COMMON_SOURCES
@@ -343,17 +337,23 @@ if (HAS_SEMANTIC_INTERPOSITION_FLAG AND NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
 endif()
 
 if (WIN32)
-set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
-set(LIB_OUTPUT_NAME "${LIB_NAME}$<$<CONFIG:Debug>:d>")
+  set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
+  set(LIB_OUTPUT_NAME "${LIB_NAME}")
+  if (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+    set(LIB_OUTPUT_NAME "${LIB_OUTPUT_NAME}d")
+  endif()
 else()
-set(LIB_NAME "sycl")
-set(LIB_OUTPUT_NAME "${LIB_NAME}")
+  set(LIB_NAME "sycl")
+  set(LIB_OUTPUT_NAME "${LIB_NAME}")
 endif()
 set(LIB_PREVIEW_NAME ${LIB_NAME}-preview)
 set(LIB_PREVIEW_OUTPUT_NAME ${LIB_OUTPUT_NAME}-preview)
 
 # Version-agnostic name of the import library, has effect on Windows only.
-set(IMPLIB_NAME "sycl$<$<CONFIG:Debug>:d>")
+set(IMPLIB_NAME "sycl")
+if (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+  set(IMPLIB_NAME "${IMPLIB_NAME}d")
+endif()
 set(IMPLIB_PREVIEW_NAME "${IMPLIB_NAME}-preview")
 
 add_sycl_rt_library(${LIB_NAME} sycl_object ${LIB_OUTPUT_NAME}
@@ -378,7 +378,11 @@ endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL Windows)
   set_target_properties(${LIB_NAME} PROPERTIES DEBUG_POSTFIX d)
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB AND (CMAKE_BUILD_TYPE STREQUAL Debug))
+  if (CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+    set_target_properties(${LIB_NAME} PROPERTIES RELEASE_POSTFIX d)
+  endif()
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB AND
+     (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL))
     set_target_properties(sycl${SYCL_MAJOR_VERSION}-preview PROPERTIES OUTPUT_NAME sycl${SYCL_MAJOR_VERSION}d-preview)
   endif()
 endif()

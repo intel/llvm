@@ -1,6 +1,6 @@
 // DEFINE: %{checkprefix} = %if windows %{CHECK-NO-PREVIEW-WINDOWS%} %else %{CHECK-NO-PREVIEW-LINUX%}
-// RUN: not %clangxx -fsycl %s -o %t 2>&1 | FileCheck --check-prefix=%{checkprefix} %s
-// RUN: %clangxx -fsycl -fpreview-breaking-changes %s -o %t
+// RUN: not %clangxx %fsycl %s -o %t 2>&1 | FileCheck --check-prefix=%{checkprefix} %s
+// RUN: %clangxx %fsycl -fpreview-breaking-changes %s -o %t
 // REQUIRES: preview-breaking-changes-supported
 
 // Checks that the preview-breaking-changes marker is present only when the

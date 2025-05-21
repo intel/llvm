@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx %fsycl %s -o %t.out
 
 // Tests that the assignment operator on atomic_ref for pointers do not cause
 // overload resolution ambiguities.

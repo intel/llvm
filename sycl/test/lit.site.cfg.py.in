@@ -36,7 +36,7 @@ config.native_cpu = '@SYCL_BUILD_BACKEND_NATIVE_CPU@'
 config.native_cpu_ock = '@NATIVECPU_USE_OCK@'
 config.sycl_preview_lib_enabled = '@SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB@'
 
-config.build_mode = "@CMAKE_BUILD_TYPE@"
+config.use_debug_win_crt = '@CMAKE_BUILD_TYPE@' == "Debug" or '@CMAKE_MSVC_RUNTIME_LIBRARY@' == 'MultiThreadedDebugDLL'
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

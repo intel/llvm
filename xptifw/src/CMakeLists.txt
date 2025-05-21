@@ -32,9 +32,6 @@ function(add_xpti_library LIB_NAME)
   remove_definitions(-DXPTI_STATIC_LIBRARY)
   add_library(${LIB_NAME} SHARED ${SOURCES})
 
-  set_target_properties(${LIB_NAME} PROPERTIES
-                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
-
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
   target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
@@ -58,6 +55,9 @@ function(add_xpti_library LIB_NAME)
 
   if (CMAKE_SYSTEM_NAME STREQUAL Windows)
       set_target_properties(${LIB_NAME} PROPERTIES DEBUG_POSTFIX d)
+      if (CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+          set_target_properties(${LIB_NAME} PROPERTIES RELEASE_POSTFIX d)
+      endif()
   endif()
 
   # Set the location of the library installation

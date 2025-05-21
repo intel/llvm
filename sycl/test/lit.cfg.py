@@ -70,7 +70,7 @@ if config.sycl_preview_lib_enabled == "ON":
     config.available_features.add("preview-breaking-changes-supported")
 
 # Check if the current build mode is debug.
-if config.build_mode == "Debug":
+if config.use_debug_win_crt:
     config.available_features.add("debug_sycl_library")
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
@@ -141,12 +141,18 @@ for include_dir in [
         sycl_host_only_options += " -isystem %s" % include_dir
 config.substitutions.append(("%fsycl-host-only", sycl_host_only_options))
 
+fsycl_opt = "-fsycl"
 if platform.system() == "Windows":
     config.substitutions.append(
-        ("%sycl_lib", " -lsycl8d" if config.build_mode == "Debug" else " -lsycl8")
+        ("%sycl_lib", " -lsycl8d" if config.use_debug_win_crt else " -lsycl8")
     )
+    if config.use_debug_win_crt:
+        # If using debug CRT we need to build SYCL programs in debug to link
+        # with the right library.
+        fsycl_opt = fsycl_opt + " -g"
 else:
     config.substitutions.append(("%sycl_lib", "-lsycl"))
+config.substitutions.append(("%fsycl", fsycl_opt))
 
 llvm_config.add_tool_substitutions(["llvm-spirv"], [config.sycl_tools_dir])
 
@@ -209,9 +215,6 @@ if not dump_only_tests:
 try:
     import psutil
 
-    if config.build_mode != "Debug":
-        lit_config.maxIndividualTestTime = 600
-    else:
-        lit_config.maxIndividualTestTime = 1200
+    lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass

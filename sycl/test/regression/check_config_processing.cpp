@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx %fsycl %s -o %t.out
 //
 // RUN: env TEST=SET_CORRECT_ENVIRONMENT %t.out > %t.conf
 // RUN: env TEST=CORRECT_CONFIG_FILE env SYCL_CONFIG_FILE_NAME=%t.conf %t.out

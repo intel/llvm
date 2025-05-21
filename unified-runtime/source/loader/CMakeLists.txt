@@ -22,13 +22,13 @@ add_ur_library(ur_loader
 install_ur_library(ur_loader)
 
 if (CMAKE_SYSTEM_NAME STREQUAL Windows)
-    if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    if(CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
         target_compile_definitions(ur_loader PRIVATE UR_USE_DEBUG_POSTFIX=1)
     endif()
 endif()
 
 if (MSVC)
-    if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    if(CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
         set(TARGET_LIBNAME ur_loaderd)
     else()
         set(TARGET_LIBNAME ur_loader)
