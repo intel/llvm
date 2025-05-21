@@ -12,8 +12,6 @@
 // For device image compression.
 #include <detail/compression.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -187,39 +185,28 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
     // try to determine the format; may remain "NONE"
     Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
 
-  SpecConstIDMap.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS);
+  SpecConstIDMap.init(Bin, __SYCL_PROPERTY_SET_SPEC_CONST_MAP);
   SpecConstDefaultValuesMap.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES);
-  DeviceLibReqMask.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK);
-  DeviceLibMetadata.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_DEVICELIB_METADATA);
-  KernelParamOptInfo.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO);
-  AssertUsed.init(Bin, llvm::util::PropertySetRegistry::SYCL_ASSERT_USED);
-  ImplicitLocalArg.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_IMPLICIT_LOCAL_ARG);
-  ProgramMetadata.init(Bin,
-                       llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA);
+      Bin, __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
+  DeviceLibReqMask.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
+  DeviceLibMetadata.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_METADATA);
+  KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
+  AssertUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
+  ImplicitLocalArg.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG);
+  ProgramMetadata.init(Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
   // Convert ProgramMetadata into the UR format
   for (const auto &Prop : ProgramMetadata) {
     ProgramMetadataUR.push_back(
         ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
   }
-  ExportedSymbols.init(Bin,
-                       llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS);
-  ImportedSymbols.init(Bin,
-                       llvm::util::PropertySetRegistry::SYCL_IMPORTED_SYMBOLS);
-  DeviceGlobals.init(Bin, llvm::util::PropertySetRegistry::SYCL_DEVICE_GLOBALS);
-  DeviceRequirements.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS);
-  HostPipes.init(Bin, llvm::util::PropertySetRegistry::SYCL_HOST_PIPES);
-  VirtualFunctions.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS);
-  RegisteredKernels.init(
-      Bin, llvm::util::PropertySetRegistry::SYCL_REGISTERED_KERNELS);
-  Misc.init(Bin, llvm::util::PropertySetRegistry::SYCL_MISC_PROP);
+  ExportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
+  ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
+  DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
+  DeviceRequirements.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
+  HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
+  VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
+  RegisteredKernels.init(Bin, __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS);
+  Misc.init(Bin, __SYCL_PROPERTY_SET_SYCL_MISC_PROP);
 }
 
 std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;
