@@ -387,6 +387,9 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   if (hCommandBuffer->decrementReferenceCount() == 0) {
+    if (hCommandBuffer->CurrentExecution) {
+      UR_CHECK_ERROR(hCommandBuffer->CurrentExecution->wait());
+    }
     // Ref count has reached zero, release of created commands
     for (auto &Command : hCommandBuffer->CommandHandles) {
       commandHandleDestroy(Command);
@@ -1172,6 +1175,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   if (phEvent) {
     UR_CHECK_ERROR(RetImplEvent->record());
     *phEvent = RetImplEvent.release();
+    hCommandBuffer->CurrentExecution = *phEvent;
   }
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {

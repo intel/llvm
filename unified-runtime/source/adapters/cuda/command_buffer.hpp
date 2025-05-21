@@ -192,6 +192,8 @@ struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
   std::atomic_uint32_t RefCount;
+  // The event of current graph execution.
+  ur_event_handle_t CurrentExecution = nullptr;
 
   // Ordered map of sync_points to ur_events, so that we can find the last
   // node added to an in-order command-buffer.
