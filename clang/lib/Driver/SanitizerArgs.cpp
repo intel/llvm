@@ -1339,7 +1339,7 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
     if (!SanitizeArg.empty())
       TC.getDriver().Diag(diag::warn_drv_unsupported_option_for_target)
-          << SanitizeArg << TC.getTripleString();
+          << SanitizeArg << TC.getTripleString() << 0;
 #endif
     return;
   }

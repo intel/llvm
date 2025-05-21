@@ -74,7 +74,11 @@ class ComputeBench(Suite):
         ]
 
         if options.ur_adapter == "cuda":
-            configure_command += ["-DBUILD_SYCL_WITH_CUDA=ON"]
+            configure_command += [
+                "-DBUILD_SYCL_WITH_CUDA=ON",
+                "-DBUILD_L0=OFF",
+                "-DBUILD_OCL=OFF",
+            ]
 
         if options.ur is not None:
             configure_command += [

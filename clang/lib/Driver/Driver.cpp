@@ -1566,7 +1566,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         continue;
       }
       Diag(diag::warn_drv_unsupported_option_for_target)
-          << "-fno-sycl-libspirv" << TT.getTriple();
+          << "-fno-sycl-libspirv" << TT.getTriple() << 0;
     }
   }
   // -fsycl-fp64-conv-emu is valid only for AOT compilation with an Intel GPU
