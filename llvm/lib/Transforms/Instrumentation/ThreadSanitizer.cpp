@@ -361,8 +361,7 @@ void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
   auto &Loc = I->getDebugLoc();
 
   // SPIR constant address space
-  PointerType *ConstASPtrTy =
-      PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+  PointerType *ConstASPtrTy = PointerType::get(C, kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {

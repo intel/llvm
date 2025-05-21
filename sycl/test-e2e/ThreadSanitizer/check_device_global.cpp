@@ -15,16 +15,21 @@ sycl::ext::oneapi::experimental::device_global<
     int[4], decltype(properties(device_image_scope, host_access_read_write))>
     dev_global;
 
+__attribute__((noinline)) void foo(int *array, int val) { *array += val; }
+
 int main() {
   sycl::queue Q;
 
   Q.submit([&](sycl::handler &h) {
      h.parallel_for<class Test>(sycl::nd_range<1>(128, 8),
-                                [=](sycl::nd_item<1>) { dev_global[0]++; });
+                                [=](sycl::nd_item<1> it) {
+                                  dev_global[0] += it.get_global_linear_id();
+                                  foo(dev_global, it.get_local_linear_id());
+                                });
    }).wait();
   // CHECK: WARNING: DeviceSanitizer: data race
   // CHECK-NEXT: When write of size 4 at 0x{{.*}} in kernel <{{.*}}Test>
-  // CHECK-NEXT: #0 {{.*}}check_device_global.cpp:[[@LINE-4]]
+  // CHECK-NEXT: #0 {{.*}}check_device_global.cpp
 
   return 0;
 }

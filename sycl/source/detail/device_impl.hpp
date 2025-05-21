@@ -471,7 +471,7 @@ public:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param, bool InitializingCache = false>
-  typename Param::return_type get_info() const {
+  decltype(auto) get_info() const {
 #define CALL_GET_INFO get_info
 #else
   // We've been exporting
@@ -484,9 +484,26 @@ public:
 #define CALL_GET_INFO get_info_abi_workaround
   template <typename Param> typename Param::return_type get_info() const;
   template <typename Param, bool InitializingCache = false>
-  typename Param::return_type get_info_abi_workaround() const {
+  decltype(auto) get_info_abi_workaround() const {
 #endif
     using execution_scope = ext::oneapi::experimental::execution_scope;
+
+    // With the return type of this function being automatically
+    // deduced we can't simply do
+    //
+    //    CASE(Desc1) { return get_info<Desc2>(); }
+    //
+    // because the function isn't defined yet and we can't auto-deduce the
+    // return type for `Desc2` yet. The solution here is to make that delegation
+    // template-parameter-dependent. We use the `InitializingCache` parameter
+    // for that out of convenience.
+    //
+    // Note that for "eager" cache it's the programmer's responsibility that
+    // the descriptor we delegate to is initialized first (by referencing that
+    // descriptor first when defining the cache data member). For "CallOnce"
+    // cache we want to be querying cached value so "false" is the right
+    // template parameter for such delegation.
+    constexpr bool DependentFalse = InitializingCache && false;
 
     if constexpr (decltype(MCache)::has<Param>() && !InitializingCache) {
       return MCache.get<Param>();
@@ -523,11 +540,13 @@ public:
       return range<3>{result[2], result[1], result[0]};
     }
     CASE(info::device::max_work_item_sizes<2>) {
-      range<3> r3 = CALL_GET_INFO<info::device::max_work_item_sizes<3>>();
+      range<3> r3 =
+          CALL_GET_INFO<info::device::max_work_item_sizes<3>, DependentFalse>();
       return range<2>{r3[1], r3[2]};
     }
     CASE(info::device::max_work_item_sizes<1>) {
-      range<3> r3 = CALL_GET_INFO<info::device::max_work_item_sizes<3>>();
+      range<3> r3 =
+          CALL_GET_INFO<info::device::max_work_item_sizes<3>, DependentFalse>();
       return range<1>{r3[2]};
     }
 
@@ -608,8 +627,9 @@ public:
       // profiling, urDeviceGetGlobalTimestamps is not supported,
       // command_submit, command_start, command_end will be calculated. See
       // MFallbackProfiling
-      return get_info_impl<UR_DEVICE_INFO_QUEUE_PROPERTIES>() &
-             UR_QUEUE_FLAG_PROFILING_ENABLE;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_QUEUE_PROPERTIES>() &
+          UR_QUEUE_FLAG_PROFILING_ENABLE);
     }
 
     CASE(info::device::built_in_kernels) {
@@ -617,7 +637,8 @@ public:
                           ';');
     }
     CASE(info::device::built_in_kernel_ids) {
-      auto names = CALL_GET_INFO<info::device::built_in_kernels>();
+      auto names =
+          CALL_GET_INFO<info::device::built_in_kernels, DependentFalse>();
 
       std::vector<kernel_id> ids;
       ids.reserve(names.size());
@@ -655,7 +676,8 @@ public:
             "the info::device::preferred_interop_user_sync info descriptor can "
             "only be queried with an OpenCL backend");
 
-      return get_info_impl<UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC>());
     }
 
     CASE(info::device::partition_properties) {
@@ -753,16 +775,19 @@ public:
     }
 
     CASE(info::device::usm_device_allocations) {
-      return get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_host_allocations) {
-      return get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_shared_allocations) {
-      return get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_restricted_shared_allocations) {
       ur_device_usm_access_capability_flags_t cap_flags =
@@ -773,14 +798,16 @@ public:
                 UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
     }
     CASE(info::device::usm_system_allocations) {
-      return get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
 
     CASE(info::device::opencl_c_version) {
       throw sycl::exception(errc::feature_not_supported,
                             "Deprecated interface that hasn't been working for "
                             "some time already");
+      return std::string{}; // for return type deduction.
     }
 
     CASE(ext::intel::info::device::max_mem_bandwidth) {
@@ -794,22 +821,26 @@ public:
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_global_work_groups>();
+          ext::oneapi::experimental::info::device::max_global_work_groups,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_1d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<1>>();
+          ext::oneapi::experimental::info::device::max_work_groups<1>,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_2d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<2>>();
+          ext::oneapi::experimental::info::device::max_work_groups<2>,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_3d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
     }
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
@@ -833,7 +864,8 @@ public:
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
       size_t Limit = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_global_work_groups>();
+          ext::oneapi::experimental::info::device::max_global_work_groups,
+          DependentFalse>();
 
       // TODO: std::array<size_t, 3> ?
       size_t result[3];
@@ -845,12 +877,14 @@ public:
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<2>) {
       id<3> max_3d = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
       return id<2>{max_3d[1], max_3d[2]};
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<1>) {
       id<3> max_3d = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
       return id<1>{max_3d[2]};
     }
 
@@ -895,8 +929,8 @@ public:
     }
 
     CASE(ext::oneapi::experimental::info::device::mipmap_max_anisotropy) {
-      // Implicit conversion:
-      return get_info_impl<UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP>();
+      return static_cast<float>(
+          get_info_impl<UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP>());
     }
 
     CASE(ext::oneapi::experimental::info::device::component_devices) {
@@ -905,7 +939,7 @@ public:
       if (!Devs.has_val()) {
         ur_result_t Err = Devs.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
-          return {};
+          return std::vector<sycl::device>{};
         getAdapter()->checkUrResult(Err);
       }
 
@@ -934,8 +968,8 @@ public:
                             "must have a composite device.");
     }
     CASE(ext::oneapi::info::device::num_compute_units) {
-      // uint32_t -> size_t
-      return get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>();
+      return static_cast<size_t>(
+          get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>());
     }
 
     // ext_intel_device_traits.def
@@ -1027,8 +1061,8 @@ public:
       return get_info_impl<UR_DEVICE_INFO_MEMORY_BUS_WIDTH>();
     }
     CASE(ext::intel::info::device::max_compute_queue_indices) {
-      // uint32_t->int implicit conversion.
-      return get_info_impl<UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES>();
+      return static_cast<int>(
+          get_info_impl<UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES>());
     }
     CASE(ext::intel::esimd::info::device::has_2d_block_io_support) {
       if (!has(aspect::ext_intel_esimd))
@@ -1092,7 +1126,7 @@ public:
     }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
-      return get_info_impl<Desc>();
+      return static_cast<typename Param::return_type>(get_info_impl<Desc>());
     }
 #undef CASE
   }
