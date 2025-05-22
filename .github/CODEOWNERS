@@ -177,6 +177,7 @@ sycl/doc/syclgraph/ @intel/sycl-graphs-reviewers
 sycl/**/syclcompat/ @intel/syclcompat-lib-reviewers
 sycl/cmake/modules/AddSYCLLibraryUnitTest.cmake @intel/syclcompat-lib-reviewers
 sycl/include/syclcompat.hpp @intel/syclcompat-lib-reviewers
+sycl/test-e2e/syclcompat/ @intel/syclcompat-lib-reviewers
 
 # bindless images
 sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc @intel/bindless-images-reviewers
