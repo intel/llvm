@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
+#include <clc/clc_convert.h>
 #include <clc/utils.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_BODY <maxmag.inc>
 #include <clc/math/gentype.inc>
