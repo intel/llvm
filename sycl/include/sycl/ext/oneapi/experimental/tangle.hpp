@@ -140,7 +140,7 @@ template <typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
                         tangle<Group>>
-get_tangle(Group group) {
+entangle(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__) || defined(__SPIRV__)
