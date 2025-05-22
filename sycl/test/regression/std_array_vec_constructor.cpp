@@ -2,7 +2,7 @@
 // the constructor.
 // REQUIRES: windows && debug_sycl_library
 
-// RUN: %clangxx -O0 -fsycl -D_DEBUG -shared %s -nostdlib -Xclang --dependent-lib=msvcrtd -fms-runtime-lib=dll_dbg
+// RUN: %clangxx -O0 %fsycl -D_DEBUG -shared %s -nostdlib -Xclang --dependent-lib=msvcrtd -fms-runtime-lib=dll_dbg
 
 #include <sycl/sycl.hpp>
 
