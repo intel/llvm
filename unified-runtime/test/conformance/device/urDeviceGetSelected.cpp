@@ -29,7 +29,19 @@ static int unset_env(const char *name) {
 
 } // namespace uur
 
-using urDeviceGetSelectedTest = uur::urPlatformTest;
+struct urDeviceGetSelectedTest : uur::urPlatformTest {
+  void SetUp() {
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urPlatformTest::SetUp());
+
+    // These tests require at least one device in the platform
+    uint32_t totalCount = 0;
+    ASSERT_SUCCESS(
+        urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &totalCount));
+    if (!totalCount) {
+      GTEST_SKIP() << "Platform has no devices";
+    }
+  }
+};
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urDeviceGetSelectedTest);
 
 /* adpater agnostic tests -- none assume the existence or support of any
