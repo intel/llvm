@@ -11,9 +11,6 @@ if (MSVC)
   )
 endif()
 
-# Backup MSVC runtime option
-set(CMAKE_MSVC_RUNTIME_LIBRARY_BAK "${CMAKE_MSVC_RUNTIME_LIBRARY}")
-
 # Repo URLs
 
 set(OCL_HEADERS_REPO
@@ -80,8 +77,5 @@ endif()
 
 FetchContent_MakeAvailable(ocl-icd)
 add_library(OpenCL-ICD ALIAS OpenCL)
-
-# Restore MSVC runtime option
-set(CMAKE_MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY_BAK}")
 
 add_subdirectory(opencl-aot)
