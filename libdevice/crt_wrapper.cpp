@@ -133,7 +133,7 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
 namespace std {
 DEVICE_EXTERN_CPP
 void __glibcxx_assert_fail(const char *file, int line, const char *func,
-                           const char *cond) {
+                           const char *cond) noexcept {
   __devicelib_assert_fail(
       cond, file, line, func, __spirv_GlobalInvocationId_x(),
       __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),

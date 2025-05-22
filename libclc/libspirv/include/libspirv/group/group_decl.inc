@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define __SPIRV_FUNCTION_S __spirv_AtomicIDecrement
-#define __SPIRV_FUNCTION_U __spirv_AtomicIDecrement
-#define __SPIRV_INT64_BASE
-#define __SPIRV_NO_VALUE_ARG
-#include <libspirv/atomic/atomic_decl.inc>
+_CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __CLC_GENTYPE
+__CLC_FUNCTION(int Execution, int Operation, __CLC_GENTYPE X);
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __CLC_GENTYPE __CLC_NON_UNIFORM_FUNCTION(
+    int Execution, int Operation, __CLC_GENTYPE Value, uint ClusterSize);
