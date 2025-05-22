@@ -33,6 +33,7 @@ struct stream_queue_t {
   // command in question is enqueued on host, as opposed to started. It is
   // created only if profiling is enabled - either for queue or per event.
   native_type HostSubmitTimeStream{0};
+  std::once_flag HostSubmitTimeStreamFlag;
   // delay_compute_ keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When

@@ -79,6 +79,7 @@ ur_result_t ur_event_handle_t_::start() {
 
   try {
     if (HasProfiling) {
+      assert(Queue->getHostSubmitTimeStream() != 0);
       UR_CHECK_ERROR(cuEventRecord(EvQueued, Queue->getHostSubmitTimeStream()));
       UR_CHECK_ERROR(cuEventRecord(EvStart, Stream));
     }
