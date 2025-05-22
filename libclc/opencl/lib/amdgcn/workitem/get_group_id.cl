@@ -6,16 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
+#include <clc/opencl/clc.h>
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_WorkgroupId_x() {
+_CLC_DEF _CLC_OVERLOAD size_t get_group_id(uint dim) {
+  switch (dim) {
+  case 0:
     return __builtin_amdgcn_workgroup_id_x();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_WorkgroupId_y() {
+  case 1:
     return __builtin_amdgcn_workgroup_id_y();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_WorkgroupId_z() {
+  case 2:
     return __builtin_amdgcn_workgroup_id_z();
+  default:
+    return 1;
+  }
 }

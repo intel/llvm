@@ -7,12 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/opencl/clc.h>
-#include <libspirv/spirv.h>
 
 #define IMPL(TYPE, AS)                                                         \
   _CLC_OVERLOAD _CLC_DEF TYPE atomic_sub(volatile AS TYPE *p, TYPE val) {      \
-    return __spirv_AtomicISub((AS TYPE *)p, Device, SequentiallyConsistent,    \
-                              val);                                            \
+    return __sync_fetch_and_sub(p, val);                                       \
   }
 
 IMPL(int, global)

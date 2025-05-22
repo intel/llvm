@@ -7,9 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/opencl/clc.h>
-#include <libspirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD void wait_group_events(int num_events,
-                                              event_t *event_list){ 
-  __spirv_GroupWaitEvents(Workgroup, num_events, event_list);
+                                              event_t *event_list) {
+  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 }

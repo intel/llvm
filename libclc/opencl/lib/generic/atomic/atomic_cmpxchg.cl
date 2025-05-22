@@ -7,14 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/opencl/clc.h>
-#include <libspirv/spirv.h>
 
 #define IMPL(TYPE, AS)                                                         \
   _CLC_OVERLOAD _CLC_DEF TYPE atomic_cmpxchg(volatile AS TYPE *p, TYPE cmp,    \
                                              TYPE val) {                       \
-    return __spirv_AtomicCompareExchange((AS TYPE *)p, Device,                 \
-                                         SequentiallyConsistent,               \
-                                         SequentiallyConsistent, val, cmp);    \
+    return __sync_val_compare_and_swap(p, cmp, val);                           \
   }
 
 IMPL(int, global)
