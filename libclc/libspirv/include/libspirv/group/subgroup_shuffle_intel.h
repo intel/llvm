@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define __SPIRV_FUNCTION_S __spirv_AtomicIDecrement
-#define __SPIRV_FUNCTION_U __spirv_AtomicIDecrement
-#define __SPIRV_INT64_BASE
-#define __SPIRV_NO_VALUE_ARG
-#include <libspirv/atomic/atomic_decl.inc>
+#define __CLC_BODY <libspirv/group/subgroup_shuffle_intel.inc>
+#include <clc/integer/gentype.inc>
+
+#define __CLC_BODY <libspirv/group/subgroup_shuffle_intel.inc>
+#include <clc/math/gentype.inc>
