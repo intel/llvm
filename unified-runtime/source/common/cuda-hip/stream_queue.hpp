@@ -76,6 +76,11 @@ struct stream_queue_t {
         Device{Device}, Flags(Flags), URFlags(URFlags), Priority(Priority),
         HasOwnership{true} {
     urContextRetain(Context);
+
+    // Create timing stream is profiling is enabled.
+    if (URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+      createHostSubmitTimeStream();
+    }
   }
 
   // Create a queue from a native handle
@@ -89,6 +94,11 @@ struct stream_queue_t {
         Device{Device}, NumComputeStreams{1}, Flags(Flags), URFlags(URFlags),
         Priority(0), HasOwnership{BackendOwns} {
     urContextRetain(Context);
+
+    // Create timing stream is profiling is enabled.
+    if (URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+      createHostSubmitTimeStream();
+    }
   }
 
   ~stream_queue_t() { urContextRelease(Context); }

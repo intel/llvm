@@ -16,39 +16,28 @@
 #include "queue.hpp"
 
 /// UR Event mapping to CUevent
-///
 struct ur_event_handle_t_ : ur::cuda::handle_base {
-public:
   using native_type = CUevent;
 
-  ur_result_t record();
-
-  ur_result_t wait();
+  ur_event_handle_t_(
+      ur_command_t Type, ur_queue_handle_t Queue, CUstream Stream,
+      uint32_t StreamToken = std::numeric_limits<uint32_t>::max());
+  ur_event_handle_t_(ur_context_handle_t Context, CUevent EventNative);
+  ~ur_event_handle_t_();
+  ur_result_t release();
 
   ur_result_t start();
-
-  native_type get() const noexcept { return EvEnd; };
-
-  ur_queue_handle_t getQueue() const noexcept { return Queue; }
-
-  CUstream getStream() const noexcept { return Stream; }
-
-  uint32_t getComputeStreamToken() const noexcept { return StreamToken; }
-
-  ur_command_t getCommandType() const noexcept { return CommandType; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  ur_result_t record();
+  ur_result_t wait();
 
   bool isRecorded() const noexcept { return IsRecorded; }
-
   bool isStarted() const noexcept { return IsStarted; }
-
   bool isCompleted() const noexcept;
 
-  bool isInterop() const noexcept { return IsInterop; };
-
+  uint64_t getQueuedTime() const;
+  uint64_t getStartTime() const;
+  uint64_t getEndTime() const;
   uint32_t getExecutionStatus() const noexcept {
-
     if (!isRecorded()) {
       return UR_EVENT_STATUS_SUBMITTED;
     }
@@ -59,102 +48,48 @@ public:
     return UR_EVENT_STATUS_COMPLETE;
   }
 
-  bool isTimestampEvent() const noexcept {
-    return getCommandType() == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
-  }
+  bool isInterop() const noexcept { return IsInterop; };
+  bool hasProfiling() const noexcept { return HasProfiling; }
 
+  // Basic getters.
+  native_type get() const noexcept { return EvEnd; };
+  ur_queue_handle_t getQueue() const noexcept { return Queue; }
+  CUstream getStream() const noexcept { return Stream; }
+  uint32_t getComputeStreamToken() const noexcept { return StreamToken; }
+  ur_command_t getCommandType() const noexcept { return CommandType; }
   ur_context_handle_t getContext() const noexcept { return Context; };
-
-  uint32_t incrementReferenceCount() { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() { return --RefCount; }
-
   uint32_t getEventID() const noexcept { return EventID; }
 
-  bool backendHasOwnership() const noexcept { return HasOwnership; }
-
-  // Returns the counter time when the associated command(s) were enqueued
-  //
-  uint64_t getQueuedTime() const;
-
-  // Returns the counter time when the associated command(s) started execution
-  //
-  uint64_t getStartTime() const;
-
-  // Returns the counter time when the associated command(s) completed
-  //
-  uint64_t getEndTime() const;
-
-  // construct a native CUDA. This maps closely to the underlying CUDA event.
-  static ur_event_handle_t
-  makeNative(ur_command_t Type, ur_queue_handle_t Queue, CUstream Stream,
-             uint32_t StreamToken = std::numeric_limits<uint32_t>::max()) {
-    const bool RequiresTimings =
-        Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE ||
-        Type == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
-    if (RequiresTimings) {
-      Queue->createHostSubmitTimeStream();
-    }
-    native_type EvEnd = nullptr, EvQueued = nullptr, EvStart = nullptr;
-    UR_CHECK_ERROR(cuEventCreate(
-        &EvEnd, RequiresTimings ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
-
-    if (RequiresTimings) {
-      UR_CHECK_ERROR(cuEventCreate(&EvQueued, CU_EVENT_DEFAULT));
-      UR_CHECK_ERROR(cuEventCreate(&EvStart, CU_EVENT_DEFAULT));
-    }
-    return new ur_event_handle_t_(Type, Queue->getContext(), Queue, EvEnd,
-                                  EvQueued, EvStart, Stream, StreamToken);
-  }
-
-  static ur_event_handle_t makeWithNative(ur_context_handle_t context,
-                                          CUevent eventNative) {
-    return new ur_event_handle_t_(context, eventNative);
-  }
-
-  ur_result_t release();
-
-  ~ur_event_handle_t_();
+  // Reference counting.
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  uint32_t incrementReferenceCount() { return ++RefCount; }
+  uint32_t decrementReferenceCount() { return --RefCount; }
 
 private:
-  // This constructor is private to force programmers to use the makeNative /
-  // make_user static members in order to create a pi_event for CUDA.
-  ur_event_handle_t_(ur_command_t Type, ur_context_handle_t Context,
-                     ur_queue_handle_t Queue, native_type EvEnd,
-                     native_type EvQueued, native_type EvStart, CUstream Stream,
-                     uint32_t StreamToken);
-
-  // This constructor is private to force programmers to use the
-  // makeWithNative for event interop
-  ur_event_handle_t_(ur_context_handle_t Context, CUevent EventNative);
-
   ur_command_t CommandType; // The type of command associated with event.
 
-  std::atomic_uint32_t RefCount; // Event reference count.
+  std::atomic_uint32_t RefCount{1}; // Event reference count.
 
-  bool HasOwnership; // Signifies if event owns the native type.
+  bool HasOwnership{true};  // Signifies if event owns the native type.
+  bool HasProfiling{false}; // Signifies if event has profiling information.
 
-  bool HasBeenWaitedOn; // Signifies whether the event has been waited
-                        // on through a call to wait(), which implies
-                        // that it has completed.
+  bool HasBeenWaitedOn{false}; // Signifies whether the event has been waited
+                               // on through a call to wait(), which implies
+                               // that it has completed.
 
-  bool IsRecorded; // Signifies wether a native CUDA event has been recorded
-                   // yet.
-  bool IsStarted;  // Signifies wether the operation associated with the
-                   // UR event has started or not
+  bool IsRecorded{false}; // Signifies wether a native CUDA event has been
+                          // recorded yet.
+  bool IsStarted{false};  // Signifies wether the operation associated with the
+                          // UR event has started or not
 
   const bool IsInterop{false}; // Made with urEventCreateWithNativeHandle
 
   uint32_t StreamToken;
-  uint32_t EventID; // Queue identifier of the event.
+  uint32_t EventID{0}; // Queue identifier of the event.
 
-  native_type EvEnd; // CUDA event handle. If this ur_event_handle_t represents
-                     // a user event, this will be nullptr.
-
-  native_type EvStart; // CUDA event handle associated with the start
-
-  native_type EvQueued; // CUDA event handle associated with the time
-                        // the command was enqueued
+  native_type EvEnd;    // Native event if IsInterop.
+  native_type EvStart;  // Profiling event for command start.
+  native_type EvQueued; // Profiling even for command enqueue.
 
   ur_queue_handle_t Queue; // ur_queue_handle_t associated with the event. If
                            // this is a user event, this will be nullptr.
