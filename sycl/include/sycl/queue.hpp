@@ -3674,7 +3674,7 @@ private:
                                  bool IsTopCodeLoc);
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  /// A template-free versions of submit as const member function.
+  /// A template-free version of submit as const member function.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::v1::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
