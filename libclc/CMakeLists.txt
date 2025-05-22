@@ -459,19 +459,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
     message( STATUS "  device: ${d} ( ${${d}_aliases} )" )
 
-    # Note: when declaring builtins, we must consider that even if a target
-    # formally/nominally supports the generic address space, in practice that
-    # target may map it to the same target address space as another address
-    # space (often the private one). In such cases we must be careful not to
-    # multiply-define a builtin in a single target address space, as it would
-    # result in a mangling clash.
-    # For this reason we must consider the target support of the generic
-    # address space separately from the *implementation* decision about whether
-    # to declare certain builtins in that address space.
-    set ( supports_generic_addrspace TRUE )
-    # Note: we assume that if there is no distinct generic address space, it
-    # maps to the private address space.
-    set ( has_distinct_generic_addrspace TRUE )
     if ( ARCH STREQUAL spirv OR ARCH STREQUAL spirv64 )
       set( opt_flags -O3 )
       list( APPEND build_flags -DCLC_SPIRV )
@@ -489,12 +476,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       endif()
     elseif( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
       set( opt_flags -O3 "--nvvm-reflect-enable=false" )
-      set( has_distinct_generic_addrspace FALSE )
     elseif( ARCH STREQUAL amdgcn )
       set( opt_flags -O3 --amdgpu-oclc-reflect-enable=false )
     elseif( ARCH STREQUAL native_cpu )
       set( opt_flags -O3 )
-      set( has_distinct_generic_addrspace FALSE )
     else()
       set( opt_flags -O3 )
       set( MACRO_ARCH ${ARCH} )
@@ -514,19 +499,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       "+__opencl_c_3d_image_writes,"
       "+__opencl_c_images,"
       "+cl_khr_3d_image_writes")
-    if( supports_generic_addrspace )
-      string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
-      if( has_distinct_generic_addrspace )
-        list( APPEND build_flags -D__CLC_DISTINCT_GENERIC_ADDRSPACE__ )
-      endif()
-    else()
-      # Explictly disable opencl_c_generic_address_space (it may be enabled
-      # by default on some targets). We also disable opencl_c_pipes and
-      # opencl_c_device_enqueue since they require generic address space.
-      string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_generic_address_space" )
-      string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_pipes" )
-      string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_device_enqueue" )
-    endif()
     list( APPEND build_flags -cl-std=CL3.0 "-Xclang" ${CL_3_0_EXTENSIONS} )
 
     # Add platform specific flags
