@@ -351,10 +351,11 @@ set(LIB_PREVIEW_OUTPUT_NAME ${LIB_OUTPUT_NAME}-preview)
 
 # Version-agnostic name of the import library, has effect on Windows only.
 set(IMPLIB_NAME "sycl")
+set(IMPLIB_PREVIEW_NAME "${IMPLIB_NAME}-preview")
 if (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
   set(IMPLIB_NAME "${IMPLIB_NAME}d")
+  set(IMPLIB_PREVIEW_NAME "${IMPLIB_PREVIEW_NAME}d")
 endif()
-set(IMPLIB_PREVIEW_NAME "${IMPLIB_NAME}-preview")
 
 add_sycl_rt_library(${LIB_NAME} sycl_object ${LIB_OUTPUT_NAME}
                     XPTI_LIB xpti
