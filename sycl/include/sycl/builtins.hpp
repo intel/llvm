@@ -633,6 +633,12 @@ __imf_vimin_s16x2_relu(unsigned int x, unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_vimin_s32_relu(int x, int y);
 }
 #ifdef __GLIBC__
+namespace std {
+extern __DPCPP_SYCL_EXTERNAL void __glibcxx_assert_fail(const char *file,
+                                                        int line,
+                                                        const char *func,
+                                                        const char *cond);
+} // namespace std
 extern "C" {
 extern __DPCPP_SYCL_EXTERNAL void __assert_fail(const char *expr,
                                                 const char *file,
