@@ -88,6 +88,9 @@ class DetectVersion:
         # matches up with the prefix of the l0 version patch, the cache is
         # indeed referring to the same version.
         if env_cache_patch == l0_ver_patch[: len(env_cache_patch)]:
+			print(
+                f"Using compute_runtime tag from COMPUTE_RUNTIME_TAG_CACHE: {env_cache_var}"
+            )
             cls._instance.compute_runtime_ver_cache = env_cache_ver
 
         return cls._instance
@@ -154,6 +157,7 @@ class DetectVersion:
         # not work if we enable benchmark CI in precommit.
         url = options.detect_versions.compute_runtime_tag_api
 
+        print(f"Fetching compute-runtime tag from {url}...")
         try:
             for _ in range(options.detect_versions.max_api_calls):
                 res = request.urlopen(url)
@@ -196,6 +200,7 @@ class DetectVersion:
         except urllib.error.URLError as e:
             print(f"URL error: {e.reason}")
 
+        print(f"WARNING: unable to find compute-runtime version")
         return options.detect_versions.not_found_placeholder
 
 
