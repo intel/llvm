@@ -163,6 +163,7 @@ jobs:
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
+      target_devices: level_zero:gpu
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
 
   cuda-aws-start:
@@ -216,6 +217,9 @@ jobs:
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    # Normally these jobs take less than 10m. But sometimes the job hangs up and
+    # reaches the 360m limit. Set a lower limit to free up the runner earlier.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:

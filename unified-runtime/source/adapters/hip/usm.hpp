@@ -15,7 +15,7 @@
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
-struct ur_usm_pool_handle_t_ {
+struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
   std::atomic_uint32_t RefCount = 1;
 
   ur_context_handle_t Context = nullptr;

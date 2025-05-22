@@ -15,19 +15,6 @@
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
 
-static ur_mem_buffer_t::device_access_mode_t
-getDeviceAccessMode(ur_mem_flags_t memFlag) {
-  if (memFlag & UR_MEM_FLAG_READ_WRITE) {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  } else if (memFlag & UR_MEM_FLAG_READ_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::read_only;
-  } else if (memFlag & UR_MEM_FLAG_WRITE_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::write_only;
-  } else {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  }
-}
-
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {
   return requested == actual ||
@@ -47,16 +34,16 @@ ur_usm_handle_t::ur_usm_handle_t(ur_context_handle_t hContext, size_t size,
 
 void *ur_usm_handle_t::getDevicePtr(
     ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
-    size_t /*offset*/, size_t /*size*/,
+    size_t offset, size_t /*size*/,
     std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
-  return ptr;
+  return ur_cast<char *>(ptr) + offset;
 }
 
 void *
-ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t /*offset*/,
+ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t offset,
                             size_t /*size*/,
                             std::function<void(void *src, void *dst, size_t)>) {
-  return ptr;
+  return ur_cast<char *>(ptr) + offset;
 }
 
 void ur_usm_handle_t::unmapHostPtr(
@@ -127,24 +114,32 @@ void *ur_integrated_buffer_handle_t::getDevicePtr(
 void *ur_integrated_buffer_handle_t::mapHostPtr(
     ur_map_flags_t /*flags*/, size_t offset, size_t /*size*/,
     std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
+  // TODO: if writeBackPtr is set, we should map to that pointer
+  // because that's what SYCL expects, SYCL will attempt to call free
+  // on the resulting pointer leading to double free with the current
+  // implementation. Investigate the SYCL implementation.
   return ur_cast<char *>(ptr.get()) + offset;
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
     void * /*pMappedPtr*/, std::function<void(void *src, void *dst, size_t)>) {
+  // TODO: if writeBackPtr is set, we should copy the data back
   /* nop */
 }
 
 static v2::raii::command_list_unique_handle
 getSyncCommandListForCopy(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice) {
-  return hContext->getCommandListCache().getImmediateCommandList(
-      hDevice->ZeDevice, true,
+  v2::command_list_desc_t listDesc;
+  listDesc.IsInOrder = true;
+  listDesc.Ordinal =
       hDevice
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
-          .ZeOrdinal,
-      true, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
-      std::nullopt);
+          .ZeOrdinal;
+  listDesc.CopyOffloadEnable = true;
+  return hContext->getCommandListCache().getImmediateCommandList(
+      hDevice->ZeDevice, listDesc, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS,
+      ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt);
 }
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
@@ -381,15 +376,19 @@ void ur_shared_buffer_handle_t::unmapHostPtr(
   // nop
 }
 
-static bool useHostBuffer(ur_context_handle_t hContext) {
+static bool useHostBuffer(ur_context_handle_t /* hContext */) {
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
   // For integrated devices, allocating the buffer in the host memory
   // enables automatic access from the device, and makes copying
   // unnecessary in the map/unmap operations. This improves performance.
-  return hContext->getDevices().size() == 1 &&
-         hContext->getDevices()[0]->ZeDeviceProperties->flags &
-             ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+
+  // TODO: fix integrated buffer implementation
+  return false;
+
+  // return hContext->getDevices().size() == 1 &&
+  //        hContext->getDevices()[0]->ZeDeviceProperties->flags &
+  //            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 }
 
 ur_mem_sub_buffer_t::ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset,
@@ -520,7 +519,7 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   }
 
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
     auto hostPtrAction =
@@ -551,7 +550,7 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
              pRegion->size <= hBuffer->getSize()),
             UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   UR_ASSERT(isAccessCompatible(accessMode, hBuffer->getDeviceAccessMode()),
             UR_RESULT_ERROR_INVALID_VALUE);

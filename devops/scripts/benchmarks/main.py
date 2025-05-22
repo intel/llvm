@@ -6,6 +6,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from benches.compute import *
+from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
@@ -142,7 +143,7 @@ def collect_metadata(suites):
     metadata = {}
 
     for s in suites:
-        metadata.update(s.additionalMetadata())
+        metadata.update(s.additional_metadata())
         suite_benchmarks = s.benchmarks()
         for benchmark in suite_benchmarks:
             metadata[benchmark.name()] = benchmark.get_metadata()
@@ -166,6 +167,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         SyclBench(directory),
         LlamaCppBench(directory),
         UMFSuite(directory),
+        GromacsBench(directory),
         TestSuite(),
     ]
 
@@ -198,6 +200,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             except Exception as e:
                 failures[s.name()] = f"Suite setup failure: {e}"
                 print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
+                print(f"failed: {e}")
             else:
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
@@ -250,7 +253,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             print(f"tearing down {benchmark.name()}... ", flush=True)
         benchmark.teardown()
         if options.verbose:
-            print("{benchmark.name()} teardown complete.")
+            print(f"{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}

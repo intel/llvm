@@ -260,6 +260,7 @@ endif()
 find_package( Python3 REQUIRED COMPONENTS Interpreter )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_convert.py spirv_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_convert_common.py spirv_common_script_loc )
 add_custom_command(
   OUTPUT convert.cl
   COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert.cl
@@ -277,7 +278,7 @@ set_target_properties( generate-clc-convert.cl PROPERTIES FOLDER "libclc/Sourceg
 add_custom_command(
   OUTPUT spirv-convert.cl
   COMMAND ${Python3_EXECUTABLE} ${spirv_script_loc} > spirv-convert.cl
-  DEPENDS ${spirv_script_loc} )
+  DEPENDS ${spirv_script_loc} ${spirv_common_script_loc} )
 add_custom_target( generate-spirv-convert.cl DEPENDS spirv-convert.cl )
 set_target_properties( generate-spirv-convert.cl PROPERTIES FOLDER "libclc/Sourcegenning" )
 
@@ -569,7 +570,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     list( APPEND spirv_build_flags
       -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
       -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
-      # FIXME: Fix libclc to not require disabling this noisy warning
+      # FIXME: Fix libspirv to not require disabling this noisy warning
       -Wno-bitwise-conditional-parentheses
     )
 

@@ -861,6 +861,13 @@ private:
       CloneeName = OriginalName;
     }
 
+    // If the clone name already exists in the module then we have to assume it
+    // does the right thing already. We're only going to end up creating a copy
+    // of that function without external users being able to reach it.
+    if (M->getFunction(CloneName)) {
+      return true;
+    }
+
     if (Function *Clonee = M->getFunction(CloneeName)) {
       ValueToValueMapTy Dummy;
       Function *NewF = CloneFunction(Clonee, Dummy);
@@ -907,6 +914,7 @@ private:
         errs() << "Test run failure!\n";
         return false;
       }
+
       // When TargetGenericAddrSpace is not 0, there is a possibility that
       // RemangledName may already exist. For instance, the function name
       // _Z1fPU3AS4i would be remangled to _Z1fPi, which is a valid variant and
@@ -915,8 +923,18 @@ private:
       // temporary suffix to RemangledName to prevent a name clash. This
       // temporary suffix will be removed during the post-processing stage, once
       // all functions have been handled.
-      if (M->getFunction(RemangledName))
-        RemangledName += TmpSuffix;
+      if (ASTCtx->getTargetAddressSpace(LangAS::Default) != 0)
+        if (M->getFunction(RemangledName))
+          RemangledName += TmpSuffix;
+
+      // If the remangled name already exists in the module then we have to
+      // assume it does the right thing already. We're only going to end up
+      // creating a copy of that function without external users being able to
+      // reach it.
+      if (M->getFunction(RemangledName)) {
+        return true;
+      }
+
       Func.setName(RemangledName);
 
       // Make a clone of a suitable function using the old name if there is a

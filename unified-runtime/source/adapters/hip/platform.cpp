@@ -30,7 +30,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
     return ReturnValue(Version.c_str());
   }
   case UR_PLATFORM_INFO_BACKEND: {
-    return ReturnValue(UR_PLATFORM_BACKEND_HIP);
+    return ReturnValue(UR_BACKEND_HIP);
   }
   case UR_PLATFORM_INFO_EXTENSIONS: {
     return ReturnValue("");

@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-#include <sycl/ext/khr/free_function_commands.hpp>
+#include <sycl/khr/free_function_commands.hpp>
 
 thread_local size_t NumOfEnqueueEventsWaitWithBarrier = 0;
 

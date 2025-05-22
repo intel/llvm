@@ -68,10 +68,6 @@ for a in config.adapters_built:
     )
     config.available_features.add(f"adapter-{a}")
 
-# If no adapters are built, don't include the conformance tests
-if config.adapters_built == ["mock"]:
-    config.excludes.add("conformance")
-
 config.substitutions.append(word_match("FileCheck", config.filecheck_path))
 
 

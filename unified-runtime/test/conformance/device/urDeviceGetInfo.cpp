@@ -2608,7 +2608,7 @@ TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
-      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+      property_name);
 
   ASSERT_EQ(property_size, sizeof(int32_t));
 
@@ -2629,7 +2629,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
-      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+      property_name);
 
   ASSERT_EQ(property_size, sizeof(int32_t));
 
@@ -2650,7 +2650,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
-      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+      property_name);
 
   ASSERT_EQ(property_size, sizeof(int32_t));
 

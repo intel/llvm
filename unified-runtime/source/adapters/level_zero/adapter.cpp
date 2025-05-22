@@ -296,7 +296,7 @@ Behavior Summary:
   SysMan initialization is skipped.
 */
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(logger::get_logger("level_zero")) {
+    : handle_base(), logger(logger::get_logger("level_zero")) {
   ZeInitDriversResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
@@ -322,12 +322,19 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
-  if (UrL0LeaksDebug) {
-    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
-    setEnvVar("ZEL_ENABLE_BASIC_LEAK_CHECKER", "1");
-  }
-
   PlatformCache.Compute = [](Result<PlatformVec> &result) {
+    static std::once_flag ZeCallCountInitialized;
+    try {
+      std::call_once(ZeCallCountInitialized, []() {
+        if (UrL0LeaksDebug) {
+          ZeCallCount = new std::map<std::string, int>;
+        }
+      });
+    } catch (...) {
+      result = exceptionToResult(std::current_exception());
+      return;
+    }
+
     uint32_t UserForcedSysManInit = 0;
     // Check if the user has disabled the default L0 Env initialization.
     const int UrSysManEnvInitEnabled = [&UserForcedSysManInit] {
@@ -545,6 +552,97 @@ void globalAdapterOnDemandCleanup() {
 }
 
 ur_result_t adapterStateTeardown() {
+  // Print the balance of various create/destroy native calls.
+  // The idea is to verify if the number of create(+) and destroy(-) calls are
+  // matched.
+  if (ZeCallCount && (UrL0LeaksDebug) != 0) {
+    bool LeakFound = false;
+    // clang-format off
+    //
+    // The format of this table is such that each row accounts for a
+    // specific type of objects, and all elements in the raw except the last
+    // one are allocating objects of that type, while the last element is known
+    // to deallocate objects of that type.
+    //
+    std::vector<std::vector<std::string>> CreateDestroySet = {
+      {"zeContextCreate",      "zeContextDestroy"},
+      {"zeCommandQueueCreate", "zeCommandQueueDestroy"},
+      {"zeModuleCreate",       "zeModuleDestroy"},
+      {"zeKernelCreate",       "zeKernelDestroy"},
+      {"zeEventPoolCreate",    "zeEventPoolDestroy"},
+      {"zeCommandListCreateImmediate", "zeCommandListCreate", "zeCommandListDestroy"},
+      {"zeEventCreate",        "zeEventDestroy"},
+      {"zeFenceCreate",        "zeFenceDestroy"},
+      {"zeImageCreate","zeImageViewCreateExt",        "zeImageDestroy"},
+      {"zeSamplerCreate",      "zeSamplerDestroy"},
+      {"zeMemAllocDevice", "zeMemAllocHost", "zeMemAllocShared", "zeMemFree"},
+    };
+
+    // A sample output aimed below is this:
+    // ------------------------------------------------------------------------
+    //                zeContextCreate = 1     \--->        zeContextDestroy = 1
+    //           zeCommandQueueCreate = 1     \--->   zeCommandQueueDestroy = 1
+    //                 zeModuleCreate = 1     \--->         zeModuleDestroy = 1
+    //                 zeKernelCreate = 1     \--->         zeKernelDestroy = 1
+    //              zeEventPoolCreate = 1     \--->      zeEventPoolDestroy = 1
+    //   zeCommandListCreateImmediate = 1     |
+    //            zeCommandListCreate = 1     \--->    zeCommandListDestroy = 1  ---> LEAK = 1
+    //                  zeEventCreate = 2     \--->          zeEventDestroy = 2
+    //                  zeFenceCreate = 1     \--->          zeFenceDestroy = 1
+    //                  zeImageCreate = 0     \--->          zeImageDestroy = 0
+    //                zeSamplerCreate = 0     \--->        zeSamplerDestroy = 0
+    //               zeMemAllocDevice = 0     |
+    //                 zeMemAllocHost = 1     |
+    //               zeMemAllocShared = 0     \--->               zeMemFree = 1
+    //
+    // clang-format on
+    // TODO: use logger to print this messages
+    std::cerr << "Check balance of create/destroy calls\n";
+    std::cerr << "----------------------------------------------------------\n";
+    std::stringstream ss;
+    for (const auto &Row : CreateDestroySet) {
+      int diff = 0;
+      for (auto I = Row.begin(); I != Row.end();) {
+        const char *ZeName = (*I).c_str();
+        const auto &ZeCount = (*ZeCallCount)[*I];
+
+        bool First = (I == Row.begin());
+        bool Last = (++I == Row.end());
+
+        if (Last) {
+          ss << " \\--->";
+          diff -= ZeCount;
+        } else {
+          diff += ZeCount;
+          if (!First) {
+            ss << " | ";
+            std::cerr << ss.str() << "\n";
+            ss.str("");
+            ss.clear();
+          }
+        }
+        ss << std::setw(30) << std::right << ZeName;
+        ss << " = ";
+        ss << std::setw(5) << std::left << ZeCount;
+      }
+
+      if (diff) {
+        LeakFound = true;
+        ss << " ---> LEAK = " << diff;
+      }
+
+      std::cerr << ss.str() << '\n';
+      ss.str("");
+      ss.clear();
+    }
+
+    ZeCallCount->clear();
+    delete ZeCallCount;
+    ZeCallCount = nullptr;
+    if (LeakFound)
+      return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+  }
+
   // Due to multiple DLLMain definitions with SYCL, register to cleanup the
   // Global Adapter after refcnt is 0
 #if defined(_WIN32)
@@ -643,7 +741,7 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
 
   switch (PropName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_LEVEL_ZERO);
+    return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(GlobalAdapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION: {
