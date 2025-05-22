@@ -149,7 +149,7 @@ if platform.system() == "Windows":
     if config.use_debug_win_crt:
         # If using debug CRT we need to build SYCL programs in debug to link
         # with the right library.
-        fsycl_opt = fsycl_opt + " -g"
+        fsycl_opt = fsycl_opt + " -Xclang --dependent-lib=msvcrtd"
 else:
     config.substitutions.append(("%sycl_lib", "-lsycl"))
 config.substitutions.append(("%fsycl", fsycl_opt))

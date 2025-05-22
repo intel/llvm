@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -D_FORTIFY_SOURCE=2 %s -o %t.out
+// RUN: %clangxx %fsycl -D_FORTIFY_SOURCE=2 %s -o %t.out
 #include <iostream>
 #include <sycl/sycl.hpp>
 
