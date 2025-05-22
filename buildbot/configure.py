@@ -427,7 +427,9 @@ def main():
         "--use-zstd", action="store_true", help="Force zstd linkage while building."
     )
     parser.add_argument(
-        "--use-debug-crt-dll", action="store_true", help="Link libraries with MSVC debug dll in release mode."
+        "--use-debug-crt-dll",
+        action="store_true",
+        help="Link libraries with MSVC debug dll in release mode.",
     )
     args, passthrough_args = parser.parse_known_intermixed_args()
 
