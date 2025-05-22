@@ -131,6 +131,8 @@ std::array<int, 2> GetNumberOfSubAndSubSubDevices(const device &Device) {
 /// e.g. "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
 std::string formatUUID(detail::uuid_type UUID) {
   std::ostringstream oss;
+  // Avoid locale issues with numbers
+  oss.imbue(std::locale::classic());
   oss << std::hex << std::setfill('0');
 
   assert((std::size(UUID) == 16) && "Invalid UUID length");
