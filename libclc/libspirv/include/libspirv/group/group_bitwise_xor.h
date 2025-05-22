@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define __SPIRV_FUNCTION_S __spirv_AtomicIDecrement
-#define __SPIRV_FUNCTION_U __spirv_AtomicIDecrement
-#define __SPIRV_INT64_BASE
-#define __SPIRV_NO_VALUE_ARG
-#include <libspirv/atomic/atomic_decl.inc>
+#define __CLC_FUNCTION __spirv_GroupBitwiseXorKHR
+#define __CLC_NON_UNIFORM_FUNCTION __spirv_GroupNonUniformBitwiseXor
+#define __CLC_BODY <libspirv/group/group_decl.inc>
+
+#include <clc/integer/gentype.inc>
+
+#undef __CLC_FUNCTION
+#undef __CLC_NON_UNIFORM_FUNCTION
