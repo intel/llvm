@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // Needs AMX.
 
-// REQUIRES: target-spir || target-native_cpu
+// REQUIRES: target-spir
 
 // REQUIRES: cpu
 // REQUIRES: aspect-ext_intel_matrix

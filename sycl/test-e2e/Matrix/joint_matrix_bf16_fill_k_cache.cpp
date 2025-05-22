@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: target-spir || target-native_cpu
+// REQUIRES: target-spir
 // XFAIL: run-mode && igc-dev
 // XFAIL-TRACKER: CMPLRLLVM-66371
 // REQUIRES: aspect-ext_intel_matrix

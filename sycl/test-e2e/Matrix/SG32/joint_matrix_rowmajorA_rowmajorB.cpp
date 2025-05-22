@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This tests support of row major layout for matrix B which does automatic VNNI
 
-// REQUIRES: target-spir || target-native_cpu
+// REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943

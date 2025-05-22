@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: target-spir || target-native_cpu
+// REQUIRES: target-spir
 
 // UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-INTENDED: SG size = 32 is not currently supported for SYCL Joint
