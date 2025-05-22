@@ -362,6 +362,8 @@ public:
 
     int ImageId = CacheKey.first.second;
     std::stringstream DeviceList;
+    DeviceList.imbue(
+        std::locale::classic()); // avoid locale issues, like commas
     std::vector<unsigned char> SerializedObjVec = CacheKey.first.first;
 
     // Convert spec constants to string. Spec constants are stored as
