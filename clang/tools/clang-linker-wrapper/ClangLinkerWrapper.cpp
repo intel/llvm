@@ -1049,21 +1049,6 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
 
-  StringRef OutputFilePath = *OutputFileOrErr;
-  if (Verbose || DryRun) {
-    std::string InputFiles;
-    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-      InputFiles += SplitModules[I].ModuleFilePath;
-      if (I + 1 < E)
-        InputFiles += ',';
-    }
-
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFiles,
-                      OutputFilePath);
-    if (DryRun)
-      return OutputFilePath;
-  }
-
   StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
   if (Target.empty())
     return createStringError(
@@ -1094,7 +1079,9 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
                                              CopyFrom, CopyTo, EC.value()));
     }
 
-    auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
+    ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrDesc =
+        DryRun ? MemoryBuffer::getMemBuffer("")
+               : MemoryBuffer::getFile(SI.ModuleFilePath);
     if (!MBOrDesc)
       return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
 
@@ -1121,10 +1108,6 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
-  if (Verbose) {
-    errs() << formatv(" offload-wrapper: compile-opts: {0}, link-opts: {1}\n",
-                      CompileOptions, LinkOptions);
-  }
   if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
@@ -1134,6 +1117,7 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   // TODO: Once "clang tool->runCompile" migration is finished we need to remove
   // this scope and use community flow.
   int FD = -1;
+  StringRef OutputFilePath = *OutputFileOrErr;
   if (std::error_code EC = sys::fs::openFileForWrite(OutputFilePath, FD))
     return errorCodeToError(EC);
 
