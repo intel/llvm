@@ -47,6 +47,8 @@ struct ur_queue_handle_t_ : RefCounted {
 
   bool isProfiling() const { return profilingEnabled; }
 
+  bool isEmpty() const { return events.size() == 0; }
+
 private:
   ur_device_handle_t device;
   ur_context_handle_t context;
