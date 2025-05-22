@@ -1159,14 +1159,33 @@ static target getAccessTarget(QualType FieldTy,
 }
 
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
-  for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
-    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-        IRAttr->getAttributeNameValuePairs(getASTContext());
-    for (const auto &NameValuePair : NameValuePairs) {
-      if (NameValuePair.first == "sycl-nd-range-kernel" ||
-          NameValuePair.first == "sycl-single-task-kernel") {
+  SourceLocation Loc = FD->getLocation();
+  bool NextDeclaredWithAttr = false;
+  for (FunctionDecl *Redecl : FD->redecls()) {
+    bool IsFreeFunctionAttr = false;
+    for (auto *IRAttr :
+         Redecl->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          IRAttr->getAttributeNameValuePairs(getASTContext());
+      const auto it = std::find_if(
+          NameValuePairs.begin(), NameValuePairs.end(),
+          [](const auto &NameValuePair) {
+            return NameValuePair.first == "sycl-nd-range-kernel" ||
+                   NameValuePair.first == "sycl-single-task-kernel";
+          });
+      IsFreeFunctionAttr = it != NameValuePairs.end();
+    }
+    if (Redecl->isFirstDecl()) {
+      if (IsFreeFunctionAttr)
         return true;
+      if (NextDeclaredWithAttr) {
+        Diag(Loc, diag::err_free_function_first_occurrence_missing_attr);
+        Diag(Redecl->getLocation(), diag::note_previous_declaration);
+        return false;
       }
+    } else {
+      Loc = Redecl->getLocation();
+      NextDeclaredWithAttr = IsFreeFunctionAttr;
     }
   }
   return false;
