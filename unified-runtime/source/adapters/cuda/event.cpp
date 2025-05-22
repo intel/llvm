@@ -42,10 +42,11 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
 
 ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
                                        CUevent EventNative)
-    : handle_base(), CommandType{UR_COMMAND_EVENTS_WAIT}, HasProfiling{false},
-      IsInterop{true}, StreamToken{std::numeric_limits<uint32_t>::max()},
-      EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
-      Stream{nullptr}, Context{Context} {
+    : handle_base(), CommandType{UR_COMMAND_EVENTS_WAIT}, HasOwnership{false},
+      HasProfiling{false}, IsInterop{true},
+      StreamToken{std::numeric_limits<uint32_t>::max()}, EvEnd{EventNative},
+      EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr}, Stream{nullptr},
+      Context{Context} {
   urContextRetain(Context);
 }
 
