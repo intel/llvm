@@ -1889,6 +1889,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
 
+    // We need the profiling stream for timestamps, so ensure it's created if
+    // the queue doesn't have profiling enabled.
+    if (!(hQueue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+      hQueue->createHostSubmitTimeStream();
+    }
+
     RetImplEvent = std::make_unique<ur_event_handle_t_>(
         UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, HIPStream);
     UR_CHECK_ERROR(RetImplEvent->start());

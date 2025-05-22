@@ -77,7 +77,7 @@ struct stream_queue_t {
         HasOwnership{true} {
     urContextRetain(Context);
 
-    // Create timing stream is profiling is enabled.
+    // Create timing stream if profiling is enabled.
     if (URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
       createHostSubmitTimeStream();
     }
@@ -95,7 +95,7 @@ struct stream_queue_t {
         Priority(0), HasOwnership{BackendOwns} {
     urContextRetain(Context);
 
-    // Create timing stream is profiling is enabled.
+    // Create timing stream if profiling is enabled.
     if (URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
       createHostSubmitTimeStream();
     }

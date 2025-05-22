@@ -1936,7 +1936,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                      phEventWaitList));
 
-    // Make sure profiling stream is created if the queue
+    // We need the profiling stream for timestamps, so ensure it's created if
+    // the queue doesn't have profiling enabled.
     if (!(hQueue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
       hQueue->createHostSubmitTimeStream();
     }
