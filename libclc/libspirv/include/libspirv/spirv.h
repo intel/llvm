@@ -93,4 +93,17 @@
 /* Pointer Conversion */
 #include <libspirv/conversion/GenericCastToPtrExplicit.h>
 
+/* Group Functions */
+#include <libspirv/group/group_add.h>
+#include <libspirv/group/group_bitwise_and.h>
+#include <libspirv/group/group_bitwise_or.h>
+#include <libspirv/group/group_bitwise_xor.h>
+#include <libspirv/group/group_broadcast.h>
+#include <libspirv/group/group_mul.h>
+#include <libspirv/group/group_shuffle.h>
+#include <libspirv/group/group_shuffle_down.h>
+#include <libspirv/group/group_shuffle_up.h>
+#include <libspirv/group/group_shuffle_xor.h>
+#include <libspirv/group/subgroup_shuffle_intel.h>
+
 #pragma OPENCL EXTENSION all : disable
