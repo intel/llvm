@@ -12928,7 +12928,8 @@ def err_free_function_variadic_args : Error<
   "free function kernel cannot be a variadic function">;
 def err_free_function_return_type : Error<
   "SYCL free function kernel should have return type 'void'">;
-
+def err_free_function_first_occurrence_missing_attr: Error<
+  "the first occurrence of SYCL kernel free function should be declared with 'sycl-nd-range-kernel' or 'sycl-single-task-kernel' compile time properties">;
 
 // SYCL kernel entry point diagnostics
 def err_sycl_entry_point_invalid : Error<
