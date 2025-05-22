@@ -944,10 +944,11 @@ private:
       // Subsequently, _Z1fPU3AS4i is remangled to _Z1fPi, and the remangled
       // name is temporarily changed to _Z1fPi$TmpSuffix. When attempting to
       // revert _Z1fPi$TmpSuffix back to _Z1fPi, a clash occurs because _Z1fPi
-      // still exists. Since _Z1fPi is no longer useful, it is renamed to
-      // _Z1fPi.old,
-      if (auto *Func = M->getFunction(Name))
-        Func->setName(Twine(Name) + ".old");
+      // still exists. Delete the old _Z1fPi which is no longer useful.
+      if (auto *Func = M->getFunction(Name)) {
+        Func->replaceAllUsesWith(ConstantPointerNull::get(Func->getType()));
+        Func->eraseFromParent();
+      }
       // Complete the mangling process from _Z1fPU3AS4i to _Z1fPi.
       F.setName(Name);
     }
