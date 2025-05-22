@@ -383,7 +383,10 @@ if (CMAKE_SYSTEM_NAME STREQUAL Windows)
   endif()
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB AND
      (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL))
-    set_target_properties(sycl${SYCL_MAJOR_VERSION}-preview PROPERTIES OUTPUT_NAME sycl${SYCL_MAJOR_VERSION}d-preview)
+    set_target_properties(sycl${SYCL_MAJOR_VERSION}-preview PROPERTIES DEBUG_POSTFIX d)
+    if (CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+      set_target_properties(sycl${SYCL_MAJOR_VERSION}-preview PROPERTIES RELEASE_POSTFIX d)
+    endif()
   endif()
 endif()
 

@@ -2,8 +2,7 @@
 # RUN: %python %s %llvm_build_bin_dir
 #
 # Check for Windows URCT dependencies in library files in a specified path. If a
-# library uses a the debug URCT it must be postfixed with either "d" or
-# "d-preview".
+# library uses a the debug URCT it must be postfixed with "d".
 #
 import argparse
 import os
@@ -24,7 +23,7 @@ def check_file(filepath):
     if not (file_ext == ".dll" or file_ext == ".lib"):
         return 0
 
-    has_debug_postfix = filename.endswith("d") or filename.endswith("d-preview")
+    has_debug_postfix = filename.endswith("d")
     dep_output = subprocess.run(
         ["dumpbin", "/dependents", filepath], shell=False, capture_output=True
     )
