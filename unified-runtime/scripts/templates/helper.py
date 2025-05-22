@@ -721,29 +721,33 @@ def get_adapter_manifests(specs: List[dict]) -> List[dict]:
 
 def get_loader_functions(
     specs: List[dict], meta: dict, namespace: str, tags
-) -> List[str]:
+) -> List[dict]:
     """
     Public:
         returns a list of all loader API functions' names
     """
-    func_names = []
+    funcs = []
 
     # Main API functions
     for s in specs:
         for obj in s["objects"]:
             if obj_traits.is_function(obj):
-                func_names.append(make_func_name(namespace, tags, obj))
+                func = {"name": make_func_name(namespace, tags, obj)}
+                funcs.append(func)
+
     # Process address tables functions
     for tbl in get_pfntables(specs, meta, namespace, tags):
-        func_names.append(tbl["export"]["name"])
+        func = {"name": tbl["export"]["name"]}
+        funcs.append(func)
 
     # Print functions
     api_types_funcs = get_api_types_funcs(specs, meta, namespace, tags)
     for func in api_types_funcs:
-        func_names.append(func.c_name)
-    func_names.append(f"{tags['$x']}PrintFunctionParams")
+        func = {"name": func.c_name}
+        funcs.append(func)
+    funcs.append({"name": f"{tags['$x']}PrintFunctionParams"})
 
-    return sorted(func_names)
+    return sorted(funcs, key=lambda func: func["name"])
 
 
 def _remove_const(name: str) -> str:
