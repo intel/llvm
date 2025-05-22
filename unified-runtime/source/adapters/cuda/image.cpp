@@ -918,11 +918,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
       }
-      // Synchronization is required here to handle the case of copying data
-      // from host to device, then device to device and finally device to host.
-      // Without it, there is a risk of the copies not being executed in the
-      // intended order.
-      cuStreamSynchronize(Stream);
     }
 
     if (phEvent) {
