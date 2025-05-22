@@ -1230,7 +1230,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   bool IsSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                          options::OPT_fno_sycl, false) ||
                 C.getInputArgs().hasArgNoClaim(options::OPT_fsycl_device_only,
-                                               options::OPT_fsyclbin);
+                                               options::OPT_fsyclbin,
+                                               options::OPT_fsyclbin_EQ);
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!IsSYCL)
@@ -3470,7 +3471,8 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   Arg *InputTypeArg = nullptr;
   bool IsSYCL =
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
-      Args.hasArgNoClaim(options::OPT_fsycl_device_only, options::OPT_fsyclbin);
+      Args.hasArgNoClaim(options::OPT_fsycl_device_only, options::OPT_fsyclbin,
+                         options::OPT_fsyclbin_EQ);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,
@@ -7958,7 +7960,8 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
     DDep.add(*FatbinAction, *C.getSingleOffloadToolChain<Action::OFK_HIP>(),
              nullptr, Action::OFK_HIP);
   } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
-             Args.hasArg(options::OPT_fsyclbin)) {
+             (Args.hasArg(options::OPT_fsyclbin) ||
+              Args.hasArg(options::OPT_fsyclbin_EQ))) {
     // With '-fsyclbin', package all the offloading actions into a single output
     // that is sent to the clang-linker-wrapper.
     Action *PackagerAction =
@@ -9382,7 +9385,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       return C.addResultFile(FinalOutput->getValue(), &JA);
     // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
     if ((offloadDeviceOnly() ||
-         C.getArgs().hasArgNoClaim(options::OPT_fsyclbin)) &&
+         C.getArgs().hasArgNoClaim(options::OPT_fsyclbin,
+                                   options::OPT_fsyclbin_EQ)) &&
         JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
@@ -9556,7 +9560,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   // resulting image.  A '.syclbin' extension is used to represent the resulting
   // output file.
   if (JA.getOffloadingDeviceKind() == Action::OFK_SYCL &&
-      C.getArgs().hasArgNoClaim(options::OPT_fsyclbin) &&
+      C.getArgs().hasArgNoClaim(options::OPT_fsyclbin,
+                                options::OPT_fsyclbin_EQ) &&
       JA.getType() == types::TY_Image) {
     SmallString<128> SYCLBinOutput(getDefaultImageName());
     if (IsCLMode())
