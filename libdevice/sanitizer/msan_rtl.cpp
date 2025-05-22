@@ -83,7 +83,7 @@ void __msan_internal_report_save(const uint32_t size,
                                  const char __SYCL_CONSTANT__ *file,
                                  const uint32_t line,
                                  const char __SYCL_CONSTANT__ *func,
-                                 const uptr origin) {
+                                 const uint32_t origin) {
   const int Expected = MSAN_REPORT_NONE;
   int Desired = MSAN_REPORT_START;
 
@@ -136,7 +136,8 @@ void __msan_internal_report_save(const uint32_t size,
 void __msan_report_error(const uint32_t size,
                          const char __SYCL_CONSTANT__ *file,
                          const uint32_t line,
-                         const char __SYCL_CONSTANT__ *func, uptr origin = 0) {
+                         const char __SYCL_CONSTANT__ *func,
+                         uint32_t origin = 0) {
   __msan_internal_report_save(size, file, line, func, origin);
 }
 
@@ -167,15 +168,14 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
     ConvertGenericPointer(addr, as);
   }
 
-  // Device USM only
-  if (as == ADDRESS_SPACE_GLOBAL && (addr & PVC_DEVICE_USM_MASK)) {
-    auto shadow_begin = GetMsanLaunchInfo->GlobalShadowOffset;
-    auto shadow_end = GetMsanLaunchInfo->GlobalShadowOffsetEnd;
-    if (addr < shadow_begin) {
-      return addr + (shadow_begin - PVC_DEVICE_USM_BEGIN);
-    } else {
-      return addr - (PVC_DEVICE_USM_END - shadow_end + 1);
+  if (as == ADDRESS_SPACE_GLOBAL) {
+    if (addr >> 52 == 0xff0) {
+      return addr - 0x5000'0000'0000ULL;
     }
+    // auto shadow_base = GetMsanLaunchInfo->GlobalShadowOffset;
+    // return (addr & 0xff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 7) +
+    //        shadow_base;
+    return GetMsanLaunchInfo->CleanShadow;
   } else if (as == ADDRESS_SPACE_LOCAL) {
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
     if (shadow_offset != 0) {
@@ -223,7 +223,7 @@ inline void __msan_exit() {
 
 #define MSAN_MAYBE_WARNING(type, size)                                         \
   DEVICE_EXTERN_C_NOINLINE void __msan_maybe_warning_##size(                   \
-      type s, uptr o, const char __SYCL_CONSTANT__ *file, uint32_t line,       \
+      type s, uint32_t o, const char __SYCL_CONSTANT__ *file, uint32_t line,   \
       const char __SYCL_CONSTANT__ *func) {                                    \
     if (!GetMsanLaunchInfo)                                                    \
       return;                                                                  \
@@ -289,6 +289,25 @@ __msan_get_shadow(uptr addr, uint32_t as,
                                 func ? func : __msan_print_unknown));
 
   return (__SYCL_GLOBAL__ void *)shadow_ptr;
+}
+
+// For mapping detail, ref to
+// "unified-runtime/source/loader/layers/sanitizer/msan/msan_shadow.hpp"
+DEVICE_EXTERN_C_NOINLINE __SYCL_GLOBAL__ void *__msan_get_origin(uptr addr,
+                                                                 uint32_t as) {
+  // Return clean shadow (0s) by default
+  uptr origin_ptr = GetMsanLaunchInfo->CleanShadow;
+
+  if (!GetMsanLaunchInfo)
+    return (__SYCL_GLOBAL__ void *)origin_ptr;
+
+  if (as == ADDRESS_SPACE_GLOBAL) {
+    if (addr >> 52 == 0xff0) {
+      origin_ptr = addr - 0xa000'0000'0000ULL;
+    }
+  }
+
+  return (__SYCL_GLOBAL__ void *)origin_ptr;
 }
 
 static __SYCL_CONSTANT__ const char __msan_print_memset[] =

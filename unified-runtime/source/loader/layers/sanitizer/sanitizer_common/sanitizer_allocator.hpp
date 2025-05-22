@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include "sanitizer_common.hpp"
+
 namespace ur_sanitizer_layer {
 
 enum class AllocType {
@@ -40,5 +42,16 @@ inline const char *ToString(AllocType Type) {
     return "Unknown Type";
   }
 }
+
+class Allocator {
+public:
+  Allocator();
+
+  void *allocate(uptr Size, const ur_usm_desc_t *Properties, AllocType Type);
+
+private:
+  ur_context_handle_t Context;
+  ur_device_handle_t Device;
+};
 
 } // namespace ur_sanitizer_layer

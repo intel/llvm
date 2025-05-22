@@ -158,17 +158,21 @@ private:
 /// Shadow Memory layout of GPU PVC device
 ///
 /// USM Allocation Range (56 bits)
-///   Host   USM : 0x0000_0000_0000_0000 ~ 0x00ff_ffff_ffff_ffff
-///   Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
+///   Host   USM : 0x00ff_ff00_0000_0000 ~ 0x00ff_ffff_ffff_ffff
+///   Shared USM : 0x0000_7f00_0000_0000 ~ 0x0000_7fff_ffff_ffff
 ///   Device USM : 0xff00_0000_0000_0000 ~ 0xff00_ffff_ffff_ffff
 ///
 /// Shadow Memory Mapping
-///   We support device USM only, because it's hard to do shadow propagation on host/shared USM which can be accessed by host code.
-///   MSan needs to reserve half of device USM as shadow memory and does 1:1 mapping.
-///     0xff00_0000_0000_0000 - MSAN_SHADOW_BASE      : "app-1"
-///     MSAN_SHADOW_BASE      - MSAN_SHADOW_END1      : "shadow-1" (MSAN_SHADOW_END1 - MSAN_SHADOW_BASE == MSAN_SHADOW_BASE - 0xff00_0000_0000_0000)
-///     MSAN_SHADOW_END1      - MSAN_SHADOW_END2      : "shadow-2" (MSAN_SHADOW_END2 - MSAN_SHADOW_END1 == 0xff01_0000_0000_0000 - MSAN_SHADOW_END2)
-///     MSAN_SHADOW_END2      - 0xff01_0000_0000_0000 : "app-2"
+///     0xff00_0000_0000_0000 - MSAN_SHADOW_BASE       : "invalid"
+///     MSAN_SHADOW_BASE      - MSAN_SHADOW_END1       : "shadow-1" (MSAN_SHADOW_END1 - MSAN_SHADOW_BASE = 0x0200_0000_0000_0000)
+///     MSAN_SHADOW_END1      - MSAN_SHADOW_END2       : "origin-1" (MSAN_SHADOW_END1 - MSAN_SHADOW_END2 = 0x0200_0000_0000_0000)
+///     (gap)
+///     MSAN_SHADOW_END3      - MSAN_SHADOW_END4       : "origin-2" (MSAN_SHADOW_END4 - MSAN_SHADOW_END3 = 0x5000_0000_0000_0000)
+///     MSAN_SHADOW_END4      - MSAN_SHADOW_END5       : "shadow-2" (MSAN_SHADOW_END5 - MSAN_SHADOW_END4 = 0x5000_0000_0000_0000)
+///     MSAN_SHADOW_END5      - 0xff00_ffff_ffff_ffff  : "app"      (MSAN_SHADOW_END5 - MSAN_SHADOW_BASE = 0xB400_0000_0000_0000)
+///
+///  here, "shadow-1" and "origin-1" is use for host/shared USM, "shadow-2" and "origin-2" is used for device USM, "app" is device USM.
+///  the size of "app" is less than 0x5000_0000_0000_0000. We assume "invalid" is not usable for user application.
 // clang-format on
 struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
   MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
@@ -178,7 +182,7 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
 
   uptr MemToShadow(uptr Ptr) override;
 
-  size_t GetShadowSize() override { return 0x8000'0000'0000ULL; }
+  size_t GetShadowSize() override { return 0xb400'0000'0000ULL; }
 
   uptr GetStartAddress() override { return 0x100'0000'0000'0000ULL; }
 };

@@ -392,12 +392,12 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
 }
 
 uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
-  assert(MsanShadowMemoryPVC::IsDeviceUSM(Ptr) && "Ptr must be device USM");
-  if (Ptr < ShadowBegin) {
-    return Ptr + (ShadowBegin - 0xff00'0000'0000'0000ULL);
-  } else {
-    return Ptr - (0xff00'ffff'ffff'ffffULL - ShadowEnd + 1);
+  if (MsanShadowMemoryPVC::IsDeviceUSM(Ptr)) {
+    return Ptr - 0x5000'0000'0000ULL;
   }
+  // host/shared USM
+  return (Ptr & 0xff'ffff'ffffULL) + ((Ptr & 0x8000'0000'0000ULL) >> 7) +
+         ShadowBegin;
 }
 
 uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
