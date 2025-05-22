@@ -11,7 +11,10 @@ function(add_ur_adapter name)
 
         set(ADAPTER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/${name}.def)
 
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.def.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
+        configure_linker_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/../adapter.def.in
+            ${ADAPTER_VERSION_SCRIPT} @ONLY
+        )
         set_target_properties(${name} PROPERTIES
             LINK_OPTIONS "LINKER:/DEF:${ADAPTER_VERSION_SCRIPT}"
         )
@@ -23,8 +26,13 @@ function(add_ur_adapter name)
 
         set(ADAPTER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/${name}.map)
 
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.map.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
-        target_link_options(${name} PRIVATE "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}")
+        configure_linker_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/../adapter.map.in
+            ${ADAPTER_VERSION_SCRIPT} @ONLY
+        )
+        target_link_options(${name} PRIVATE
+            "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}"
+        )
     endif()
     add_dependencies(ur_loader ${name})
 endfunction()
