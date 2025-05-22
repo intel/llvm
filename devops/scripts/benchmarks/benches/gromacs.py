@@ -77,7 +77,7 @@ class GromacsBench(Suite):
                 f"-DGMX_SYCL_ENABLE_EXPERIMENTAL_SUBMIT_API=ON",
                 f"-DGMX_FFT_LIBRARY=MKL",
                 f"-DGMX_GPU_FFT_LIBRARY=MKL",
-                f"-DMKL_DIR={self.oneapi.mkl_cmake()}",
+                f"-DMKLROOT={self.oneapi.mkl_dir()}",
                 f"-DGMX_GPU_NB_CLUSTER_SIZE=8",
                 f"-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1",
                 f"-DGMX_OPENMP=OFF",

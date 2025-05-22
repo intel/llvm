@@ -21,8 +21,9 @@ int main() {
     sycl::buffer<int, 1> buf(v.data(), v.size());
     q.submit([&](sycl::handler &h) {
        auto A = buf.get_access<sycl::access::mode::read_write>(h);
-       h.parallel_for<class Test>(sycl::nd_range<1>(N, 1),
-                                  [=](sycl::nd_item<1>) { A[0]++; });
+       h.parallel_for<class Test>(
+           sycl::nd_range<1>(N, 1),
+           [=](sycl::nd_item<1> it) { A[0] += it.get_global_linear_id(); });
      }).wait();
     // CHECK: WARNING: DeviceSanitizer: data race
     // CHECK-NEXT: When write of size 4 at 0x{{.*}} in kernel <{{.*}}Test>

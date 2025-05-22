@@ -8,9 +8,6 @@
 // UNSUPPORTED: target-nvidia, target-amd
 // UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
 // other triples
-// XFAIL: run-mode && gpu
-// XFAIL-TRACKER: CMPLRLLVM-66371
-
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t_arg_dim_vnni.out %fp-model-precise -DARG_DIM -DVNNI
@@ -20,10 +17,8 @@
 
 // Waiting for the commit in IGC to be pulled into the driver to resolve the
 // test.
-// XFAIL: gpu-intel-dg2 && run-mode
+// XFAIL: run-mode && igc-dev
 // XFAIL-TRACKER: GSD-10510
-// XFAIL: arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16922
 
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"
