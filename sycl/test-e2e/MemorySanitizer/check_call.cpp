@@ -9,17 +9,14 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
-__attribute__((noinline)) long long foo(int data1, long long data2) {
-  return data1 + data2;
-}
+__attribute__((noinline)) int foo(int data1) { return data1; }
 
 int main() {
   sycl::queue Q;
   auto *array = sycl::malloc_device<int>(2, Q);
 
   Q.submit([&](sycl::handler &h) {
-    h.single_task<class MyKernel>(
-        [=]() { array[0] = foo(array[0], array[1]); });
+    h.single_task<class MyKernel>([=]() { array[0] = foo(array[1]); });
   });
   Q.wait();
   // CHECK-NOT: [kernel]
