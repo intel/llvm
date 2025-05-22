@@ -83,7 +83,7 @@ void cache_control_read_write_func() {
 
 // Test that annotated pointer parameter functions don't crash.
 SYCL_EXTERNAL void annotated_ptr_func_param_test(float *p) {
-  *(store_hint{p /*+1*/}) = 42.0f;
+  *(store_hint{p}) = 42.0f;
 }
 
 // CHECK-IR: spir_func{{.*}}annotated_ptr_func_param_test
