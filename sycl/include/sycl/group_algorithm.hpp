@@ -953,8 +953,8 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
        std::is_same_v<BinaryOperation, sycl::logical_and<binary_op_t>>)
           ? std::is_same_v<decltype(binary_op(binary_op_t(), binary_op_t())),
                            bool>
-          : std::is_same_v<decltype(binary_op(binary_op_t(), binary_op_t())),
-                           binary_op_t>,
+          : std::is_same_v<decltype(binary_op(*first, *first)),
+                           typename detail::remove_pointer<OutPtr>::type>,
       "Result type of binary_op must match scan accumulation type.");
 #else
   static_assert(std::is_same_v<decltype(binary_op(*first, *first)),
@@ -1184,8 +1184,8 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
        std::is_same_v<BinaryOperation, sycl::logical_and<binary_op_t>>)
           ? std::is_same_v<decltype(binary_op(binary_op_t(), binary_op_t())),
                            bool>
-          : std::is_same_v<decltype(binary_op(binary_op_t(), binary_op_t())),
-                           binary_op_t>,
+          : std::is_same_v<decltype(binary_op(*first, *first)),
+                           typename detail::remove_pointer<OutPtr>::type>,
       "Result type of binary_op must match scan accumulation type.");
 #else
   static_assert(std::is_same_v<decltype(binary_op(*first, *first)),
