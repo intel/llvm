@@ -57,6 +57,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
       continue;
     }
+    return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
   std::vector<size_t> compiledLocalWorksize;
