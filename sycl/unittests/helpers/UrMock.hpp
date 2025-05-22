@@ -393,10 +393,9 @@ inline ur_result_t mock_urEventGetInfo(void *pParams) {
   }
 }
 
-inline ur_result_t
-mock_urKernelSuggestMaxCooperativeGroupCountExp(void *pParams) {
+inline ur_result_t mock_urKernelSuggestMaxCooperativeGroupCount(void *pParams) {
   auto params = reinterpret_cast<
-      ur_kernel_suggest_max_cooperative_group_count_exp_params_t *>(pParams);
+      ur_kernel_suggest_max_cooperative_group_count_params_t *>(pParams);
   **params->ppGroupCountRet = 1;
   return UR_RESULT_SUCCESS;
 }
@@ -571,8 +570,8 @@ public:
     ADD_DEFAULT_OVERRIDE(urProgramGetInfo, mock_urProgramGetInfo)
     ADD_DEFAULT_OVERRIDE(urKernelGetGroupInfo, mock_urKernelGetGroupInfo)
     ADD_DEFAULT_OVERRIDE(urEventGetInfo, mock_urEventGetInfo)
-    ADD_DEFAULT_OVERRIDE(urKernelSuggestMaxCooperativeGroupCountExp,
-                         mock_urKernelSuggestMaxCooperativeGroupCountExp)
+    ADD_DEFAULT_OVERRIDE(urKernelSuggestMaxCooperativeGroupCount,
+                         mock_urKernelSuggestMaxCooperativeGroupCount)
     ADD_DEFAULT_OVERRIDE(urDeviceSelectBinary, mock_urDeviceSelectBinary)
     ADD_DEFAULT_OVERRIDE(urPlatformGetBackendOption,
                          mock_urPlatformGetBackendOption)
