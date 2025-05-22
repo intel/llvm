@@ -8,9 +8,8 @@
 // UNSUPPORTED: target-nvidia, target-amd
 // UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
 // other triples
-// XFAIL: run-mode && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
+// XFAIL: run-mode && igc-dev
 // XFAIL-TRACKER: CMPLRLLVM-66371
-
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -mllvm -inline-threshold=2000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI
