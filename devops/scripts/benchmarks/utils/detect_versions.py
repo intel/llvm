@@ -89,7 +89,7 @@ class DetectVersion:
         # indeed referring to the same version.
         if env_cache_patch == l0_ver_patch[: len(env_cache_patch)]:
             print(
-                f"Using compute_runtime tag from COMPUTE_RUNTIME_TAG_CACHE: {env_cache_var}"
+                f"Using compute_runtime tag from COMPUTE_RUNTIME_TAG_CACHE: {env_cache_ver}"
             )
             cls._instance.compute_runtime_ver_cache = env_cache_ver
 
