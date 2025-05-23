@@ -7,12 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/opencl/clc.h>
-#include <libspirv/spirv.h>
 
 #define IMPL(TYPE, AS)                                                         \
   _CLC_OVERLOAD _CLC_DEF TYPE atomic_dec(volatile AS TYPE *p) {                \
-    return __spirv_AtomicIDecrement((AS TYPE *)p, Device,                      \
-                                    SequentiallyConsistent);                   \
+    return __sync_fetch_and_sub(p, (TYPE)1);                                   \
   }
 
 IMPL(int, global)

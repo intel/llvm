@@ -7,22 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/opencl/clc.h>
-#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF float atomic_xchg(volatile global float *p, float val) {
-  return __spirv_AtomicExchange((global float *)p, Device,
-                                SequentiallyConsistent, val);
+  return as_float(atomic_xchg((volatile global uint *)p, as_uint(val)));
 }
 
 _CLC_OVERLOAD _CLC_DEF float atomic_xchg(volatile local float *p, float val) {
-  return __spirv_AtomicExchange((local float *)p, Device,
-                                SequentiallyConsistent, val);
+  return as_float(atomic_xchg((volatile local uint *)p, as_uint(val)));
 }
 
 #define IMPL(TYPE, AS)                                                         \
   _CLC_OVERLOAD _CLC_DEF TYPE atomic_xchg(volatile AS TYPE *p, TYPE val) {     \
-    return __spirv_AtomicExchange((AS TYPE *)p, Device,                        \
-                                  SequentiallyConsistent, val);                \
+    return __sync_swap_4(p, val);                                              \
   }
 
 IMPL(int, global)

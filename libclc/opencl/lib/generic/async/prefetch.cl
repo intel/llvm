@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/opencl/clc.h>
-#include <libspirv/spirv.h>
 
 #define __CLC_BODY <prefetch.inc>
 #include <clc/integer/gentype.inc>

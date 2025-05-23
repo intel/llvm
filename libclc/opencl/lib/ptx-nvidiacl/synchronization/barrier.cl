@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/opencl/clc.h>
-#include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD uint get_work_dim(void) { return __spirv_WorkDim(); }
+_CLC_DEF _CLC_OVERLOAD void barrier(cl_mem_fence_flags flags) {
+  __syncthreads();
+}
