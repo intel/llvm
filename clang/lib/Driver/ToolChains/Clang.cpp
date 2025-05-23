@@ -11508,14 +11508,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
     }
     // Add option to enable creating of the .syclbin file.
-    if (Arg *A =
-            Args.getLastArg(options::OPT_fsyclbin, options::OPT_fsyclbin_EQ)) {
-      StringRef SYCLBINState = A->getValue();
-      if (SYCLBINState.empty())
-        SYCLBINState = "executable";
+    if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
-          Args.MakeArgString("--syclbin=" + StringRef{SYCLBINState}));
-    }
+          Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
   }
 
   // Construct the link job so we can wrap around it.

@@ -14,19 +14,6 @@
 // SYCLBIN_UNUSED: warning: argument unused during compilation: '-fsyclbin'
 
 /// Check tool invocation contents.
-// RUN: %clangxx -fsycl -fsyclbin --offload-new-driver %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_DEFAULT
-// RUN: %clangxx -fsyclbin --offload-new-driver %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_DEFAULT
-// RUN: %clang_cl -fsycl -fsyclbin --offload-new-driver %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_DEFAULT
-// CHECK_TOOLS_DEFAULT: clang-offload-packager
-// CHECK_TOOLS_DEFAULT-SAME: --image=file={{.*}}.bc,triple=spir64-unknown-unknown
-// CHECK_TOOLS_DEFAULT-SAME: kind=sycl
-// CHECK_TOOLS_DEFAULT: clang-linker-wrapper
-// CHECK_TOOLS_DEFAULT-SAME: --syclbin=executable
-
-/// Check tool invocation contents.
 // RUN: %clangxx -fsycl -fsyclbin=input --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_INPUT
 // RUN: %clangxx -fsyclbin=input --offload-new-driver %s -### 2>&1 \
@@ -39,7 +26,6 @@
 // CHECK_TOOLS_INPUT: clang-linker-wrapper
 // CHECK_TOOLS_INPUT-SAME: --syclbin=input
 
-/// Check tool invocation contents.
 // RUN: %clangxx -fsycl -fsyclbin=object --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_OBJECT
 // RUN: %clangxx -fsyclbin=object --offload-new-driver %s -### 2>&1 \
@@ -52,12 +38,17 @@
 // CHECK_TOOLS_OBJECT: clang-linker-wrapper
 // CHECK_TOOLS_OBJECT-SAME: --syclbin=object
 
-/// Check tool invocation contents.
 // RUN: %clangxx -fsycl -fsyclbin=executable --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_EXECUTABLE
 // RUN: %clangxx -fsyclbin=executable --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_EXECUTABLE
 // RUN: %clang_cl -fsycl -fsyclbin=executable --offload-new-driver %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_EXECUTABLE
+// RUN: %clangxx -fsycl -fsyclbin --offload-new-driver %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_EXECUTABLE
+// RUN: %clangxx -fsyclbin --offload-new-driver %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_EXECUTABLE
+// RUN: %clang_cl -fsycl -fsyclbin --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_EXECUTABLE
 // CHECK_TOOLS_EXECUTABLE: clang-offload-packager
 // CHECK_TOOLS_EXECUTABLE-SAME: --image=file={{.*}}.bc,triple=spir64-unknown-unknown
