@@ -428,6 +428,8 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     uint32_t DeviceVendorIdUInt =
         DeviceImpl.get_info<info::device::vendor_id>();
     std::stringstream DeviceVendorIdHexStringStream;
+    // To avoid commas or other locale-specific modifications, call imbue().
+    DeviceVendorIdHexStringStream.imbue(std::locale::classic());
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
