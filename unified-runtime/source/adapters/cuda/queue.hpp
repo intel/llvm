@@ -30,6 +30,7 @@ template <> inline void cuda_stream_queue::createHostSubmitTimeStream() {
   std::call_once(HostSubmitTimeStreamFlag, [&]() {
     UR_CHECK_ERROR(cuStreamCreateWithPriority(&HostSubmitTimeStream,
                                               CU_STREAM_NON_BLOCKING, 0));
+    printf(">> HostSubmitTimeStream: %p\n", (void*)HostSubmitTimeStream);
   });
 }
 
