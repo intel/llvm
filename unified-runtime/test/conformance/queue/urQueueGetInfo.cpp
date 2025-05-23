@@ -222,7 +222,7 @@ TEST_P(urQueueGetInfoTest, InvalidNullPointerPropSizeRet) {
 struct urQueueGetInfoDeviceQueueTestWithInfoParam : public uur::urQueueTest {
   void SetUp() {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-    urQueueGetInfoTest::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(urQueueGetInfoTest::SetUp());
     ur_queue_flags_t deviceQueueCapabilities = 0;
     ASSERT_SUCCESS(urDeviceGetInfo(
         device, UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES,
