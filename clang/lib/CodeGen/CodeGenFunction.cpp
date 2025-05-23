@@ -2454,6 +2454,8 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
 
   llvm::Instruction *BrInst = Builder.CreateCondBr(CondV, TrueBlock, FalseBlock,
                                                    Weights, Unpredictable);
+  addInstToNewSourceAtom(BrInst, CondV);
+
   switch (HLSLControlFlowAttr) {
   case HLSLControlFlowHintAttr::Microsoft_branch:
   case HLSLControlFlowHintAttr::Microsoft_flatten: {
@@ -3767,4 +3769,12 @@ void CodeGenFunction::addInstToSpecificSourceAtom(
     llvm::Instruction *KeyInstruction, llvm::Value *Backup, uint64_t Atom) {
   if (CGDebugInfo *DI = getDebugInfo())
     DI->addInstToSpecificSourceAtom(KeyInstruction, Backup, Atom);
+}
+
+void CodeGenFunction::addInstToNewSourceAtom(llvm::Instruction *KeyInstruction,
+                                             llvm::Value *Backup) {
+  if (CGDebugInfo *DI = getDebugInfo()) {
+    ApplyAtomGroup Grp(getDebugInfo());
+    DI->addInstToCurrentSourceAtom(KeyInstruction, Backup);
+  }
 }
