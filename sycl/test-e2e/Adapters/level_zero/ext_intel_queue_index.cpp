@@ -4,6 +4,9 @@
 // XFAIL: gpu-intel-pvc-1T
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15699
 
+// XFAIL: linux && run-mode && (arch-intel_gpu_bmg_g21 || gpu-intel-dg2) && !igc-dev
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
+
 // RUN: %{build} -o %t.out
 
 // TODO: at this time PVC 1T systems are not correctly supporting CSLICE

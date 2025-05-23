@@ -15,7 +15,7 @@
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
-struct ur_usm_pool_handle_t_ {
+struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
   std::atomic_uint32_t RefCount = 1;
 
   ur_context_handle_t Context = nullptr;
@@ -120,5 +120,3 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                              uint32_t Alignment);
 
 bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc);
-
-bool checkUSMImplAlignment(uint32_t Alignment, void **ResultPtr);

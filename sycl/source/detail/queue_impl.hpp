@@ -168,9 +168,12 @@ public:
     // different instance ID until this gets added.
     constructorNotification();
 #endif
+
+    trySwitchingToNoEventsMode();
   }
 
-  sycl::detail::optional<event> getLastEvent();
+  sycl::detail::optional<event>
+  getLastEvent(const std::shared_ptr<queue_impl> &Self);
 
 public:
   /// Constructs a SYCL queue from adapter interoperability handle.
@@ -231,6 +234,8 @@ public:
     // different instance ID until this gets added.
     constructorNotification();
 #endif
+
+    trySwitchingToNoEventsMode();
   }
 
   ~queue_impl() {
@@ -603,6 +608,12 @@ public:
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
     MExtGraphDeps.reset();
+
+    if (Graph) {
+      MNoEventMode = false;
+    } else {
+      trySwitchingToNoEventsMode();
+    }
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -691,49 +702,131 @@ protected:
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrder(HandlerType &Handler) {
-    // Accessing and changing of an event isn't atomic operation.
-    // Hence, here is the lock for thread-safety.
-    std::lock_guard<std::mutex> Lock{MMutex};
-
-    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                              : MExtGraphDeps.LastEventPtr;
-
-    // This dependency is needed for the following purposes:
-    //    - host tasks are handled by the runtime and cannot be implicitly
-    //    synchronized by the backend.
-    //    - to prevent the 2nd kernel enqueue when the 1st kernel is blocked
-    //    by a host task. This dependency allows to build the enqueue order in
-    //    the RT but will not be passed to the backend. See getPIEvents in
-    //    Command.
-    if (EventToBuildDeps) {
-      // In the case where the last event was discarded and we are to run a
-      // host_task, we insert a barrier into the queue and use the resulting
-      // event as the dependency for the host_task.
-      // Note that host_task events can never be discarded, so this will not
-      // insert barriers between host_task enqueues.
-      if (EventToBuildDeps->isDiscarded() &&
-          Handler.getType() == CGType::CodeplayHostTask)
-        EventToBuildDeps = insertHelperBarrier(Handler);
-
-      // depends_on after an async alloc is explicitly disallowed. Async alloc
-      // handles in order queue dependencies preemptively, so we skip them.
-      // Note: This could be improved by moving the handling of dependencies
-      // to before calling the CGF.
-      if (!EventToBuildDeps->isDiscarded() &&
-          !(Handler.getType() == CGType::AsyncAlloc))
-        Handler.depends_on(EventToBuildDeps);
-    }
-
+  void synchronizeWithExternalEvent(HandlerType &Handler) {
     // If there is an external event set, add it as a dependency and clear it.
     // We do not need to hold the lock as MLastEventMtx will ensure the last
     // event reflects the corresponding external event dependence as well.
     std::optional<event> ExternalEvent = popExternalEvent();
     if (ExternalEvent)
       Handler.depends_on(*ExternalEvent);
+  }
+
+  bool trySwitchingToNoEventsMode() {
+    if (MNoEventMode.load(std::memory_order_relaxed))
+      return true;
+
+    if (!MGraph.expired() || !isInOrder())
+      return false;
+
+    if (MDefaultGraphDeps.LastEventPtr != nullptr &&
+        !Scheduler::CheckEventReadiness(MContext,
+                                        MDefaultGraphDeps.LastEventPtr))
+      return false;
+
+    MNoEventMode.store(true, std::memory_order_relaxed);
+    MDefaultGraphDeps.LastEventPtr = nullptr;
+    return true;
+  }
+
+  template <typename HandlerType = handler>
+  event finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
+    assert(isInOrder());
+    assert(MGraph.expired());
+    assert(MDefaultGraphDeps.LastEventPtr == nullptr ||
+           MContext->getBackend() == backend::opencl);
+    assert(MNoEventMode);
+
+    MEmpty = false;
+
+    synchronizeWithExternalEvent(Handler);
+
+    if (MContext->getBackend() == backend::opencl && MGraph.expired()) {
+      // This is needed to support queue_empty() call
+      auto Event = Handler.finalize();
+      if (!getSyclObjImpl(Event)->isDiscarded()) {
+        MDefaultGraphDeps.LastEventPtr = getSyclObjImpl(Event);
+      }
+      return Event;
+    } else {
+      return Handler.finalize();
+    }
+  }
+
+  template <typename HandlerType = handler>
+  event finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
+    assert(isInOrder());
+    assert(Handler.getType() == CGType::CodeplayHostTask);
+
+    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                              : MExtGraphDeps.LastEventPtr;
+
+    if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
+      // We are not in no-event mode, so we can use the last event.
+      // depends_on after an async alloc is explicitly disallowed. Async alloc
+      // handles in order queue dependencies preemptively, so we skip them.
+      // Note: This could be improved by moving the handling of dependencies
+      // to before calling the CGF.
+      Handler.depends_on(EventToBuildDeps);
+    } else if (MNoEventMode) {
+      // There might be some operations submitted to the queue
+      // but the LastEventPtr is not set. If we are to run a host_task,
+      // we need to insert a barrier to ensure proper synchronization.
+      Handler.depends_on(insertHelperBarrier(Handler));
+    }
+
+    MEmpty = false;
+    MNoEventMode = false;
+
+    synchronizeWithExternalEvent(Handler);
+
+    auto Event = Handler.finalize();
+    EventToBuildDeps = getSyclObjImpl(Event);
+    assert(!EventToBuildDeps->isDiscarded());
+    return Event;
+  }
+
+  template <typename HandlerType = handler>
+  event finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
+    // this is handled by finalizeHandlerInOrderHostTask
+    assert(Handler.getType() != CGType::CodeplayHostTask);
+
+    if (Handler.getType() == CGType::ExecCommandBuffer && MNoEventMode) {
+      // TODO: this shouldn't be needed but without this
+      // the legacy adapter doesn't synchronize the operations properly
+      // when non-immediate command lists are used.
+      Handler.depends_on(insertHelperBarrier(Handler));
+    }
+
+    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                              : MExtGraphDeps.LastEventPtr;
+
+    // depends_on after an async alloc is explicitly disallowed. Async alloc
+    // handles in order queue dependencies preemptively, so we skip them.
+    // Note: This could be improved by moving the handling of dependencies
+    // to before calling the CGF.
+    if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
+      // If we have last event, this means we are no longer in no-event mode.
+      assert(!MNoEventMode);
+      Handler.depends_on(EventToBuildDeps);
+    }
+
+    MEmpty = false;
+
+    synchronizeWithExternalEvent(Handler);
 
     auto EventRet = Handler.finalize();
-    EventToBuildDeps = getSyclObjImpl(EventRet);
+
+    if (getSyclObjImpl(EventRet)->isDiscarded()) {
+      EventToBuildDeps = nullptr;
+    } else {
+      MNoEventMode = false;
+      EventToBuildDeps = getSyclObjImpl(EventRet);
+
+      // TODO: if the event is NOP we should be able to discard it as well.
+      // However, NOP events are used to describe ordering for graph operations
+      // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
+      // start relying on command buffer in-order property instead.
+    }
 
     return EventRet;
   }
@@ -742,6 +835,9 @@ protected:
   event finalizeHandlerOutOfOrder(HandlerType &Handler) {
     const CGType Type = getSyclObjImpl(Handler)->MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
+
+    MEmpty = false;
+
     // The following code supports barrier synchronization if host task is
     // involved in the scenario. Native barriers cannot handle host task
     // dependency so in the case where some commands were not enqueued
@@ -775,13 +871,25 @@ protected:
     return EventRet;
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename HandlerType = handler>
-  event finalizeHandler(HandlerType &Handler) {
-    return MIsInorder ? finalizeHandlerInOrder(Handler)
-                      : finalizeHandlerOutOfOrder(Handler);
+  void handlerPostProcess(HandlerType &Handler,
+                          const optional<SubmitPostProcessF> &PostProcessorFunc,
+                          event &Event) {
+    bool IsKernel = Handler.getType() == CGType::Kernel;
+    bool KernelUsesAssert = false;
+
+    if (IsKernel)
+      // Kernel only uses assert if it's non interop one
+      KernelUsesAssert =
+          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
+          ProgramManager::getInstance().kernelUsesAssert(
+              Handler.MKernelName.data());
+
+    auto &PostProcess = *PostProcessorFunc;
+    PostProcess(IsKernel, KernelUsesAssert, Event);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -946,6 +1054,15 @@ protected:
   };
 
   const bool MIsInorder;
+
+  // Specifies whether this queue records last event. This can only
+  // be true if the queue is in-order, the command graph is not
+  // associated with the queue and there has never been any host
+  // tasks submitted to the queue.
+  std::atomic<bool> MNoEventMode = false;
+
+  // Used exclusively in getLastEvent and queue_empty() implementations
+  bool MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
   std::mutex MStreamsServiceEventsMutex;

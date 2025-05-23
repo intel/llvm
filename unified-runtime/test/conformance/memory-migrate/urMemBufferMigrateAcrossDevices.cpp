@@ -16,8 +16,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
     uur::urPlatformTest::SetUp();
     ASSERT_SUCCESS(
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &num_devices));
-    ASSERT_NE(num_devices, 0);
-    if (num_devices == 1) {
+    if (num_devices <= 1) {
       return;
     }
 
@@ -35,7 +34,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 
   void TearDown() {
     uur::urPlatformTest::TearDown();
-    if (num_devices == 1) {
+    if (num_devices <= 1) {
       return;
     }
     for (auto i = 0u; i < num_devices; ++i) {
@@ -54,7 +53,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
   void SetUp() {
     urMultiDeviceContextTest::SetUp();
-    if (num_devices == 1) {
+    if (num_devices <= 1) {
       return;
     }
     ASSERT_SUCCESS(urMemBufferCreate(context, 0 /*flags=*/, buffer_size_bytes,
@@ -98,10 +97,10 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     // the AMD backend handles this differently and uses three separate
     // arguments for each of the three dimensions of the accessor.
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
@@ -148,7 +147,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceContextMemBufferTest);
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteRead) {
-  if (num_devices == 1) {
+  if (num_devices <= 1) {
     GTEST_SKIP();
   }
   T fill_val = 42;
@@ -172,7 +171,7 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, FillRead) {
-  if (num_devices == 1) {
+  if (num_devices <= 1) {
     GTEST_SKIP();
   }
   T fill_val = 42;
@@ -196,7 +195,7 @@ TEST_P(urMultiDeviceContextMemBufferTest, FillRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
-  if (num_devices == 1) {
+  if (num_devices <= 1) {
     GTEST_SKIP();
   }
 
@@ -232,7 +231,7 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
-  if (num_devices == 1) {
+  if (num_devices <= 1) {
     GTEST_SKIP();
   }
 

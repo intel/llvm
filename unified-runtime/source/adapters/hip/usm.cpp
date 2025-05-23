@@ -144,7 +144,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
     return Err;
   }
 
-  assert(checkUSMImplAlignment(Alignment, ResultPtr));
+  assert(isPointerAlignedTo(Alignment, *ResultPtr));
   return UR_RESULT_SUCCESS;
 }
 
@@ -160,7 +160,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
     return Err;
   }
 
-  assert(checkUSMImplAlignment(Alignment, ResultPtr));
+  assert(isPointerAlignedTo(Alignment, *ResultPtr));
   return UR_RESULT_SUCCESS;
 }
 
@@ -174,7 +174,7 @@ ur_result_t USMHostAllocImpl(void **ResultPtr,
     return Err;
   }
 
-  assert(checkUSMImplAlignment(Alignment, ResultPtr));
+  assert(isPointerAlignedTo(Alignment, *ResultPtr));
   return UR_RESULT_SUCCESS;
 }
 
@@ -348,7 +348,7 @@ ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
-    : Context(Context) {
+    : handle_base(), Context(Context) {
 
   const void *pNext = PoolDesc->pNext;
   while (pNext != nullptr) {
@@ -483,11 +483,6 @@ bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc) {
   alignment = pUSMDesc ? pUSMDesc->align : 0u;
   return (!pUSMDesc ||
           (alignment == 0 || ((alignment & (alignment - 1)) == 0)));
-}
-
-bool checkUSMImplAlignment(uint32_t Alignment, void **ResultPtr) {
-  return Alignment == 0 ||
-         reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t,

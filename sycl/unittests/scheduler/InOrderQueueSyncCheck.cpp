@@ -26,7 +26,7 @@ public:
                 const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
       : sycl::detail::queue_impl(Device, AsyncHandler, PropList) {}
-  using sycl::detail::queue_impl::finalizeHandler;
+  using sycl::detail::queue_impl::finalizeHandlerInOrderHostTaskUnlocked;
 };
 
 // Define type with the only methods called by finalizeHandler
@@ -85,13 +85,15 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
-        .Times(0);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH);
+        .Times(1);
+    Queue->finalizeHandlerInOrderHostTaskUnlocked<LimitedHandlerSimulation>(
+        MockCGH);
   }
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH);
+    Queue->finalizeHandlerInOrderHostTaskUnlocked<LimitedHandlerSimulation>(
+        MockCGH);
   }
 }

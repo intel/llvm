@@ -49,7 +49,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "015019f815f73e308171145a48b63d57c1263e45"
+        return "49a8c6314875c57fee9b59aea16e721572e3021d"
 
     def setup(self):
         if options.sycl is None:
@@ -74,7 +74,11 @@ class ComputeBench(Suite):
         ]
 
         if options.ur_adapter == "cuda":
-            configure_command += ["-DBUILD_SYCL_WITH_CUDA=ON"]
+            configure_command += [
+                "-DBUILD_SYCL_WITH_CUDA=ON",
+                "-DBUILD_L0=OFF",
+                "-DBUILD_OCL=OFF",
+            ]
 
         if options.ur is not None:
             configure_command += [
@@ -88,7 +92,7 @@ class ComputeBench(Suite):
 
         self.built = True
 
-    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+    def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {
             "SubmitKernel": BenchmarkMetadata(
                 type="group",

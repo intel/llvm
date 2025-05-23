@@ -420,30 +420,16 @@ framework should run on. This can be used during development and testing to run 
 are available. If both filters are specified, then they both must match a platform for it to be selected. If there are
 no valid platforms, then the tests will fail. Command line arguments take priority over these variables.
 
-.. envvar:: UR_CTS_ADAPTER_PLATFORM
-
-    A specifier list in the form of `[(backend):](platform name)[;[(backend)]:(platform name)]...`. If a backend
-    specific specifier is present in the list and the test is running for that backend, the device with the given name
-    is chosen. Otherwise, it must match the name of the specifier from the list with no backend. Backend names are case-
-    insensitive, however platform names must match exactly.
-
-    For example, if the test device has multiple platforms and you want to run tests on the "ABC Corp" backend when
-    testing OpenCL and "XYZ Org" when testing level zero, you'd use `OPENCL:ABC Corp;LEVEL_ZERO:XYZ Org`. This form is
-    useful when running the `build` target with a build with multiple backends.
-
-    For testing only one platform, the backend can be omitted. For example, just `ABC Corp` is sufficient if the tests
-    are only going to be testing OpenCL.
-
 .. envvar:: UR_CTS_BACKEND
 
     A (case insensitive) backend to force the test to use. For example, `opencl`, `level_zero`, `hip` and so on.
 
 .. envvar:: UR_CTS_ALSO_RUN_KNOWN_FAILURES
 
-   A boolean option to enable running tests which have been marked as known
-   failures using the :c:macro:`UUR_KNOWN_FAILURE_ON` macro. Enabled when the
-   environment variable is set to any of the following values: ``1``, ``on``,
-   ``ON``, ``yes``, ``YES``, ``true``, ``TRUE``.
+   A boolean option to enable running tests which have been either marked as known
+   failures using the :c:macro:`UUR_KNOWN_FAILURE_ON` macro or would run on a
+   blacklisted platform. Enabled when the environment variable is set to any of
+   the following values: ``1``, ``on``, ``ON``, ``yes``, ``YES``, ``true``, ``TRUE``.
 
 Service identifiers
 ---------------------

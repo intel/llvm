@@ -1315,19 +1315,27 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
   case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
-    if (!ParamValue) {
-      // If ParamValue is nullptr, then we are only interested in the size of
-      // the value.
-      return ReturnValue(int32_t{0});
-    }
-
     [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
         getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
       return Result;
 
     zes_pwr_handle_t ZesPwrHandle = nullptr;
-    ZE2UR_CALL(zesDeviceGetCardPowerDomain, (ZesDevice, &ZesPwrHandle));
+    auto DomainResult = zesDeviceGetCardPowerDomain(ZesDevice, &ZesPwrHandle);
+    if (DomainResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    } else if (DomainResult != ZE_RESULT_SUCCESS) {
+      return ze2urResult(DomainResult);
+    }
+
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      // Do this after calling getCardPowerDomain so that UNSUPPORTED is
+      // returned correctly if required
+      return ReturnValue(int32_t{0});
+    }
+
     ZesStruct<zes_power_properties_t> PowerProperties;
     ZE2UR_CALL(zesPowerGetProperties, (ZesPwrHandle, &PowerProperties));
 

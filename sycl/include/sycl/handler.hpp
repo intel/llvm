@@ -18,6 +18,7 @@
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/kernel_name_based_cache.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
@@ -695,6 +696,8 @@ private:
            sizeof(sampler), ArgIndex);
   }
 
+  void setArgHelper(int ArgIndex, stream &&Str);
+
   // setArgHelper for graph dynamic_parameters
   template <typename T>
   void
@@ -749,8 +752,8 @@ private:
 
   /// Stores lambda to the template-free object
   ///
-  /// Also initializes kernel name, list of arguments and requirements using
-  /// information from the integration header/built-ins.
+  /// Also initializes the kernel name and prepares for arguments to
+  /// be extracted from the lambda in handler::finalize().
   ///
   /// \param KernelFunc is a SYCL kernel function
   /// \param ParamDescs is the vector of kernel parameter descriptors.
@@ -796,11 +799,13 @@ private:
     if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
 
-      clearArgs();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
-                                   &(detail::getKernelParamDesc<KernelName>),
-                                   detail::getKernelNumParams<KernelName>(),
-                                   detail::isKernelESIMD<KernelName>());
+      // Force hasSpecialCaptures to be evaluated at compile-time.
+      constexpr bool HasSpecialCapt = detail::hasSpecialCaptures<KernelName>();
+      setKernelInfo((void *)MHostKernel->getPtr(),
+                    detail::getKernelNumParams<KernelName>(),
+                    &(detail::getKernelParamDesc<KernelName>),
+                    detail::isKernelESIMD<KernelName>(), HasSpecialCapt);
+
       MKernelName = detail::getKernelName<KernelName>();
     } else {
       // In case w/o the integration header it is necessary to process
@@ -809,6 +814,7 @@ private:
       // later during finalize.
       setArgsToAssociatedAccessors();
     }
+    setKernelNameBasedCachePtr(detail::getKernelNameBasedCache<KernelName>());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
@@ -1761,7 +1767,8 @@ public:
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value;         // Interop
+        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<stream, T>::value;         // Stream
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -3761,6 +3768,10 @@ private:
                                   sycl::range<3> LocalSize, sycl::id<3> Offset,
                                   int Dims);
 
+  void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
+                     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+                     bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+
   friend class detail::HandlerAccess;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -3779,6 +3790,9 @@ private:
   __SYCL_EXPORT friend void *ext::oneapi::experimental::async_malloc_from_pool(
       sycl::handler &h, size_t size,
       const ext::oneapi::experimental::memory_pool &pool);
+
+  void setKernelNameBasedCachePtr(
+      detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
 
 protected:
   /// Registers event dependencies in this command group.
