@@ -285,7 +285,7 @@ public:
       : AST(AST), Root(Root), TypeReplacements(TypeReplacements) {
     MangleContext.reset(
         ItaniumMangleContext::create(*AST, AST->getDiagnostics()));
-    TargetGenericAddrSpace = AST->getTargetAddressSpace(LangAS::Default);
+    TargetDefaultAddrSpace = AST->getTargetAddressSpace(LangAS::Default);
   }
 
   bool hasFailed() { return Failed; }
@@ -643,10 +643,10 @@ private:
     for (auto I = PossibleKinds.rbegin(); I != PossibleKinds.rend(); ++I) {
       switch (I->K) {
       case Node::Kind::KPointerType: {
-        if (TargetGenericAddrSpace != 0) {
+        if (TargetDefaultAddrSpace != 0) {
           if (Res.hasAddressSpace() &&
               toTargetAddressSpace(Res.getAddressSpace()) ==
-                  TargetGenericAddrSpace)
+                  TargetDefaultAddrSpace)
             Res = AST->removeAddrSpaceQualType(Res);
           else if (!Res.hasAddressSpace())
             Res = AST->getAddrSpaceQualType(Res, LangAS::opencl_private);
@@ -733,7 +733,7 @@ private:
   std::map<std::string, clang::QualType> NestedNamesQTMap{};
   NamespaceDecl *SpvNamespace = nullptr;
 
-  unsigned TargetGenericAddrSpace;
+  unsigned TargetDefaultAddrSpace;
 };
 
 class TargetTypeReplacements {
@@ -916,7 +916,7 @@ private:
         return false;
       }
 
-      // When TargetGenericAddrSpace is not 0, there is a possibility that
+      // When TargetDefaultAddrSpace is not 0, there is a possibility that
       // RemangledName may already exist. For instance, the function name
       // _Z1fPU3AS4i would be remangled to _Z1fPi, which is a valid variant and
       // might already be present. Since we cannot alter the name of an existing
@@ -947,7 +947,7 @@ private:
     return true;
   }
 
-  // When TargetGenericAddrSpace is not 0, post-processing is necessary after
+  // When TargetDefaultAddrSpace is not 0, post-processing is necessary after
   // all functions have been processed. During this stage, the temporary suffix
   // is removed from the remangled name.
   void postProcessRemoveTmpSuffix(llvm::Module *M) {
