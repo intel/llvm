@@ -572,7 +572,13 @@ event handler::finalize() {
         }
         enqueueImpKernel(
             MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
-            MKernel.get(), MKernelName.data(), impl->MKernelNameBasedCachePtr,
+            MKernel.get(),
+            detail::KernelNameStrRefT(MKernelName.data()
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+            , MKernelName.size()
+#endif
+          ),
+            impl->MKernelNameBasedCachePtr,
             RawEvents, DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
             impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,

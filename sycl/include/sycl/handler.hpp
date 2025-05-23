@@ -806,7 +806,9 @@ private:
                     &(detail::getKernelParamDesc<KernelName>),
                     detail::isKernelESIMD<KernelName>(), HasSpecialCapt);
 
-      MKernelName = detail::getKernelName<KernelName>();
+      constexpr std::string_view KernelNameStr =
+          detail::getKernelName<KernelName>();
+      MKernelName = KernelNameStr;
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
