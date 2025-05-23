@@ -6,14 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
-
+#include <clc/opencl/clc.h>
 
 _CLC_DEF _CLC_OVERLOAD size_t get_global_size(uint dim) {
-switch (dim) {
-    case 0:  return __spirv_GlobalSize_x();
-    case 1:  return __spirv_GlobalSize_y();
-    case 2:  return __spirv_GlobalSize_z();
-    default: return 0;
-  }
+  return get_num_groups(dim) * get_local_size(dim);
 }

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
+#include <clc/opencl/clc.h>
 
 #if __clang_major__ >= 8
 #define CONST_AS __constant
@@ -24,17 +24,9 @@ CONST_AS uchar *
 __clc_amdgcn_dispatch_ptr(void) __asm("llvm.amdgcn.dispatch.ptr");
 #endif
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_x() {
-    CONST_AS uint * ptr = (CONST_AS uint *) __dispatch_ptr();
-    return ptr[3];
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_y() {
-    CONST_AS uint * ptr = (CONST_AS uint *) __dispatch_ptr();
-    return ptr[4];
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_z() {
-    CONST_AS uint * ptr = (CONST_AS uint *) __dispatch_ptr();
-    return ptr[5];
+_CLC_DEF _CLC_OVERLOAD size_t get_global_size(uint dim) {
+  CONST_AS uint *ptr = (CONST_AS uint *)__dispatch_ptr();
+  if (dim < 3)
+    return ptr[3 + dim];
+  return 1;
 }

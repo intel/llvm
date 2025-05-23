@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
+#include <clc/opencl/clc.h>
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupLocalInvocationId() {
-  return __nvvm_read_ptx_sreg_laneid();
+_CLC_DEF _CLC_OVERLOAD size_t get_global_id(uint dim) {
+  return get_group_id(dim) * get_local_size(dim) + get_local_id(dim);
 }

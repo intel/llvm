@@ -6,20 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
+#include <clc/opencl/clc.h>
 
 uint __clc_amdgcn_get_num_groups_x(void) __asm("llvm.r600.read.ngroups.x");
 uint __clc_amdgcn_get_num_groups_y(void) __asm("llvm.r600.read.ngroups.y");
 uint __clc_amdgcn_get_num_groups_z(void) __asm("llvm.r600.read.ngroups.z");
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_NumWorkgroups_x() {
+_CLC_DEF _CLC_OVERLOAD size_t get_num_groups(uint dim) {
+  switch (dim) {
+  case 0:
     return __clc_amdgcn_get_num_groups_x();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_NumWorkgroups_y() {
+  case 1:
     return __clc_amdgcn_get_num_groups_y();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_NumWorkgroups_z() {
+  case 2:
     return __clc_amdgcn_get_num_groups_z();
+  default:
+    return 1;
+  }
 }
