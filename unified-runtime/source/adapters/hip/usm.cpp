@@ -322,7 +322,8 @@ void USMMemoryProvider::get_last_native_error(const char **ErrMsg,
   *ErrCode = static_cast<int32_t>(getLastStatusRef());
 }
 
-umf_result_t USMMemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
+umf_result_t USMMemoryProvider::get_min_page_size(const void *Ptr,
+                                                  size_t *PageSize) {
   (void)Ptr;
   *PageSize = MinPageSize;
 
