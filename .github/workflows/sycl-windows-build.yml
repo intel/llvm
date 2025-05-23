@@ -10,6 +10,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
+        default: "--native_cpu"
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -58,6 +59,8 @@ on:
       build_configure_extra_args:
         type: string
         required: false
+        options:
+          - "--native_cpu"
       artifact_archive_name:
         type: choice
         options:
@@ -138,6 +141,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
           -DLLVM_INSTALL_UTILS=ON ^
+          -DNATIVECPU_USE_OCK=Off ^
           -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
     - name: Build
       id: build
