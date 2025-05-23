@@ -558,7 +558,11 @@ private:
   /// object destruction.
   ///
   /// \return a SYCL event object representing the command group
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr finalize();
+#else
   event finalize();
+#endif
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
@@ -3327,7 +3331,11 @@ private:
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr MLastEvent;
+#else
   event MLastEvent;
+#endif
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;

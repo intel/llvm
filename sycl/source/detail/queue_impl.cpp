@@ -301,24 +301,23 @@ queue_impl::getLastEvent(const std::shared_ptr<queue_impl> &Self) {
   return detail::createSyclObjFromImpl<event>(insertMarkerEvent(Self));
 }
 
-void queue_impl::addEvent(const event &Event) {
-  const EventImplPtr &EImpl = getSyclObjImpl(Event);
-  assert(EImpl && "Event implementation is missing");
-  auto *Cmd = static_cast<Command *>(EImpl->getCommand());
-  if (Cmd != nullptr && EImpl->getHandle() == nullptr &&
-      !EImpl->isDiscarded()) {
-    std::weak_ptr<event_impl> EventWeakPtr{EImpl};
+void queue_impl::addEvent(const detail::EventImplPtr &EventImpl) {
+  if (!EventImpl)
+    return;
+  auto *Cmd = static_cast<Command *>(EventImpl->getCommand());
+  if (Cmd != nullptr && EventImpl->getHandle() == nullptr) {
+    std::weak_ptr<event_impl> EventWeakPtr{EventImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
   }
 }
 
-event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                              const std::shared_ptr<queue_impl> &Self,
-                              queue_impl *SecondaryQueue, bool CallerNeedsEvent,
-                              const detail::code_location &Loc,
-                              bool IsTopCodeLoc,
-                              const v1::SubmissionInfo &SubmitInfo) {
+detail::EventImplPtr
+queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                        const std::shared_ptr<queue_impl> &Self,
+                        queue_impl *SecondaryQueue, bool CallerNeedsEvent,
+                        const detail::code_location &Loc, bool IsTopCodeLoc,
+                        const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
@@ -371,29 +370,33 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     }
   }
 
-  event Event;
+  detail::EventImplPtr EventImpl;
   if (!isInOrder()) {
-    Event = finalizeHandlerOutOfOrder(Handler);
-    addEvent(Event);
+    EventImpl = finalizeHandlerOutOfOrder(Handler);
+    addEvent(EventImpl);
   } else {
     if (isHostTask) {
       std::unique_lock<std::mutex> Lock(MMutex);
-      Event = finalizeHandlerInOrderHostTaskUnlocked(Handler);
+      EventImpl = finalizeHandlerInOrderHostTaskUnlocked(Handler);
     } else {
       std::unique_lock<std::mutex> Lock(MMutex);
 
       if (!isGraphSubmission && trySwitchingToNoEventsMode()) {
-        Event = finalizeHandlerInOrderNoEventsUnlocked(Handler);
+        EventImpl = finalizeHandlerInOrderNoEventsUnlocked(Handler);
       } else {
-        Event = finalizeHandlerInOrderWithDepsUnlocked(Handler);
+        EventImpl = finalizeHandlerInOrderWithDepsUnlocked(Handler);
       }
     }
   }
 
-  if (SubmitInfo.PostProcessorFunc())
+  if (SubmitInfo.PostProcessorFunc()) {
+    // All the submission functions using post processing are event based
+    // functions
+    assert(EventImpl);
+    event Event = createSyclObjFromImpl<event>(EventImpl);
     handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
+  }
 
-  const auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel
@@ -402,25 +405,26 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       Stream->generateFlushCommand(ServiceCGH);
     };
     detail::type_erased_cgfo_ty CGF{L};
-    event FlushEvent =
+    detail::EventImplPtr FlushEvent =
         submit_impl(CGF, Self, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
                     IsTopCodeLoc, {});
-    EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
-    registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
+    // Streams are only supported for event based functions
+    assert(EventImpl);
+    EventImpl->attachEventToCompleteWeak(FlushEvent);
+    registerStreamServiceEvent(FlushEvent);
   }
 
-  return Event;
+  return EventImpl;
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                              const std::shared_ptr<queue_impl> &Self,
-                              const std::shared_ptr<queue_impl> &,
-                              const std::shared_ptr<queue_impl> &SecondaryQueue,
-                              bool CallerNeedsEvent,
-                              const detail::code_location &Loc,
-                              bool IsTopCodeLoc,
-                              const SubmissionInfo &SubmitInfo) {
+detail::EventImplPtr
+queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                        const std::shared_ptr<queue_impl> &Self,
+                        const std::shared_ptr<queue_impl> &,
+                        const std::shared_ptr<queue_impl> &SecondaryQueue,
+                        bool CallerNeedsEvent, const detail::code_location &Loc,
+                        bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo) {
   return submit_impl(CGF, Self, SecondaryQueue.get(), CallerNeedsEvent, Loc,
                      IsTopCodeLoc, SubmitInfo);
 }

@@ -1179,7 +1179,11 @@ auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
 namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr E = CGH.finalize();
+#else
   event E = CGH.finalize();
+#endif
   handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
   if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
     AuxHandler.depends_on(E);
