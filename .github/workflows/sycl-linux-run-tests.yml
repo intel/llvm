@@ -321,6 +321,9 @@ jobs:
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/cts
+      # Normally this job takes less than 10m. But sometimes it hangs up and
+      # reaches the 360m limit. Set a lower limit to free up the runner earlier.
+      timeout-minutes: 35
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
         cts_exclude_ref: ${{ inputs.repo_ref }}

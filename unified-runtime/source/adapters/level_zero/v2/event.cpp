@@ -259,7 +259,9 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     return returnValue(hEvent->RefCount.load());
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
-    return returnValue(hEvent->getQueue());
+    auto urQueueHandle = reinterpret_cast<uintptr_t>(hEvent->getQueue()) -
+                         ur_queue_handle_t_::queue_offset;
+    return returnValue(urQueueHandle);
   }
   case UR_EVENT_INFO_CONTEXT: {
     return returnValue(hEvent->getContext());

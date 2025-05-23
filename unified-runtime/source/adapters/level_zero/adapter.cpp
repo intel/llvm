@@ -309,6 +309,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    setEnvVar("ZEL_ENABLE_LOADER_LOGGING", "1");
+    setEnvVar("ZEL_LOADER_LOGGING_LEVEL", "trace");
+    setEnvVar("ZEL_LOADER_LOG_CONSOLE", "1");
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+#endif
   };
 
   if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
@@ -419,6 +425,17 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
              loader_version.patch >= 2)) {
           useInitDrivers = true;
         }
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+        if ((loader_version.major == 1 && loader_version.minor < 21) ||
+            (loader_version.major == 1 && loader_version.minor == 21 &&
+             loader_version.patch < 2)) {
+          UR_LOG(
+              WARN,
+              "WARNING: Level Zero Loader version is older than 1.21.2. "
+              "Please update to the latest version for API logging support.\n");
+        }
+#endif
       }
 
       if (useInitDrivers) {
@@ -724,7 +741,7 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
 
   switch (PropName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_LEVEL_ZERO);
+    return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(GlobalAdapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION: {

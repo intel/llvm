@@ -34,15 +34,15 @@ endif()
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit ffef31717750d3f15bfd2f18d9cd7f4677fe9d3e
-    # Merge: 574307afde 0b00238554
+    # commit 03e6497dfcc06b0ef6bdeeb8fefd7fdc24de4287
+    # Merge: df8de76a56 413b59ebe2
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Fri Apr 4 16:26:38 2025 +0100
+    # Date:   Sat May 17 20:52:27 2025 +0100
     # 
-    #     Merge pull request #751 from hvdijk/llvm21-address-space
+    #     Merge pull request #822 from coldav/colin/remove_ca_enable_api
     #     
-    #     [LLVM 21] Take address space into account for legality.
-    set(OCK_GIT_INTERNAL_TAG ffef31717750d3f15bfd2f18d9cd7f4677fe9d3e)
+    #     Remove CA_ENABLE_API as a CMake option
+    set(OCK_GIT_INTERNAL_TAG 03e6497dfcc06b0ef6bdeeb8fefd7fdc24de4287)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)
