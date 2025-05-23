@@ -84,9 +84,9 @@ private:
   uint32_t StreamToken;
   uint32_t EventId{0}; // Queue identifier of the event.
 
-  native_type EvEnd;    // Native event if IsInterop.
-  native_type EvStart;  // Profiling event for command start.
-  native_type EvQueued; // Profiling even for command enqueue.
+  native_type EvEnd{nullptr};    // Native event if IsInterop.
+  native_type EvStart{nullptr};  // Profiling event for command start.
+  native_type EvQueued{nullptr}; // Profiling even for command enqueue.
 
   ur_queue_handle_t Queue; // ur_queue_handle_t associated with the event. If
                            // this is a user event, this will be nullptr.
