@@ -1,0 +1,139 @@
+= sycl_ext_oneapi_queue_record_event
+
+:source-highlighter: coderay 
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks] 
+
+Copyright (C) 2025-2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of
+The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+Other company and product names may be trademarks of the respective companies
+with which they are associated and can be claimed as the property of others.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision. 
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This proposal introduces a lightweight mechanism for recording a `sycl::event`
+that encapsulates a device event on an in-order native queue.  This
+functionality allows simplified event timings by providing a single API to
+obtain a marker of the current status of a native in-order queue, irrespective
+of the previous operation submitted to the queue.  This makes it much simpler
+for programmers to decide at runtime whether or not they wish to obtain an
+event for timing.
+
+Additionally this API can be used in tandem with `submit_without_event`, to
+record a `sycl::event` without any additional overhead associated with event
+management of the internal scheduler, as is the case in the `submit_with_event`
+API implementation. `submit_without_event` and `submit_with_event` are APIs
+defined in the sycl_ext_oneapi_enqueue_functions extension.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_QUEUE_RECORD_EVENT` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not version-ed, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_record_event
+}
+}
+----
+
+A device requires the `ext_oneapi_record_event` aspect to
+support the API defined in the
+following section.
+
+
+=== New queue member function
+
+This extension adds the following new member function to the `queue` class.
+
+[source,c++]
+----
+namespace sycl {
+
+class queue {
+ event ext_oneapi_record_event() const;
+};
+
+} // namespace sycl
+----
+
+This function records an event of the underlying native queue encapsulated by
+the queue instantiation.  This function throws an exception if the queue does
+not have the `in_order` property. The returned event is marked completed once
+all work previously enqueued on the native queue has completed. The returned
+event inherits the properties of the queue.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|1|2025-04-23|Jack Kirk|Initial public working draft
+|========================================
