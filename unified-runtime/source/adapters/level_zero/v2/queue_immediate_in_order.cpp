@@ -494,14 +494,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
   auto waitListView =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList);
 
-  auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
-      mapFlags, offset, size, [&](void *src, void *dst, size_t size) {
-        ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                          (commandListLocked->getZeCommandList(), dst, src,
-                           size, nullptr, waitListView.num,
-                           waitListView.handles));
-        waitListView.clear();
-      }));
+  auto pDst = ur_cast<char *>(
+      hBuffer->mapHostPtr(mapFlags, offset, size,
+                          commandListLocked->getZeCommandList(), waitListView));
   *ppRetMap = pDst;
 
   if (waitListView) {
@@ -547,11 +542,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemUnmap(
               waitListView.handles));
   waitListView.clear();
 
-  hBuffer->unmapHostPtr(pMappedPtr, [&](void *src, void *dst, size_t size) {
-    ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                      (commandListLocked->getZeCommandList(), dst, src, size,
-                       nullptr, waitListView.num, waitListView.handles));
-  });
+  hBuffer->unmapHostPtr(pMappedPtr, commandListLocked->getZeCommandList(),
+                        waitListView);
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (commandListLocked->getZeCommandList(), zeSignalEvent));
@@ -805,13 +797,6 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
   auto waitListView =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList);
 
-  auto memoryMigrate = [&](void *src, void *dst, size_t size) {
-    ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                      (commandListLocked->getZeCommandList(), dst, src, size,
-                       nullptr, waitListView.num, waitListView.handles));
-    waitListView.clear();
-  };
-
   // If the offset is {0, 0, 0}, pass NULL instead.
   // This allows us to skip setting the offset.
   bool hasOffset = false;
@@ -822,9 +807,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
     pGlobalWorkOffset = NULL;
   }
 
-  UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
-                                        workDim, WG[0], WG[1], WG[2],
-                                        memoryMigrate));
+  UR_CALL(hKernel->prepareForSubmission(
+      hContext, hDevice, pGlobalWorkOffset, workDim, WG[0], WG[1], WG[2],
+      commandListLocked->getZeCommandList(), waitListView));
 
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::"
                       "zeCommandListAppendLaunchCooperativeKernel");
