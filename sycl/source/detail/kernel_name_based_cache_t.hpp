@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <emhash/hash_table8.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <mutex>
-
-#include <boost/unordered/unordered_flat_map.hpp>
+#include <set>
 
 namespace sycl {
 inline namespace _V1 {
@@ -23,7 +24,7 @@ using FastKernelCacheValT =
     std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
                ur_program_handle_t>;
 using FastKernelSubcacheMapT =
-    ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
+    emhash8::HashMap<FastKernelCacheKeyT, FastKernelCacheValT>;
 
 using FastKernelSubcacheMutexT = SpinLock;
 using FastKernelSubcacheReadLockT = std::lock_guard<FastKernelSubcacheMutexT>;

@@ -530,7 +530,7 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
 
       auto KeyMappingsIt = KeyMap.find(OuterKey);
       assert(KeyMappingsIt != KeyMap.end());
-      auto CachedProgIt = Cache.find(KeyMappingsIt->second);
+      auto CachedProgIt = Cache.find((*KeyMappingsIt).second);
       assert(CachedProgIt != Cache.end());
       BuildRes = CachedProgIt->second;
     }
