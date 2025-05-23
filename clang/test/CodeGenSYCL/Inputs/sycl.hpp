@@ -440,6 +440,9 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(__attribute__((opencl_local)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
+
+template <typename, int>
+  friend class dynamic_local_accessor;
 #endif
 };
 
@@ -691,6 +694,23 @@ public:
 
 private:
   work_group_memory<DataT> LocalMem;
+};
+
+template <typename DataT, int Dimensions>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(dynamic_local_accessor) dynamic_local_accessor {
+public:
+  dynamic_local_accessor() = default;
+
+void __init(__attribute__((opencl_local)) DataT *Ptr,
+            range<Dimensions> AccessRange, range<Dimensions> range,
+            id<Dimensions> id) {
+  this->LocalMem.__init(Ptr, AccessRange, range, id);
+}
+  local_accessor<DataT, Dimensions> get() const { return LocalMem; }
+
+private:
+  local_accessor<DataT, Dimensions> LocalMem;
 };
 
 template <typename T, int dimensions = 1,
