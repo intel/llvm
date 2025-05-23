@@ -33,6 +33,7 @@ struct stream_queue_t {
   // command in question is enqueued on host, as opposed to started. It is
   // created only if profiling is enabled - either for queue or per event.
   native_type HostSubmitTimeStream{0};
+  std::once_flag HostSubmitTimeStreamFlag;
   // delay_compute_ keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
@@ -76,6 +77,11 @@ struct stream_queue_t {
         Device{Device}, Flags(Flags), URFlags(URFlags), Priority(Priority),
         HasOwnership{true} {
     urContextRetain(Context);
+
+    // Create timing stream if profiling is enabled.
+    if (URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+      createHostSubmitTimeStream();
+    }
   }
 
   // Create a queue from a native handle
@@ -89,6 +95,11 @@ struct stream_queue_t {
         Device{Device}, NumComputeStreams{1}, Flags(Flags), URFlags(URFlags),
         Priority(0), HasOwnership{BackendOwns} {
     urContextRetain(Context);
+
+    // Create timing stream if profiling is enabled.
+    if (URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+      createHostSubmitTimeStream();
+    }
   }
 
   ~stream_queue_t() { urContextRelease(Context); }
