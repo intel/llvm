@@ -315,16 +315,16 @@ void queue_impl::addEvent(const event &Event) {
 
 event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const std::shared_ptr<queue_impl> &Self,
-                              queue_impl *SecondaryQueue, bool CallerNeedsEvent,
+                              bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
+  detail::handler_impl HandlerImplVal(CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
   handler Handler(HandlerImpl, Self);
 #else
-  handler Handler(Self, SecondaryQueue, CallerNeedsEvent);
+  handler Handler(Self, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #endif
 
@@ -402,29 +402,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       Stream->generateFlushCommand(ServiceCGH);
     };
     detail::type_erased_cgfo_ty CGF{L};
-    event FlushEvent =
-        submit_impl(CGF, Self, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
-                    IsTopCodeLoc, {});
+    event FlushEvent = submit_impl(CGF, Self, /*CallerNeedsEvent*/ true, Loc,
+                                   IsTopCodeLoc, {});
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
 
   return Event;
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                              const std::shared_ptr<queue_impl> &Self,
-                              const std::shared_ptr<queue_impl> &,
-                              const std::shared_ptr<queue_impl> &SecondaryQueue,
-                              bool CallerNeedsEvent,
-                              const detail::code_location &Loc,
-                              bool IsTopCodeLoc,
-                              const SubmissionInfo &SubmitInfo) {
-  return submit_impl(CGF, Self, SecondaryQueue.get(), CallerNeedsEvent, Loc,
-                     IsTopCodeLoc, SubmitInfo);
-}
-#endif
 
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,

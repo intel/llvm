@@ -62,16 +62,16 @@ protected:
         CGH.host_task(BlockHostTask ? CustomHostLambda : [] {});
       };
       return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L},
-                                  QueueDevImpl, nullptr, {}, true);
+                                  QueueDevImpl, {}, true);
     } else if (Type == TestCGType::KERNEL_TASK) {
       auto L = [&](handler &CGH) { CGH.single_task<TestKernel<>>([] {}); };
       return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L},
-                                  QueueDevImpl, nullptr, {}, true);
+                                  QueueDevImpl, {}, true);
     } else // (Type == TestCGType::BARRIER)
     {
       auto L = [&](handler &CGH) { CGH.ext_oneapi_barrier(); };
       return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L},
-                                  QueueDevImpl, nullptr, {}, true);
+                                  QueueDevImpl, {}, true);
     }
   }
 
@@ -79,7 +79,7 @@ protected:
   InsertBarrierWithWaitList(const std::vector<sycl::event> &WaitList) {
     auto L = [&](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); };
     return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L},
-                                QueueDevImpl, nullptr, {}, true);
+                                QueueDevImpl, {}, true);
   }
 
   void BuildAndCheckInnerQueueState(std::vector<EventImplPtr> &Events) {
