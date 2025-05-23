@@ -141,8 +141,7 @@ struct ur_command_list_manager {
   ze_command_list_handle_t getZeCommandList();
 
   wait_list_view
-  getWaitListView(const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
-                  ur_event_handle_t additionalWaitEvent = nullptr);
+  getWaitListView(const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents);
   ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
 

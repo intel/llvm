@@ -159,19 +159,14 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
 }
 
 wait_list_view ur_command_list_manager::getWaitListView(
-    const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
-    ur_event_handle_t additionalWaitEvent) {
+    const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents) {
 
-  uint32_t totalNumWaitEvents =
-      numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
-  waitList.resize(totalNumWaitEvents);
+  waitList.resize(numWaitEvents);
   for (uint32_t i = 0; i < numWaitEvents; i++) {
     waitList[i] = phWaitEvents[i]->getZeEvent();
   }
-  if (additionalWaitEvent != nullptr) {
-    waitList[totalNumWaitEvents - 1] = additionalWaitEvent->getZeEvent();
-  }
-  return {waitList.data(), static_cast<uint32_t>(totalNumWaitEvents)};
+
+  return {waitList.data(), static_cast<uint32_t>(numWaitEvents)};
 }
 
 ze_event_handle_t
