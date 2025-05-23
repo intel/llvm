@@ -349,25 +349,22 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
+  auto isInOrderGraphRecordOperation = !MGraph.expired() && isInOrder();
   auto isHostTask = Type == CGType::CodeplayHostTask;
-
-  // TODO: this shouldn't be needed but without this
-  // the legacy adapter doesn't synchronize the operations properly
-  // when non-immediate command lists are used.
-  auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
-
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
-  auto noLastEventPath = !isHostTask && !isGraphSubmission &&
-                         MNoEventMode.load(std::memory_order_relaxed) &&
-                         !requiresPostProcess;
+  auto noLastEventPath =
+      isInOrderGraphRecordOperation ||
+      (!isHostTask && MNoEventMode.load(std::memory_order_relaxed) &&
+       !requiresPostProcess);
 
   if (noLastEventPath) {
     std::unique_lock<std::mutex> Lock(MMutex);
 
     // Check if we are still in no event mode. There could
     // have been a concurrent submit.
-    if (MNoEventMode.load(std::memory_order_relaxed)) {
-      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+    if (isInOrderGraphRecordOperation ||
+        MNoEventMode.load(std::memory_order_relaxed)) {
+      return finalizeHandlerNoEventsUnlocked(Handler);
     }
   }
 
@@ -382,8 +379,8 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     } else {
       std::unique_lock<std::mutex> Lock(MMutex);
 
-      if (!isGraphSubmission && trySwitchingToNoEventsMode()) {
-        Event = finalizeHandlerInOrderNoEventsUnlocked(Handler);
+      if (trySwitchingToNoEventsMode()) {
+        Event = finalizeHandlerNoEventsUnlocked(Handler);
       } else {
         Event = finalizeHandlerInOrderWithDepsUnlocked(Handler);
       }
@@ -502,9 +499,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
       if (isInOrder() &&
           (!isNoEventsMode || MContext->getBackend() == backend::opencl)) {
-        auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                                : MExtGraphDeps.LastEventPtr;
-        EventToStoreIn = EventImpl;
+        MDefaultGraphDeps.LastEventPtr = EventImpl;
       }
 
       return ResEvent;
@@ -760,11 +755,12 @@ bool queue_impl::queue_empty() const {
     if (MEmpty)
       return true;
 
-    if (MDefaultGraphDeps.LastEventPtr &&
-        !MDefaultGraphDeps.LastEventPtr->isDiscarded())
+    if (MDefaultGraphDeps.LastEventPtr) {
+      assert(!MDefaultGraphDeps.LastEventPtr->isDiscarded());
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==
              info::event_command_status::complete;
+    }
   }
 
   // Check the status of the backend queue if this is not a host queue.

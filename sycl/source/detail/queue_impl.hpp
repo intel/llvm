@@ -598,12 +598,6 @@ public:
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
     MExtGraphDeps.reset();
-
-    if (Graph) {
-      MNoEventMode = false;
-    } else {
-      trySwitchingToNoEventsMode();
-    }
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -705,10 +699,11 @@ protected:
     if (MNoEventMode.load(std::memory_order_relaxed))
       return true;
 
-    if (!MGraph.expired() || !isInOrder())
+    if (!isInOrder())
       return false;
 
-    if (MDefaultGraphDeps.LastEventPtr != nullptr &&
+    // Graphs track events internally
+    if (MGraph.expired() && MDefaultGraphDeps.LastEventPtr != nullptr &&
         !Scheduler::CheckEventReadiness(MContext,
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
@@ -719,12 +714,10 @@ protected:
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
-    assert(isInOrder());
-    assert(MGraph.expired());
+  event finalizeHandlerNoEventsUnlocked(HandlerType &Handler) {
     assert(MDefaultGraphDeps.LastEventPtr == nullptr ||
-           MContext->getBackend() == backend::opencl);
-    assert(MNoEventMode);
+           MContext->getBackend() == backend::opencl || !MGraph.expired());
+    assert(MNoEventMode || !MGraph.expired());
 
     MEmpty = false;
 
@@ -745,18 +738,17 @@ protected:
   template <typename HandlerType = handler>
   event finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
     assert(isInOrder());
+    assert(MGraph.expired());
     assert(Handler.getType() == CGType::CodeplayHostTask);
 
-    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                              : MExtGraphDeps.LastEventPtr;
-
-    if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
+    if (MDefaultGraphDeps.LastEventPtr &&
+        Handler.getType() != CGType::AsyncAlloc) {
       // We are not in no-event mode, so we can use the last event.
       // depends_on after an async alloc is explicitly disallowed. Async alloc
       // handles in order queue dependencies preemptively, so we skip them.
       // Note: This could be improved by moving the handling of dependencies
       // to before calling the CGF.
-      Handler.depends_on(EventToBuildDeps);
+      Handler.depends_on(MDefaultGraphDeps.LastEventPtr);
     } else if (MNoEventMode) {
       // There might be some operations submitted to the queue
       // but the LastEventPtr is not set. If we are to run a host_task,
@@ -770,34 +762,28 @@ protected:
     synchronizeWithExternalEvent(Handler);
 
     auto Event = Handler.finalize();
-    EventToBuildDeps = getSyclObjImpl(Event);
-    assert(!EventToBuildDeps->isDiscarded());
+    MDefaultGraphDeps.LastEventPtr = getSyclObjImpl(Event);
+    assert(!MDefaultGraphDeps.LastEventPtr->isDiscarded());
     return Event;
   }
 
   template <typename HandlerType = handler>
   event finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
+    assert(isInOrder());
+    assert(MGraph.expired());
+
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
-
-    if (Handler.getType() == CGType::ExecCommandBuffer && MNoEventMode) {
-      // TODO: this shouldn't be needed but without this
-      // the legacy adapter doesn't synchronize the operations properly
-      // when non-immediate command lists are used.
-      Handler.depends_on(insertHelperBarrier(Handler));
-    }
-
-    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                              : MExtGraphDeps.LastEventPtr;
 
     // depends_on after an async alloc is explicitly disallowed. Async alloc
     // handles in order queue dependencies preemptively, so we skip them.
     // Note: This could be improved by moving the handling of dependencies
     // to before calling the CGF.
-    if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
+    if (MDefaultGraphDeps.LastEventPtr &&
+        Handler.getType() != CGType::AsyncAlloc) {
       // If we have last event, this means we are no longer in no-event mode.
       assert(!MNoEventMode);
-      Handler.depends_on(EventToBuildDeps);
+      Handler.depends_on(MDefaultGraphDeps.LastEventPtr);
     }
 
     MEmpty = false;
@@ -807,15 +793,10 @@ protected:
     auto EventRet = Handler.finalize();
 
     if (getSyclObjImpl(EventRet)->isDiscarded()) {
-      EventToBuildDeps = nullptr;
+      MDefaultGraphDeps.LastEventPtr = nullptr;
     } else {
-      MNoEventMode = false;
-      EventToBuildDeps = getSyclObjImpl(EventRet);
-
-      // TODO: if the event is NOP we should be able to discard it as well.
-      // However, NOP events are used to describe ordering for graph operations
-      // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
-      // start relying on command buffer in-order property instead.
+      assert(!getSyclObjImpl(EventRet)->isNOP());
+      MDefaultGraphDeps.LastEventPtr = getSyclObjImpl(EventRet);
     }
 
     return EventRet;
