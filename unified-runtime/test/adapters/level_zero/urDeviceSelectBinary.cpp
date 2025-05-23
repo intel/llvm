@@ -6,7 +6,7 @@
 #include "ur_api.h"
 #include <uur/fixtures.h>
 
-#include <array>
+#include <vector>
 
 using urLevelZeroDeviceSelectBinaryTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroDeviceSelectBinaryTest);
@@ -50,7 +50,7 @@ TEST_P(urLevelZeroDeviceSelectBinaryTest, TargetPreference) {
 }
 
 TEST_P(urLevelZeroDeviceSelectBinaryTest, FirstOfSupported) {
-  const char *SupportedTargets[] = {
+  std::vector<const char *> SupportedTargets[] = {
       UR_DEVICE_BINARY_TARGET_SPIRV64,
       UR_DEVICE_BINARY_TARGET_SPIRV64_GEN,
   };
