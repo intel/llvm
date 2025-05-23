@@ -12,7 +12,7 @@
 using T = uint32_t;
 
 struct urMultiDeviceContextTest : uur::urPlatformTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urPlatformTest::SetUp());
     ASSERT_SUCCESS(
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &num_devices));
@@ -32,7 +32,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
     }
   }
 
-  void TearDown() {
+  void TearDown() override {
     uur::urPlatformTest::TearDown();
     if (num_devices <= 1) {
       return;
@@ -51,7 +51,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 };
 
 struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
     if (num_devices <= 1) {
       return;
@@ -121,7 +121,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     }
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (num_devices > 1) {
       for (auto i = 0u; i < num_devices; ++i) {
         ASSERT_SUCCESS(urKernelRelease(kernels[i]));
