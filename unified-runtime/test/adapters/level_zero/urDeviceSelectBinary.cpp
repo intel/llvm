@@ -50,7 +50,7 @@ TEST_P(urLevelZeroDeviceSelectBinaryTest, TargetPreference) {
 }
 
 TEST_P(urLevelZeroDeviceSelectBinaryTest, FirstOfSupported) {
-  std::vector<const char *> SupportedTargets[] = {
+  std::vector<const char *> SupportedTargets = {
       UR_DEVICE_BINARY_TARGET_SPIRV64,
       UR_DEVICE_BINARY_TARGET_SPIRV64_GEN,
   };
