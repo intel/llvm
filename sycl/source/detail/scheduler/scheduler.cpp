@@ -188,9 +188,14 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
       try {
         bool Enqueued = GraphProcessor::enqueueCommand(
             NewCmd, Lock, Res, ToCleanUp, NewCmd, Blocking);
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw exception(make_error_code(errc::runtime),
-                          "Enqueue process failed.");
+        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+          throw sycl::detail::set_ur_error(
+              sycl::exception(sycl::make_error_code(errc::runtime),
+                              std::string("Enqueue process failed.\n") +
+                                  __SYCL_UR_ERROR_REPORT +
+                                  sycl::detail::codeToString(Res.MErrCode)),
+              Res.MErrCode);
+        }
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
@@ -671,8 +676,8 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
   return NewCmdEvent;
 }
 
-bool CheckEventReadiness(const ContextImplPtr &Context,
-                         const EventImplPtr &SyclEventImplPtr) {
+bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
+                                    const EventImplPtr &SyclEventImplPtr) {
   // Events that don't have an initialized context are throwaway events that
   // don't represent actual dependencies. Calling getContextImpl() would set
   // their context, which we wish to avoid as it is expensive.

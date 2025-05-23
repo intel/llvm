@@ -113,7 +113,9 @@ TEST_P(urMemGetInfoTest, InvalidNullPointerPropSizeRet) {
 }
 
 struct urMemGetInfoImageTest : uur::urMemImageTest {
-  void SetUp() override { uur::urMemImageTest::SetUp(); }
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMemImageTest::SetUp());
+  }
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemGetInfoImageTest);
 

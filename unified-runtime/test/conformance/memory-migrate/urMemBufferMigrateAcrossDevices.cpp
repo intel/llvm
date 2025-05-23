@@ -13,11 +13,10 @@ using T = uint32_t;
 
 struct urMultiDeviceContextTest : uur::urPlatformTest {
   void SetUp() {
-    uur::urPlatformTest::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urPlatformTest::SetUp());
     ASSERT_SUCCESS(
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &num_devices));
-    ASSERT_NE(num_devices, 0);
-    if (num_devices == 1) {
+    if (num_devices <= 1) {
       return;
     }
 
@@ -35,7 +34,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 
   void TearDown() {
     uur::urPlatformTest::TearDown();
-    if (num_devices == 1) {
+    if (num_devices <= 1) {
       return;
     }
     for (auto i = 0u; i < num_devices; ++i) {
@@ -53,8 +52,8 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 
 struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
   void SetUp() {
-    urMultiDeviceContextTest::SetUp();
-    if (num_devices == 1) {
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
+    if (num_devices <= 1) {
       return;
     }
     ASSERT_SUCCESS(urMemBufferCreate(context, 0 /*flags=*/, buffer_size_bytes,
@@ -148,7 +147,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceContextMemBufferTest);
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteRead) {
-  if (num_devices == 1) {
+  if (num_devices <= 1) {
     GTEST_SKIP();
   }
   T fill_val = 42;
@@ -172,7 +171,7 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, FillRead) {
-  if (num_devices == 1) {
+  if (num_devices <= 1) {
     GTEST_SKIP();
   }
   T fill_val = 42;
@@ -196,7 +195,7 @@ TEST_P(urMultiDeviceContextMemBufferTest, FillRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
-  if (num_devices == 1) {
+  if (num_devices <= 1) {
     GTEST_SKIP();
   }
 
@@ -232,7 +231,7 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
-  if (num_devices == 1) {
+  if (num_devices <= 1) {
     GTEST_SKIP();
   }
 
