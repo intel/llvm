@@ -97,7 +97,7 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 };
 
 template <typename CommandGroupFunc, typename PropertiesT>
-void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   Q.submit_without_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
@@ -108,7 +108,7 @@ void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
-event submit_with_event_impl(queue &Q, PropertiesT Props,
+event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -122,7 +122,7 @@ event submit_with_event_impl(queue &Q, PropertiesT Props,
 } // namespace detail
 
 template <typename CommandGroupFunc, typename PropertiesT>
-void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
+void submit(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::detail::submit_impl(
@@ -130,15 +130,15 @@ void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
 }
 
 template <typename CommandGroupFunc>
-void submit(queue Q, CommandGroupFunc &&CGF,
+void submit(const queue &Q, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
-  submit(std::move(Q), empty_properties_t{},
-         std::forward<CommandGroupFunc>(CGF), CodeLoc);
+  submit(Q, empty_properties_t{}, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
-event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
+event submit_with_event(const queue &Q, PropertiesT Props,
+                        CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
   return sycl::ext::oneapi::experimental::detail::submit_with_event_impl(
@@ -146,10 +146,10 @@ event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
 }
 
 template <typename CommandGroupFunc>
-event submit_with_event(queue Q, CommandGroupFunc &&CGF,
+event submit_with_event(const queue &Q, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
-  return submit_with_event(std::move(Q), empty_properties_t{},
+  return submit_with_event(Q, empty_properties_t{},
                            std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
