@@ -356,10 +356,12 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // when non-immediate command lists are used.
   auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
 
-  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask && !isGraphSubmission &&
                          MNoEventMode.load(std::memory_order_relaxed) &&
-                         !requiresPostProcess;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                         SubmitInfo.PostProcessorFunc() &&
+#endif
+                         !Streams.size();
 
   if (noLastEventPath) {
     std::unique_lock<std::mutex> Lock(MMutex);
@@ -390,8 +392,10 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     }
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   if (SubmitInfo.PostProcessorFunc())
     handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
+#endif
 
   const auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
