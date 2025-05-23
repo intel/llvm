@@ -6,6 +6,7 @@
 #include "ur_api.h"
 #include <uur/fixtures.h>
 
+#include <array>
 #include <vector>
 
 using urLevelZeroDeviceSelectBinaryTest = uur::urDeviceTest;
