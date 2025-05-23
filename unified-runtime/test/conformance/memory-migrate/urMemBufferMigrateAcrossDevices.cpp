@@ -13,7 +13,7 @@ using T = uint32_t;
 
 struct urMultiDeviceContextTest : uur::urPlatformTest {
   void SetUp() {
-    uur::urPlatformTest::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urPlatformTest::SetUp());
     ASSERT_SUCCESS(
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &num_devices));
     if (num_devices <= 1) {
@@ -52,7 +52,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 
 struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
   void SetUp() {
-    urMultiDeviceContextTest::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
     if (num_devices <= 1) {
       return;
     }
