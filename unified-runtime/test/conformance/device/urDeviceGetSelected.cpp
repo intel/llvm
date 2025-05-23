@@ -30,7 +30,7 @@ static int unset_env(const char *name) {
 } // namespace uur
 
 struct urDeviceGetSelectedTest : uur::urPlatformTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urPlatformTest::SetUp());
 
     // These tests require at least one device in the platform
