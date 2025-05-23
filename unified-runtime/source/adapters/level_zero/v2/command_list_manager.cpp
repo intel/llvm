@@ -18,14 +18,16 @@
 ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
-    ur_queue_t_ *queue)
-    : context(context), device(device),
-      eventPool(context->getEventPoolCache().borrow(device->Id.value(), flags)),
-      zeCommandList(std::move(commandList)), queue(queue) {
+    ur_queue_t_ *queue, bool isImmediateCommandList)
+    : context(context), device(device), zeCommandList(std::move(commandList)),
+      queue(queue), isImmediateCommandList(isImmediateCommandList) {
+  auto &eventPoolTmp = isImmediateCommandList
+                           ? context->getEventPoolCacheImmediate()
+                           : context->getEventPoolCacheRegular();
+  eventPool = eventPoolTmp.borrow(device->Id.value(), flags);
   UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
   UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));
 }
-
 ur_command_list_manager::~ur_command_list_manager() {
   ur::level_zero::urContextRelease(context);
   ur::level_zero::urDeviceRelease(device);
@@ -160,11 +162,30 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
 wait_list_view ur_command_list_manager::getWaitListView(
     const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
     ur_event_handle_t additionalWaitEvent) {
-
+  uint32_t numWaitEventsEnabled = 0;
+  if (isImmediateCommandList) {
+    for (uint32_t i = 0; i < numWaitEvents; i++) {
+      if (phWaitEvents[i]->getIsEventInUse()) {
+        numWaitEventsEnabled++;
+      }
+    }
+  } else {
+    numWaitEventsEnabled = numWaitEvents;
+  }
   uint32_t totalNumWaitEvents =
       numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
   waitList.resize(totalNumWaitEvents);
   for (uint32_t i = 0; i < numWaitEvents; i++) {
+    if (isImmediateCommandList && !phWaitEvents[i]->getIsEventInUse()) {
+      // We skip events on adding to immediate command list if they are not
+      // enabled
+      // TODO: This is a partial workaround for the underlying inconsistency
+      // between normal and counter events in L0 driver
+      // (the events that are not in use should be signaled by default, see
+      // /test/conformance/exp_command_buffer/kernel_event_sync.cpp
+      // KernelCommandEventSyncTest.SignalWaitBeforeEnqueue)
+      continue;
+    }
     waitList[i] = phWaitEvents[i]->getZeEvent();
   }
   if (additionalWaitEvent != nullptr) {
@@ -320,17 +341,18 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-ur_command_list_manager::appendUSMAdvise(const void *pMem, size_t size,
-                                         ur_usm_advice_flags_t advice,
-                                         ur_event_handle_t *phEvent) {
+ur_result_t ur_command_list_manager::appendUSMAdvise(
+    const void *pMem, size_t size, ur_usm_advice_flags_t advice,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMAdvise");
 
   auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_ADVISE);
 
-  auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
 
   if (pWaitEvents) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,

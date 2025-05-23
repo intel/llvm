@@ -69,7 +69,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     : commandListManager(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList),
-          v2::EVENT_FLAGS_COUNTER, nullptr),
+          v2::EVENT_FLAGS_COUNTER, nullptr, false),
       isUpdatable(desc ? desc->isUpdatable : false), context(context),
       device(device) {}
 
@@ -102,10 +102,17 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   isFinalized = true;
   return UR_RESULT_SUCCESS;
 }
+
 ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
   return currentExecution;
 }
 
+void ur_exp_command_buffer_handle_t_::enableEvents() {
+  for (auto &event : addedEvents) {
+    event->markEventAsInUse();
+  }
+  addedEvents.clear();
+}
 ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
     ur_event_handle_t nextExecutionEvent) {
   if (currentExecution) {
@@ -157,6 +164,10 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
   ZE2UR_CALL(zeCommandListClose, (zeCommandList));
 
   return UR_RESULT_SUCCESS;
+}
+void ur_exp_command_buffer_handle_t_::registerEvent(ur_event_handle_t event) {
+  addedEvents.push_back(event);
+  event->markEventAsNotInUse();
 }
 namespace ur::level_zero {
 
@@ -226,10 +237,9 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*syncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*eventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *eventWaitList,
     ur_exp_command_buffer_sync_point_t * /*retSyncPoint*/,
-    ur_event_handle_t * /*event*/,
+    ur_event_handle_t *event,
     ur_exp_command_buffer_command_handle_t *command) try {
 
   if (command != nullptr && !commandBuffer->isUpdatable) {
@@ -247,8 +257,11 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
         numKernelAlternatives, kernelAlternatives, command));
   }
   UR_CALL(commandListLocked->appendKernelLaunch(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
-      nullptr, nullptr));
+      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+      numEventsInWaitList, eventWaitList, event));
+  if (event != nullptr) {
+    commandBuffer->registerEvent(*event);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -258,17 +271,19 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
     size_t size, uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMMemcpy(false, pDst, pSrc, size, 0,
-                                             nullptr, nullptr));
+  UR_CALL(commandListLocked->appendUSMMemcpy(
+      false, pDst, pSrc, size, numEventsInWaitList, phEventWaitList, phEvent));
 
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -279,10 +294,9 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
     ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
@@ -290,8 +304,12 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   UR_CALL(commandListLocked->appendMemBufferCopy(
-      hSrcMem, hDstMem, srcOffset, dstOffset, size, 0, nullptr, nullptr));
+      hSrcMem, hDstMem, srcOffset, dstOffset, size, numEventsInWaitList,
+      phEventWaitList, phEvent));
 
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -302,10 +320,9 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
     size_t offset, size_t size, const void *pSrc,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
@@ -313,8 +330,12 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   UR_CALL(commandListLocked->appendMemBufferWrite(hBuffer, false, offset, size,
-                                                  pSrc, 0, nullptr, nullptr));
+                                                  pSrc, numEventsInWaitList,
+                                                  phEventWaitList, phEvent));
 
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -325,18 +346,21 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
     size_t offset, size_t size, void *pDst,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   // Responsibility of UMD to offload to copy engine
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   UR_CALL(commandListLocked->appendMemBufferRead(hBuffer, false, offset, size,
-                                                 pDst, 0, nullptr, nullptr));
+                                                 pDst, numEventsInWaitList,
+                                                 phEventWaitList, phEvent));
 
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -349,10 +373,9 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
@@ -361,8 +384,12 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   UR_CALL(commandListLocked->appendMemBufferCopyRect(
       hSrcMem, hDstMem, srcOrigin, dstOrigin, region, srcRowPitch,
-      srcSlicePitch, dstRowPitch, dstSlicePitch, 0, nullptr, nullptr));
+      srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList,
+      phEventWaitList, phEvent));
 
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -375,10 +402,9 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
     size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
@@ -387,9 +413,12 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   UR_CALL(commandListLocked->appendMemBufferWriteRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
-      bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, 0, nullptr,
-      nullptr));
+      bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, numEventsInWaitList,
+      phEventWaitList, phEvent));
 
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -402,10 +431,9 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
@@ -414,9 +442,12 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   UR_CALL(commandListLocked->appendMemBufferReadRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
-      bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, 0, nullptr,
-      nullptr));
+      bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, numEventsInWaitList,
+      phEventWaitList, phEvent));
 
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -427,15 +458,18 @@ ur_result_t urCommandBufferAppendUSMFillExp(
     const void *pPattern, size_t patternSize, size_t size,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   UR_CALL(commandListLocked->appendUSMFill(pMemory, patternSize, pPattern, size,
-                                           0, nullptr, nullptr));
+                                           numEventsInWaitList, phEventWaitList,
+                                           phEvent));
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -446,16 +480,19 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
     const void *pPattern, size_t patternSize, size_t offset, size_t size,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   UR_CALL(commandListLocked->appendMemBufferFill(
-      hBuffer, pPattern, patternSize, offset, size, 0, nullptr, nullptr));
+      hBuffer, pPattern, patternSize, offset, size, numEventsInWaitList,
+      phEventWaitList, phEvent));
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -466,17 +503,19 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
     size_t size, ur_usm_migration_flags_t flags,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMPrefetch(pMemory, size, flags, 0, nullptr,
-                                               nullptr));
+  UR_CALL(commandListLocked->appendUSMPrefetch(
+      pMemory, size, flags, numEventsInWaitList, phEventWaitList, phEvent));
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -488,21 +527,23 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
     size_t size, ur_usm_advice_flags_t advice,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*pSyncPointWaitList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t * /*pSyncPoint*/,
-    ur_event_handle_t * /*phEvent*/,
+    ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t * /*phCommand*/) try {
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMAdvise(pMemory, size, advice, nullptr));
+  UR_CALL(commandListLocked->appendUSMAdvise(
+      pMemory, size, advice, numEventsInWaitList, phEventWaitList, phEvent));
+  if (phEvent != nullptr) {
+    hCommandBuffer->registerEvent(*phEvent);
+  }
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-
 ur_result_t
 urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                           ur_exp_command_buffer_info_t propName,
