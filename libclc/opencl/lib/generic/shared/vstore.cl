@@ -49,12 +49,6 @@
     *((ADDR_SPACE less_aligned_##ADDR_SPACE##PRIM_TYPE##16                     \
            *)(&mem[16 * offset])) = vec;                                       \
   }
-#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
-#define VSTORE_VECTORIZE_GENERIC VSTORE_VECTORIZE
-#else
-// The generic address space isn't available, so make the macro do nothing
-#define VSTORE_VECTORIZE_GENERIC(X,Y)
-#endif
 
 #if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
 #define VSTORE_VECTORIZE_GENERIC VSTORE_VECTORIZE
