@@ -406,7 +406,10 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
         submit_impl(CGF, Self, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
                     IsTopCodeLoc, {});
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
-    registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
+    if (!isInOrder()) {
+      // For in-order queue, the dependencies will be tracked by LastEvent
+      registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
+    }
   }
 
   return Event;
@@ -665,18 +668,18 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
         }
       }
     }
+
+    std::vector<EventImplPtr> StreamsServiceEvents;
+    {
+      std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
+      StreamsServiceEvents.swap(MStreamsServiceEvents);
+    }
+    for (const EventImplPtr &Event : StreamsServiceEvents)
+      Event->wait(Event);
   }
 
   const AdapterPtr &Adapter = getAdapter();
   Adapter->call<UrApiKind::urQueueFinish>(getHandleRef());
-
-  std::vector<EventImplPtr> StreamsServiceEvents;
-  {
-    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
-    StreamsServiceEvents.swap(MStreamsServiceEvents);
-  }
-  for (const EventImplPtr &Event : StreamsServiceEvents)
-    Event->wait(Event);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiEnabled) {
