@@ -1,6 +1,6 @@
 // Check that std::array is supported on device in debug mode on Windows.
 
-// REQUIRES: windows, debug_sycl_library
+// REQUIRES: windows && debug_sycl_library
 
 // RUN: %clangxx --driver-mode=cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc
 // RUN: %{run} %t.exe
