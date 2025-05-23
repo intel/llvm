@@ -66,6 +66,15 @@ TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
       props.push_back(coop_prop);
     }
 
+    if (compute_capability >= 9.0) {
+      ur_exp_launch_property_t opportunistic_queue_serialize_prop;
+      opportunistic_queue_serialize_prop.id =
+          UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE;
+      opportunistic_queue_serialize_prop.value.opportunistic_queue_serialize =
+          1;
+      props.push_back(opportunistic_queue_serialize_prop);
+    }
+
     ur_bool_t cluster_launch_supported = false;
     ASSERT_SUCCESS(
         urDeviceGetInfo(device, UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP,
