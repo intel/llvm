@@ -146,7 +146,8 @@ def collect_metadata(suites):
         metadata.update(s.additional_metadata())
         suite_benchmarks = s.benchmarks()
         for benchmark in suite_benchmarks:
-            metadata[benchmark.name()] = benchmark.get_metadata()
+            results = benchmark.get_metadata()
+            metadata.update(results)
 
     return metadata
 
@@ -309,6 +310,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         html_path = options.output_directory
         if options.output_directory is None:
             html_path = os.path.join(os.path.dirname(__file__), "html")
+
         generate_html(history.runs, compare_names, html_path, metadata)
 
 
