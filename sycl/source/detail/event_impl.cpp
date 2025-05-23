@@ -348,7 +348,10 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
       return get_event_profiling_info<info::event_profiling::command_start>(
           Handle, this->getAdapter());
     }
-    return 0;
+    // If command is nop (for example, USM operations for 0 bytes) return
+    // recorded submission time. If event is created using default constructor,
+    // 0 will be returned.
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
@@ -367,7 +370,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
       return get_event_profiling_info<info::event_profiling::command_end>(
           Handle, this->getAdapter());
     }
-    return 0;
+    // If command is nop (for example, USM operations for 0 bytes) return
+    // recorded submission time. If event is created using default constructor,
+    // 0 will be returned.
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
