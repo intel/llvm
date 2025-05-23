@@ -373,11 +373,19 @@ bool handler::isStateExplicitKernelBundle() const {
   return impl->isStateExplicitKernelBundle();
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // Returns a reference to shared_ptr to the kernel_bundle.
 // If there is no kernel_bundle created:
 // returns newly created kernel_bundle if Insert is true
 // returns shared_ptr(nullptr) if Insert is false
 std::shared_ptr<detail::kernel_bundle_impl> &
+#else
+// Returns a shared_ptr to the kernel_bundle.
+// If there is no kernel_bundle created:
+// returns newly created kernel_bundle if Insert is true
+// returns shared_ptr(nullptr) if Insert is false
+std::shared_ptr<detail::kernel_bundle_impl>
+#endif
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (!impl->MKernelBundle && Insert) {
     auto Ctx =
@@ -468,7 +476,11 @@ event handler::finalize() {
 
   if (type == detail::CGType::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImpPtr =
+#else
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
+#endif
         getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
@@ -1260,7 +1272,11 @@ detail::ABINeutralKernelNameStrT handler::getKernelName() {
 }
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   auto &UsedKernelBundleImplPtr =
+#else
+  auto UsedKernelBundleImplPtr =
+#endif
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
     return;
