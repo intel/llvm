@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx %fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 //==--------------- nd_range.cpp - SYCL nd_range test ----------------------==//
 //
