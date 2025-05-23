@@ -1851,12 +1851,24 @@ void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
     }
 }
 
-std::optional<int>
-ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
-  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-  if (it != m_KernelImplicitLocalArgPos.end())
-    return it->second;
-  return {};
+std::optional<int> ProgramManager::kernelImplicitLocalArgPos(
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
+  auto getLocalArgPos = [&]() -> std::optional<int> {
+    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+    if (it != m_KernelImplicitLocalArgPos.end())
+      return it->second;
+    return {};
+  };
+
+  if (!KernelNameBasedCachePtr)
+    return getLocalArgPos();
+  std::optional<std::optional<int>> &ImplicitLocalArgPos =
+      KernelNameBasedCachePtr->ImplicitLocalArgPos;
+  if (!ImplicitLocalArgPos.has_value()) {
+    ImplicitLocalArgPos = getLocalArgPos();
+  }
+  return ImplicitLocalArgPos.value();
 }
 
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
