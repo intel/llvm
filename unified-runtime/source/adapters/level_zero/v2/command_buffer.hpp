@@ -32,16 +32,16 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_result_t
   registerExecutionEventUnlocked(ur_event_handle_t nextExecutionEvent);
 
+  // Indicates if command-buffer commands can be updated after it is closed.
   const bool isUpdatable = false;
   const bool isInOrder = true;
+
+  // Command-buffer profiling is enabled.
+  const bool isProfilingEnabled = false;
 
   lockable<ur_command_list_manager> commandListManager;
 
   ur_result_t finalizeCommandBuffer();
-  // Indicates if command-buffer commands can be updated after it is closed.
-
-  // Command-buffer profiling is enabled.
-  const bool isProfilingEnabled = false;
 
   ur_result_t
   createCommandHandle(locked<ur_command_list_manager> &commandListLocked,
@@ -60,8 +60,11 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
       uint32_t numSyncPointsInWaitList);
 
 private:
+  // Stores all sync points that are created by the command buffer.
   std::vector<ur_event_handle_t> syncPoints;
 
+  // Temporary storage for sync points that are passed to function that require
+  // array of events. This is used to avoid allocating a new memory every time.
   std::vector<ur_event_handle_t> syncPointWaitList;
 
   const ur_context_handle_t context;

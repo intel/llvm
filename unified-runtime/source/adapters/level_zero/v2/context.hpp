@@ -17,6 +17,8 @@
 #include "event_pool_cache.hpp"
 #include "usm.hpp"
 
+enum class PoolCacheType { Immediate, Regular };
+
 struct ur_context_handle_t_ : ur_object {
   ur_context_handle_t_(ze_context_handle_t hContext, uint32_t numDevices,
                        const ur_device_handle_t *phDevices, bool ownZeContext);
@@ -35,11 +37,16 @@ struct ur_context_handle_t_ : ur_object {
 
   v2::event_pool &getNativeEventsPool() { return nativeEventsPool; }
   v2::command_list_cache_t &getCommandListCache() { return commandListCache; }
-  v2::event_pool_cache &getEventPoolCacheImmediate() {
-    return eventPoolCacheImmediate;
-  }
-  v2::event_pool_cache &getEventPoolCacheRegular() {
-    return eventPoolCacheRegular;
+  v2::event_pool_cache &getEventPoolCache(PoolCacheType type) {
+    switch (type) {
+    case PoolCacheType::Immediate:
+      return eventPoolCacheImmediate;
+    case PoolCacheType::Regular:
+      return eventPoolCacheRegular;
+    default:
+      assert(false && "Requested invalid event pool cache type");
+      throw UR_RESULT_ERROR_INVALID_VALUE;
+    }
   }
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.

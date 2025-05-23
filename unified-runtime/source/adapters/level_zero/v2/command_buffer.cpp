@@ -71,11 +71,17 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       commandListManager(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList),
-          isInOrder ? v2::EVENT_FLAGS_COUNTER : 0, nullptr, false),
+          isInOrder ? v2::EVENT_FLAGS_COUNTER : 0, nullptr,
+          PoolCacheType::Regular),
       context(context), device(device) {}
 
 ur_exp_command_buffer_sync_point_t
 ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
+  if (syncPoints.size() >=
+      std::numeric_limits<ur_exp_command_buffer_sync_point_t>::max()) {
+    UR_LOG(ERR, "Too many sync points");
+    throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
   syncPoints.push_back(event);
   return static_cast<ur_exp_command_buffer_sync_point_t>(syncPoints.size() - 1);
 }

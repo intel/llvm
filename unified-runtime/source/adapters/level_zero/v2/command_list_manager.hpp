@@ -11,6 +11,7 @@
 
 #include "command_list_cache.hpp"
 #include "common.hpp"
+#include "context.hpp"
 #include "event_pool_cache.hpp"
 #include "memory.hpp"
 #include "queue_api.hpp"
@@ -40,7 +41,7 @@ struct ur_command_list_manager {
                           ur_device_handle_t device,
                           v2::raii::command_list_unique_handle &&commandList,
                           v2::event_flags_t flags, ur_queue_t_ *queue,
-                          bool isImmediate);
+                          PoolCacheType listType);
   ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
 
