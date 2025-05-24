@@ -15,7 +15,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda'
+      build_configure_extra_args: '--hip --cuda --add_security_flags=default -DCMAKE_POSITION_INDEPENDENT_CODE=ON'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       retention-days: 90
 
@@ -150,7 +150,7 @@ jobs:
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
+      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off --add_security_flags=default -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 
   e2e-win:
     needs: build-win
