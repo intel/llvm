@@ -182,10 +182,10 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   // able to remove), or non-regular files. Underlying tools may have
   // intentionally not overwritten them.
 
-  // Save the device code files if -fsycl-dump-device-code option is enabled.
+  // Save the device code files if -fdump-device-code option is enabled.
   if (TheDriver.isDumpDeviceCodeEnabled()) {
     Arg *DumpDeviceCodeArg =
-        getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+        getArgs().getLastArg(options::OPT_fdump_device_code_EQ);
     std::string ExpectedDir =
         DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "";
     std::string ActualFile(File);

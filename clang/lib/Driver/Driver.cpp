@@ -2098,7 +2098,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
                     .Default(SaveTempsCwd);
   }
 
-  if (Args.getLastArg(options::OPT_fsycl_dump_device_code_EQ))
+  if (Args.getLastArg(options::OPT_fdump_device_code_EQ))
     DumpDeviceCode = true;
 
   if (const Arg *A = Args.getLastArg(
