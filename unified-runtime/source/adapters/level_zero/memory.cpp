@@ -62,19 +62,20 @@ bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr) {
 bool PreferCopyEngineUsage(ur_device_handle_t Device,
                            ur_context_handle_t Context, const void *Src,
                            void *Dst) {
-  bool PreferCopyEngine = false;
-  // Given Integrated Devices, Copy Engines are not preferred for any Copy
-  // operations.
-  if (!Device->isIntegrated()) {
-    // Given non D2D Copies, for better performance, Copy Engines are preferred
-    // only if one has both the Main and Link Copy Engines.
-    if (Device->hasLinkCopyEngine() && Device->hasMainCopyEngine() &&
-        (!IsDevicePointer(Context, Src) || !IsDevicePointer(Context, Dst))) {
-      PreferCopyEngine = true;
-    }
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine = !IsDevicePointer(Context, Src) ||
+                          !IsDevicePointer(Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Device->isDG2() && (IsSharedPointer(Context, Src) ||
+                          IsSharedPointer(Context, Dst))) {
+    PreferCopyEngine = false;
   }
-  // Temporary option added to use force engine for D2D copy
+
+  // Temporary option added to use copy engine for D2D copy
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return PreferCopyEngine;
 }
 
