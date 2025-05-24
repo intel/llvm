@@ -1097,10 +1097,19 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_event_handle_t * /*Event*/,
     ur_exp_command_buffer_command_handle_t * /*Command*/) {
 
+  bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
+                          !IsDevicePointer(CommandBuffer->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (CommandBuffer->Device->isDG2() &&
+      (IsSharedPointer(CommandBuffer->Context, Src) ||
+       IsSharedPointer(CommandBuffer->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueCommandBufferMemCopyHelper(
-      UR_COMMAND_USM_MEMCPY, CommandBuffer, Dst, Src, Size,
-      PreferCopyEngineUsage(CommandBuffer->Device, CommandBuffer->Context, Src,
-                            Dst),
+      UR_COMMAND_USM_MEMCPY, CommandBuffer, Dst, Src, Size, PreferCopyEngine,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
