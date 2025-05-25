@@ -21,9 +21,9 @@ entry:
   ret ptr addrspace(3) @__clc__group_scratch_i16
 }
 
-define i32 addrspace(3)* @__clc__get_group_scratch_int() nounwind alwaysinline {
+define ptr addrspace(3) @__clc__get_group_scratch_int() nounwind alwaysinline {
 entry:
-  ret i32 addrspace(3)* @__clc__group_scratch_i32
+  ret ptr addrspace(3) @__clc__group_scratch_i32
 }
 
 define ptr addrspace(3) @__clc__get_group_scratch_long() nounwind alwaysinline {
