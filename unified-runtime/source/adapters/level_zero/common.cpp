@@ -148,7 +148,10 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   UR_LOG(DEBUG, "ZE ---> {}{}", ZeName, ZeArgs);
 
   if (ZeResult == ZE_RESULT_SUCCESS) {
-    return ZeResult;
+    if (UrL0LeaksDebug) {
+      ++(*ZeCallCount)[ZeName];
+    }
+    return ZE_RESULT_SUCCESS;
   }
 
   if (TraceError) {

@@ -97,7 +97,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
 
   switch (propName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_HIP);
+    return ReturnValue(UR_BACKEND_HIP);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(ur::hip::adapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION:

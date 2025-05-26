@@ -29,6 +29,28 @@ class platform;
 
 namespace detail {
 
+// Note that UR's enums have weird *_FORCE_UINT32 values, we ignore them in the
+// callers. But we also can't write a fully-covered switch without mentioning it
+// there, which wouldn't make any sense. As such, ensure that "real" values
+// match and then just `static_cast` them (in the caller).
+template <typename T0, typename T1>
+constexpr bool enums_match(std::initializer_list<T0> l0,
+                           std::initializer_list<T1> l1) {
+  using U0 = std::underlying_type_t<T0>;
+  using U1 = std::underlying_type_t<T1>;
+  using C = std::common_type_t<U0, U1>;
+  // std::equal isn't constexpr until C++20.
+  if (l0.size() != l1.size())
+    return false;
+  auto i0 = l0.begin();
+  auto e = l0.end();
+  auto i1 = l1.begin();
+  for (; i0 != e; ++i0, ++i1)
+    if (static_cast<C>(*i0) != static_cast<C>(*i1))
+      return false;
+  return true;
+}
+
 // Forward declaration
 class platform_impl;
 
@@ -37,12 +59,315 @@ template <typename> static constexpr bool is_std_vector_v = false;
 template <typename T>
 static constexpr bool is_std_vector_v<std::vector<T>> = true;
 
+template <ur_device_info_t Desc> static constexpr auto ur_ret_type_impl() {
+  if constexpr (false) {
+  }
+#define MAP(VALUE, ...) else if constexpr (Desc == VALUE) return __VA_ARGS__{};
+#include "ur_device_info_ret_types.inc"
+#undef MAP
+}
+
+template <ur_device_info_t Desc>
+using ur_ret_type = decltype(ur_ret_type_impl<Desc>());
+
 // TODO: Make code thread-safe
 class device_impl : public std::enable_shared_from_this<device_impl> {
   struct private_tag {
     explicit private_tag() = default;
   };
   friend class platform_impl;
+
+  bool has_info_desc(ur_device_info_t Desc) const {
+    size_t return_size = 0;
+    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
+  }
+
+  // This should really be
+  //   std::expected<ReturnT, ur_result_t>
+  // but we don't have C++23. Emulate close enough with as little code as
+  // possible.
+  template <typename T, typename E>
+  struct expected : public std::variant<T, E> {
+    using base = std::variant<T, E>;
+    using base::base;
+
+    bool has_val() const { return this->index() == 0; }
+    template <typename U> T value_or(U &&default_value) const {
+      if (auto *p = std::get_if<0>(static_cast<const base *>(this)))
+        return *p;
+      else
+        return std::forward<U>(default_value);
+    }
+    template <typename G> E error_or(G &&default_error) const {
+      if (auto *p = std::get_if<1>(static_cast<const base *>(this)))
+        return *p;
+      else
+        return std::forward<G>(default_error);
+    }
+    T value() const { return std::get<0>(*static_cast<const base *>(this)); }
+    E error() const { return std::get<1>(*static_cast<const base *>(this)); }
+  };
+
+  template <ur_device_info_t Desc>
+  expected<ur_ret_type<Desc>, ur_result_t> get_info_impl_nocheck() const {
+    using ur_ret_t = ur_ret_type<Desc>;
+    static_assert(!std::is_same_v<ur_ret_t, std::string>,
+                  "Wasn't needed before.");
+    if constexpr (is_std_vector_v<ur_ret_t>) {
+      static_assert(
+          !check_type_in_v<typename ur_ret_t::value_type, bool, std::string>);
+      size_t ResultSize = 0;
+      ur_result_t Error =
+          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+              getHandleRef(), Desc, 0, nullptr, &ResultSize);
+      if (Error != UR_RESULT_SUCCESS)
+        return {Error};
+      if (ResultSize == 0)
+        return {ur_ret_t{}};
+
+      ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
+      Error = getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
+      if (Error != UR_RESULT_SUCCESS)
+        return {Error};
+      return {Result};
+    } else {
+      ur_ret_t Result;
+      ur_result_t Error =
+          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+              getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+      if (Error == UR_RESULT_SUCCESS)
+        return {Result};
+      else
+        return {Error};
+    }
+  }
+
+  template <ur_device_info_t Desc, bool InitializingCache = false>
+  decltype(auto) get_info_impl() const {
+    if constexpr (decltype(MCache)::has<URDesc<Desc>>() && !InitializingCache) {
+      return MCache.get<URDesc<Desc>>();
+    } else {
+      using ur_ret_t = ur_ret_type<Desc>;
+      if constexpr (std::is_same_v<ur_ret_t, std::string>) {
+        return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
+      } else if constexpr (is_std_vector_v<ur_ret_t>) {
+        size_t ResultSize = 0;
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
+                                                       nullptr, &ResultSize);
+        if (ResultSize == 0)
+          return ur_ret_t{};
+
+        ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+            getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
+        return Result;
+      } else {
+        ur_ret_t Result;
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+            getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+        return Result;
+      }
+    }
+  }
+
+  // Define some helpers to cache properties. We use the same template
+  // implementation for both SYCL information descriptors and raw calls to
+  // `urDeviceGetInfo` by wrapping latter's `ur_device_info_t Desc` into a
+  // wrapper class (to go from values to types, as we don't have universal
+  // template parameters yet).
+  //
+  // Note that some modifications are also done in `get_info` and
+  // `get_info_impl` so this caching is a part of device_impl implementation and
+  // all the infrastructure should legitimally be as a class member.
+  //
+  // See `MCache` data member below for instruction how to make a property
+  // cached.
+
+  // Eager - initialize the value right in the device_impl's ctor.
+  template <typename Desc> struct EagerCached {
+    const typename Desc::return_type value;
+  };
+
+  // We optimize `init` signature so that it could be immediately
+  // passed to `std::call_once` in the `CallOnceCached` below with an
+  // expectation that it's easier to inline this lambda than outline a
+  // creation of lambda in `CallOnceCached` if we'd be forced to have
+  // one if `init` returned by value.
+  //
+  // Can't be an inline lambda because old gcc had a bug:
+  // https://godbolt.org/z/h5K9TYceK.
+  template <typename Desc, typename Initializer>
+  static typename Desc::return_type getInitValue(device_impl &device) {
+    typename Desc::return_type value;
+    Initializer::template init<Desc>(device, value);
+    return value;
+  }
+
+  template <typename Initializer, typename... Descs>
+  struct EagerCache : EagerCached<Descs>... {
+    EagerCache(device_impl &device)
+        : EagerCached<Descs>{getInitValue<Descs, Initializer>(device)}... {}
+
+    template <typename Desc> static constexpr bool has() {
+      return ((std::is_same_v<Desc, Descs> || ...));
+    }
+
+    template <typename Desc> decltype(auto) get() const {
+      // Extra parentheses to return as reference (see `decltype(auto)`).
+      return (static_cast<const EagerCached<Desc> *>(this)->value);
+    }
+  };
+
+#if defined(_GLIBCXX_RELEASE)
+  // libstdc++'s std::call_once is significantly slower than libc++
+  // implementation (30-40ns for libc++ CallOnceCache/EagerCache vs 50-60ns for
+  // CallOnceCache when using libstdc++ for queries of simple types like
+  // `ur_device_usm_access_capability_flags_t`). libc++ implements it via
+  // `__cxa_guard_*` (same as function static variables initialization) but
+  // libstdc++ cannot do that without an ABI break:
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146#c53.
+  //
+  // We do care about performance of the fast path and can pay extra costs in
+  // memory/slow-down during single init call, so add an extra flag to optimize.
+#define GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK 1
+#else
+#define GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK 0
+#endif
+
+  // CallOnce - initialize on first query, but exactly once so that we could
+  // return cached values by reference. Important for `std::vector` /
+  // `std::string` values where returning cached values by value would cause
+  // heap allocations.
+  template <typename Desc> struct CallOnceCached {
+    std::once_flag flag;
+    typename Desc::return_type value;
+#if GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
+    std::atomic_bool initialized = false;
+#endif
+  };
+
+  template <typename Initializer, typename... Descs>
+  struct CallOnceCache : public CallOnceCached<Descs>... {
+    device_impl &device;
+
+    CallOnceCache(device_impl &device) : device(device) {}
+
+    template <typename Desc> static constexpr bool has() {
+      return ((std::is_same_v<Desc, Descs> || ...));
+    }
+
+    template <typename Desc> decltype(auto) get() {
+      auto &Entry = *static_cast<CallOnceCached<Desc> *>(this);
+#if GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
+      if (!Entry.initialized.load(std::memory_order_acquire)) {
+        std::call_once(Entry.flag, [&]() {
+          Initializer::template init<Desc>(device, Entry.value);
+          Entry.initialized.store(true, std::memory_order_release);
+        });
+      }
+#else
+      std::call_once(Entry.flag, Initializer::template init<Desc>, device,
+                     Entry.value);
+#endif
+      // Extra parentheses to return as reference (see `decltype(auto)`).
+      return (std::as_const(Entry.value));
+    }
+  };
+
+#undef GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
+
+  // get_info and get_info_impl need to know if a particular query is cacheable.
+  // It's easier if all the cache instances (eager/call-once * UR/SYCL) are
+  // merged into a single object.
+  template <typename... Caches> struct JointCache : public Caches... {
+    JointCache(device_impl &device) : Caches(device)... {}
+
+    template <typename Desc> static constexpr bool has() {
+      // GCC 7.* had a bug: https://godbolt.org/z/cKeoTqMba, workaround it by
+      // not performing extra checks. Builds with unaffected compilers would
+      // catch all the issues.
+#if !(defined(__GNUC__) && !defined(__clang__)) || (__GNUC__ >= 8)
+      constexpr int NumFound = []() constexpr {
+        int found = 0;
+        (((found = Caches::template has<Desc>() ? found + 1 : found), ...));
+        return found;
+      }();
+      static_assert(NumFound <= 1,
+                    "Multiple caches must not contain the same descriptor");
+      return NumFound == 1;
+#else
+      return ((Caches::template has<Desc>() || ...));
+#endif
+    }
+
+    template <typename Desc> decltype(auto) get() {
+      static_assert(has<Desc>());
+      constexpr auto Idx = []() constexpr {
+        int i = 0;
+        int found = 0;
+        (((found = Caches::template has<Desc>() ? i : found, ++i), ...));
+        return found;
+      }();
+      return nth_type_t<Idx, Caches...>::template get<Desc>();
+    }
+
+    //  Can't provide `has<ur_device_info_t>`/`has<aspect>` (or similar for
+    //  `get`) due to MSVC bug: https://godbolt.org/z/s6bP6qK4f.
+  };
+
+  // With generic infrastructure above finished, provide the customization
+  // points:
+
+  struct InfoInitializer {
+    template <typename Desc>
+    static void init(device_impl &device, typename Desc::return_type &value) {
+      value = device.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+              get_info
+#else
+              get_info_abi_workaround
+#endif
+              <Desc, true /* InitializingCache */>();
+    }
+  };
+
+  template <ur_device_info_t Desc> struct URDesc {
+    using return_type = ur_ret_type<Desc>;
+    static constexpr ur_device_info_t UR_DESC = Desc;
+  };
+
+  struct URInfoInitializer {
+    template <typename Desc>
+    static void init(device_impl &device, typename Desc::return_type &value) {
+      value =
+          device.get_info_impl<Desc::UR_DESC, true /* InitializingCache */>();
+    }
+  };
+
+  template <template <typename...> typename Cache, ur_device_info_t... Descs>
+  using URCache = Cache<URInfoInitializer, URDesc<Descs>...>;
+
+  template <ur_device_info_t... Descs>
+  using UREagerCache = URCache<EagerCache, Descs...>;
+  template <ur_device_info_t... Descs>
+  using URCallOnceCache = URCache<CallOnceCache, Descs...>;
+
+  template <aspect Aspect_> struct AspectDesc {
+    using return_type = bool;
+    static constexpr aspect Aspect = Aspect_;
+  };
+
+  struct AspectInitializer {
+    template <typename AspectDesc>
+    static void init(device_impl &device, bool &value) {
+      value = device.has<AspectDesc::Aspect, true /* InitializingCache */>();
+    }
+  };
+
+  template <template <typename...> typename Cache, aspect... Aspects>
+  using AspectCache = Cache<AspectInitializer, AspectDesc<Aspects>...>;
 
 public:
   /// Constructs a SYCL device instance using the provided
@@ -78,22 +403,23 @@ public:
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device
-  bool is_cpu() const { return MType == UR_DEVICE_TYPE_CPU; }
+  bool is_cpu() const {
+    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_CPU;
+  }
 
   /// Check if device is a GPU device
   ///
   /// \return true if SYCL device is a GPU device
-  bool is_gpu() const { return MType == UR_DEVICE_TYPE_GPU; }
+  bool is_gpu() const {
+    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_GPU;
+  }
 
   /// Check if device is an accelerator device
   ///
   /// \return true if SYCL device is an accelerator device
-  bool is_accelerator() const { return MType == UR_DEVICE_TYPE_FPGA; }
-
-  /// Return device type
-  ///
-  /// \return the type of the device
-  ur_device_type_t get_device_type() const { return MType; }
+  bool is_accelerator() const {
+    return get_info_impl<UR_DEVICE_INFO_TYPE>() == UR_DEVICE_TYPE_FPGA;
+  }
 
   /// Get associated SYCL platform
   ///
@@ -185,7 +511,8 @@ public:
   /// \return device info of type described in Table 4.20.
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  template <typename Param> typename Param::return_type get_info() const {
+  template <typename Param, bool InitializingCache = false>
+  decltype(auto) get_info() const {
 #define CALL_GET_INFO get_info
 #else
   // We've been exporting
@@ -197,35 +524,76 @@ public:
   // `get_info_abi_workaround` for which we need this ugly macro:
 #define CALL_GET_INFO get_info_abi_workaround
   template <typename Param> typename Param::return_type get_info() const;
-  template <typename Param>
-  typename Param::return_type get_info_abi_workaround() const {
+  template <typename Param, bool InitializingCache = false>
+  decltype(auto) get_info_abi_workaround() const {
 #endif
-    using return_type = typename Param::return_type;
     using execution_scope = ext::oneapi::experimental::execution_scope;
-#define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
-    if constexpr (false) {
-    }
 
+    // With the return type of this function being automatically
+    // deduced we can't simply do
+    //
+    //    CASE(Desc1) { return get_info<Desc2>(); }
+    //
+    // because the function isn't defined yet and we can't auto-deduce the
+    // return type for `Desc2` yet. The solution here is to make that delegation
+    // template-parameter-dependent. We use the `InitializingCache` parameter
+    // for that out of convenience.
+    //
+    // Note that for "eager" cache it's the programmer's responsibility that
+    // the descriptor we delegate to is initialized first (by referencing that
+    // descriptor first when defining the cache data member). For "CallOnce"
+    // cache we want to be querying cached value so "false" is the right
+    // template parameter for such delegation.
+    [[maybe_unused]] constexpr bool DependentFalse = InitializingCache && false;
+
+    if constexpr (decltype(MCache)::has<Param>() && !InitializingCache) {
+      return MCache.get<Param>();
+    }
+#define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
     // device_traits.def
 
+    CASE(info::device::device_type) {
+      using device_type = info::device_type;
+      switch (get_info_impl<UR_DEVICE_INFO_TYPE>()) {
+      case UR_DEVICE_TYPE_DEFAULT:
+        return device_type::automatic;
+      case UR_DEVICE_TYPE_ALL:
+        return device_type::all;
+      case UR_DEVICE_TYPE_GPU:
+        return device_type::gpu;
+      case UR_DEVICE_TYPE_CPU:
+        return device_type::cpu;
+      case UR_DEVICE_TYPE_FPGA:
+        return device_type::accelerator;
+      case UR_DEVICE_TYPE_MCA:
+      case UR_DEVICE_TYPE_VPU:
+        return device_type::custom;
+      default: {
+        assert(false);
+        // FIXME: what is that???
+        return device_type::custom;
+      }
+      }
+    }
+
     CASE(info::device::max_work_item_sizes<3>) {
-      auto result = get_info_impl<std::array<size_t, 3>,
-                                  UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES>();
+      auto result = get_info_impl<UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES>();
       return range<3>{result[2], result[1], result[0]};
     }
     CASE(info::device::max_work_item_sizes<2>) {
-      range<3> r3 = CALL_GET_INFO<info::device::max_work_item_sizes<3>>();
+      range<3> r3 =
+          CALL_GET_INFO<info::device::max_work_item_sizes<3>, DependentFalse>();
       return range<2>{r3[1], r3[2]};
     }
     CASE(info::device::max_work_item_sizes<1>) {
-      range<3> r3 = CALL_GET_INFO<info::device::max_work_item_sizes<3>>();
+      range<3> r3 =
+          CALL_GET_INFO<info::device::max_work_item_sizes<3>, DependentFalse>();
       return range<1>{r3[2]};
     }
 
     CASE(info::device::sub_group_sizes) {
       std::vector<uint32_t> ur_result =
-          get_info_impl<std::vector<uint32_t>,
-                        UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL>();
+          get_info_impl<UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL>();
       std::vector<size_t> result;
       result.reserve(ur_result.size());
       std::copy(ur_result.begin(), ur_result.end(), std::back_inserter(result));
@@ -242,25 +610,41 @@ public:
       return get_fp_config<UR_DEVICE_INFO_DOUBLE_FP_CONFIG>();
     }
 
+    CASE(info::device::global_mem_cache_type) {
+      using cache = info::global_mem_cache_type;
+      static_assert(
+          enums_match({UR_DEVICE_MEM_CACHE_TYPE_NONE,
+                       UR_DEVICE_MEM_CACHE_TYPE_READ_ONLY_CACHE,
+                       UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE},
+                      {cache::none, cache::read_only, cache::read_write}));
+      return static_cast<cache>(
+          get_info_impl<UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE>());
+    }
+
+    CASE(info::device::local_mem_type) {
+      using mem = info::local_mem_type;
+      static_assert(enums_match({UR_DEVICE_LOCAL_MEM_TYPE_NONE,
+                                 UR_DEVICE_LOCAL_MEM_TYPE_LOCAL,
+                                 UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL},
+                                {mem::none, mem::local, mem::global}));
+      return static_cast<mem>(get_info_impl<UR_DEVICE_INFO_LOCAL_MEM_TYPE>());
+    }
+
     CASE(info::device::atomic_memory_order_capabilities) {
       return readMemoryOrderBitfield(
-          get_info_impl<ur_memory_order_capability_flag_t,
-                        UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES>());
+          get_info_impl<UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES>());
     }
     CASE(info::device::atomic_fence_order_capabilities) {
       return readMemoryOrderBitfield(
-          get_info_impl<ur_memory_order_capability_flag_t,
-                        UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES>());
+          get_info_impl<UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES>());
     }
     CASE(info::device::atomic_memory_scope_capabilities) {
       return readMemoryScopeBitfield(
-          get_info_impl<size_t,
-                        UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES>());
+          get_info_impl<UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES>());
     }
     CASE(info::device::atomic_fence_scope_capabilities) {
       return readMemoryScopeBitfield(
-          get_info_impl<size_t,
-                        UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES>());
+          get_info_impl<UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES>());
     }
 
     CASE(info::device::execution_capabilities) {
@@ -269,9 +653,8 @@ public:
                         "info::device::execution_capabilities is available for "
                         "backend::opencl only");
 
-      ur_device_exec_capability_flag_t bits =
-          get_info_impl<ur_device_exec_capability_flag_t,
-                        UR_DEVICE_INFO_EXECUTION_CAPABILITIES>();
+      ur_device_exec_capability_flags_t bits =
+          get_info_impl<UR_DEVICE_INFO_EXECUTION_CAPABILITIES>();
       std::vector<info::execution_capability> result;
       if (bits & UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL)
         result.push_back(info::execution_capability::exec_kernel);
@@ -285,17 +668,18 @@ public:
       // profiling, urDeviceGetGlobalTimestamps is not supported,
       // command_submit, command_start, command_end will be calculated. See
       // MFallbackProfiling
-      return get_info_impl<ur_queue_flags_t,
-                           UR_DEVICE_INFO_QUEUE_PROPERTIES>() &
-             UR_QUEUE_FLAG_PROFILING_ENABLE;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_QUEUE_PROPERTIES>() &
+          UR_QUEUE_FLAG_PROFILING_ENABLE);
     }
 
     CASE(info::device::built_in_kernels) {
-      return split_string(
-          get_info_impl<std::string, UR_DEVICE_INFO_BUILT_IN_KERNELS>(), ';');
+      return split_string(get_info_impl<UR_DEVICE_INFO_BUILT_IN_KERNELS>(),
+                          ';');
     }
     CASE(info::device::built_in_kernel_ids) {
-      auto names = CALL_GET_INFO<info::device::built_in_kernels>();
+      auto names =
+          CALL_GET_INFO<info::device::built_in_kernels, DependentFalse>();
 
       std::vector<kernel_id> ids;
       ids.reserve(names.size());
@@ -310,8 +694,7 @@ public:
     CASE(info::device::platform) {
       return createSyclObjFromImpl<platform>(
           platform_impl::getOrMakePlatformImpl(
-              get_info_impl<ur_platform_handle_t, UR_DEVICE_INFO_PLATFORM>(),
-              getAdapter()));
+              get_info_impl<UR_DEVICE_INFO_PLATFORM>(), getAdapter()));
     }
 
     CASE(info::device::profile) {
@@ -320,12 +703,11 @@ public:
                               "the info::device::profile info descriptor can "
                               "only be queried with an OpenCL backend");
 
-      return get_info_impl<std::string, UR_DEVICE_INFO_PROFILE>();
+      return get_info_impl<UR_DEVICE_INFO_PROFILE>();
     }
 
     CASE(info::device::extensions) {
-      return split_string(
-          get_info_impl<std::string, UR_DEVICE_INFO_EXTENSIONS>(), ' ');
+      return split_string(get_info_impl<UR_DEVICE_INFO_EXTENSIONS>(), ' ');
     }
 
     CASE(info::device::preferred_interop_user_sync) {
@@ -335,14 +717,13 @@ public:
             "the info::device::preferred_interop_user_sync info descriptor can "
             "only be queried with an OpenCL backend");
 
-      return get_info_impl<ur_bool_t,
-                           UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC>();
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC>());
     }
 
     CASE(info::device::partition_properties) {
       std::vector<ur_device_partition_t> ur_dev_partitions =
-          get_info_impl<std::vector<ur_device_partition_t>,
-                        UR_DEVICE_INFO_SUPPORTED_PARTITIONS>();
+          get_info_impl<UR_DEVICE_INFO_SUPPORTED_PARTITIONS>();
       std::vector<info::partition_property> result;
       result.reserve(ur_dev_partitions.size());
       for (auto &entry : ur_dev_partitions) {
@@ -363,8 +744,7 @@ public:
     }
     CASE(info::device::partition_affinity_domains) {
       ur_device_affinity_domain_flags_t bits =
-          get_info_impl<ur_device_affinity_domain_flags_t,
-                        UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN>();
+          get_info_impl<UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN>();
       std::vector<info::partition_affinity_domain> result;
       using domain = info::partition_affinity_domain;
       constexpr std::pair<ur_device_affinity_domain_flags_t, domain> mapping[] =
@@ -383,8 +763,7 @@ public:
     }
     CASE(info::device::partition_type_property) {
       std::vector<ur_device_partition_property_t> PartitionProperties =
-          get_info_impl<std::vector<ur_device_partition_property_t>,
-                        UR_DEVICE_INFO_PARTITION_TYPE>();
+          get_info_impl<UR_DEVICE_INFO_PARTITION_TYPE>();
       if (PartitionProperties.empty())
         return info::partition_property::no_partition;
       // The old UR implementation also just checked the first element, is that
@@ -393,8 +772,7 @@ public:
     }
     CASE(info::device::partition_type_affinity_domain) {
       std::vector<ur_device_partition_property_t> PartitionProperties =
-          get_info_impl<std::vector<ur_device_partition_property_t>,
-                        UR_DEVICE_INFO_PARTITION_TYPE>();
+          get_info_impl<UR_DEVICE_INFO_PARTITION_TYPE>();
       if (PartitionProperties.empty())
         return info::partition_affinity_domain::not_applicable;
       for (const auto &PartitionProp : PartitionProperties) {
@@ -407,8 +785,7 @@ public:
     }
 
     CASE(info::device::parent_device) {
-      auto ur_parent_dev =
-          get_info_impl<ur_device_handle_t, UR_DEVICE_INFO_PARENT_DEVICE>();
+      auto ur_parent_dev = get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>();
       if (ur_parent_dev == nullptr)
         throw exception(make_error_code(errc::invalid),
                         "No parent for device because it is not a subdevice");
@@ -439,45 +816,39 @@ public:
     }
 
     CASE(info::device::usm_device_allocations) {
-      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
-                                   UR_DEVICE_INFO_USM_DEVICE_SUPPORT>()
-                 .value_or(0) &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_DEVICE_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_host_allocations) {
-      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
-                                   UR_DEVICE_INFO_USM_HOST_SUPPORT>()
-                 .value_or(0) &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_shared_allocations) {
-      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
-                                   UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>()
-                 .value_or(0) &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
     CASE(info::device::usm_restricted_shared_allocations) {
-      auto cap_flags =
-          get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
-                                UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
-      if (!cap_flags.has_val())
-        return false;
+      ur_device_usm_access_capability_flags_t cap_flags =
+          get_info_impl<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT>();
       // Check that we don't support any cross device sharing
-      return !(cap_flags.value() &
+      return !(cap_flags &
                (UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
                 UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS));
     }
     CASE(info::device::usm_system_allocations) {
-      return get_info_impl_nocheck<ur_device_usm_access_capability_flags_t,
-                                   UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>()
-                 .value_or(0) &
-             UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      return static_cast<bool>(
+          get_info_impl<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT>() &
+          UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
     }
 
     CASE(info::device::opencl_c_version) {
       throw sycl::exception(errc::feature_not_supported,
                             "Deprecated interface that hasn't been working for "
                             "some time already");
+      return std::string{}; // for return type deduction.
     }
 
     CASE(ext::intel::info::device::max_mem_bandwidth) {
@@ -485,37 +856,40 @@ public:
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_max_mem_bandwidth aspect");
-      return get_info_impl<uint64_t, UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH>();
+      return get_info_impl<UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH>();
     }
 
     CASE(info::device::ext_oneapi_max_global_work_groups) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_global_work_groups>();
+          ext::oneapi::experimental::info::device::max_global_work_groups,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_1d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<1>>();
+          ext::oneapi::experimental::info::device::max_work_groups<1>,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_2d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<2>>();
+          ext::oneapi::experimental::info::device::max_work_groups<2>,
+          DependentFalse>();
     }
     CASE(info::device::ext_oneapi_max_work_groups_3d) {
       // Deprecated alias.
       return CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
     }
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
       if (getBackend() != backend::ext_oneapi_cuda)
         return false;
 
-      return get_info_impl_nocheck<ur_bool_t,
-                                   UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP>()
-          .value_or(0);
+      return get_info_impl_nocheck<UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP>()
+                 .value_or(0) != 0;
     }
 
     // ext_codeplay_device_traits.def
@@ -532,7 +906,8 @@ public:
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
       size_t Limit = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_global_work_groups>();
+          ext::oneapi::experimental::info::device::max_global_work_groups,
+          DependentFalse>();
 
       // TODO: std::array<size_t, 3> ?
       size_t result[3];
@@ -544,12 +919,14 @@ public:
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<2>) {
       id<3> max_3d = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
       return id<2>{max_3d[1], max_3d[2]};
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<1>) {
       id<3> max_3d = CALL_GET_INFO<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>();
+          ext::oneapi::experimental::info::device::max_work_groups<3>,
+          DependentFalse>();
       return id<1>{max_3d[2]};
     }
 
@@ -593,13 +970,18 @@ public:
       return get_matrix_combinations();
     }
 
+    CASE(ext::oneapi::experimental::info::device::mipmap_max_anisotropy) {
+      return static_cast<float>(
+          get_info_impl<UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP>());
+    }
+
     CASE(ext::oneapi::experimental::info::device::component_devices) {
-      auto Devs = get_info_impl_nocheck<std::vector<ur_device_handle_t>,
-                                        UR_DEVICE_INFO_COMPONENT_DEVICES>();
+      expected<std::vector<ur_device_handle_t>, ur_result_t> Devs =
+          get_info_impl_nocheck<UR_DEVICE_INFO_COMPONENT_DEVICES>();
       if (!Devs.has_val()) {
         ur_result_t Err = Devs.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
-          return {};
+          return std::vector<sycl::device>{};
         getAdapter()->checkUrResult(Err);
       }
 
@@ -619,14 +1001,17 @@ public:
             "can call this function.");
 
       if (ur_device_handle_t Result =
-              get_info_impl<ur_device_handle_t,
-                            UR_DEVICE_INFO_COMPOSITE_DEVICE>())
+              get_info_impl<UR_DEVICE_INFO_COMPOSITE_DEVICE>())
         return createSyclObjFromImpl<device>(
             MPlatform->getOrMakeDeviceImpl(Result));
 
       throw sycl::exception(make_error_code(errc::invalid),
                             "A component with aspect::ext_oneapi_is_component "
                             "must have a composite device.");
+    }
+    CASE(ext::oneapi::info::device::num_compute_units) {
+      return static_cast<size_t>(
+          get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>());
     }
 
     // ext_intel_device_traits.def
@@ -636,57 +1021,56 @@ public:
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_device_id aspect");
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_DEVICE_ID>();
+      return get_info_impl<UR_DEVICE_INFO_DEVICE_ID>();
     }
     CASE(ext::intel::info::device::pci_address) {
       if (!has(aspect::ext_intel_pci_address))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_pci_address aspect");
-      return get_info_impl<std::string, UR_DEVICE_INFO_PCI_ADDRESS>();
+      return get_info_impl<UR_DEVICE_INFO_PCI_ADDRESS>();
     }
     CASE(ext::intel::info::device::gpu_eu_count) {
       if (!has(aspect::ext_intel_gpu_eu_count))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_gpu_eu_count aspect");
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_EU_COUNT>();
+      return get_info_impl<UR_DEVICE_INFO_GPU_EU_COUNT>();
     }
     CASE(ext::intel::info::device::gpu_eu_simd_width) {
       if (!has(aspect::ext_intel_gpu_eu_simd_width))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_gpu_eu_simd_width aspect");
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH>();
+      return get_info_impl<UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH>();
     }
     CASE(ext::intel::info::device::gpu_slices) {
       if (!has(aspect::ext_intel_gpu_slices))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_gpu_slices aspect");
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_EU_SLICES>();
+      return get_info_impl<UR_DEVICE_INFO_GPU_EU_SLICES>();
     }
     CASE(ext::intel::info::device::gpu_subslices_per_slice) {
       if (!has(aspect::ext_intel_gpu_subslices_per_slice))
         throw exception(make_error_code(errc::feature_not_supported),
                         "The device does not have the "
                         "ext_intel_gpu_subslices_per_slice aspect");
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE>();
+      return get_info_impl<UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE>();
     }
     CASE(ext::intel::info::device::gpu_eu_count_per_subslice) {
       if (!has(aspect::ext_intel_gpu_eu_count_per_subslice))
         throw exception(make_error_code(errc::feature_not_supported),
                         "The device does not have the "
                         "ext_intel_gpu_eu_count_per_subslice aspect");
-      return get_info_impl<uint32_t,
-                           UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE>();
+      return get_info_impl<UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE>();
     }
     CASE(ext::intel::info::device::gpu_hw_threads_per_eu) {
       if (!has(aspect::ext_intel_gpu_hw_threads_per_eu))
         throw exception(make_error_code(errc::feature_not_supported),
                         "The device does not have the "
                         "ext_intel_gpu_hw_threads_per_eu aspect");
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU>();
+      return get_info_impl<UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU>();
     }
     CASE(ext::intel::info::device::uuid) {
       if (!has(aspect::ext_intel_device_info_uuid))
@@ -695,35 +1079,38 @@ public:
             "The device does not have the ext_intel_device_info_uuid aspect");
       // TODO: we're essentially memcpy'ing here...
       static_assert(std::is_same_v<uuid_type, std::array<unsigned char, 16>>);
-      return get_info_impl<uuid_type, UR_DEVICE_INFO_UUID>();
+      return get_info_impl<UR_DEVICE_INFO_UUID>();
     }
     CASE(ext::intel::info::device::free_memory) {
       if (!has(aspect::ext_intel_free_memory))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_free_memory aspect");
-      return get_info_impl<uint64_t, UR_DEVICE_INFO_GLOBAL_MEM_FREE>();
+      return get_info_impl<UR_DEVICE_INFO_GLOBAL_MEM_FREE>();
     }
     CASE(ext::intel::info::device::memory_clock_rate) {
       if (!has(aspect::ext_intel_memory_clock_rate))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_memory_clock_rate aspect");
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_MEMORY_CLOCK_RATE>();
+      return get_info_impl<UR_DEVICE_INFO_MEMORY_CLOCK_RATE>();
     }
     CASE(ext::intel::info::device::memory_bus_width) {
       if (!has(aspect::ext_intel_memory_bus_width))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_memory_bus_width aspect");
-      return get_info_impl<uint32_t, UR_DEVICE_INFO_MEMORY_BUS_WIDTH>();
+      return get_info_impl<UR_DEVICE_INFO_MEMORY_BUS_WIDTH>();
+    }
+    CASE(ext::intel::info::device::max_compute_queue_indices) {
+      return static_cast<int>(
+          get_info_impl<UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES>());
     }
     CASE(ext::intel::esimd::info::device::has_2d_block_io_support) {
       if (!has(aspect::ext_intel_esimd))
         return false;
       ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities =
-          get_info_impl<ur_exp_device_2d_block_array_capability_flags_t,
-                        UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP>();
+          get_info_impl<UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP>();
       return (BlockArrayCapabilities &
               UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) &&
              (BlockArrayCapabilities &
@@ -736,8 +1123,7 @@ public:
                         "ext_intel_current_clock_throttle_reasons aspect");
 
       ur_device_throttle_reasons_flags_t UrThrottleReasons =
-          get_info_impl<ur_device_throttle_reasons_flags_t,
-                        UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS>();
+          get_info_impl<UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS>();
       std::vector<ext::intel::throttle_reason> ThrottleReasons;
       using reason = ext::intel::throttle_reason;
       constexpr std::pair<ur_device_throttle_reasons_flags_t, reason>
@@ -764,27 +1150,406 @@ public:
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_fan_speed aspect");
-      return get_info_impl<int32_t, UR_DEVICE_INFO_FAN_SPEED>();
+      return get_info_impl<UR_DEVICE_INFO_FAN_SPEED>();
     }
     CASE(ext::intel::info::device::max_power_limit) {
       if (!has(aspect::ext_intel_power_limits))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_power_limits aspect");
-      return get_info_impl<int32_t, UR_DEVICE_INFO_MAX_POWER_LIMIT>();
+      return get_info_impl<UR_DEVICE_INFO_MAX_POWER_LIMIT>();
     }
     CASE(ext::intel::info::device::min_power_limit) {
       if (!has(aspect::ext_intel_power_limits))
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_power_limits aspect");
-      return get_info_impl<int32_t, UR_DEVICE_INFO_MIN_POWER_LIMIT>();
+      return get_info_impl<UR_DEVICE_INFO_MIN_POWER_LIMIT>();
     }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
-      return get_info_impl<return_type, Desc>();
+      return static_cast<typename Param::return_type>(get_info_impl<Desc>());
     }
 #undef CASE
+  }
+
+  // template version is necessary to make this cacheable (cache lookup needs
+  // compile-time data).
+  template <aspect Aspect, bool InitializingCache = false> bool has() const {
+    if constexpr (decltype(MCache)::has<AspectDesc<Aspect>>() &&
+                  !InitializingCache) {
+      return MCache.get<AspectDesc<Aspect>>();
+    }
+#define CASE(ASPECT) else if constexpr (Aspect == aspect::ASPECT)
+    CASE(host) {
+      // Deprecated
+      return false;
+    }
+    CASE(cpu) { return is_cpu(); }
+    CASE(gpu) { return is_gpu(); }
+    CASE(accelerator) { return is_accelerator(); }
+    CASE(custom) {
+      return false;
+      // TODO: Implement this for FPGA emulator.
+    }
+    CASE(emulated) { return false; }
+    CASE(host_debuggable) { return false; }
+    CASE(fp16) { return has_extension("cl_khr_fp16"); }
+    CASE(fp64) { return has_extension("cl_khr_fp64"); }
+    CASE(int64_base_atomics) {
+      return has_extension("cl_khr_int64_base_atomics");
+    }
+    CASE(int64_extended_atomics) {
+      return has_extension("cl_khr_int64_extended_atomics");
+    }
+    CASE(atomic64) { return get_info<info::device::atomic64>(); }
+    CASE(image) { return get_info<info::device::image_support>(); }
+    CASE(online_compiler) {
+      return get_info<info::device::is_compiler_available>();
+    }
+    CASE(online_linker) {
+      return get_info<info::device::is_linker_available>();
+    }
+    CASE(queue_profiling) { return get_info<info::device::queue_profiling>(); }
+    CASE(usm_device_allocations) {
+      return get_info<info::device::usm_device_allocations>();
+    }
+    CASE(usm_host_allocations) {
+      return get_info<info::device::usm_host_allocations>();
+    }
+    CASE(ext_intel_mem_channel) {
+      return get_info<info::device::ext_intel_mem_channel>();
+    }
+    CASE(ext_oneapi_cuda_cluster_group) {
+      return get_info<info::device::ext_oneapi_cuda_cluster_group>();
+    }
+    CASE(usm_atomic_host_allocations) {
+      return (get_info_impl<UR_DEVICE_INFO_USM_HOST_SUPPORT>() &
+              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    }
+    CASE(usm_shared_allocations) {
+      return get_info<info::device::usm_shared_allocations>();
+    }
+    CASE(usm_atomic_shared_allocations) {
+      return (get_info_impl<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT>() &
+              UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
+    }
+    CASE(usm_restricted_shared_allocations) {
+      return get_info<info::device::usm_restricted_shared_allocations>();
+    }
+    CASE(usm_system_allocations) {
+      return get_info<info::device::usm_system_allocations>();
+    }
+    CASE(ext_intel_device_id) {
+      return has_info_desc(UR_DEVICE_INFO_DEVICE_ID);
+    }
+    CASE(ext_intel_pci_address) {
+      return has_info_desc(UR_DEVICE_INFO_PCI_ADDRESS);
+    }
+    CASE(ext_intel_gpu_eu_count) {
+      return has_info_desc(UR_DEVICE_INFO_GPU_EU_COUNT);
+    }
+    CASE(ext_intel_gpu_eu_simd_width) {
+      return has_info_desc(UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH);
+    }
+    CASE(ext_intel_gpu_slices) {
+      return has_info_desc(UR_DEVICE_INFO_GPU_EU_SLICES);
+    }
+    CASE(ext_intel_gpu_subslices_per_slice) {
+      return has_info_desc(UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE);
+    }
+    CASE(ext_intel_gpu_eu_count_per_subslice) {
+      return has_info_desc(UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE);
+    }
+    CASE(ext_intel_gpu_hw_threads_per_eu) {
+      return has_info_desc(UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU);
+    }
+    CASE(ext_intel_free_memory) {
+      return has_info_desc(UR_DEVICE_INFO_GLOBAL_MEM_FREE);
+    }
+    CASE(ext_intel_memory_clock_rate) {
+      return has_info_desc(UR_DEVICE_INFO_MEMORY_CLOCK_RATE);
+    }
+    CASE(ext_intel_memory_bus_width) {
+      return has_info_desc(UR_DEVICE_INFO_MEMORY_BUS_WIDTH);
+    }
+    CASE(ext_intel_device_info_uuid) {
+      return has_info_desc(UR_DEVICE_INFO_UUID);
+    }
+    CASE(ext_intel_max_mem_bandwidth) {
+      // currently not supported
+      return false;
+    }
+    CASE(ext_intel_current_clock_throttle_reasons) {
+      return has_info_desc(UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS);
+    }
+    CASE(ext_intel_fan_speed) {
+      return has_info_desc(UR_DEVICE_INFO_FAN_SPEED);
+    }
+    CASE(ext_intel_power_limits) {
+      return has_info_desc(UR_DEVICE_INFO_MIN_POWER_LIMIT) &&
+             has_info_desc(UR_DEVICE_INFO_MAX_POWER_LIMIT);
+    }
+    CASE(ext_oneapi_srgb) { return get_info<info::device::ext_oneapi_srgb>(); }
+    CASE(ext_oneapi_native_assert) {
+      return get_info_impl<UR_DEVICE_INFO_USE_NATIVE_ASSERT>();
+    }
+    CASE(ext_oneapi_cuda_async_barrier) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_ASYNC_BARRIER>().value_or(0);
+    }
+    CASE(ext_intel_legacy_image) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IMAGE_SUPPORT>().value_or(0);
+    }
+    CASE(ext_oneapi_bindless_images) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_images_shared_usm) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_images_1d_usm) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_images_2d_usm) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_external_memory_import) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_external_semaphore_import) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_mipmap) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_mipmap_anisotropy) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_mipmap_level_reference) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_sampled_image_fetch_1d_usm) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_sampled_image_fetch_1d) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_sampled_image_fetch_2d_usm) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_sampled_image_fetch_2d) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_sampled_image_fetch_3d) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_images_gather) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_cubemap) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_cubemap_seamless_filtering) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_image_array) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_unique_addressing_per_dim) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_images_sample_1d_usm) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_bindless_images_sample_2d_usm) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_intel_esimd) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_ESIMD_SUPPORT>().value_or(0);
+    }
+    CASE(ext_oneapi_ballot_group) {
+      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
+             (this->getBackend() == backend::opencl) ||
+             (this->getBackend() == backend::ext_oneapi_cuda);
+    }
+    CASE(ext_oneapi_fixed_size_group) {
+      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
+             (this->getBackend() == backend::opencl) ||
+             (this->getBackend() == backend::ext_oneapi_cuda);
+    }
+    CASE(ext_oneapi_opportunistic_group) {
+      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
+             (this->getBackend() == backend::opencl) ||
+             (this->getBackend() == backend::ext_oneapi_cuda);
+    }
+    CASE(ext_oneapi_tangle_group) {
+      // TODO: tangle_group is not currently supported for CUDA devices. Add
+      // when implemented.
+      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
+             (this->getBackend() == backend::opencl);
+    }
+    CASE(ext_intel_matrix) {
+      using arch = sycl::ext::oneapi::experimental::architecture;
+      const arch supported_archs[] = {
+          arch::intel_cpu_spr,     arch::intel_cpu_gnr,
+          arch::intel_cpu_dmr,     arch::intel_gpu_pvc,
+          arch::intel_gpu_dg2_g10, arch::intel_gpu_dg2_g11,
+          arch::intel_gpu_dg2_g12, arch::intel_gpu_bmg_g21,
+          arch::intel_gpu_lnl_m,   arch::intel_gpu_arl_h,
+          arch::intel_gpu_ptl_h,   arch::intel_gpu_ptl_u,
+      };
+      try {
+        return std::any_of(
+            std::begin(supported_archs), std::end(supported_archs),
+            [=](const arch a) { return this->extOneapiArchitectureIs(a); });
+      } catch (const sycl::exception &) {
+        // If we're here it means the device does not support architecture
+        // querying
+        return false;
+      }
+    }
+    CASE(ext_oneapi_is_composite) {
+      auto components = CALL_GET_INFO<
+          sycl::ext::oneapi::experimental::info::device::component_devices>();
+      // Any device with ext_oneapi_is_composite aspect will have at least two
+      // constituent component devices.
+      return components.size() >= 2;
+    }
+    CASE(ext_oneapi_is_component) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_COMPOSITE_DEVICE>().value_or(
+                 nullptr) != nullptr;
+    }
+    CASE(ext_oneapi_graph) {
+      ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
+      bool CallSuccessful =
+          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+              MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
+              sizeof(UpdateCapabilities), &UpdateCapabilities,
+              nullptr) == UR_RESULT_SUCCESS;
+      if (!CallSuccessful) {
+        return false;
+      }
+
+      /* The kernel handle update capability is not yet required for the
+       * ext_oneapi_graph aspect */
+      ur_device_command_buffer_update_capability_flags_t RequiredCapabilities =
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+
+      return has(aspect::ext_oneapi_limited_graph) &&
+             (UpdateCapabilities & RequiredCapabilities) ==
+                 RequiredCapabilities;
+    }
+    CASE(ext_oneapi_limited_graph) {
+      bool SupportsCommandBuffers = false;
+      bool CallSuccessful =
+          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+              MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+              sizeof(SupportsCommandBuffers), &SupportsCommandBuffers,
+              nullptr) == UR_RESULT_SUCCESS;
+      if (!CallSuccessful) {
+        return false;
+      }
+
+      return SupportsCommandBuffers;
+    }
+    CASE(ext_oneapi_private_alloca) {
+      // Extension only supported on SPIR-V targets.
+      backend be = getBackend();
+      return be == sycl::backend::ext_oneapi_level_zero ||
+             be == sycl::backend::opencl;
+    }
+    CASE(ext_oneapi_queue_profiling_tag) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_virtual_mem) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT>()
+          .value_or(0);
+    }
+    CASE(ext_intel_fpga_task_sequence) { return is_accelerator(); }
+    CASE(ext_oneapi_atomic16) {
+      // Likely L0 doesn't check it properly. Need to double-check.
+      return has_extension("cl_ext_float_atomics");
+    }
+    CASE(ext_oneapi_virtual_functions) {
+      // TODO: move to UR like e.g. aspect::ext_oneapi_virtual_mem
+      backend BE = getBackend();
+      bool isCompatibleBE = BE == sycl::backend::ext_oneapi_level_zero ||
+                            BE == sycl::backend::opencl;
+      return (is_cpu() || is_gpu()) && isCompatibleBE;
+    }
+    CASE(ext_intel_spill_memory_size) {
+      backend BE = getBackend();
+      bool isCompatibleBE = BE == sycl::backend::ext_oneapi_level_zero;
+      return is_gpu() && isCompatibleBE;
+    }
+    CASE(ext_oneapi_async_memory_alloc) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    else {
+      return false; // This device aspect has not been implemented yet.
+    }
+
+#undef CASE
+  }
+
+  bool has(aspect Aspect) const {
+    switch (Aspect) {
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  case aspect::ASPECT:                                                         \
+    return has<aspect::ASPECT>();
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MSG) __SYCL_ASPECT(ASPECT, ID)
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+#undef __SYCL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT
+    }
+    assert(false && "Why doesn't has<aspect>() cover it?");
+    return false;
   }
 
   /// Queries SYCL queue for SYCL backend-specific information.
@@ -807,28 +1572,18 @@ public:
   /// \return a native handle.
   ur_native_handle_t getNative() const;
 
-  /// Indicates if the SYCL device has the given feature.
-  ///
-  /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
-  /// Provisional Spec.
-  //
-  /// \return true if the SYCL device has the given feature.
-  bool has(aspect Aspect) const;
-
-  /// Indicates the SYCL device prefers to use its native assert
-  /// implementation.
-  ///
-  /// If this is false we will use the fallback assert implementation,
-  /// as detailed in doc/design/Assert.md
-  bool useNativeAssert() const;
-
   bool isRootDevice() const { return MRootDevice == nullptr; }
-
-  std::string getDeviceName() const;
 
   bool
   extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
-    return Arch == getDeviceArch();
+
+    return Arch ==
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+           get_info
+#else
+           get_info_abi_workaround
+#endif
+           <ext::oneapi::experimental::info::device::architecture>();
   }
 
   bool extOneapiArchitectureIs(
@@ -837,9 +1592,16 @@ public:
         get_category_min_architecture(Category);
     std::optional<ext::oneapi::experimental::architecture> CategoryMaxArch =
         get_category_max_architecture(Category);
-    if (CategoryMinArch.has_value() && CategoryMaxArch.has_value())
-      return CategoryMinArch <= getDeviceArch() &&
-             getDeviceArch() <= CategoryMaxArch;
+    if (CategoryMinArch.has_value() && CategoryMaxArch.has_value()) {
+      auto Arch =
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+          get_info
+#else
+          get_info_abi_workaround
+#endif
+          <ext::oneapi::experimental::info::device::architecture>();
+      return CategoryMinArch <= Arch && Arch <= CategoryMaxArch;
+    }
     return false;
   }
 
@@ -894,103 +1656,6 @@ public:
   /// @brief  Get the platform impl serving this device
   platform_impl &getPlatformImpl() const { return *MPlatform; }
 
-  /// Get device architecture
-  ext::oneapi::experimental::architecture getDeviceArch() const;
-
-private:
-  bool has_info_desc(ur_device_info_t Desc) const {
-    size_t return_size = 0;
-    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-               MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
-  }
-
-  // This should really be
-  //   std::expected<ReturnT, ur_result_t>
-  // but we don't have C++23. Emulate close enough with as little code as
-  // possible.
-  template <typename T, typename E>
-  struct expected : public std::variant<T, E> {
-    using base = std::variant<T, E>;
-    using base::base;
-
-    bool has_val() const { return this->index() == 0; }
-    template <typename U> T value_or(U &&default_value) const {
-      if (auto *p = std::get_if<0>(static_cast<const base *>(this)))
-        return *p;
-      else
-        return std::forward<U>(default_value);
-    }
-    template <typename G> E error_or(G &&default_error) const {
-      if (auto *p = std::get_if<1>(static_cast<const base *>(this)))
-        return *p;
-      else
-        return std::forward<G>(default_error);
-    }
-    T value() const { return std::get<0>(*static_cast<const base *>(this)); }
-    E error() const { return std::get<1>(*static_cast<const base *>(this)); }
-  };
-
-  template <typename ReturnT, ur_device_info_t Desc>
-  expected<ReturnT, ur_result_t> get_info_impl_nocheck() const {
-    static_assert(!std::is_same_v<ReturnT, std::string>,
-                  "Wasn't needed before.");
-    if constexpr (std::is_same_v<ReturnT, bool>) {
-      return get_info_impl_nocheck<ur_bool_t, Desc>();
-    } else if constexpr (is_std_vector_v<ReturnT>) {
-      static_assert(
-          !check_type_in_v<typename ReturnT::value_type, bool, std::string>);
-      size_t ResultSize = 0;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, 0, nullptr, &ResultSize);
-      if (Error != UR_RESULT_SUCCESS)
-        return {Error};
-      if (ResultSize == 0)
-        return {ReturnT{}};
-
-      ReturnT Result(ResultSize / sizeof(typename ReturnT::value_type));
-      Error = getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
-      if (Error != UR_RESULT_SUCCESS)
-        return {Error};
-      return {Result};
-    } else {
-      ReturnT Result;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
-      if (Error == UR_RESULT_SUCCESS)
-        return {Result};
-      else
-        return {Error};
-    }
-  }
-
-  template <typename ReturnT, ur_device_info_t Desc>
-  ReturnT get_info_impl() const {
-    if constexpr (std::is_same_v<ReturnT, bool>) {
-      return get_info_impl<ur_bool_t, Desc>();
-    } else if constexpr (std::is_same_v<ReturnT, std::string>) {
-      return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
-    } else if constexpr (is_std_vector_v<ReturnT>) {
-      size_t ResultSize = 0;
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
-                                                     nullptr, &ResultSize);
-      if (ResultSize == 0)
-        return {};
-
-      ReturnT Result(ResultSize / sizeof(typename ReturnT::value_type));
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
-      return Result;
-    } else {
-      ReturnT Result;
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
-      return Result;
-    }
-  }
-
   template <ur_device_info_t Desc>
   std::vector<info::fp_config> get_fp_config() const {
     if (Desc == UR_DEVICE_INFO_HALF_FP_CONFIG &&
@@ -999,7 +1664,7 @@ private:
     if (Desc == UR_DEVICE_INFO_DOUBLE_FP_CONFIG &&
         !get_info<info::device::native_vector_width_double>())
       return {};
-    auto bits = get_info_impl<ur_device_fp_capability_flags_t, Desc>();
+    auto bits = get_info_impl<Desc>();
 
     std::vector<info::fp_config> result;
     using cfg = info::fp_config;
@@ -1174,8 +1839,7 @@ private:
     backend CurrentBackend = getBackend();
     auto LookupIPVersion = [&, this](auto &ArchList)
         -> std::optional<ext::oneapi::experimental::architecture> {
-      auto DeviceIp =
-          get_info_impl_nocheck<uint32_t, UR_DEVICE_INFO_IP_VERSION>();
+      auto DeviceIp = get_info_impl_nocheck<UR_DEVICE_INFO_IP_VERSION>();
       if (!DeviceIp.has_val()) {
         ur_result_t Err = DeviceIp.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
@@ -1207,8 +1871,7 @@ private:
         return ext::oneapi::experimental::architecture::unknown;
       };
       std::string DeviceArch =
-          get_info_impl<std::string,
-                        UrInfoCode<info::device::version>::value>();
+          get_info_impl<UrInfoCode<info::device::version>::value>();
       std::string_view DeviceArchSubstr =
           std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
       return MapArchIDToArchName(DeviceArchSubstr.data());
@@ -1537,15 +2200,58 @@ private:
 
 private:
   ur_device_handle_t MDevice = 0;
-  ur_device_type_t MType;
-  ur_device_handle_t MRootDevice = nullptr;
+  // This is used for getAdapter so should be above other properties.
   std::shared_ptr<platform_impl> MPlatform;
-  bool MUseNativeAssert = false;
-  mutable std::string MDeviceName;
-  mutable std::once_flag MDeviceNameFlag;
-  mutable ext::oneapi::experimental::architecture MDeviceArch{};
-  mutable std::once_flag MDeviceArchFlag;
+
+  // TODO: Does this have a race?
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
+
+  const ur_device_handle_t MRootDevice;
+
+  // Order of caches matters! UR must come before SYCL info descriptors (because
+  // get_info calls get_info_impl but the opposite never happens) and both
+  // should come before aspects.
+  //
+  // To make an addition property cacheable just expand one of the caches below
+  // with that property, no other changes should be necessary.
+  mutable JointCache<
+      UREagerCache<UR_DEVICE_INFO_TYPE, UR_DEVICE_INFO_USE_NATIVE_ASSERT,
+                   UR_DEVICE_INFO_EXTENSIONS>, //
+      URCallOnceCache<UR_DEVICE_INFO_NAME,
+                      // USM:
+                      UR_DEVICE_INFO_USM_DEVICE_SUPPORT,
+                      UR_DEVICE_INFO_USM_HOST_SUPPORT,
+                      UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT,
+                      UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT,
+                      UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT,
+                      //
+                      UR_DEVICE_INFO_ATOMIC_64>, //
+      EagerCache<InfoInitializer>,               //
+      CallOnceCache<InfoInitializer,
+                    ext::oneapi::experimental::info::device::architecture>, //
+      AspectCache<EagerCache, aspect::fp16, aspect::fp64,
+                  aspect::int64_base_atomics, aspect::int64_extended_atomics,
+                  aspect::ext_oneapi_atomic16>,
+      AspectCache<
+          CallOnceCache,
+          // Slow, >100ns (for baseline cached ~30..40ns):
+          aspect::ext_intel_pci_address, aspect::ext_intel_gpu_eu_count,
+          aspect::ext_intel_free_memory, aspect::ext_intel_fan_speed,
+          aspect::ext_intel_power_limits,
+          // medium-slow, 60-90ns (for baseline cached ~30..40ns):
+          aspect::ext_intel_gpu_eu_simd_width, aspect::ext_intel_gpu_slices,
+          aspect::ext_intel_gpu_subslices_per_slice,
+          aspect::ext_intel_gpu_eu_count_per_subslice,
+          aspect::ext_intel_device_info_uuid,
+          aspect::ext_intel_gpu_hw_threads_per_eu,
+          aspect::ext_intel_memory_clock_rate,
+          aspect::ext_intel_memory_bus_width,
+          aspect::ext_oneapi_bindless_images,
+          aspect::ext_oneapi_bindless_images_1d_usm,
+          aspect::ext_oneapi_bindless_images_2d_usm,
+          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
+      MCache;
+
 }; // class device_impl
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

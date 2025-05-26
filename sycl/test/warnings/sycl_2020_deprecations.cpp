@@ -282,7 +282,7 @@ int main() {
           int PrivateVal = 0;
 
           // expected-warning@+8{{'get_pointer' is deprecated: accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
-          // expected-warning@+7{{'get_pointer<sycl::access::target::global_buffer, void>' is deprecated: accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
+          // expected-warning@+7{{'get_pointer<sycl::access::target::device, void>' is deprecated: accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
           // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::legacy, void>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
           sycl::multi_ptr<int, sycl::access::address_space::global_space,
                           sycl::access::decorated::legacy>

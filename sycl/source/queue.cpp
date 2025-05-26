@@ -289,19 +289,34 @@ void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
   impl->submit_without_event(CGH, impl, SI, CodeLoc, IsTopCodeLoc);
 }
 
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 event queue::submit_with_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
     const detail::v1::SubmissionInfo &SubmitInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
+  return std::as_const(*this).submit_with_event_impl(CGH, SubmitInfo, CodeLoc,
+                                                     IsTopCodeLoc);
 }
 
 void queue::submit_without_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
     const detail::v1::SubmissionInfo &SubmitInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  std::as_const(*this).submit_without_event_impl(CGH, SubmitInfo, CodeLoc,
+                                                 IsTopCodeLoc);
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+event queue::submit_with_event_impl(
+    const detail::type_erased_cgfo_ty &CGH,
+    const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+  return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
+}
+
+void queue::submit_without_event_impl(
+    const detail::type_erased_cgfo_ty &CGH,
+    const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
   impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
@@ -322,7 +337,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
   assert(!QueueImpl->hasCommandGraph() &&
          "Should not be called in on graph recording.");
 
-  sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent();
+  sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent(QueueImpl);
   if (LastEvent)
     return *LastEvent;
 
@@ -340,10 +355,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled) {
-    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
-    // If the last event was discarded, fall back to enqueuing a barrier.
-    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
-      return InOrderLastEvent;
+    return getBarrierEventForInorderQueueHelper(impl);
   }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
@@ -368,10 +380,7 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
       });
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled &&
       AllEventsEmptyOrNop) {
-    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
-    // If the last event was discarded, fall back to enqueuing a barrier.
-    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
-      return InOrderLastEvent;
+    return getBarrierEventForInorderQueueHelper(impl);
   }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
@@ -453,20 +462,7 @@ sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
         make_error_code(errc::invalid),
         "ext_oneapi_get_last_event() can only be called on in-order queues.");
 
-  sycl::detail::optional<event> LastEvent = impl->getLastEvent();
-
-  // If there was no last event, the queue is yet to have any work submitted and
-  // we return a std::nullopt.
-  if (!LastEvent)
-    return std::nullopt;
-
-  // If the last event was discarded or a NOP, we insert a marker to represent
-  // an event at end.
-  auto LastEventImpl = detail::getSyclObjImpl(*LastEvent);
-  if (LastEventImpl->isDiscarded() || LastEventImpl->isNOP())
-    LastEvent =
-        detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));
-  return LastEvent;
+  return impl->getLastEvent(impl);
 }
 
 void queue::ext_oneapi_set_external_event(const event &external_event) {

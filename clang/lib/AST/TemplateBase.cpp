@@ -64,7 +64,10 @@ static void printIntegral(const TemplateArgument &TemplArg, raw_ostream &Out,
         // may create a size difference between the enum value and template
         // argument value, requiring isSameValue here instead of operator==.
         if (llvm::APSInt::isSameValue(ECD->getInitVal(), Val)) {
-          ECD->printQualifiedName(Out, Policy);
+          PrintingPolicy NewPolicy = Policy;
+          if (Policy.UseFullyQualifiedEnumerators)
+            NewPolicy.PrintAsCanonical = true;
+          ECD->printQualifiedName(Out, NewPolicy);
           return;
         }
       }
@@ -414,9 +417,16 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     getAsStructuralValue().Profile(ID);
     break;
 
-  case Expression:
-    getAsExpr()->Profile(ID, Context, true);
+  case Expression: {
+    const Expr *E = getAsExpr();
+    bool IsCanonical = isCanonicalExpr();
+    ID.AddBoolean(IsCanonical);
+    if (IsCanonical)
+      E->Profile(ID, Context, true);
+    else
+      ID.AddPointer(E);
     break;
+  }
 
   case Pack:
     ID.AddInteger(Args.NumArgs);
@@ -431,9 +441,11 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
   switch (getKind()) {
   case Null:
   case Type:
-  case Expression:
   case NullPtr:
     return TypeOrValue.V == Other.TypeOrValue.V;
+  case Expression:
+    return TypeOrValue.V == Other.TypeOrValue.V &&
+           TypeOrValue.IsCanonicalExpr == Other.TypeOrValue.IsCanonicalExpr;
 
   case Template:
   case TemplateExpansion:
@@ -478,7 +490,8 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
     return getAsType()->castAs<PackExpansionType>()->getPattern();
 
   case Expression:
-    return cast<PackExpansionExpr>(getAsExpr())->getPattern();
+    return TemplateArgument(cast<PackExpansionExpr>(getAsExpr())->getPattern(),
+                            isCanonicalExpr());
 
   case TemplateExpansion:
     return TemplateArgument(getAsTemplateOrTemplatePattern());
@@ -549,9 +562,12 @@ void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
     printIntegral(*this, Out, Policy, IncludeType);
     break;
 
-  case Expression:
-    getAsExpr()->printPretty(Out, nullptr, Policy);
+  case Expression: {
+    PrintingPolicy ExprPolicy = Policy;
+    ExprPolicy.PrintAsCanonical = isCanonicalExpr();
+    getAsExpr()->printPretty(Out, nullptr, ExprPolicy);
     break;
+  }
 
   case Pack:
     Out << "<";
@@ -654,18 +670,9 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
   case TemplateArgument::TemplateExpansion:
     return DB << Arg.getAsTemplateOrTemplatePattern() << "...";
 
-  case TemplateArgument::Expression: {
-    // This shouldn't actually ever happen, so it's okay that we're
-    // regurgitating an expression here.
-    // FIXME: We're guessing at LangOptions!
-    SmallString<32> Str;
-    llvm::raw_svector_ostream OS(Str);
-    LangOptions LangOpts;
-    LangOpts.CPlusPlus = true;
-    PrintingPolicy Policy(LangOpts);
-    Arg.getAsExpr()->printPretty(OS, nullptr, Policy);
-    return DB << OS.str();
-  }
+  case TemplateArgument::Expression:
+    // FIXME: Support printing expressions as canonical
+    return DB << Arg.getAsExpr();
 
   case TemplateArgument::Pack: {
     // FIXME: We're guessing at LangOptions!

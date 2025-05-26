@@ -938,6 +938,27 @@ typedef struct ur_rect_region_t {
 
 } ur_rect_region_t;
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Defines known backends.
+typedef enum ur_backend_t {
+  /// The backend is not a recognized one
+  UR_BACKEND_UNKNOWN = 0,
+  /// The backend is Level Zero
+  UR_BACKEND_LEVEL_ZERO = 1,
+  /// The backend is OpenCL
+  UR_BACKEND_OPENCL = 2,
+  /// The backend is CUDA
+  UR_BACKEND_CUDA = 3,
+  /// The backend is HIP
+  UR_BACKEND_HIP = 4,
+  /// The backend is Native CPU
+  UR_BACKEND_NATIVE_CPU = 5,
+  /// @cond
+  UR_BACKEND_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_backend_t;
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -1353,8 +1374,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported adapter info
 typedef enum ur_adapter_info_t {
-  /// [::ur_adapter_backend_t] Identifies the native backend supported by
-  /// the adapter.
+  /// [::ur_backend_t] Identifies the native backend supported by the
+  /// adapter.
   UR_ADAPTER_INFO_BACKEND = 0,
   /// [uint32_t] Reference count of the adapter.
   /// The reference count returned should be considered immediately stale.
@@ -1414,27 +1435,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(
     /// [out][optional] pointer to the actual number of bytes being queried by
     /// pPropValue.
     size_t *pPropSizeRet);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Identifies backend of the adapter
-typedef enum ur_adapter_backend_t {
-  /// The backend is not a recognized one
-  UR_ADAPTER_BACKEND_UNKNOWN = 0,
-  /// The backend is Level Zero
-  UR_ADAPTER_BACKEND_LEVEL_ZERO = 1,
-  /// The backend is OpenCL
-  UR_ADAPTER_BACKEND_OPENCL = 2,
-  /// The backend is CUDA
-  UR_ADAPTER_BACKEND_CUDA = 3,
-  /// The backend is HIP
-  UR_ADAPTER_BACKEND_HIP = 4,
-  /// The backend is Native CPU
-  UR_ADAPTER_BACKEND_NATIVE_CPU = 5,
-  /// @cond
-  UR_ADAPTER_BACKEND_FORCE_UINT32 = 0x7fffffff
-  /// @endcond
-
-} ur_adapter_backend_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Minimum level of messages to be processed by the logger.
@@ -1574,8 +1574,8 @@ typedef enum ur_platform_info_t {
   /// [char[]] The null-terminated string denoting profile of the platform.
   /// The size of the info needs to be dynamically queried.
   UR_PLATFORM_INFO_PROFILE = 5,
-  /// [::ur_platform_backend_t] The backend of the platform. Identifies the
-  /// native backend adapter implementing this platform.
+  /// [::ur_backend_t] The backend of the platform. Identifies the native
+  /// backend adapter implementing this platform.
   UR_PLATFORM_INFO_BACKEND = 6,
   /// [::ur_adapter_handle_t] The adapter handle associated with the
   /// platform.
@@ -1793,27 +1793,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     /// [out] returns the correct platform specific compiler option based on
     /// the frontend option.
     const char **ppPlatformOption);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Identifies native backend adapters
-typedef enum ur_platform_backend_t {
-  /// The backend is not a recognized one
-  UR_PLATFORM_BACKEND_UNKNOWN = 0,
-  /// The backend is Level Zero
-  UR_PLATFORM_BACKEND_LEVEL_ZERO = 1,
-  /// The backend is OpenCL
-  UR_PLATFORM_BACKEND_OPENCL = 2,
-  /// The backend is CUDA
-  UR_PLATFORM_BACKEND_CUDA = 3,
-  /// The backend is HIP
-  UR_PLATFORM_BACKEND_HIP = 4,
-  /// The backend is Native CPU
-  UR_PLATFORM_BACKEND_NATIVE_CPU = 5,
-  /// @cond
-  UR_PLATFORM_BACKEND_FORCE_UINT32 = 0x7fffffff
-  /// @endcond
-
-} ur_platform_backend_t;
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -2891,7 +2870,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_device_handle_t *phDevice);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Returns synchronized Host and Device global timestamps.
+/// @brief Returns synchronized Host and Device global timestamps in
+/// nanoseconds.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads for
@@ -10082,6 +10062,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 /// @remarks
 ///   _Analogues_
 ///     - **cuTexObjectCreate**
+///     - **hipTexObjectCreate**
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -10091,11 +10072,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
+///         + `NULL == pSamplerDesc`
 ///         + `NULL == phImage`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT <
+///         pSamplerDesc->addressingMode`
+///         + `::UR_SAMPLER_FILTER_MODE_LINEAR < pSamplerDesc->filterMode`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
@@ -10115,8 +10100,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [in] sampler to be used
-    ur_sampler_handle_t hSampler,
+    /// [in] pointer to sampler description to be used
+    const ur_sampler_desc_t *pSamplerDesc,
     /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage);
 
@@ -10777,8 +10762,8 @@ typedef struct ur_exp_command_buffer_desc_t {
   const void *pNext;
   /// [in] Commands in a finalized command-buffer can be updated.
   ur_bool_t isUpdatable;
-  /// [in] Commands in a command-buffer may be executed in-order without
-  /// explicit dependencies.
+  /// [in] Commands in a command-buffer will execute in-order, explicit
+  /// sync-point dependencies are ignored.
   ur_bool_t isInOrder;
   /// [in] Command-buffer profiling is enabled.
   ur_bool_t enableProfiling;
@@ -11069,8 +11054,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t *phKernelAlternatives,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11132,8 +11117,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11198,8 +11183,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11260,8 +11245,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11321,8 +11306,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     const void *pSrc,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11382,8 +11367,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     void *pDst,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11452,8 +11437,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     size_t dstSlicePitch,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11526,8 +11511,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     void *pSrc,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11599,8 +11584,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     void *pDst,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11664,8 +11649,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11732,8 +11717,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11800,8 +11785,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_usm_advice_flags_t advice,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -11861,8 +11846,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     ur_exp_command_buffer_handle_t hChildCommandBuffer,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint);
@@ -14799,7 +14784,7 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
   ur_exp_image_mem_native_handle_t *phImageMem;
   const ur_image_format_t **ppImageFormat;
   const ur_image_desc_t **ppImageDesc;
-  ur_sampler_handle_t *phSampler;
+  const ur_sampler_desc_t **ppSamplerDesc;
   ur_exp_image_native_handle_t **pphImage;
 } ur_bindless_images_sampled_image_create_exp_params_t;
 

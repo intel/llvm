@@ -18,6 +18,40 @@
 
 namespace uur {
 
+namespace {
+// By default we skip certain platforms that we don't officially support and are unstable
+void checkBlacklisted(ur_platform_handle_t platform) {
+  static const std::array<uur::Matcher, 1> BLACKLISTED_PLATFORMS{
+      uur::OpenCL{"AMD Accelerated Parallel Processing"},
+  };
+
+  if (uur::alsoRunKnownFailures()) {
+    return;
+  }
+
+  ur_adapter_handle_t adapter = 0;
+  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
+                                   sizeof(adapter), &adapter, nullptr));
+  detail::AdapterInfo info = detail::getAdapterInfo(adapter);
+
+  size_t name_size = 0;
+  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, 0, nullptr,
+                                   &name_size));
+  std::string name(name_size - 1, '\0');
+  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, name_size,
+                                   name.data(), nullptr));
+
+  for (auto &m : BLACKLISTED_PLATFORMS) {
+    if (m.matches(info, name)) {
+      GTEST_SKIP() << "Platform '" << name
+                   << "' is blacklisted and not tested by default."
+                      " Set `UR_CTS_ALSO_RUN_KNOWN_FAILURES` in the "
+                      "environment to disable the blacklist.";
+    }
+  }
+}
+} // namespace
+
 struct urAdapterTest : ::testing::Test,
                        ::testing::WithParamInterface<ur_adapter_handle_t> {
   void SetUp() override { adapter = GetParam(); }
@@ -31,7 +65,10 @@ struct urAdapterTest : ::testing::Test,
 // platform.
 struct urPlatformTest : ::testing::Test,
                         ::testing::WithParamInterface<ur_platform_handle_t> {
-  void SetUp() override { platform = GetParam(); }
+  void SetUp() override {
+    platform = GetParam();
+    UUR_RETURN_ON_FATAL_FAILURE(checkBlacklisted(platform));
+  }
 
   ur_platform_handle_t platform = nullptr;
 };
@@ -66,7 +103,7 @@ struct urAllDevicesTest : urPlatformTest {
     UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
     auto devicesPair = GetDevices(platform);
     if (!devicesPair.first) {
-      FAIL() << "Failed to get devices";
+      GTEST_SKIP() << "No devices available";
     }
     devices = std::move(devicesPair.second);
   }
@@ -84,6 +121,8 @@ struct urDeviceTest : ::testing::Test,
     device = GetParam().device;
     platform = GetParam().platform;
     adapter = GetParam().adapter;
+
+    UUR_RETURN_ON_FATAL_FAILURE(checkBlacklisted(platform));
   }
 
   ur_device_handle_t device = nullptr;
@@ -122,7 +161,10 @@ template <class T>
 struct urPlatformTestWithParam
     : ::testing::Test,
       ::testing::WithParamInterface<std::tuple<ur_platform_handle_t, T>> {
-  void SetUp() override { platform = std::get<0>(this->GetParam()); }
+  void SetUp() override {
+    platform = std::get<0>(this->GetParam());
+    UUR_RETURN_ON_FATAL_FAILURE(checkBlacklisted(platform));
+  }
   const T &getParam() const { return std::get<1>(this->GetParam()); }
   ur_platform_handle_t platform;
 };
@@ -133,7 +175,7 @@ struct urAllDevicesTestWithParam : urPlatformTestWithParam<T> {
     UUR_RETURN_ON_FATAL_FAILURE(urPlatformTestWithParam<T>::SetUp());
     auto devicesPair = GetDevices(this->platform);
     if (!devicesPair.first) {
-      FAIL() << "Failed to get devices";
+      GTEST_SKIP() << "No devices available";
     }
     devices = std::move(devicesPair.second);
   }
@@ -154,6 +196,8 @@ struct urDeviceTestWithParam
     device = device_tuple.device;
     platform = device_tuple.platform;
     adapter = device_tuple.adapter;
+
+    UUR_RETURN_ON_FATAL_FAILURE(checkBlacklisted(platform));
   }
   // TODO - I don't like the confusion with GetParam();
   const T &getParam() const { return std::get<1>(this->GetParam()); }
@@ -1214,11 +1258,11 @@ struct urProgramTest : urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Images and samplers are not available on AMD
-    if (program_name == "image_copy" && backend == UR_PLATFORM_BACKEND_HIP) {
+    if (program_name == "image_copy" && backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
@@ -1250,11 +1294,11 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam<T>::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(this->platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Images and samplers are not available on AMD
-    if (program_name == "image_copy" && backend == UR_PLATFORM_BACKEND_HIP) {
+    if (program_name == "image_copy" && backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
 
@@ -1420,10 +1464,10 @@ struct KernelLaunchHelper {
     // the AMD backend handles this differently and uses three separate
     // arguments for each of the three dimensions of the accessor.
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
@@ -1574,14 +1618,14 @@ private:
 
 template <class T>
 struct urKernelExecutionTestWithParam : urBaseKernelExecutionTestWithParam<T> {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelExecutionTestWithParam<T>::SetUp());
     this->Build();
   }
 };
 
 struct urKernelExecutionTest : urBaseKernelExecutionTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelExecutionTest::SetUp());
     Build();
   }
@@ -1603,7 +1647,7 @@ template <typename Derived> struct urGlobalVariableBaseTest : public Derived {
     // they rely on metadata set when creating the program.
     const std::string metadata_name = "_Z7dev_var@global_id_mapping";
     ur_program_metadata_value_t metadata_value;
-    metadata_value.pData = (void *)metadataData.c_str();
+    metadata_value.pData = (void *)metadataData.data();
     this->metadatas.push_back({metadata_name.c_str(),
                                UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
                                metadataData.size(), metadata_value});
@@ -1657,12 +1701,11 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceQueueTest::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Multi-device programs are not supported for AMD and CUDA
-    if (backend == UR_PLATFORM_BACKEND_HIP ||
-        backend == UR_PLATFORM_BACKEND_CUDA) {
+    if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA) {
       GTEST_SKIP();
     }
     if (devices.size() < 2) {
