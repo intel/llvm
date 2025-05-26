@@ -30,7 +30,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   (void)pGlobalWorkOffset;
   (void)pLocalWorkSize;
 
-  assert(workDim == 1);
+  if (workDim == 1) {
+    std::cerr
+        << "UR Offload adapter only supports 1d kernel launches at the moment";
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   ol_kernel_launch_size_args_t LaunchArgs;
   LaunchArgs.Dimensions = workDim;
@@ -58,4 +62,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     *phEvent = Event;
   }
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
+    ur_queue_handle_t, void *, size_t, size_t, const void *, size_t, size_t,
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
+    ur_queue_handle_t, bool, void *, size_t, const void *, size_t, size_t,
+    size_t, uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
