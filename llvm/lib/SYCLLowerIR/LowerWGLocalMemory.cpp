@@ -14,6 +14,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
@@ -110,7 +111,11 @@ static bool inlineGroupLocalMemoryFunc(Module &M) {
     for (auto *U : make_early_inc_range(F->users())) {
       auto *CI = cast<CallInst>(U);
       auto *Caller = CI->getFunction();
+      // Frontend propagates sycl-forceinline attribute to SYCL_EXTERNAL
+      // function which directly calls group_local_memory_for_overwrite.
+      // Don't inline the SYCL_EXTERNAL function.
       if (Caller->hasFnAttribute("sycl-forceinline") &&
+          !sycl::utils::isSYCLExternalFunction(Caller) &&
           Visited.insert(Caller).second)
         WorkList.push_back(Caller);
       if (F != ALMFunc) {
@@ -119,8 +124,6 @@ static bool inlineGroupLocalMemoryFunc(Module &M) {
         assert(Result.isSuccess() && "inlining failed");
       }
     }
-    if (F != ALMFunc)
-      F->eraseFromParent();
   }
 
   return !Visited.empty();
