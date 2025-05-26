@@ -32,7 +32,6 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
     flag = CU_EVENT_DEFAULT;
     UR_CHECK_ERROR(cuEventCreate(&EvQueued, flag));
     UR_CHECK_ERROR(cuEventCreate(&EvStart, flag));
-    printf(">> constructor: %p, %p\n", (void*)EvQueued, (void*)EvStart);
   }
 
   UR_CHECK_ERROR(cuEventCreate(&EvEnd, flag));
@@ -47,7 +46,6 @@ ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
       IsInterop{true}, StreamToken{std::numeric_limits<uint32_t>::max()},
       EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
       Stream{nullptr}, Context{Context} {
-  printf("Interop constructor\n");
   urContextRetain(Context);
 }
 
@@ -67,7 +65,6 @@ ur_result_t ur_event_handle_t_::release() {
   UR_CHECK_ERROR(cuEventDestroy(EvEnd));
 
   if (HasProfiling) {
-    printf("Release profiling events\n");
     UR_CHECK_ERROR(cuEventDestroy(EvQueued));
     UR_CHECK_ERROR(cuEventDestroy(EvStart));
   }
@@ -82,7 +79,6 @@ ur_result_t ur_event_handle_t_::start() {
   try {
     if (HasProfiling) {
       assert(Queue->getHostSubmitTimeStream() != 0);
-      printf(">> start: %p, %p, %p\n", (void*)EvQueued, (void*)EvStart, (void*)Queue->getHostSubmitTimeStream());
       UR_CHECK_ERROR(cuEventRecord(EvQueued, Queue->getHostSubmitTimeStream()));
       UR_CHECK_ERROR(cuEventRecord(EvStart, Stream));
     }
