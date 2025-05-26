@@ -5742,10 +5742,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-Wno-sycl-strict");
       }
 
-      // Set O2 optimization level by default
-      if (!Args.getLastArg(options::OPT_O_Group))
-        CmdArgs.push_back("-O2");
-
       // Add the integration header option to generate the header.
       StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
       if (!Header.empty()) {
@@ -11508,8 +11504,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
     }
     // Add option to enable creating of the .syclbin file.
-    if (Args.hasArg(options::OPT_fsyclbin))
-      CmdArgs.push_back(Args.MakeArgString("--syclbin"));
+    if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
+      CmdArgs.push_back(
+          Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
   }
 
   // Construct the link job so we can wrap around it.
