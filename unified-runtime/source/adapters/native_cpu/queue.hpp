@@ -27,16 +27,26 @@ struct ur_queue_handle_t_ : RefCounted {
 
   ur_context_handle_t getContext() const { return context; }
 
-  void addEvent(ur_event_handle_t event) { events.insert(event); }
+  void addEvent(ur_event_handle_t event) {
+    std::lock_guard<std::mutex> lock(mutex);
+    events.insert(event);
+  }
 
-  void removeEvent(ur_event_handle_t event) { events.erase(event); }
+  void removeEvent(ur_event_handle_t event, bool needQueueLock) {
+    if (needQueueLock) {
+      std::unique_lock<std::mutex> lock(mutex);
+      events.erase(event);
+    } else
+      events.erase(event);
+  }
 
   void finish() {
+    std::lock_guard<std::mutex> lock(mutex);
     while (!events.empty()) {
       auto ev = *events.begin();
       // ur_event_handle_t_::wait removes itself from the events set in the
       // queue
-      ev->wait();
+      ev->wait(false /*lock already taken*/);
     }
     events.clear();
   }
@@ -58,4 +68,5 @@ private:
   std::set<ur_event_handle_t> events;
   const bool inOrder;
   const bool profilingEnabled;
+  std::mutex mutex;
 };

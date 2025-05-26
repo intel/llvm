@@ -121,7 +121,7 @@ ur_event_handle_t_::~ur_event_handle_t_() {
   }
 }
 
-void ur_event_handle_t_::wait() {
+void ur_event_handle_t_::wait(bool needQueueLock) {
   std::unique_lock<std::mutex> lock(mutex);
   if (done) {
     return;
@@ -129,7 +129,7 @@ void ur_event_handle_t_::wait() {
   for (auto &f : futures) {
     f.wait();
   }
-  queue->removeEvent(this);
+  queue->removeEvent(this, needQueueLock);
   done = true;
   // The callback may need to acquire the lock, so we unlock it here
   lock.unlock();
