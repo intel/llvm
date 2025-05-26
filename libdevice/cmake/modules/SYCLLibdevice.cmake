@@ -358,16 +358,10 @@ add_devicelibs(libsycl-itt-user-wrappers
   SRC itt_user_wrappers.cpp
   DEPENDENCIES ${itt_obj_deps})
 
-if (NOT HAS_NO_INVALID_NORETURN_WARN_FLAG OR MSVC)
-  add_devicelibs(libsycl-crt
-    SRC crt_wrapper.cpp
-    DEPENDENCIES ${crt_obj_deps})
-else()
-  add_devicelibs(libsycl-crt
-    SRC crt_wrapper.cpp
-    DEPENDENCIES ${crt_obj_deps}
-    EXTRA_OPTS -Wno-invalid-noreturn)
-endif()
+add_devicelibs(libsycl-crt
+  SRC crt_wrapper.cpp
+  DEPENDENCIES ${crt_obj_deps}
+  EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
 
 add_devicelibs(libsycl-complex
   SRC complex_wrapper.cpp
