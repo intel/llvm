@@ -376,6 +376,40 @@ public:
                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
+  // no_handler
+private:
+  void extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams, std::vector<ArgDesc> &Args);
+
+public:
+  void submit_no_handler_full(detail::NDRDescT NDRDesc, const char *KernelName,
+    void *KernelFunc, int KernelNumParams,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
+
+  void submit_no_handler_scheduler_bypass(
+    detail::NDRDescT NDRDesc, const char *KernelName,
+    void *KernelFunc, int KernelNumParams,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    std::vector<ur_event_handle_t> &RawEvents);
+
+  std::shared_ptr<detail::event_impl> submit_no_handler_scheduler(
+    detail::NDRDescT NDRDesc, const char *KernelName,
+    void *KernelFunc, int KernelNumParams,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    std::vector<event> &DepEvents);
+
+  std::shared_ptr<detail::event_impl> host_task_no_handler(
+      std::function<void()> &&Func, std::shared_ptr<detail::event_impl> LastEventImpl);
+
+  void extract_args_set_arg_value(ur_kernel_handle_t Kernel,
+    size_t NextTrueIndex, int Size, const void *ArgPtr);
+
+  void extract_args_set_arg_pointer(ur_kernel_handle_t Kernel,
+    size_t NextTrueIndex, const void *Ptr);
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///

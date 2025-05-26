@@ -9,6 +9,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+//#include <detail/scheduler/scheduler.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
@@ -67,6 +68,7 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
   impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
                                     *detail::getSyclObjImpl(SyclContext),
                                     AsyncHandler, PropList);
+  MMutex = std::make_shared<std::mutex>();
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
@@ -74,12 +76,14 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
   impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
                                     *detail::getSyclObjImpl(SyclContext),
                                     AsyncHandler, PropList);
+  MMutex = std::make_shared<std::mutex>();
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList) {
   impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
                                     AsyncHandler, PropList);
+  MMutex = std::make_shared<std::mutex>();
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
@@ -101,6 +105,8 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
       // TODO(pi2ur): Don't cast straight from cl_command_queue
       reinterpret_cast<ur_queue_handle_t>(clQueue),
       *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
+
+  MMutex = std::make_shared<std::mutex>();
 }
 
 cl_command_queue queue::get() const { return impl->get(); }
@@ -319,6 +325,95 @@ void queue::submit_without_event_impl(
   impl->submit_without_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
+// no_handler
+
+template<int Dims>
+void queue::submit_no_handler_full(nd_range<Dims> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
+
+  detail::NDRDescT NDRDesc{padRange(Range.get_global_range()),
+        padRange(Range.get_local_range()),
+        padId(Range.get_offset()), Dims};
+
+  impl->submit_no_handler_full(NDRDesc, KernelName, KernelFunc, KernelNumParams,
+    KernelParamDescGetter, KernelNameBasedCachePtr);
+}
+
+template<int Dims>
+event queue::submit_no_handler_scheduler(
+  nd_range<Dims> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+  std::vector<event> &DepEvents) const {
+
+  detail::NDRDescT NDRDesc{padRange(Range.get_global_range()),
+        padRange(Range.get_local_range()),
+        padId(Range.get_offset()), Dims};
+
+  std::shared_ptr<detail::event_impl> EventImpl = impl->submit_no_handler_scheduler(
+    NDRDesc, KernelName, KernelFunc, KernelNumParams,
+    KernelParamDescGetter, KernelNameBasedCachePtr,
+    DepEvents);
+
+  return detail::createSyclObjFromImpl<event>(EventImpl);
+}
+
+bool queue::are_events_safe_for_scheduler_bypass(
+  const std::vector<sycl::event> &Events) const {
+
+  return std::all_of(
+    Events.begin(), Events.end(), [this](const sycl::event &Event) {
+      return check_event_readiness(Event);
+    });
+}
+
+bool queue::check_event_readiness(const event &Event) const {
+  return detail::Scheduler::CheckEventReadiness(*(impl->getContextImplPtr()),
+    getSyclObjImpl(Event));
+}
+
+ur_device_handle_t queue::get_device_ur_handle() const {
+  return impl->getDeviceImpl().getHandleRef();
+}
+
+ur_context_handle_t queue::get_context_ur_handle() const {
+  return impl->getContextImplPtr()->getHandleRef();
+}
+
+void queue::extract_args_set_arg_value(ur_kernel_handle_t Kernel,
+  size_t NextTrueIndex, int Size, const void *ArgPtr) const {
+  impl->extract_args_set_arg_value(Kernel, NextTrueIndex, Size, ArgPtr);
+}
+
+void queue::extract_args_set_arg_pointer(ur_kernel_handle_t Kernel,
+  size_t NextTrueIndex, const void *Ptr) const {
+  impl->extract_args_set_arg_pointer(Kernel, NextTrueIndex, Ptr);
+}
+
+template<int Dims>
+void queue::submit_no_handler_scheduler_bypass(nd_range<Dims> Range,
+  detail::FastKernelCacheValPtr &KernelCacheVal, std::vector<event> &DepEvents) const {
+
+  detail::NDRDescT NDRDesc{padRange(Range.get_global_range()),
+        padRange(Range.get_local_range()),
+        padId(Range.get_offset()), Dims};
+
+  std::vector<ur_event_handle_t> DepEventsHandles
+    = detail::Command::getUrEvents(DepEvents, impl.get());
+
+  enqueueImpKernel(*impl, NDRDesc, KernelCacheVal, DepEventsHandles);
+}
+
+event queue::host_task_no_handler_impl(
+  std::function<void()> &&Func, std::optional<event> LastEvent) {
+
+  std::shared_ptr<detail::event_impl> EventImpl
+    = impl->host_task_no_handler(std::move(Func),
+      LastEvent ? detail::getSyclObjImpl(*LastEvent) : nullptr);
+  return detail::createSyclObjFromImpl<event>(EventImpl);
+}
+
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
   impl->wait(CodeLoc);
 }
@@ -472,6 +567,43 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 }
 
 const property_list &queue::getPropList() const { return impl->getPropList(); }
+
+template void queue::submit_no_handler_full<1>(nd_range<1> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
+
+template void queue::submit_no_handler_full<2>(nd_range<2> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
+
+template void queue::submit_no_handler_full<3>(nd_range<3> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
+
+template event queue::submit_no_handler_scheduler<1>(
+  nd_range<1> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+  std::vector<event> &DepEvents) const;
+
+template event queue::submit_no_handler_scheduler<2>(
+  nd_range<2> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+  std::vector<event> &DepEvents) const;
+
+template event queue::submit_no_handler_scheduler<3>(
+  nd_range<3> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+  std::vector<event> &DepEvents) const;
+
+template void queue::submit_no_handler_scheduler_bypass<1>(nd_range<1> Range,
+  detail::FastKernelCacheValPtr &KernelCacheVal, std::vector<event> &DepEvents) const;
+template void queue::submit_no_handler_scheduler_bypass<2>(nd_range<2> Range,
+  detail::FastKernelCacheValPtr &KernelCacheVal, std::vector<event> &DepEvents) const;
+template void queue::submit_no_handler_scheduler_bypass<3>(nd_range<3> Range,
+  detail::FastKernelCacheValPtr &KernelCacheVal, std::vector<event> &DepEvents) const;
 
 } // namespace _V1
 } // namespace sycl

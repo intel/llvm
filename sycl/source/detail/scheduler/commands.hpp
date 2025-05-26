@@ -240,6 +240,10 @@ public:
   getUrEvents(const std::vector<EventImplPtr> &EventImpls,
               queue_impl *CommandQueue, bool IsHostTaskCommand);
 
+  static std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<event> &Events,
+              queue_impl *CommandQueue);
+
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
@@ -632,6 +636,9 @@ void enqueueImpKernel(
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true);
+
+void enqueueImpKernel(queue_impl &Queue, NDRDescT &NDRDesc,
+    FastKernelCacheValPtr &KernelCacheVal, std::vector<ur_event_handle_t> &DepEvents);
 
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.

@@ -259,6 +259,29 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
   return getUrEvents(EventImpls, MWorkerQueue.get(), isHostTask());
 }
 
+std::vector<ur_event_handle_t>
+Command::getUrEvents(const std::vector<event> &Events, queue_impl *CommandQueue) {
+  std::vector<ur_event_handle_t> RetUrEvents;
+  for (auto &Event : Events) {
+    EventImplPtr EventImpl = detail::getSyclObjImpl(Event);
+    auto Handle = EventImpl->getHandle();
+    if (Handle == nullptr)
+      continue;
+
+    // Do not add redundant event dependencies for in-order queues.
+    // At this stage dependency is definitely ur task and need to check if
+    // current one is a host task. In this case we should not skip ur event due
+    // to different sync mechanisms for different task types on in-order queue.
+    if (CommandQueue && EventImpl->getWorkerQueue().get() == CommandQueue &&
+        CommandQueue->isInOrder())
+      continue;
+
+    RetUrEvents.push_back(Handle);
+  }
+
+  return RetUrEvents;
+}
+
 // This function is implemented (duplicating getUrEvents a lot) as short term
 // solution for the issue that barrier with wait list could not
 // handle empty ur event handles when kernel is enqueued on host task
@@ -2768,6 +2791,81 @@ void enqueueImpKernel(
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, KernelName, KernelNameBasedCachePtr, KernelFuncPtr,
         KernelNumArgs, KernelParamDescGetter, KernelHasSpecialCaptures);
+  }
+  if (UR_RESULT_SUCCESS != Error) {
+    // If we have got non-success error code, let's analyze it to emit nice
+    // exception explaining what was wrong
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
+                                                        Kernel, NDRDesc);
+  }
+}
+
+void enqueueImpKernel(queue_impl &Queue, NDRDescT &NDRDesc,
+  FastKernelCacheValPtr &KernelCacheVal, std::vector<ur_event_handle_t> &DepEvents) {
+
+  auto &ContextImpl = Queue.getContextImplPtr();
+  std::mutex *KernelMutex = KernelCacheVal->MMutex;
+  ur_program_handle_t Program = KernelCacheVal->MProgramHandle;
+  ur_kernel_handle_t Kernel = KernelCacheVal->MKernelHandle;
+  const AdapterPtr &Adapter = Queue.getAdapter();
+  device_impl &DeviceImpl = Queue.getDeviceImpl();
+
+  std::vector<ur_event_handle_t> &EventsWaitList = DepEvents;
+
+  std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
+      ContextImpl->initializeDeviceGlobals(Program, Queue);
+  if (!DeviceGlobalInitEvents.empty()) {
+    std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
+    EventsWithDeviceGlobalInits.reserve(DepEvents.size() +
+                                        DeviceGlobalInitEvents.size());
+    EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
+                                       DepEvents.begin(), DepEvents.end());
+    EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
+                                       DeviceGlobalInitEvents.begin(),
+                                       DeviceGlobalInitEvents.end());
+    EventsWaitList = std::move(EventsWithDeviceGlobalInits);
+  }
+
+  ur_result_t Error = UR_RESULT_SUCCESS;
+  {
+    using LockT = std::unique_lock<std::mutex>;
+    auto Lock = KernelMutex ? LockT(*KernelMutex) : LockT();
+
+    adjustNDRangePerKernel(NDRDesc, Kernel, DeviceImpl);
+
+    // Remember this information before the range dimensions are reversed
+    const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+    ReverseRangeDimensionsForKernel(NDRDesc);
+
+    size_t RequiredWGSize[3] = {0, 0, 0};
+    size_t *LocalSize = nullptr;
+
+    if (HasLocalSize)
+      LocalSize = &NDRDesc.LocalSize[0];
+    else {
+      Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+          Kernel, DeviceImpl.getHandleRef(),
+          UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+          RequiredWGSize,
+          /* pPropSizeRet = */ nullptr);
+
+      const bool EnforcedLocalSize =
+          (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+          RequiredWGSize[2] != 0);
+      if (EnforcedLocalSize)
+        LocalSize = RequiredWGSize;
+    }
+    const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
+                          NDRDesc.GlobalOffset[1] != 0 ||
+                          NDRDesc.GlobalOffset[2] != 0;
+
+    Error = Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunch>(
+        Queue.getHandleRef(), Kernel, NDRDesc.Dims,
+        HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
+        LocalSize, 0, nullptr, EventsWaitList.size(),
+        EventsWaitList.empty() ? nullptr : &EventsWaitList[0],
+        nullptr);
   }
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice

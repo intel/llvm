@@ -1,11 +1,13 @@
 #pragma once
 
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
+#include <sycl/khr/requirements.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
+//#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr {
 
 template <typename CommandGroupFunc>
@@ -148,32 +150,33 @@ void launch_grouped(handler &h, range<3> r, range<3> size,
   h.parallel_for(nd_range<3>(r, size), k);
 }
 
-template <typename KernelType>
-void launch_grouped(const queue &q, range<1> r, range<1> size,
+template <typename KernelType, typename... Requirements>
+void launch_grouped(queue &q, range<1> r, range<1> size,
                     const KernelType &k,
                     const sycl::detail::code_location &codeLoc =
-                        sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+                        sycl::detail::code_location::current(),
+                    const requirements<Requirements...> req = {}) {
+  (void)codeLoc;
+  q.parallel_for_no_handler(nd_range<1>(r, size), k, req);
 }
-template <typename KernelType>
-void launch_grouped(const queue &q, range<2> r, range<2> size,
+
+template <typename KernelType, typename... Requirements>
+void launch_grouped(queue &q, range<2> r, range<2> size,
                     const KernelType &k,
                     const sycl::detail::code_location &codeLoc =
-                        sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+                        sycl::detail::code_location::current(),
+                    const requirements<Requirements...> req = {}) {
+  (void)codeLoc;
+  q.parallel_for_no_handler(nd_range<2>(r, size), k, req);
 }
-template <typename KernelType>
-void launch_grouped(const queue &q, range<3> r, range<3> size,
+template <typename KernelType, typename... Requirements>
+void launch_grouped(queue &q, range<3> r, range<3> size,
                     const KernelType &k,
                     const sycl::detail::code_location &codeLoc =
-                        sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+                        sycl::detail::code_location::current(),
+                    const requirements<Requirements...> req = {}) {
+  (void)codeLoc;
+  q.parallel_for_no_handler(nd_range<3>(r, size), k, req);
 }
 
 template <typename... Args>
@@ -283,7 +286,8 @@ template <typename KernelType>
 void launch_task(const sycl::queue &q, const KernelType &k,
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
+  (void)codeLoc;
+  q.single_task_no_handler(k);
 }
 
 template <typename... Args>
@@ -296,6 +300,11 @@ template <typename... Args>
 void launch_task(const queue &q, const kernel &k, Args &&...args) {
   submit(q,
          [&](handler &h) { launch_task(h, k, std::forward<Args>(args)...); });
+}
+
+template <typename FuncT>
+void launch_host_task(queue &q, FuncT &&Func) {
+  q.host_task_no_handler(std::move(Func));
 }
 
 inline void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
@@ -520,6 +529,6 @@ inline void event_barrier(const queue &q, const std::vector<event> &events,
 }
 
 } // namespace khr
-#endif
+//#endif
 } // namespace _V1
 } // namespace sycl
