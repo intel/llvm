@@ -564,10 +564,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( opencl_build_flags ${build_flags} )
     list( APPEND opencl_build_flags
       -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
-      # FIXME: OpenCL bindings shouldn't depend on libspirv
-      -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
-      # FIXME: Fix libclc to not require disabling this noisy warning
-      -Wno-bitwise-conditional-parentheses
     )
 
     add_libclc_builtin_set(
