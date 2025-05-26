@@ -424,4 +424,20 @@ TEST_F(FreeFunctionCommandsEventsTests, BarrierBeforeHostTask) {
   ASSERT_TRUE(HostTaskTimestamp > timestamp_urEnqueueEventsWaitWithBarrier);
 }
 
+using namespace sycl::khr;
+using namespace sycl;
+
+TEST_F(FreeFunctionCommandsEventsTests, RequirementsTests) {
+
+  std::array<int, 10> data;
+  buffer b1(data), b2(data);
+
+  event e1, e2;
+  accessor a1(b1), a2(b2);
+  requirements reqs{e1, e2, a1, a2};
+
+  sycl::khr::launch_grouped(Queue, sycl::range<1>{32}, sycl::range<1>{32},
+                            TestFunctor(), reqs);
+}
+
 } // namespace
