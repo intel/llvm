@@ -811,10 +811,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     // Launch graph
     UR_CHECK_ERROR(hipGraphLaunch(hCommandBuffer->HIPGraphExec, HIPStream));
 
+    UR_CHECK_ERROR(RetImplEvent->record());
+    hCommandBuffer->CurrentExecution = RetImplEvent.release();
     if (phEvent) {
-      UR_CHECK_ERROR(RetImplEvent->record());
-      *phEvent = RetImplEvent.release();
-      hCommandBuffer->CurrentExecution = *phEvent;
+      *phEvent = hCommandBuffer->CurrentExecution;
     }
   } catch (ur_result_t Err) {
     return Err;
