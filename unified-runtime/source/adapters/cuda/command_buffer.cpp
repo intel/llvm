@@ -1165,20 +1165,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                    phEventWaitList));
 
-  if (phEvent) {
-    RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
-        ur_event_handle_t_::makeNative(UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP,
-                                       hQueue, CuStream, StreamToken));
-    UR_CHECK_ERROR(RetImplEvent->start());
-  }
+  RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
+      ur_event_handle_t_::makeNative(UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP,
+                                     hQueue, CuStream, StreamToken));
+  UR_CHECK_ERROR(RetImplEvent->start());
 
   // Launch graph
   UR_CHECK_ERROR(cuGraphLaunch(hCommandBuffer->CudaGraphExec, CuStream));
 
+  UR_CHECK_ERROR(RetImplEvent->record());
+  hCommandBuffer->CurrentExecution = RetImplEvent.release();
   if (phEvent) {
-    UR_CHECK_ERROR(RetImplEvent->record());
-    *phEvent = RetImplEvent.release();
-    hCommandBuffer->CurrentExecution = *phEvent;
+    *phEvent = hCommandBuffer->CurrentExecution;
   }
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
