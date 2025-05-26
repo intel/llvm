@@ -16,7 +16,8 @@
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
 #define __CLC_BUILTIN_D __CLC_BUILTIN
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __SPIRV_FUNCTION, __CLC_BUILTIN_F, float, float)
+_CLC_DEFINE_BINARY_BUILTIN(float, __SPIRV_FUNCTION, __CLC_BUILTIN_F, float,
+                           float)
 
 #ifndef __FLOAT_ONLY
 
