@@ -107,7 +107,7 @@ TEST_P(urUSMFreeTest, InvalidNullPtrMem) {
 // This goal of this test is to ensure urUSMFree blocks and waits for operations
 // accessing the given allocation to finish before actually freeing the memory.
 struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "fill_usm";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
   }

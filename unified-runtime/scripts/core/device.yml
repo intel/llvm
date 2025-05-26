@@ -859,7 +859,7 @@ returns:
         - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Returns synchronized Host and Device global timestamps."
+desc: "Returns synchronized Host and Device global timestamps in nanoseconds."
 class: $xDevice
 name: GetGlobalTimestamps
 decl: static

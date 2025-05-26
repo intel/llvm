@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <climits>
 #include <optional>
+#include <vector>
 
 // UR_L0_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
@@ -1454,7 +1455,7 @@ ur_result_t urDevicePartition(
 
 ur_result_t urDeviceSelectBinary(
     /// [in] handle of the device to select binary for.
-    ur_device_handle_t /*Device*/,
+    [[maybe_unused]] ur_device_handle_t Device,
     /// [in] the array of binaries to select from.
     const ur_device_binary_t *Binaries,
     /// [in] the number of binaries passed in ppBinaries. Must greater than or
@@ -1484,21 +1485,34 @@ ur_result_t urDeviceSelectBinary(
 
   uint32_t *SelectedBinaryInd = SelectedBinary;
 
-  // Find the appropriate device image, fallback to spirv if not found
-  constexpr uint32_t InvalidInd = (std::numeric_limits<uint32_t>::max)();
-  uint32_t Spirv = InvalidInd;
+  // Find the appropriate device image
+  // The order of elements is important, as it defines the priority:
+  std::vector<const char *> FallbackTargets = {UR_DEVICE_BINARY_TARGET_SPIRV64};
+
+  constexpr uint32_t InvalidInd = std::numeric_limits<uint32_t>::max();
+  uint32_t FallbackInd = InvalidInd;
+  uint32_t FallbackPriority = InvalidInd;
 
   for (uint32_t i = 0; i < NumBinaries; ++i) {
     if (strcmp(Binaries[i].pDeviceTargetSpec, BinaryTarget) == 0) {
       *SelectedBinaryInd = i;
       return UR_RESULT_SUCCESS;
     }
-    if (strcmp(Binaries[i].pDeviceTargetSpec,
-               UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-      Spirv = i;
+    for (uint32_t j = 0; j < FallbackTargets.size(); ++j) {
+      // We have a fall-back with the same or higher priority already
+      // no need to check the rest
+      if (FallbackPriority <= j)
+        break;
+
+      if (strcmp(Binaries[i].pDeviceTargetSpec, FallbackTargets[j]) == 0) {
+        FallbackInd = i;
+        FallbackPriority = j;
+        break;
+      }
+    }
   }
-  // Points to a spirv image, if such indeed was found
-  if ((*SelectedBinaryInd = Spirv) != InvalidInd)
+  // We didn't find a primary target, try the highest-priority fall-back
+  if ((*SelectedBinaryInd = FallbackInd) != InvalidInd)
     return UR_RESULT_SUCCESS;
 
   // No image can be loaded for the given device
