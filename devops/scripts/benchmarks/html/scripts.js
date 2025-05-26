@@ -36,6 +36,17 @@ const colorPalette = [
     'rgb(210, 190, 0)',
 ];
 
+const nameColorMap = {};
+let colorIndex = 0;
+
+function getColorForName(name) {
+    if (!(name in nameColorMap)) {
+        nameColorMap[name] = colorPalette[colorIndex % colorPalette.length];
+        colorIndex++;
+    }
+    return nameColorMap[name];
+}
+
 // Run selector functions
 function updateSelectedRuns(forceUpdate = true) {
     selectedRunsDiv.innerHTML = '';
@@ -557,7 +568,7 @@ function processTimeseriesData(benchmarkRuns) {
                     runs: {}
                 };
             }
-            addRunDataPoint(resultsByLabel[result.label], run, result, run.name);
+            addRunDataPoint(resultsByLabel[result.label], run, result, false, run.name);
         });
     });
 
@@ -686,14 +697,14 @@ function processLayerComparisonsData(benchmarkRuns) {
                 group.benchmarkLabels.push(result.label);
             }
 
-            addRunDataPoint(group, run, result, name);
+            addRunDataPoint(group, run, result, true, name);
         });
     });
 
     return Object.values(groupedResults);
 }
 
-function addRunDataPoint(group, run, result, name = null) {
+function addRunDataPoint(group, run, result, comparison, name = null) {
     const runKey = name || result.label + ' (' + run.name + ')';
 
     if (!group.runs[runKey]) {
@@ -702,8 +713,10 @@ function addRunDataPoint(group, run, result, name = null) {
             label: runKey,
             runName: run.name,
             data: [],
-            borderColor: colorPalette[datasetIndex % colorPalette.length],
-            backgroundColor: colorPalette[datasetIndex % colorPalette.length],
+            borderColor:
+                comparison ? colorPalette[datasetIndex % colorPalette.length] : getColorForName(run.name),
+            backgroundColor:
+                comparison ? colorPalette[datasetIndex % colorPalette.length] : getColorForName(run.name),
             borderWidth: 1,
             pointRadius: 3,
             pointStyle: 'circle',
