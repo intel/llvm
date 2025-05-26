@@ -55,6 +55,9 @@ class OneAPI:
         package_lib = self.package_dir(package, "lib")
         return os.path.join(package_lib, "cmake", package)
 
+    def mkl_dir(self):
+        return self.package_dir("mkl", "")
+
     def mkl_lib(self):
         return self.package_dir("mkl", "lib")
 

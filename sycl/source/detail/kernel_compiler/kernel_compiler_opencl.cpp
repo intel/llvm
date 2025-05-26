@@ -144,6 +144,7 @@ void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
 
 std::string IPVersionsToString(const std::vector<uint32_t> IPVersionVec) {
   std::stringstream ss;
+  ss.imbue(std::locale::classic());
   bool amFirst = true;
   for (uint32_t ipVersion : IPVersionVec) {
     // if any device is not intelGPU, bail.

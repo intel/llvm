@@ -508,6 +508,7 @@ function(add_libclc_builtin_set)
           COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
           COMMAND ${libclc-remangler_exe}
           -o "${builtins_remangle_path}"
+          --triple=${ARG_TRIPLE}
           --long-width=${long_width}
           --char-signedness=${signedness}
           --input-ir=${builtins_lib}

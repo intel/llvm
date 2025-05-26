@@ -9,7 +9,7 @@
 #include <uur/known_failure.h>
 
 struct urKernelSetArgLocalTest : uur::urKernelTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "mean";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }

@@ -309,6 +309,8 @@ using urEnqueueMemBufferCopyRectMultiDeviceTest =
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferCopyRectMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
   // First queue does a fill.
   const uint32_t input = 42;
   ASSERT_SUCCESS(urEnqueueMemBufferFill(

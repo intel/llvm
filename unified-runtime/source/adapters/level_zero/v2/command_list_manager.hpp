@@ -11,6 +11,7 @@
 
 #include "command_list_cache.hpp"
 #include "common.hpp"
+#include "context.hpp"
 #include "event_pool_cache.hpp"
 #include "memory.hpp"
 #include "queue_api.hpp"
@@ -39,7 +40,8 @@ struct ur_command_list_manager {
   ur_command_list_manager(ur_context_handle_t context,
                           ur_device_handle_t device,
                           v2::raii::command_list_unique_handle &&commandList,
-                          v2::event_flags_t flags, ur_queue_t_ *queue);
+                          v2::event_flags_t flags, ur_queue_t_ *queue,
+                          PoolCacheType listType);
   ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
 
@@ -128,6 +130,8 @@ struct ur_command_list_manager {
 
   ur_result_t appendUSMAdvise(const void *pMem, size_t size,
                               ur_usm_advice_flags_t advice,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
                               ur_event_handle_t *phEvent);
 
   ur_result_t appendBarrier(uint32_t numEventsInWaitList,

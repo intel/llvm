@@ -207,8 +207,8 @@ getSupportedDeviceExtensions(std::vector<VkExtensionProperties> &extensions,
   return VK_SUCCESS;
 }
 
-// Set up the Vulkan device.
-VkResult setupDevice(std::string device) {
+// Set up the Vulkan device from the SYCL one
+VkResult setupDevice(const sycl::device &dev) {
   uint32_t physicalDeviceCount = 0;
   // Get all physical devices.
   VK_CHECK_CALL_RET(
@@ -237,24 +237,25 @@ VkResult setupDevice(std::string device) {
 #endif
   };
 
-  // Make lowercase to fix inconsistent capitalization between SYCL and Vulkan
-  // device naming.
-  std::transform(device.begin(), device.end(), device.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+  const auto UUID = dev.get_info<sycl::ext::intel::info::device::uuid>();
 
-  // From all physical devices, find the first one that supports all our
-  // required device extensions.
+  // From all physical devices, find the first one with a matching UUID
+  // that also supports all our required device extensions
   for (int i = 0; i < physicalDeviceCount; i++) {
     vk_physical_device = physicalDevices[i];
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(vk_physical_device, &props);
-    std::string name(props.deviceName);
 
-    // Make lowercase for comparision.
-    std::transform(name.begin(), name.end(), name.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    VkPhysicalDeviceIDProperties devIDProps = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
 
-    if (name.find(device) == std::string::npos) {
+    VkPhysicalDeviceProperties2 devProps2 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &devIDProps};
+
+    vkGetPhysicalDeviceProperties2(vk_physical_device, &devProps2);
+
+    if (!std::equal(std::begin(UUID), std::end(UUID),
+                    std::begin(devIDProps.deviceUUID),
+                    std::begin(devIDProps.deviceUUID) + VK_UUID_SIZE)) {
       continue;
     }
 
@@ -275,8 +276,8 @@ VkResult setupDevice(std::string device) {
     }
 
     foundDevice = true;
-    std::cout << "Found suitable Vulkan device: " << props.deviceName
-              << std::endl;
+    std::cout << "Found suitable Vulkan device: "
+              << devProps2.properties.deviceName << std::endl;
     break;
   }
 

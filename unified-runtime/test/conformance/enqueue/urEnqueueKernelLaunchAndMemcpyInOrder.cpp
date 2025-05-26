@@ -347,7 +347,8 @@ struct urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest
     queuePerThread = std::get<1>(getParam()).value;
     // With !queuePerThread this becomes a test on a single device
     this->trueMultiDevice = queuePerThread;
-    urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<Param>::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(
+        urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<Param>::SetUp());
   }
 
   bool useEvents;

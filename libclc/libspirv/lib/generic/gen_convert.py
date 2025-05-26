@@ -18,8 +18,6 @@ import sys
 
 from os.path import dirname, join, abspath
 
-sys.path.insert(0, abspath(join(dirname(__file__), "..", "..", "..", "generic")))
-
 from gen_convert_common import (
     types,
     int_types,

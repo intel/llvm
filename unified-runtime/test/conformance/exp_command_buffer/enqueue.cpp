@@ -22,6 +22,9 @@ struct urEnqueueCommandBufferExpTest
     program_name = "increment";
     UUR_RETURN_ON_FATAL_FAILURE(urCommandBufferExpExecutionTest::SetUp());
 
+    // https://github.com/intel/llvm/issues/18610
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     // Create an in-order queue
     ur_queue_properties_t queue_properties = {
         UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};

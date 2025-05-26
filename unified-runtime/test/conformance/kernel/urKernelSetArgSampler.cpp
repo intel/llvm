@@ -9,7 +9,7 @@
 
 struct urKernelSetArgSamplerTestWithParam
     : uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT> {
-  void SetUp() {
+  void SetUp() override {
     const auto param = getParam();
     const auto normalized = std::get<0>(param);
     const auto addr_mode = std::get<1>(param);
@@ -45,7 +45,7 @@ struct urKernelSetArgSamplerTestWithParam
         uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::Build());
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (sampler) {
       ASSERT_SUCCESS(urSamplerRelease(sampler));
     }
@@ -75,7 +75,7 @@ TEST_P(urKernelSetArgSamplerTestWithParam, Success) {
 }
 
 struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "image_copy";
     UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
 
@@ -104,7 +104,7 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
     Build();
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (sampler) {
       ASSERT_SUCCESS(urSamplerRelease(sampler));
     }
