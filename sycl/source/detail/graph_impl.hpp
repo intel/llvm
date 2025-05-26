@@ -1668,7 +1668,7 @@ public:
   /// @param ArgIndex The argument index to update.
   /// @param NewBufferSizeInBytes The total size in bytes of the new
   /// work_group_memory array.
-  void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> CG, int ArgIndex,
+  void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
                             size_t NewBufferSizeInBytes);
 
   size_t BufferSizeInBytes;
@@ -1694,8 +1694,8 @@ public:
   /// @param ArgIndex The argument index to update.
   /// @param NewAllocationSize The new allocation size for the
   /// dynamic_local_accessor.
-  void updateCGLocalAccessor(std::shared_ptr<sycl::detail::CG> CG, int ArgIndex,
-                             range<3> NewAllocationSize);
+  void updateCGLocalAccessor(std::shared_ptr<sycl::detail::CG> &CG,
+                             int ArgIndex, range<3> NewAllocationSize);
 
   detail::LocalAccessorImplHost LAccImplHost;
 };

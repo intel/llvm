@@ -2205,7 +2205,7 @@ void dynamic_work_group_memory_impl::updateWorkGroupMem(
 }
 
 void dynamic_work_group_memory_impl::updateCGWorkGroupMem(
-    std::shared_ptr<sycl::detail::CG> CG, int ArgIndex,
+    std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
     size_t NewBufferSizeInBytes) {
 
   auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
@@ -2248,7 +2248,7 @@ void dynamic_local_accessor_impl::updateLocalAccessor(
 }
 
 void dynamic_local_accessor_impl::updateCGLocalAccessor(
-    std::shared_ptr<sycl::detail::CG> CG, int ArgIndex,
+    std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
     range<3> NewAllocationSize) {
 
   auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;

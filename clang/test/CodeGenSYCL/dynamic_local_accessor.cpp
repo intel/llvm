@@ -28,13 +28,13 @@
 
 int main() {
   sycl::queue Q;
-  sycl::dynamic_local_accessor<int, 1> dynLocalAcc;
+  sycl::dynamic_local_accessor<int, 1> DynLocalAcc;
   Q.submit([&](sycl::handler &CGH) {
     sycl::range<1> ndr;
     CGH.parallel_for(ndr, [=](sycl::item<1> it) { 
-      auto localAcc = dynLocalAcc.get();
-      auto* ptr = &localAcc;
-});
+      auto LocalAcc = DynLocalAcc.get();
+      auto* Ptr = &LocalAcc;
+    });
   });
   return 0;
 }

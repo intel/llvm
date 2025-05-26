@@ -766,10 +766,6 @@ private:
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // TODO: Remove in the next ABI-breaking window.
-  /// Registers a dynamic parameter with the handler for later association with
-  /// the node being created
-  /// @param DynamicParamBase
-  /// @param ArgIndex
   void registerDynamicParameter(
       ext::oneapi::experimental::detail::dynamic_parameter_base
           &DynamicParamBase,
@@ -777,9 +773,10 @@ private:
 #endif
 
   /// Registers a dynamic parameter with the handler for later association with
-  /// the node being created
-  /// @param DynamicParamImpl
-  /// @param ArgIndex
+  /// the node being created.
+  /// @param DynamicParamImpl The dynamic parameter impl object.
+  /// @param ArgIndex The index of the kernel argument that this dynamic
+  /// parameter represents.
   void registerDynamicParameter(
       ext::oneapi::experimental::detail::dynamic_parameter_impl
           *DynamicParamImpl,
