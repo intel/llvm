@@ -1,3 +1,4 @@
+include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
@@ -344,6 +345,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
           COMPONENT libsycldevice)
 endif()
 
+check_cxx_compiler_flag(-Wno-invalid-noreturn HAS_NO_INVALID_NORETURN_WARN_FLAG)
 # Add all device libraries for each filetype except for the Intel math function
 # ones.
 add_devicelibs(libsycl-itt-stubs
@@ -356,7 +358,7 @@ add_devicelibs(libsycl-itt-user-wrappers
   SRC itt_user_wrappers.cpp
   DEPENDENCIES ${itt_obj_deps})
 
-if (MSVC)
+if (NOT HAS_NO_INVALID_NORETURN_WARN_FLAG OR MSVC)
   add_devicelibs(libsycl-crt
     SRC crt_wrapper.cpp
     DEPENDENCIES ${crt_obj_deps})
