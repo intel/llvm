@@ -289,19 +289,34 @@ void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
   impl->submit_without_event(CGH, impl, SI, CodeLoc, IsTopCodeLoc);
 }
 
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 event queue::submit_with_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
     const detail::v1::SubmissionInfo &SubmitInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
+  return std::as_const(*this).submit_with_event_impl(CGH, SubmitInfo, CodeLoc,
+                                                     IsTopCodeLoc);
 }
 
 void queue::submit_without_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
     const detail::v1::SubmissionInfo &SubmitInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  std::as_const(*this).submit_without_event_impl(CGH, SubmitInfo, CodeLoc,
+                                                 IsTopCodeLoc);
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+event queue::submit_with_event_impl(
+    const detail::type_erased_cgfo_ty &CGH,
+    const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+  return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
+}
+
+void queue::submit_without_event_impl(
+    const detail::type_erased_cgfo_ty &CGH,
+    const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
   impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 

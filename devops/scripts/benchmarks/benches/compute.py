@@ -49,7 +49,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "49a8c6314875c57fee9b59aea16e721572e3021d"
+        return "3283b5edb8bf771c519625af741b5db7a37b0111"
 
     def setup(self):
         if options.sycl is None:
@@ -74,7 +74,11 @@ class ComputeBench(Suite):
         ]
 
         if options.ur_adapter == "cuda":
-            configure_command += ["-DBUILD_SYCL_WITH_CUDA=ON"]
+            configure_command += [
+                "-DBUILD_SYCL_WITH_CUDA=ON",
+                "-DBUILD_L0=OFF",
+                "-DBUILD_OCL=OFF",
+            ]
 
         if options.ur is not None:
             configure_command += [
@@ -196,11 +200,12 @@ class ComputeBench(Suite):
         # Add UR-specific benchmarks
         if options.ur is not None:
             benches += [
-                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1, 1),
-                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1, 1),
-                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 1),
-                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 0),
-                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0, 1),
+                MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
                 UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
@@ -211,6 +216,20 @@ class ComputeBench(Suite):
                     self, RUNTIMES.UR, "Device", 128, 128 * 1024, "Both"
                 ),
             ]
+        benches += [
+            MemcpyExecute(
+                self, RUNTIMES.SYCL_PREVIEW, 4096, 1, 1024, 40, 1, 1, 0, 1, 0
+            ),
+            MemcpyExecute(
+                self, RUNTIMES.SYCL_PREVIEW, 4096, 1, 1024, 40, 1, 1, 0, 1, 1
+            ),
+            MemcpyExecute(
+                self, RUNTIMES.SYCL_PREVIEW, 4096, 4, 1024, 10, 1, 1, 0, 1, 0
+            ),
+            MemcpyExecute(
+                self, RUNTIMES.SYCL_PREVIEW, 4096, 4, 1024, 10, 1, 1, 0, 1, 1
+            ),
+        ]
 
         return benches
 
@@ -533,6 +552,7 @@ class MemcpyExecute(ComputeBenchmark):
     def __init__(
         self,
         bench,
+        runtime: RUNTIMES,
         numOpsPerThread,
         numThreads,
         allocSize,
@@ -541,7 +561,9 @@ class MemcpyExecute(ComputeBenchmark):
         dstUSM,
         useEvent,
         useCopyOffload,
+        useBarrier,
     ):
+        self.runtime = runtime
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
         self.allocSize = allocSize
@@ -550,7 +572,10 @@ class MemcpyExecute(ComputeBenchmark):
         self.dstUSM = dstUSM
         self.useEvents = useEvent
         self.useCopyOffload = useCopyOffload
-        super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
+        self.useBarrier = useBarrier
+        super().__init__(
+            bench, f"multithread_benchmark_{self.runtime.value}", "MemcpyExecute"
+        )
 
     def extra_env_vars(self) -> dict:
         if not self.useCopyOffload:
@@ -560,9 +585,10 @@ class MemcpyExecute(ComputeBenchmark):
 
     def name(self):
         return (
-            f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
+            f"multithread_benchmark_{self.runtime.value} MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
             + (" without events" if not self.useEvents else "")
             + (" without copy offload" if not self.useCopyOffload else "")
+            + (" with barrier" if self.useBarrier else "")
         )
 
     def explicit_group(self):
@@ -571,6 +597,8 @@ class MemcpyExecute(ComputeBenchmark):
             + str(self.numOpsPerThread)
             + " numThreads: "
             + str(self.numThreads)
+            + " allocSize: "
+            + str(self.allocSize)
         )
 
     def description(self) -> str:
@@ -578,14 +606,16 @@ class MemcpyExecute(ComputeBenchmark):
         dst_type = "device" if self.dstUSM == 1 else "host"
         events = "with" if self.useEvents else "without"
         copy_offload = "with" if self.useCopyOffload else "without"
+        with_barrier = "with" if self.useBarrier else "without"
         return (
             f"Measures multithreaded memory copy performance with {self.numThreads} threads "
             f"each performing {self.numOpsPerThread} operations on {self.allocSize} bytes "
-            f"from {src_type} to {dst_type} memory {events} events {copy_offload} driver copy offload."
+            f"from {src_type} to {dst_type} memory {events} events {copy_offload} driver copy offload "
+            f"{with_barrier} barrier. "
         )
 
     def get_tags(self):
-        return ["memory", "latency", "UR", "micro"]
+        return ["memory", "latency", runtime_to_tag_name(self.runtime), "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -599,6 +629,7 @@ class MemcpyExecute(ComputeBenchmark):
             f"--iterations={self.iterations}",
             f"--SrcUSM={self.srcUSM}",
             f"--DstUSM={self.dstUSM}",
+            f"--UseBarrier={self.useBarrier}",
         ]
 
 
@@ -717,7 +748,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         return [
             "--iterations=10000",
             f"--wgs={self.wgs}",
-            f"--wgc={self.wgs}",
+            f"--wgc={self.wgc}",
         ]
 
 
