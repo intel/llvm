@@ -415,6 +415,119 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 #endif
 
+// no_handler
+
+void queue_impl::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams, std::vector<ArgDesc> &Args) {
+  size_t IndexShift = 0;
+
+  Args.reserve(NumKernelParams);
+
+  for (size_t I = 0; I < NumKernelParams; ++I) {
+    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
+    void *Ptr = LambdaPtr + ParamDesc.offset;
+    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
+    const int &Size = ParamDesc.info;
+
+    Args.emplace_back(Kind, Ptr, Size, I + IndexShift);
+  }
+}
+
+void queue_impl::submit_no_handler(
+  const std::shared_ptr<queue_impl> &Self,
+  detail::NDRDescT NDRDesc, const char *KernelName,
+  void *KernelFunc, int KernelNumParams,
+  detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
+
+  std::vector<ur_event_handle_t> RawEvents;
+  std::vector<detail::ArgDesc> Args;
+
+  assert(!MQueue->hasCommandGraph());
+
+  // TODO external event
+
+  bool KernelFastPath = true;
+
+  std::unique_lock<std::mutex> Lock(MMutex);
+
+  EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+
+  if (isInOrder() && LastEvent && !Scheduler::CheckEventReadiness(MContext, LastEvent)) {
+    KernelFastPath = false;
+  }
+
+  if (KernelFastPath) {
+    EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+
+    if (isInOrder() && LastEvent && LastEvent->getHandle()) {
+      RawEvents.push_back(LastEvent->getHandle());
+    }
+
+    enqueueImpKernel(
+      Self,
+      NDRDesc, // MNDRDesc
+      Args,
+      nullptr, // KernelBundleImpPtr
+      nullptr, // MKernel
+      KernelName,
+      KernelNameBasedCachePtr, // MKernelNameBasedCachePtr
+      RawEvents,
+      nullptr, // out event
+      nullptr, // getMemAllocationFunc
+      UR_KERNEL_CACHE_CONFIG_DEFAULT, // MKernelCacheConfig
+      false, // MKernelIsCooperative
+      false, // MKernelUsesClusterLaunch
+      0, // MKernelWorkGroupMemorySize
+      nullptr, // BinImage
+      KernelFunc, // MKernelFuncPtr
+      KernelNumParams, // MKernelNumArgs
+      KernelParamDescGetter, // MKernelParamDescGetter
+      false); // MKernelHasSpecialCaptures
+  } else {
+    std::unique_ptr<detail::CG> CommandGroup;
+    detail::CG::StorageInitHelper CGData;
+    std::vector<detail::ArgDesc> Args;
+    std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+    std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+    detail::code_location CodeLoc = {};
+
+    extractArgsAndReqsFromLambda((char *)KernelFunc, KernelParamDescGetter,
+                                  KernelNumParams, Args);
+
+    EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+    CGData.MEvents.push_back(LastEvent);
+
+    CommandGroup.reset(new detail::CGExecKernel(
+        std::move(NDRDesc),
+        nullptr, // MHostKernel
+        nullptr, // MKernel
+        nullptr, // MKernelBundle
+        std::move(CGData), // CGData
+        std::move(Args), // MArgs
+        KernelName, // MKernelName
+        KernelNameBasedCachePtr, // MKernelNameBasedCachePtr
+        std::move(StreamStorage), // MStreamStorage
+        std::move(AuxiliaryResources), // MAuxiliaryResources
+        detail::CGType::Kernel,
+        UR_KERNEL_CACHE_CONFIG_DEFAULT, // MKernelCacheConfig
+        false, // MKernelIsCooperative
+        false, // MKernelUsesClusterLaunch
+        0, // MKernelWorkGroupMemorySize
+        CodeLoc)); // MCodeLoc
+
+    detail::EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
+        std::move(CommandGroup),
+        Self, // MQueue
+        false); // MEventNeeded
+
+    if (isInOrder()) {
+      MDefaultGraphDeps.LastEventPtr = EventImpl;
+    }
+  }
+}
+
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,
