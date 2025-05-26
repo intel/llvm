@@ -310,7 +310,7 @@ By default, no layers are enabled. Layers currently included with the runtime ar
    * - UR_LAYER_LIFETIME_VALIDATION
      - Performs lifetime validation on objects (check if it was used within the scope of its creation and destruction) used in API calls. Automatically enables UR_LAYER_LEAK_CHECKING.
    * - UR_LAYER_FULL_VALIDATION
-     - Enables UR_LAYER_PARAMETER_VALIDATION and UR_LAYER_LEAK_CHECKING.
+     - Enables UR_LAYER_PARAMETER_VALIDATION, UR_LAYER_BOUNDS_CHECKING, UR_LAYER_LEAK_CHECKING, and UR_LAYER_LIFETIME_VALIDATION.
    * - UR_LAYER_TRACING
      - Enables the XPTI tracing layer, see Tracing_ for more detail.
    * - UR_LAYER_ASAN \| UR_LAYER_MSAN \| UR_LAYER_TSAN
@@ -417,19 +417,19 @@ CTS Environment Variables
 
 The following environment variables are used by the CTS runner and can be used to specify the platform that the test
 framework should run on. This can be used during development and testing to run CTS tests in case multiple platforms
-are available. If both filters are specified, then they both must match a platform for it to be selected. If there are
-no valid platforms, then the tests will fail. Command line arguments take priority over these variables.
+are available. Conformance tests will be skipped if there are no valid platforms.
 
-.. envvar:: UR_CTS_BACKEND
+.. envvar:: ONEAPI_DEVICE_SELECTOR
 
-    A (case insensitive) backend to force the test to use. For example, `opencl`, `level_zero`, `hip` and so on.
+   If ``ONEAPI_DEVICE_SELECTOR`` is set in the environment, only devices
+   matched by the selector will be tested.
 
 .. envvar:: UR_CTS_ALSO_RUN_KNOWN_FAILURES
 
-   A boolean option to enable running tests which have been marked as known
-   failures using the :c:macro:`UUR_KNOWN_FAILURE_ON` macro. Enabled when the
-   environment variable is set to any of the following values: ``1``, ``on``,
-   ``ON``, ``yes``, ``YES``, ``true``, ``TRUE``.
+   A boolean option to enable running tests which have been either marked as known
+   failures using the :c:macro:`UUR_KNOWN_FAILURE_ON` macro or would run on a
+   blacklisted platform. Enabled when the environment variable is set to any of
+   the following values: ``1``, ``on``, ``ON``, ``yes``, ``YES``, ``true``, ``TRUE``.
 
 Service identifiers
 ---------------------

@@ -98,6 +98,14 @@ function(add_adapter_tests adapter)
         )
     endif()
 
+    add_adapter_test(${adapter}_device_select_binary
+        FIXTURE DEVICES
+        SOURCES
+            urDeviceSelectBinary.cpp
+        ENVIRONMENT
+            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
+        )
+
     add_adapter_test(${adapter}_mem_buffer_map
         FIXTURE DEVICES
         SOURCES
