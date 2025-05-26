@@ -34,8 +34,6 @@
 
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -180,6 +178,8 @@ static bool isDeviceBinaryTypeSupported(const ContextImplPtr &ContextImpl,
   return "unknown";
 }
 
+// The string produced by this function might be localized, with commas and
+// periods inserted. Presently, it is used only for user facing error output.
 [[maybe_unused]] auto VecToString = [](auto &Vec) -> std::string {
   std::ostringstream Out;
   Out << "{";
@@ -1865,8 +1865,7 @@ static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_METADATA,
-                ImgPS->Name)) {
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
       if (!LibVersion)
         return true;
 
@@ -1894,8 +1893,7 @@ getExportedSymbolPS(sycl_device_binary RawImg) {
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS,
-                ImgPS->Name))
+        !strcmp(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS, ImgPS->Name))
       return ImgPS;
   }
 
