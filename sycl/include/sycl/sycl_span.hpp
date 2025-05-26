@@ -205,7 +205,9 @@ public:
   using reference = _Tp &;
   using const_reference = const _Tp &;
   using iterator = pointer;
-  using rev_iterator = std::reverse_iterator<pointer>;
+  using const_iterator = const_pointer;
+  using reverse_iterator = std::reverse_iterator<pointer>;
+  using const_reverse_iterator = std::reverse_iterator<const_pointer>;
 
   static constexpr size_type extent = _Extent;
 
@@ -218,7 +220,7 @@ public:
   constexpr span &operator=(const span &) noexcept = default;
 
   template <size_t _Sz = _Extent>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       element_type (&__arr)[_Sz])
       : __data{__arr} {
     (void)_Sz;
@@ -226,14 +228,14 @@ public:
                       "size mismatch in span's constructor (&_arr)[_Sz]");
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __ptr,
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __ptr,
                                                        size_type __count)
       : __data{__ptr} {
     (void)__count;
     _SYCL_SPAN_ASSERT(_Extent == __count,
                       "size mismatch in span's constructor (ptr, len)");
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __f, pointer __l)
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __f, pointer __l)
       : __data{__f} {
     (void)__l;
     _SYCL_SPAN_ASSERT(_Extent == std::distance(__f, __l),
@@ -386,11 +388,23 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr iterator end() const noexcept {
     return iterator(data() + size());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr rev_iterator rbegin() const noexcept {
-    return rev_iterator(end());
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator cbegin() const noexcept {
+    return const_iterator(data());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr rev_iterator rend() const noexcept {
-    return rev_iterator(begin());
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator cend() const noexcept {
+    return const_iterator(data() + size());
+  }
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator rbegin() const noexcept {
+    return reverse_iterator(end());
+  }
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator rend() const noexcept {
+    return reverse_iterator(begin());
+  }
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator(end());
+  }
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator(data() + size());
   }
 
   _SYCL_SPAN_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)>
@@ -423,7 +437,9 @@ public:
   using reference = _Tp &;
   using const_reference = const _Tp &;
   using iterator = pointer;
-  using rev_iterator = std::reverse_iterator<pointer>;
+  using const_iterator = const_pointer;
+  using reverse_iterator = std::reverse_iterator<pointer>;
+  using const_reverse_iterator = std::reverse_iterator<const_pointer>;
 
   static constexpr size_type extent = dynamic_extent;
 
@@ -462,14 +478,14 @@ public:
       : __data{__arr.data()}, __size{_Sz} {}
 
   template <class _Container>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
       _Container &__c,
       std::enable_if_t<__is_span_compatible_container<_Container, _Tp>::value,
                        std::nullptr_t> = nullptr)
       : __data{std::data(__c)}, __size{(size_type)std::size(__c)} {}
 
   template <class _Container>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
       const _Container &__c,
       std::enable_if_t<
           __is_span_compatible_container<const _Container, _Tp>::value,
@@ -579,11 +595,23 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr iterator end() const noexcept {
     return iterator(data() + size());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr rev_iterator rbegin() const noexcept {
-    return rev_iterator(end());
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator cbegin() const noexcept {
+    return const_iterator(data());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr rev_iterator rend() const noexcept {
-    return rev_iterator(begin());
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator cend() const noexcept {
+    return const_iterator(data() + size());
+  }
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator rbegin() const noexcept {
+    return reverse_iterator(end());
+  }
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator rend() const noexcept {
+    return reverse_iterator(begin());
+  }
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator(end());
+  }
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator(begin());
   }
 
   _SYCL_SPAN_INLINE_VISIBILITY span<const byte, dynamic_extent>
