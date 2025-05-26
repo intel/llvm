@@ -747,7 +747,9 @@ protected:
   detail::EventImplPtr
   finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(Handler.getType() == CGType::CodeplayHostTask);
+    assert(Handler.getType() == CGType::CodeplayHostTask ||
+           (Handler.getType() == CGType::ExecCommandBuffer &&
+            getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -781,13 +783,8 @@ protected:
   finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
-
-    if (Handler.getType() == CGType::ExecCommandBuffer && MNoLastEventMode) {
-      // TODO: this shouldn't be needed but without this
-      // the legacy adapter doesn't synchronize the operations properly
-      // when non-immediate command lists are used.
-      Handler.depends_on(insertHelperBarrier(Handler));
-    }
+    assert(!(Handler.getType() == CGType::ExecCommandBuffer &&
+             getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;

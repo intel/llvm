@@ -775,15 +775,19 @@ event handler::finalize() {
           nullptr, impl->MExecGraph, std::move(impl->CGData)));
 
     } else {
-      event GraphCompletionEvent =
-          impl->MExecGraph->enqueue(MQueue, std::move(impl->CGData));
-
+      bool DiscardEvent = !impl->MEventNeeded &&
+                          MQueue->supportsDiscardingPiEvents() &&
+                          !impl->MExecGraph->containsHostTask();
+      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
+          MQueue, std::move(impl->CGData), !DiscardEvent);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      MLastEvent = getSyclObjImpl(GraphCompletionEvent);
+      return GraphCompletionEvent;
 #else
-      MLastEvent = GraphCompletionEvent;
+      return sycl::detail::createSyclObjFromImpl<sycl::event>(
+          GraphCompletionEvent
+              ? GraphCompletionEvent
+              : std::make_shared<sycl::detail::event_impl>(MQueue));
 #endif
-      return MLastEvent;
     }
   } break;
   case detail::CGType::CopyImage:
