@@ -23,16 +23,16 @@ namespace detail {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 class string_view {
   const char *str = nullptr;
-  size_t	    len = 0;
+  size_t len = 0;
 
 public:
   string_view() noexcept = default;
   string_view(const string_view &strn) noexcept = default;
   string_view(string_view &&strn) noexcept = default;
-  string_view(std::string_view strn) noexcept : str(strn.data()),
-      len(strn.size()) {}
-  string_view(const sycl::detail::string &strn) noexcept : str(strn.c_str()),
-      len(strlen(strn.c_str())) {}
+  string_view(std::string_view strn) noexcept
+      : str(strn.data()), len(strn.size()) {}
+  string_view(const sycl::detail::string &strn) noexcept
+      : str(strn.c_str()), len(strlen(strn.c_str())) {}
 
   string_view &operator=(string_view &&strn) noexcept = default;
   string_view &operator=(const string_view &strn) noexcept = default;

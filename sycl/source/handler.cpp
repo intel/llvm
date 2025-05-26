@@ -575,11 +575,12 @@ event handler::finalize() {
             MKernel.get(),
             detail::KernelNameStrRefT(MKernelName.data()
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-            , MKernelName.size()
+                                          ,
+                                      MKernelName.size()
 #endif
-          ),
-            impl->MKernelNameBasedCachePtr,
-            RawEvents, DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
+                                          ),
+            impl->MKernelNameBasedCachePtr, RawEvents,
+            DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
             impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
