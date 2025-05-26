@@ -74,6 +74,10 @@
 #include <libspirv/image/image.h>
 #include <libspirv/image/image_defines.h>
 
+/* 6.15.13. Miscellaneous Vector Functions */
+#include <libspirv/misc/shuffle.h>
+#include <libspirv/misc/shuffle2.h>
+
 /* Pointer Conversion */
 #include <libspirv/conversion/GenericCastToPtrExplicit.h>
 
