@@ -408,9 +408,8 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     detail::EventImplPtr FlushEvent =
         submit_impl(CGF, Self, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
                     IsTopCodeLoc, {});
-    // Streams are only supported for event based functions
-    assert(EventImpl);
-    EventImpl->attachEventToCompleteWeak(FlushEvent);
+    if (EventImpl)
+      EventImpl->attachEventToCompleteWeak(FlushEvent);
     registerStreamServiceEvent(FlushEvent);
   }
 

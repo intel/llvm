@@ -781,6 +781,7 @@ protected:
     synchronizeWithExternalEvent(Handler);
 
     EventToBuildDeps = parseEvent(Handler.finalize());
+    assert(EventToBuildDeps);
     return EventToBuildDeps;
   }
 
