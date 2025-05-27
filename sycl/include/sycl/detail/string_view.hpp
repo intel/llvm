@@ -17,41 +17,58 @@ namespace detail {
 
 // This class and detail::string class are intended to support
 // different ABIs between libsycl and the user program.
-// This class is not inteded to replace std::string_view for general purpose
+// This class is not intended to replace std::string_view for general purpose
 // usage.
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 class string_view {
   const char *str = nullptr;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   size_t len = 0;
+#endif
 
 public:
   string_view() noexcept = default;
   string_view(const string_view &strn) noexcept = default;
   string_view(string_view &&strn) noexcept = default;
   string_view(std::string_view strn) noexcept
-      : str(strn.data()), len(strn.size()) {}
+      : str(strn.data())
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      , len(strn.size())
+#endif
+       {}
   string_view(const sycl::detail::string &strn) noexcept
-      : str(strn.c_str()), len(strlen(strn.c_str())) {}
+      : str(strn.c_str())
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      , len(strlen(strn.c_str()))
+#endif
+       {}
 
   string_view &operator=(string_view &&strn) noexcept = default;
   string_view &operator=(const string_view &strn) noexcept = default;
 
   string_view &operator=(std::string_view strn) noexcept {
     str = strn.data();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     len = strn.size();
+#endif
     return *this;
   }
 
   string_view &operator=(const sycl::detail::string &strn) noexcept {
     str = strn.c_str();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     len = strlen(strn.c_str());
+#endif
     return *this;
   }
 
   const char *data() const noexcept { return str ? str : ""; }
 
-  size_t size() const noexcept { return len; }
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::string_view toStringView() const noexcept {
+    return std::string_view(str, len);
+  }
+#endif
 
   friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
     return rhs == lhs.data();
@@ -67,50 +84,6 @@ public:
     return lhs != rhs.data();
   }
 };
-
-#else // __INTEL_PREVIEW_BREAKING_CHANGES
-
-class string_view {
-  const char *str = nullptr;
-
-public:
-  string_view() noexcept = default;
-  string_view(const string_view &strn) noexcept = default;
-  string_view(string_view &&strn) noexcept = default;
-  string_view(std::string_view strn) noexcept : str(strn.data()) {}
-  string_view(const sycl::detail::string &strn) noexcept : str(strn.c_str()) {}
-
-  string_view &operator=(string_view &&strn) noexcept = default;
-  string_view &operator=(const string_view &strn) noexcept = default;
-
-  string_view &operator=(std::string_view strn) noexcept {
-    str = strn.data();
-    return *this;
-  }
-
-  string_view &operator=(const sycl::detail::string &strn) noexcept {
-    str = strn.c_str();
-    return *this;
-  }
-
-  const char *data() const noexcept { return str ? str : ""; }
-
-  friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
-    return rhs == lhs.data();
-  }
-  friend bool operator==(std::string_view lhs, string_view rhs) noexcept {
-    return lhs == rhs.data();
-  }
-
-  friend bool operator!=(string_view lhs, std::string_view rhs) noexcept {
-    return rhs != lhs.data();
-  }
-  friend bool operator!=(std::string_view lhs, string_view rhs) noexcept {
-    return lhs != rhs.data();
-  }
-};
-
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace detail
 } // namespace _V1

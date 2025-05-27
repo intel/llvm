@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
 
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
@@ -17,10 +18,19 @@ namespace detail {
 using KernelNameStrT = std::string_view;
 using KernelNameStrRefT = std::string_view;
 using ABINeutralKernelNameStrT = detail::string_view;
+
+inline KernelNameStrT toKernelNameStrT(ABINeutralKernelNameStrT str) {
+    return str.toStringView();
+}
+
 #else
 using KernelNameStrT = std::string;
 using KernelNameStrRefT = const std::string &;
 using ABINeutralKernelNameStrT = detail::string;
+
+inline KernelNameStrT toKernelNameStrT(ABINeutralKernelNameStrT str) {
+    return str.data();
+}
 #endif
 
 } // namespace detail
