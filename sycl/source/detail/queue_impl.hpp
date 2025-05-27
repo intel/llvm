@@ -736,7 +736,7 @@ protected:
            !Handler.MStreamStorage.size() &&
            detail::Scheduler::areEventsSafeForSchedulerBypass(
                Handler.impl->CGData.MEvents, MContext) &&
-           MNoEventMode.load(std::memory_order_acquire);
+           MNoLastEventMode.load(std::memory_order_acquire);
   }
 
   template <typename HandlerType = handler>
