@@ -16,6 +16,10 @@
 
 // *** <sycl/builtins.hpp> ***
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+#include "cmath-fallback.h"
+#endif
+
 #include <sycl/detail/defines_elementary.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
