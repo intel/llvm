@@ -1,3 +1,6 @@
+// XFAIL: linux && run-mode && gpu-intel-dg2 && !igc-dev
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18668
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
