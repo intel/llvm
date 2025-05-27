@@ -181,9 +181,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
           sizeof(ur_event_status_t), (void *)&Status, nullptr));
       if (Status == UR_EVENT_STATUS_COMPLETE) {
         return ReturnValue(true);
-      } else {
-        return ReturnValue(false);
       }
+      return ReturnValue(false);
     }
   }
   switch (propName) {
