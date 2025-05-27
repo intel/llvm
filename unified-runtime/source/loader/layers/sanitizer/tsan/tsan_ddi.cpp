@@ -1045,6 +1045,32 @@ ur_result_t urKernelSetArgMemObj(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgLocal
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t argSize,
+    /// [in][optional] pointer to local buffer properties.
+    const ur_kernel_arg_local_properties_t *pProperties) {
+  auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
+
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex,
+           argSize);
+
+  {
+    auto &KI = getTsanInterceptor()->getKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+    KI.LocalArgs[argIndex] = TsanLocalArgsInfo{argSize};
+  }
+
+  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMDeviceAlloc
 __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     /// [in] handle of the context object
@@ -1139,13 +1165,15 @@ ur_result_t urEnqueueKernelLaunch(
     ur_event_handle_t *phEvent) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
 
-  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, workDim);
 
   UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), numEventsInWaitList, phEventWaitList,
+      phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -1187,13 +1215,15 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
   UR_LOG_L(getContext()->logger, DEBUG,
            "==== urEnqueueCooperativeKernelLaunchExp");
 
-  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, workDim);
 
   UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), numEventsInWaitList, phEventWaitList,
+      phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -1292,6 +1322,7 @@ ur_result_t urGetKernelProcAddrTable(
   pDdiTable->pfnRelease = ur_sanitizer_layer::tsan::urKernelRelease;
   pDdiTable->pfnSetArgValue = ur_sanitizer_layer::tsan::urKernelSetArgValue;
   pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::tsan::urKernelSetArgMemObj;
+  pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::tsan::urKernelSetArgLocal;
 
   return UR_RESULT_SUCCESS;
 }

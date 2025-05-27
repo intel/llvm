@@ -13,6 +13,7 @@
 
 #include "tsan_shadow.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
+#include "tsan_interceptor.hpp"
 
 namespace ur_sanitizer_layer {
 namespace tsan {
@@ -187,6 +188,44 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
   UR_LOG_L(getContext()->logger, DEBUG, "CleanShadow(addr={}, count={})",
            (void *)Begin, Size / kShadowCell);
 
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
+                                              uint32_t NumWG, uptr &Begin,
+                                              uptr &End) {
+  const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
+  const size_t RequiredShadowSize = NumWG * LocalMemorySize;
+  static size_t LastAllocedSize = 0;
+  if (RequiredShadowSize > LastAllocedSize) {
+    if (LocalShadowOffset) {
+      UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                   (void *)LocalShadowOffset));
+      LocalShadowOffset = 0;
+      LastAllocedSize = 0;
+    }
+
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, nullptr, RequiredShadowSize,
+        (void **)&LocalShadowOffset));
+
+    // Initialize shadow memory
+    ur_result_t URes = EnqueueUSMBlockingSet(Queue, (void *)LocalShadowOffset,
+                                             0, RequiredShadowSize);
+    if (URes != UR_RESULT_SUCCESS) {
+      UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                   (void *)LocalShadowOffset));
+      LocalShadowOffset = 0;
+      LastAllocedSize = 0;
+
+      return URes;
+    }
+
+    LastAllocedSize = RequiredShadowSize;
+  }
+
+  Begin = LocalShadowOffset;
+  End = LocalShadowOffset + RequiredShadowSize - 1;
   return UR_RESULT_SUCCESS;
 }
 

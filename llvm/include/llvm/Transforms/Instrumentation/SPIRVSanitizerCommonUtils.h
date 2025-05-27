@@ -15,6 +15,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/IR/Constants.h"
 
 namespace llvm {
 // Spir memory address space
@@ -26,6 +27,8 @@ constexpr unsigned kSpirOffloadGenericAS = 4;
 
 TargetExtType *getTargetExtType(Type *Ty);
 bool isJointMatrixAccess(Value *V);
+void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions);
+
 } // namespace llvm
 
 #endif // LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H
