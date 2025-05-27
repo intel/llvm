@@ -13,7 +13,6 @@ int main() {
   // Set up device, queue, and context
   sycl::device dev;
   sycl::queue q(dev);
-  sycl::context ctxt = q.get_context();
 
   // declare image data
   constexpr size_t width = 16;

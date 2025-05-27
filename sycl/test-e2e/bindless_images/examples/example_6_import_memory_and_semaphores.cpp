@@ -16,7 +16,6 @@ int main() {
   // Set up device, queue, and context
   sycl::device dev;
   sycl::queue q(dev);
-  sycl::context ctxt = q.get_context();
 
   size_t width = 123 /* passed from external API */;
   size_t height = 123 /* passed from external API */;
