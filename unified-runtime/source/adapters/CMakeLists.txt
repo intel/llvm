@@ -76,9 +76,15 @@ if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(opencl)
     list(APPEND TEMP_LIST "opencl")
 endif()
+
 if(UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(native_cpu)
     list(APPEND TEMP_LIST "native_cpu")
+endif()
+
+if(UR_BUILD_ADAPTER_OFFLOAD)
+    add_ur_adapter_subdirectory(offload)
+    list(APPEND TEMP_LIST "offload")
 endif()
 
 set(UR_ADAPTERS_LIST "${TEMP_LIST}" CACHE STRING "" FORCE)

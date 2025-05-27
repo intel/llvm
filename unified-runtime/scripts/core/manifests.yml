@@ -61,3 +61,10 @@ name: native_cpu
 backend: $X_BACKEND_NATIVE_CPU
 device_types:
     - $X_DEVICE_TYPE_CPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: offload
+backend: $X_BACKEND_OFFLOAD
+device_types:
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU

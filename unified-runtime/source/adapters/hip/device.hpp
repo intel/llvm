@@ -28,9 +28,7 @@ private:
   uint32_t DeviceIndex;
 
   int MaxWorkGroupSize{0};
-  int MaxBlockDimX{0};
-  int MaxBlockDimY{0};
-  int MaxBlockDimZ{0};
+  size_t MaxBlockDim[3];
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
   int ManagedMemSupport{0};
@@ -45,12 +43,18 @@ public:
 
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &MaxWorkGroupSize, hipDeviceAttributeMaxThreadsPerBlock, HIPDevice));
+
+    int MaxDim;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &MaxBlockDimX, hipDeviceAttributeMaxBlockDimX, HIPDevice));
+        &MaxDim, hipDeviceAttributeMaxBlockDimX, HIPDevice));
+    MaxBlockDim[0] = size_t(MaxDim);
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &MaxBlockDimY, hipDeviceAttributeMaxBlockDimY, HIPDevice));
+        &MaxDim, hipDeviceAttributeMaxBlockDimY, HIPDevice));
+    MaxBlockDim[1] = size_t(MaxDim);
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &MaxBlockDimZ, hipDeviceAttributeMaxBlockDimZ, HIPDevice));
+        &MaxDim, hipDeviceAttributeMaxBlockDimZ, HIPDevice));
+    MaxBlockDim[2] = size_t(MaxDim);
+
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &MaxCapacityLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
         HIPDevice));
@@ -107,11 +111,9 @@ public:
 
   int getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
 
-  int getMaxBlockDimX() const noexcept { return MaxBlockDimX; };
+  size_t getMaxBlockDim(int dim) const noexcept { return MaxBlockDim[dim]; };
 
-  int getMaxBlockDimY() const noexcept { return MaxBlockDimY; };
-
-  int getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
+  const size_t *getMaxBlockDim() const noexcept { return MaxBlockDim; };
 
   int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 

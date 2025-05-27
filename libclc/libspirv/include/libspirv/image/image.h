@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if defined(__opencl_c_images)
+
 _CLC_OVERLOAD _CLC_DECL float __spirv_ImageRead__Rfloat(image2d_t image,
                                                         int2 coord);
 _CLC_OVERLOAD _CLC_DECL float __spirv_ImageRead__Rfloat(image2d_t image,
@@ -112,4 +114,6 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_ImageWrite(image2d_t image, int4 coord,
                                                 half4 texel);
 _CLC_OVERLOAD _CLC_DECL void __spirv_ImageWrite(image3d_t image, int4 coord,
                                                 half4 texel);
+#endif
+
 #endif

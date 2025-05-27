@@ -55,22 +55,19 @@ public:
            const char *filename, const char *lineno, const char *format,
            Args &&...args) {
     if (callbackSink && level >= this->callbackSinkLevel) {
-      callbackSink->log(level, filename, lineno, format,
-                        std::forward<Args>(args)...);
+      callbackSink->log(level, filename, lineno, format, args...);
     }
 
     if (standardSink) {
       if (isLegacySink) {
-        standardSink->log(level, filename, lineno, p.message,
-                          std::forward<Args>(args)...);
+        standardSink->log(level, filename, lineno, p.message, args...);
         return;
       }
 
       if (level < this->standardSinkLevel) {
         return;
       }
-      standardSink->log(level, filename, lineno, format,
-                        std::forward<Args>(args)...);
+      standardSink->log(level, filename, lineno, format, args...);
     }
   }
 

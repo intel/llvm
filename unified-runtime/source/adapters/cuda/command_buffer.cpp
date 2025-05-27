@@ -80,8 +80,7 @@ ur_exp_command_buffer_handle_t_::addSignalNode(CUgraphNode DepNode,
   UR_CHECK_ERROR(
       cuGraphAddEventRecordNode(&SignalNode, CudaGraph, &DepNode, 1, Event));
 
-  return std::unique_ptr<ur_event_handle_t_>(
-      ur_event_handle_t_::makeWithNative(Context, Event));
+  return std::make_unique<ur_event_handle_t_>(Context, Event);
 }
 
 ur_result_t ur_exp_command_buffer_handle_t_::addWaitNodes(
@@ -475,8 +474,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
             cuGraphAddEventRecordNode(&GraphNode, hCommandBuffer->CudaGraph,
                                       DepsList.data(), DepsList.size(), Event));
 
-        auto RetEventUP = std::unique_ptr<ur_event_handle_t_>(
-            ur_event_handle_t_::makeWithNative(hCommandBuffer->Context, Event));
+        auto RetEventUP = std::make_unique<ur_event_handle_t_>(
+            hCommandBuffer->Context, Event);
 
         *phEvent = RetEventUP.release();
       }
@@ -505,9 +504,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t LocalSize = hKernel->getLocalSize();
     CUfunction CuFunc = hKernel->get();
     UR_CHECK_ERROR(setKernelParams(
-        hCommandBuffer->Context, hCommandBuffer->Device, workDim,
-        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, hKernel, CuFunc,
-        ThreadsPerBlock, BlocksPerGrid));
+        hCommandBuffer->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid));
 
     // Set node param structure with the kernel related data
     auto &ArgPointers = hKernel->getArgPointers();
@@ -1165,9 +1163,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                    phEventWaitList));
 
-  RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
-      ur_event_handle_t_::makeNative(UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP,
-                                     hQueue, CuStream, StreamToken));
+  RetImplEvent = std::make_unique<ur_event_handle_t_>(
+      UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, hQueue, CuStream, StreamToken);
   UR_CHECK_ERROR(RetImplEvent->start());
 
   // Launch graph
@@ -1375,9 +1372,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     size_t BlocksPerGrid[3] = {1u, 1u, 1u};
     CUfunction CuFunc = KernelData.Kernel->get();
     auto Result = setKernelParams(
-        hCommandBuffer->Context, hCommandBuffer->Device, KernelData.WorkDim,
-        KernelData.GlobalWorkOffset, KernelData.GlobalWorkSize, LocalWorkSize,
-        KernelData.Kernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+        hCommandBuffer->Device, KernelData.WorkDim, KernelData.GlobalWorkOffset,
+        KernelData.GlobalWorkSize, LocalWorkSize, KernelData.Kernel, CuFunc,
+        ThreadsPerBlock, BlocksPerGrid);
     if (Result != UR_RESULT_SUCCESS) {
       return Result;
     }
@@ -1431,10 +1428,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
   UR_CHECK_ERROR(cuGraphEventRecordNodeGetEvent(SignalNode, &SignalEvent));
 
   if (phEvent) {
-    *phEvent = std::unique_ptr<ur_event_handle_t_>(
-                   ur_event_handle_t_::makeWithNative(CommandBuffer->Context,
-                                                      SignalEvent))
-                   .release();
+    *phEvent = new ur_event_handle_t_(CommandBuffer->Context, SignalEvent);
   }
 
   return UR_RESULT_SUCCESS;

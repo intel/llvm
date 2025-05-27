@@ -50,6 +50,7 @@ AsanInterceptor::~AsanInterceptor() {
   for (auto &[_, ShadowMemory] : m_ShadowMap) {
     ShadowMemory->Destory();
   }
+  m_ShadowMap.clear();
 
   for (auto Adapter : m_Adapters) {
     getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
