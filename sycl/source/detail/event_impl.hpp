@@ -67,6 +67,12 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
+  
+  // delete the copy constructors and assignment operators
+  event_impl(const event_impl&) = delete;
+  event_impl &operator=(const event_impl&) = delete;
+  event_impl(event_impl&&) = delete;
+  event_impl &operator=(event_impl&&) = delete;
 
   /// Sets a queue associated with the event
   ///
@@ -347,7 +353,7 @@ public:
     // queue and command, as well as the fact that it is not in enqueued state.
     return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
   }
-
+bool MHasBeenReleased = false;
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -433,6 +439,7 @@ protected:
   // MEvent is lazily created in first ur handle query.
   bool MIsDefaultConstructed = false;
   bool MIsHostEvent = false;
+  
 };
 
 } // namespace detail

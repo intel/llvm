@@ -730,10 +730,9 @@ enum umf_result_t L0MemoryProvider::free(void *Ptr, size_t Size) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::GetL0MinPageSize(const void *Mem,
-                                                size_t *PageSize) {
+umf_result_t L0MemoryProvider::GetL0MinPageSize(void *Mem, size_t *PageSize) {
   ur_result_t Res = UR_RESULT_SUCCESS;
-  void *Ptr = const_cast<void *>(Mem);
+  void *Ptr = Mem;
 
   if (!Mem) {
     Res = allocateImpl(&Ptr, 1, 0);
@@ -766,8 +765,7 @@ err_set_status:
   return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
 }
 
-umf_result_t L0MemoryProvider::get_min_page_size(const void *Ptr,
-                                                 size_t *PageSize) {
+umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
 
   // Query L0 for min page size. Use provided 'Ptr'.
   if (Ptr) {

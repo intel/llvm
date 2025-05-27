@@ -887,19 +887,19 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<ur_event_handle_t> DepEvents,
                              ur_event_handle_t *OutEvent) {
-  assert(SrcQueue && "USM copy must be called with a valid device queue");
-  if (!Len) { // no-op, but ensure DepEvents will still be waited on
-    if (!DepEvents.empty()) {
-      SrcQueue->getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
-          SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
-          OutEvent);
-    }
-    return;
-  }
-
-  if (!SrcMem || !DstMem)
-    throw exception(make_error_code(errc::invalid),
-                    "NULL pointer argument in memory copy operation.");
+  // assert(SrcQueue && "USM copy must be called with a valid device queue");
+  // if (!Len) { // no-op, but ensure DepEvents will still be waited on
+  //   if (!DepEvents.empty()) {
+  //     SrcQueue->getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
+  //         SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
+  //         OutEvent);
+  //   }
+  //   return;
+  // }
+  // 
+  // if (!SrcMem || !DstMem)
+  //   throw exception(make_error_code(errc::invalid),
+  //                   "NULL pointer argument in memory copy operation.");
 
   const AdapterPtr &Adapter = SrcQueue->getAdapter();
   Adapter->call<UrApiKind::urEnqueueUSMMemcpy>(SrcQueue->getHandleRef(),

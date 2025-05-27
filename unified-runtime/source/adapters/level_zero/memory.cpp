@@ -1257,6 +1257,7 @@ ur_result_t urEnqueueUSMMemcpy(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
+  ReleaseTracker = false;
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   return enqueueMemCopyHelper( // TODO: do we need a new command type for this?

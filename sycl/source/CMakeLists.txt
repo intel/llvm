@@ -3,6 +3,10 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
+
+set(CMAKE_BUILD_TYPE Debug)
+
+
 include(CheckLinkerFlag)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
