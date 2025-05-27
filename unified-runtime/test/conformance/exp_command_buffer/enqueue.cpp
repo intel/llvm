@@ -22,9 +22,6 @@ struct urEnqueueCommandBufferExpTest
     program_name = "increment";
     UUR_RETURN_ON_FATAL_FAILURE(urCommandBufferExpExecutionTest::SetUp());
 
-    // https://github.com/intel/llvm/issues/18610
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     // Create an in-order queue
     ur_queue_properties_t queue_properties = {
         UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
@@ -116,6 +113,9 @@ TEST_P(urEnqueueCommandBufferExpTest, SerializeAcrossQueues) {
 // Tests that submitting a command-buffer twice to an out-of-order queue
 // relying on implicit serialization semantics for dependencies.
 TEST_P(urEnqueueCommandBufferExpTest, SerializeOutofOrderQueue) {
+  // https://github.com/intel/llvm/issues/18610
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
   ASSERT_SUCCESS(urEnqueueCommandBufferExp(out_of_order_queue, cmd_buf_handle,
                                            0, nullptr, nullptr));
   ASSERT_SUCCESS(urEnqueueCommandBufferExp(out_of_order_queue, cmd_buf_handle,
