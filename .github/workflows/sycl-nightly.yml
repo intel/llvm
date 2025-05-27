@@ -33,6 +33,7 @@ jobs:
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
       build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu --no-assertions'
+      build_target: all
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 

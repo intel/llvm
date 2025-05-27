@@ -32,6 +32,10 @@ on:
       build_artifact_suffix:
         type: string
         required: true
+      build_target:
+        type: string
+        required: false
+        default: sycl-toolchain
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.zst
@@ -177,7 +181,7 @@ jobs:
           -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
     - name: Compile
       id: build
-      run: cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
+      run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
