@@ -34,6 +34,19 @@ int memcmp(const void *s1, const void *s2, size_t n) {
   return __devicelib_memcmp(s1, s2, n);
 }
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+// For AMD/Cuda those symbols will be provided by libclc.
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_x();
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_y();
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_z();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_x();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_y();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_z();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_x();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_y();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_z();
+#endif // __NVPTX__ || __AMDGCN__
+
 #ifndef __NVPTX__
 
 // This simple rand is for ease of use only, the implementation aligns with
@@ -51,13 +64,24 @@ int memcmp(const void *s1, const void *s2, size_t n) {
 DEVICE_EXTERN_C_INLINE
 int rand() {
   size_t gid =
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+      (__spirv_GlobalInvocationId_x() * __spirv_GlobalSize_y() *
+       __spirv_GlobalSize_z()) +
+      (__spirv_GlobalInvocationId_y() * __spirv_GlobalSize_z()) +
+      __spirv_GlobalInvocationId_z();
+#else
       (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
        __spirv_BuiltInGlobalSize.z) +
       (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
       __spirv_BuiltInGlobalInvocationId.z;
-  size_t global_size = __spirv_BuiltInGlobalSize.x *
-                       __spirv_BuiltInGlobalSize.y *
-                       __spirv_BuiltInGlobalSize.z;
+#endif
+  size_t global_size =
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+      __spirv_GlobalSize_x() * __spirv_GlobalSize_y() * __spirv_GlobalSize_z();
+#else
+      __spirv_BuiltInGlobalSize.x * __spirv_BuiltInGlobalSize.y *
+      __spirv_BuiltInGlobalSize.z;
+#endif
   size_t gid1 =
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   if (RAND_NEXT_ACC[gid1] == 0)
@@ -73,13 +97,24 @@ int rand() {
 DEVICE_EXTERN_C_INLINE
 void srand(unsigned int seed) {
   size_t gid =
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+      (__spirv_GlobalInvocationId_x() * __spirv_GlobalSize_y() *
+       __spirv_GlobalSize_z()) +
+      (__spirv_GlobalInvocationId_y() * __spirv_GlobalSize_z()) +
+      __spirv_GlobalInvocationId_z();
+#else
       (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
        __spirv_BuiltInGlobalSize.z) +
       (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
       __spirv_BuiltInGlobalInvocationId.z;
-  size_t global_size = __spirv_BuiltInGlobalSize.x *
-                       __spirv_BuiltInGlobalSize.y *
-                       __spirv_BuiltInGlobalSize.z;
+#endif
+  size_t global_size =
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+      __spirv_GlobalSize_x() * __spirv_GlobalSize_y() * __spirv_GlobalSize_z();
+#else
+      __spirv_BuiltInGlobalSize.x * __spirv_BuiltInGlobalSize.y *
+      __spirv_BuiltInGlobalSize.z;
+#endif
   size_t gid1 =
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   RAND_NEXT_ACC[gid1] = seed;

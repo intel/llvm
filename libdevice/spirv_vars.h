@@ -11,8 +11,7 @@
 
 #include "device.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
-    defined(__AMDGCN__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #include <cstddef>
 #include <cstdint>
@@ -63,5 +62,5 @@ const size_t_vec __spirv_BuiltInGlobalInvocationId{};
 const size_t_vec __spirv_BuiltInLocalInvocationId{};
 #endif // !__SPIR__ && !__SPIRV__
 
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
+#endif // __SPIR__ || __SPIRV__
 #endif // __LIBDEVICE_SPIRV_VARS_H
