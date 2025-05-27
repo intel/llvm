@@ -1,4 +1,4 @@
-//==---------- define_vendors.hpp ----- Preprocessor directives ------------==//
+//==------------------ usm --- SYCL USM functions --------------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#ifndef __SYCL_KHR_INCLUDES_USM
+#define __SYCL_KHR_INCLUDES_USM
 
-#define SYCL_IMPLEMENTATION_ONEAPI
-#define SYCL_IMPLEMENTATION_INTEL
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
+
+#endif // __SYCL_KHR_INCLUDES_USM
