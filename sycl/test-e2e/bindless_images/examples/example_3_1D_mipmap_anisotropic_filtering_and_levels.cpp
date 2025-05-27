@@ -10,7 +10,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 int main() {
-  // Set up device, queue, and context
+  // Set up queue
   sycl::device dev;
   sycl::queue q(dev);
 
