@@ -33,15 +33,19 @@ public:
   string_view(std::string_view strn) noexcept
       : str(strn.data())
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      , len(strn.size())
+        ,
+        len(strn.size())
 #endif
-       {}
+  {
+  }
   string_view(const sycl::detail::string &strn) noexcept
       : str(strn.c_str())
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      , len(strlen(strn.c_str()))
+        ,
+        len(strlen(strn.c_str()))
 #endif
-       {}
+  {
+  }
 
   string_view &operator=(string_view &&strn) noexcept = default;
   string_view &operator=(const string_view &strn) noexcept = default;

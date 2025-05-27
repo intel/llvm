@@ -477,8 +477,7 @@ event handler::finalize() {
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
           !KernelBundleImpPtr->tryGetKernel(
-              detail::toKernelNameStrT(MKernelName),
-              KernelBundleImpPtr)) {
+              toKernelNameStrT(MKernelName), KernelBundleImpPtr)) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
@@ -567,8 +566,8 @@ event handler::finalize() {
 #endif
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(MQueue, toKernelNameStrT(MKernelName));
+          std::tie(BinImage, std::ignore) = detail::retrieveKernelBinary(
+              MQueue, toKernelNameStrT(MKernelName));
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
