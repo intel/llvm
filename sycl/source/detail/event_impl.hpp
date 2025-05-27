@@ -353,7 +353,7 @@ public:
     // queue and command, as well as the fact that it is not in enqueued state.
     return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
   }
-bool MHasBeenReleased = false;
+uint32_t MHasBeenReleased = 0;
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait

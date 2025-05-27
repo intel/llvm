@@ -882,10 +882,11 @@ urEventRetain(/** [in] handle of the event object */ ur_event_handle_t Event) {
 ur_result_t
 
 urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
-  if (ReleaseTracker) {
-	  std::cout << "Double release call" << std::endl;
-	  __debugbreak();
-  }
+	// The releaseTracker is not a per-class var, just a global
+  //if (ReleaseTracker) {  
+	  //std::cout << "Double release call?" << std::endl;  // changes timing.
+	  //__debugbreak();
+  //}
   ReleaseTracker = true;
   Event->RefCountExternal--;
   bool isEventsWaitCompleted =

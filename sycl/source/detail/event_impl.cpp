@@ -47,11 +47,14 @@ void event_impl::initContextIfNeeded() {
 }
 
 event_impl::~event_impl() {
-  if (MHasBeenReleased)
-	  std::cout << "~event_impl MHasBeenReleased == true" << std::endl;
+  if (MHasBeenReleased == 0xDEADBEEF)
+	  std::cout << "~event_impl MHasBeenReleased is already set to 0xDEADBEEF" << std::endl;
+  else if(MHasBeenReleased != 0)
+	  std::cout << "MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
+  
   try {
 	// __debugbreak(); // CP
-	MHasBeenReleased = true;
+	MHasBeenReleased = 0xDEADBEEF;
 	// std::cout << "~event_impl: " << (unsigned long)this << std::endl;  // changes the timing
     auto Handle = this->getHandle();
     if (Handle)
@@ -64,9 +67,11 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal(bool *Success) {
 	// CP -- this does not trip
-   if(MHasBeenReleased){
-	   std::cout << "waitInternal HasBeenReleased : " << (unsigned long)this << std::endl;
+   if(MHasBeenReleased == 0xDEADBEEF){
+	   std::cout << "waitInternal HasBeenReleased is already set to 0xDEADBEEF.   this:  " << (unsigned long)this << std::endl;
 	   __debugbreak();
+   }else if(MHasBeenReleased != 0){
+	  std::cout << "MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
    
   auto Handle = this->getHandle();
@@ -263,9 +268,11 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
                       bool *Success) {
 	// CP -- this trips
-   if(MHasBeenReleased) {
-	   std::cout << "wait HasBeenRelease: " << (unsigned long)this << std::endl;
+   if(MHasBeenReleased == 0xDEADBEEF) {
+	   std::cout << "wait HasBeenRelease already set to 0xDEADBEEF.  this:  " << (unsigned long)this << std::endl;
 	   __debugbreak();
+   }else if(MHasBeenReleased != 0){
+	  std::cout << "MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
    return;
    
