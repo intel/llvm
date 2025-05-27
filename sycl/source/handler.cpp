@@ -476,8 +476,8 @@ event handler::finalize() {
           !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
-          !KernelBundleImpPtr->tryGetKernel(
-              toKernelNameStrT(MKernelName), KernelBundleImpPtr)) {
+          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName),
+                                            KernelBundleImpPtr)) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
