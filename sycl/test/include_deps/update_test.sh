@@ -6,6 +6,12 @@ HEADERS=(
     sycl/accessor.hpp
 
     sycl/detail/core.hpp
+
+    sycl/khr/includes/version
+    sycl/khr/includes/queue
+    sycl/khr/includes/handler
+    sycl/khr/includes/event
+    sycl/khr/includes/index_space
 )
 
 for x in ${HEADERS[@]} ; do

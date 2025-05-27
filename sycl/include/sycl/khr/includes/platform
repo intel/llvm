@@ -1,4 +1,4 @@
-//==---------- define_vendors.hpp ----- Preprocessor directives ------------==//
+//==-------------- platform --- SYCL platform class ------------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#ifndef __SYCL_KHR_INCLUDES_PLATFORM
+#define __SYCL_KHR_INCLUDES_PLATFORM
 
-#define SYCL_IMPLEMENTATION_ONEAPI
-#define SYCL_IMPLEMENTATION_INTEL
+#include <sycl/platform.hpp>
+
+#endif // __SYCL_KHR_INCLUDES_PLATFORM
