@@ -23,6 +23,7 @@ add_llvm_component_library(LLVMSYCLPostLink
   Core
   Demangle
   IRPrinter
+  Linker
   Passes
   Support
   ipo

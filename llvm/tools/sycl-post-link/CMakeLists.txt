@@ -9,7 +9,6 @@ set(LLVM_LINK_COMPONENTS
   TransformUtils
   SYCLLowerIR
   SYCLPostLink
-  Linker
   Passes
   Analysis
   )
