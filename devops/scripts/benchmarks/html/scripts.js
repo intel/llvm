@@ -89,7 +89,7 @@ function createChart(data, containerId, type) {
         plugins: {
             title: {
                 display: true,
-                text: data.label
+                text: data.display_label || data.label
             },
             subtitle: {
                 display: true,
@@ -159,7 +159,14 @@ function createChart(data, containerId, type) {
     const chartConfig = {
         type: type === 'time' ? 'line' : 'bar',
         data: type === 'time' ? {
-            datasets: Object.values(data.runs)
+            datasets: Object.values(data.runs).map(runData => ({
+                ...runData,
+                // For timeseries (historical results charts) use runName,
+                // otherwise use displayLabel (for layer comparison charts)
+                label: containerId.startsWith('timeseries') ? 
+                    runData.runName : 
+                    (runData.displayLabel || runData.label)
+            }))
         } : {
             labels: data.labels,
             datasets: data.datasets
@@ -174,9 +181,9 @@ function createChart(data, containerId, type) {
 
 function createTimeseriesDatasets(data) {
     return Object.entries(data.runs).map(([name, runData], index) => ({
-        label: name,
+        label: runData.runName, // Use run name for legend
         data: runData.points.map(p => ({
-            seriesName: name,
+            seriesName: runData.runName, // Use run name for tooltips
             x: p.date,
             y: p.value,
             gitHash: p.git_hash,
@@ -345,12 +352,17 @@ function createChartContainer(data, canvasId, type) {
 }
 
 function metadataForLabel(label, type) {
+    // First try exact match
+    if (benchmarkMetadata[label]?.type === type) {
+        return benchmarkMetadata[label];
+    }
+    
+    // Then fall back to prefix match for backward compatibility
     for (const [key, metadata] of Object.entries(benchmarkMetadata)) {
         if (metadata.type === type && label.startsWith(key)) {
             return metadata;
         }
     }
-
     return null;
 }
 
@@ -383,24 +395,40 @@ function extractLabels(data) {
 
     // For bar charts
     if (data.datasets) {
-        return data.datasets.map(dataset => dataset.label);
+        // Use the unique lookupLabel for filtering and lookup purposes
+        return data.datasets.map(dataset => dataset.lookupLabel || dataset.label);
     }
 
     // For time series charts
     return [data.label];
 }
 
-function generateExtraInfo(latestRunsLookup, data) {
+function getDisplayLabel(label, data, metadata) {
+    if (data.datasets) {
+        // For bar charts, find the corresponding dataset and use its display label
+        const dataset = data.datasets.find(d => (d.lookupLabel || d.label) === label);
+        if (dataset) {
+            return dataset.label;
+        }
+    } else if (metadata && metadata.display_name) {
+        // For other chart types
+        return metadata.display_name;
+    }
+    return label;
+}
+
+function generateExtraInfo(latestRunsLookup, data, type = 'benchmark') {
     const labels = extractLabels(data);
 
     return labels.map(label => {
-        const metadata = metadataForLabel(label, 'benchmark');
+        const metadata = metadataForLabel(label, type);
         const latestRun = latestRunsLookup.get(label);
+        const displayLabel = getDisplayLabel(label, data, metadata);
 
         let html = '<div class="extra-info-entry">';
 
         if (metadata && latestRun) {
-            html += `<strong>${label}:</strong> ${formatCommand(latestRun.result)}<br>`;
+            html += `<strong>${displayLabel}:</strong> ${formatCommand(latestRun.result)}<br>`;
 
             if (metadata.description) {
                 html += `<em>Description:</em> ${metadata.description}`;
@@ -414,7 +442,7 @@ function generateExtraInfo(latestRunsLookup, data) {
                 html += `<br><em class="unstable-warning">⚠️ Unstable:</em> <span class="unstable-text">${metadata.unstable}</span>`;
             }
         } else {
-            html += `<strong>${label}:</strong> No data available`;
+            html += `<strong>${displayLabel}:</strong> No data available`;
         }
 
         html += '</div>';
@@ -560,6 +588,7 @@ function processTimeseriesData(benchmarkRuns) {
             if (!resultsByLabel[result.label]) {
                 resultsByLabel[result.label] = {
                     label: result.label,
+                    display_label: metadata?.display_name || result.label,
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
@@ -588,6 +617,7 @@ function processBarChartsData(benchmarkRuns) {
 
                 groupedResults[result.explicit_group] = {
                     label: result.explicit_group,
+                    display_label: groupMetadata?.display_name || result.explicit_group, // Use display_name if available
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
@@ -608,11 +638,18 @@ function processBarChartsData(benchmarkRuns) {
                 group.labels.push(run.name);
             }
 
-            let dataset = group.datasets.find(d => d.label === result.label);
+            // Store the label we'll use for lookup and the display label separately
+            const lookupLabel = result.label;
+            // First try to get display name from metadata using the actual label
+            const metadata = benchmarkMetadata[result.label];
+            const displayLabel = metadata?.display_name || result.label;
+
+            let dataset = group.datasets.find(d => d.lookupLabel === lookupLabel);
             if (!dataset) {
                 const datasetIndex = group.datasets.length;
                 dataset = {
-                    label: result.label,
+                    lookupLabel: lookupLabel, // Store the original label for lookup
+                    label: displayLabel,      // Use display label for rendering
                     data: new Array(group.labels.length).fill(null),
                     backgroundColor: colorPalette[datasetIndex % colorPalette.length],
                     borderColor: colorPalette[datasetIndex % colorPalette.length],
@@ -709,8 +746,11 @@ function addRunDataPoint(group, run, result, comparison, name = null) {
 
     if (!group.runs[runKey]) {
         const datasetIndex = Object.keys(group.runs).length;
+        const metadata = benchmarkMetadata[result.name];
+        const displayName = metadata?.display_name || result.label;
         group.runs[runKey] = {
             label: runKey,
+            displayLabel: displayName + ' (' + run.name + ')', // Format for layer comparison charts
             runName: run.name,
             data: [],
             borderColor:
@@ -725,7 +765,8 @@ function addRunDataPoint(group, run, result, comparison, name = null) {
     }
 
     group.runs[runKey].data.push({
-        seriesName: runKey,
+        // For historical results use only run.name, for layer comparisons use displayLabel
+        seriesName: name === run.name ? run.name : group.runs[runKey].displayLabel,
         x: new Date(run.date),
         y: result.value,
         stddev: result.stddev,

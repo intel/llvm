@@ -8,114 +8,101 @@ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 """
 
 import re
-import sys
+from typing import Any, Dict, List, Tuple, Union
 import util
 
-# allow imports from top-level scripts directory
-sys.path.append("..")
 from .print_helper import get_api_types_funcs
 from version import Version
 
 
-"""
-    Extracts traits from a spec object
-"""
-
-
 class obj_traits:
+    """Extracts traits from a spec object"""
 
     @staticmethod
-    def is_function(obj):
+    def is_function(obj) -> bool:
         try:
-            return True if re.match(r"function", obj["type"]) else False
-        except:
+            return obj["type"].startswith("function")
+        except KeyError:
             return False
 
     @staticmethod
-    def is_class(obj):
+    def is_class(obj) -> bool:
         try:
-            return True if re.match(r"class", obj["type"]) else False
-        except:
+            return obj["type"].startswith("class")
+        except KeyError:
             return False
 
     @staticmethod
-    def is_handle(obj):
+    def is_handle(obj) -> bool:
         try:
-            return True if re.match(r"handle", obj["type"]) else False
-        except:
+            return obj["type"].startswith("handle")
+        except KeyError:
             return False
 
     @staticmethod
-    def is_enum(obj):
+    def is_enum(obj) -> bool:
         try:
-            return True if re.match(r"enum", obj["type"]) else False
-        except:
+            return obj["type"].startswith("enum")
+        except KeyError:
             return False
 
     @staticmethod
-    def is_experimental(obj):
+    def is_experimental(obj) -> bool:
         try:
-            return True if re.search("Exp$", obj["name"]) else False
-        except:
+            return obj["name"].endswith("Exp")
+        except KeyError:
             return False
 
     @staticmethod
-    def class_name(obj):
+    def class_name(obj) -> Union[str, None]:
         try:
             return obj["class"]
-        except:
+        except KeyError:
             return None
 
     @staticmethod
-    def is_loader_only(obj):
+    def is_loader_only(obj) -> bool:
         try:
             return obj["loader_only"]
-        except:
+        except KeyError:
             return False
-
-
-"""
-    Extracts traits from a class name
-"""
 
 
 class class_traits:
+    """Extracts traits from a class name"""
 
     @staticmethod
-    def is_global(name, tags):
+    def is_global(name, tags) -> bool:
         try:
-            return True if name in tags else False
-        except:
+            return name in tags
+        except BaseException:
             return False
 
     @staticmethod
-    def is_namespace(name, namespace, tags):
+    def is_namespace(name, namespace: str, tags) -> bool:
         try:
             return tags[name] == namespace
-        except:
+        except BaseException:
             return False
 
     @staticmethod
-    def is_singleton(item):
+    def is_singleton(item) -> bool:
         try:
             return "singleton" == item["attribute"]
-        except:
+        except BaseException:
             return False
 
     @staticmethod
-    def get_handle(item, meta):
+    def get_handle(item, meta) -> str:
         try:
             return meta["class"][item["name"]]["handle"][0]
-        except:
+        except BaseException:
             return ""
 
 
-"""
-    Extracts traits from a type name
-"""
-
-
 class type_traits:
+    """Extracts traits from a type name"""
+
     RE_HANDLE = r"(.*)handle_t"
     RE_NATIVE_HANDLE = r"(.*)native_handle_t"
     RE_IPC = r"(.*)ipc(.*)handle_t"
@@ -127,160 +114,160 @@ class type_traits:
     RE_ARRAY = r"(.*)\[([1-9][0-9]*)\]"
 
     @staticmethod
-    def base(name):
-        return _remove_const_ptr(name)
-
-    @classmethod
-    def is_handle(cls, name):
+    def base(name) -> Union[str, bool]:
         try:
-            return True if re.match(cls.RE_HANDLE, name) else False
-        except:
+            return _remove_const_ptr(name)
+        except BaseException:
             return False
 
     @classmethod
-    def is_native_handle(cls, name):
+    def is_handle(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_NATIVE_HANDLE, name) else False
-        except:
+            return bool(re.match(cls.RE_HANDLE, name))
+        except TypeError:
             return False
 
     @classmethod
-    def is_pointer_to_pointer(cls, name):
+    def is_native_handle(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_PPOINTER, name) else False
-        except:
+            return bool(re.match(cls.RE_NATIVE_HANDLE, name))
+        except TypeError:
             return False
 
     @classmethod
-    def is_ipc_handle(cls, name):
+    def is_pointer_to_pointer(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_IPC, name) else False
-        except:
+            return bool(re.match(cls.RE_PPOINTER, name))
+        except TypeError:
+            return False
+
+    @classmethod
+    def is_ipc_handle(cls, name) -> bool:
+        try:
+            return bool(re.match(cls.RE_IPC, name))
+        except TypeError:
             return False
 
     @staticmethod
-    def is_class_handle(name, meta):
+    def is_class_handle(name, meta) -> bool:
         try:
             name = _remove_const_ptr(name)
             return len(meta["handle"][name]["class"]) > 0
-        except:
+        except BaseException:
             return False
 
     @classmethod
-    def is_pointer(cls, name):
+    def is_pointer(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_POINTER, name) else False
-        except:
+            return bool(re.match(cls.RE_POINTER, name))
+        except TypeError:
             return False
 
     @classmethod
-    def is_descriptor(cls, name):
+    def is_descriptor(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_DESC, name) else False
-        except:
+            return bool(re.match(cls.RE_DESC, name))
+        except TypeError:
             return False
 
     @classmethod
-    def is_properties(cls, name):
+    def is_properties(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_PROPS, name) else False
-        except:
+            return bool(re.match(cls.RE_PROPS, name))
+        except TypeError:
             return False
 
     @classmethod
-    def is_flags(cls, name):
+    def is_flags(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_FLAGS, name) else False
-        except:
+            return bool(re.match(cls.RE_FLAGS, name))
+        except TypeError:
             return False
 
     @classmethod
-    def get_flag_type(cls, name):
+    def get_flag_type(cls, name: str) -> str:
         return re.sub(r"(\w+)_flags_t", r"\1_flag_t", name)
 
     @staticmethod
-    def is_known(name, meta):
+    def is_known(name, meta) -> bool:
         try:
             name = _remove_const_ptr(name)
             for group in meta:
                 if name in meta[group]:
                     return True
             return False
-        except:
+        except BaseException:
             return False
 
     @staticmethod
-    def is_enum(name, meta):
+    def is_enum(name, meta) -> bool:
         try:
             name = _remove_const_ptr(name)
             if name in meta["enum"]:
                 return True
             return False
-        except:
+        except BaseException:
             return False
 
     @staticmethod
-    def is_funcptr(name, meta):
+    def is_funcptr(name, meta) -> bool:
         return name in meta["fptr_typedef"]
 
     @staticmethod
-    def is_struct(name, meta):
+    def is_struct(name, meta) -> bool:
         try:
             name = _remove_const_ptr(name)
             if name in meta["struct"]:
                 return True
             return False
-        except:
+        except BaseException:
             return False
 
     @staticmethod
-    def find_class_name(name, meta):
+    def find_class_name(name, meta) -> Union[str, None]:
         try:
             name = _remove_const_ptr(name)
             for group in meta:
                 if name in meta[group]:
                     return meta[group][name]["class"]
             return None
-        except:
+        except BaseException:
             return None
 
     @classmethod
-    def is_array(cls, name):
+    def is_array(cls, name) -> bool:
         try:
             return True if re.match(cls.RE_ARRAY, name) else False
-        except:
+        except BaseException:
             return False
 
     @classmethod
-    def get_array_length(cls, name):
+    def get_array_length(cls, name) -> str:
         if not cls.is_array(name):
             raise Exception("Cannot find array length of non-array type.")
-
         match = re.match(cls.RE_ARRAY, name)
+        assert match
         return match.groups()[1]
 
     @classmethod
-    def get_array_element_type(cls, name):
+    def get_array_element_type(cls, name) -> str:
         if not cls.is_array(name):
             raise Exception("Cannot find array type of non-array type.")
-
         match = re.match(cls.RE_ARRAY, name)
+        assert match
         return match.groups()[0]
 
     @staticmethod
-    def get_struct_members(type_name, meta):
+    def get_struct_members(type_name, meta) -> List[dict]:
         struct_type = _remove_const_ptr(type_name)
-        if not struct_type in meta["struct"]:
+        if struct_type not in meta["struct"]:
             raise Exception(f"Cannot return members of non-struct type {struct_type}.")
         return meta["struct"][struct_type]["members"]
 
 
-"""
-    Extracts traits from a value name
-"""
-
-
 class value_traits:
+    """Extracts traits from a value name"""
+
     RE_VERSION = r"\$X_MAKE_VERSION\(\s*(\d+)\s*\,\s*(\d+)\s*\)"
     RE_BIT = r".*BIT\(\s*(.*)\s*\)"
     RE_HEX = r"0x\w+"
@@ -288,86 +275,86 @@ class value_traits:
     RE_ARRAY = r"(.*)\[(.*)\]"
 
     @classmethod
-    def is_ver(cls, name):
+    def is_ver(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_VERSION, name) else False
-        except:
+            return bool(re.match(cls.RE_VERSION, name))
+        except BaseException:
             return False
 
     @classmethod
-    def get_major_ver(cls, name):
+    def get_major_ver(cls, name) -> int:
         try:
             return int(re.sub(cls.RE_VERSION, r"\1", name))
-        except:
+        except BaseException:
             return 0
 
     @classmethod
-    def get_minor_ver(cls, name):
+    def get_minor_ver(cls, name) -> int:
         try:
             return int(re.sub(cls.RE_VERSION, r"\2", name))
-        except:
+        except BaseException:
             return 0
 
     @classmethod
-    def is_bit(cls, name):
+    def is_bit(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_BIT, name) else False
-        except:
+            return bool(re.match(cls.RE_BIT, name))
+        except BaseException:
             return False
 
     @classmethod
-    def get_bit_count(cls, name):
+    def get_bit_count(cls, name) -> int:
         try:
             return int(re.sub(cls.RE_BIT, r"\1", name))
-        except:
+        except BaseException:
             return 0
 
     @classmethod
-    def is_hex(cls, name):
+    def is_hex(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_HEX, name) else False
-        except:
+            return bool(re.match(cls.RE_HEX, name))
+        except BaseException:
             return False
 
     @classmethod
-    def is_macro(cls, name, meta):
+    def is_macro(cls, name, meta) -> bool:
         try:
             name = cls.get_macro_name(name)
             name = cls.get_array_length(name)
-            return True if name in meta["macro"] else False
-        except:
+            return name in meta["macro"]
+        except BaseException:
             return False
 
     @classmethod
-    def get_macro_name(cls, name):
+    def get_macro_name(cls, name) -> str:
         try:
             return re.sub(cls.RE_MACRO, r"\1", name)  # 'NAME()' -> 'NAME'
-        except:
+        except BaseException:
             return name
 
     @classmethod
-    def is_array(cls, name):
+    def is_array(cls, name) -> bool:
         try:
-            return True if re.match(cls.RE_ARRAY, name) else False
-        except:
+            return bool(re.match(cls.RE_ARRAY, name))
+        except BaseException:
             return False
 
     @classmethod
-    def get_array_name(cls, name):
+    def get_array_name(cls, name) -> str:
         try:
             return re.sub(cls.RE_ARRAY, r"\1", name)  # 'name[len]' -> 'name'
-        except:
+        except BaseException:
             return name
 
     @classmethod
-    def get_array_length(cls, name):
+    def get_array_length(cls, name) -> str:
         try:
             return re.sub(cls.RE_ARRAY, r"\2", name)  # 'name[len]' -> 'len'
-        except:
+        except BaseException:
             return name
 
     @classmethod
-    def find_enum_name(cls, name, meta):
+    def find_enum_name(cls, name, meta) -> Union[list, None]:
         try:
             name = cls.get_array_name(name)
             # if the value is an etor, return the name of the enum
@@ -375,16 +362,13 @@ class value_traits:
                 if name in meta["enum"][e]["etors"]:
                     return e
             return None
-        except:
+        except BaseException:
             return None
 
 
-"""
-    Extracts traits from a parameter object
-"""
-
-
 class param_traits:
+    """Extracts traits from a parameter object"""
+
     RE_MBZ = r".*\[mbz\].*"
     RE_IN = r"^\[in\].*"
     RE_OUT = r"^\[out\].*"
@@ -399,112 +383,112 @@ class param_traits:
     RE_BOUNDS = r".*\[bounds\((.+),\s*(.+)\)].*"
 
     @classmethod
-    def is_mbz(cls, item):
+    def is_mbz(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_MBZ, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_MBZ, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_input(cls, item):
+    def is_input(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_IN, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_IN, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_output(cls, item):
+    def is_output(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_OUT, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_OUT, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_inoutput(cls, item):
+    def is_inoutput(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_INOUT, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_INOUT, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_optional(cls, item):
+    def is_optional(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_OPTIONAL, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_OPTIONAL, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_nocheck(cls, item):
+    def is_nocheck(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_NOCHECK, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_NOCHECK, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_range(cls, item):
+    def is_range(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_RANGE, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_RANGE, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_tagged(cls, item):
+    def is_tagged(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_TAGGED, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_TAGGED, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_bounds(cls, item):
+    def is_bounds(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_BOUNDS, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_BOUNDS, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def tagged_member(cls, item):
+    def tagged_member(cls, item) -> Union[str, None]:
         try:
             return re.sub(cls.RE_TAGGED, r"\1", item["desc"])
-        except:
+        except BaseException:
             return None
 
     @classmethod
-    def range_start(cls, item):
+    def range_start(cls, item) -> Union[str, None]:
         try:
             return re.sub(cls.RE_RANGE, r"\1", item["desc"])
-        except:
+        except BaseException:
             return None
 
     @classmethod
-    def range_end(cls, item):
+    def range_end(cls, item) -> Union[str, None]:
         try:
             return re.sub(cls.RE_RANGE, r"\2", item["desc"])
-        except:
+        except BaseException:
             return None
 
     @classmethod
-    def is_retain(cls, item):
+    def is_retain(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_RETAIN, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_RETAIN, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_release(cls, item):
+    def is_release(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_RELEASE, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_RELEASE, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_typename(cls, item):
+    def is_typename(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_TYPENAME, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_TYPENAME, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def typename(cls, item):
+    def typename(cls, item) -> Union[str, None]:
         match = re.match(cls.RE_TYPENAME, item["desc"])
         if match:
             return match.group(1)
@@ -512,7 +496,7 @@ class param_traits:
             return None
 
     @classmethod
-    def typename_size(cls, item):
+    def typename_size(cls, item) -> Union[str, None]:
         match = re.match(cls.RE_TYPENAME, item["desc"])
         if match:
             return match.group(2)
@@ -520,7 +504,7 @@ class param_traits:
             return None
 
     @classmethod
-    def bounds_offset(cls, item):
+    def bounds_offset(cls, item) -> Union[str, None]:
         match = re.match(cls.RE_BOUNDS, item["desc"])
         if match:
             return match.group(1)
@@ -528,68 +512,61 @@ class param_traits:
             return None
 
     @classmethod
-    def bounds_size(cls, item):
+    def bounds_size(cls, item) -> Union[str, None]:
         match = re.match(cls.RE_BOUNDS, item["desc"])
         if match:
             return match.group(2)
         else:
             return None
-
-
-"""
-    Extracts traits from a function object
-"""
 
 
 class function_traits:
+    """Extracts traits from a function object"""
 
     @staticmethod
-    def is_static(item):
+    def is_static(item) -> bool:
         try:
-            return True if re.match(r"static", item["decl"]) else False
-        except:
+            return bool(re.match(r"static", item["decl"]))
+        except BaseException:
             return False
 
     @staticmethod
-    def is_global(item, tags):
+    def is_global(item, tags) -> bool:
         try:
-            return True if item["class"] in tags else False
-        except:
+            return item["class"] in tags
+        except BaseException:
             return False
-
-
-"""
-    Extracts traits from an enumerator
-"""
 
 
 class etor_traits:
+    """Extracts traits from an enumerator"""
+
     RE_OPTIONAL_QUERY = r".*\[optional-query\].*"
     RE_DEPRECATED = r".*\[deprecated-value\].*"
 
     @classmethod
-    def is_optional_query(cls, item):
+    def is_optional_query(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_OPTIONAL_QUERY, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_OPTIONAL_QUERY, item["desc"]))
+        except BaseException:
             return False
 
     @classmethod
-    def is_deprecated_etor(cls, item):
+    def is_deprecated_etor(cls, item) -> bool:
         try:
-            return True if re.match(cls.RE_DEPRECATED, item["desc"]) else False
-        except:
+            return bool(re.match(cls.RE_DEPRECATED, item["desc"]))
+        except BaseException:
             return False
 
 
-"""
-Public:
-    substitutes each tag['key'] with tag['value']
-    if comment, then insert doxygen '::' notation at beginning (for autogen links)
-"""
-
-
-def subt(namespace, tags, string, comment=False, remove_namespace=False):
+def subt(
+    namespace, tags: dict, string: str, comment=False, remove_namespace=False
+) -> str:
+    """
+    Public:
+        substitutes each tag['key'] with tag['value']
+        if comment, then insert doxygen '::' notation at beginning (for autogen links)
+    """
     for key, value in tags.items():
         if remove_namespace:
             repl = ""  # remove namespace; e.g. "$x" -> ""
@@ -607,28 +584,24 @@ def subt(namespace, tags, string, comment=False, remove_namespace=False):
     return string
 
 
-"""
-Public:
-    appends whitespace (in multiples of 4) to the end of the string,
-    until len(string) > count
-"""
-
-
-def append_ws(string, count):
+def append_ws(string: str, count: int) -> str:
+    """
+    Public:
+        appends whitespace (in multiples of 4) to the end of the string,
+        until len(string) > count
+    """
     while len(string) > count:
         count = count + 4
     string = "{str: <{width}}".format(str=string, width=count)
     return string
 
 
-"""
-Public:
-    split the line of text into a list of strings,
-    where each length of each entry is less-than count
-"""
-
-
-def split_line(line, ch_count):
+def split_line(line: str, ch_count: int) -> List[str]:
+    """
+    Public:
+        split the line of text into a list of strings,
+        where each length of each entry is less-than count
+    """
     if not line:
         return [""]
 
@@ -647,7 +620,6 @@ def split_line(line, ch_count):
             word_list = []
             if len(epilogue):
                 word_list.append(epilogue)
-
         elif sum(map(len, word_list)) + len(word_list) + len(word) <= ch_count:
             word_list.append(word)
 
@@ -660,23 +632,19 @@ def split_line(line, ch_count):
     return lines
 
 
-"""
-Private:
-    converts string from camelCase to snake_case
-"""
-
-
-def _camel_to_snake(name):
+def _camel_to_snake(name: str) -> str:
+    """
+    Private:
+        converts string from camelCase to snake_case
+    """
     return util.to_snake_case(name).lower()
 
 
-"""
-Public:
-    removes items from the list with the key and whose value do not match filter
-"""
-
-
-def filter_items(lst, key, filter):
+def filter_items(lst: List[dict], key: str, filter: Any) -> List[dict]:
+    """
+    Public:
+        removes items from the list with the key and whose value do not match filter
+    """
     flst = []
     for item in lst:
         if key in item:
@@ -685,13 +653,11 @@ def filter_items(lst, key, filter):
     return flst
 
 
-"""
-Public:
-    returns a list of items with key from a list of dict
-"""
-
-
-def extract_items(lst, key):
+def extract_items(lst: List[dict], key: str) -> List[dict]:
+    """
+    Public:
+        returns a list of items with key from a list of dict
+    """
     klst = []
     for item in lst:
         if key in item:
@@ -699,13 +665,11 @@ def extract_items(lst, key):
     return klst
 
 
-"""
-Public:
-    returns a list of all objects of type in all specs
-"""
-
-
-def extract_objs(specs, value):
+def extract_objs(specs: List[dict], value: str) -> List[dict]:
+    """
+    Public:
+        returns a list of all objects of type in all specs
+    """
     objs = []
     for s in specs:
         for obj in s["objects"]:
@@ -714,13 +678,11 @@ def extract_objs(specs, value):
     return objs
 
 
-"""
-Public:
-    returns a list of all adapter functions
-"""
-
-
-def get_adapter_functions(specs):
+def get_adapter_functions(specs: List[dict]) -> List[dict]:
+    """
+    Public:
+        returns a list of all adapter functions
+    """
     objs = []
     for s in specs:
         for obj in s["objects"]:
@@ -729,13 +691,11 @@ def get_adapter_functions(specs):
     return objs
 
 
-"""
-Public:
-    returns a list of all adapter handles
-"""
-
-
-def get_adapter_handles(specs):
+def get_adapter_handles(specs: List[dict]) -> List[dict]:
+    """
+    Public:
+        returns a list of all adapter handles
+    """
     objs = []
     for s in specs:
         for obj in s["objects"]:
@@ -743,17 +703,14 @@ def get_adapter_handles(specs):
                 obj_traits.is_loader_only(obj) or "native" in obj["name"]
             ):
                 objs.append(obj)
-
     return objs
 
 
-"""
-Public:
-    returns a list of all adapter manifests
-"""
-
-
-def get_adapter_manifests(specs):
+def get_adapter_manifests(specs: List[dict]) -> List[dict]:
+    """
+    Public:
+        returns a list of all adapter manifests
+    """
     objs = []
     for s in specs:
         for obj in s["objects"]:
@@ -762,52 +719,51 @@ def get_adapter_manifests(specs):
     return objs
 
 
-"""
-Public:
-    returns a list of all loader API functions' names
-"""
-
-
-def get_loader_functions(specs, meta, n, tags):
-    func_names = []
+def get_loader_functions(
+    specs: List[dict], meta: dict, namespace: str, tags
+) -> List[dict]:
+    """
+    Public:
+        returns a list of all loader API functions' names
+    """
+    funcs = []
 
     # Main API functions
     for s in specs:
         for obj in s["objects"]:
             if obj_traits.is_function(obj):
-                func_names.append(make_func_name(n, tags, obj))
+                func = {"name": make_func_name(namespace, tags, obj)}
+                funcs.append(func)
 
     # Process address tables functions
-    for tbl in get_pfntables(specs, meta, n, tags):
-        func_names.append(tbl["export"]["name"])
+    for tbl in get_pfntables(specs, meta, namespace, tags):
+        func = {"name": tbl["export"]["name"]}
+        funcs.append(func)
 
     # Print functions
-    api_types_funcs = get_api_types_funcs(specs, meta, n, tags)
+    api_types_funcs = get_api_types_funcs(specs, meta, namespace, tags)
     for func in api_types_funcs:
-        func_names.append(func.c_name)
-    func_names.append(f"{tags['$x']}PrintFunctionParams")
+        func = {"name": func.c_name}
+        funcs.append(func)
+    funcs.append({"name": f"{tags['$x']}PrintFunctionParams"})
 
-    return sorted(func_names)
-
-
-"""
-Private:
-    removes 'const' from c++ type
-"""
+    return sorted(funcs, key=lambda func: func["name"])
 
 
-def _remove_const(name):
+def _remove_const(name: str) -> str:
+    """
+    Private:
+        removes 'const' from c++ type
+    """
     name = name.split(" ")[-1]
     return name
 
 
-"""
-Private:
-    removes '*' from c++ type
-"""
-
-
-def _remove_ptr(name, last=True):
+def _remove_ptr(name: str, last: bool = True) -> str:
+    """
+    Private:
+        removes '*' from c++ type
+    """
     if last:
         name = re.sub(r"(.*)\*", r"\1", name)  # removes only last '*'
     else:
@@ -815,24 +771,20 @@ def _remove_ptr(name, last=True):
     return name
 
 
-"""
-Private:
-    removes 'const' and '*' from c++ type
-"""
-
-
-def _remove_const_ptr(name):
+def _remove_const_ptr(name: str) -> str:
+    """
+    Private:
+        removes 'const' and '*' from c++ type
+    """
     name = _remove_ptr(_remove_const(name))
     return name
 
 
-"""
-Public:
-    returns c/c++ name of macro
-"""
-
-
-def make_macro_name(namespace, tags, obj, params=True):
+def make_macro_name(namespace: str, tags: dict, obj: dict, params: bool = True) -> str:
+    """
+    Public:
+        returns c/c++ name of macro
+    """
     if params:
         return subt(namespace, tags, obj["name"])
     else:
@@ -840,36 +792,27 @@ def make_macro_name(namespace, tags, obj, params=True):
         return subt(namespace, tags, name)
 
 
-"""
-Public:
-    returns c/c++ name of enums, structs, unions, typedefs...
-"""
+def make_type_name(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns c/c++ name of enums, structs, unions, typedefs...
+    """
+    return subt(namespace, tags, obj["name"])
 
 
-def make_type_name(namespace, tags, obj):
-    name = subt(namespace, tags, obj["name"])
-    return name
-
-
-"""
-Public:
-    returns c/c++ name of enums...
-"""
-
-
-def make_enum_name(namespace, tags, obj):
+def make_enum_name(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns c/c++ name of enums...
+    """
     name = make_type_name(namespace, tags, obj)
     if type_traits.is_flags(obj["name"]):
         name = re.sub(r"flags", r"flag", name)
     return name
 
 
-"""
-    returns c/c++ definition of flags_t bit mask.
-"""
-
-
-def make_flags_bitmask(namespace, tags, obj, meta):
+def make_flags_bitmask(namespace: str, tags: dict, obj: dict, meta) -> str:
+    """Returns c/c++ definition of flags_t bit mask."""
     etor_meta = meta[obj["type"]][obj["name"]]
     if "bit_mask" not in etor_meta.keys():
         return ""
@@ -879,23 +822,19 @@ def make_flags_bitmask(namespace, tags, obj, meta):
     return "%s %s %s" % (macro_def, macro_name, mask)
 
 
-"""
-Public:
-    returns c/c++ name of etor
-"""
-
-
-def make_etor_name(namespace, tags, enum, etor, meta=None):
+def make_etor_name(namespace: str, tags: dict, enum, etor, meta=None) -> str:
+    """
+    Public:
+        returns c/c++ name of etor
+    """
     return subt(namespace, tags, etor)
 
 
-"""
-Private:
-    returns the associated type of an etor from a typed enum
-"""
-
-
-def etor_get_associated_type(namespace, tags, item):
+def etor_get_associated_type(namespace: str, tags: dict, item) -> Union[str, None]:
+    """
+    Private:
+        returns the associated type of an etor from a typed enum
+    """
     match = re.match(r"^\[([$A-Za-z0-9_*[\] ]+)\]", item["desc"])
     if match:
         associated_type = match.group(1)
@@ -904,25 +843,20 @@ def etor_get_associated_type(namespace, tags, item):
         return None
 
 
-"""
-Private:
-    returns c/c++ name of value
-"""
+def _get_value_name(namespace: str, tags: dict, value) -> str:
+    """
+    Private:
+        returns c/c++ name of value
+    """
+    return subt(namespace, tags, value)
 
 
-def _get_value_name(namespace, tags, value):
-    value = subt(namespace, tags, value)
-    return value
-
-
-"""
-Public:
-    returns a list of strings for declaring each enumerator in an enumeration
-    c++ format: "ETOR_NAME = VALUE, ///< DESCRIPTION"
-"""
-
-
-def make_etor_lines(namespace, tags, obj, meta=None):
+def make_etor_lines(namespace: str, tags: dict, obj: dict, meta=None) -> List[str]:
+    """
+    Public:
+        returns a list of strings for declaring each enumerator in an enumeration
+        c++ format: "ETOR_NAME = VALUE, ///< DESCRIPTION"
+    """
     lines = []
     for item in obj["etors"]:
         name = make_etor_name(namespace, tags, obj["name"], item["name"], meta)
@@ -949,52 +883,43 @@ def make_etor_lines(namespace, tags, obj, meta=None):
     return lines
 
 
-"""
-Private:
-    returns c/c++ name of any type
-"""
-
-
-def _get_type_name(namespace, tags, obj, item):
+def _get_type_name(namespace: str, tags: dict, obj: dict, item) -> str:
+    """
+    Private:
+        returns c/c++ name of any type
+    """
     type = item["type"]
     if type_traits.is_array(type):
         type = type_traits.get_array_element_type(type)
-    name = subt(
-        namespace,
-        tags,
-        type,
-    )
-    return name
+    return subt(namespace, tags, type)
 
 
-"""
-Public:
-    returns c/c++ name of member of struct/class
-"""
-
-
-def make_member_name(namespace, tags, item, prefix="", remove_array=False):
+def make_member_name(
+    namespace: str, tags: dict, item: dict, prefix="", remove_array=False
+) -> str:
+    """
+    Public:
+        returns c/c++ name of member of struct/class
+    """
     name = subt(namespace, tags, prefix + item["name"])
-
     if remove_array:
         name = value_traits.get_array_name(name)
-
     return name
 
 
-"""
-Public:
-    returns a list of strings for each member of a structure or class
-    c++ format: "TYPE NAME = INIT, ///< DESCRIPTION"
-"""
-
-
-def make_member_lines(namespace, tags, obj, prefix="", meta=None):
+def make_member_lines(
+    namespace: str, tags: dict, obj: dict, prefix="", meta=None
+) -> List[str]:
+    """
+    Public:
+        returns a list of strings for each member of a structure or class
+        c++ format: "TYPE NAME = INIT, ///< DESCRIPTION"
+    """
     lines = []
     if "members" not in obj:
         return lines
 
-    for i, item in enumerate(obj["members"]):
+    for item in obj["members"]:
         name = make_member_name(namespace, tags, item, prefix)
         tname = _get_type_name(namespace, tags, obj, item)
 
@@ -1011,40 +936,32 @@ def make_member_lines(namespace, tags, obj, prefix="", meta=None):
     return lines
 
 
-"""
-Private:
-    returns c/c++ name of parameter
-"""
-
-
-def _get_param_name(namespace, tags, item):
-    name = subt(namespace, tags, item["name"])
-    return name
-
-
-"""
-Public:
-    returns a list of c++ strings for each parameter of a function
-    format: "TYPE NAME = INIT, ///< DESCRIPTION"
-"""
+def _get_param_name(namespace: str, tags: dict, item: dict) -> str:
+    """
+    Private:
+        returns c/c++ name of parameter
+    """
+    return subt(namespace, tags, item["name"])
 
 
 def make_param_lines(
-    namespace,
-    tags,
-    obj,
-    decl=False,
-    meta=None,
-    format=["type", "name", "delim", "desc"],
-    delim=",",
-    replacements={},
+    namespace: str,
+    tags: dict,
+    obj: dict,
+    decl: bool = False,
+    meta: Union[dict, None] = None,
+    format: List[str] = ["type", "name", "delim", "desc"],
+    delim: str = ",",
+    replacements: dict = {},
 ):
+    """
+    Public:
+        returns a list of c++ strings for each parameter of a function
+        format: "TYPE NAME = INIT, ///< DESCRIPTION"
+    """
     lines = []
 
     params = obj["params"]
-    fptr_types = []  # This is done so that we dont have to try/catch for defined
-    if meta is not None and "fptr_typedef" in meta:
-        fptr_types = list(meta["fptr_typedef"].keys())
 
     for i, item in enumerate(params):
         name = _get_param_name(namespace, tags, item)
@@ -1080,30 +997,26 @@ def make_param_lines(
     return lines
 
 
-"""
-Public:
-    searches params of function `obj` for a match to the given regex and
-    returns its full C++ name
-"""
-
-
-def find_param_name(name_re, namespace, tags, obj):
+def find_param_name(name_re, namespace: str, tags: dict, obj) -> Union[str, None]:
+    """
+    Public:
+        searches params of function `obj` for a match to the given regex and
+        returns its full C++ name
+    """
     for param in obj["params"]:
         param_cpp_name = _get_param_name(namespace, tags, param)
         print("searching {0} for pattner {1}".format(param_cpp_name, name_re))
         if re.search(name_re, param_cpp_name):
             return param_cpp_name
-    return UNDEFINED
+    return None
 
 
-"""
-Public:
-    returns a list of strings for the description
-    format: "@brief DESCRIPTION"
-"""
-
-
-def make_desc_lines(namespace, tags, obj):
+def make_desc_lines(namespace: str, tags: dict, obj) -> List[str]:
+    """
+    Public:
+        returns a list of strings for the description
+        format: "@brief DESCRIPTION"
+    """
     lines = []
     prologue = "@brief"
     for line in split_line(subt(namespace, tags, obj["desc"], True), 70):
@@ -1112,14 +1025,12 @@ def make_desc_lines(namespace, tags, obj):
     return lines
 
 
-"""
-Public:
-    returns a list of strings for the detailed description
-    format: "@details DESCRIPTION"
-"""
-
-
-def make_details_lines(namespace, tags, obj):
+def make_details_lines(namespace: str, tags: dict, obj) -> List[str]:
+    """
+    Public:
+        returns a list of strings for the detailed description
+        format: "@details DESCRIPTION"
+    """
     lines = []
     if "details" in obj:
         lines.append("")
@@ -1160,13 +1071,11 @@ def make_details_lines(namespace, tags, obj):
     return lines
 
 
-"""
-Public:
-    returns a list of strings for possible return values
-"""
-
-
-def make_returns_lines(namespace, tags, obj, meta=None):
+def make_returns_lines(namespace: str, tags: dict, obj: dict, meta=None) -> List[str]:
+    """
+    Public:
+        returns a list of strings for possible return values
+    """
     lines = []
     lines.append("@returns")
     for item in obj.get("returns", []):
@@ -1178,26 +1087,22 @@ def make_returns_lines(namespace, tags, obj, meta=None):
     return lines
 
 
-"""
-Public:
-    returns the name of a function
-"""
-
-
-def make_func_name(namespace, tags, obj):
+def make_func_name(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns the name of a function
+    """
     cname = obj_traits.class_name(obj)
-    if cname == None:  # If can't find the class name append nothing
+    if not cname:  # If can't find the class name append nothing
         cname = ""
     return subt(namespace, tags, "%s%s" % (cname, obj["name"]))
 
 
-"""
-Public:
-    returns the name of a function from a given name with prefix
-"""
-
-
-def make_func_name_with_prefix(prefix, name):
+def make_func_name_with_prefix(prefix, name) -> str:
+    """
+    Public:
+        returns the name of a function from a given name with prefix
+    """
     func_name = re.sub(r"^[^_]+_", "", name)
     func_name = re.sub("_t$", "", func_name).capitalize()
     func_name = re.sub(r"_([a-z])", lambda match: match.group(1).upper(), func_name)
@@ -1205,47 +1110,37 @@ def make_func_name_with_prefix(prefix, name):
     return func_name
 
 
-"""
-Public:
-    returns the etor of a function
-"""
-
-
-def make_func_etor(namespace, tags, obj):
+def make_func_etor(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns the etor of a function
+    """
     etags = tags.copy()
     etags["$x"] += "Function"
     return util.to_snake_case(make_func_name(namespace, etags, obj)).upper()
 
 
-"""
-Public:
-    returns the name of a function pointer
-"""
-
-
-def make_pfn_name(namespace, tags, obj):
-
+def make_pfn_name(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns the name of a function pointer
+    """
     return subt(namespace, tags, "pfn%s" % obj["name"])
 
 
-"""
-Public:
-    returns the name of a function pointer
-"""
-
-
-def make_pfncb_name(namespace, tags, obj):
-
+def make_pfncb_name(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns the name of a function pointer
+    """
     return subt(namespace, tags, "pfn%sCb" % obj["name"])
 
 
-"""
-Public:
-    returns the name of a function pointer
-"""
-
-
-def make_pfn_type(namespace, tags, obj, epilogue=""):
+def make_pfn_type(namespace: str, tags: dict, obj: dict, epilogue="") -> str:
+    """
+    Public:
+        returns the name of a function pointer
+    """
     newtags = dict()
     for key, value in tags.items():
         if re.match(namespace, value):
@@ -1253,36 +1148,28 @@ def make_pfn_type(namespace, tags, obj, epilogue=""):
     return "%s_%s%s_t" % (namespace, make_func_name(namespace, newtags, obj), epilogue)
 
 
-"""
-Public:
-    returns the name of a function pointer
-"""
-
-
-def make_pfncb_type(namespace, tags, obj):
-
+def make_pfncb_type(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns the name of a function pointer
+    """
     return make_pfn_type(namespace, tags, obj, epilogue="Cb")
 
 
-"""
-Public:
-    returns the name of a function pointer
-"""
-
-
-def make_pfncb_param_type(namespace, tags, obj):
-
+def make_pfncb_param_type(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns the name of a function pointer
+    """
     return "%s_params_t" % _camel_to_snake(make_func_name(namespace, tags, obj))
 
 
-"""
-Public:
-    returns an appropriate bounds helper function call for an entry point
-    parameter with the [bounds] tag
-"""
-
-
-def get_bounds_check(param, bounds_error):
+def get_bounds_check(param, bounds_error) -> str:
+    """
+    Public:
+        returns an appropriate bounds helper function call for an entry point
+        parameter with the [bounds] tag
+    """
     # Images need their own helper, since function signature wise they would be
     # identical to buffer rect
     bounds_function = "boundsImage" if "image" in param["name"].lower() else "bounds"
@@ -1305,14 +1192,14 @@ def get_bounds_check(param, bounds_error):
     return bounds_check
 
 
-"""
-Public:
-    returns a dict of auto-generated c++ parameter validation checks for the
-    given function (specified by `obj`)
-"""
-
-
-def make_param_checks(namespace, tags, obj, cpp=False, meta=None):
+def make_param_checks(
+    namespace: str, tags: dict, obj: dict, cpp=False, meta=None
+) -> dict:
+    """
+    Public:
+        returns a dict of auto-generated c++ parameter validation checks for the
+        given function (specified by `obj`)
+    """
     checks = {}
     for item in obj.get("returns", []):
         for key, values in item.items():
@@ -1333,13 +1220,11 @@ def make_param_checks(namespace, tags, obj, cpp=False, meta=None):
     return checks
 
 
-"""
-Public:
-    returns a list of all function objs for the specified class.
-"""
-
-
-def get_class_function_objs(specs, cname, version=None):
+def get_class_function_objs(specs: List[dict], cname, version=None) -> List[dict]:
+    """
+    Public:
+        returns a list of all function objs for the specified class.
+    """
     objects = []
     for s in specs:
         for obj in s["objects"]:
@@ -1357,13 +1242,13 @@ def get_class_function_objs(specs, cname, version=None):
     )
 
 
-"""
-Public:
-    returns a list of all non-experimental function objs and a list of experimental function objs for the specified class
-"""
-
-
-def get_class_function_objs_exp(specs, cname):
+def get_class_function_objs_exp(
+    specs: List[dict], cname
+) -> Tuple[List[dict], List[dict]]:
+    """
+    Public:
+        returns a list of all non-experimental function objs and a list of experimental function objs for the specified class
+    """
     objects = []
     exp_objects = []
     for s in specs:
@@ -1388,14 +1273,13 @@ def get_class_function_objs_exp(specs, cname):
     return objects, exp_objects
 
 
-"""
-Public:
-    returns string name of table for function object
-"""
-
-
-def get_table_name(namespace, tags, obj):
+def get_table_name(namespace: str, tags: dict, obj) -> str:
+    """
+    Public:
+        returns string name of table for function object
+    """
     cname = obj_traits.class_name(obj)
+    assert cname
     if obj_traits.is_experimental(obj):
         cname = cname + "Exp"
     name = subt(namespace, tags, cname, remove_namespace=True)  # i.e., "$x" -> ""
@@ -1403,13 +1287,11 @@ def get_table_name(namespace, tags, obj):
     return name
 
 
-"""
-Public:
-    returns a list of dict of each pfntables needed
-"""
-
-
-def get_pfntables(specs, meta, namespace, tags):
+def get_pfntables(specs: List[dict], meta: dict, namespace: str, tags) -> List[dict]:
+    """
+    Public:
+        returns a list of dict of each pfntables needed
+    """
     tables = []
     for cname in sorted(meta["class"], key=lambda x: meta["class"][x]["ordinal"]):
         objs, exp_objs = get_class_function_objs_exp(specs, cname)
@@ -1494,14 +1376,13 @@ def get_pfntables(specs, meta, namespace, tags):
     return tables
 
 
-"""
-Public:
-    returns an expression setting required output parameters to null on entry
-"""
-
-
-def get_initial_null_set(obj):
+def get_initial_null_set(obj) -> str:
+    """
+    Public:
+        returns an expression setting required output parameters to null on entry
+    """
     cname = obj_traits.class_name(obj)
+    assert cname
     lvalue = {
         ("$xProgram", "Link"): "phProgram",
         ("$xProgram", "LinkExp"): "phProgram",
@@ -1511,13 +1392,11 @@ def get_initial_null_set(obj):
     return ""
 
 
-"""
-Public:
-    returns a list of dict of each pfntables needed
-"""
-
-
-def get_pfncbtables(specs, meta, namespace, tags):
+def get_pfncbtables(specs: List[dict], meta: dict, namespace: str, tags) -> List[dict]:
+    """
+    Public:
+        returns a list of dict of each pfntables needed
+    """
     tables = []
     for cname in sorted(meta["class"], key=lambda x: meta["class"][x]["ordinal"]):
         objs = get_class_function_objs(specs, cname, Version("1.0"))
@@ -1528,30 +1407,28 @@ def get_pfncbtables(specs, meta, namespace, tags):
     return tables
 
 
-"""
-Public:
-    Strips a string of all dereferences.
+def strip_deref(string_to_strip) -> str:
+    """
+    Public:
+        Strips a string of all dereferences.
 
-    This is useful in layer templates for creating unique variable names. For
-    instance if we need to copy pMyStruct->member.hObject out of a function
-    parameter into a local variable we use this to get the unique (or at least
-    distinct from any other parameter we might copy) variable name
-    pMyStructmemberhObject.
-"""
-
-
-def strip_deref(string_to_strip):
+        This is useful in layer templates for creating unique variable names. For
+        instance if we need to copy pMyStruct->member.hObject out of a function
+        parameter into a local variable we use this to get the unique (or at least
+        distinct from any other parameter we might copy) variable name
+        pMyStructmemberhObject.
+    """
     string_to_strip = string_to_strip.replace(".", "")
     return string_to_strip.replace("->", "")
 
 
-"""
-Public:
-    returns an enum object with the given name
-"""
-
-
-def get_enum_by_name(specs, namespace, tags, name, only_typed):
+def get_enum_by_name(
+    specs, namespace: str, tags, name, only_typed
+) -> Union[dict, None]:
+    """
+    Public:
+        returns an enum object with the given name
+    """
     for s in specs:
         for obj in s["objects"]:
             if obj_traits.is_enum(obj) and make_enum_name(namespace, tags, obj) == name:
@@ -1566,16 +1443,17 @@ def get_enum_by_name(specs, namespace, tags, name, only_typed):
     return None
 
 
-"""
-Public:
-    returns a list of dict for converting loader output parameters
-"""
+def get_loader_epilogue(
+    specs: List[dict], namespace: str, tags: dict, obj: dict, meta
+) -> List[str]:
+    """
+    Public:
+        returns a list of dict for converting loader output parameters
+    """
 
-
-def get_loader_epilogue(specs, namespace, tags, obj, meta):
     epilogue = []
 
-    for i, item in enumerate(obj["params"]):
+    for item in obj["params"]:
         if param_traits.is_mbz(item):
             continue
 
@@ -1630,9 +1508,11 @@ def get_loader_epilogue(specs, namespace, tags, obj, meta):
 
                 prop_size = param_traits.typename_size(item)
                 enum = get_enum_by_name(specs, namespace, tags, underlying_type, True)
+                assert enum
                 handle_etors = []
                 for etor in enum["etors"]:
                     associated_type = etor_get_associated_type(namespace, tags, etor)
+                    assert associated_type
                     if "handle" in associated_type:
                         is_array = False
                         if value_traits.is_array(associated_type):
@@ -1676,7 +1556,9 @@ def get_loader_epilogue(specs, namespace, tags, obj, meta):
     return epilogue
 
 
-def get_event_wait_list_functions(specs, namespace, tags):
+def get_event_wait_list_functions(
+    specs: List[dict], namespace: str, tags
+) -> List[dict]:
     funcs = []
     for s in specs:
         for obj in s["objects"]:
@@ -1688,13 +1570,13 @@ def get_event_wait_list_functions(specs, namespace, tags):
     return funcs
 
 
-"""
-Private:
-    returns a dictionary with lists of create, get, retain and release functions
-"""
-
-
-def _get_create_get_retain_release_functions(specs, namespace, tags):
+def _get_create_get_retain_release_functions(
+    specs: List[dict], namespace: str, tags
+) -> Dict[str, List[dict]]:
+    """
+    Private:
+        returns a dictionary with lists of create, get, retain and release functions
+    """
     funcs = []
     for s in specs:
         for obj in s["objects"]:
@@ -1731,13 +1613,13 @@ def _get_create_get_retain_release_functions(specs, namespace, tags):
     }
 
 
-"""
-Public:
-    returns a list of dictionaries containing handle types and the corresponding create, get, retain and release functions
-"""
-
-
-def get_handle_create_get_retain_release_functions(specs, namespace, tags):
+def get_handle_create_get_retain_release_functions(
+    specs: List[dict], namespace: str, tags
+) -> List[dict]:
+    """
+    Public:
+        returns a list of dictionaries containing handle types and the corresponding create, get, retain and release functions
+    """
     # Handles without release function
     excluded_handles = ["$x_platform_handle_t", "$x_native_handle_t"]
     # Handles from experimental features
@@ -1756,7 +1638,9 @@ def get_handle_create_get_retain_release_functions(specs, namespace, tags):
             prefixes.append(namespace + "Enqueue")
             # Functions prefixed with $xEnqueue are also 'create' functions for event handles
 
-        has_prefix = lambda f: any(p in f for p in prefixes)
+        def has_prefix(f):
+            return any(p in f for p in prefixes)
+
         create_funcs = list(filter(has_prefix, funcs["create"]))
         get_funcs = list(filter(has_prefix, funcs["get"]))
         retain_funcs = list(filter(has_prefix, funcs["retain"]))
@@ -1774,13 +1658,11 @@ def get_handle_create_get_retain_release_functions(specs, namespace, tags):
     return records
 
 
-"""
-Public:
-    returns a list of objects representing functions that accept $x_queue_handle_t as a first param
-"""
-
-
-def get_queue_related_functions(specs, namespace, tags):
+def get_queue_related_functions(specs: List[dict], namespace: str, tags) -> List[dict]:
+    """
+    Public:
+        returns a list of objects representing functions that accept $x_queue_handle_t as a first param
+    """
     funcs = []
     for s in specs:
         for obj in s["objects"]:
@@ -1790,18 +1672,16 @@ def get_queue_related_functions(specs, namespace, tags):
     return funcs
 
 
-"""
-Public:
-    transform a queue related function using following rules:
-    - remove $x prefix
-    - make first letter lowercase
-    - remove first param (queue)
-"""
-
-
 def transform_queue_related_function_name(
     namespace, tags, obj, format=["name", "type"]
-):
+) -> str:
+    """
+    Public:
+        transform a queue related function using following rules:
+        - remove $x prefix
+        - make first letter lowercase
+        - remove first param (queue)
+    """
     function_name = make_func_name(namespace, tags, obj).replace(namespace, "")
     function_name = function_name[0].lower() + function_name[1:]
 
@@ -1814,15 +1694,13 @@ def transform_queue_related_function_name(
     return "{}({})".format(function_name, ", ".join(params))
 
 
-"""
-Public:
-    Returns a dictionary mapping info enum types to the list of optional queries
-    within that enum. If an enum type doesn't have any optional queries it will
-    not appear in the dictionary as a key.
-"""
-
-
-def get_optional_queries(specs, namespace, tags):
+def get_optional_queries(specs: List[dict], namespace: str, tags) -> Dict[str, dict]:
+    """
+    Public:
+        Returns a dictionary mapping info enum types to the list of optional queries
+        within that enum. If an enum type doesn't have any optional queries it will
+        not appear in the dictionary as a key.
+    """
     optional_queries = {}
     for s in specs:
         for obj in s["objects"]:
@@ -1838,13 +1716,11 @@ def get_optional_queries(specs, namespace, tags):
     return optional_queries
 
 
-"""
-Public:
-    Generator returning non-deprecated enum values.
-"""
-
-
 def get_etors(obj):
+    """
+    Public:
+        Generator returning non-deprecated enum values.
+    """
     if not obj_traits.is_enum(obj):
         raise TypeError("obj parameter is not an enum.")
     for item in obj["etors"]:
@@ -1853,15 +1729,13 @@ def get_etors(obj):
         yield item
 
 
-"""
-Public:
-    Returns the first non-optional non-native handle for the given function.
+def get_dditable_field(obj) -> dict:
+    """
+    Public:
+        Returns the first non-optional non-native handle for the given function.
 
-    If it is a range, `name[0]` will be returned instead of `name`.
-"""
-
-
-def get_dditable_field(obj):
+        If it is a range, `name[0]` will be returned instead of `name`.
+    """
     for p in obj["params"]:
         if param_traits.is_optional(p):
             continue
