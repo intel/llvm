@@ -59,6 +59,8 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
+  // Stores last event for in-order queues. Has no effect if queue is Out Of
+  // Order. The last event is used to implement UR_QUEUE_INFO_EMPTY query.
   ur_result_t storeLastEvent(ur_event_handle_t Event) {
     if (!IsInOrder) {
       return UR_RESULT_SUCCESS;
