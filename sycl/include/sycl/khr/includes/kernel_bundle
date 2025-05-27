@@ -11,5 +11,6 @@
 
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel.hpp>
+#include <sycl/specialization_id.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_KERNEL_BUNDLE

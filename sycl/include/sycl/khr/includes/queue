@@ -10,5 +10,6 @@
 #define __SYCL_KHR_INCLUDES_QUEUE
 
 #include <sycl/queue.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_QUEUE

@@ -7,11 +7,38 @@ HEADERS=(
 
     sycl/detail/core.hpp
 
-    sycl/khr/includes/version
-    sycl/khr/includes/queue
-    sycl/khr/includes/handler
+    sycl/khr/includes/accessor
+    sycl/khr/includes/atomic
+    sycl/khr/includes/backend
+    sycl/khr/includes/bit
+    sycl/khr/includes/buffer
+    sycl/khr/includes/byte
+    sycl/khr/includes/context
+    sycl/khr/includes/device
     sycl/khr/includes/event
+    sycl/khr/includes/exception
+    sycl/khr/includes/functional
+    sycl/khr/includes/groups
+    sycl/khr/includes/half
+    sycl/khr/includes/handler
+    sycl/khr/includes/hierarchical_parallelism
+    sycl/khr/includes/image
     sycl/khr/includes/index_space
+    sycl/khr/includes/interop_handle
+    sycl/khr/includes/kernel_bundle
+    sycl/khr/includes/marray
+    sycl/khr/includes/math
+    sycl/khr/includes/multi_ptr
+    sycl/khr/includes/platform
+    sycl/khr/includes/property_list
+    sycl/khr/includes/queue
+    sycl/khr/includes/reduction
+    sycl/khr/includes/span
+    sycl/khr/includes/stream
+    sycl/khr/includes/type_traits
+    sycl/khr/includes/usm
+    sycl/khr/includes/vec
+    sycl/khr/includes/version
 )
 
 for x in ${HEADERS[@]} ; do

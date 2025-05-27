@@ -1,18 +1,17 @@
 // Use update_test.sh to (re-)generate the checks
 // REQUIRES: linux
-// RUN: bash %S/deps_known.sh sycl/khr/includes/queue | FileCheck %s
+// RUN: bash %S/deps_known.sh sycl/khr/includes/accessor | FileCheck %s
 
-// CHECK-LABEL: Dependencies for <sycl/khr/includes/queue>:
+// CHECK-LABEL: Dependencies for <sycl/khr/includes/accessor>:
 // CHECK-NEXT: /dev/null: /dev/null
-// CHECK-NEXT: khr/includes/queue
-// CHECK-NEXT: queue.hpp
+// CHECK-NEXT: khr/includes/accessor
+// CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
@@ -90,60 +89,4 @@
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
-// CHECK-NEXT: detail/assert_happened.hpp
-// CHECK-NEXT: detail/cg_types.hpp
-// CHECK-NEXT: detail/host_profiling_info.hpp
-// CHECK-NEXT: detail/item_base.hpp
-// CHECK-NEXT: detail/kernel_desc.hpp
-// CHECK-NEXT: group.hpp
-// CHECK-NEXT: device_event.hpp
-// CHECK-NEXT: h_item.hpp
-// CHECK-NEXT: item.hpp
-// CHECK-NEXT: kernel_handler.hpp
-// CHECK-NEXT: nd_item.hpp
-// CHECK-NEXT: nd_range.hpp
-// CHECK-NEXT: detail/optional.hpp
-// CHECK-NEXT: device.hpp
-// CHECK-NEXT: kernel_bundle_enums.hpp
-// CHECK-NEXT: event.hpp
-// CHECK-NEXT: exception_list.hpp
-// CHECK-NEXT: ext/oneapi/device_global/device_global.hpp
-// CHECK-NEXT: ext/oneapi/device_global/properties.hpp
-// CHECK-NEXT: ext/oneapi/properties/property.hpp
-// CHECK-NEXT: ext/oneapi/properties/property_value.hpp
-// CHECK-NEXT: ext/oneapi/properties/properties.hpp
-// CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
-// CHECK-NEXT: ext/oneapi/experimental/event_mode_property.hpp
-// CHECK-NEXT: ext/oneapi/experimental/graph.hpp
-// CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.hpp
-// CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.def
-// CHECK-NEXT: ext/oneapi/experimental/detail/properties/node_properties.def
-// CHECK-NEXT: ext/oneapi/experimental/work_group_memory.hpp
-// CHECK-NEXT: handler.hpp
-// CHECK-NEXT: detail/cl.h
-// CHECK-NEXT: CL/cl.h
-// CHECK-NEXT: CL/cl_version.h
-// CHECK-NEXT: CL/cl_platform.h
-// CHECK-NEXT: CL/cl_ext.h
-// CHECK-NEXT: detail/id_queries_fit_in_int.hpp
-// CHECK-NEXT: detail/kernel_name_based_cache.hpp
-// CHECK-NEXT: detail/kernel_name_str_t.hpp
-// CHECK-NEXT: detail/reduction_forward.hpp
-// CHECK-NEXT: detail/ur.hpp
-// CHECK-NEXT: ur_api_funcs.def
-// CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
-// CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
-// CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
-// CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
-// CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
-// CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
-// CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
-// CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
-// CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
-// CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
-// CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
-// CHECK-NEXT: kernel.hpp
-// CHECK-NEXT: sampler.hpp
-// CHECK-NEXT: properties/queue_properties.hpp
-// CHECK-NEXT: properties/queue_properties.def
 // CHECK-EMPTY:
