@@ -8,6 +8,7 @@
 
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
+#include "detail/kernel_bundle_impl.hpp"
 #include <detail/platform_impl.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
@@ -924,7 +925,8 @@ bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
     // Get the shared_ptr to this object from the platform that owns it.
-    std::shared_ptr<device_impl> Self = MPlatform->getOrMakeDeviceImpl(MDevice);
+    const std::shared_ptr<device_impl> Self =
+        MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform);
     return sycl::ext::oneapi::experimental::detail::
         is_source_kernel_bundle_supported(Language,
                                           std::vector<DeviceImplPtr>{Self});
