@@ -25,6 +25,10 @@
 #include <sstream>
 #endif
 
+#ifdef _WIN32
+#include <intrin.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -43,7 +47,12 @@ void event_impl::initContextIfNeeded() {
 }
 
 event_impl::~event_impl() {
+  if (MHasBeenReleased)
+	  std::cout << "~event_impl MHasBeenReleased == true" << std::endl;
   try {
+	// __debugbreak(); // CP
+	MHasBeenReleased = true;
+	// std::cout << "~event_impl: " << (unsigned long)this << std::endl;  // changes the timing
     auto Handle = this->getHandle();
     if (Handle)
       getAdapter()->call<UrApiKind::urEventRelease>(Handle);
@@ -52,7 +61,14 @@ event_impl::~event_impl() {
   }
 }
 
+
 void event_impl::waitInternal(bool *Success) {
+	// CP -- this does not trip
+   if(MHasBeenReleased){
+	   std::cout << "waitInternal HasBeenReleased : " << (unsigned long)this << std::endl;
+	   __debugbreak();
+   }
+   
   auto Handle = this->getHandle();
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
@@ -246,6 +262,13 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
                       bool *Success) {
+	// CP -- this trips
+   if(MHasBeenReleased) {
+	   std::cout << "wait HasBeenRelease: " << (unsigned long)this << std::endl;
+	   __debugbreak();
+   }
+   return;
+   
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
