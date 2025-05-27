@@ -8,6 +8,9 @@
 
 #pragma once
 
+// All SYCL macro are provided through this header
+#include <sycl/khr/includes/version>
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/accessor_image.hpp>

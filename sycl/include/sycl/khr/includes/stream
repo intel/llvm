@@ -1,4 +1,4 @@
-//==---------- define_vendors.hpp ----- Preprocessor directives ------------==//
+//==--------------- stream --- SYCL stream class ---------------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#ifndef __SYCL_KHR_INCLUDES_STREAM
+#define __SYCL_KHR_INCLUDES_STREAM
 
-#define SYCL_IMPLEMENTATION_ONEAPI
-#define SYCL_IMPLEMENTATION_INTEL
+#include <sycl/stream.hpp>
+
+#endif // __SYCL_KHR_INCLUDES_STREAM
