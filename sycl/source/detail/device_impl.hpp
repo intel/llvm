@@ -220,6 +220,22 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
     }
   };
 
+#if defined(_GLIBCXX_RELEASE)
+  // libstdc++'s std::call_once is significantly slower than libc++
+  // implementation (30-40ns for libc++ CallOnceCache/EagerCache vs 50-60ns for
+  // CallOnceCache when using libstdc++ for queries of simple types like
+  // `ur_device_usm_access_capability_flags_t`). libc++ implements it via
+  // `__cxa_guard_*` (same as function static variables initialization) but
+  // libstdc++ cannot do that without an ABI break:
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146#c53.
+  //
+  // We do care about performance of the fast path and can pay extra costs in
+  // memory/slow-down during single init call, so add an extra flag to optimize.
+#define GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK 1
+#else
+#define GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK 0
+#endif
+
   // CallOnce - initialize on first query, but exactly once so that we could
   // return cached values by reference. Important for `std::vector` /
   // `std::string` values where returning cached values by value would cause
@@ -227,6 +243,9 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
   template <typename Desc> struct CallOnceCached {
     std::once_flag flag;
     typename Desc::return_type value;
+#if GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
+    std::atomic_bool initialized = false;
+#endif
   };
 
   template <typename Initializer, typename... Descs>
@@ -241,12 +260,23 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
 
     template <typename Desc> decltype(auto) get() {
       auto &Entry = *static_cast<CallOnceCached<Desc> *>(this);
+#if GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
+      if (!Entry.initialized.load(std::memory_order_acquire)) {
+        std::call_once(Entry.flag, [&]() {
+          Initializer::template init<Desc>(device, Entry.value);
+          Entry.initialized.store(true, std::memory_order_release);
+        });
+      }
+#else
       std::call_once(Entry.flag, Initializer::template init<Desc>, device,
                      Entry.value);
+#endif
       // Extra parentheses to return as reference (see `decltype(auto)`).
       return (std::as_const(Entry.value));
     }
   };
+
+#undef GUARD_STD_CALL_ONCE_WITH_EXTRA_CHECK
 
   // get_info and get_info_impl need to know if a particular query is cacheable.
   // It's easier if all the cache instances (eager/call-once * UR/SYCL) are
@@ -2187,12 +2217,39 @@ private:
   mutable JointCache<
       UREagerCache<UR_DEVICE_INFO_TYPE, UR_DEVICE_INFO_USE_NATIVE_ASSERT,
                    UR_DEVICE_INFO_EXTENSIONS>, //
-      URCallOnceCache<UR_DEVICE_INFO_NAME>,    //
-      EagerCache<InfoInitializer>,             //
+      URCallOnceCache<UR_DEVICE_INFO_NAME,
+                      // USM:
+                      UR_DEVICE_INFO_USM_DEVICE_SUPPORT,
+                      UR_DEVICE_INFO_USM_HOST_SUPPORT,
+                      UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT,
+                      UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT,
+                      UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT,
+                      //
+                      UR_DEVICE_INFO_ATOMIC_64>, //
+      EagerCache<InfoInitializer>,               //
       CallOnceCache<InfoInitializer,
                     ext::oneapi::experimental::info::device::architecture>, //
       AspectCache<EagerCache, aspect::fp16, aspect::fp64,
-                  aspect::int64_base_atomics, aspect::int64_extended_atomics>>
+                  aspect::int64_base_atomics, aspect::int64_extended_atomics,
+                  aspect::ext_oneapi_atomic16>,
+      AspectCache<
+          CallOnceCache,
+          // Slow, >100ns (for baseline cached ~30..40ns):
+          aspect::ext_intel_pci_address, aspect::ext_intel_gpu_eu_count,
+          aspect::ext_intel_free_memory, aspect::ext_intel_fan_speed,
+          aspect::ext_intel_power_limits,
+          // medium-slow, 60-90ns (for baseline cached ~30..40ns):
+          aspect::ext_intel_gpu_eu_simd_width, aspect::ext_intel_gpu_slices,
+          aspect::ext_intel_gpu_subslices_per_slice,
+          aspect::ext_intel_gpu_eu_count_per_subslice,
+          aspect::ext_intel_device_info_uuid,
+          aspect::ext_intel_gpu_hw_threads_per_eu,
+          aspect::ext_intel_memory_clock_rate,
+          aspect::ext_intel_memory_bus_width,
+          aspect::ext_oneapi_bindless_images,
+          aspect::ext_oneapi_bindless_images_1d_usm,
+          aspect::ext_oneapi_bindless_images_2d_usm,
+          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
       MCache;
 
 }; // class device_impl
