@@ -3729,6 +3729,11 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
       !(BuiltinID == Builtin::BIprintf || BuiltinID == Builtin::BImalloc))
     return 0;
 
+  if (Context.getLangOpts().isSYCL() && hasAttr<SYCLDeviceOnlyAttr>() &&
+      !(BuiltinID == Builtin::BIprintf || BuiltinID == Builtin::BImalloc)) {
+    return 0;
+  }
+
   // As AMDGCN implementation of OpenMP does not have a device-side standard
   // library, none of the predefined library functions except printf and malloc
   // should be treated as a builtin i.e. 0 should be returned for them.
