@@ -71,6 +71,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_REFERENCE_COUNT:
+    // Devices are never allocated or freed
+    return ReturnValue(uint32_t{1});
+  // Unimplemented features
+  case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+  case UR_DEVICE_INFO_USM_POOL_SUPPORT:
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
+  case UR_DEVICE_INFO_IMAGE_SUPPORT:
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
+  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
+  case UR_DEVICE_INFO_USM_HOST_SUPPORT:
+  case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
+    return ReturnValue(uint32_t{0});
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
@@ -150,4 +166,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 
   // No image can be loaded for the given device
   return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceGetNativeHandle(ur_device_handle_t, ur_native_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
+    ur_native_handle_t, ur_adapter_handle_t,
+    const ur_device_native_properties_t *, ur_device_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceGetGlobalTimestamps(ur_device_handle_t, uint64_t *, uint64_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
