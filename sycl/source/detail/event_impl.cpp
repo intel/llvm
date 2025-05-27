@@ -27,6 +27,9 @@
 
 #ifdef _WIN32
 #include <intrin.h>
+#else
+// CP no op
+void __debugbreak() { }
 #endif
 
 namespace sycl {
