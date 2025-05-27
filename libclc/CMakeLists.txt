@@ -538,13 +538,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       GEN_FILES ${clc_gen_files}
     )
 
-    set( spirv_build_flags ${build_flags} )
-    list( APPEND spirv_build_flags
-      -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
-      -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
-      # FIXME: Fix libspirv to not require disabling this noisy warning
-      -Wno-bitwise-conditional-parentheses
-    )
+    if( BUILD_LIBSPIRV_${t} )
+      set( spirv_build_flags ${build_flags} )
+      list( APPEND spirv_build_flags
+        -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
+        -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
+        # FIXME: Fix libspirv to not require disabling this noisy warning
+        -Wno-bitwise-conditional-parentheses
+      )
 
     add_libclc_builtin_set(
       ARCH ${ARCH}
