@@ -1234,10 +1234,9 @@ void handler::extractArgsAndReqsFromLambda(
     } else if (Kind == detail::kernel_param_kind_t::kind_dynamic_accessor) {
       // For args kind of accessor Size is information about accessor.
       // The first 11 bits of Size encodes the accessor target.
-      const access::target AccTarget =
-          static_cast<access::target>(Size & AccessTargetMask);
       // Only local targets are supported for dynamic accessors.
-      assert(AccTarget == access::target::local);
+      assert(static_cast<access::target>(Size & AccessTargetMask) ==
+             access::target::local);
 
       ext::oneapi::experimental::detail::dynamic_parameter_base
           *DynamicParamBase = static_cast<
