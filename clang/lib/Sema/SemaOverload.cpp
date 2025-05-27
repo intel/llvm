@@ -1629,6 +1629,14 @@ static bool IsOverloadOrOverrideImpl(Sema &SemaRef, FunctionDecl *New,
     }
   }
 
+  // Allow overloads with SYCLDeviceOnlyAttr
+  if (SemaRef.getLangOpts().isSYCL()) {
+    if (hasExplicitAttr<SYCLDeviceOnlyAttr>(Old) !=
+        hasExplicitAttr<SYCLDeviceOnlyAttr>(New)) {
+      return true;
+    }
+  }
+
   // The signatures match; this is not an overload.
   return false;
 }
@@ -11020,6 +11028,16 @@ bool clang::isBetterOverloadCandidate(
            S.CUDA().IdentifyPreference(Caller, Cand2.Function);
   }
 
+  // In SYCL device compilation mode prefer the overload with the
+  // SYCLDeviceOnly attribute.
+  if (S.getLangOpts().isSYCL() && S.getLangOpts().SYCLIsDevice &&
+      Cand1.Function && Cand2.Function) {
+    if (hasExplicitAttr<SYCLDeviceOnlyAttr>(Cand1.Function) !=
+        hasExplicitAttr<SYCLDeviceOnlyAttr>(Cand2.Function)) {
+      return hasExplicitAttr<SYCLDeviceOnlyAttr>(Cand1.Function);
+    }
+  }
+
   // General member function overloading is handled above, so this only handles
   // constructors with address spaces.
   // This only handles address spaces since C++ has no other
@@ -11373,6 +11391,15 @@ OverloadingResult OverloadCandidateSet::BestViableFunctionImpl(
 
   if (S.getLangOpts().CUDA)
     CudaExcludeWrongSideCandidates(S, Candidates);
+
+  // In SYCL host compilation remove candidates marked SYCLDeviceOnly.
+  if (S.getLangOpts().isSYCL() && !S.getLangOpts().SYCLIsDevice) {
+    auto IsDeviceCand = [&](const OverloadCandidate *Cand) {
+      return Cand->Viable && Cand->Function &&
+             hasExplicitAttr<SYCLDeviceOnlyAttr>(Cand->Function);
+    };
+    llvm::erase_if(Candidates, IsDeviceCand);
+  }
 
   Best = end();
   for (auto *Cand : Candidates) {

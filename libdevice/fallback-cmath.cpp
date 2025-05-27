@@ -8,8 +8,7 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
-    defined(__AMDGCN__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 // To support fallback device libraries on-demand loading, please update the
 // DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
@@ -215,4 +214,4 @@ float __devicelib_asinhf(float x) { return __spirv_ocl_asinh(x); }
 DEVICE_EXTERN_C_INLINE
 float __devicelib_atanhf(float x) { return __spirv_ocl_atanh(x); }
 
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
+#endif // __SPIR__ || __SPIRV__
