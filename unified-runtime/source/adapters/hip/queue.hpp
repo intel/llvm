@@ -17,7 +17,7 @@
 #include <common/cuda-hip/stream_queue.hpp>
 
 using hip_stream_queue = stream_queue_t<hipStream_t, 64, 16, hipEvent_t>;
-struct ur_queue_handle_t_ : public hip_stream_queue {};
+struct ur_queue_handle_t_ : ur::hip::handle_base, public hip_stream_queue {};
 
 using InteropGuard = hip_stream_queue::interop_guard;
 
@@ -31,7 +31,6 @@ inline void hip_stream_queue::createStreamWithPriority(hipStream_t *Stream,
 // Function which creates the profiling stream. Called only from makeNative
 // event when profiling is required.
 template <> inline void hip_stream_queue::createHostSubmitTimeStream() {
-  static std::once_flag HostSubmitTimeStreamFlag;
   std::call_once(HostSubmitTimeStreamFlag, [&]() {
     UR_CHECK_ERROR(
         hipStreamCreateWithFlags(&HostSubmitTimeStream, hipStreamNonBlocking));

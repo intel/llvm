@@ -29,6 +29,12 @@ using namespace v2;
 
 static constexpr size_t MAX_DEVICES = 10;
 
+const ur_dditable_t *ur::level_zero::ddi_getter::value() {
+  // Return a blank dditable
+  static ur_dditable_t table{};
+  return &table;
+};
+
 // mock necessary functions from context, we can't pull in entire context
 // implementation due to a lot of other dependencies
 std::vector<ur_device_handle_t> mockVec{};

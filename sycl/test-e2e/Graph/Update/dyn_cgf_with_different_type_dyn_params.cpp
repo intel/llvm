@@ -1,7 +1,7 @@
 // By default functors are no longer decomposed preventing the use of set_arg in
 // this test, -fsycl-decompose-functor is used to force the old behavior
 //
-// RUN: %{build} -fsycl-decompose-functor -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-decompose-functor -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}

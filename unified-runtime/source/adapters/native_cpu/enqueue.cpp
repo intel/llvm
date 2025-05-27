@@ -538,14 +538,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
         UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
         UR_ASSERT(patternSize != 0, UR_RESULT_ERROR_INVALID_SIZE)
         UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_SIZE)
-        UR_ASSERT(patternSize < size, UR_RESULT_ERROR_INVALID_SIZE)
+        UR_ASSERT(patternSize <= size, UR_RESULT_ERROR_INVALID_SIZE)
         UR_ASSERT(size % patternSize == 0, UR_RESULT_ERROR_INVALID_SIZE)
         // TODO: add check for allocation size once the query is supported
 
         switch (patternSize) {
         case 1:
-          memset(ptr, *static_cast<const uint8_t *>(pPattern),
-                 size * patternSize);
+          memset(ptr, *static_cast<const uint8_t *>(pPattern), size);
           break;
         case 2: {
           const auto pattern = *static_cast<const uint16_t *>(pPattern);

@@ -1472,6 +1472,7 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
       options::OPT_fprofile_instr_use_EQ, // -fprofile-instr-use
       options::OPT_fcs_profile_generate,  // -fcs-profile-generate
       options::OPT_fcs_profile_generate_EQ,
+      options::OPT_gline_tables_only, // -gline-tables-only
   };
   return UnsupportedOpts;
 }
@@ -1517,7 +1518,7 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
-          << A->getAsString(Args) << getTriple().str();
+          << A->getAsString(Args) << getTriple().str() << 1;
     }
   }
 }

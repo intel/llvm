@@ -210,6 +210,8 @@ public:
   llvm::Type *getSPIRVImageTypeFromHLSLResource(
       const HLSLAttributedResourceType::Attributes &attributes,
       llvm::Type *ElementType, llvm::LLVMContext &Ctx) const;
+  void
+  setOCLKernelStubCallingConvention(const FunctionType *&FT) const override;
 };
 class SPIRVTargetCodeGenInfo : public CommonSPIRTargetCodeGenInfo {
 public:
@@ -387,6 +389,15 @@ void SPIRVTargetCodeGenInfo::setCUDAKernelCallingConvention(
         FT, FT->getExtInfo().withCallingConv(CC_OpenCLKernel));
     return;
   }
+}
+
+void CommonSPIRTargetCodeGenInfo::setOCLKernelStubCallingConvention(
+    const FunctionType *&FT) const {
+  // Disable kernel stub for sycl
+  if (getABIInfo().getContext().getLangOpts().isSYCL())
+     return;
+  FT = getABIInfo().getContext().adjustFunctionType(
+      FT, FT->getExtInfo().withCallingConv(CC_SpirFunction));
 }
 
 LangAS

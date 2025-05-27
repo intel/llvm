@@ -231,7 +231,7 @@ public:
   ur_program_handle_t getProgramRef() const { return MProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
-  std::mutex &getNoncacheableEnqueueMutex() {
+  std::mutex &getNoncacheableEnqueueMutex() const {
     return MNoncacheableEnqueueMutex;
   }
 
@@ -247,7 +247,7 @@ private:
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
-  std::mutex MNoncacheableEnqueueMutex;
+  mutable std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;

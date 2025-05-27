@@ -7,6 +7,10 @@ EXPORTS
 	urAdapterRetain
 	urAdapterSetLoggerCallback
 	urAdapterSetLoggerCallbackLevel
+	urBindlessImagesFreeMappedLinearMemoryExp
+	urBindlessImagesGetImageMemoryHandleTypeSupportExp
+	urBindlessImagesGetImageSampledHandleSupportExp
+	urBindlessImagesGetImageUnsampledHandleSupportExp
 	urBindlessImagesImageAllocateExp
 	urBindlessImagesImageCopyExp
 	urBindlessImagesImageFreeExp
@@ -175,7 +179,6 @@ EXPORTS
 	urPlatformGetBackendOption
 	urPlatformGetInfo
 	urPlatformGetNativeHandle
-	urPrintAdapterBackend
 	urPrintAdapterGetInfoParams
 	urPrintAdapterGetLastErrorParams
 	urPrintAdapterGetParams
@@ -185,8 +188,13 @@ EXPORTS
 	urPrintAdapterSetLoggerCallbackLevelParams
 	urPrintAdapterSetLoggerCallbackParams
 	urPrintApiVersion
+	urPrintBackend
 	urPrintBaseDesc
 	urPrintBaseProperties
+	urPrintBindlessImagesFreeMappedLinearMemoryExpParams
+	urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams
+	urPrintBindlessImagesGetImageSampledHandleSupportExpParams
+	urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams
 	urPrintBindlessImagesImageAllocateExpParams
 	urPrintBindlessImagesImageCopyExpParams
 	urPrintBindlessImagesImageFreeExpParams
@@ -339,6 +347,7 @@ EXPORTS
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
 	urPrintExpImageCopyRegion
+	urPrintExpImageMemType
 	urPrintExpLaunchProperty
 	urPrintExpLaunchPropertyId
 	urPrintExpPeerInfo
@@ -418,7 +427,6 @@ EXPORTS
 	urPrintPhysicalMemProperties
 	urPrintPhysicalMemReleaseParams
 	urPrintPhysicalMemRetainParams
-	urPrintPlatformBackend
 	urPrintPlatformCreateWithNativeHandleParams
 	urPrintPlatformGetApiVersionParams
 	urPrintPlatformGetBackendOptionParams

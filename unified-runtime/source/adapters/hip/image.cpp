@@ -152,75 +152,121 @@ hipToUrImageChannelFormat(hipArray_Format hip_format,
   }
 }
 
-ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
+ur_result_t urToHipFilterMode(ur_sampler_filter_mode_t FilterMode,
+                              HIPfilter_mode &HipFilterMode) {
+  switch (FilterMode) {
+  case UR_SAMPLER_FILTER_MODE_NEAREST:
+    HipFilterMode = HIP_TR_FILTER_MODE_POINT;
+    break;
+  case UR_SAMPLER_FILTER_MODE_LINEAR:
+    HipFilterMode = HIP_TR_FILTER_MODE_LINEAR;
+    break;
+  default:
+    setErrorMessage("Invalid filter mode was requested for HIP.",
+                    UR_RESULT_ERROR_INVALID_VALUE);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urToHipAddressingMode(ur_sampler_addressing_mode_t AddressMode,
+                                  HIPaddress_mode &HipAddressMode) {
+  switch (AddressMode) {
+  case UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE:
+    HipAddressMode = HIP_TR_ADDRESS_MODE_CLAMP;
+    break;
+  case UR_SAMPLER_ADDRESSING_MODE_CLAMP:
+    HipAddressMode = HIP_TR_ADDRESS_MODE_BORDER;
+    break;
+  case UR_SAMPLER_ADDRESSING_MODE_REPEAT:
+    HipAddressMode = HIP_TR_ADDRESS_MODE_WRAP;
+    break;
+  case UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT:
+    HipAddressMode = HIP_TR_ADDRESS_MODE_MIRROR;
+    break;
+  default:
+    setErrorMessage("Invalid addressing mode was requested for HIP.",
+                    UR_RESULT_ERROR_INVALID_VALUE);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urTextureCreate(const ur_sampler_desc_t *pSamplerDesc,
                             const ur_image_desc_t *pImageDesc,
                             const HIP_RESOURCE_DESC &ResourceDesc,
                             const unsigned int normalized_dtype_flag,
                             ur_exp_image_native_handle_t *phRetImage) {
-
   try {
-    /// Layout of UR samplers for HIP
-    ///
-    /// Sampler property layout:
-    /// |     <bits>     | <usage>
-    /// -----------------------------------
-    /// |  31 30 ... 13  | N/A
-    /// |       12       | cubemap filter mode
-    /// |       11       | mip filter mode
-    /// |    10 9 8      | addressing mode 3
-    /// |     7 6 5      | addressing mode 2
-    /// |     4 3 2      | addressing mode 1
-    /// |       1        | filter mode
-    /// |       0        | normalize coords
     HIP_TEXTURE_DESC ImageTexDesc = {};
-    HIPaddress_mode AddrMode[3] = {};
-    for (size_t i = 0; i < 3; i++) {
-      ur_sampler_addressing_mode_t AddrModeProp =
-          hSampler->getAddressingModeDim(i);
-      if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE -
-                           UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-        AddrMode[i] = HIP_TR_ADDRESS_MODE_CLAMP;
-      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP -
-                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-        AddrMode[i] = HIP_TR_ADDRESS_MODE_BORDER;
-      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_REPEAT -
-                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-        AddrMode[i] = HIP_TR_ADDRESS_MODE_WRAP;
-      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT -
-                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-        AddrMode[i] = HIP_TR_ADDRESS_MODE_MIRROR;
+    // Enumerate the linked properties (extension structures) to the descriptor.
+    void *pNext = const_cast<void *>(pSamplerDesc->pNext);
+    while (pNext != nullptr) {
+      const ur_base_desc_t *BaseDesc =
+          reinterpret_cast<const ur_base_desc_t *>(pNext);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES) {
+        // UR Mipmap properties
+        const ur_exp_sampler_mip_properties_t *SamplerMipProperties =
+            reinterpret_cast<const ur_exp_sampler_mip_properties_t *>(pNext);
+        ImageTexDesc.maxMipmapLevelClamp =
+            SamplerMipProperties->maxMipmapLevelClamp;
+        ImageTexDesc.minMipmapLevelClamp =
+            SamplerMipProperties->minMipmapLevelClamp;
+        ImageTexDesc.maxAnisotropy = SamplerMipProperties->maxAnisotropy;
+        ur_sampler_filter_mode_t MipFilterModeProp =
+            SamplerMipProperties->mipFilterMode;
+        // HIP Mipmap attributes
+        HIPfilter_mode MipFilterMode = {};
+        UR_CALL(urToHipFilterMode(MipFilterModeProp, MipFilterMode));
+        ImageTexDesc.mipmapFilterMode = MipFilterMode;
+      } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES) {
+        // UR Addressing modes
+        const ur_exp_sampler_addr_modes_t *SamplerAddrModes =
+            reinterpret_cast<const ur_exp_sampler_addr_modes_t *>(pNext);
+        // HIP Addressing modes
+        HIPaddress_mode AddrMode[3] = {};
+        for (size_t i = 0; i < 3; i++) {
+          ur_sampler_addressing_mode_t AddrModeProp =
+              SamplerAddrModes->addrModes[i];
+          UR_CALL(urToHipAddressingMode(AddrModeProp, AddrMode[i]));
+        }
+        // The address modes can interfere with other dimensions
+        // e.g. 1D texture sampling can be interfered with when setting other
+        // dimension address modes despite their nonexistence.
+        ImageTexDesc.addressMode[0] = AddrMode[0]; // 1D
+        ImageTexDesc.addressMode[1] = pImageDesc->height > 0
+                                          ? AddrMode[1]
+                                          : ImageTexDesc.addressMode[1]; // 2D
+        ImageTexDesc.addressMode[2] = pImageDesc->depth > 0
+                                          ? AddrMode[2]
+                                          : ImageTexDesc.addressMode[2]; // 3D
+      } else if (BaseDesc->stype ==
+                 UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES) {
+        // UR Cubemap properties
+        const ur_exp_sampler_cubemap_properties_t *SamplerCubemapProperties =
+            reinterpret_cast<const ur_exp_sampler_cubemap_properties_t *>(
+                pNext);
+        ur_exp_sampler_cubemap_filter_mode_t CubemapFilterModeProp =
+            SamplerCubemapProperties->cubemapFilterMode;
+        // HIP Cubemap attributes
+        if (CubemapFilterModeProp ==
+            UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS) {
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        }
       }
+      pNext = const_cast<void *>(BaseDesc->pNext);
     }
 
-    HIPfilter_mode FilterMode;
-    ur_sampler_filter_mode_t FilterModeProp = hSampler->getFilterMode();
-    FilterMode =
-        FilterModeProp ? HIP_TR_FILTER_MODE_LINEAR : HIP_TR_FILTER_MODE_POINT;
+    HIPfilter_mode FilterMode = pSamplerDesc->filterMode
+                                    ? HIP_TR_FILTER_MODE_LINEAR
+                                    : HIP_TR_FILTER_MODE_POINT;
     ImageTexDesc.filterMode = FilterMode;
 
-    // Mipmap attributes
-    HIPfilter_mode MipFilterMode;
-    ur_sampler_filter_mode_t MipFilterModeProp = hSampler->getMipFilterMode();
-    MipFilterMode = MipFilterModeProp ? HIP_TR_FILTER_MODE_LINEAR
-                                      : HIP_TR_FILTER_MODE_POINT;
-    ImageTexDesc.mipmapFilterMode = MipFilterMode;
-    ImageTexDesc.maxMipmapLevelClamp = hSampler->MaxMipmapLevelClamp;
-    ImageTexDesc.minMipmapLevelClamp = hSampler->MinMipmapLevelClamp;
-    ImageTexDesc.maxAnisotropy =
-        static_cast<unsigned int>(hSampler->MaxAnisotropy);
-
-    // The address modes can interfere with other dimensions
-    // e.g. 1D texture sampling can be interfered with when setting other
-    // dimension address modes despite their nonexistence.
-    ImageTexDesc.addressMode[0] = AddrMode[0]; // 1D
-    ImageTexDesc.addressMode[1] = pImageDesc->height > 0
-                                      ? AddrMode[1]
-                                      : ImageTexDesc.addressMode[1]; // 2D
-    ImageTexDesc.addressMode[2] =
-        pImageDesc->depth > 0 ? AddrMode[2] : ImageTexDesc.addressMode[2]; // 3D
-
-    // flags takes the normalized coordinates setting -- unnormalized is default
-    ImageTexDesc.flags = (hSampler->isNormalizedCoords())
+    // flags takes the normalized coordinates setting -- unnormalized is
+    // default
+    ImageTexDesc.flags = (pSamplerDesc->normalizedCoords)
                              ? HIP_TRSF_NORMALIZED_COORDINATES
                              : ImageTexDesc.flags;
 
@@ -228,12 +274,6 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
     // This flag prevents this behaviour.
     if (!normalized_dtype_flag) {
       ImageTexDesc.flags |= HIP_TRSF_READ_AS_INTEGER;
-    }
-    // Cubemap attributes
-    ur_exp_sampler_cubemap_filter_mode_t CubemapFilterModeProp =
-        hSampler->getCubemapFilterMode();
-    if (CubemapFilterModeProp == UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     hipTextureObject_t Texture;
@@ -451,6 +491,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     ur_exp_image_native_handle_t *phImage) {
+
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -494,7 +535,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_native_handle_t hImageMem,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_sampler_handle_t hSampler, ur_exp_image_native_handle_t *phImage) {
+    const ur_sampler_desc_t *pSamplerDesc,
+    ur_exp_image_native_handle_t *phImage) {
+
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -564,7 +607,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
-    UR_CHECK_ERROR(urTextureCreate(hSampler, pImageDesc, image_res_desc,
+    UR_CHECK_ERROR(urTextureCreate(pSamplerDesc, pImageDesc, image_res_desc,
                                    normalized_dtype_flag, phImage));
 
   } catch (ur_result_t Err) {
@@ -637,7 +680,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                  CopyExtentBytes, Stream));
 #else
           UR_CHECK_ERROR(hipMemcpyHtoA(
-              (hipArray_t)pDst, pCopyRegion->dstOffset.x * PixelSizeBytes,
+              static_cast<hipArray_t>(pDst),
+              pCopyRegion->dstOffset.x * PixelSizeBytes,
               static_cast<const void *>(SrcWithOffset), CopyExtentBytes));
 #endif
         } else if (memType == hipMemoryTypeDevice) {
@@ -645,7 +689,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
               static_cast<void *>(static_cast<char *>(pDst) +
                                   (PixelSizeBytes * pCopyRegion->dstOffset.x));
           UR_CHECK_ERROR(hipMemcpyHtoDAsync(
-              (hipDeviceptr_t)DstWithOffset,
+              static_cast<hipDeviceptr_t>(DstWithOffset),
               const_cast<void *>(static_cast<const void *>(SrcWithOffset)),
               CopyExtentBytes, Stream));
         } else {
@@ -713,8 +757,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.Height =
             std::max(MinCopyHeight, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
-        // 'hipMemcpy3DAsync' requires us to correctly create 'hipMemcpy3DParms'
-        // struct object which adds a little complexity (e.g. 'hipPitchedPtr').
+        // 'hipMemcpy3DAsync' requires us to correctly create
+        // 'hipMemcpy3DParms' struct object which adds a little complexity
+        // (e.g. 'hipPitchedPtr').
         UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&cpy_desc, Stream));
       }
     } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
@@ -800,8 +845,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
-        // 'hipMemcpy3DAsync' requires us to correctly create 'hipMemcpy3DParms'
-        // struct object which adds a little complexity (e.g. 'hipPitchedPtr').
+        // 'hipMemcpy3DAsync' requires us to correctly create
+        // 'hipMemcpy3DParms' struct object which adds a little complexity
+        // (e.g. 'hipPitchedPtr').
         UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&cpy_desc, Stream));
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY ||
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
@@ -823,8 +869,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.Height =
             std::max(MinCopyHeight, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
-        // 'hipMemcpy3DAsync' requires us to correctly create 'hipMemcpy3DParms'
-        // struct object which adds a little complexity (e.g. 'hipPitchedPtr').
+        // 'hipMemcpy3DAsync' requires us to correctly create
+        // 'hipMemcpy3DParms' struct object which adds a little complexity
+        // (e.g. 'hipPitchedPtr').
         UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&cpy_desc, Stream));
       }
     } else {
@@ -832,8 +879,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
       // we don't support copying between different image types.
       if (pSrcImageDesc->type != pDstImageDesc->type) {
-        logger::error(
-            "Unsupported copy operation between different type of images");
+        UR_LOG(ERR,
+               "Unsupported copy operation between different type of images");
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
       }
 
@@ -881,8 +928,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
-        // 'hipMemcpy3DAsync' requires us to correctly create 'hipMemcpy3DParms'
-        // struct object which adds a little complexity (e.g. 'hipPitchedPtr').
+        // 'hipMemcpy3DAsync' requires us to correctly create
+        // 'hipMemcpy3DParms' struct object which adds a little complexity
+        // (e.g. 'hipPitchedPtr').
         UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&cpy_desc, Stream));
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY ||
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
@@ -902,8 +950,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.Height =
             std::max(MinCopyHeight, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
-        // 'hipMemcpy3DAsync' requires us to correctly create 'hipMemcpy3DParms'
-        // struct object which adds a little complexity (e.g. 'hipPitchedPtr').
+        // 'hipMemcpy3DAsync' requires us to correctly create
+        // 'hipMemcpy3DParms' struct object which adds a little complexity
+        // (e.g. 'hipPitchedPtr').
         UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&cpy_desc, Stream));
       }
       // Synchronization is required here to handle the case of copying data
@@ -914,8 +963,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
-                                                     hQueue, Stream);
+      auto NewEvent =
+          new ur_event_handle_t_(UR_COMMAND_MEM_IMAGE_COPY, hQueue, Stream);
       NewEvent->record();
       *phEvent = NewEvent;
     }
@@ -1002,7 +1051,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
       break;
     default:
       setErrorMessage("Unexpected NumChannels returned by HIP",
-                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                      UR_RESULT_ERROR_INVALID_VALUE);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
     if (pPropValue) {
@@ -1021,6 +1070,237 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 #else
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
+}
+
+bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
+                                const ur_image_desc_t *pImageDesc,
+                                ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify standard image dimensions are within device limits.
+  size_t maxImageWidth, maxImageHeight, maxImageDepth;
+
+  if (pImageDesc->depth != 0 && pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+
+    // Verify for standard 3D images.
+    UR_CHECK_ERROR(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH,
+                                   sizeof(size_t), &maxImageWidth, nullptr));
+    UR_CHECK_ERROR(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT,
+                                   sizeof(size_t), &maxImageHeight, nullptr));
+    UR_CHECK_ERROR(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH,
+                                   sizeof(size_t), &maxImageDepth, nullptr));
+    if ((pImageDesc->width > maxImageWidth) ||
+        (pImageDesc->height > maxImageHeight) ||
+        (pImageDesc->depth > maxImageDepth)) {
+      return false;
+    }
+  } else if (pImageDesc->height != 0 &&
+             pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+
+    if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
+      // Verify for standard 2D images backed by linear memory.
+      UR_CHECK_ERROR(urDeviceGetInfo(hDevice,
+                                     UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP,
+                                     sizeof(size_t), &maxImageWidth, nullptr));
+      UR_CHECK_ERROR(urDeviceGetInfo(hDevice,
+                                     UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP,
+                                     sizeof(size_t), &maxImageHeight, nullptr));
+
+      size_t maxImageLinearPitch;
+      UR_CHECK_ERROR(
+          urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP,
+                          sizeof(size_t), &maxImageLinearPitch, nullptr));
+      if (pImageDesc->rowPitch > maxImageLinearPitch) {
+        return false;
+      }
+    } else {
+      // Verify for standard 2D images backed by opaque memory.
+      UR_CHECK_ERROR(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH,
+                                     sizeof(size_t), &maxImageWidth, nullptr));
+      UR_CHECK_ERROR(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT,
+                                     sizeof(size_t), &maxImageHeight, nullptr));
+    }
+
+    if ((pImageDesc->width > maxImageWidth) ||
+        (pImageDesc->height > maxImageHeight)) {
+      return false;
+    }
+  } else if (pImageDesc->width != 0 &&
+             pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+
+    if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
+      // Verify for standard 1D images backed by linear memory.
+      //
+      /// TODO: We have a query for `max_image_linear_width`, however, that
+      /// query is for 2D textures (at least as far as the CUDA/HIP
+      /// implementations go). We should split the `max_image_linear_width`
+      /// query into 1D and 2D variants to ensure that 1D image dimensions
+      /// can be properly verified and used to the fullest extent.
+      int32_t maxImageLinearWidth;
+      UR_CHECK_ERROR(hipDeviceGetAttribute(&maxImageLinearWidth,
+                                           hipDeviceAttributeMaxTexture1DLinear,
+                                           hDevice->get()));
+      maxImageWidth = static_cast<size_t>(maxImageLinearWidth);
+    } else {
+      // Verify for standard 1D images backed by opaque memory.
+      UR_CHECK_ERROR(urDeviceGetInfo(hDevice,
+                                     UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE,
+                                     sizeof(size_t), &maxImageWidth, nullptr));
+    }
+    if ((pImageDesc->width > maxImageWidth)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool verifyMipmapImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify mipmap image support.
+  // Mimpaps are not currently supported for the AMD target.
+  if (pImageDesc->numMipLevel > 1) {
+    return false;
+  }
+
+  return true;
+}
+
+bool verifyCubemapImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify cubemap image support.
+  // Cubemaps are not currently supported for the AMD target.
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
+    return false;
+  }
+
+  return true;
+}
+
+bool verifyLayeredImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify layered image support.
+  // Layered images are not currently supported for the AMD target.
+  if ((pImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY) ||
+      pImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY) {
+    return false;
+  }
+
+  return true;
+}
+
+bool verifyGatherImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
+  // Verify gather image support.
+  // Gather images are not currently supported for the AMD target.
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE_GATHER_EXP) {
+    return false;
+  }
+
+  return true;
+}
+
+bool verifyCommonImagePropertiesSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType) {
+
+  bool supported = true;
+
+  supported &=
+      verifyStandardImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  supported &=
+      verifyMipmapImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  supported &=
+      verifyLayeredImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  supported &=
+      verifyCubemapImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  supported &=
+      verifyGatherImageSupport(hDevice, pImageDesc, imageMemHandleType);
+
+  // Verify 3-channel format support.
+  // HIP does not allow 3-channel formats.
+  if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGB ||
+      pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGX) {
+    return false;
+  }
+
+  return supported;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryHandleTypeSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesGetImageUnsampledHandleSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Currently Bindless Images do not allow creation of unsampled image handles
+  // from non-opaque (USM) memory.
+  if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
+    *pSupportedRet = false;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Bindless Images do not allow creation of `unsampled_image_handle`s for
+  // mipmap images.
+  if (pImageDesc->numMipLevel > 1) {
+    *pSupportedRet = false;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesGetImageSampledHandleSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
@@ -1199,6 +1479,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, void *pMem) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  try {
+    ScopedDevice Active(hDevice);
+    UR_CHECK_ERROR(hipFree(static_cast<hipDeviceptr_t>(pMem)));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_semaphore_type_t semHandleType,
@@ -1298,7 +1597,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         1 /* numExtSems */, Stream));
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(
+      auto NewEvent = new ur_event_handle_t_(
           UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP, hQueue, Stream);
       NewEvent->record();
       *phEvent = NewEvent;
@@ -1333,7 +1632,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         &SemSignalParams, 1 /* numExtSems */, Stream));
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(
+      auto NewEvent = new ur_event_handle_t_(
           UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP, hQueue, Stream);
       NewEvent->record();
       *phEvent = NewEvent;

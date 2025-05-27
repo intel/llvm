@@ -79,8 +79,7 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
                                 reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
                                 sizeof(MDeviceGlobalPtr)),
                             QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
-                            std::vector<ur_event_handle_t>{}, &InitEvent,
-                            nullptr);
+                            std::vector<ur_event_handle_t>{}, &InitEvent);
     NewAlloc.MInitEvent = InitEvent;
   }
 

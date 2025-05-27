@@ -200,7 +200,9 @@ public:
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
              ur_program_handle_t>
   getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
-                    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {});
+                    KernelNameStrRefT KernelName,
+                    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+                    const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
       KernelNameStrRefT KernelName,
@@ -254,7 +256,7 @@ public:
                                   const char *UniqueId);
 
   // Returns true if any available image is compatible with the device Dev.
-  bool hasCompatibleImage(const device &Dev);
+  bool hasCompatibleImage(const device_impl &DeviceImpl);
 
   // The function gets a device_global entry identified by the pointer to the
   // device_global object from the device_global map.
@@ -406,7 +408,7 @@ private:
 
   bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
   bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
-                                        const device &Dev);
+                                        const device_impl &DeviceImpl);
 
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is

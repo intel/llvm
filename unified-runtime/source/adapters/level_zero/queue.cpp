@@ -455,7 +455,8 @@ ur_result_t urQueueGetInfo(
     return ReturnValue(true);
   }
   default:
-    logger::error(
+    UR_LOG(
+        ERR,
         "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
         ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -615,8 +616,6 @@ ur_result_t urQueueRelease(
       return UR_RESULT_SUCCESS;
     }
 
-    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
-
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
     // are not yet completed. So do full queue synchronization here
@@ -629,6 +628,14 @@ ur_result_t urQueueRelease(
     // Make sure all commands get executed.
     if (Res == UR_RESULT_SUCCESS)
       UR_CALL(Queue->synchronize());
+
+    // Cleanup the allocations from 'AsyncPool' made by this queue.
+    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+    std::shared_lock<ur_shared_mutex> ContextLock(Queue->Context->Mutex);
+    for (auto &Pool : Queue->Context->UsmPoolHandles) {
+      Pool->cleanupPoolsForQueue(Queue);
+    }
+    ContextLock.unlock();
 
     // Destroy all the fences created associated with this queue.
     for (auto it = Queue->CommandListMap.begin();
@@ -907,6 +914,11 @@ ur_result_t urQueueFinish(
   }
 
   Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+  std::shared_lock<ur_shared_mutex> ContextLock(Queue->Context->Mutex);
+  for (auto &Pool : Queue->Context->UsmPoolHandles) {
+    Pool->cleanupPoolsForQueue(Queue);
+  }
+  ContextLock.unlock();
 
   return UR_RESULT_SUCCESS;
 }
@@ -927,8 +939,8 @@ ur_result_t urEnqueueKernelLaunchCustomExp(
     uint32_t /*numEventsInWaitList*/,
     const ur_event_handle_t * /*phEventWaitList*/,
     ur_event_handle_t * /*phEvent*/) {
-  logger::error("[UR][L0] {} function not implemented!",
-                "{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERR, "[UR][L0] {} function not implemented!",
+         "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1008,9 +1020,9 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           Val = std::stoi(BatchConfig.substr(Pos));
         } catch (...) {
           if (IsCopy)
-            logger::error("UR_L0_COPY_BATCH_SIZE: failed to parse value");
+            UR_LOG(ERR, "UR_L0_COPY_BATCH_SIZE: failed to parse value")
           else
-            logger::error("UR_L0_BATCH_SIZE: failed to parse value");
+            UR_LOG(ERR, "UR_L0_BATCH_SIZE: failed to parse value")
           break;
         }
         switch (Ord) {
@@ -1033,20 +1045,19 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           die("Unexpected batch config");
         }
         if (IsCopy)
-          logger::error("UR_L0_COPY_BATCH_SIZE: dynamic batch param "
-                        "#{}: {}",
-                        (int)Ord, (int)Val);
+          UR_LOG(ERR, "UR_L0_COPY_BATCH_SIZE: dynamic batch param #{}: {}",
+                 (int)Ord, (int)Val)
         else
-          logger::error("UR_L0_BATCH_SIZE: dynamic batch param #{}: {}",
-                        (int)Ord, (int)Val);
+          UR_LOG(ERR, "UR_L0_BATCH_SIZE: dynamic batch param #{}: {}", (int)Ord,
+                 (int)Val)
       };
 
     } else {
       // Negative batch sizes are silently ignored.
       if (IsCopy)
-        logger::warning("UR_L0_COPY_BATCH_SIZE: ignored negative value");
+        UR_LOG(WARN, "UR_L0_COPY_BATCH_SIZE: ignored negative value")
       else
-        logger::warning("UR_L0_BATCH_SIZE: ignored negative value");
+        UR_LOG(WARN, "UR_L0_BATCH_SIZE: ignored negative value")
     }
   }
   return Config;
@@ -1226,7 +1237,7 @@ void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
           ZeCommandListBatchConfig.NumTimesClosedFullThreshold) {
     if (QueueBatchSize < ZeCommandListBatchConfig.DynamicSizeMax) {
       QueueBatchSize += ZeCommandListBatchConfig.DynamicSizeStep;
-      logger::debug("Raising QueueBatchSize to {}", QueueBatchSize);
+      UR_LOG(DEBUG, "Raising QueueBatchSize to {}", QueueBatchSize);
     }
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
@@ -1253,7 +1264,7 @@ void ur_queue_handle_t_::adjustBatchSizeForPartialBatch(bool IsCopy) {
     QueueBatchSize = CommandBatch.OpenCommandList->second.size() - 1;
     if (QueueBatchSize < 1)
       QueueBatchSize = 1;
-    logger::debug("Lowering QueueBatchSize to {}", QueueBatchSize);
+    UR_LOG(DEBUG, "Lowering QueueBatchSize to {}", QueueBatchSize);
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
   }
@@ -1621,14 +1632,15 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
 
   Queue->clearEndTimeRecordings();
 
-  logger::debug("urQueueRelease(compute) NumTimesClosedFull {}, "
-                "NumTimesClosedEarly {}",
-                Queue->ComputeCommandBatch.NumTimesClosedFull,
-                Queue->ComputeCommandBatch.NumTimesClosedEarly);
-  logger::debug(
-      "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
-      Queue->CopyCommandBatch.NumTimesClosedFull,
-      Queue->CopyCommandBatch.NumTimesClosedEarly);
+  UR_LOG(DEBUG,
+         "urQueueRelease(compute) NumTimesClosedFull {}, "
+         "NumTimesClosedEarly {}",
+         Queue->ComputeCommandBatch.NumTimesClosedFull,
+         Queue->ComputeCommandBatch.NumTimesClosedEarly);
+  UR_LOG(DEBUG,
+         "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
+         Queue->CopyCommandBatch.NumTimesClosedFull,
+         Queue->CopyCommandBatch.NumTimesClosedEarly);
 
   delete Queue;
 
@@ -2245,10 +2257,11 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
     ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
-                "(round robin in [{}, {}]) priority = {}",
-                ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
-                LowerIndex, UpperIndex, Priority);
+  UR_LOG(DEBUG,
+         "[getZeQueue]: create queue ordinal = {}, index = {} "
+         "(round robin in [{}, {}]) priority = {}",
+         ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+         UpperIndex, Priority);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -2308,7 +2321,8 @@ ur_result_t ur_queue_handle_t_::createCommandList(
     IsInOrderList = true;
   }
 
-  logger::debug(
+  UR_LOG(
+      DEBUG,
       "create command list ordinal: {}, type: regular, device: {}, inOrder: {}",
       QueueGroupOrdinal, Device->ZeDevice, IsInOrderList);
 
@@ -2477,14 +2491,15 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
 
   // If cache didn't contain a command list, create one.
   if (!ZeCommandList) {
-    logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
-                  "(round robin in [{}, {}]) priority = {}",
-                  ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
-                  LowerIndex, UpperIndex, Priority);
-    logger::debug("create command list ordinal: {}, type: immediate, device: "
-                  "{}, inOrder: {}",
-                  ZeCommandQueueDesc.ordinal, Queue->Device->ZeDevice,
-                  isInOrderList);
+    UR_LOG(DEBUG,
+           "[getZeQueue]: create queue ordinal = {}, index = {} "
+           "(round robin in [{}, {}]) priority = {}",
+           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+           UpperIndex, Priority);
+    UR_LOG(DEBUG,
+           "create command list ordinal: {}, type: immediate, device: "
+           "{}, inOrder: {}",
+           ZeCommandQueueDesc.ordinal, Queue->Device->ZeDevice, isInOrderList);
 
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,
