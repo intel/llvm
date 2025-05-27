@@ -12,6 +12,7 @@
 #include "common.hpp"
 
 #include "enqueued_pool.hpp"
+#include "event.hpp"
 #include "ur_api.h"
 #include "ur_pool_manager.hpp"
 #include <set>
@@ -20,7 +21,10 @@
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
 struct UsmPool {
-  UsmPool(umf::pool_unique_handle_t Pool) : UmfPool(std::move(Pool)) {}
+  UsmPool(umf::pool_unique_handle_t Pool)
+      : UmfPool(std::move(Pool)), AsyncPool([](ur_event_handle_t Event) {
+          return urEventReleaseInternal(Event);
+        }) {}
   umf::pool_unique_handle_t UmfPool;
   // 'AsyncPool' needs to be declared after 'UmfPool' so its destructor is
   // invoked first.
