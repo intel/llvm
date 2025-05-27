@@ -56,6 +56,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   try {
     std::unique_ptr<ur_queue_handle_t_> QueueImpl{nullptr};
 
+    ScopedDevice Active(hDevice);
     unsigned int Flags = hipStreamNonBlocking;
     ur_queue_flags_t URFlags = 0;
     int Priority = 0; // Not guaranteed, but, in ROCm 5.0-6.0, 0 is the default
@@ -68,7 +69,6 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       }
 
       if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
-        ScopedDevice Active(hDevice);
         UR_CHECK_ERROR(hipDeviceGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
         ScopedDevice Active(hDevice);

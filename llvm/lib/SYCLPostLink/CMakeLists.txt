@@ -1,5 +1,6 @@
 add_llvm_component_library(LLVMSYCLPostLink
   ComputeModuleRuntimeInfo.cpp
+  ESIMDPostSplitProcessing.cpp
   ModuleSplitter.cpp
 
   ADDITIONAL_HEADER_DIRS

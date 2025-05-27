@@ -26,7 +26,7 @@ TEST_P(urAdapterGetInfoTest, SuccessBackend) {
                                   &property_value, nullptr));
 
   ASSERT_TRUE(property_value >= UR_BACKEND_LEVEL_ZERO &&
-              property_value <= UR_BACKEND_NATIVE_CPU);
+              property_value <= UR_BACKEND_OFFLOAD);
 }
 
 TEST_P(urAdapterGetInfoTest, SuccessReferenceCount) {
