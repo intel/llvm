@@ -11,7 +11,10 @@ function(add_ur_adapter name)
 
         set(ADAPTER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/${name}.def)
 
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.def.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
+        configure_linker_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/../adapter.def.in
+            ${ADAPTER_VERSION_SCRIPT} @ONLY
+        )
         set_target_properties(${name} PROPERTIES
             LINK_OPTIONS "LINKER:/DEF:${ADAPTER_VERSION_SCRIPT}"
         )
@@ -23,8 +26,13 @@ function(add_ur_adapter name)
 
         set(ADAPTER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/${name}.map)
 
-        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.map.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
-        target_link_options(${name} PRIVATE "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}")
+        configure_linker_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/../adapter.map.in
+            ${ADAPTER_VERSION_SCRIPT} @ONLY
+        )
+        target_link_options(${name} PRIVATE
+            "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}"
+        )
     endif()
     add_dependencies(ur_loader ${name})
 endfunction()
@@ -68,9 +76,15 @@ if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(opencl)
     list(APPEND TEMP_LIST "opencl")
 endif()
+
 if(UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL)
     add_ur_adapter_subdirectory(native_cpu)
     list(APPEND TEMP_LIST "native_cpu")
+endif()
+
+if(UR_BUILD_ADAPTER_OFFLOAD)
+    add_ur_adapter_subdirectory(offload)
+    list(APPEND TEMP_LIST "offload")
 endif()
 
 set(UR_ADAPTERS_LIST "${TEMP_LIST}" CACHE STRING "" FORCE)

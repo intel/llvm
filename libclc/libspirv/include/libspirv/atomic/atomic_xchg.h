@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define __SPIRV_FUNCTION __spirv_AtomicExchange
 #define __SPIRV_FUNCTION_S __spirv_AtomicExchange
 #define __SPIRV_FUNCTION_U __spirv_AtomicExchange
 #define __SPIRV_INT64_BASE

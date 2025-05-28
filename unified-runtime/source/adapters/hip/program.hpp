@@ -52,6 +52,10 @@ struct ur_program_handle_t_ : ur::hip::handle_base {
         RefCount{1}, Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
         KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
+
+    // When the log is queried we use strnlen(InfoLog), so it needs to be
+    // initialized like this when it's empty to correctly return 0.
+    InfoLog[0] = '\0';
   }
 
   ~ur_program_handle_t_() { urContextRelease(Context); }

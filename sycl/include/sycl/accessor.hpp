@@ -227,6 +227,10 @@ template <typename DataT, int Dimensions = 1,
           typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class accessor;
 
+namespace ext::oneapi::experimental {
+template <typename, int> class dynamic_local_accessor;
+}
+
 namespace detail {
 
 template <typename... Ts>
@@ -2638,6 +2642,8 @@ public:
 
 private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+  template <typename, int>
+  friend class ext::oneapi::experimental::dynamic_local_accessor;
 };
 
 template <typename DataT, int Dimensions = 1,

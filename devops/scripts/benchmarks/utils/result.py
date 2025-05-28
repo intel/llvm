@@ -62,6 +62,7 @@ class BenchmarkMetadata:
     tags: list[str] = field(default_factory=list)
     range_min: float = None
     range_max: float = None
+    display_name: str = None
 
 
 @dataclass_json

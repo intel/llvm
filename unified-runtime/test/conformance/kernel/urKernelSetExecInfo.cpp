@@ -44,12 +44,12 @@ TEST_P(urKernelSetExecInfoTest, InvalidNullPointerPropValue) {
 }
 
 struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "fill";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (allocation) {
       ASSERT_SUCCESS(urUSMFree(context, allocation));
     }

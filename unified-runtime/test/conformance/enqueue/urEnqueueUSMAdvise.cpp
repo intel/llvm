@@ -46,7 +46,7 @@ TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
 struct urEnqueueUSMAdviseTest : uur::urUSMDeviceAllocTest {
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-    uur::urUSMDeviceAllocTest::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urUSMDeviceAllocTest::SetUp());
   }
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMAdviseTest);

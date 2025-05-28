@@ -1618,14 +1618,14 @@ private:
 
 template <class T>
 struct urKernelExecutionTestWithParam : urBaseKernelExecutionTestWithParam<T> {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelExecutionTestWithParam<T>::SetUp());
     this->Build();
   }
 };
 
 struct urKernelExecutionTest : urBaseKernelExecutionTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelExecutionTest::SetUp());
     Build();
   }
@@ -1647,7 +1647,7 @@ template <typename Derived> struct urGlobalVariableBaseTest : public Derived {
     // they rely on metadata set when creating the program.
     const std::string metadata_name = "_Z7dev_var@global_id_mapping";
     ur_program_metadata_value_t metadata_value;
-    metadata_value.pData = (void *)metadataData.c_str();
+    metadata_value.pData = (void *)metadataData.data();
     this->metadatas.push_back({metadata_name.c_str(),
                                UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
                                metadataData.size(), metadata_value});

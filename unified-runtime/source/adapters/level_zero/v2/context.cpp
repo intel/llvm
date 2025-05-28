@@ -53,22 +53,31 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
       commandListCache(hContext,
                        {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
                         phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
-      eventPoolCache(
+      eventPoolCacheImmediate(
           this, phDevices[0]->Platform->getNumDevices(),
           [context = this](DeviceId /* deviceId*/, v2::event_flags_t flags)
               -> std::unique_ptr<v2::event_provider> {
-            assert((flags & v2::EVENT_FLAGS_COUNTER) != 0);
-
             // TODO: just use per-context id?
             return std::make_unique<v2::provider_normal>(
                 context, v2::QUEUE_IMMEDIATE, flags);
           }),
+      eventPoolCacheRegular(this, phDevices[0]->Platform->getNumDevices(),
+                            [context = this, platform = phDevices[0]->Platform](
+                                DeviceId deviceId, v2::event_flags_t flags)
+                                -> std::unique_ptr<v2::event_provider> {
+                              std::ignore = deviceId;
+                              std::ignore = platform;
+
+                              // TODO: just use per-context id?
+                              return std::make_unique<v2::provider_normal>(
+                                  context, v2::QUEUE_REGULAR, flags);
+                            }),
       nativeEventsPool(this, std::make_unique<v2::provider_normal>(
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),
       p2pAccessDevices(populateP2PDevices(
           phDevices[0]->Platform->getNumDevices(), this->hDevices)),
-      defaultUSMPool(this, nullptr) {}
+      defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
 
 ur_result_t ur_context_handle_t_::retain() {
   RefCount.increment();
@@ -104,6 +113,8 @@ bool ur_context_handle_t_::isValidDevice(ur_device_handle_t hDevice) const {
 ur_usm_pool_handle_t ur_context_handle_t_::getDefaultUSMPool() {
   return &defaultUSMPool;
 }
+
+ur_usm_pool_handle_t ur_context_handle_t_::getAsyncPool() { return &asyncPool; }
 
 const std::vector<ur_device_handle_t> &
 ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {

@@ -2314,6 +2314,7 @@ void SetArgBasedOnType(
     break;
   case kernel_param_kind_t::kind_stream:
     break;
+  case kernel_param_kind_t::kind_dynamic_accessor:
   case kernel_param_kind_t::kind_accessor: {
     Requirement *Req = (Requirement *)(Arg.MPtr);
 
