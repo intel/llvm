@@ -677,7 +677,7 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t
-waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
+waitForLastSubmission(ur_exp_command_buffer_handle_t CommandBuffer) {
 
   if (ur_event_handle_t &CurrentSubmissionEvent =
           CommandBuffer->CurrentSubmissionEvent) {
@@ -685,6 +685,30 @@ waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
                (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
     UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
     CurrentSubmissionEvent = nullptr;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+/**
+ * Waits for any ongoing executions of the command-buffer to finish
+ * but put fence in case of wait event path.
+ * @param CommandBuffer The command-buffer to wait for.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
+
+  if (CommandBuffer->UseImmediateAppendPath) {
+    if (ur_event_handle_t &CurrentSubmissionEvent =
+            CommandBuffer->CurrentSubmissionEvent) {
+      ZE2UR_CALL(zeEventHostSynchronize,
+                 (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
+      UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
+      CurrentSubmissionEvent = nullptr;
+    }
+  } else if (ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence) {
+    ZE2UR_CALL(zeFenceHostSynchronize, (ZeFence, UINT64_MAX));
   }
 
   return UR_RESULT_SUCCESS;
@@ -1743,7 +1767,7 @@ ur_result_t urEnqueueCommandBufferExp(
 
   std::scoped_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
 
-  UR_CALL(waitForOngoingExecution(CommandBuffer));
+  UR_CALL(waitForLastSubmission(CommandBuffer));
 
   const bool IsInternal = (Event == nullptr);
   const bool DoProfiling =
