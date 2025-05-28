@@ -1,0 +1,58 @@
+name: UR - Build offload adapter
+
+permissions: read-all
+
+on: [ workflow_call, workflow_dispatch ]
+
+jobs:
+  offload_build:
+    name: Build
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release]
+        compiler: [{c: gcc, cxx: g++}]
+
+    runs-on: "ubuntu-24.04"
+    container:
+      image: 'ghcr.io/intel/llvm/ubuntu2404_base'
+
+    steps:
+    - name: Checkout LLVM
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - name: Install liboffload
+      run: |
+        sudo curl -sSL https://apt.llvm.org/llvm-snapshot.gpg.key -o /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+        echo 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble main' | sudo tee /etc/apt/sources.list.d/llvm.list
+        sudo apt-get update
+        sudo apt-get -y install liboffload-21 liboffload-21-dev
+
+    - name: Configure Unified Runtime project
+      # ">" is used to avoid adding "\" at the end of each line; this command is quite long
+      run: >
+        cmake
+        -S unified-runtime
+        -B build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DUR_BUILD_TESTS=OFF
+        -DUR_BUILD_ADAPTER_OFFLOAD=ON
+        -DUR_OFFLOAD_INSTALL_DIR="/usr/lib/llvm-21"
+        -DUR_OFFLOAD_INCLUDE_DIR="/usr/lib/llvm-21/include"
+        -DCMAKE_INSTALL_PREFIX=./install
+
+    - name: Build
+      # This is so that device binaries can find the sycl runtime library
+      run: cmake --build build -j $(nproc)
+
+    - name: Install
+      # This is to check that install command does not fail
+      run: cmake --install build
+
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: ./unified-runtime/.github/scripts/get_system_info.sh
