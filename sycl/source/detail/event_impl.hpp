@@ -20,6 +20,13 @@
 #include <condition_variable>
 #include <optional>
 
+#ifdef _WIN32
+#include <intrin.h>
+#endif
+// also in event.hpp. Probably needs to be moved elsewhere
+//#define CP_LOG_EVENT_LIFECYCLE 1
+
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
@@ -56,6 +63,10 @@ public:
     // event methods. This ::get() call uses static vars to read and parse the
     // ODS env var exactly once.
     SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+#ifdef CP_LOG_EVENT_LIFECYCLE
+		std::cout << "event_impl ready constructor of (" << this << ") event_impl.hpp:53" << std::endl;
+		__debugbreak();
+#endif
   }
 
   /// Constructs an event instance from a UR event handle.

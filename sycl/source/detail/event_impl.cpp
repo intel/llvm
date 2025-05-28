@@ -32,7 +32,7 @@
 void __debugbreak() { }
 #endif
 
-#define CP_LOG_EARLY_RELEASE 1
+//#define CP_LOG_EARLY_RELEASE 1
 
 namespace sycl {
 inline namespace _V1 {
@@ -52,6 +52,10 @@ void event_impl::initContextIfNeeded() {
 }
 
 event_impl::~event_impl() {
+#ifdef CP_LOG_EVENT_LIFECYCLE
+	std::cout << "~event_impl destructor of (" << this << ") event_impl.cpp:54" << std::endl;
+	__debugbreak();
+#endif
 #ifdef CP_LOG_EARLY_RELEASE
   if (MHasBeenReleased == 0xDEADBEEF)
 	  std::cout << "~event_impl MHasBeenReleased is already set to 0xDEADBEEF" << std::endl;
@@ -60,12 +64,13 @@ event_impl::~event_impl() {
 #endif
   
   try {
-	 //__debugbreak(); // CP
-	MHasBeenReleased = 0xDEADBEEF;
-	// std::cout << "~event_impl: " << (unsigned long)this << std::endl;  // changes the timing
+	
     auto Handle = this->getHandle();
-    if (Handle)
+    if (Handle){
       getAdapter()->call<UrApiKind::urEventRelease>(Handle);
+	  //__debugbreak();
+	}
+    MHasBeenReleased = 0xDEADBEEF;
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
@@ -175,7 +180,10 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
-
+#ifdef CP_LOG_EVENT_LIFECYCLE
+	std::cout << "event_impl constructor. of (" << this << ") event_impl.cpp:178" << std::endl;
+	__debugbreak();
+#endif	
   ur_context_handle_t TempContext;
   getAdapter()->call<UrApiKind::urEventGetInfo>(
       this->getHandle(), UR_EVENT_INFO_CONTEXT, sizeof(ur_context_handle_t),
@@ -191,6 +199,10 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
 
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled} {
+#ifdef CP_LOG_EVENT_LIFECYCLE
+	std::cout << "event_impl constructor from QueImplPtr of  (" << this << ") event_impl.cpp:197" << std::endl;
+	__debugbreak();
+#endif	
   if (Queue)
     this->setContextImpl(Queue->getContextImplPtr());
   else {

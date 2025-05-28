@@ -19,14 +19,27 @@
 #include <memory>
 #include <unordered_set>
 
+#ifdef _WIN32
+#include <intrin.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 
-event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
+event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {
+#ifdef CP_LOG_EVENT_LIFECYCLE
+		std::cout << "EVENT() constructor (of " << this << ") impl: " << impl.get() << " (use_count: " << impl.use_count() << ") event.cpp:25" << std::endl;
+		__debugbreak();
+#endif		
+}
 
 event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
           detail::ur::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
+#ifdef CP_LOG_EVENT_LIFECYCLE
+	std::cout << "EVENT(ClEvent, Context) constructor. event.cpp:31" << std::endl;
+	__debugbreak();
+#endif	
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
   __SYCL_OCL_CALL(clRetainEvent, ClEvent);
@@ -62,7 +75,12 @@ std::vector<event> event::get_wait_list() {
 }
 
 event::event(std::shared_ptr<detail::event_impl> event_impl)
-    : impl(std::move(event_impl)) {}
+    : impl(std::move(event_impl)) {
+#ifdef CP_LOG_EVENT_LIFECYCLE
+	std::cout << "EVENT(impl) constructor of (" << this << ") impl: " << impl.get() << " (use_count: " << impl.use_count() << ") event.cpp:71" << std::endl;
+	__debugbreak();
+#endif	
+}
 
 template <typename Param>
 typename detail::is_event_info_desc<Param>::return_type
