@@ -34,7 +34,6 @@ private:
   int MaxRegsPerBlock{0};
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
-  bool MaxLocalMemSizeChosen{false};
   uint32_t NumComputeUnits{0};
   std::once_flag NVMLInitFlag;
   std::optional<nvmlDevice_t> NVMLDevice;
@@ -69,12 +68,22 @@ public:
     static const char *LocalMemSizePtrPI =
         std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
     static const char *LocalMemSizePtr =
-        LocalMemSizePtrUR ? LocalMemSizePtrUR
-                          : (LocalMemSizePtrPI ? LocalMemSizePtrPI : nullptr);
+        LocalMemSizePtrUR ? LocalMemSizePtrUR : LocalMemSizePtrPI;
 
     if (LocalMemSizePtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
-      MaxLocalMemSizeChosen = true;
+      if (MaxChosenLocalMem <= 0) {
+        setErrorMessage(LocalMemSizePtrUR ? "Invalid value specified for "
+                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
+                                          : "Invalid value specified for "
+                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+                        UR_RESULT_ERROR_INVALID_VALUE);
+        throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+
+      // Cap chosen local mem size to device capacity, kernel enqueue will fail
+      // if it actually needs more.
+      MaxChosenLocalMem = std::min(MaxChosenLocalMem, MaxCapacityLocalMem);
     }
 
     // Max size of memory object allocation in bytes.
@@ -141,6 +150,10 @@ public:
     return MaxWorkItemSizes[index];
   }
 
+  const size_t *getMaxWorkItemSizes() const noexcept {
+    return MaxWorkItemSizes;
+  }
+
   size_t getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
@@ -150,8 +163,6 @@ public:
   int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
   int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
-
-  bool maxLocalMemSizeChosen() { return MaxLocalMemSizeChosen; };
 
   uint32_t getNumComputeUnits() const noexcept { return NumComputeUnits; };
 
