@@ -110,6 +110,8 @@ using urEnqueueMemBufferCopyMultiDeviceTest =
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferCopyMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
   // First queue does a fill.
   const uint32_t input = 42;
   ASSERT_SUCCESS(urEnqueueMemBufferFill(

@@ -19,25 +19,31 @@
 #include <cuda.h>
 
 ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
-                                       ur_context_handle_t Context,
-                                       ur_queue_handle_t Queue,
-                                       native_type EvEnd, native_type EvQueued,
-                                       native_type EvStart, CUstream Stream,
+                                       ur_queue_handle_t Queue, CUstream Stream,
                                        uint32_t StreamToken)
-    : handle_base(), CommandType{Type}, RefCount{1}, HasOwnership{true},
-      HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      StreamToken{StreamToken}, EventID{0}, EvEnd{EvEnd}, EvStart{EvStart},
-      EvQueued{EvQueued}, Queue{Queue}, Stream{Stream}, Context{Context} {
+    : handle_base(), CommandType{Type}, StreamToken{StreamToken}, Queue{Queue},
+      Stream{Stream}, Context{Queue->getContext()} {
+  auto flag = CU_EVENT_DISABLE_TIMING;
+
+  // If profiling information is required
+  if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE ||
+      Type == UR_COMMAND_TIMESTAMP_RECORDING_EXP) {
+    HasProfiling = true;
+    flag = CU_EVENT_DEFAULT;
+    UR_CHECK_ERROR(cuEventCreate(&EvQueued, flag));
+    UR_CHECK_ERROR(cuEventCreate(&EvStart, flag));
+  }
+
+  UR_CHECK_ERROR(cuEventCreate(&EvEnd, flag));
+
   urQueueRetain(Queue);
   urContextRetain(Context);
 }
 
 ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
                                        CUevent EventNative)
-    : handle_base(), CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1},
-      HasOwnership{false}, HasBeenWaitedOn{false}, IsRecorded{false},
-      IsStarted{false}, IsInterop{true},
-      StreamToken{std::numeric_limits<uint32_t>::max()}, EventID{0},
+    : handle_base(), CommandType{UR_COMMAND_EVENTS_WAIT}, HasOwnership{false},
+      IsInterop{true}, StreamToken{std::numeric_limits<uint32_t>::max()},
       EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
       Stream{nullptr}, Context{Context} {
   urContextRetain(Context);
@@ -50,12 +56,29 @@ ur_event_handle_t_::~ur_event_handle_t_() {
   urContextRelease(Context);
 }
 
+ur_result_t ur_event_handle_t_::release() {
+  if (!HasOwnership)
+    return UR_RESULT_SUCCESS;
+
+  assert(Queue != nullptr);
+
+  UR_CHECK_ERROR(cuEventDestroy(EvEnd));
+
+  if (HasProfiling) {
+    UR_CHECK_ERROR(cuEventDestroy(EvQueued));
+    UR_CHECK_ERROR(cuEventDestroy(EvStart));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_event_handle_t_::start() {
   assert(!isStarted());
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
+    if (HasProfiling) {
+      assert(Queue->getHostSubmitTimeStream() != 0);
       UR_CHECK_ERROR(cuEventRecord(EvQueued, Queue->getHostSubmitTimeStream()));
       UR_CHECK_ERROR(cuEventRecord(EvStart, Stream));
     }
@@ -65,40 +88,6 @@ ur_result_t ur_event_handle_t_::start() {
 
   IsStarted = true;
   return Result;
-}
-
-bool ur_event_handle_t_::isCompleted() const noexcept try {
-  if (!IsRecorded) {
-    return false;
-  }
-  if (!HasBeenWaitedOn) {
-    const CUresult Result = cuEventQuery(EvEnd);
-    if (Result != CUDA_SUCCESS && Result != CUDA_ERROR_NOT_READY) {
-      UR_CHECK_ERROR(Result);
-      return false;
-    }
-    if (Result == CUDA_ERROR_NOT_READY) {
-      return false;
-    }
-  }
-  return true;
-} catch (...) {
-  return exceptionToResult(std::current_exception()) == UR_RESULT_SUCCESS;
-}
-
-uint64_t ur_event_handle_t_::getQueuedTime() const {
-  assert(isStarted());
-  return Queue->getDevice()->getElapsedTime(EvQueued);
-}
-
-uint64_t ur_event_handle_t_::getStartTime() const {
-  assert(isStarted());
-  return Queue->getDevice()->getElapsedTime(EvStart);
-}
-
-uint64_t ur_event_handle_t_::getEndTime() const {
-  assert(isStarted() && isRecorded());
-  return Queue->getDevice()->getElapsedTime(EvEnd);
 }
 
 ur_result_t ur_event_handle_t_::record() {
@@ -133,20 +122,38 @@ ur_result_t ur_event_handle_t_::wait() {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_event_handle_t_::release() {
-  if (!backendHasOwnership())
-    return UR_RESULT_SUCCESS;
-
-  assert(Queue != nullptr);
-
-  UR_CHECK_ERROR(cuEventDestroy(EvEnd));
-
-  if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE || isTimestampEvent()) {
-    UR_CHECK_ERROR(cuEventDestroy(EvQueued));
-    UR_CHECK_ERROR(cuEventDestroy(EvStart));
+bool ur_event_handle_t_::isCompleted() const noexcept try {
+  if (!IsRecorded) {
+    return false;
   }
+  if (!HasBeenWaitedOn) {
+    const CUresult Result = cuEventQuery(EvEnd);
+    if (Result != CUDA_SUCCESS && Result != CUDA_ERROR_NOT_READY) {
+      UR_CHECK_ERROR(Result);
+      return false;
+    }
+    if (Result == CUDA_ERROR_NOT_READY) {
+      return false;
+    }
+  }
+  return true;
+} catch (...) {
+  return exceptionToResult(std::current_exception()) == UR_RESULT_SUCCESS;
+}
 
-  return UR_RESULT_SUCCESS;
+uint64_t ur_event_handle_t_::getQueuedTime() const {
+  assert(isStarted());
+  return Queue->getDevice()->getElapsedTime(EvQueued);
+}
+
+uint64_t ur_event_handle_t_::getStartTime() const {
+  assert(isStarted());
+  return Queue->getDevice()->getElapsedTime(EvStart);
+}
+
+uint64_t ur_event_handle_t_::getEndTime() const {
+  assert(isStarted() && isRecorded());
+  return Queue->getDevice()->getElapsedTime(EvEnd);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
@@ -192,8 +199,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   ur_queue_handle_t Queue = hEvent->getQueue();
-  if (Queue == nullptr || (!(Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) &&
-                           !hEvent->isTimestampEvent())) {
+  if (Queue == nullptr || !hEvent->hasProfiling()) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
@@ -287,9 +293,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
-    EventPtr =
-        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeWithNative(
-            hContext, reinterpret_cast<CUevent>(hNativeEvent)));
+    EventPtr = std::make_unique<ur_event_handle_t_>(
+        hContext, reinterpret_cast<CUevent>(hNativeEvent));
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
