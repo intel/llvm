@@ -768,7 +768,7 @@ protected:
       // Note: This could be improved by moving the handling of dependencies
       // to before calling the CGF.
       Handler.depends_on(EventToBuildDeps);
-    } else if (MNoEventMode) {
+    } else if (MNoEventMode && !MEmpty) {
       // There might be some operations submitted to the queue
       // but the LastEventPtr is not set. If we are to run a host_task,
       // we need to insert a barrier to ensure proper synchronization.
