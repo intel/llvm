@@ -3859,7 +3859,7 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
 
     if (EffectiveTriple.isBPF() && StackProtectorLevel != LangOptions::SSPOff) {
       D.Diag(diag::warn_drv_unsupported_option_for_target)
-          << A->getSpelling() << EffectiveTriple.getTriple();
+          << A->getSpelling() << EffectiveTriple.getTriple() << 0;
       StackProtectorLevel = DefaultStackProtectorLevel;
     }
   } else {
@@ -5741,10 +5741,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // along with marking the same function with explicit SYCL_EXTERNAL
         CmdArgs.push_back("-Wno-sycl-strict");
       }
-
-      // Set O2 optimization level by default
-      if (!Args.getLastArg(options::OPT_O_Group))
-        CmdArgs.push_back("-O2");
 
       // Add the integration header option to generate the header.
       StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
@@ -11508,8 +11504,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             Args.MakeArgString("--sycl-target-link-options=" + LinkOptString));
     }
     // Add option to enable creating of the .syclbin file.
-    if (Args.hasArg(options::OPT_fsyclbin))
-      CmdArgs.push_back(Args.MakeArgString("--syclbin"));
+    if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
+      CmdArgs.push_back(
+          Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
   }
 
   // Construct the link job so we can wrap around it.

@@ -362,3 +362,6 @@ etors:
     - name: NATIVE_CPU
       value: "5"
       desc: "The backend is Native CPU"
+    - name: OFFLOAD
+      value: "0x100"
+      desc: "The backend is liboffload"

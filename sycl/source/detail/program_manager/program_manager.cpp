@@ -178,6 +178,8 @@ static bool isDeviceBinaryTypeSupported(const ContextImplPtr &ContextImpl,
   return "unknown";
 }
 
+// The string produced by this function might be localized, with commas and
+// periods inserted. Presently, it is used only for user facing error output.
 [[maybe_unused]] auto VecToString = [](auto &Vec) -> std::string {
   std::ostringstream Out;
   Out << "{";
