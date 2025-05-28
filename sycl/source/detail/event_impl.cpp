@@ -53,10 +53,10 @@ event_impl::~event_impl() {
   if (MHasBeenReleased == 0xDEADBEEF)
 	  std::cout << "~event_impl MHasBeenReleased is already set to 0xDEADBEEF" << std::endl;
   else if(MHasBeenReleased != 0)
-	  std::cout << "MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
+	  std::cout << "~event_impl MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
   
   try {
-	// __debugbreak(); // CP
+	 //__debugbreak(); // CP
 	MHasBeenReleased = 0xDEADBEEF;
 	// std::cout << "~event_impl: " << (unsigned long)this << std::endl;  // changes the timing
     auto Handle = this->getHandle();
@@ -74,7 +74,7 @@ void event_impl::waitInternal(bool *Success) {
 	   std::cout << "waitInternal HasBeenReleased is already set to 0xDEADBEEF.   this:  " << (unsigned long)this << std::endl;
 	   __debugbreak();
    }else if(MHasBeenReleased != 0){
-	  std::cout << "MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
+	  std::cout << "waitInternal MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
    
   auto Handle = this->getHandle();
@@ -275,7 +275,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
 	   std::cout << "wait HasBeenRelease already set to 0xDEADBEEF.  this:  " << (unsigned long)this << std::endl;
 	   __debugbreak();
    }else if(MHasBeenReleased != 0){
-	  std::cout << "MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
+	  std::cout << "wait MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
    return;
    
