@@ -127,6 +127,8 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_INVALID_OPERATION:
         - "If any property in `launchPropList` isn't supported by the device."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`launchPropList == NULL && numPropsInLaunchPropList > 0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command which waits a list of events to complete before it completes"
