@@ -41,16 +41,13 @@ function(add_adapter_tests adapter)
         add_dependencies(test-adapter-${adapter}
             generate_device_binaries kernel_names_header)
 
-
-        if("${adapter}" STREQUAL "level_zero")
-            add_adapter_test(level_zero_enqueue_alloc
-                FIXTURE KERNELS
-                SOURCES
-                    enqueue_alloc.cpp
-                ENVIRONMENT
-                    "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
-            )
-        endif()
+        add_adapter_test(${adapter}_enqueue_alloc
+            FIXTURE KERNELS
+            SOURCES
+                enqueue_alloc.cpp
+            ENVIRONMENT
+                "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
+        )
     endif()
 
     if(NOT WIN32 AND NOT UR_STATIC_ADAPTER_L0)
@@ -97,6 +94,14 @@ function(add_adapter_tests adapter)
             ur_umf
         )
     endif()
+
+    add_adapter_test(${adapter}_device_select_binary
+        FIXTURE DEVICES
+        SOURCES
+            urDeviceSelectBinary.cpp
+        ENVIRONMENT
+            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
+        )
 
     add_adapter_test(${adapter}_mem_buffer_map
         FIXTURE DEVICES
