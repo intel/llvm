@@ -1817,7 +1817,8 @@ public:
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value          // Interop
         || is_same_type<stream, T>::value          // Stream
-        || ext::oneapi::experimental::detail::is_explicitly_allowed_arg<remove_cv_ref_t<T>>::value;
+        || ext::oneapi::experimental::detail::is_explicitly_allowed_arg<
+               remove_cv_ref_t<T>>::value;
   };
 
   /// Sets argument for OpenCL interoperability kernels.

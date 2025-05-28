@@ -46,11 +46,11 @@ inline constexpr bool is_kernel_v = is_kernel<Func>::value;
 
 namespace detail {
 template <typename T> struct is_explicitly_allowed_arg {
-    static constexpr bool value = false;
+  static constexpr bool value = false;
 };
 
 template <typename T>
-inline constexpr bool is_explicitly_allowed_arg_v = 
+inline constexpr bool is_explicitly_allowed_arg_v =
     is_explicitly_allowed_arg<T>::value;
 
 } // namespace detail

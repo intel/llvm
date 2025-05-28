@@ -8,7 +8,6 @@
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
 
-#include <iostream>
 #include "clang/Sema/SemaSYCL.h"
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
@@ -1409,13 +1408,13 @@ class KernelObjVisitor {
   template <typename ParentTy, typename... HandlerTys>
   void visitComplexRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                           const CXXRecordDecl *Wrapper, QualType RecordTy,
-                          HandlerTys &...Handlers) {
+                          HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.enterStruct(Owner, Parent, RecordTy), 0)...};
     VisitRecordHelper(Wrapper, Wrapper->bases(), Handlers...);
-    VisitRecordHelper(Wrapper, Wrapper->fields(), Handlers...),
-        (void)std::initializer_list<int>{
-            (Handlers.leaveStruct(Owner, Parent, RecordTy), 0)...};
+    VisitRecordHelper(Wrapper, Wrapper->fields(), Handlers...);
+    (void)std::initializer_list<int>{
+        (Handlers.leaveStruct(Owner, Parent, RecordTy), 0)...};
   }
 
   template <typename ParentTy, typename... HandlerTys>
@@ -1519,11 +1518,9 @@ class KernelObjVisitor {
 
   template <typename... HandlerTys>
   void visitField(const CXXRecordDecl *Owner, FieldDecl *Field,
-                  QualType FieldTy, HandlerTys &... Handlers) {
+                  QualType FieldTy, HandlerTys &...Handlers) {
     if (isSyclSpecialType(FieldTy, SemaSYCLRef))
-        { FieldTy->dump();
       KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
-}
     else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
         CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
@@ -1550,12 +1547,9 @@ class KernelObjVisitor {
   void visitParam(ParmVarDecl *Param, QualType ParamTy,
                   HandlerTys &...Handlers) {
     if (isSyclSpecialType(ParamTy, SemaSYCLRef))
-        {ParamTy->dump();
       KP_FOR_EACH(handleSyclSpecialType, Param, ParamTy);
-}
     else if (ParamTy->isStructureOrClassType()) {
       if (KP_FOR_EACH(handleStructType, Param, ParamTy)) {
-        ParamTy->dump();
         CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
         visitRecord(nullptr, Param, RD, ParamTy, Handlers...);
       }
@@ -1634,12 +1628,8 @@ public:
   template <typename... HandlerTys>
   void VisitFunctionParameters(FunctionDecl *FreeFunc,
                                HandlerTys &...Handlers) {
-    for (ParmVarDecl *Param : FreeFunc->parameters()) {
-std::cout << "starting!" << std::endl;        
-Param->getType()->dump();
+    for (ParmVarDecl *Param : FreeFunc->parameters())
       visitParam(Param, Param->getType(), Handlers...);
-std::cout << "ending!" << std::endl;
-}
   }
 
 #undef KF_FOR_EACH
@@ -1762,6 +1752,10 @@ public:
 
   virtual ~SyclKernelFieldHandlerBase() = default;
 };
+
+// A class to act as the direct base for all the SYCL OpenCL Kernel construction
+// tasks that contains a reference to Sema (and potentially any other
+// universally required data).
 class SyclKernelFieldHandler : public SyclKernelFieldHandlerBase {
 protected:
   SemaSYCL &SemaSYCLRef;
@@ -1845,11 +1839,7 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
     // If this container requires decomposition, we have to visit it as
     // 'complex', so all handlers are called in this case with the 'complex'
     // case.
-    //RecordTy->dump();
     visitComplexRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
-    // 'complex', so all handlers are called in this case with the 'complex'
-    // case.
-    //RecordTy->dump();
   } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
                  Value) {
     // We are currently in PointerHandler visitor.
@@ -2723,7 +2713,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     addParam(newParamDesc, ParamTy);
   }
 
-
   void addParam(const CXXBaseSpecifier &BS, QualType FieldTy) {
     // TODO: There is no name for the base available, but duplicate names are
     // seemingly already possible, so we'll give them all the same name for now.
@@ -2811,7 +2800,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
                           SourceLocation Loc) {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
 
-     // If "accessor" type check if read only
+    // If "accessor" type check if read only
     if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
       // Get access mode of accessor.
       const auto *AccessorSpecializationDecl =
@@ -2837,8 +2826,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // lambda kernel by taking the value ParmVarDecl or FieldDecl respectively.
   template <typename ParentDecl>
   bool handleSpecialType(ParentDecl *decl, QualType Ty) {
-std::cout << "Important one!" << std::endl;    
-Ty->dump();
     const auto *RD = Ty->getAsCXXRecordDecl();
     assert(RD && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
@@ -2852,7 +2839,7 @@ Ty->dump();
     // (if any).
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
- QualType ParamTy = Param->getType();
+      QualType ParamTy = Param->getType();
       // For lambda kernels the arguments to the OpenCL kernel are named
       // based on the position they have as fields in the definition of the
       // special type structure i.e __arg_field1, __arg_field2 and so on.
@@ -2878,7 +2865,6 @@ Ty->dump();
         handleAccessorType(Ty, RD, decl->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
-    std::cout << LastParamIndex << std::endl;
     return true;
   }
 
@@ -2972,7 +2958,6 @@ public:
         SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
 
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
-    //KernelDecl->dump();
   }
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
@@ -2982,9 +2967,6 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty) final {
     ++StructDepth;
-    //StringRef Name = "_arg_struct";
-    //addParam(Name, Ty);
-    //CurrentStruct = Params.back();
     return true;
   }
 
@@ -3647,11 +3629,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     SourceLocation LL = NewBody ? NewBody->getBeginLoc() : SourceLocation();
     SourceLocation LR = NewBody ? NewBody->getEndLoc() : SourceLocation();
 
-    CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
-                                FPOptionsOverride(), LL, LR)->dumpPretty(SemaSYCLRef.getASTContext());
-return  CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
+    return CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
                                 FPOptionsOverride(), LL, LR);
-
   }
 
   void annotateHierarchicalParallelismAPICalls() {
@@ -4453,7 +4432,6 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
       DRE = createReinterpretCastExpr(
           createGetAddressOf(DRE), SemaSYCLRef.getASTContext().getPointerType(
                                        OrigFunctionParameter->getType()));
-
       DRE = createDerefOp(DRE);
     }
 
@@ -4488,12 +4466,8 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
     auto CallExpr = CallExpr::Create(Context, Fn, ArgExprs, ResultTy, VK,
                                      FreeFunctionSrcLoc, FPOptionsOverride());
     BodyStmts.push_back(CallExpr);
-CompoundStmt::Create(Context, BodyStmts, FPOptionsOverride(), {},
-                                {})->dumpPretty(Context);
-
     return CompoundStmt::Create(Context, BodyStmts, FPOptionsOverride(), {},
                                 {});
-
   }
 
   MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
@@ -4510,17 +4484,15 @@ CompoundStmt::Create(Context, BodyStmts, FPOptionsOverride(), {},
   void createSpecialMethodCall(const CXXRecordDecl *RD, StringRef MethodName,
                                Expr *MemberBaseExpr,
                                SmallVectorImpl<Stmt *> &AddTo) {
-CXXMethodDecl *Method = getMethodByName(RD, MethodName);
+    CXXMethodDecl *Method = getMethodByName(RD, MethodName);
     if (!Method)
       return;
     unsigned NumParams = Method->getNumParams();
     llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
     llvm::ArrayRef<ParmVarDecl *> KernelParameters =
         DeclCreator.getParamVarDeclsForCurrentField();
-    //std::cout << KernelParameters.size() << std::endl;
     for (size_t I = 0; I < NumParams; ++I) {
       QualType ParamType = KernelParameters[I]->getOriginalType();
-    //ParamType->dump();
       ParamDREs[I] = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
           KernelParameters[I], ParamType, VK_LValue, FreeFunctionSrcLoc);
     }
@@ -4539,7 +4511,7 @@ CXXMethodDecl *Method = getMethodByName(RD, MethodName);
 
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
-  
+
   FreeFunctionKernelBodyCreator(SemaSYCL &S, SyclKernelDeclCreator &DC,
                                 FunctionDecl *FF)
       : SyclKernelFieldHandler(S), DeclCreator(DC), FreeFunc(FF),
@@ -4553,8 +4525,6 @@ public:
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     // Being inside this function means there is a struct parameter to the free
     // function kernel that contains a special type.
-std::cout << "Body!" << std::endl;    
-FieldTy->dump();
     ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
     // special_type_wrapper_map[ParentStruct->getType()] = true;
     Expr *Base = createParamReferenceExpr(ParentStruct);
@@ -4582,8 +4552,6 @@ FieldTy->dump();
     //    wgm.__init(arg);
     //    user_kernel(some arguments..., wgm, some arguments...);
     // }
-    std::cout << "Body!" << std::endl;
-    ParamTy->dump();
     const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
     auto DefaultConstructor =
@@ -4616,8 +4584,8 @@ FieldTy->dump();
     BodyStmts.push_back(DS);
     Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
         SpecialObjectClone, ParamTy, VK_PRValue, FreeFunctionSrcLoc);
-      createSpecialMethodCall(RecordDecl, InitMethodName, MemberBaseExpr,
-                              BodyStmts);
+    createSpecialMethodCall(RecordDecl, InitMethodName, MemberBaseExpr,
+                            BodyStmts);
     ArgExprs.push_back(MemberBaseExpr);
     return true;
   }
@@ -5556,27 +5524,23 @@ void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
                                            StringRef NameStr) {
   if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
     return;
+
   SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
   SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
                                     false /*IsSIMDKernel */, FD);
+
   FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);
+
   SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
                                         FD->getType(), FD);
+
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   KernelObjVisitor Visitor{*this};
 
-  Visitor.VisitFunctionParameters(FD, argsSizeChecker);
-
-Visitor.VisitFunctionParameters(FD, kernel_decl);
-
-Visitor.VisitFunctionParameters(FD, kernel_body);
-
-Visitor.VisitFunctionParameters(FD, int_header);
-
-Visitor.VisitFunctionParameters(FD, int_footer);
-
-  assert(getKernelFDPairs().back().first == FD &&
+  Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body, int_header, int_footer);
+  
+assert(getKernelFDPairs().back().first == FD &&
          "OpenCL Kernel not found for free function entry");
   // Register the kernel name with the OpenCL kernel generated for the
   // free function.
@@ -7812,7 +7776,7 @@ StmtResult SemaSYCL::BuildSYCLKernelCallStmt(FunctionDecl *FD,
 
   OutlinedFunctionDeclBodyInstantiator OFDBodyInstantiator(SemaRef, ParmMap);
   Stmt *OFDBody = OFDBodyInstantiator.TransformStmt(Body).get();
-OFD->setBody(OFDBody);
+  OFD->setBody(OFDBody);
   OFD->setNothrow();
   Stmt *NewBody = new (getASTContext()) SYCLKernelCallStmt(Body, OFD);
 
