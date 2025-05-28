@@ -210,7 +210,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
         launchPropList[propIndex].id !=
             UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
       // We don't support any other properties.
-      return UR_RESULT_ERROR_INVALID_OPERATION;
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
   }
 

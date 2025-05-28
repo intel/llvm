@@ -7758,7 +7758,7 @@ typedef struct ur_kernel_launch_property_t {
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If any property in `launchPropList` isn't supported by the device.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// [in] handle of the queue object

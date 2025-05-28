@@ -125,7 +125,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
-    - $X_RESULT_ERROR_INVALID_OPERATION:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If any property in `launchPropList` isn't supported by the device."
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
         - "`launchPropList == NULL && numPropsInLaunchPropList > 0`"

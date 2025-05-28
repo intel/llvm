@@ -74,7 +74,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
        propIndex++) {
     if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
   }
 

@@ -361,7 +361,7 @@ ur_result_t urEnqueueKernelLaunch(
         LaunchPropList[PropIndex].id !=
             UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
       // We don't support any other properties.
-      return UR_RESULT_ERROR_INVALID_OPERATION;
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
   }
   UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
