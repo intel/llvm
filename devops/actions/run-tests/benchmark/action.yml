@@ -99,8 +99,6 @@ runs:
       # TODO generate summary + display helpful message here
       export CMPLR_ROOT=./toolchain
       echo "-----"
-      sycl-ls
-      echo "-----"
       # Using --break-system-packages because:
       # - venv is not installed
       # - unable to install anything via pip, as python packages in the docker
@@ -125,6 +123,7 @@ runs:
 
       # By default, the benchmark scripts forceload level_zero
       FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
+      echo "Adapter: $FORCELOAD_ADAPTER"
 
       case "$ONEAPI_DEVICE_SELECTOR" in
         level_zero:*) SAVE_SUFFIX="L0" ;;
@@ -139,6 +138,9 @@ runs:
       # TODO accomodate for different GPUs and backends
       SAVE_NAME="${SAVE_PREFIX}_PVC_${SAVE_SUFFIX}"
       SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
+
+      sycl-ls
+      echo "-----"
 
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
