@@ -6899,7 +6899,7 @@ void CodeGenModule::EmitGlobalFunctionDefinition(GlobalDecl GD,
     if (GD.getKernelReferenceKind() == KernelReferenceKind::Stub &&
         !D->hasAttr<NoInlineAttr>() &&
         !Fn->hasFnAttribute(llvm::Attribute::NoInline) &&
-        !D->hasAttr<OptimizeNoneAttr>() &&
+        !D->hasAttr<OptimizeNoneAttr>() && !LangOpts.SYCLIsNativeCPU &&
         !Fn->hasFnAttribute(llvm::Attribute::OptimizeNone) &&
         !ShouldAddOptNone) {
       Fn->addFnAttr(llvm::Attribute::AlwaysInline);
