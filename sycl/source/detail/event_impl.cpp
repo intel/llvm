@@ -32,7 +32,7 @@
 void __debugbreak() { }
 #endif
 
-// #define CP_LOG_EARLY_RELEASE 1
+#define CP_LOG_EARLY_RELEASE 1
 
 namespace sycl {
 inline namespace _V1 {
@@ -77,7 +77,7 @@ void event_impl::waitInternal(bool *Success) {
 	// CP -- this does not trip
    if(MHasBeenReleased == 0xDEADBEEF){
 	   std::cout << "waitInternal HasBeenReleased is already set to 0xDEADBEEF.   this:  " << (unsigned long)this << std::endl;
-	   __debugbreak();
+	   //__debugbreak();
    }else if(MHasBeenReleased != 0){
 	  std::cout << "waitInternal MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
@@ -280,11 +280,10 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
 	// CP -- this trips
    if(MHasBeenReleased == 0xDEADBEEF) {
 	   std::cout << "wait HasBeenRelease already set to 0xDEADBEEF.  this:  " << (unsigned long)this << std::endl;
-	   __debugbreak();
+	   //__debugbreak();
    }else if(MHasBeenReleased != 0){
 	  std::cout << "wait MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
-   // return; ?
 #endif
    
   if (MState == HES_Discarded)
