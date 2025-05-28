@@ -2543,7 +2543,6 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *,
                    QualType ParamTy) final {
-    // TODO
     return true;
   }
 
@@ -2563,7 +2562,6 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                    QualType ParamTy) final {
-    // TODO
     return true;
   }
 
@@ -2659,7 +2657,6 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                              QualType ParamTy) final {
-    // TODO
     return true;
   }
 
@@ -5016,7 +5013,6 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
     return true;
   }
 
@@ -5027,7 +5023,6 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
     return true;
   }
 
