@@ -1282,6 +1282,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-msan-track-origins=1");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-msan-print-stack-names=0");
     } else if (Sanitizers.has(SanitizerKind::Thread)) {
       CmdArgs.push_back("-fsanitize=thread");
       // The tsan function entry/exit builtins are used to record stack

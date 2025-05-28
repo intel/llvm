@@ -1508,9 +1508,10 @@ void MemorySanitizer::createUserspaceApi(Module &M,
   MsanSetAllocaOriginWithDescriptionFn =
       M.getOrInsertFunction("__msan_set_alloca_origin_with_descr",
                             IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy, PtrTy);
-  MsanSetAllocaOriginNoDescriptionFn =
-      M.getOrInsertFunction("__msan_set_alloca_origin_no_descr",
-                            IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy);
+  MsanSetAllocaOriginNoDescriptionFn = M.getOrInsertFunction(
+      "__msan_set_alloca_origin_no_descr", IRB.getVoidTy(), PtrTy, IntptrTy,
+      TargetTriple.isSPIROrSPIRV() ? PointerType::get(*C, kSpirOffloadGlobalAS)
+                                   : PtrTy);
   MsanPoisonStackFn = M.getOrInsertFunction("__msan_poison_stack",
                                             IRB.getVoidTy(), PtrTy, IntptrTy);
 }
@@ -6472,7 +6473,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   Value *getLocalVarIdptr(AllocaInst &I) {
     ConstantInt *IntConst =
-        ConstantInt::get(Type::getInt32Ty((*F.getParent()).getContext()), 0);
+        ConstantInt::get(Type::getInt32Ty(I.getContext()), 0);
     return new GlobalVariable(*F.getParent(), IntConst->getType(),
                               /*isConstant=*/false, GlobalValue::PrivateLinkage,
                               IntConst);

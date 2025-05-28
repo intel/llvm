@@ -169,12 +169,13 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   }
 
   if (as == ADDRESS_SPACE_GLOBAL) {
-    if (addr >> 52 == 0xff0) {
+    if (addr >> 52 == 0xff0) { // device USM
       return addr - 0x5000'0000'0000ULL;
     }
-    // auto shadow_base = GetMsanLaunchInfo->GlobalShadowOffset;
-    // return (addr & 0xff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 7) +
-    //        shadow_base;
+    // host/shared USM
+    auto shadow_base = GetMsanLaunchInfo->GlobalShadowOffset;
+    return (addr & 0xff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 7) +
+           shadow_base;
     return GetMsanLaunchInfo->CleanShadow;
   } else if (as == ADDRESS_SPACE_LOCAL) {
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
@@ -302,9 +303,14 @@ DEVICE_EXTERN_C_NOINLINE __SYCL_GLOBAL__ void *__msan_get_origin(uptr addr,
     return (__SYCL_GLOBAL__ void *)origin_ptr;
 
   if (as == ADDRESS_SPACE_GLOBAL) {
-    if (addr >> 52 == 0xff0) {
-      origin_ptr = addr - 0xa000'0000'0000ULL;
+    if (addr >> 52 == 0xff0) { // device USM
+      return (__SYCL_GLOBAL__ void *)(addr - 0xa000'0000'0000ULL);
     }
+    // host/shared USM
+    uptr shadow_base = GetMsanLaunchInfo->GlobalShadowOffset;
+    return (__SYCL_GLOBAL__ void *)((addr & 0xff'ffff'ffffULL) +
+                                    ((addr & 0x8000'0000'0000ULL) >> 7) +
+                                    shadow_base + 0x0200'0000'0000ULL);
   }
 
   return (__SYCL_GLOBAL__ void *)origin_ptr;
@@ -607,6 +613,18 @@ __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
   SubGroupBarrier();
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
+}
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_set_alloca_origin_no_descr(void *a, uptr size,
+                                  __SYCL_GLOBAL__ u32 *id_ptr) {
+  // SetAllocaOrigin(a, size, id_ptr, nullptr, GET_CALLER_PC());
+}
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_set_alloca_origin_with_descr(void *a, uptr size,
+                                    __SYCL_GLOBAL__ u32 *id_ptr, char *descr) {
+  // SetAllocaOrigin(a, size, id_ptr, descr, GET_CALLER_PC());
 }
 
 #endif // __SPIR__ || __SPIRV__

@@ -13,6 +13,7 @@
 
 #include "msan_report.hpp"
 #include "msan_libdevice.hpp"
+#include "msan_origin.hpp"
 
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
@@ -30,15 +31,8 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
   // Try to demangle the kernel name
   KernelName = DemangleName(KernelName);
 
-  if (Report.Origin) {
-    UR_LOG_L(
-        getContext()->logger, QUIET,
-        "====WARNING: DeviceSanitizer: use-of-uninitialized-value (shadow: {})",
-        (void *)Report.Origin);
-  } else {
-    UR_LOG_L(getContext()->logger, QUIET,
-             "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
-  }
+  UR_LOG_L(getContext()->logger, QUIET,
+           "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
 
   UR_LOG_L(getContext()->logger, QUIET,
            "use of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
@@ -47,6 +41,19 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
            Report.LID2, Report.GID0, Report.GID1, Report.GID2);
   UR_LOG_L(getContext()->logger, QUIET, "  #0 {} {}:{}", Func, File,
            Report.Line);
+
+  if (!Report.Origin) {
+    return;
+  }
+
+  Origin Origin = Origin::FromRawId(Report.Origin);
+  if (Origin.isHeapOrigin()) {
+    HeapType HeapType = Origin.getHeapType();
+    StackTrace Stack = Origin.getHeapStackTrace();
+    UR_LOG_L(getContext()->logger, QUIET,
+             "ORIGIN: {} allocation:", ToString(HeapType));
+    Stack.print();
+  }
 }
 
 } // namespace msan
