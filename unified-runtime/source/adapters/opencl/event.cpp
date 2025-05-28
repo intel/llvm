@@ -149,11 +149,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
-  std::vector<cl_event> CLEvents(numEvents);
-  for (uint32_t i = 0; i < numEvents; i++) {
-    CLEvents[i] = phEventWaitList[i]->CLEvent;
+  if (numEvents == 0 || !phEventWaitList) {
+    return UR_RESULT_SUCCESS;
   }
-  cl_int RetErr = clWaitForEvents(numEvents, CLEvents.data());
+
+  ur_context_handle_t hContext = phEventWaitList[0]->Context;
+  std::vector<cl_event> CLEvents;
+  CLEvents.reserve(numEvents);
+
+  // clWaitForEvents can only be called on events from the same context.
+  // If the events are from different contexts, we need to wait for each
+  // set of events separately.
+  for (uint32_t i = 0; i < numEvents; i++) {
+    if (phEventWaitList[i]->Context != hContext) {
+      cl_int RetErr = clWaitForEvents(CLEvents.size(), CLEvents.data());
+      CL_RETURN_ON_FAILURE(RetErr);
+
+      CLEvents.clear();
+    }
+
+    CLEvents.push_back(phEventWaitList[i]->CLEvent);
+    hContext = phEventWaitList[i]->Context;
+  }
+  cl_int RetErr = clWaitForEvents(CLEvents.size(), CLEvents.data());
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
