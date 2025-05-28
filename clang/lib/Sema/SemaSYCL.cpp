@@ -5540,7 +5540,7 @@ void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
 
   Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body, int_header, int_footer);
   
-assert(getKernelFDPairs().back().first == FD &&
+  assert(getKernelFDPairs().back().first == FD &&
          "OpenCL Kernel not found for free function entry");
   // Register the kernel name with the OpenCL kernel generated for the
   // free function.
