@@ -1,8 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
+
 #include <iostream>
-#include <sycl/sycl.hpp>
 #include <vector>
 
 std::vector<sycl::event> submit_dependencies(sycl::queue q1, sycl::queue q2,
@@ -51,6 +53,8 @@ void test_host_task() {
     });
   });
 
+  q2.wait();
+
   sycl::free(mem1, c1);
   sycl::free(mem2, c2);
 }
@@ -75,6 +79,8 @@ void test_kernel() {
       assert(mem2[item.get_id()] == 2);
     });
   });
+
+  q2.wait();
 
   sycl::free(mem1, c1);
   sycl::free(mem2, c2);
