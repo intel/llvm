@@ -92,6 +92,10 @@ class DetectVersion:
                 f"Using compute_runtime tag from COMPUTE_RUNTIME_TAG_CACHE: {env_cache_ver}"
             )
             cls._instance.compute_runtime_ver_cache = env_cache_ver
+        else:
+            print(
+                f"Mismatch between COMPUTE_RUNTIME_TAG_CACHE ({env_cache_ver}) and patch reported by level_zero ({get_var("L0_VER")})"
+            )
 
         return cls._instance
 
