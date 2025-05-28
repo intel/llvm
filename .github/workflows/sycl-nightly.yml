@@ -152,6 +152,7 @@ jobs:
       artifact_archive_name: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
       build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
+      build_target: all
 
   e2e-win:
     needs: build-win
