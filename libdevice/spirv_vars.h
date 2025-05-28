@@ -11,6 +11,19 @@
 
 #include "device.h"
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+// For AMD/Cuda those symbols will be provided by libclc.
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_x();
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_y();
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_z();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_x();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_y();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_z();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_x();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_y();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_z();
+#endif // __NVPTX__ || __AMDGCN__
+
 #if defined(__SPIR__) || defined(__SPIRV__)
 
 #include <cstddef>
