@@ -182,7 +182,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
-      MemoryManager::fill_usm, Ptr, Self, Count, Pattern);
+      MemoryManager::fill_usm, Ptr, *this, Count, Pattern);
 }
 
 void report(const code_location &CodeLoc) {
@@ -233,7 +233,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
-      MemoryManager::copy_usm, Src, Self, Count, Dest);
+      MemoryManager::copy_usm, Src, *this, Count, Dest);
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
@@ -244,7 +244,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
-      MemoryManager::advise_usm, Ptr, Self, Length, Advice);
+      MemoryManager::advise_usm, Ptr, *this, Length, Advice);
 }
 
 event queue_impl::memcpyToDeviceGlobal(
@@ -258,7 +258,7 @@ event queue_impl::memcpyToDeviceGlobal(
                                  NumBytes, Offset);
       },
       MemoryManager::copy_to_device_global, DeviceGlobalPtr, IsDeviceImageScope,
-      Self, NumBytes, Offset, Src);
+      *this, NumBytes, Offset, Src);
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
@@ -272,7 +272,7 @@ event queue_impl::memcpyFromDeviceGlobal(
                                    NumBytes, Offset);
       },
       MemoryManager::copy_from_device_global, DeviceGlobalPtr,
-      IsDeviceImageScope, Self, NumBytes, Offset, Dest);
+      IsDeviceImageScope, *this, NumBytes, Offset, Dest);
 }
 
 sycl::detail::optional<event>
@@ -449,7 +449,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                                     bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc,
                                     MemOpFuncT MemOpFunc,
-                                    MemOpArgTs... MemOpArgs) {
+                                    MemOpArgTs &&...MemOpArgs) {
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
   {
@@ -468,7 +468,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       auto isNoEventsMode = trySwitchingToNoEventsMode();
       if (!CallerNeedsEvent && isNoEventsMode) {
         NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
+        MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...,
+                  getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr);
 
         return createDiscardedEvent();
@@ -480,7 +481,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
         EventImpl->setSubmissionTime();
-        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent);
+        MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...,
+                  getUrEvents(ExpandedDepEvents), &UREvent);
         EventImpl->setHandle(UREvent);
         EventImpl->setEnqueued();
         // connect returned event with dependent events
