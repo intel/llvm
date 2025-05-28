@@ -10,6 +10,7 @@
 #define __LIBDEVICE_SPIRV_VARS_H
 
 #include "device.h"
+#include <cstddef>
 
 #if defined(__NVPTX__) || defined(__AMDGCN__)
 // For AMD/Cuda those symbols will be provided by libclc.
@@ -26,7 +27,6 @@ DEVICE_EXTERNAL size_t __spirv_GlobalSize_z();
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
-#include <cstddef>
 #include <cstdint>
 
 #define __SPIRV_VAR_QUALIFIERS EXTERN_C const
