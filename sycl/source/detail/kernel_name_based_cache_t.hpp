@@ -26,24 +26,26 @@ struct FastKernelCacheVal {
   const KernelArgMask *MKernelArgMask;    /* Eliminated kernel argument mask. */
   ur_program_handle_t MProgramHandle;     /* UR program handle corresponding to
                                         this kernel. */
-  std::weak_ptr<Adapter> MAdapterWeakPtr; /* Weak pointer to the adapter. */
+  const Adapter *MAdapterPtr;             /* We can keep raw pointer to the
+                                        adapter because during 2-stage shutdown
+                                        the kernel cache is destroyed
+                                        deliberately before the adapter. */
 
   FastKernelCacheVal(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
                      const KernelArgMask *KernelArgMask,
                      ur_program_handle_t ProgramHandle,
-                     const AdapterPtr &Adapter)
+                     const Adapter *AdapterPtr)
       : MKernelHandle(KernelHandle), MMutex(Mutex),
         MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle),
-        MAdapterWeakPtr(Adapter) {}
+        MAdapterPtr(AdapterPtr) {}
 
   ~FastKernelCacheVal() {
-    if (AdapterPtr Adapter = MAdapterWeakPtr.lock()) {
-      if (MKernelHandle)
-        Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(MKernelHandle);
-      if (MProgramHandle)
-        Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(
-            MProgramHandle);
-    }
+    if (MKernelHandle)
+      MAdapterPtr->call<sycl::detail::UrApiKind::urKernelRelease>(
+          MKernelHandle);
+    if (MProgramHandle)
+      MAdapterPtr->call<sycl::detail::UrApiKind::urProgramRelease>(
+          MProgramHandle);
   }
 };
 using FastKernelCacheValPtr = std::shared_ptr<FastKernelCacheVal>;
