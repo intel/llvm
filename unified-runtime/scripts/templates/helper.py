@@ -114,11 +114,11 @@ class type_traits:
     RE_ARRAY = r"(.*)\[([1-9][0-9]*)\]"
 
     @staticmethod
-    def base(name) -> Union[str, bool]:
+    def base(name) -> Union[str, None]:
         try:
             return _remove_const_ptr(name)
         except BaseException:
-            return False
+            return None
 
     @classmethod
     def is_handle(cls, name) -> bool:
