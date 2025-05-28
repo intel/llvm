@@ -43,7 +43,7 @@ platform::platform(const device_selector &dev_selector) {
 cl_platform_id platform::get() const { return impl->get(); }
 
 bool platform::has_extension(detail::string_view ExtName) const {
-  return impl->has_extension(ExtName.data());
+  return impl->has_extension(std::string(std::string_view(ExtName)));
 }
 
 std::vector<device> platform::get_devices(info::device_type DeviceType) const {

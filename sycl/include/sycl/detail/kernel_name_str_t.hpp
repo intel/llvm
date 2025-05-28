@@ -20,7 +20,7 @@ using KernelNameStrRefT = std::string_view;
 using ABINeutralKernelNameStrT = detail::string_view;
 
 inline KernelNameStrT toKernelNameStrT(ABINeutralKernelNameStrT str) {
-  return str.toStringView();
+  return std::string_view(str);
 }
 
 #else
@@ -28,7 +28,7 @@ using KernelNameStrT = std::string;
 using KernelNameStrRefT = const std::string &;
 using ABINeutralKernelNameStrT = detail::string;
 
-inline KernelNameStrT toKernelNameStrT(ABINeutralKernelNameStrT str) {
+inline KernelNameStrT toKernelNameStrT(const ABINeutralKernelNameStrT &str) {
   return str.data();
 }
 #endif

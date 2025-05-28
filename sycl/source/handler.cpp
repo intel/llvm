@@ -2013,7 +2013,7 @@ backend handler::getDeviceBackend() const {
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;
@@ -2023,7 +2023,7 @@ void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
 
 void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                         size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;

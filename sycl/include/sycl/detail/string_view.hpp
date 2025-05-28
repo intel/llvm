@@ -68,12 +68,29 @@ public:
 
   const char *data() const noexcept { return str ? str : ""; }
 
+  explicit operator std::string_view() const noexcept {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::string_view toStringView() const noexcept {
     return std::string_view(str, len);
-  }
+#else
+    return std::string_view(str);
 #endif
+  }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
+    return rhs == std::string_view(lhs);
+  }
+  friend bool operator==(std::string_view lhs, string_view rhs) noexcept {
+    return lhs == std::string_view(rhs);
+  }
+
+  friend bool operator!=(string_view lhs, std::string_view rhs) noexcept {
+    return rhs != std::string_view(lhs);
+  }
+  friend bool operator!=(std::string_view lhs, string_view rhs) noexcept {
+    return lhs != std::string_view(rhs);
+  }
+#else
   friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
     return rhs == lhs.data();
   }
@@ -87,6 +104,7 @@ public:
   friend bool operator!=(std::string_view lhs, string_view rhs) noexcept {
     return lhs != rhs.data();
   }
+#endif
 };
 
 } // namespace detail

@@ -535,11 +535,12 @@ private:
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
     // for parallel_for with sycl::kernel and lambda/functor together
-    // Now if they are equal we extract argumets from lambda/functor for the
+    // Now if they are equal we extract arguments from lambda/functor for the
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
-    const std::string LambdaName = detail::getKernelName<LambdaNameT>();
+    constexpr std::string_view LambdaName =
+        detail::getKernelName<LambdaNameT>();
     detail::ABINeutralKernelNameStrT KernelName = getKernelName();
     return KernelName == LambdaName;
   }
@@ -1268,8 +1269,9 @@ private:
       KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
                     PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(
-          detail::string_view{detail::getKernelName<NameT>()});
+      constexpr std::string_view Name{detail::getKernelName<NameT>()};
+
+      verifyUsedKernelBundleInternal(detail::string_view{Name});
       processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));

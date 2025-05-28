@@ -131,31 +131,35 @@ bool kernel_bundle_plain::is_specialization_constant_set(
 }
 
 bool kernel_bundle_plain::ext_oneapi_has_kernel(detail::string_view name) {
-  return impl->ext_oneapi_has_kernel(name.data());
+  return impl->ext_oneapi_has_kernel(std::string(std::string_view(name)));
 }
 
 kernel kernel_bundle_plain::ext_oneapi_get_kernel(detail::string_view name) {
-  return impl->ext_oneapi_get_kernel(name.data(), impl);
+  return impl->ext_oneapi_get_kernel(std::string(std::string_view(name)),
+      impl);
 }
 
 detail::string
 kernel_bundle_plain::ext_oneapi_get_raw_kernel_name(detail::string_view name) {
-  return detail::string{impl->ext_oneapi_get_raw_kernel_name(name.data())};
+  return detail::string{impl->ext_oneapi_get_raw_kernel_name(
+      std::string(std::string_view(name)))};
 }
 
 bool kernel_bundle_plain::ext_oneapi_has_device_global(
     detail::string_view name) {
-  return impl->ext_oneapi_has_device_global(name.data());
+  return impl->ext_oneapi_has_device_global(
+      std::string(std::string_view(name)));
 }
 
 void *kernel_bundle_plain::ext_oneapi_get_device_global_address(
     detail::string_view name, const device &dev) {
-  return impl->ext_oneapi_get_device_global_address(name.data(), dev);
+  return impl->ext_oneapi_get_device_global_address(
+      std::string(std::string_view(name)), dev);
 }
 
 size_t kernel_bundle_plain::ext_oneapi_get_device_global_size(
     detail::string_view name) {
-  return impl->ext_oneapi_get_device_global_size(name.data());
+  return impl->ext_oneapi_get_device_global_size(std::string(std::string_view(name)));
 }
 
 //////////////////////////////////
@@ -177,7 +181,14 @@ removeDuplicateDevices(const std::vector<device> &Devs) {
 
 kernel_id get_kernel_id_impl(string_view KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(
-      KernelName.data());
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    std::string(
+#endif
+      std::string_view(KernelName)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    )
+#endif
+    );
 }
 
 detail::KernelBundleImplPtr
@@ -460,12 +471,13 @@ make_kernel_bundle_from_source(const context &SyclContext,
   // TODO: if we later support a "reason" why support isn't present
   // (like a missing shared library etc.) it'd be nice to include it in
   // the exception message here.
-  std::string Source{SourceView.data()};
+  std::string Source{std::string_view(SourceView)};
   include_pairs_t IncludePairs;
   size_t n = IncludePairViews.size();
   IncludePairs.reserve(n);
   for (auto &p : IncludePairViews)
-    IncludePairs.push_back({p.first.data(), p.second.data()});
+    IncludePairs.push_back({ std::string{std::string_view(p.first)},
+        std::string{std::string_view(p.second)}});
 
   if (!is_source_kernel_bundle_supported(Language, SyclContext))
     throw sycl::exception(make_error_code(errc::invalid),
