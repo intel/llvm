@@ -313,27 +313,32 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
         this->getHandle(), this->getAdapter());
   }
 
-  // The delay between the submission and the actual start of a CommandBuffer
-  // can be short. Consequently, the submission time, which is based on
-  // an estimated clock and not on the real device clock, may be ahead of the
-  // start time, which is based on the actual device clock.
-  // MSubmitTime is set in a critical performance path.
-  // Force reading the device clock when setting MSubmitTime may deteriorate
-  // the performance.
-  // Since submit time is an estimated time, we implement this little hack
-  // that allows all profiled time to be meaningful.
+  // The delay between the submission and the actual start can be short.
+  // Consequently, the submission time, which is based on an estimated clock and
+  // not on the real device clock, may be ahead of the start time, which is
+  // based on the actual device clock. MSubmitTime is set in a critical
+  // performance path. Force reading the device clock when setting MSubmitTime
+  // may deteriorate the performance. Since submit time is an estimated time, we
+  // implement this little hack that allows all profiled time to be meaningful.
   // (Note that the observed time deviation between the estimated clock and
   // the real device clock is typically less than 0.5ms. The approximation we
   // made by forcing the re-sync of submit time to start time is less than
   // 0.5ms. These timing values were obtained empirically using an integrated
   // Intel GPU).
   auto Handle = this->getHandle();
-  if (MEventFromSubmittedExecCommandBuffer && !MIsHostEvent && Handle) {
+  if (!MIsHostEvent && Handle) {
     uint64_t StartTime =
         get_event_profiling_info<info::event_profiling::command_start>(
             Handle, this->getAdapter());
-    if (StartTime < MSubmitTime)
+    if (StartTime < MSubmitTime) {
       MSubmitTime = StartTime;
+      // This also means that device and host clocks are not in sync, so
+      // reset the recorded time bases to ensure that the next call to
+      // getCurrentDeviceTime() will query them from backend.
+      if (QueueImplPtr Queue = MQueue.lock()) {
+        Queue->getDeviceImpl().resetRecordedTimeBases();
+      }
+    }
   }
   return MSubmitTime;
 }

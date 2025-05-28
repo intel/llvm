@@ -1650,6 +1650,9 @@ public:
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
 
+  /// Resets the recorded device and host time bases.
+  void resetRecordedTimeBases();
+
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }
 

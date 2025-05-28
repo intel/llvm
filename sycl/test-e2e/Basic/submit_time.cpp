@@ -20,7 +20,9 @@ int main(void) {
   int *data = sycl::malloc_host<int>(n, q);
   int *dest = sycl::malloc_host<int>(n, q);
 
-  for (int i = 0; i < 5; i++) {
+  // Large enough to expose incorrect submit time (exceeding start time).
+  constexpr int iterations = 5000;
+  for (int i = 0; i < iterations; i++) {
     auto event = q.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<class KernelTime>(
           sycl::range<1>(n), [=](sycl::id<1> idx) { data[idx] = idx; });
@@ -46,7 +48,7 @@ int main(void) {
   // All shortcut memory operations use queue_impl::submitMemOpHelper.
   // This test covers memcpy as a representative, extend if other operations
   // diverge.
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < iterations; i++) {
     auto memcpy_event = q.memcpy(dest, data, sizeof(int) * n);
     memcpy_event.wait();
 
