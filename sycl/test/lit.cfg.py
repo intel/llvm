@@ -211,7 +211,7 @@ llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 if not dump_only_tests:
     llvm_config.use_clang(additional_flags=additional_flags)
 
-# Set timeout for test = 10 mins (Release) or 20 mins (Debug)
+# Set timeout for test = 10 mins
 try:
     import psutil
 
