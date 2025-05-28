@@ -403,6 +403,38 @@ public:
               << "][Kernel Cache]" << Identifier << Msg << std::endl;
   }
 
+  // (1) state >= 0 means that there are no writers holding the lock and there
+  //     are zero or more readers holding the lock.
+  // (2) state < 0 means that there is one writer holding the lock.
+  // (3) Reader can not acquire the lock if state < 0 (there's a writer).
+  // (4) Writer can not acquire the lock if state >= 0 (there are readers).
+  // (5) There's only one writer at a time, but there can be multiple readers.
+  // (6) The writer is only allowed to delete an entry, we anyway do not support
+  //     modyfying an entry in the cache.
+
+  void acquireReaderLock() {
+    // If state >= 0, increment it.
+    // If state < 0, wait until it becomes non-negative.
+    int expected;
+    do {
+      expected = state.load();
+      while (expected < 0) { // Wait if a writer holds the lock
+        expected = state.load();
+      }
+    } while (!state.compare_exchange_weak(expected, expected + 1));
+  }
+
+  void releaseReaderLock() { state--; }
+
+  void acquireWriterLock() {
+    int expected = 0;
+    while (!state.compare_exchange_weak(expected, -1)) {
+      expected = 0;
+    }
+  }
+
+  void releaseWriterLock() { state.store(0); }
+
   Locked<ProgramCache> acquireCachedPrograms() {
     return {MCachedPrograms, MProgramCacheMutex};
   }
@@ -526,6 +558,12 @@ public:
                             ProgramCache &ProgCache) {
     auto It = ProgCache.Cache.find(CacheKey);
 
+    // Make sure there are no readers using handle of kernel/program we are
+    // about to remove. We use one lock for the whole cache and not individual
+    // locks for each program, because we removing items from cache is a very
+    // rare operation.
+    acquireWriterLock();
+
     if (It != ProgCache.Cache.end()) {
       // We are about to remove this program now.
       // (1) Remove it from KernelPerProgram cache.
@@ -608,6 +646,8 @@ public:
       // This should never happen.
       throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                             "Program not found in the cache.");
+
+    releaseWriterLock();
 
     return MCachedPrograms.ProgramCacheSizeInBytes;
   }
@@ -713,6 +753,11 @@ public:
   ///
   /// This member function should only be used in unit tests.
   void reset() {
+
+    // We are about to delete items from the cache. Make sure there are no
+    // readers.
+    acquireWriterLock();
+
     std::lock_guard<std::mutex> EvictionListLock(MProgramEvictionListMutex);
     std::lock_guard<std::mutex> L1(MProgramCacheMutex);
     std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
@@ -723,6 +768,9 @@ public:
     MProgramToFastKernelCacheKeyMap.clear();
     // Clear the eviction lists and its mutexes.
     MEvictionList.clear();
+
+    // Release the writer lock.
+    releaseWriterLock();
   }
 
   /// Try to fetch entity (kernel or program) from cache. If there is no such
@@ -859,6 +907,14 @@ private:
   EvictionList MEvictionList;
   // Mutexes that will be used when accessing the eviction lists.
   std::mutex MProgramEvictionListMutex;
+
+  // Implements a reader-writer lock.
+  // Cache might own kernel and program handles that it stores.
+  // So, we need to be careful while deleting items from cache as
+  // another thread might be using a kernel/program handle that we just
+  // deleted. That will lead to use-after-free and undefined behavior.
+  // The state variable is used to implement a reader-writer lock.
+  std::atomic<int> state{0};
 
   friend class ::MockKernelProgramCache;
 

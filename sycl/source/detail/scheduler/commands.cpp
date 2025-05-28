@@ -2732,6 +2732,13 @@ void enqueueImpKernel(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
+
+    // Acquire the reader lock if cache holds the ownership. This ensures
+    // that the fetched kernel and program are not evicted while we are
+    // using them.
+    if (TransferownerShipToCache)
+      ContextImpl->getKernelProgramCache().acquireReaderLock();
+
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr,
@@ -2785,10 +2792,15 @@ void enqueueImpKernel(
     // them here, as they will be released when the cache is destroyed or
     // when the kernel is evicted from the cache.
     if (!SyclKernelImpl && !MSyclKernel && !TransferownerShipToCache) {
-      // If cache is disabled, we need to release the kernel and program.
-      const AdapterPtr &Adapter = Queue->getAdapter();
-      Adapter->call<UrApiKind::urKernelRelease>(Kernel);
-      Adapter->call<UrApiKind::urProgramRelease>(Program);
+
+      if (TransferownerShipToCache)
+        ContextImpl->getKernelProgramCache().releaseReaderLock();
+      else {
+        // If cache is disabled, we need to release the kernel and program.
+        const AdapterPtr &Adapter = Queue->getAdapter();
+        Adapter->call<UrApiKind::urKernelRelease>(Kernel);
+        Adapter->call<UrApiKind::urProgramRelease>(Program);
+      }
     }
   }
   if (UR_RESULT_SUCCESS != Error) {
