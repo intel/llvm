@@ -100,7 +100,7 @@ jobs:
       image_options: ${{ matrix.image_options || '' }}
 
   offload_build:
-    name: Offload Build
+    name: Adapters (Offload)
     needs: [detect_changes, source_checks]
     if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     uses: ./.github/workflows/ur-build-offload.yml
