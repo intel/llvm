@@ -153,6 +153,7 @@ class DetectVersion:
         Returns the compute-runtime version by deriving from l0 version.
         """
         if self.compute_runtime_ver_cache is not None:
+            print(f"Using cached compute-runtime tag {self.compute_runtime_ver_cache}...")
             return self.compute_runtime_ver_cache
 
         patch = _get_patch_from_ver(self.l0_ver)

@@ -97,6 +97,7 @@ class BenchmarkHistory:
 
         if options.git_commit_override is None or options.github_repo_override is None:
             if options.detect_versions.sycl:
+                print(f"Auto-detecting sycl version...")
                 github_repo, git_hash = DetectVersion.instance().get_dpcpp_git_info()
             else:
                 git_hash, github_repo = git_info_from_path(
@@ -128,6 +129,7 @@ class BenchmarkHistory:
         if options.build_compute_runtime:
             compute_runtime = options.compute_runtime_tag
         elif options.detect_versions.compute_runtime:
+            print(f"Auto-detecting compute_runtime version...")
             detect_res = DetectVersion.instance()
             compute_runtime = detect_res.get_compute_runtime_ver()
             if detect_res.get_compute_runtime_ver_cached() is None:

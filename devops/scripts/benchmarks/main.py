@@ -617,7 +617,6 @@ if __name__ == "__main__":
             parser.error(f"Specified --detect-version-cpp-path is not a valid file")
 
         enabled_components = args.detect_version.split(",")
-        print(f"Detecting versions in {enabled_components}")
         options.detect_versions.sycl = "sycl" in enabled_components
         options.detect_versions.compute_runtime = (
             "compute_runtime" in enabled_components
