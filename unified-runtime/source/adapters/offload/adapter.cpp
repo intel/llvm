@@ -101,9 +101,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
     return ReturnValue(UR_BACKEND_OFFLOAD);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(Adapter.RefCount.load());
+  case UR_ADAPTER_INFO_VERSION:
+    return ReturnValue(1);
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(ur_adapter_handle_t,
+                                                          const char **,
+                                                          int32_t *) {
+  // This only needs to write out the error if another entry point has returned
+  // "ADAPTER_SPECIFIC", which we never do
   return UR_RESULT_SUCCESS;
 }

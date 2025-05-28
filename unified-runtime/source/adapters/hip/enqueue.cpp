@@ -163,9 +163,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -217,9 +216,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -306,9 +304,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     // If migration of mem across buffer is needed, an event must be associated
     // with this command, implicitly if phEvent is nullptr
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_KERNEL_LAUNCH, hQueue, HIPStream, StreamToken));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_KERNEL_LAUNCH, hQueue, HIPStream, StreamToken);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -409,8 +406,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     }
 
     if (phEvent) {
-      *phEvent = ur_event_handle_t_::makeNative(
-          UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue, HIPStream, StreamToken);
+      *phEvent = new ur_event_handle_t_(UR_COMMAND_EVENTS_WAIT_WITH_BARRIER,
+                                        hQueue, HIPStream, StreamToken);
       UR_CHECK_ERROR((*phEvent)->start());
       UR_CHECK_ERROR((*phEvent)->record());
     }
@@ -510,9 +507,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -558,9 +554,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -608,9 +603,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     }
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -654,9 +648,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -814,9 +807,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     }
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -978,9 +970,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1039,9 +1030,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1113,9 +1103,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1174,8 +1163,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
       }
 
       if (phEvent) {
-        *phEvent = ur_event_handle_t_::makeNative(
-            UR_COMMAND_MEM_BUFFER_MAP, hQueue, hQueue->getNextTransferStream());
+        *phEvent = new ur_event_handle_t_(UR_COMMAND_MEM_BUFFER_MAP, hQueue,
+                                          hQueue->getNextTransferStream());
         UR_CHECK_ERROR((*phEvent)->start());
         UR_CHECK_ERROR((*phEvent)->record());
       }
@@ -1224,8 +1213,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
       }
 
       if (phEvent) {
-        *phEvent = ur_event_handle_t_::makeNative(
-            UR_COMMAND_MEM_UNMAP, hQueue, hQueue->getNextTransferStream());
+        *phEvent = new ur_event_handle_t_(UR_COMMAND_MEM_UNMAP, hQueue,
+                                          hQueue->getNextTransferStream());
         UR_CHECK_ERROR((*phEvent)->start());
         UR_CHECK_ERROR((*phEvent)->record());
       }
@@ -1253,9 +1242,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_FILL, hQueue, HIPStream, StreamToken));
+      EventPtr = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_USM_FILL, hQueue, HIPStream, StreamToken);
       UR_CHECK_ERROR(EventPtr->start());
     }
 
@@ -1307,9 +1295,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_MEMCPY, hQueue, HIPStream));
+      EventPtr = std::make_unique<ur_event_handle_t_>(UR_COMMAND_USM_MEMCPY,
+                                                      hQueue, HIPStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
     UR_CHECK_ERROR(
@@ -1356,9 +1343,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_PREFETCH, hQueue, HIPStream));
+      EventPtr = std::make_unique<ur_event_handle_t_>(UR_COMMAND_USM_PREFETCH,
+                                                      hQueue, HIPStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
 
@@ -1426,9 +1412,8 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream()));
+      EventPtr = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream());
       EventPtr->start();
     }
 
@@ -1560,9 +1545,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_MEMCPY_2D, hQueue, HIPStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_USM_MEMCPY_2D, hQueue, HIPStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1885,9 +1869,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
 
-    RetImplEvent =
-        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-            UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, HIPStream));
+    // We need the profiling stream for timestamps, so ensure it's created if
+    // the queue doesn't have profiling enabled.
+    if (!(hQueue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+      hQueue->createHostSubmitTimeStream();
+    }
+
+    RetImplEvent = std::make_unique<ur_event_handle_t_>(
+        UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, HIPStream);
     UR_CHECK_ERROR(RetImplEvent->start());
     UR_CHECK_ERROR(RetImplEvent->record());
 
