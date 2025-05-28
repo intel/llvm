@@ -94,7 +94,8 @@ bool SemaSYCL::isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
 
 static bool isSyclAccessorType(QualType Ty) {
   return SemaSYCL::isSyclType(Ty, SYCLTypeAttr::accessor) ||
-         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::local_accessor);
+         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::local_accessor) ||
+         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::dynamic_local_accessor);
 }
 
 // FIXME: Accessor property lists should be modified to use compile-time
@@ -1151,7 +1152,8 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(QualType FieldTy,
                               const ClassTemplateSpecializationDecl *AccTy) {
-  if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
+  if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::local_accessor) ||
+      SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor))
     return local;
 
   return static_cast<target>(
@@ -1159,14 +1161,33 @@ static target getAccessTarget(QualType FieldTy,
 }
 
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
-  for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
-    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-        IRAttr->getAttributeNameValuePairs(getASTContext());
-    for (const auto &NameValuePair : NameValuePairs) {
-      if (NameValuePair.first == "sycl-nd-range-kernel" ||
-          NameValuePair.first == "sycl-single-task-kernel") {
+  SourceLocation Loc = FD->getLocation();
+  bool NextDeclaredWithAttr = false;
+  for (FunctionDecl *Redecl : FD->redecls()) {
+    bool IsFreeFunctionAttr = false;
+    for (auto *IRAttr :
+         Redecl->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          IRAttr->getAttributeNameValuePairs(getASTContext());
+      const auto it = std::find_if(
+          NameValuePairs.begin(), NameValuePairs.end(),
+          [](const auto &NameValuePair) {
+            return NameValuePair.first == "sycl-nd-range-kernel" ||
+                   NameValuePair.first == "sycl-single-task-kernel";
+          });
+      IsFreeFunctionAttr = it != NameValuePairs.end();
+    }
+    if (Redecl->isFirstDecl()) {
+      if (IsFreeFunctionAttr)
         return true;
+      if (NextDeclaredWithAttr) {
+        Diag(Loc, diag::err_free_function_first_occurrence_missing_attr);
+        Diag(Redecl->getLocation(), diag::note_previous_declaration);
+        return false;
       }
+    } else {
+      Loc = Redecl->getLocation();
+      NextDeclaredWithAttr = IsFreeFunctionAttr;
     }
   }
   return false;
@@ -4796,7 +4817,13 @@ public:
       int Dims = static_cast<int>(
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
       int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
-      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
+              ? SYCLIntegrationHeader::kind_dynamic_accessor
+              : SYCLIntegrationHeader::kind_accessor;
+
+      Header.addParamDesc(ParamKind, Info,
                           CurOffset +
                               offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
@@ -4822,8 +4849,12 @@ public:
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
       int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
 
-      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                          CurOffset + offsetOf(FD, FieldTy));
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
+              ? SYCLIntegrationHeader::kind_dynamic_accessor
+              : SYCLIntegrationHeader::kind_accessor;
+
+      Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
@@ -6037,6 +6068,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(pointer);
     CASE(work_group_memory);
     CASE(dynamic_work_group_memory);
+    CASE(dynamic_accessor);
   }
   return "<ERROR>";
 

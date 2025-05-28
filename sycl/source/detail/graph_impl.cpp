@@ -2011,6 +2011,10 @@ dynamic_parameter_base::dynamic_parameter_base()
 #endif
 
 dynamic_parameter_base::dynamic_parameter_base(
+    const std::shared_ptr<detail::dynamic_parameter_impl> &impl)
+    : impl(impl) {}
+
+dynamic_parameter_base::dynamic_parameter_base(
     command_graph<graph_state::modifiable>)
     : impl(std::make_shared<dynamic_parameter_impl>()) {}
 dynamic_parameter_base::dynamic_parameter_base(
@@ -2031,8 +2035,37 @@ void dynamic_parameter_base::updateAccessor(
   impl->updateAccessor(Acc);
 }
 
-void dynamic_parameter_base::updateWorkGroupMem(size_t BufferSize) {
-  impl->updateWorkGroupMem(BufferSize);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+dynamic_work_group_memory_base::dynamic_work_group_memory_base(
+    size_t BufferSizeInBytes)
+    : dynamic_parameter_base(
+          std::make_shared<dynamic_work_group_memory_impl>(BufferSizeInBytes)) {
+}
+#endif
+
+dynamic_work_group_memory_base::dynamic_work_group_memory_base(
+    experimental::command_graph<graph_state::modifiable> /* Graph */,
+    size_t BufferSizeInBytes)
+    : dynamic_parameter_base(
+          std::make_shared<dynamic_work_group_memory_impl>(BufferSizeInBytes)) {
+}
+
+void dynamic_work_group_memory_base::updateWorkGroupMem(
+    size_t NewBufferSizeInBytes) {
+  static_cast<dynamic_work_group_memory_impl *>(impl.get())
+      ->updateWorkGroupMem(NewBufferSizeInBytes);
+}
+
+dynamic_local_accessor_base::dynamic_local_accessor_base(
+    sycl::range<3> AllocationSize, int Dims, int ElemSize,
+    const property_list &PropList)
+    : dynamic_parameter_base(std::make_shared<dynamic_local_accessor_impl>(
+          AllocationSize, Dims, ElemSize, PropList)) {}
+
+void dynamic_local_accessor_base::updateLocalAccessor(
+    sycl::range<3> NewAllocationSize) {
+  static_cast<dynamic_local_accessor_impl *>(impl.get())
+      ->updateLocalAccessor(NewAllocationSize);
 }
 
 void dynamic_parameter_impl::updateValue(const raw_kernel_arg *NewRawValue,
@@ -2088,39 +2121,6 @@ void dynamic_parameter_impl::updateAccessor(
 
   std::memcpy(MValueStorage.data(), Acc,
               sizeof(sycl::detail::AccessorBaseHost));
-}
-
-void dynamic_parameter_impl::updateWorkGroupMem(size_t BufferSize) {
-  for (auto &[NodeWeak, ArgIndex] : MNodes) {
-    auto NodeShared = NodeWeak.lock();
-    if (NodeShared) {
-      dynamic_parameter_impl::updateCGWorkGroupMem(NodeShared->MCommandGroup,
-                                                   ArgIndex, BufferSize);
-    }
-  }
-
-  for (auto &DynCGInfo : MDynCGs) {
-    auto DynCG = DynCGInfo.DynCG.lock();
-    if (DynCG) {
-      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
-      dynamic_parameter_impl::updateCGWorkGroupMem(CG, DynCGInfo.ArgIndex,
-                                                   BufferSize);
-    }
-  }
-}
-
-void dynamic_parameter_impl::updateCGWorkGroupMem(
-    std::shared_ptr<sycl::detail::CG> CG, int ArgIndex, size_t BufferSize) {
-
-  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
-  for (auto &Arg : Args) {
-    if (Arg.MIndex != ArgIndex) {
-      continue;
-    }
-    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
-    Arg.MSize = BufferSize;
-    break;
-  }
 }
 
 void dynamic_parameter_impl::updateCGArgValue(
@@ -2184,6 +2184,90 @@ void dynamic_parameter_impl::updateCGAccessor(
       }
     }
     Arg.MPtr = NewAccImpl.get();
+    break;
+  }
+}
+
+void dynamic_work_group_memory_impl::updateWorkGroupMem(
+    size_t NewBufferSizeInBytes) {
+  for (auto &[NodeWeak, ArgIndex] : MNodes) {
+    auto NodeShared = NodeWeak.lock();
+    if (NodeShared) {
+      dynamic_work_group_memory_impl::updateCGWorkGroupMem(
+          NodeShared->MCommandGroup, ArgIndex, NewBufferSizeInBytes);
+    }
+  }
+
+  for (auto &DynCGInfo : MDynCGs) {
+    auto DynCG = DynCGInfo.DynCG.lock();
+    if (DynCG) {
+      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
+      dynamic_work_group_memory_impl::updateCGWorkGroupMem(
+          CG, DynCGInfo.ArgIndex, NewBufferSizeInBytes);
+    }
+  }
+}
+
+void dynamic_work_group_memory_impl::updateCGWorkGroupMem(
+    std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
+    size_t NewBufferSizeInBytes) {
+
+  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
+  for (auto &Arg : Args) {
+    if (Arg.MIndex != ArgIndex) {
+      continue;
+    }
+    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
+    Arg.MSize = NewBufferSizeInBytes;
+    break;
+  }
+}
+
+dynamic_local_accessor_impl::dynamic_local_accessor_impl(
+    sycl::range<3> AllocationSize, int Dims, int ElemSize,
+    const property_list &PropList)
+    : dynamic_parameter_impl(),
+      LAccImplHost(AllocationSize, Dims, ElemSize, {}) {
+  checkGraphPropertiesAndThrow(PropList);
+}
+
+void dynamic_local_accessor_impl::updateLocalAccessor(
+    range<3> NewAllocationSize) {
+  for (auto &[NodeWeak, ArgIndex] : MNodes) {
+    auto NodeShared = NodeWeak.lock();
+    if (NodeShared) {
+      dynamic_local_accessor_impl::updateCGLocalAccessor(
+          NodeShared->MCommandGroup, ArgIndex, NewAllocationSize);
+    }
+  }
+
+  for (auto &DynCGInfo : MDynCGs) {
+    auto DynCG = DynCGInfo.DynCG.lock();
+    if (DynCG) {
+      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
+      dynamic_local_accessor_impl::updateCGLocalAccessor(CG, DynCGInfo.ArgIndex,
+                                                         NewAllocationSize);
+    }
+  }
+}
+
+void dynamic_local_accessor_impl::updateCGLocalAccessor(
+    std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
+    range<3> NewAllocationSize) {
+
+  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
+  for (auto &Arg : Args) {
+    if (Arg.MIndex != ArgIndex) {
+      continue;
+    }
+    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
+
+    // Update the local memory Size Argument
+    Arg.MSize = NewAllocationSize.size() * LAccImplHost.MElemSize;
+
+    // MSize is used as an argument to the AccField kernel parameters.
+    LAccImplHost.MSize = NewAllocationSize;
+
     break;
   }
 }

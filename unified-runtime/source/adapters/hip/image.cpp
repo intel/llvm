@@ -963,8 +963,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
-                                                     hQueue, Stream);
+      auto NewEvent =
+          new ur_event_handle_t_(UR_COMMAND_MEM_IMAGE_COPY, hQueue, Stream);
       NewEvent->record();
       *phEvent = NewEvent;
     }
@@ -1597,7 +1597,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         1 /* numExtSems */, Stream));
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(
+      auto NewEvent = new ur_event_handle_t_(
           UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP, hQueue, Stream);
       NewEvent->record();
       *phEvent = NewEvent;
@@ -1632,7 +1632,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         &SemSignalParams, 1 /* numExtSems */, Stream));
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(
+      auto NewEvent = new ur_event_handle_t_(
           UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP, hQueue, Stream);
       NewEvent->record();
       *phEvent = NewEvent;

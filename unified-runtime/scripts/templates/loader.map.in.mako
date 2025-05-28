@@ -6,8 +6,8 @@ from templates import helper as th
 %>\
 @TARGET_LIBNAME@ {
 	global:
-%for line in th.get_loader_functions(specs, meta, n, tags):
-		${line};
+%for func in th.get_loader_functions(specs, meta, n, tags):
+		${func['name']};
 %endfor
 	local:
 		*;

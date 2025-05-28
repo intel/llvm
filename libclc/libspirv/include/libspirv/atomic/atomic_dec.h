@@ -6,24 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DECL int __spirv_AtomicIDecrement(local int *, int Scope,
-                                                     enum MemorySemanticsMask);
-_CLC_OVERLOAD _CLC_DECL int __spirv_AtomicIDecrement(global int *, int Scope,
-                                                     enum MemorySemanticsMask);
-_CLC_OVERLOAD _CLC_DECL uint __spirv_AtomicIDecrement(local uint *, int Scope,
-                                                      enum MemorySemanticsMask);
-_CLC_OVERLOAD _CLC_DECL uint __spirv_AtomicIDecrement(global uint *, int Scope,
-                                                      enum MemorySemanticsMask);
-
-#ifdef cl_khr_int64_base_atomics
-_CLC_OVERLOAD _CLC_DECL long __spirv_AtomicIDecrement(local long *, int Scope,
-                                                      enum MemorySemanticsMask);
-_CLC_OVERLOAD _CLC_DECL long __spirv_AtomicIDecrement(global long *, int Scope,
-                                                      enum MemorySemanticsMask);
-_CLC_OVERLOAD _CLC_DECL unsigned long
-__spirv_AtomicIDecrement(local unsigned long *, int Scope,
-                         enum MemorySemanticsMask);
-_CLC_OVERLOAD _CLC_DECL unsigned long
-__spirv_AtomicIDecrement(global unsigned long *, int Scope,
-                         enum MemorySemanticsMask);
-#endif
+#define __SPIRV_FUNCTION_S __spirv_AtomicIDecrement
+#define __SPIRV_FUNCTION_U __spirv_AtomicIDecrement
+#define __SPIRV_INT64_BASE
+#define __SPIRV_NO_VALUE_ARG
+#include <libspirv/atomic/atomic_decl.inc>
