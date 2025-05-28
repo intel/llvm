@@ -182,8 +182,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
-      [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
-      Count, Pattern);
+      MemoryManager::fill_usm, Ptr, Self, Count, Pattern);
 }
 
 void report(const code_location &CodeLoc) {
@@ -234,8 +233,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
-      [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
-      Count, Dest);
+      MemoryManager::copy_usm, Src, Self, Count, Dest);
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
@@ -246,8 +244,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   return submitMemOpHelper(
       Self, DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
-      [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
-      Self, Length, Advice);
+      MemoryManager::advise_usm, Ptr, Self, Length, Advice);
 }
 
 event queue_impl::memcpyToDeviceGlobal(
@@ -260,10 +257,8 @@ event queue_impl::memcpyToDeviceGlobal(
         CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
                                  NumBytes, Offset);
       },
-      [](const auto &...Args) {
-        MemoryManager::copy_to_device_global(Args...);
-      },
-      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src);
+      MemoryManager::copy_to_device_global, DeviceGlobalPtr, IsDeviceImageScope,
+      Self, NumBytes, Offset, Src);
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
@@ -276,10 +271,8 @@ event queue_impl::memcpyFromDeviceGlobal(
         CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
                                    NumBytes, Offset);
       },
-      [](const auto &...Args) {
-        MemoryManager::copy_from_device_global(Args...);
-      },
-      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
+      MemoryManager::copy_from_device_global, DeviceGlobalPtr,
+      IsDeviceImageScope, Self, NumBytes, Offset, Dest);
 }
 
 sycl::detail::optional<event>
