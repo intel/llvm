@@ -1,5 +1,6 @@
 add_llvm_component_library(LLVMSYCLPostLink
   ComputeModuleRuntimeInfo.cpp
+  ESIMDPostSplitProcessing.cpp
   ModuleSplitter.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -21,8 +22,10 @@ add_llvm_component_library(LLVMSYCLPostLink
   BitWriter
   Core
   Demangle
+  InstCombine
   IRPrinter
   Passes
+  ScalarOpts
   Support
   ipo
   )

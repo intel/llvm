@@ -70,6 +70,13 @@ private:
       const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
 
+  ur_result_t
+  enqueueUSMAllocHelper(ur_usm_pool_handle_t pPool, const size_t size,
+                        const ur_exp_async_usm_alloc_properties_t *pProperties,
+                        uint32_t numEventsInWaitList,
+                        const ur_event_handle_t *phEventWaitList, void **ppMem,
+                        ur_event_handle_t *phEvent, ur_usm_type_t Type);
+
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
                                 const ur_queue_properties_t *);

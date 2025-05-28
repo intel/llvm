@@ -2100,6 +2100,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_backend_t value) {
   case UR_BACKEND_NATIVE_CPU:
     os << "UR_BACKEND_NATIVE_CPU";
     break;
+  case UR_BACKEND_OFFLOAD:
+    os << "UR_BACKEND_OFFLOAD";
+    break;
   default:
     os << "unknown enumerator";
     break;
