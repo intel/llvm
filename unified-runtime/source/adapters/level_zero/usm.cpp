@@ -448,7 +448,7 @@ ur_result_t urUSMGetMemAllocInfo(
       MemAllocaType = UR_USM_TYPE_SHARED;
       break;
     default:
-      logger::error("urUSMGetMemAllocInfo: unexpected usm memory type");
+      UR_LOG(ERR, "urUSMGetMemAllocInfo: unexpected usm memory type");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return ReturnValue(MemAllocaType);
@@ -488,7 +488,7 @@ ur_result_t urUSMGetMemAllocInfo(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   default:
-    logger::error("urUSMGetMemAllocInfo: unsupported ParamName");
+    UR_LOG(ERR, "urUSMGetMemAllocInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -730,9 +730,10 @@ enum umf_result_t L0MemoryProvider::free(void *Ptr, size_t Size) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::GetL0MinPageSize(void *Mem, size_t *PageSize) {
+umf_result_t L0MemoryProvider::GetL0MinPageSize(const void *Mem,
+                                                size_t *PageSize) {
   ur_result_t Res = UR_RESULT_SUCCESS;
-  void *Ptr = Mem;
+  void *Ptr = const_cast<void *>(Mem);
 
   if (!Mem) {
     Res = allocateImpl(&Ptr, 1, 0);
@@ -765,7 +766,8 @@ err_set_status:
   return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
 }
 
-umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
+umf_result_t L0MemoryProvider::get_min_page_size(const void *Ptr,
+                                                 size_t *PageSize) {
 
   // Query L0 for min page size. Use provided 'Ptr'.
   if (Ptr) {
@@ -846,7 +848,7 @@ umf_result_t L0MemoryProvider::open_ipc_handle(void *IpcData, void **Ptr) {
     memcpy(&fdRemote, &zeIpcData->zeHandle, sizeof(fdRemote));
     fdLocal = ur_duplicate_fd(zeIpcData->pid, fdRemote);
     if (fdLocal == -1) {
-      logger::error("duplicating file descriptor from IPC handle failed");
+      UR_LOG(ERR, "duplicating file descriptor from IPC handle failed");
       return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
     }
 
@@ -953,12 +955,12 @@ MakeProvider(ProviderParams *Params = nullptr) {
       }
       break;
     default:
-      logger::error("urUSMPoolCreate: invalid USM type found");
+      UR_LOG(ERR, "urUSMPoolCreate: invalid USM type found");
       Ret = UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
     if (Ret != UMF_RESULT_SUCCESS) {
-      logger::error("urUSMPoolCreate: failed to create UMF provider");
+      UR_LOG(ERR, "urUSMPoolCreate: failed to create UMF provider");
       throw UsmAllocationException(umf::umf2urResult(Ret));
     }
 
@@ -999,13 +1001,13 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     auto Ret = umf::umf2urResult(
         umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
     if (Ret) {
-      logger::error("urUSMPoolCreate: failed to store USM pool tag");
+      UR_LOG(ERR, "urUSMPoolCreate: failed to store USM pool tag");
       throw UsmAllocationException(Ret);
     }
 
     Ret = PoolManager.addPool(Desc, std::move(usmPool));
     if (Ret) {
-      logger::error("urUSMPoolCreate: failed to store UMF pool");
+      UR_LOG(ERR, "urUSMPoolCreate: failed to store UMF pool");
       throw UsmAllocationException(Ret);
     }
   }
@@ -1059,12 +1061,12 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     auto Ret = umf::umf2urResult(
         umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
     if (Ret) {
-      logger::error("urUSMPoolCreate: failed to store USM pool tag");
+      UR_LOG(ERR, "urUSMPoolCreate: failed to store USM pool tag");
       throw UsmAllocationException(Ret);
     }
     Ret = PoolManager.addPool(Desc, std::move(usmPool));
     if (Ret) {
-      logger::error("urUSMPoolCreate: failed to store UMF pool");
+      UR_LOG(ERR, "urUSMPoolCreate: failed to store UMF pool");
       throw UsmAllocationException(Ret);
     }
   }
@@ -1176,9 +1178,9 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
     }
     if (*RetMem == nullptr) {
       auto umfRet = umfPoolGetLastAllocationError(umfPool);
-      logger::error(
-          "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
-          umfPool);
+      UR_LOG(ERR,
+             "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
+             umfPool);
       return umf::umf2urResult(umfRet);
     }
   }
@@ -1207,12 +1209,17 @@ ur_usm_pool_handle_t_::getPoolByHandle(const umf_memory_pool_handle_t UmfPool) {
 }
 
 void ur_usm_pool_handle_t_::cleanupPools() {
-  PoolManager.forEachPool([&](UsmPool *p) { return p->AsyncPool.cleanup(); });
+  PoolManager.forEachPool([&](UsmPool *p) {
+    p->AsyncPool.cleanup();
+    return true;
+  });
 }
 
 void ur_usm_pool_handle_t_::cleanupPoolsForQueue(ur_queue_handle_t Queue) {
-  PoolManager.forEachPool(
-      [&](UsmPool *p) { return p->AsyncPool.cleanupForQueue(Queue); });
+  PoolManager.forEachPool([&](UsmPool *p) {
+    p->AsyncPool.cleanupForQueue(Queue);
+    return true;
+  });
 }
 
 bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t Pool) {

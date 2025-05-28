@@ -37,14 +37,14 @@ inline ur_virtual_mem_access_flag_t AccessModeToVirtualAccessFlags(
 
 class physical_mem_impl {
 public:
-  physical_mem_impl(const device &SyclDevice, const context &SyclContext,
+  physical_mem_impl(device_impl &DeviceImpl, const context &SyclContext,
                     size_t NumBytes)
-      : MDevice(getSyclObjImpl(SyclDevice)),
-        MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes) {
+      : MDevice(DeviceImpl), MContext(getSyclObjImpl(SyclContext)),
+        MNumBytes(NumBytes) {
     const AdapterPtr &Adapter = MContext->getAdapter();
 
     auto Err = Adapter->call_nocheck<UrApiKind::urPhysicalMemCreate>(
-        MContext->getHandleRef(), MDevice->getHandleRef(), MNumBytes, nullptr,
+        MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, nullptr,
         &MPhysicalMem);
 
     if (Err == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
@@ -82,7 +82,7 @@ public:
 
 private:
   ur_physical_mem_handle_t MPhysicalMem = nullptr;
-  const std::shared_ptr<device_impl> MDevice;
+  device_impl &MDevice;
   const std::shared_ptr<context_impl> MContext;
   const size_t MNumBytes;
 };

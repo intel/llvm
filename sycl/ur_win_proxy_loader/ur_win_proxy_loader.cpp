@@ -107,6 +107,27 @@ void *&getDllHandle() {
   return dllHandle;
 }
 
+static bool shouldLoadL0V2adapter() {
+  auto SyclEnv = std::getenv("SYCL_UR_USE_LEVEL_ZERO_V2");
+  auto UREnv = std::getenv("UR_LOADER_USE_LEVEL_ZERO_V2");
+
+  try {
+    if (SyclEnv && std::stoi(SyclEnv) == 1) {
+      return true;
+    }
+  } catch (...) {
+  }
+
+  try {
+    if (UREnv && std::stoi(UREnv) == 1) {
+      return true;
+    }
+  } catch (...) {
+  }
+
+  return false;
+}
+
 /// Load the adapter libraries
 void preloadLibraries() {
   // Suppress system errors.
@@ -142,10 +163,16 @@ void preloadLibraries() {
   getDllHandle() = loadAdapter(UR_LIBRARY_NAME(loader));
   loadAdapter(UR_LIBRARY_NAME(adapter_opencl));
   loadAdapter(UR_LIBRARY_NAME(adapter_level_zero));
-  loadAdapter(UR_LIBRARY_NAME(adapter_level_zero_v2));
+  if (shouldLoadL0V2adapter())
+    loadAdapter(UR_LIBRARY_NAME(adapter_level_zero_v2));
   loadAdapter(UR_LIBRARY_NAME(adapter_cuda));
   loadAdapter(UR_LIBRARY_NAME(adapter_hip));
   loadAdapter(UR_LIBRARY_NAME(adapter_native_cpu));
+  // Load the Level Zero loader dynamic library to ensure it is loaded during
+  // the runtime. This is necessary to avoid the level zero loader from being
+  // unloaded prematurely. the Only trusted loader is the one that is loaded
+  // from the system32 directory.
+  LoadLibraryExW(L"ze_loader.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);

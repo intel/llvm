@@ -139,7 +139,7 @@ void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
 /// @param HostTaskList List of host tasks that have already been processed and
 /// are encountered as successors to the node Node.
 void propagatePartitionDown(
-    std::shared_ptr<node_impl> Node, int PartitionNum,
+    const std::shared_ptr<node_impl> &Node, int PartitionNum,
     std::list<std::shared_ptr<node_impl>> &HostTaskList) {
   if (Node->MCGType == sycl::detail::CGType::CodeplayHostTask) {
     if (Node->MPartitionNum != -1) {
@@ -344,7 +344,8 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
                        const sycl::device &SyclDevice,
                        const sycl::property_list &PropList)
     : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-      MEventsMap(), MInorderQueueMap(), MGraphMemPool(SyclContext, SyclDevice),
+      MEventsMap(), MInorderQueueMap(),
+      MGraphMemPool(*this, SyclContext, SyclDevice),
       MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
   checkGraphPropertiesAndThrow(PropList);
   if (PropList.has_property<property::graph::no_cycle_check>()) {
@@ -502,7 +503,16 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 const std::vector<sycl::detail::ArgDesc> &Args,
                 std::vector<std::shared_ptr<node_impl>> &Deps) {
   (void)Args;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImpl{shared_from_this()};
+  sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+#else
   sycl::handler Handler{shared_from_this()};
+#endif
+
+  // Pass the node deps to the handler so they are available when processing the
+  // CGF, need for async_malloc nodes.
+  Handler.impl->MNodeDeps = Deps;
 
 #if XPTI_ENABLE_INSTRUMENTATION
   // Save code location if one was set in TLS.
@@ -527,6 +537,10 @@ graph_impl::add(std::function<void(handler &)> CGF,
 
   Handler.finalize();
 
+  // In explicit mode the handler processing of the CGF does not need a write
+  // lock as it does not modify the graph, we extract information from it here
+  // and modify the graph.
+  graph_impl::WriteLock Lock(MMutex);
   node_type NodeType =
       Handler.impl->MUserFacingNodeType !=
               ext::oneapi::experimental::node_type::empty
@@ -596,6 +610,14 @@ graph_impl::add(node_type NodeType,
   MNodeStorage.push_back(NodeImpl);
 
   addDepsToNode(NodeImpl, Deps);
+
+  if (NodeType == node_type::async_free) {
+    auto AsyncFreeCG =
+        static_cast<CGAsyncFree *>(NodeImpl->MCommandGroup.get());
+    // If this is an async free node mark that it is now available for reuse,
+    // and pass the async free node for tracking.
+    MGraphMemPool.markAllocationAsAvailable(AsyncFreeCG->getPtr(), NodeImpl);
+  }
 
   return NodeImpl;
 }
@@ -748,7 +770,7 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
 }
 
 void graph_impl::beginRecording(
-    std::shared_ptr<sycl::detail::queue_impl> Queue) {
+    const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
   graph_impl::WriteLock Lock(MMutex);
   if (!Queue->hasCommandGraph()) {
     Queue->setCommandGraph(shared_from_this());
@@ -784,7 +806,7 @@ void exec_graph_impl::findRealDeps(
 
 ur_exp_command_buffer_sync_point_t
 exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
-                                   sycl::detail::DeviceImplPtr DeviceImpl,
+                                   sycl::detail::device_impl &DeviceImpl,
                                    ur_exp_command_buffer_handle_t CommandBuffer,
                                    std::shared_ptr<node_impl> Node) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
@@ -795,19 +817,25 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  int32_t StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
-  sycl::detail::CGExecKernel *CGExec =
-      static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
-  sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
-                                      CGExec->MFunctionName.c_str(),
-                                      CGExec->MLine, CGExec->MColumn);
-  auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-      StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-      CGExec->MKernelName.data(), nullptr, CGExec->MNDRDesc,
-      CGExec->MKernelBundle, CGExec->MArgs);
-  if (CmdTraceEvent)
-    sycl::detail::emitInstrumentationGeneral(
-        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+  const bool xptiEnabled = xptiTraceEnabled();
+  int32_t StreamID = xpti::invalid_id;
+  xpti_td *CmdTraceEvent = nullptr;
+  uint64_t InstanceID = 0;
+  if (xptiEnabled) {
+    StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
+    sycl::detail::CGExecKernel *CGExec =
+        static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+    sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
+                                        CGExec->MFunctionName.c_str(),
+                                        CGExec->MLine, CGExec->MColumn);
+    std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
+        StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
+        CGExec->MKernelName.data(), CGExec->MKernelNameBasedCachePtr, nullptr,
+        CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
+    if (CmdTraceEvent)
+      sycl::detail::emitInstrumentationGeneral(
+          StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+  }
 #endif
 
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
@@ -825,7 +853,7 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (CmdTraceEvent)
+  if (xptiEnabled && CmdTraceEvent)
     sycl::detail::emitInstrumentationGeneral(
         StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
 #endif
@@ -861,10 +889,10 @@ void exec_graph_impl::createCommandBuffers(
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
+  sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res =
       Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
-          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
+          ContextImpl->getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
@@ -918,7 +946,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const property_list &PropList)
     : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
       MQueueImpl(std::make_shared<sycl::detail::queue_impl>(
-          sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+          *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
           sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
           sycl::property_list{})),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
@@ -1013,9 +1041,10 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
                MExecutionEvents.begin();
            It != MExecutionEvents.end();) {
-        auto Event = *It;
+        EventImplPtr &Event = *It;
         if (!Event->isCompleted()) {
-          auto &AttachedEventsList = Event->getPostCompleteEvents();
+          const std::vector<EventImplPtr> &AttachedEventsList =
+              Event->getPostCompleteEvents();
           CGData.MEvents.reserve(CGData.MEvents.size() +
                                  AttachedEventsList.size() + 1);
           CGData.MEvents.push_back(Event);
@@ -1043,7 +1072,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // enqueue it directly
       if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
         NewEvent->setSubmissionTime();
-        NewEvent->setHostEnqueueTime();
         ur_result_t Res =
             Queue->getAdapter()
                 ->call_nocheck<
@@ -1462,7 +1490,8 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
+  sycl::detail::device_impl &DeviceImpl =
+      *sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
   // Gather arg information from Node
   auto &ExecCG =
@@ -1491,7 +1520,8 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, ExecCG.MKernelName);
+            ContextImpl, DeviceImpl, ExecCG.MKernelName,
+            ExecCG.MKernelNameBasedCachePtr);
     BundleObjs = std::make_pair(UrProgram, UrKernel);
   }
 
@@ -1515,7 +1545,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     LocalSize = &NDRDesc.LocalSize[0];
   else {
     Adapter->call<sycl::detail::UrApiKind::urKernelGetGroupInfo>(
-        UrKernel, DeviceImpl->getHandleRef(),
+        UrKernel, DeviceImpl.getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
         /* param_value_size_ret = */ nullptr);
@@ -1778,7 +1808,6 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
   }
 
-  graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
@@ -1990,16 +2019,21 @@ size_t executable_command_graph::get_required_mem_size() const {
   return impl->getGraphImpl()->getMemPool().getMemUseCurrent();
 }
 
-dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph)
-    : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph))) {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+dynamic_parameter_base::dynamic_parameter_base()
+    : impl(std::make_shared<dynamic_parameter_impl>()) {}
+#endif
 
 dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph, size_t ParamSize,
-    const void *Data)
-    : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {}
+    const std::shared_ptr<detail::dynamic_parameter_impl> &impl)
+    : impl(impl) {}
+
+dynamic_parameter_base::dynamic_parameter_base(
+    command_graph<graph_state::modifiable>)
+    : impl(std::make_shared<dynamic_parameter_impl>()) {}
+dynamic_parameter_base::dynamic_parameter_base(
+    command_graph<graph_state::modifiable>, size_t ParamSize, const void *Data)
+    : impl(std::make_shared<dynamic_parameter_impl>(ParamSize, Data)) {}
 
 void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);
@@ -2015,8 +2049,37 @@ void dynamic_parameter_base::updateAccessor(
   impl->updateAccessor(Acc);
 }
 
-void dynamic_parameter_base::updateWorkGroupMem(size_t BufferSize) {
-  impl->updateWorkGroupMem(BufferSize);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+dynamic_work_group_memory_base::dynamic_work_group_memory_base(
+    size_t BufferSizeInBytes)
+    : dynamic_parameter_base(
+          std::make_shared<dynamic_work_group_memory_impl>(BufferSizeInBytes)) {
+}
+#endif
+
+dynamic_work_group_memory_base::dynamic_work_group_memory_base(
+    experimental::command_graph<graph_state::modifiable> /* Graph */,
+    size_t BufferSizeInBytes)
+    : dynamic_parameter_base(
+          std::make_shared<dynamic_work_group_memory_impl>(BufferSizeInBytes)) {
+}
+
+void dynamic_work_group_memory_base::updateWorkGroupMem(
+    size_t NewBufferSizeInBytes) {
+  static_cast<dynamic_work_group_memory_impl *>(impl.get())
+      ->updateWorkGroupMem(NewBufferSizeInBytes);
+}
+
+dynamic_local_accessor_base::dynamic_local_accessor_base(
+    sycl::range<3> AllocationSize, int Dims, int ElemSize,
+    const property_list &PropList)
+    : dynamic_parameter_base(std::make_shared<dynamic_local_accessor_impl>(
+          AllocationSize, Dims, ElemSize, PropList)) {}
+
+void dynamic_local_accessor_base::updateLocalAccessor(
+    sycl::range<3> NewAllocationSize) {
+  static_cast<dynamic_local_accessor_impl *>(impl.get())
+      ->updateLocalAccessor(NewAllocationSize);
 }
 
 void dynamic_parameter_impl::updateValue(const raw_kernel_arg *NewRawValue,
@@ -2072,39 +2135,6 @@ void dynamic_parameter_impl::updateAccessor(
 
   std::memcpy(MValueStorage.data(), Acc,
               sizeof(sycl::detail::AccessorBaseHost));
-}
-
-void dynamic_parameter_impl::updateWorkGroupMem(size_t BufferSize) {
-  for (auto &[NodeWeak, ArgIndex] : MNodes) {
-    auto NodeShared = NodeWeak.lock();
-    if (NodeShared) {
-      dynamic_parameter_impl::updateCGWorkGroupMem(NodeShared->MCommandGroup,
-                                                   ArgIndex, BufferSize);
-    }
-  }
-
-  for (auto &DynCGInfo : MDynCGs) {
-    auto DynCG = DynCGInfo.DynCG.lock();
-    if (DynCG) {
-      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
-      dynamic_parameter_impl::updateCGWorkGroupMem(CG, DynCGInfo.ArgIndex,
-                                                   BufferSize);
-    }
-  }
-}
-
-void dynamic_parameter_impl::updateCGWorkGroupMem(
-    std::shared_ptr<sycl::detail::CG> CG, int ArgIndex, size_t BufferSize) {
-
-  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
-  for (auto &Arg : Args) {
-    if (Arg.MIndex != ArgIndex) {
-      continue;
-    }
-    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
-    Arg.MSize = BufferSize;
-    break;
-  }
 }
 
 void dynamic_parameter_impl::updateCGArgValue(
@@ -2172,6 +2202,90 @@ void dynamic_parameter_impl::updateCGAccessor(
   }
 }
 
+void dynamic_work_group_memory_impl::updateWorkGroupMem(
+    size_t NewBufferSizeInBytes) {
+  for (auto &[NodeWeak, ArgIndex] : MNodes) {
+    auto NodeShared = NodeWeak.lock();
+    if (NodeShared) {
+      dynamic_work_group_memory_impl::updateCGWorkGroupMem(
+          NodeShared->MCommandGroup, ArgIndex, NewBufferSizeInBytes);
+    }
+  }
+
+  for (auto &DynCGInfo : MDynCGs) {
+    auto DynCG = DynCGInfo.DynCG.lock();
+    if (DynCG) {
+      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
+      dynamic_work_group_memory_impl::updateCGWorkGroupMem(
+          CG, DynCGInfo.ArgIndex, NewBufferSizeInBytes);
+    }
+  }
+}
+
+void dynamic_work_group_memory_impl::updateCGWorkGroupMem(
+    std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
+    size_t NewBufferSizeInBytes) {
+
+  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
+  for (auto &Arg : Args) {
+    if (Arg.MIndex != ArgIndex) {
+      continue;
+    }
+    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
+    Arg.MSize = NewBufferSizeInBytes;
+    break;
+  }
+}
+
+dynamic_local_accessor_impl::dynamic_local_accessor_impl(
+    sycl::range<3> AllocationSize, int Dims, int ElemSize,
+    const property_list &PropList)
+    : dynamic_parameter_impl(),
+      LAccImplHost(AllocationSize, Dims, ElemSize, {}) {
+  checkGraphPropertiesAndThrow(PropList);
+}
+
+void dynamic_local_accessor_impl::updateLocalAccessor(
+    range<3> NewAllocationSize) {
+  for (auto &[NodeWeak, ArgIndex] : MNodes) {
+    auto NodeShared = NodeWeak.lock();
+    if (NodeShared) {
+      dynamic_local_accessor_impl::updateCGLocalAccessor(
+          NodeShared->MCommandGroup, ArgIndex, NewAllocationSize);
+    }
+  }
+
+  for (auto &DynCGInfo : MDynCGs) {
+    auto DynCG = DynCGInfo.DynCG.lock();
+    if (DynCG) {
+      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
+      dynamic_local_accessor_impl::updateCGLocalAccessor(CG, DynCGInfo.ArgIndex,
+                                                         NewAllocationSize);
+    }
+  }
+}
+
+void dynamic_local_accessor_impl::updateCGLocalAccessor(
+    std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
+    range<3> NewAllocationSize) {
+
+  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
+  for (auto &Arg : Args) {
+    if (Arg.MIndex != ArgIndex) {
+      continue;
+    }
+    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
+
+    // Update the local memory Size Argument
+    Arg.MSize = NewAllocationSize.size() * LAccImplHost.MElemSize;
+
+    // MSize is used as an argument to the AccField kernel parameters.
+    LAccImplHost.MSize = NewAllocationSize;
+
+    break;
+  }
+}
+
 dynamic_command_group_impl::dynamic_command_group_impl(
     const command_graph<graph_state::modifiable> &Graph)
     : MGraph{sycl::detail::getSyclObjImpl(Graph)}, MActiveCGF(0),
@@ -2183,7 +2297,12 @@ void dynamic_command_group_impl::finalizeCGFList(
     const auto &CGF = CGFList[CGFIndex];
     // Handler defined inside the loop so it doesn't appear to the runtime
     // as a single command-group with multiple commands inside.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    detail::handler_impl HandlerImpl{MGraph};
+    sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+#else
     sycl::handler Handler{MGraph};
+#endif
     CGF(Handler);
 
     if (Handler.getType() != sycl::detail::CGType::Kernel &&

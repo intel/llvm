@@ -34,14 +34,14 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace ext::oneapi::experimental::detail {
-using DeviceImplPtr = std::shared_ptr<sycl::detail::device_impl>;
+using namespace sycl::detail;
 bool is_source_kernel_bundle_supported(
     sycl::ext::oneapi::experimental::source_language Language,
     const context &Ctx);
 
 bool is_source_kernel_bundle_supported(
     sycl::ext::oneapi::experimental::source_language Language,
-    const std::vector<DeviceImplPtr> &Devices);
+    const std::vector<device_impl *> &Devices);
 } // namespace ext::oneapi::experimental::detail
 
 namespace detail {
@@ -50,7 +50,7 @@ static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
                                         const context &Context) {
   return std::all_of(
       Devices.begin(), Devices.end(), [&Context](const device &Dev) {
-        return getSyclObjImpl(Context)->isDeviceValid(getSyclObjImpl(Dev));
+        return getSyclObjImpl(Context)->isDeviceValid(*getSyclObjImpl(Dev));
       });
 }
 

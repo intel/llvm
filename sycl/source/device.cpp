@@ -41,7 +41,8 @@ device::device(cl_device_id DeviceId) {
       detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter->getUrAdapter(),
       nullptr, &Device);
   impl = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
-             .getOrMakeDeviceImpl(Device);
+             .getOrMakeDeviceImpl(Device)
+             .shared_from_this();
   __SYCL_OCL_CALL(clRetainDevice, DeviceId);
 }
 
@@ -123,6 +124,15 @@ bool device::has_extension(detail::string_view ext_name) const {
 template <typename Param>
 detail::ABINeutralT_t<typename detail::is_device_info_desc<Param>::return_type>
 device::get_info_impl() const {
+  static_assert(
+      std::is_same_v<typename detail::is_device_info_desc<Param>::return_type,
+                     decltype(impl->template
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+                              get_info
+#else
+                              get_info_abi_workaround
+#endif
+                              <Param, true /* InitializingCache */>())>);
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 

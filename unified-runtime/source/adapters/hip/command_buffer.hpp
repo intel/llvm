@@ -22,7 +22,7 @@
 // Struct that stores all the information related to a kernel command in a
 // command-buffer, such that the command can be recreated. When handles can
 // be returned from other command types this struct will need refactored.
-struct ur_exp_command_buffer_command_handle_t_ {
+struct ur_exp_command_buffer_command_handle_t_ : ur::hip::handle_base {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
       hipGraphNode_t Node, hipKernelNodeParams Params, uint32_t WorkDim,
@@ -83,10 +83,11 @@ struct ur_exp_command_buffer_command_handle_t_ {
   size_t LocalWorkSize[3];
 };
 
-struct ur_exp_command_buffer_handle_t_ {
+struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
 
   ur_exp_command_buffer_handle_t_(ur_context_handle_t hContext,
-                                  ur_device_handle_t hDevice, bool IsUpdatable);
+                                  ur_device_handle_t hDevice, bool IsUpdatable,
+                                  bool IsInOrder);
 
   ~ur_exp_command_buffer_handle_t_();
 
@@ -118,6 +119,8 @@ struct ur_exp_command_buffer_handle_t_ {
   ur_device_handle_t Device;
   // Whether commands in the command-buffer can be updated
   bool IsUpdatable;
+  // Whether commands in the command-buffer are in-order.
+  bool IsInOrder;
   // HIP Graph handle
   hipGraph_t HIPGraph;
   // HIP Graph Exec handle
@@ -126,9 +129,8 @@ struct ur_exp_command_buffer_handle_t_ {
   // using std::atomic prevents data race when incrementing/decrementing.
   std::atomic_uint32_t RefCount;
 
-  // Map of sync_points to ur_events
-  std::unordered_map<ur_exp_command_buffer_sync_point_t, hipGraphNode_t>
-      SyncPoints;
+  // Ordered map of sync_points to ur_events
+  std::map<ur_exp_command_buffer_sync_point_t, hipGraphNode_t> SyncPoints;
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;

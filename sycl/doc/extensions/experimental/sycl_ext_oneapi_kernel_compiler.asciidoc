@@ -642,6 +642,14 @@ As a result, the only `kernel_bundle` member functions from the core SYCL
 specification that are available for bundles in `ext_oneapi_source` state are
 `get_backend`, `get_context`, and `get_devices`.
 
+=== New constraint for `join` function
+
+This extension adds the following constraint to the `join` functions from the
+core SYCL specification:
+
+> _Constraints:_ This function is not available when `State` is
+> `bundle_state::ext_oneapi_source`.
+
 === Interaction with existing kernel bundle member functions
 
 Kernels created from online compilation of source code do not have any

@@ -115,5 +115,9 @@ add_llvm_component_library(LLVMSYCLLowerIR
   )
 
 target_include_directories(LLVMSYCLLowerIR
-  PRIVATE ${LLVM_MAIN_SRC_DIR}/projects/vc-intrinsics/GenXIntrinsics/include
-  PRIVATE ${LLVM_BINARY_DIR}/projects/vc-intrinsics/GenXIntrinsics/include)
+  PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include/>
+  PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}>
+  )
+target_link_libraries(LLVMSYCLLowerIR
+  PUBLIC LLVMGenXIntrinsics
+  )

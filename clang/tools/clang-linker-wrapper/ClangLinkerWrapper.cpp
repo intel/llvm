@@ -152,7 +152,9 @@ static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
 static bool UseSYCLPostLinkTool;
 
-static bool OutputSYCLBIN;
+static bool OutputSYCLBIN = false;
+
+static SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
 
 static SmallString<128> OffloadImageDumpDir;
 
@@ -531,9 +533,6 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
       "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
   if (!OffloadBundlerPath)
     return OffloadBundlerPath.takeError();
-
-  llvm::Triple Triple(
-      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
 
   // Create a new file to write the linked device image to.
   auto TempFileOrErr =
@@ -1639,7 +1638,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       else
         Arg->render(Args, LinkerArgs);
     }
-    llvm::copy(LinkerArgs, std::back_inserter(CmdArgs));
+    llvm::append_range(CmdArgs, LinkerArgs);
   }
 
   // Pass on -mllvm options to the linker invocation.
@@ -1690,7 +1689,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -1720,7 +1719,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return StringRef("");
   }
   case Triple::loongarch64:
-    return generic::clang(InputFiles, Args);
+    return generic::clang(InputFiles, Args, IsSYCLKind);
   default:
     if (Triple.str() == "native_cpu" && IsSYCLKind)
       return generic::clang(InputFiles, Args);
@@ -1852,7 +1851,6 @@ bundleCuda(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
     InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
                                            Image.StringData.lookup("arch")));
 
-  Triple TheTriple = Triple(Images.front().StringData.lookup("triple"));
   auto FileOrErr = nvptx::fatbinary(InputFiles, Args);
   if (!FileOrErr)
     return FileOrErr.takeError();
@@ -1875,7 +1873,6 @@ bundleHIP(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
     InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
                                            Image.StringData.lookup("arch")));
 
-  Triple TheTriple = Triple(Images.front().StringData.lookup("triple"));
   auto FileOrErr = amdgcn::fatbinary(InputFiles, Args);
   if (!FileOrErr)
     return FileOrErr.takeError();
@@ -2025,7 +2022,6 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
   // When creating SYCLBIN files, we need to store the compiled modules for
   // combined packaging.
   std::mutex SYCLBINModulesMtx;
-  SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
   SmallVector<SYCLBIN::SYCLBINModuleDesc> SYCLBINModules;
 
   // Initialize the images with any overriding inputs.
@@ -2046,16 +2042,24 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
           reportError(createStringError(Err));
         });
     auto LinkerArgs = getLinkerArgs(Input, BaseArgs);
-    DenseSet<OffloadKind> ActiveOffloadKinds;
     bool HasSYCLOffloadKind = false;
     bool HasNonSYCLOffloadKinds = false;
+    uint16_t ActiveOffloadKindMask = 0u;
     for (const auto &File : Input) {
-      if (File.getBinary()->getOffloadKind() != OFK_None)
-        ActiveOffloadKinds.insert(File.getBinary()->getOffloadKind());
+      ActiveOffloadKindMask |= File.getBinary()->getOffloadKind();
       if (File.getBinary()->getOffloadKind() == OFK_SYCL)
         HasSYCLOffloadKind = true;
       else
         HasNonSYCLOffloadKinds = true;
+    }
+
+    // Write any remaining device inputs to an output file.
+    SmallVector<StringRef> InputFiles;
+    for (const OffloadFile &File : Input) {
+      auto FileNameOrErr = writeOffloadFile(File);
+      if (!FileNameOrErr)
+        return FileNameOrErr.takeError();
+      InputFiles.emplace_back(*FileNameOrErr);
     }
 
     if (HasSYCLOffloadKind) {
@@ -2137,7 +2141,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         SYCLBIN::SYCLBINModuleDesc MD;
         MD.ArchString = LinkerArgs.getLastArgValue(OPT_arch_EQ);
         MD.SplitModules = std::move(SplitModules);
-        std::scoped_lock Guard(SYCLBINModulesMtx);
+        std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
@@ -2170,7 +2174,10 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         return OutputOrErr.takeError();
 
       // Store the offloading image for each linked output file.
-      for (OffloadKind Kind : ActiveOffloadKinds) {
+      for (OffloadKind Kind = OFK_OpenMP; Kind != OFK_LAST;
+        Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
+        if ((ActiveOffloadKindMask & Kind) == 0)
+          continue;
         llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
             llvm::MemoryBuffer::getFileOrSTDIN(*OutputOrErr);
         if (std::error_code EC = FileOrErr.getError()) {
@@ -2623,7 +2630,7 @@ int main(int Argc, char **Argv) {
   PassPlugins.setCallback([&](const std::string &PluginPath) {
     auto Plugin = PassPlugin::Load(PluginPath);
     if (!Plugin)
-      report_fatal_error(Plugin.takeError(), /*gen_crash_diag=*/false);
+      reportFatalUsageError(Plugin.takeError());
     PluginList.emplace_back(Plugin.get());
   });
   cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);
@@ -2666,7 +2673,25 @@ int main(int Argc, char **Argv) {
                                   "-no-use-sycl-post-link-tool options can't "
                                   "be used together."));
 
-  OutputSYCLBIN = Args.hasArg(OPT_syclbin);
+  if (Arg *SYCLBINArg = Args.getLastArg(OPT_syclbin_EQ)) {
+    OutputSYCLBIN = true;
+    auto MaybeSYCLBINState =
+        llvm::StringSwitch<std::optional<SYCLBIN::BundleState>>(
+            SYCLBINArg->getValue())
+            .Case("input", SYCLBIN::BundleState::Input)
+            .Case("object", SYCLBIN::BundleState::Object)
+            .Case("executable", SYCLBIN::BundleState::Executable)
+            .Default(std::nullopt);
+
+    if (MaybeSYCLBINState)
+      SYCLBINState = *MaybeSYCLBINState;
+    else
+      reportError(
+          createStringError("Invalid argument for -syclbin (" +
+                            StringRef{SYCLBINArg->getValue()} +
+                            "). Must be either input, object or executable."));
+  }
+
   if (OutputSYCLBIN && Args.hasArg(OPT_sycl_embed_ir))
     reportError(createStringError(
         "-sycl-embed_ir and -syclbin can't be used together."));

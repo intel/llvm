@@ -735,6 +735,12 @@ private:
     case sycl::detail::CGType::EnqueueNativeCommand:
       Stream << "CGNativeCommand \\n";
       break;
+    case sycl::detail::CGType::AsyncAlloc:
+      Stream << "CGAsyncAlloc \\n";
+      break;
+    case sycl::detail::CGType::AsyncFree:
+      Stream << "CGAsyncFree \\n";
+      break;
     default:
       Stream << "Other \\n";
       break;
@@ -895,7 +901,7 @@ public:
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
-                       std::shared_ptr<node_impl> NodeImpl) {
+                       const std::shared_ptr<node_impl> &NodeImpl) {
     if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
     MEventsMap[EventImpl] = NodeImpl;
@@ -937,6 +943,31 @@ public:
         "No node in this graph is associated with this event");
   }
 
+  /// Find the nodes associated with a list of SYCL events. Throws if no node is
+  /// found for a given event.
+  /// @param Events Events to find nodes for.
+  /// @return A list of node counterparts for each event, in the same order.
+  std::vector<std::shared_ptr<node_impl>> getNodesForEvents(
+      const std::vector<std::shared_ptr<sycl::detail::event_impl>> &Events) {
+    std::vector<std::shared_ptr<node_impl>> NodeList{};
+    NodeList.reserve(Events.size());
+
+    ReadLock Lock(MMutex);
+
+    for (const auto &Event : Events) {
+      if (auto NodeFound = MEventsMap.find(Event);
+          NodeFound != std::end(MEventsMap)) {
+        NodeList.push_back(NodeFound->second);
+      } else {
+        throw sycl::exception(
+            sycl::make_error_code(errc::invalid),
+            "No node in this graph is associated with this event");
+      }
+    }
+
+    return NodeList;
+  }
+
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
@@ -949,9 +980,7 @@ public:
 
   /// Query for the device_impl tied to this graph.
   /// @return device_impl shared ptr reference associated with graph.
-  const DeviceImplPtr &getDeviceImplPtr() const {
-    return getSyclObjImpl(MDevice);
-  }
+  device_impl &getDeviceImpl() const { return *getSyclObjImpl(MDevice); }
 
   /// Query for the device tied to this graph.
   /// @return Device associated with graph.
@@ -1147,7 +1176,7 @@ public:
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
   /// @param[in] Queue The queue to be recorded from.
-  void beginRecording(std::shared_ptr<sycl::detail::queue_impl> Queue);
+  void beginRecording(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
 
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.
@@ -1193,6 +1222,13 @@ public:
   /// this graph.
   size_t getExecGraphCount() const { return MExecGraphCount; }
 
+  /// Resets the visited edges variable across all nodes in the graph to 0.
+  void resetNodeVisitedEdges() {
+    for (auto &Node : MNodeStorage) {
+      Node->MTotalVisitedEdges = 0;
+    }
+  }
+
 private:
   /// Check the graph for cycles by performing a depth-first search of the
   /// graph. If a node is visited more than once in a given path through the
@@ -1214,7 +1250,7 @@ private:
   /// added as a root node.
   /// @param Node The node to add deps for
   /// @param Deps List of dependent nodes
-  void addDepsToNode(std::shared_ptr<node_impl> Node,
+  void addDepsToNode(const std::shared_ptr<node_impl> &Node,
                      std::vector<std::shared_ptr<node_impl>> &Deps) {
     if (!Deps.empty()) {
       for (auto &N : Deps) {
@@ -1421,7 +1457,7 @@ private:
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
-  enqueueNodeDirect(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
+  enqueueNodeDirect(sycl::context Ctx, sycl::detail::device_impl &DeviceImpl,
                     ur_exp_command_buffer_handle_t CommandBuffer,
                     std::shared_ptr<node_impl> Node);
 
@@ -1553,23 +1589,19 @@ private:
 
 class dynamic_parameter_impl {
 public:
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
-      : MGraph(GraphImpl),
-        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
+  dynamic_parameter_impl()
+      : MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
 
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
-                         size_t ParamSize, const void *Data)
-      : MGraph(GraphImpl), MValueStorage(ParamSize),
+  dynamic_parameter_impl(size_t ParamSize, const void *Data)
+      : MValueStorage(ParamSize),
         MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     std::memcpy(MValueStorage.data(), Data, ParamSize);
   }
 
   /// sycl_ext_oneapi_raw_kernel_arg constructor
   /// Parameter size is taken from member of raw_kernel_arg object.
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl, size_t,
-                         raw_kernel_arg *Data)
-      : MGraph(GraphImpl),
-        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
+  dynamic_parameter_impl(size_t, raw_kernel_arg *Data)
+      : MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     size_t RawArgSize = Data->MArgSize;
     const void *RawArgData = Data->MArgData;
     MValueStorage.reserve(RawArgSize);
@@ -1624,22 +1656,6 @@ public:
   /// @param Acc The new accessor value
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
-  /// Update the internal value of this dynamic parameter as well as the value
-  /// of this parameter in all registered nodes and dynamic CGs. Should only be
-  /// called for dynamic_work_group_memory arguments parameter.
-  /// @param BufferSize The total size in bytes of the new work_group_memory
-  /// array
-  void updateWorkGroupMem(size_t BufferSize);
-
-  /// Static helper function for updating command-group
-  /// dynamic_work_group_memory arguments.
-  /// @param CG The command-group to update the argument information for.
-  /// @param ArgIndex The argument index to update.
-  /// @param BufferSize The total size in bytes of the new work_group_memory
-  /// array
-  static void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> CG,
-                                   int ArgIndex, size_t BufferSize);
-
   /// Static helper function for updating command-group value arguments.
   /// @param CG The command-group to update the argument information for.
   /// @param ArgIndex The argument index to update.
@@ -1662,14 +1678,64 @@ public:
   std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
   // Dynamic command-groups which will be updated
   std::vector<DynamicCGInfo> MDynCGs;
-
-  std::weak_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
 
 private:
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
+};
+
+class dynamic_work_group_memory_impl : public dynamic_parameter_impl {
+
+public:
+  dynamic_work_group_memory_impl(size_t BufferSizeInBytes)
+      : BufferSizeInBytes(BufferSizeInBytes) {}
+
+  virtual ~dynamic_work_group_memory_impl() = default;
+
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes and dynamic CGs.
+  /// @param NewBufferSizeInBytes The total size in bytes of the new
+  /// work_group_memory array.
+  void updateWorkGroupMem(size_t NewBufferSizeInBytes);
+
+  /// Static helper function for updating command-group
+  /// dynamic_work_group_memory arguments.
+  /// @param CG The command-group to update the argument information for.
+  /// @param ArgIndex The argument index to update.
+  /// @param NewBufferSizeInBytes The total size in bytes of the new
+  /// work_group_memory array.
+  void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
+                            size_t NewBufferSizeInBytes);
+
+  size_t BufferSizeInBytes;
+};
+
+class dynamic_local_accessor_impl : public dynamic_parameter_impl {
+
+public:
+  dynamic_local_accessor_impl(sycl::range<3> AllocationSize, int Dims,
+                              int ElemSize, const property_list &PropList);
+
+  virtual ~dynamic_local_accessor_impl() = default;
+
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes and dynamic CGs.
+  /// @param NewAllocationSize The new allocation size for the
+  /// dynamic_local_accessor.
+  void updateLocalAccessor(range<3> NewAllocationSize);
+
+  /// Static helper function for updating command-group dynamic_local_accessor
+  /// arguments.
+  /// @param CG The command-group to update the argument information for.
+  /// @param ArgIndex The argument index to update.
+  /// @param NewAllocationSize The new allocation size for the
+  /// dynamic_local_accessor.
+  void updateCGLocalAccessor(std::shared_ptr<sycl::detail::CG> &CG,
+                             int ArgIndex, range<3> NewAllocationSize);
+
+  detail::LocalAccessorImplHost LAccImplHost;
 };
 
 class dynamic_command_group_impl

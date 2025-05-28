@@ -22,11 +22,11 @@ using ::testing::An;
 
 class MockQueueImpl : public sycl::detail::queue_impl {
 public:
-  MockQueueImpl(const sycl::detail::DeviceImplPtr &Device,
+  MockQueueImpl(sycl::detail::device_impl &Device,
                 const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
       : sycl::detail::queue_impl(Device, AsyncHandler, PropList) {}
-  using sycl::detail::queue_impl::finalizeHandler;
+  using sycl::detail::queue_impl::finalizeHandlerInOrderHostTaskUnlocked;
 };
 
 // Define type with the only methods called by finalizeHandler
@@ -77,7 +77,7 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
 
   const sycl::device Dev = Plt.get_devices()[0];
   auto Queue = std::make_shared<MockQueueImpl>(
-      sycl::detail::getSyclObjImpl(Dev), sycl::async_handler{},
+      *sycl::detail::getSyclObjImpl(Dev), sycl::async_handler{},
       sycl::property::queue::in_order());
 
   // Check that tasks submitted to an in-order queue implicitly depend_on the
@@ -85,13 +85,15 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
-        .Times(0);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, std::nullopt);
+        .Times(1);
+    Queue->finalizeHandlerInOrderHostTaskUnlocked<LimitedHandlerSimulation>(
+        MockCGH);
   }
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, std::nullopt);
+    Queue->finalizeHandlerInOrderHostTaskUnlocked<LimitedHandlerSimulation>(
+        MockCGH);
   }
 }

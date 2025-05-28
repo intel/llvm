@@ -19,6 +19,7 @@
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/split_string.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
@@ -707,12 +708,12 @@ public:
         getSyclObjImpl(MContext);
 
     for (const auto &SyclDev : Devices) {
-      const DeviceImplPtr &DevImpl = getSyclObjImpl(SyclDev);
+      device_impl &DevImpl = *getSyclObjImpl(SyclDev);
       if (!ContextImpl->hasDevice(DevImpl)) {
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
       }
-      if (!DevImpl->extOneapiCanBuild(MRTCBinInfo->MLanguage)) {
+      if (!DevImpl.extOneapiCanBuild(MRTCBinInfo->MLanguage)) {
         // This error cannot not be exercised in the current implementation, as
         // compatibility with a source language depends on the backend's
         // capabilities and all devices in one context share the same backend in
@@ -799,12 +800,12 @@ public:
         getSyclObjImpl(MContext);
 
     for (const auto &SyclDev : Devices) {
-      DeviceImplPtr DevImpl = getSyclObjImpl(SyclDev);
+      detail::device_impl &DevImpl = *getSyclObjImpl(SyclDev);
       if (!ContextImpl->hasDevice(DevImpl)) {
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
       }
-      if (!DevImpl->extOneapiCanCompile(MRTCBinInfo->MLanguage)) {
+      if (!DevImpl.extOneapiCanCompile(MRTCBinInfo->MLanguage)) {
         // This error cannot not be exercised in the current implementation, as
         // compatibility with a source language depends on the backend's
         // capabilities and all devices in one context share the same backend in

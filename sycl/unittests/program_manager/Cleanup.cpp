@@ -384,13 +384,13 @@ TEST(ImageRemoval, NativePrograms) {
   sycl::queue Queue{Dev};
   auto Ctx = Queue.get_context();
   auto ProgramA = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                       sycl::detail::getSyclObjImpl(Dev),
+                                       *sycl::detail::getSyclObjImpl(Dev),
                                        generateRefName("A", "Kernel"));
   auto ProgramB = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                       sycl::detail::getSyclObjImpl(Dev),
+                                       *sycl::detail::getSyclObjImpl(Dev),
                                        generateRefName("B", "Kernel"));
   std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                     sycl::detail::getSyclObjImpl(Dev),
+                                     *sycl::detail::getSyclObjImpl(Dev),
                                      generateRefName("C", "Kernel"));
 
   EXPECT_EQ(PM.getNativePrograms().size(),
