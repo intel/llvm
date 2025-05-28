@@ -353,6 +353,7 @@ getZeStructureType<ze_intel_device_block_array_exp_properties_t>() {
 thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize]{};
 thread_local int32_t ErrorAdapterNativeCode;
+bool ReleaseTracker = true;
 
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,

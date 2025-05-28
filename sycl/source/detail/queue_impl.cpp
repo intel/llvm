@@ -456,61 +456,74 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                                     MemOpArgTs... MemOpArgs) {
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
-  {
-    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
+  // {
+    // std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
-    std::vector<event> MutableDepEvents;
-    const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
+    // std::vector<event> MutableDepEvents;
+    // const std::vector<event> &ExpandedDepEvents = getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    MEmpty = false;
+    // MEmpty = false;
 
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
-    if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
-                                ExpandedDepEvents, MContext)) {
-      auto isNoEventsMode = trySwitchingToNoEventsMode();
-      if (!CallerNeedsEvent && isNoEventsMode) {
-        NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
-                  /*PiEvent*/ nullptr);
+    // if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
+    //                             ExpandedDepEvents, MContext)) {
+      // auto isNoEventsMode = trySwitchingToNoEventsMode();
+      // if (!CallerNeedsEvent && isNoEventsMode) {
+      //   NestedCallsTracker tracker;
+      //   MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
+      //             /*PiEvent*/ nullptr);
+	  // 
+      //   return createDiscardedEvent();
+      // }
 
-        return createDiscardedEvent();
-      }
+      // event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      // const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
+	  //if (EventImpl->MHasBeenReleased) {
+		// std::cout << "submitMemOpHelper before memop MHasBeenReleased == true" << std::endl;
+		// __debugbreak();
+	  //}
+	  
+      // {
+      //   NestedCallsTracker tracker;
+           ur_event_handle_t UREvent = nullptr;
+           MemOpFunc(MemOpArgs..., std::vector<ur_event_handle_t>(), &UREvent); // No failure if this call is not made
+		   // getAdapter()->call_nocheck<UrApiKind::urEventWait>(1, &UREvent); <- No failure with this line
+		   // MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent);
+		   
+			// EventImpl->setHandle(UREvent);
+            // EventImpl->setEnqueued();
+      //   // connect returned event with dependent events
+      //   if (!isInOrder()) {
+      //     std::vector<EventImplPtr> &ExpandedDepEventImplPtrs =
+      //         EventImpl->getPreparedDepsEvents();
+      //     ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
+      //     for (const event &DepEvent : ExpandedDepEvents)
+      //       ExpandedDepEventImplPtrs.push_back(
+      //           detail::getSyclObjImpl(DepEvent));
+	  // 
+      //     // EventImpl is local for current thread, no need to lock.
+      //     EventImpl->cleanDepEventsThroughOneLevelUnlocked();
+      //   }
+      // }
 
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      // if (isInOrder() &&
+      //     (!isNoEventsMode || MContext->getBackend() == backend::opencl)) {
+      //   auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+      //                                           : MExtGraphDeps.LastEventPtr;
+      //   EventToStoreIn = EventImpl;
+      // }
+	  
+	  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
-      {
-        NestedCallsTracker tracker;
-        ur_event_handle_t UREvent = nullptr;
-        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent);
-        EventImpl->setHandle(UREvent);
-        EventImpl->setEnqueued();
-        // connect returned event with dependent events
-        if (!isInOrder()) {
-          std::vector<EventImplPtr> &ExpandedDepEventImplPtrs =
-              EventImpl->getPreparedDepsEvents();
-          ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
-          for (const event &DepEvent : ExpandedDepEvents)
-            ExpandedDepEventImplPtrs.push_back(
-                detail::getSyclObjImpl(DepEvent));
-
-          // EventImpl is local for current thread, no need to lock.
-          EventImpl->cleanDepEventsThroughOneLevelUnlocked();
-        }
-      }
-
-      if (isInOrder() &&
-          (!isNoEventsMode || MContext->getBackend() == backend::opencl)) {
-        auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                                : MExtGraphDeps.LastEventPtr;
-        EventToStoreIn = EventImpl;
-      }
-
+      if (EventImpl->MHasBeenReleased) { // Surprisingly, even this is tripped sometimes
+		  std::cout << "submitMemOpHelper after memop MHasBeenReleased == true" << std::endl;
+		  __debugbreak();
+	  }
       return ResEvent;
-    }
-  }
-  return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
+    // }
+  // }
+  // return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,

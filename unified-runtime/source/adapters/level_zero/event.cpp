@@ -793,7 +793,7 @@ urEventWait(uint32_t NumEvents,
       //
       ur_event_handle_t_ *Event = ur_cast<ur_event_handle_t_ *>(e);
       if (!Event->hasExternalRefs())
-        die("urEventWait must not be called for an internal event");
+        die("FIRST urEventWait must not be called for an internal event");
 
       ze_event_handle_t ZeHostVisibleEvent;
       if (auto Res = Event->getOrCreateHostVisibleEvent(ZeHostVisibleEvent))
@@ -819,7 +819,7 @@ urEventWait(uint32_t NumEvents,
       {
         std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
         if (!Event->hasExternalRefs())
-          die("urEventWait must not be called for an internal event");
+          die("SECOND urEventWait must not be called for an internal event");
 
         if (!Event->Completed) {
           auto HostVisibleEvent = Event->HostVisibleEvent;
@@ -882,6 +882,11 @@ urEventRetain(/** [in] handle of the event object */ ur_event_handle_t Event) {
 ur_result_t
 
 urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
+  if (ReleaseTracker) {
+	  std::cout << "Double release call" << std::endl;
+	  __debugbreak();
+  }
+  ReleaseTracker = true;
   Event->RefCountExternal--;
   bool isEventsWaitCompleted =
       (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
