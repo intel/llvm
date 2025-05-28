@@ -483,7 +483,7 @@ function(add_libclc_builtin_set)
   install( FILES ${builtins_lib} DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 
   # Generate remangled variants if requested
-  if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+  if( LIBCLC_GENERATE_REMANGLED_VARIANTS AND "${ARG_TARGET_ENV} " MATCHES "^libspirv" )
     set( dummy_in ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
       COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
