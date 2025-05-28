@@ -1,6 +1,5 @@
 LIBRARY @TARGET_LIBNAME@
 EXPORTS
-	urGetGlobalProcAddrTable
 	urGetAdapterProcAddrTable
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable

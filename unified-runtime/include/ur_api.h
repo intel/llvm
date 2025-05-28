@@ -13006,6 +13006,54 @@ typedef struct ur_loader_config_set_mocking_enabled_params_t {
 } ur_loader_config_set_mocking_enabled_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGet
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_params_t {
+  uint32_t *pNumEntries;
+  ur_adapter_handle_t **pphAdapters;
+  uint32_t **ppNumAdapters;
+} ur_adapter_get_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_release_params_t {
+  ur_adapter_handle_t *phAdapter;
+} ur_adapter_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_retain_params_t {
+  ur_adapter_handle_t *phAdapter;
+} ur_adapter_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGetLastError
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_last_error_params_t {
+  ur_adapter_handle_t *phAdapter;
+  const char ***pppMessage;
+  int32_t **ppError;
+} ur_adapter_get_last_error_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_info_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_adapter_info_t *ppropName;
+  size_t *ppropSize;
+  void **ppPropValue;
+  size_t **ppPropSizeRet;
+} ur_adapter_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urAdapterSetLoggerCallback
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -13900,54 +13948,6 @@ typedef struct ur_physical_mem_get_info_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_physical_mem_get_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterGet
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_get_params_t {
-  uint32_t *pNumEntries;
-  ur_adapter_handle_t **pphAdapters;
-  uint32_t **ppNumAdapters;
-} ur_adapter_get_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterRelease
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_release_params_t {
-  ur_adapter_handle_t *phAdapter;
-} ur_adapter_release_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterRetain
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_retain_params_t {
-  ur_adapter_handle_t *phAdapter;
-} ur_adapter_retain_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterGetLastError
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_get_last_error_params_t {
-  ur_adapter_handle_t *phAdapter;
-  const char ***pppMessage;
-  int32_t **ppError;
-} ur_adapter_get_last_error_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterGetInfo
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_get_info_params_t {
-  ur_adapter_handle_t *phAdapter;
-  ur_adapter_info_t *ppropName;
-  size_t *ppropSize;
-  void **ppPropValue;
-  size_t **ppPropSizeRet;
-} ur_adapter_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueKernelLaunch
