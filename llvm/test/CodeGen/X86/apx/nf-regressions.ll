@@ -78,17 +78,19 @@ bb16:                                             ; preds = %bb14, %bb11, %bb10,
 define void @cmp_peephole_and_nf(i64 %arg0, ptr %ptr1, ptr %ptr2) {
 ; CHECK-LABEL: cmp_peephole_and_nf:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    negq %rdi
-; CHECK-NEXT:    movl %edi, %eax
-; CHECK-NEXT:    {nf} andl $1, %eax
-; CHECK-NEXT:    jb .LBB1_2
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    negq %rax
+; CHECK-NEXT:    movl %eax, %ecx
+; CHECK-NEXT:    andl $1, %ecx
+; CHECK-NEXT:    testq %rdi, %rdi
+; CHECK-NEXT:    jne .LBB1_2
 ; CHECK-NEXT:  # %bb.1: # %true
-; CHECK-NEXT:    testq %rax, %rax
+; CHECK-NEXT:    testq %rcx, %rcx
 ; CHECK-NEXT:    sete (%rsi)
 ; CHECK-NEXT:    retq
 ; CHECK-NEXT:  .LBB1_2: # %false
-; CHECK-NEXT:    movq %rdi, (%rsi)
-; CHECK-NEXT:    movq %rax, (%rdx)
+; CHECK-NEXT:    movq %rax, (%rsi)
+; CHECK-NEXT:    movq %rcx, (%rdx)
 ; CHECK-NEXT:    retq
 entry:
   %sub_flag = sub i64 0, %arg0
