@@ -32,6 +32,8 @@
 void __debugbreak() { }
 #endif
 
+// #define CP_LOG_EARLY_RELEASE 1
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -50,10 +52,12 @@ void event_impl::initContextIfNeeded() {
 }
 
 event_impl::~event_impl() {
+#ifdef CP_LOG_EARLY_RELEASE
   if (MHasBeenReleased == 0xDEADBEEF)
 	  std::cout << "~event_impl MHasBeenReleased is already set to 0xDEADBEEF" << std::endl;
   else if(MHasBeenReleased != 0)
 	  std::cout << "~event_impl MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
+#endif
   
   try {
 	 //__debugbreak(); // CP
@@ -69,6 +73,7 @@ event_impl::~event_impl() {
 
 
 void event_impl::waitInternal(bool *Success) {
+#ifdef CP_LOG_EARLY_RELEASE
 	// CP -- this does not trip
    if(MHasBeenReleased == 0xDEADBEEF){
 	   std::cout << "waitInternal HasBeenReleased is already set to 0xDEADBEEF.   this:  " << (unsigned long)this << std::endl;
@@ -76,6 +81,7 @@ void event_impl::waitInternal(bool *Success) {
    }else if(MHasBeenReleased != 0){
 	  std::cout << "waitInternal MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
+#endif  
    
   auto Handle = this->getHandle();
   if (!MIsHostEvent && Handle) {
@@ -270,6 +276,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
                       bool *Success) {
+#ifdef CP_LOG_EARLY_RELEASE						  
 	// CP -- this trips
    if(MHasBeenReleased == 0xDEADBEEF) {
 	   std::cout << "wait HasBeenRelease already set to 0xDEADBEEF.  this:  " << (unsigned long)this << std::endl;
@@ -277,7 +284,8 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
    }else if(MHasBeenReleased != 0){
 	  std::cout << "wait MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
-   return;
+   // return; ?
+#endif
    
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
