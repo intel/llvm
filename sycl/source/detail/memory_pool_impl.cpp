@@ -58,34 +58,32 @@ void destroy_memory_pool(const sycl::context &ctx, const sycl::device &dev,
 } // namespace
 
 // <--- Memory pool impl --->
-memory_pool_impl::memory_pool_impl(
-    const sycl::context &ctx, const sycl::device &dev,
-    const sycl::usm::alloc kind,
-    const std::pair<std::tuple<bool, bool, bool, bool>,
-                    std::tuple<size_t, size_t, bool, bool>> &props)
+memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
+                                   const sycl::device &dev,
+                                   const sycl::usm::alloc kind,
+                                   const memory_pool::pool_properties &props)
     : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
-      MKind(kind), MPropsTuple(props) {
+      MKind(kind), MProps(props) {
 
   if (kind == sycl::usm::alloc::device)
     MPoolHandle = create_memory_pool_device(
-        ctx, dev, std::get<0>(MPropsTuple.second),
-        std::get<1>(MPropsTuple.second), std::get<2>(MPropsTuple.second),
-        std::get<3>(MPropsTuple.second));
+        ctx, dev, MProps.initial_threshold.second, MProps.maximum_size.second,
+        MProps.read_only.second, MProps.zero_init.second);
   else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device allocated memory pools are supported!");
 }
 
-memory_pool_impl::memory_pool_impl(
-    const sycl::context &ctx, const sycl::device &dev,
-    const sycl::usm::alloc kind, ur_usm_pool_handle_t poolHandle,
-    const bool isDefaultPool,
-    const std::pair<std::tuple<bool, bool, bool, bool>,
-                    std::tuple<size_t, size_t, bool, bool>> &props)
+memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
+                                   const sycl::device &dev,
+                                   const sycl::usm::alloc kind,
+                                   ur_usm_pool_handle_t poolHandle,
+                                   const bool isDefaultPool,
+                                   const memory_pool::pool_properties &props)
     : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
       MKind(kind), MPoolHandle(poolHandle), MIsDefaultPool(isDefaultPool),
-      MPropsTuple(props) {}
+      MProps(props) {}
 
 memory_pool_impl::~memory_pool_impl() {
 

@@ -16,6 +16,7 @@
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/property_list.hpp>
@@ -601,8 +602,8 @@ context_impl::get_default_memory_pool(const context &Context,
       sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
       Context, Device, sycl::usm::alloc::device, PoolHandle,
       true /*Default pool*/,
-      std::pair<std::tuple<bool, bool, bool, bool>,
-                std::tuple<size_t, size_t, bool, bool>>() /*Empty Properties*/);
+      ext::oneapi::experimental::memory_pool::
+          pool_properties{} /*Empty Properties*/);
 
   // Hold onto a weak_ptr of the memory_pool_impl. Prevents circular
   // dependencies between the context_impl and memory_pool_impl.
