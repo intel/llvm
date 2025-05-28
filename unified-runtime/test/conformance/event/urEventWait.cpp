@@ -98,8 +98,39 @@ TEST_P(urEventWaitNegativeTest, InvalidNullPointerEventList) {
                    urEventWait(1, nullptr));
 }
 
-TEST_P(urEventWaitTest, WithMultipleContexts) {
+TEST_P(urEventWaitTest, WaitWithMultipleContexts) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
+  for (size_t i = 0; i < maxNumContexts; i++) {
+    ASSERT_SUCCESS(urEnqueueMemBufferCopy(queues[i], src_buffer[i],
+                                          dst_buffer[i], 0, 0, size, 0, nullptr,
+                                          nullptr));
+  }
+
+  std::vector<ur_event_handle_t> events;
+  std::vector<std::vector<uint32_t>> output;
+  for (size_t i = 0; i < maxNumContexts; i++) {
+    output.emplace_back(count, 1);
+    events.emplace_back();
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[i], dst_buffer[i], false, 0,
+                                          size, output[i].data(), 0, nullptr,
+                                          &events.back()));
+  }
+
+  ASSERT_SUCCESS(
+      urEventWait(static_cast<uint32_t>(events.size()), events.data()));
+
+  for (size_t i = 0; i < maxNumContexts; i++) {
+    ASSERT_EQ(input[i], output[i]);
+  }
+
+  for (auto &event : events) {
+    EXPECT_SUCCESS(urEventRelease(event));
+  }
+}
+
+TEST_P(urEventWaitTest, WithCrossContextDependencies) {
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{}, uur::OpenCL{});
 
   std::vector<uint32_t> output(count, 1);
 
