@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: true
+// UNSUPPORTED-INTENDED: sycl-jit is disabled on this branch.
+
 // REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 

@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: true
+// UNSUPPORTED-INTENDED: sycl-jit is disabled on this branch.
+
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: SYCL-RTC is not available for accelerator devices
