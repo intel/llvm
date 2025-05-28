@@ -953,6 +953,8 @@ typedef enum ur_backend_t {
   UR_BACKEND_HIP = 4,
   /// The backend is Native CPU
   UR_BACKEND_NATIVE_CPU = 5,
+  /// The backend is liboffload
+  UR_BACKEND_OFFLOAD = 0x100,
   /// @cond
   UR_BACKEND_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2870,7 +2872,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_device_handle_t *phDevice);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Returns synchronized Host and Device global timestamps.
+/// @brief Returns synchronized Host and Device global timestamps in
+/// nanoseconds.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads for
