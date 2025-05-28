@@ -773,7 +773,7 @@ event handler::finalize() {
 
     } else {
       event GraphCompletionEvent =
-          impl->MExecGraph->enqueue(MQueue, std::move(impl->CGData));
+          impl->MExecGraph->enqueue(*MQueue, std::move(impl->CGData));
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       MLastEvent = getSyclObjImpl(GraphCompletionEvent);
@@ -860,7 +860,7 @@ event handler::finalize() {
       // node can set it as a predecessor.
       std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
           Deps;
-      if (auto DependentNode = GraphImpl->getLastInorderNode(MQueue)) {
+      if (auto DependentNode = GraphImpl->getLastInorderNode(*MQueue)) {
         Deps.push_back(std::move(DependentNode));
       }
       NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
@@ -868,7 +868,7 @@ event handler::finalize() {
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
       // queue.
-      GraphImpl->setLastInorderNode(MQueue, NodeImpl);
+      GraphImpl->setLastInorderNode(*MQueue, NodeImpl);
     } else {
       auto LastBarrierRecordedFromQueue = GraphImpl->getBarrierDep(MQueue);
       std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
@@ -1971,7 +1971,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
     // we need to set it to recording (implements the transitive queue recording
     // feature).
     if (!QueueGraph) {
-      EventGraph->beginRecording(MQueue);
+      EventGraph->beginRecording(*MQueue);
     }
   }
 

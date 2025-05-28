@@ -10,6 +10,7 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/graph_impl.hpp>
 #include <detail/helpers.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_bundle_impl.hpp>
@@ -28,6 +29,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/interop_handle.hpp>
 #include <sycl/sampler.hpp>
 
 #include <cassert>
