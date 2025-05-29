@@ -17,7 +17,7 @@ int main() {
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   exp_ext::memory_pool MemPool{
-      Queue, usm::alloc::device, {exp_ext::property::memory_pool::zero_init{}}};
+      Queue, usm::alloc::device, exp_ext::properties{exp_ext::zero_init()}};
 
   // Add commands to graph
   T *AsyncPtrA = nullptr;

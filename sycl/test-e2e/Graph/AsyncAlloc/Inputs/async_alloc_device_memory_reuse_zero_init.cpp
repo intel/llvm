@@ -17,7 +17,7 @@ void add_nodes_to_graph(
     queue &Queue, size_t Size, T *PtrInput) {
   // Create a memory pool for async allocations with the zero init property
   exp_ext::memory_pool MemPool{
-      Queue, usm::alloc::device, {exp_ext::property::memory_pool::zero_init{}}};
+      Queue, usm::alloc::device, exp_ext::properties{exp_ext::zero_init()}};
   // Create 2 pointers for async allocations
   T *AsyncPtrA = nullptr;
   T *AsyncPtrB = nullptr;
