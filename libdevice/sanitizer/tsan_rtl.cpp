@@ -177,6 +177,11 @@ inline void DoReportRace(__SYCL_GLOBAL__ RawShadow *s, AccessType type,
         return;
       }
 
+      if (as == ADDRESS_SPACE_GENERIC &&
+          TsanLaunchInfo->DeviceTy != DeviceType::CPU) {
+        ConvertGenericPointer(addr, as);
+      }
+
       // Check if current address already being recorded before.
       for (uint32_t i = 0; i < TsanLaunchInfo->RecordedReportCount; i++) {
         auto &SanitizerReport = TsanLaunchInfo->Report[i];
@@ -188,10 +193,6 @@ inline void DoReportRace(__SYCL_GLOBAL__ RawShadow *s, AccessType type,
 
       auto &SanitizerReport =
           TsanLaunchInfo->Report[TsanLaunchInfo->RecordedReportCount++];
-
-      if (as == ADDRESS_SPACE_GENERIC) {
-        ConvertGenericPointer(addr, as);
-      }
 
       SanitizerReport.Address = addr;
       SanitizerReport.Type =
