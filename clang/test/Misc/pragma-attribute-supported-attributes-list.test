@@ -190,6 +190,7 @@
 // CHECK-NEXT: SYCLDeviceGlobal (SubjectMatchRule_record)
 // CHECK-NEXT: SYCLDeviceHas (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLDeviceIndirectlyCallable (SubjectMatchRule_function)
+// CHECK-NEXT: SYCLDeviceOnly (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLGlobalVariableAllowed (SubjectMatchRule_record)
 // CHECK-NEXT: SYCLIntelDisableLoopPipelining (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelInitiationInterval (SubjectMatchRule_function)
