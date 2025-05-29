@@ -149,10 +149,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
-  if (numEvents == 0 || !phEventWaitList) {
-    return UR_RESULT_SUCCESS;
-  }
-
   ur_context_handle_t hContext = phEventWaitList[0]->Context;
   std::vector<cl_event> CLEvents;
   CLEvents.reserve(numEvents);
@@ -171,8 +167,10 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
     CLEvents.push_back(phEventWaitList[i]->CLEvent);
     hContext = phEventWaitList[i]->Context;
   }
-  cl_int RetErr = clWaitForEvents(CLEvents.size(), CLEvents.data());
-  CL_RETURN_ON_FAILURE(RetErr);
+  if (CLEvents.size()) {
+    cl_int RetErr = clWaitForEvents(CLEvents.size(), CLEvents.data());
+    CL_RETURN_ON_FAILURE(RetErr);
+  }
   return UR_RESULT_SUCCESS;
 }
 
