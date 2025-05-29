@@ -337,6 +337,8 @@ public:
 
   bool isNormalExit() { return m_NormalExit; }
 
+  ur_shared_mutex KernelLaunchMutex;
+
 private:
   /// Initialize Global Variables & Kernel Name at first Launch
   ur_result_t prepareLaunch(std::shared_ptr<msan::DeviceInfo> &DeviceInfo,

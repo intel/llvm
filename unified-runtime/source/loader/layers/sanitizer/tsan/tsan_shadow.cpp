@@ -196,13 +196,13 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                               uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
   const size_t RequiredShadowSize = NumWG * LocalMemorySize;
-  static size_t LastAllocedSize = 0;
-  if (RequiredShadowSize > LastAllocedSize) {
+  static size_t LastAllocatedSize = 0;
+  if (RequiredShadowSize > LastAllocatedSize) {
     if (LocalShadowOffset) {
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));
       LocalShadowOffset = 0;
-      LastAllocedSize = 0;
+      LastAllocatedSize = 0;
     }
 
     UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
@@ -216,12 +216,12 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));
       LocalShadowOffset = 0;
-      LastAllocedSize = 0;
+      LastAllocatedSize = 0;
 
       return URes;
     }
 
-    LastAllocedSize = RequiredShadowSize;
+    LastAllocatedSize = RequiredShadowSize;
   }
 
   Begin = LocalShadowOffset;

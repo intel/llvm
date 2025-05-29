@@ -1436,6 +1436,11 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     /// are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) {
+  // This mutex is to prevent concurrent kernel launches across different queues
+  // as the DeviceTSAN local shadow memory does not support concurrent
+  // kernel launches now.
+  std::scoped_lock<ur_shared_mutex> Guard(
+      getAsanInterceptor()->KernelLaunchMutex);
 
   UR_LOG_L(getContext()->logger, DEBUG,
            "==== urEnqueueCooperativeKernelLaunchExp");

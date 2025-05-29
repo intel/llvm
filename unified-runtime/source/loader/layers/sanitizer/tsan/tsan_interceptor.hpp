@@ -226,6 +226,8 @@ public:
     return m_KernelMap[Kernel];
   }
 
+  ur_shared_mutex KernelLaunchMutex;
+
 private:
   ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &CI,
                                  std::shared_ptr<DeviceInfo> &DI,
