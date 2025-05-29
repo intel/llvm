@@ -164,7 +164,8 @@ jobs:
     - name: Test adapter specific
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-      run: ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
+        LIT_OPTS: "--timeout 120 --filter-out 'adapters/level_zero/memcheck.test'"
+      run: cmake --build build -j $(nproc) -- check-unified-runtime-adapter
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 

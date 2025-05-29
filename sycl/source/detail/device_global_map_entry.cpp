@@ -41,13 +41,13 @@ OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const AdapterPtr &Adapter) {
   return OwnedUrEvent(Adapter);
 }
 
-DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
-    const std::shared_ptr<queue_impl> &QueueImpl) {
+DeviceGlobalUSMMem &
+DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
   assert(!MIsDeviceImageScopeDecorated &&
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
-  const std::shared_ptr<context_impl> &CtxImpl = QueueImpl->getContextImplPtr();
-  const device_impl &DevImpl = QueueImpl->getDeviceImpl();
+  const std::shared_ptr<context_impl> &CtxImpl = QueueImpl.getContextImplPtr();
+  const device_impl &DevImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> Lock(MDeviceToUSMPtrMapMutex);
 
   auto DGUSMPtr = MDeviceToUSMPtrMap.find({&DevImpl, CtxImpl.get()});
