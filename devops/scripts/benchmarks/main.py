@@ -5,6 +5,8 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+# DUMMY TEST COMMENT
+
 from benches.compute import *
 from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
