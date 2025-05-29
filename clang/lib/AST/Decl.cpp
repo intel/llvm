@@ -3730,7 +3730,7 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
     return 0;
 
   if (Context.getLangOpts().isSYCL() && hasAttr<SYCLDeviceOnlyAttr>() &&
-      !(BuiltinID == Builtin::BIprintf || BuiltinID == Builtin::BImalloc)) {
+      BuiltinID != Builtin::BIprintf) {
     return 0;
   }
 
