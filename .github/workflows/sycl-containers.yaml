@@ -77,6 +77,9 @@ jobs:
               base_image=ghcr.io/intel/llvm/ubuntu2404_build
               base_tag=latest
               use_unstable_driver=false
+          - name: LLVM Nightly Ubuntu 24.04 Docker image
+            file: ubuntu2404_llvm_nightly
+            tag: latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
