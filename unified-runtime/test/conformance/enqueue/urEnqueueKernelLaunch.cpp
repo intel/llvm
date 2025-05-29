@@ -122,8 +122,8 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessNoOffset) {
   AddBuffer1DArg(sizeof(val) * global_size, &buffer);
   AddPodArg(val);
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
-                                       &global_size, nullptr, 0, nullptr,
-                                       nullptr));
+                                       &global_size, nullptr, 0, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
