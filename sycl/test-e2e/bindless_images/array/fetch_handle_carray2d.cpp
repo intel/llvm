@@ -51,8 +51,9 @@ int main() {
   void *imageHandlePtrGen =
       sycl::malloc_device(sizeof(syclexp::unsampled_image_handle), q);
 
-  // Copy the create_image returned device unsampled_image_handle to the contents
-  // of the void* pointing to the manually created unsampled_image_handle
+  // Copy the create_image returned device unsampled_image_handle to the
+  // contents of the void* pointing to the manually created
+  // unsampled_image_handle
   q.memcpy(static_cast<void *>(imageHandlePtrGen),
            static_cast<const void *>(&imgIn),
            sizeof(syclexp::unsampled_image_handle));
