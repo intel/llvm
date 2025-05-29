@@ -351,10 +351,10 @@ public:
                           const v1::SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
-    event ResEvent =
+    detail::EventImplPtr ResEvent =
         submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
-    return ResEvent;
+    return createSyclObjFromImpl<event>(ResEvent);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
@@ -701,6 +701,15 @@ protected:
       Handler.depends_on(*ExternalEvent);
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#define parseEvent(arg) (arg)
+#else
+  inline detail::EventImplPtr parseEvent(const event &Event) {
+    const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);
+    return EventImpl->isDiscarded() ? nullptr : EventImpl;
+  }
+#endif
+
   bool trySwitchingToNoEventsMode() {
     if (MNoEventMode.load(std::memory_order_relaxed))
       return true;
@@ -719,7 +728,8 @@ protected:
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
+  detail::EventImplPtr
+  finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
     assert(MGraph.expired());
     assert(MDefaultGraphDeps.LastEventPtr == nullptr ||
@@ -732,18 +742,19 @@ protected:
 
     if (MContext->getBackend() == backend::opencl && MGraph.expired()) {
       // This is needed to support queue_empty() call
-      auto Event = Handler.finalize();
-      if (!getSyclObjImpl(Event)->isDiscarded()) {
-        MDefaultGraphDeps.LastEventPtr = getSyclObjImpl(Event);
+      auto Event = parseEvent(Handler.finalize());
+      if (Event) {
+        MDefaultGraphDeps.LastEventPtr = Event;
       }
       return Event;
     } else {
-      return Handler.finalize();
+      return parseEvent(Handler.finalize());
     }
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
+  detail::EventImplPtr
+  finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
     assert(isInOrder());
     assert(Handler.getType() == CGType::CodeplayHostTask);
 
@@ -769,14 +780,14 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    auto Event = Handler.finalize();
-    EventToBuildDeps = getSyclObjImpl(Event);
-    assert(!EventToBuildDeps->isDiscarded());
-    return Event;
+    EventToBuildDeps = parseEvent(Handler.finalize());
+    assert(EventToBuildDeps);
+    return EventToBuildDeps;
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
+  detail::EventImplPtr
+  finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
 
@@ -804,25 +815,20 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    auto EventRet = Handler.finalize();
-
-    if (getSyclObjImpl(EventRet)->isDiscarded()) {
-      EventToBuildDeps = nullptr;
-    } else {
+    EventToBuildDeps = parseEvent(Handler.finalize());
+    if (EventToBuildDeps)
       MNoEventMode = false;
-      EventToBuildDeps = getSyclObjImpl(EventRet);
 
-      // TODO: if the event is NOP we should be able to discard it as well.
-      // However, NOP events are used to describe ordering for graph operations
-      // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
-      // start relying on command buffer in-order property instead.
-    }
+    // TODO: if the event is NOP we should be able to discard it.
+    // However, NOP events are used to describe ordering for graph operations
+    // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
+    // start relying on command buffer in-order property instead.
 
-    return EventRet;
+    return EventToBuildDeps;
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerOutOfOrder(HandlerType &Handler) {
+  detail::EventImplPtr finalizeHandlerOutOfOrder(HandlerType &Handler) {
     const CGType Type = getSyclObjImpl(Handler)->MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
 
@@ -847,18 +853,17 @@ protected:
         (Type == CGType::CodeplayHostTask || (!Deps.LastBarrier->isEnqueued())))
       Handler.depends_on(Deps.LastBarrier);
 
-    auto EventRet = Handler.finalize();
-    const EventImplPtr &EventRetImpl = getSyclObjImpl(EventRet);
+    EventImplPtr EventRetImpl = parseEvent(Handler.finalize());
     if (Type == CGType::CodeplayHostTask)
-      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
+      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = std::move(EventRetImpl);
+      Deps.LastBarrier = EventRetImpl;
       Deps.UnenqueuedCmdEvents.clear();
     } else if (!EventRetImpl->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
+      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
     }
 
-    return EventRet;
+    return EventRetImpl;
   }
 
   template <typename HandlerType = handler>
@@ -893,12 +898,13 @@ protected:
   /// \param Loc is the code location of the submit call (default argument)
   /// \param SubmitInfo is additional optional information for the submission.
   /// \return a SYCL event representing submitted command group.
-  event submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                    const std::shared_ptr<queue_impl> &Self,
-                    const std::shared_ptr<queue_impl> &PrimaryQueue,
-                    const std::shared_ptr<queue_impl> &SecondaryQueue,
-                    bool CallerNeedsEvent, const detail::code_location &Loc,
-                    bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
+  detail::EventImplPtr
+  submit_impl(const detail::type_erased_cgfo_ty &CGF,
+              const std::shared_ptr<queue_impl> &Self,
+              const std::shared_ptr<queue_impl> &PrimaryQueue,
+              const std::shared_ptr<queue_impl> &SecondaryQueue,
+              bool CallerNeedsEvent, const detail::code_location &Loc,
+              bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
 #endif
 
   /// Performs command group submission to the queue.
@@ -911,11 +917,13 @@ protected:
   /// \param Loc is the code location of the submit call (default argument)
   /// \param SubmitInfo is additional optional information for the submission.
   /// \return a SYCL event representing submitted command group.
-  event submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                    const std::shared_ptr<queue_impl> &Self,
-                    queue_impl *SecondaryQueue, bool CallerNeedsEvent,
-                    const detail::code_location &Loc, bool IsTopCodeLoc,
-                    const v1::SubmissionInfo &SubmitInfo);
+  detail::EventImplPtr submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                                   const std::shared_ptr<queue_impl> &Self,
+                                   queue_impl *SecondaryQueue,
+                                   bool CallerNeedsEvent,
+                                   const detail::code_location &Loc,
+                                   bool IsTopCodeLoc,
+                                   const v1::SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
@@ -947,7 +955,8 @@ protected:
   event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                           const std::vector<event> &DepEvents,
                           bool CallerNeedsEvent, HandlerFuncT HandlerFunc,
-                          MemMngrFuncT MemMngrFunc, MemMngrArgTs... MemOpArgs);
+                          MemMngrFuncT MemMngrFunc,
+                          MemMngrArgTs &&...MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
@@ -974,8 +983,8 @@ protected:
 
   /// Stores an event that should be associated with the queue
   ///
-  /// \param Event is the event to be stored
-  void addEvent(const event &Event);
+  /// \param EventImpl is the event to be stored
+  void addEvent(const detail::EventImplPtr &EventImpl);
 
   /// Protects all the fields that can be changed by class' methods.
   mutable std::mutex MMutex;

@@ -113,6 +113,19 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
                                        &global_offset, &global_size, nullptr, 1,
                                        &props[0], 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
+
+  ValidateBuffer(buffer, sizeof(val) * global_size, val);
+}
+
+TEST_P(urEnqueueKernelLaunchTest, SuccessNoOffset) {
+  ur_mem_handle_t buffer = nullptr;
+  AddBuffer1DArg(sizeof(val) * global_size, &buffer);
+  AddPodArg(val);
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
+                                       &global_size, nullptr, 0, nullptr,
+                                       nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
 
@@ -124,11 +137,6 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleQueue) {
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullPointer) {
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
-                                         &global_size, nullptr, 0, nullptr, 0,
-                                         nullptr, nullptr),
-                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                          &global_offset, nullptr, nullptr, 0,
                                          nullptr, 0, nullptr, nullptr),
