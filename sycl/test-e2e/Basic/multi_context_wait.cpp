@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18734
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -73,15 +71,21 @@ void test_kernel() {
 
   auto events = submit_dependencies(q1, q2, mem1, mem2);
 
+  q1.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(events[0]);
+    cgh.depends_on(events[1]);
+    cgh.parallel_for(sycl::range<1>(1024),
+                     [=](auto item) { assert(mem1[item.get_id()] == 1); });
+  });
+
   q2.submit([&](sycl::handler &cgh) {
     cgh.depends_on(events[0]);
     cgh.depends_on(events[1]);
-    cgh.parallel_for(sycl::range<1>(1024), [=](auto item) {
-      assert(mem1[item.get_id()] == 1);
-      assert(mem2[item.get_id()] == 2);
-    });
+    cgh.parallel_for(sycl::range<1>(1024),
+                     [=](auto item) { assert(mem2[item.get_id()] == 2); });
   });
 
+  q1.wait();
   q2.wait();
 
   sycl::free(mem1, c1);
