@@ -309,23 +309,21 @@ VkResult setupDevice(const sycl::device &dev) {
 
     // Check if the device supports the optional extensions, if so add them to
     // the list of enabled device extensions.
-    std::for_each(std::begin(optionalExtensions), std::end(optionalExtensions),
-                  [&](const char *optionalExt) -> void {
-                    auto it =
-                        std::find_if(std::begin(supportedDeviceExtensions),
-                                     std::end(supportedDeviceExtensions),
-                                     [&](const VkExtensionProperties &ext) {
-                                       return (ext.extensionName ==
-                                               std::string_view(optionalExt));
-                                     });
-                    if (it != std::end(supportedDeviceExtensions)) {
-                      enabledDeviceExtensions.push_back(optionalExt);
-                      if (std::string_view(optionalExt) ==
-                          VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME) {
-                        supportsExternalSemaphore = true;
-                      }
-                    }
-                  });
+    for (const char *optionalExt : optionalExtensions) {
+      auto it = std::find_if(std::begin(supportedDeviceExtensions),
+                             std::end(supportedDeviceExtensions),
+                             [&](const VkExtensionProperties &ext) {
+                               return (ext.extensionName ==
+                                       std::string_view(optionalExt));
+                             });
+      if (it != std::end(supportedDeviceExtensions)) {
+        enabledDeviceExtensions.push_back(optionalExt);
+        if (std::string_view(optionalExt) ==
+            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME) {
+          supportsExternalSemaphore = true;
+        }
+      }
+    }
 
     foundDevice = true;
     std::cout << "Found suitable Vulkan device: "
