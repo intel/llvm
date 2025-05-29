@@ -21,3 +21,5 @@ else:
 for item in release["assets"]:
     print(item["browser_download_url"])
 
+
+# DUMMY COMMENT TO TEST IGC DEV CONTAINER WORKFLOW
