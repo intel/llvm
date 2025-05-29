@@ -955,7 +955,8 @@ protected:
   event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                           const std::vector<event> &DepEvents,
                           bool CallerNeedsEvent, HandlerFuncT HandlerFunc,
-                          MemMngrFuncT MemMngrFunc, MemMngrArgTs... MemOpArgs);
+                          MemMngrFuncT MemMngrFunc,
+                          MemMngrArgTs &&...MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
