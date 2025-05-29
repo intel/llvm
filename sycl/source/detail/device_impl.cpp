@@ -324,44 +324,11 @@ ur_native_handle_t device_impl::getNative() const {
 // clock drift between host and device.
 //
 uint64_t device_impl::getCurrentDeviceTime() {
-  using namespace std::chrono;
-  uint64_t HostTime =
-      duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-          .count();
-
-  // To account for potential clock drift between host clock and device clock.
-  // The value set is arbitrary: 200 seconds
-  std::shared_lock<std::shared_mutex> ReadLock(MDeviceHostBaseTimeMutex);
-  constexpr uint64_t TimeTillRefresh = 200e9;
-  assert(HostTime >= MDeviceHostBaseTime.second);
-  uint64_t Diff = HostTime - MDeviceHostBaseTime.second;
-
-  // If getCurrentDeviceTime is called for the first time or we have to refresh.
-  if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
-    ReadLock.unlock();
-    std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
-    // Recheck the condition after acquiring the write lock.
-    if (MDeviceHostBaseTime.second && Diff <= TimeTillRefresh) {
-      // If we are here, it means that another thread has already updated
-      // MDeviceHostBaseTime, so we can just return the current device time.
-      return MDeviceHostBaseTime.first + Diff;
-    }
-    const auto &Adapter = getAdapter();
-    auto Result = Adapter->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
-        MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
-    // We have to remember base host timestamp right after UR call and it is
-    // going to be used for calculation of the device timestamp at the next
-    // getCurrentDeviceTime() call. We need to do it here because getAdapter()
-    // and urDeviceGetGlobalTimestamps calls may take significant amount of
-    // time, for example on the first call to getAdapter adapters may need to be
-    // initialized. If we use timestamp from the beginning of the function then
-    // the difference between host timestamps of the current
-    // getCurrentDeviceTime and the next getCurrentDeviceTime will be incorrect
-    // because it will include execution time of the code before we get device
-    // timestamp from urDeviceGetGlobalTimestamps.
-    HostTime =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
+  auto GetGlobalTimestamps = [this](ur_device_handle_t Device,
+                                    uint64_t *DeviceTime, uint64_t *HostTime) {
+    auto Result =
+        getAdapter()->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
+            Device, DeviceTime, HostTime);
     if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
       // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
       // be calling it after ERROR_INVALID_OPERATION: there is no
@@ -372,12 +339,32 @@ uint64_t device_impl::getCurrentDeviceTime() {
               "Device and/or backend does not support querying timestamp."),
           UR_RESULT_ERROR_INVALID_OPERATION);
     } else {
-      Adapter->checkUrResult<errc::feature_not_supported>(Result);
+      getAdapter()->checkUrResult<errc::feature_not_supported>(Result);
     }
-    // Until next sync we will compute device time based on the host time
-    // returned in HostTime, so make this our base host time.
-    MDeviceHostBaseTime.second = HostTime;
-    Diff = 0;
+  };
+
+  uint64_t HostTime = 0;
+  uint64_t Diff = 0;
+  // To account for potential clock drift between host clock and device clock.
+  // The value set is arbitrary: 200 seconds
+  constexpr uint64_t TimeTillRefresh = 200e9;
+  // If getCurrentDeviceTime is called for the first time or we have to refresh.
+  std::shared_lock<std::shared_mutex> ReadLock(MDeviceHostBaseTimeMutex);
+  if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
+    ReadLock.unlock();
+    std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
+    // Recheck the condition after acquiring the write lock.
+    if (MDeviceHostBaseTime.second && Diff <= TimeTillRefresh) {
+      // If we are here, it means that another thread has already updated
+      // MDeviceHostBaseTime, so we can just return the current device time.
+      return MDeviceHostBaseTime.first + Diff;
+    }
+    GetGlobalTimestamps(MDevice, &MDeviceHostBaseTime.first,
+                        &MDeviceHostBaseTime.second);
+  } else {
+    GetGlobalTimestamps(MDevice, nullptr, &HostTime);
+    assert(HostTime >= MDeviceHostBaseTime.second);
+    Diff = HostTime - MDeviceHostBaseTime.second;
   }
   return MDeviceHostBaseTime.first + Diff;
 }
