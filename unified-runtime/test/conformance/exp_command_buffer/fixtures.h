@@ -98,7 +98,7 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
 
     ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
-                                      nullptr, false, false /* WAS: false */, false};
+                                      nullptr, false, false, false};
     ASSERT_SUCCESS(
         urCommandBufferCreateExp(context, device, &desc, &cmd_buf_handle));
     ASSERT_NE(cmd_buf_handle, nullptr);
@@ -115,9 +115,11 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 };
 
 template <class T>
-struct urCommandBufferExpExecutionTestWithParam : urKernelExecutionTestWithParam<T> {
+struct urCommandBufferExpExecutionTestWithParam
+    : urKernelExecutionTestWithParam<T> {
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTestWithParam<T>::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urKernelExecutionTestWithParam<T>::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
 
@@ -132,7 +134,8 @@ struct urCommandBufferExpExecutionTestWithParam : urKernelExecutionTestWithParam
     if (cmd_buf_handle) {
       EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
     }
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTestWithParam<T>::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urKernelExecutionTestWithParam<T>::TearDown());
   }
 
   ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
