@@ -1631,8 +1631,8 @@ static bool IsOverloadOrOverrideImpl(Sema &SemaRef, FunctionDecl *New,
 
   // Allow overloads with SYCLDeviceOnlyAttr
   if (SemaRef.getLangOpts().isSYCL()) {
-    if (hasExplicitAttr<SYCLDeviceOnlyAttr>(Old) !=
-        hasExplicitAttr<SYCLDeviceOnlyAttr>(New)) {
+    if (Old->hasAttr<SYCLDeviceOnlyAttr>() !=
+        New->hasAttr<SYCLDeviceOnlyAttr>()) {
       return true;
     }
   }
@@ -11032,9 +11032,9 @@ bool clang::isBetterOverloadCandidate(
   // SYCLDeviceOnly attribute.
   if (S.getLangOpts().isSYCL() && S.getLangOpts().SYCLIsDevice &&
       Cand1.Function && Cand2.Function) {
-    if (hasExplicitAttr<SYCLDeviceOnlyAttr>(Cand1.Function) !=
-        hasExplicitAttr<SYCLDeviceOnlyAttr>(Cand2.Function)) {
-      return hasExplicitAttr<SYCLDeviceOnlyAttr>(Cand1.Function);
+    if (Cand1.Function->hasAttr<SYCLDeviceOnlyAttr>() !=
+        Cand2.Function->hasAttr<SYCLDeviceOnlyAttr>()) {
+      return Cand1.Function->hasAttr<SYCLDeviceOnlyAttr>();
     }
   }
 
@@ -11396,7 +11396,7 @@ OverloadingResult OverloadCandidateSet::BestViableFunctionImpl(
   if (S.getLangOpts().isSYCL() && !S.getLangOpts().SYCLIsDevice) {
     auto IsDeviceCand = [&](const OverloadCandidate *Cand) {
       return Cand->Viable && Cand->Function &&
-             hasExplicitAttr<SYCLDeviceOnlyAttr>(Cand->Function);
+             Cand->Function->hasAttr<SYCLDeviceOnlyAttr>();
     };
     llvm::erase_if(Candidates, IsDeviceCand);
   }
