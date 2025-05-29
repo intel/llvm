@@ -153,6 +153,9 @@ class Benchmark(ABC):
 
     def get_metadata(self) -> dict[str, BenchmarkMetadata]:
         range = self.range()
+        explicit_group = (
+            self.explicit_group() if hasattr(self, "explicit_group") else ""
+        )
 
         return {
             self.name(): BenchmarkMetadata(
@@ -164,6 +167,7 @@ class Benchmark(ABC):
                 range_min=range[0] if range else None,
                 range_max=range[1] if range else None,
                 display_name=self.display_name(),
+                explicit_group=explicit_group,
             )
         }
 
