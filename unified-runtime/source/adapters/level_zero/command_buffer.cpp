@@ -742,7 +742,9 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   // Create a list for copy commands. Note that to simplify the implementation,
   // the current implementation only uses the main copy engine and does not use
   // the link engine even if available.
-  if (Device->hasMainCopyEngine()) {
+  //
+  // Copy engine usage disabled for DG2, see CMPLRLLVM-68064
+  if (Device->hasMainCopyEngine() && !Device->isDG2()) {
     UR_CALL(createMainCommandList(Context, Device, IsInOrder, false, true,
                                   ZeCopyCommandList));
   }
