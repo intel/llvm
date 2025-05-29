@@ -681,6 +681,18 @@ function getLayerTags(metadata) {
 
 function processLayerComparisonsData(benchmarkRuns) {
     const groupedResults = {};
+    const labelsByGroup = {};
+
+    benchmarkRuns.forEach(run => {
+        run.results.forEach(result => {
+            if (result.explicit_group) {
+                if (!labelsByGroup[result.explicit_group]) {
+                    labelsByGroup[result.explicit_group] = new Set();
+                }
+                labelsByGroup[result.explicit_group].add(result.label);
+            }
+        });
+    });
 
     benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
@@ -691,13 +703,7 @@ function processLayerComparisonsData(benchmarkRuns) {
             if (!metadata) return;
 
             // Get all benchmark labels in this group
-            const labelsInGroup = new Set(
-                benchmarkRuns.flatMap(r =>
-                    r.results
-                        .filter(res => res.explicit_group === result.explicit_group)
-                        .map(res => res.label)
-                )
-            );
+            const labelsInGroup = labelsByGroup[result.explicit_group];
 
             // Check if this group compares different layers
             const uniqueLayers = new Set();
