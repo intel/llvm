@@ -13,15 +13,15 @@ int main() {
 
   Q.submit([&](sycl::handler &cgh) {
     auto acc = sycl::local_accessor<int>(1, cgh);
-    cgh.parallel_for<class Test>(
-        sycl::nd_range<1>(128, 16), [=](sycl::nd_item<1> item) {
-          acc[0] += item.get_global_linear_id();
-          check(&acc[0], item.get_local_linear_id());
+    cgh.parallel_for<class Test>(sycl::nd_range<1>(128, 16),
+                                 [=](sycl::nd_item<1> item) {
+                                   acc[0] += item.get_global_linear_id();
+                                   check(&acc[0], item.get_local_linear_id());
 
-          item.barrier();
-          if (item.get_global_linear_id() == 0)
-            *sum = acc[0];
-        });
+                                   item.barrier();
+                                   if (item.get_global_linear_id() == 0)
+                                     *sum = acc[0];
+                                 });
   });
   Q.wait();
   // CHECK: WARNING: DeviceSanitizer: data race
