@@ -1,7 +1,7 @@
 // check kernel launches from function with multiple definitions work/link
 // REQUIRES: native_cpu
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE1 %s -fno-inline -c -o %t1.o 
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE2 %s -fno-inline -c -o %t2.o 
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE1 %s -fno-inline -c -o %t1.o
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE2 %s -fno-inline -c -o %t2.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t1.o %t2.o -fno-inline -mllvm -sycl-native-cpu-vecz-width=4 -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t1.o %t2.o -mllvm -sycl-native-cpu-vecz-width=4 -o %t2
