@@ -2475,6 +2475,11 @@ static ur_result_t SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
+
+  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
+                         NDRDesc.GlobalOffset[1] != 0 ||
+                         NDRDesc.GlobalOffset[2] != 0;
+
   std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
@@ -2505,8 +2510,9 @@ static ur_result_t SetKernelParamsAndLaunch(
     ur_result_t Error =
         Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchCustomExp>(
             Queue->getHandleRef(), Kernel, NDRDesc.Dims,
-            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
-            property_list.size(), property_list.data(), RawEvents.size(),
+            HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
+            &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
+            property_list.data(), RawEvents.size(),
             RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEventImpl ? &UREvent : nullptr);
     if ((Error == UR_RESULT_SUCCESS) && OutEventImpl) {
@@ -2523,8 +2529,9 @@ static ur_result_t SetKernelParamsAndLaunch(
                   Args...);
         }
         return Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunch>(Args...);
-      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-        &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims,
+        HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
+        LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &UREvent : nullptr);
   if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
