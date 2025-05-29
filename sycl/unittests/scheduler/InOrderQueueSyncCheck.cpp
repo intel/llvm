@@ -41,11 +41,17 @@ public:
   virtual void depends_on(const std::vector<detail::EventImplPtr> &Events) {}
   virtual void depends_on(event Event) {};
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  virtual sycl::detail::EventImplPtr finalize() {
+    return std::make_shared<detail::event_impl>();
+  }
+#else
   virtual event finalize() {
     sycl::detail::EventImplPtr NewEvent =
         std::make_shared<detail::event_impl>();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }
+#endif
 
   sycl::detail::CGType getType() { return MCGType; }
 
