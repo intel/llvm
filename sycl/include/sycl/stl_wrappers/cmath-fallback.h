@@ -29,6 +29,7 @@
 __DPCPP_SYCL_DEVICE long long abs(long long n) { return n < 0 ? -n : n; }
 __DPCPP_SYCL_DEVICE_C long long llabs(long long n) { return n < 0 ? -n : n; }
 __DPCPP_SYCL_DEVICE long abs(long n) { return n < 0 ? -n : n; }
+__DPCPP_SYCL_DEVICE int abs(int n) { return n < 0 ? -n : n; }
 __DPCPP_SYCL_DEVICE_C long labs(long n) { return n < 0 ? -n : n; }
 __DPCPP_SYCL_DEVICE float abs(float x) { return x < 0 ? -x : x; }
 __DPCPP_SYCL_DEVICE double abs(double x) { return x < 0 ? -x : x; }
