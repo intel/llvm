@@ -609,15 +609,17 @@ function processBarChartsData(benchmarkRuns) {
 
     benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
-            if (!result.explicit_group) return;
+            const resultMetadata = metadataForLabel(result.label, 'benchmark');
+            const explicitGroup = resultMetadata?.explicit_group || result?.explicit_group;
+            if (!explicitGroup) return;
 
-            if (!groupedResults[result.explicit_group]) {
+            if (!groupedResults[explicitGroup]) {
                 // Look up group metadata
-                const groupMetadata = metadataForLabel(result.explicit_group);
+                const groupMetadata = metadataForLabel(explicitGroup, 'group');
 
-                groupedResults[result.explicit_group] = {
-                    label: result.explicit_group,
-                    display_label: groupMetadata?.display_name || result.explicit_group, // Use display_name if available
+                groupedResults[explicitGroup] = {
+                    label: explicitGroup,
+                    display_label: groupMetadata?.display_name || explicitGroup, // Use display_name if available
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
@@ -632,7 +634,7 @@ function processBarChartsData(benchmarkRuns) {
                 };
             }
 
-            const group = groupedResults[result.explicit_group];
+            const group = groupedResults[explicitGroup];
 
             if (!group.labels.includes(run.name)) {
                 group.labels.push(run.name);
@@ -685,25 +687,30 @@ function processLayerComparisonsData(benchmarkRuns) {
 
     benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
-            if (result.explicit_group) {
-                if (!labelsByGroup[result.explicit_group]) {
-                    labelsByGroup[result.explicit_group] = new Set();
-                }
-                labelsByGroup[result.explicit_group].add(result.label);
+            const resultMetadata = metadataForLabel(result.label, 'benchmark');
+            const explicitGroup = resultMetadata?.explicit_group || result.explicit_group;
+            if (!explicitGroup) return;
+
+            if (!labelsByGroup[explicitGroup]) {
+                labelsByGroup[explicitGroup] = new Set();
             }
+            labelsByGroup[explicitGroup].add(result.label);
         });
     });
 
     benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
-            if (!result.explicit_group) return;
+            // Get explicit_group from metadata
+            const resultMetadata = metadataForLabel(result.label, 'benchmark');
+            const explicitGroup = resultMetadata?.explicit_group || result.explicit_group;
+            if (!explicitGroup) return;
 
             // Skip if no metadata available
-            const metadata = metadataForLabel(result.explicit_group, 'group');
+            const metadata = metadataForLabel(explicitGroup, 'group');
             if (!metadata) return;
 
             // Get all benchmark labels in this group
-            const labelsInGroup = labelsByGroup[result.explicit_group];
+            const labelsInGroup = labelsByGroup[explicitGroup];
 
             // Check if this group compares different layers
             const uniqueLayers = new Set();
@@ -716,9 +723,9 @@ function processLayerComparisonsData(benchmarkRuns) {
             // Only process groups that compare different layers
             if (uniqueLayers.size <= 1) return;
 
-            if (!groupedResults[result.explicit_group]) {
-                groupedResults[result.explicit_group] = {
-                    label: result.explicit_group,
+            if (!groupedResults[explicitGroup]) {
+                groupedResults[explicitGroup] = {
+                    label: explicitGroup,
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
@@ -732,7 +739,7 @@ function processLayerComparisonsData(benchmarkRuns) {
                 };
             }
 
-            const group = groupedResults[result.explicit_group];
+            const group = groupedResults[explicitGroup];
             const name = result.label + ' (' + run.name + ')';
 
             // Add the benchmark label if it's not already in the array
