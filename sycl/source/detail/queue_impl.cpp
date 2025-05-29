@@ -312,7 +312,10 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
-  handler Handler(HandlerImpl, shared_from_this());
+  // Inlining `Self` results in a crash when SYCL RT is built using MSVC with
+  // optimizations enabled. No crash if built using OneAPI.
+  auto Self = shared_from_this();
+  handler Handler(HandlerImpl, Self);
 #else
   handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
