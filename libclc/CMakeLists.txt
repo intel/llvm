@@ -413,23 +413,27 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     DIRS ${opencl_dirs}
   )
 
-  set( libspirv_lib_files )
-  set( libspirv_gen_files )
+  set( BUILD_LIBSPIRV_${t} FALSE )
+  if ( t STREQUAL amdgcn--amdhsa OR t STREQUAL nvptx64--nvidiacl OR t STREQUAL native_cpu )
+    set( libspirv_lib_files )
+    set( libspirv_gen_files )
+    set( BUILD_LIBSPIRV_${t} TRUE )
 
-  if( NOT ARCH STREQUAL spirv AND NOT ARCH STREQUAL spirv64 )
-    if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
-      list( APPEND libspirv_gen_files clspv-convert.cl )
-    elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
-      list( APPEND libspirv_gen_files spirv-convert.cl )
-      list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
+    if( NOT ARCH STREQUAL spirv AND NOT ARCH STREQUAL spirv64 )
+      if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
+        list( APPEND libspirv_gen_files clspv-convert.cl )
+      elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
+        list( APPEND libspirv_gen_files spirv-convert.cl )
+        list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
+      endif()
     endif()
-  endif()
 
-  libclc_configure_lib_source(
-    libspirv_lib_files
-    LIB_ROOT_DIR libspirv
-    DIRS ${libspirv_dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
-  )
+    libclc_configure_lib_source(
+      libspirv_lib_files
+      LIB_ROOT_DIR libspirv
+      DIRS ${libspirv_dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
+    )
+  endif()
 
   foreach( d ${${t}_devices} )
     get_libclc_device_info(
@@ -519,6 +523,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       -D${CLC_TARGET_DEFINE}
       # All libclc builtin libraries see CLC headers
       -I${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+      # Error on undefined macros
+      -Werror=undef
     )
 
     if( NOT "${cpu}" STREQUAL "" )
@@ -547,20 +553,21 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         -Wno-bitwise-conditional-parentheses
       )
 
-    add_libclc_builtin_set(
-      ARCH ${ARCH}
-      ARCH_SUFFIX libspirv-${arch_suffix}
-      TRIPLE ${clang_triple}
-      TARGET_ENV libspirv-
-      COMPILE_FLAGS ${spirv_build_flags}
-      OPT_FLAGS ${opt_flags}
-      LIB_FILES ${libspirv_lib_files}
-      GEN_FILES ${libspirv_gen_files}
-      ALIASES ${${d}_aliases}
-      PARENT_TARGET libspirv-builtins
-      # Link in the CLC builtins and internalize their symbols
-      INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
-    )
+      add_libclc_builtin_set(
+        ARCH ${ARCH}
+        ARCH_SUFFIX libspirv-${arch_suffix}
+        TRIPLE ${clang_triple}
+        TARGET_ENV libspirv-
+        COMPILE_FLAGS ${spirv_build_flags}
+        OPT_FLAGS ${opt_flags}
+        LIB_FILES ${libspirv_lib_files}
+        GEN_FILES ${libspirv_gen_files}
+        ALIASES ${${d}_aliases}
+        PARENT_TARGET libspirv-builtins
+        # Link in the CLC builtins and internalize their symbols
+        INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
+      )
+    endif()
 
     set( opencl_build_flags ${build_flags} )
     list( APPEND opencl_build_flags

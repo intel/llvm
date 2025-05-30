@@ -51,7 +51,8 @@ TEST_P(urDeviceCreateWithNativeHandleTest, InvalidNullHandlePlatform) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   ur_native_handle_t native_handle = 0;
-  ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetNativeHandle(device, &native_handle));
 
   ur_device_handle_t dev = nullptr;
   ASSERT_EQ_RESULT(
@@ -63,7 +64,8 @@ TEST_P(urDeviceCreateWithNativeHandleTest, InvalidNullPointerDevice) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   ur_native_handle_t native_handle = 0;
-  ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetNativeHandle(device, &native_handle));
 
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_NULL_POINTER,

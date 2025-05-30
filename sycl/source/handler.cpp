@@ -404,7 +404,11 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   setHandlerKernelBundle(KernelBundleImpl);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+detail::EventImplPtr handler::finalize() {
+#else
 event handler::finalize() {
+#endif
   // This block of code is needed only for reduction implementation.
   // It is harmless (does nothing) for everything else.
   if (MIsFinalized)
@@ -450,7 +454,7 @@ event handler::finalize() {
         // Check associated accessors
         bool AccFound = false;
         for (detail::ArgDesc &Acc : impl->MAssociatedAccesors) {
-          if (Acc.MType == detail::kernel_param_kind_t::kind_accessor &&
+          if ((Acc.MType == detail::kernel_param_kind_t::kind_accessor) &&
               static_cast<detail::Requirement *>(Acc.MPtr) == AccImpl) {
             AccFound = true;
             break;
@@ -531,8 +535,13 @@ event handler::finalize() {
       // creation.
       std::vector<ur_event_handle_t> RawEvents =
           detail::Command::getUrEvents(impl->CGData.MEvents, MQueue, false);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      detail::EventImplPtr &LastEventImpl = MLastEvent;
+#else
       const detail::EventImplPtr &LastEventImpl =
           detail::getSyclObjImpl(MLastEvent);
+#endif
 
       bool DiscardEvent =
           !impl->MEventNeeded && MQueue->supportsDiscardingPiEvents();
@@ -544,6 +553,12 @@ event handler::finalize() {
                 MKernelName.data());
         DiscardEvent = !KernelUsesAssert;
       }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      if (!DiscardEvent) {
+        LastEventImpl = std::make_shared<detail::event_impl>();
+      }
+#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
       const bool xptiEnabled = xptiTraceEnabled();
@@ -595,7 +610,9 @@ event handler::finalize() {
 
       if (DiscardEvent) {
         EnqueueKernel();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         LastEventImpl->setStateDiscarded();
+#endif
       } else {
         LastEventImpl->setQueue(MQueue);
         LastEventImpl->setWorkerQueue(MQueue);
@@ -757,7 +774,12 @@ event handler::finalize() {
     } else {
       event GraphCompletionEvent =
           impl->MExecGraph->enqueue(MQueue, std::move(impl->CGData));
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      MLastEvent = getSyclObjImpl(GraphCompletionEvent);
+#else
       MLastEvent = GraphCompletionEvent;
+#endif
       return MLastEvent;
     }
   } break;
@@ -805,8 +827,12 @@ event handler::finalize() {
   // so it can be retrieved by the graph later.
   if (impl->MGraph) {
     impl->MGraphNodeCG = std::move(CommandGroup);
-    return detail::createSyclObjFromImpl<event>(
-        std::make_shared<detail::event_impl>());
+    auto EventImpl = std::make_shared<detail::event_impl>();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return EventImpl;
+#else
+    return detail::createSyclObjFromImpl<event>(EventImpl);
+#endif
   }
 
   // If the queue has an associated graph then we need to take the CG and pass
@@ -861,13 +887,21 @@ event handler::finalize() {
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(EventImpl, std::move(NodeImpl));
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return EventImpl;
+#else
     return detail::createSyclObjFromImpl<event>(EventImpl);
+#endif
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue), impl->MEventNeeded);
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  MLastEvent = Event;
+#else
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+#endif
   return MLastEvent;
 }
 
@@ -953,6 +987,41 @@ static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
   }
 }
 
+static void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc,
+                                    size_t Index, size_t &IndexShift,
+                                    bool IsKernelCreatedFromSource,
+                                    std::vector<detail::ArgDesc> &Args,
+                                    bool IsESIMD) {
+  using detail::kernel_param_kind_t;
+
+  range<3> &LAccSize = LAcc->MSize;
+  const int Dims = LAcc->MDims;
+  int SizeInBytes = LAcc->MElemSize;
+  for (int I = 0; I < Dims; ++I)
+    SizeInBytes *= LAccSize[I];
+
+  // Some backends do not accept zero-sized local memory arguments, so we
+  // make it a minimum allocation of 1 byte.
+  SizeInBytes = std::max(SizeInBytes, 1);
+  Args.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr, SizeInBytes,
+                    Index + IndexShift);
+  // TODO ESIMD currently does not suport MSize field passing yet
+  // accessor::init for ESIMD-mode accessor has a single field, translated
+  // to a single kernel argument set above.
+  if (!IsESIMD && !IsKernelCreatedFromSource) {
+    ++IndexShift;
+    const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(LAccSize[0]);
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
+                      SizeAccField, Index + IndexShift);
+    ++IndexShift;
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
+                      SizeAccField, Index + IndexShift);
+    ++IndexShift;
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
+                      SizeAccField, Index + IndexShift);
+  }
+}
+
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
@@ -1023,34 +1092,11 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       break;
     }
     case access::target::local: {
-      detail::LocalAccessorImplHost *LAcc =
+      detail::LocalAccessorImplHost *LAccImpl =
           static_cast<detail::LocalAccessorImplHost *>(Ptr);
 
-      range<3> &Size = LAcc->MSize;
-      const int Dims = LAcc->MDims;
-      int SizeInBytes = LAcc->MElemSize;
-      for (int I = 0; I < Dims; ++I)
-        SizeInBytes *= Size[I];
-      // Some backends do not accept zero-sized local memory arguments, so we
-      // make it a minimum allocation of 1 byte.
-      SizeInBytes = std::max(SizeInBytes, 1);
-      impl->MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
-                               SizeInBytes, Index + IndexShift);
-      // TODO ESIMD currently does not suport MSize field passing yet
-      // accessor::init for ESIMD-mode accessor has a single field, translated
-      // to a single kernel argument set above.
-      if (!IsESIMD && !IsKernelCreatedFromSource) {
-        ++IndexShift;
-        const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(Size[0]);
-        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
-               Index + IndexShift);
-        ++IndexShift;
-        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
-               Index + IndexShift);
-        ++IndexShift;
-        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
-               Index + IndexShift);
-      }
+      addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
+                              IsKernelCreatedFromSource, impl->MArgs, IsESIMD);
       break;
     }
     case access::target::image:
@@ -1073,19 +1119,51 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     break;
   }
+  case kernel_param_kind_t::kind_dynamic_accessor: {
+    const access::target AccTarget =
+        static_cast<access::target>(Size & AccessTargetMask);
+    switch (AccTarget) {
+    case access::target::local: {
+
+      // We need to recover the inheritance layout by casting to
+      // dynamic_parameter_impl first. Casting directly to
+      // dynamic_local_accessor_impl would result in an incorrect pointer.
+      auto *DynParamImpl = static_cast<
+          ext::oneapi::experimental::detail::dynamic_parameter_impl *>(Ptr);
+
+      registerDynamicParameter(DynParamImpl, Index + IndexShift);
+
+      auto *DynLocalAccessorImpl = static_cast<
+          ext::oneapi::experimental::detail::dynamic_local_accessor_impl *>(
+          DynParamImpl);
+
+      addArgsForLocalAccessor(&DynLocalAccessorImpl->LAccImplHost, Index,
+                              IndexShift, IsKernelCreatedFromSource,
+                              impl->MArgs, IsESIMD);
+      break;
+    }
+    default: {
+      assert(false && "Unsupported dynamic accessor target");
+    }
+    }
+    break;
+  }
   case kernel_param_kind_t::kind_dynamic_work_group_memory: {
 
-    auto *DynBase = static_cast<
-        ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
+    // We need to recover the inheritance layout by casting to
+    // dynamic_parameter_impl first. Casting directly to
+    // dynamic_work_group_memory_impl would result in an incorrect pointer.
+    auto *DynParamImpl = static_cast<
+        ext::oneapi::experimental::detail::dynamic_parameter_impl *>(Ptr);
 
-    auto *DynWorkGroupBase = static_cast<
-        ext::oneapi::experimental::detail::dynamic_work_group_memory_base *>(
-        Ptr);
+    registerDynamicParameter(DynParamImpl, Index + IndexShift);
 
-    registerDynamicParameter(*DynBase, Index + IndexShift);
+    auto *DynWorkGroupImpl = static_cast<
+        ext::oneapi::experimental::detail::dynamic_work_group_memory_impl *>(
+        DynParamImpl);
 
     addArg(kernel_param_kind_t::kind_std_layout, nullptr,
-           DynWorkGroupBase->BufferSize, Index + IndexShift);
+           DynWorkGroupImpl->BufferSizeInBytes, Index + IndexShift);
     break;
   }
   case kernel_param_kind_t::kind_work_group_memory: {
@@ -1122,19 +1200,6 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
   void *StoredArg = storePlainArg(Str);
   addArg(detail::kernel_param_kind_t::kind_stream, StoredArg, sizeof(stream),
          ArgIndex);
-}
-
-void handler::setArgHelper(
-    int ArgIndex,
-    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-        &DynWorkGroupBase) {
-
-  addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
-         &DynWorkGroupBase, 0, ArgIndex);
-
-  // Register the dynamic parameter with the handler for later association
-  // with the node being added
-  registerDynamicParameter(DynWorkGroupBase, ArgIndex);
 }
 
 // The argument can take up more space to store additional information about
@@ -1200,7 +1265,25 @@ void handler::extractArgsAndReqsFromLambda(
             static_cast<detail::LocalAccessorBaseHost *>(Ptr);
         Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
       }
+    } else if (Kind == detail::kernel_param_kind_t::kind_dynamic_accessor) {
+      // For args kind of accessor Size is information about accessor.
+      // The first 11 bits of Size encodes the accessor target.
+      // Only local targets are supported for dynamic accessors.
+      assert(static_cast<access::target>(Size & AccessTargetMask) ==
+             access::target::local);
+
+      ext::oneapi::experimental::detail::dynamic_parameter_base
+          *DynamicParamBase = static_cast<
+              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
+      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
+    } else if (Kind ==
+               detail::kernel_param_kind_t::kind_dynamic_work_group_memory) {
+      ext::oneapi::experimental::detail::dynamic_parameter_base
+          *DynamicParamBase = static_cast<
+              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
+      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
     }
+
     processArg(Ptr, Kind, Size, I, IndexShift,
                /*IsKernelCreatedFromSource=*/false, IsESIMD);
   }
@@ -2183,8 +2266,9 @@ void handler::setNDRangeUsed(bool Value) { (void)Value; }
 #endif
 
 void handler::registerDynamicParameter(
-    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
     int ArgIndex) {
+
   if (MQueue && MQueue->hasCommandGraph()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
@@ -2196,9 +2280,20 @@ void handler::registerDynamicParameter(
         "Dynamic Parameters cannot be used with normal SYCL submissions");
   }
 
-  auto Paraimpl = detail::getSyclObjImpl(DynamicParamBase);
-  impl->MDynamicParameters.emplace_back(Paraimpl.get(), ArgIndex);
+  impl->MDynamicParameters.emplace_back(DynamicParamImpl, ArgIndex);
 }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Remove in the next ABI-breaking window.
+void handler::registerDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
+    int ArgIndex) {
+  ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+      detail::getSyclObjImpl(DynamicParamBase).get();
+
+  registerDynamicParameter(DynParamImpl, ArgIndex);
+}
+#endif
 
 bool handler::eventNeeded() const { return impl->MEventNeeded; }
 
@@ -2289,6 +2384,12 @@ void handler::setKernelInfo(
   impl->MKernelParamDescGetter = KernelParamDescGetter;
   impl->MKernelIsESIMD = KernelIsESIMD;
   impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
+}
+
+void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {
+  // Passing the pointer to the runtime is enough to prevent optimization.
+  // We don't need to use the pointer for anything.
+  (void)InstantiateKernelOnHostPtr;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
