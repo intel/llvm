@@ -28,22 +28,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   //
 
   (void)pGlobalWorkOffset;
-  (void)pLocalWorkSize;
 
-  if (workDim == 1) {
-    std::cerr
-        << "UR Offload adapter only supports 1d kernel launches at the moment";
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  if (!pLocalWorkSize) {
+    // TODO: This is not optimal, but it is legal
+    static size_t DefaultWorkSize[3] = {1, 1, 1};
+    pLocalWorkSize = DefaultWorkSize;
+  }
+
+  if (pLocalWorkSize[0] > pGlobalWorkSize[0] ||
+      pLocalWorkSize[1] > pGlobalWorkSize[1] ||
+      pLocalWorkSize[2] > pGlobalWorkSize[2]) {
+    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
   ol_kernel_launch_size_args_t LaunchArgs;
   LaunchArgs.Dimensions = workDim;
-  LaunchArgs.NumGroupsX = pGlobalWorkSize[0];
-  LaunchArgs.NumGroupsY = 1;
-  LaunchArgs.NumGroupsZ = 1;
-  LaunchArgs.GroupSizeX = 1;
-  LaunchArgs.GroupSizeY = 1;
-  LaunchArgs.GroupSizeZ = 1;
+  LaunchArgs.NumGroupsX = pGlobalWorkSize[0] / pLocalWorkSize[0];
+  LaunchArgs.NumGroupsY = pGlobalWorkSize[1] / pLocalWorkSize[1];
+  LaunchArgs.NumGroupsZ = pGlobalWorkSize[2] / pLocalWorkSize[2];
+  LaunchArgs.GroupSizeX = pLocalWorkSize[0];
+  LaunchArgs.GroupSizeY = pLocalWorkSize[1];
+  LaunchArgs.GroupSizeZ = pLocalWorkSize[2];
   LaunchArgs.DynSharedMemory = 0;
 
   ol_event_handle_t EventOut;
