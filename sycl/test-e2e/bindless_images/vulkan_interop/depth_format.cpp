@@ -83,7 +83,8 @@ void runSycl(const sycl::device &syclDevice, sycl::range<2> globalSize,
     // Cleanup.
     syclexp::destroy_image_handle(imgIn, syclQueue);
     syclexp::destroy_image_handle(imgOut, syclQueue);
-    syclexp::free_image_mem(imgMemIn, syclexp::image_type::standard, syclQueue);
+    syclexp::unmap_external_image_memory(
+        imgMemIn, syclexp::image_type::standard, syclQueue);
     syclexp::free_image_mem(imgMemOut, syclexp::image_type::standard,
                             syclQueue);
     syclexp::release_external_memory(externalMemIn, syclQueue);
@@ -362,8 +363,7 @@ int main() {
 
   sycl::device syclDevice;
 
-  if (vkutil::setupDevice(syclDevice.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(syclDevice) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

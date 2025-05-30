@@ -99,7 +99,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   if (NumEntries == 0) {
     /// Runtime queries number of devices
     if (phDevices != nullptr) {
-      logger::error("Invalid Arguments for urDevicesGet");
+      UR_LOG(ERR, "Invalid Arguments for urDevicesGet");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return UR_RESULT_SUCCESS;
@@ -396,10 +396,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ESIMD_SUPPORT:

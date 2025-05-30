@@ -33,6 +33,7 @@ jobs:
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
       build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu --no-assertions'
+      build_target: all
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
@@ -151,6 +152,7 @@ jobs:
       artifact_archive_name: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
       build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
+      build_target: all
 
   e2e-win:
     needs: build-win
@@ -163,6 +165,7 @@ jobs:
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
+      target_devices: level_zero:gpu
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
 
   cuda-aws-start:
@@ -249,7 +252,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Build SYCL-CTS for Windows
-      runner: '["Windows", "build-e2e"]'
+      runner: '["Windows", "build"]'
       cts_testing_mode: 'build-only'
       tests_selector: cts
       repo_ref: ${{ github.sha }}

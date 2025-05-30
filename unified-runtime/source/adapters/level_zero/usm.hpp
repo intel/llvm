@@ -12,6 +12,7 @@
 #include "common.hpp"
 
 #include "enqueued_pool.hpp"
+#include "event.hpp"
 #include "ur_api.h"
 #include "ur_pool_manager.hpp"
 #include <set>
@@ -20,8 +21,13 @@
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
 struct UsmPool {
-  UsmPool(umf::pool_unique_handle_t Pool) : UmfPool(std::move(Pool)) {}
+  UsmPool(umf::pool_unique_handle_t Pool)
+      : UmfPool(std::move(Pool)), AsyncPool([](ur_event_handle_t Event) {
+          return urEventReleaseInternal(Event);
+        }) {}
   umf::pool_unique_handle_t UmfPool;
+  // 'AsyncPool' needs to be declared after 'UmfPool' so its destructor is
+  // invoked first.
   EnqueuedPool AsyncPool;
 };
 
@@ -90,7 +96,7 @@ public:
   virtual umf_result_t free(void *, size_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
-  virtual umf_result_t get_min_page_size(void *, size_t *) {
+  virtual umf_result_t get_min_page_size(const void *, size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
   virtual umf_result_t get_recommended_page_size(size_t, size_t *) {
@@ -131,7 +137,7 @@ public:
 class L0MemoryProvider : public USMMemoryProviderBase {
 private:
   // Min page size query function for L0MemoryProvider.
-  umf_result_t GetL0MinPageSize(void *Mem, size_t *PageSize);
+  umf_result_t GetL0MinPageSize(const void *Mem, size_t *PageSize);
   size_t MinPageSize = 0;
   bool MinPageSizeCached = false;
 
@@ -140,7 +146,7 @@ public:
                           ur_device_handle_t Dev) override;
   umf_result_t alloc(size_t Size, size_t Align, void **Ptr) override;
   umf_result_t free(void *Ptr, size_t Size) override;
-  umf_result_t get_min_page_size(void *, size_t *) override;
+  umf_result_t get_min_page_size(const void *, size_t *) override;
   // TODO: Different name for each provider (Host/Shared/SharedRO/Device)
   const char *get_name() override { return "Level Zero"; };
   umf_result_t get_ipc_handle_size(size_t *) override;

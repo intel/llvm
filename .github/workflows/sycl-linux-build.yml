@@ -32,6 +32,10 @@ on:
       build_artifact_suffix:
         type: string
         required: true
+      build_target:
+        type: string
+        required: false
+        default: sycl-toolchain
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.zst
@@ -177,7 +181,8 @@ jobs:
           -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
     - name: Compile
       id: build
-      run: cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
+      # Emulate default value for manual dispatch as we've run out of available arguments.
+      run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
@@ -300,7 +305,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
 
     - name: Remove E2E tests before spirv-backend run
@@ -315,5 +320,5 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_spirv_backend
-        cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param spirv-backend=True

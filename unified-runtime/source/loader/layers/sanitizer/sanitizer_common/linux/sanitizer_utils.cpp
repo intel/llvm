@@ -67,12 +67,13 @@ bool DontCoredumpRange(uptr Addr, uptr Size) {
 void *GetMemFunctionPointer(const char *FuncName) {
   void *handle = dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD);
   if (!handle) {
-    getContext()->logger.error("Failed to dlopen {}", LIBC_SO);
+    UR_LOG_L(getContext()->logger, ERR, "Failed to dlopen {}", LIBC_SO);
     return nullptr;
   }
   auto ptr = dlsym(handle, FuncName);
   if (!ptr) {
-    getContext()->logger.error("Failed to get '{}' from {}", FuncName, LIBC_SO);
+    UR_LOG_L(getContext()->logger, ERR, "Failed to get '{}' from {}", FuncName,
+             LIBC_SO);
   }
   return ptr;
 }

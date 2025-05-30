@@ -145,12 +145,12 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
   syclexp::destroy_image_handle(handles.input_1, dev, ctxt);
   syclexp::destroy_image_handle(handles.input_2, dev, ctxt);
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
-  syclexp::free_image_mem(handles.input_mem_handle_1,
-                          syclexp::image_type::standard, dev, ctxt);
-  syclexp::free_image_mem(handles.input_mem_handle_2,
-                          syclexp::image_type::standard, dev, ctxt);
-  syclexp::free_image_mem(handles.output_mem_handle,
-                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::unmap_external_image_memory(
+      handles.input_mem_handle_1, syclexp::image_type::standard, dev, ctxt);
+  syclexp::unmap_external_image_memory(
+      handles.input_mem_handle_2, syclexp::image_type::standard, dev, ctxt);
+  syclexp::unmap_external_image_memory(
+      handles.output_mem_handle, syclexp::image_type::standard, dev, ctxt);
   syclexp::release_external_memory(handles.input_external_mem_1, dev, ctxt);
   syclexp::release_external_memory(handles.input_external_mem_2, dev, ctxt);
   syclexp::release_external_memory(handles.output_external_mem, dev, ctxt);
@@ -677,8 +677,7 @@ int main() {
 
   sycl::device dev;
 
-  if (vkutil::setupDevice(dev.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(dev) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

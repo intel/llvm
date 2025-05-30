@@ -38,8 +38,8 @@ ur_result_t urVirtualMemGranularityGetInfo(
     return ReturnValue(PageSize);
   }
   default:
-    logger::error("Unsupported propName in urQueueGetInfo: propName={}({})",
-                  propName, propName);
+    UR_LOG(ERR, "Unsupported propName in urQueueGetInfo: propName={}({})",
+           propName, propName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -120,8 +120,8 @@ ur_result_t urVirtualMemGetInfo(ur_context_handle_t hContext,
     return ReturnValue(RetFlags);
   }
   default:
-    logger::error("Unsupported propName in urQueueGetInfo: propName={}({})",
-                  propName, propName);
+    UR_LOG(ERR, "Unsupported propName in urQueueGetInfo: propName={}({})",
+           propName, propName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 

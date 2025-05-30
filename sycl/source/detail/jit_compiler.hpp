@@ -32,13 +32,12 @@ using JITEnvVar = DynArray<char>;
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-using QueueImplPtr = std::shared_ptr<queue_impl>;
 
 class jit_compiler {
 
 public:
   ur_kernel_handle_t
-  materializeSpecConstants(const QueueImplPtr &Queue,
+  materializeSpecConstants(queue_impl &Queue,
                            const RTDeviceBinaryImage *BinImage,
                            KernelNameStrRefT KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);

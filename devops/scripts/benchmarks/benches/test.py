@@ -45,7 +45,7 @@ class TestSuite(Suite):
 
         return result
 
-    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+    def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {
             "Foo Group": BenchmarkMetadata(
                 type="group",
