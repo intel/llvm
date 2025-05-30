@@ -3,6 +3,7 @@
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: intel math functions is not used on AMD and Nvidia
 
 // Depends on SPIR-V Backend & run-time drivers version.
 // XFAIL: spirv-backend && run-mode

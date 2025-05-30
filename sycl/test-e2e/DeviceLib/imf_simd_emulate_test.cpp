@@ -2,6 +2,7 @@
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: intel math functions is not used on AMD and Nvidia
 
 // UNSUPPORTED: igc-dev
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17008

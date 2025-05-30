@@ -2,6 +2,7 @@
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: intel math functions is not used on AMD and Nvidia
 
 // All __imf_* bf16 functions are implemented via fp32 emulation, so we don't
 // need to check whether underlying device supports bf16 or not.
