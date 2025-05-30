@@ -12,10 +12,11 @@
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #include <cassert>
+#include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/khr/work_item_queries.hpp>
 
-template <size_t... Dims> static void check_this_nd_item_api() {
+template <size_t... Dims> static int check_this_nd_item_api() {
   // Define the kernel ranges.
   constexpr int Dimensions = sizeof...(Dims);
   const sycl::range<Dimensions> local_range{Dims...};
@@ -33,11 +34,17 @@ template <size_t... Dims> static void check_this_nd_item_api() {
   });
   // Check the test results.
   sycl::host_accessor acc{results};
-  for (const auto &result : acc)
-    assert(result);
+  for (const auto &result : acc) {
+    if (!result) {
+      std::cerr << "check_this_nd_item_api failed for dimensionality "
+                << Dimensions << ".\n";
+      return 1;
+    }
+  }
+  return 0;
 }
 
-template <size_t... Dims> static void check_this_group_api() {
+template <size_t... Dims> static int check_this_group_api() {
   // Define the kernel ranges.
   constexpr int Dimensions = sizeof...(Dims);
   const sycl::range<Dimensions> local_range{Dims...};
@@ -56,11 +63,17 @@ template <size_t... Dims> static void check_this_group_api() {
   });
   // Check the test results.
   sycl::host_accessor acc{results};
-  for (const auto &result : acc)
-    assert(result);
+  for (const auto &result : acc) {
+    if (!result) {
+      std::cerr << "check_this_group_api failed for dimensionality "
+                << Dimensions << ".\n";
+      return 1;
+    }
+  }
+  return 0;
 }
 
-template <size_t... Dims> static void check_this_sub_group_api() {
+template <size_t... Dims> static int check_this_sub_group_api() {
   // Define the kernel ranges.
   constexpr int Dimensions = sizeof...(Dims);
   const sycl::range<Dimensions> local_range{Dims...};
@@ -79,21 +92,29 @@ template <size_t... Dims> static void check_this_sub_group_api() {
   });
   // Check the test results.
   sycl::host_accessor acc{results};
-  for (const auto &result : acc)
-    assert(result);
+  for (const auto &result : acc) {
+    if (!result) {
+      std::cerr << "check_this_sub_group_api failed for dimensionality "
+                << Dimensions << ".\n";
+      return 1;
+    }
+  }
+  return 0;
 }
 
 int main() {
+  int failed = 0;
   // nd_item
-  check_this_nd_item_api<2>();
-  check_this_nd_item_api<2, 3>();
-  check_this_nd_item_api<2, 3, 4>();
+  failed += check_this_nd_item_api<2>();
+  failed += check_this_nd_item_api<2, 3>();
+  failed += check_this_nd_item_api<2, 3, 4>();
   // group
-  check_this_group_api<2>();
-  check_this_group_api<2, 3>();
-  check_this_group_api<2, 3, 4>();
+  failed += check_this_group_api<2>();
+  failed += check_this_group_api<2, 3>();
+  failed += check_this_group_api<2, 3, 4>();
   // sub_group
-  check_this_sub_group_api<2>();
-  check_this_sub_group_api<2, 3>();
-  check_this_sub_group_api<2, 3, 4>();
+  failed += check_this_sub_group_api<2>();
+  failed += check_this_sub_group_api<2, 3>();
+  failed += check_this_sub_group_api<2, 3, 4>();
+  return failed;
 }
