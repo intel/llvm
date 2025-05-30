@@ -963,6 +963,8 @@ void CudaToolChain::addClangTargetOptions(
     if (FastRelaxedMath || UnsafeMathOpt)
       CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
                       "--nvptx-prec-sqrtf32=0"});
+
+    CC1Args.append({"-mllvm", "-enable-memcpyopt-without-libcalls"});
   } else {
     CC1Args.append({"-fcuda-is-device", "-mllvm",
                     "-enable-memcpyopt-without-libcalls",
