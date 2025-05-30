@@ -15,6 +15,11 @@
 #include "ur_util.hpp"
 #include <algorithm>
 #include <climits>
+#if defined(__linux__)
+#include <ctime>
+#elif defined(_WIN32)
+#include <windows.h>
+#endif
 #include <optional>
 #include <vector>
 
@@ -1572,6 +1577,40 @@ ur_result_t urDeviceGetGlobalTimestamps(
     /// [out][optional] pointer to the Host's global timestamp that correlates
     /// with the Device's global timestamp value
     uint64_t *HostTimestamp) {
+  if (!DeviceTimestamp && HostTimestamp) {
+    // If only HostTimestamp is requested, we need to avoid making a call to
+    // zeDeviceGetGlobalTimestamps which has higher latency. This is a
+    // workaround for the fact that Level Zero does not provide a way to get the
+    // host timestamp directly. It is known that current implementation of L0
+    // runtime uses CLOCK_MONOTONIC_RAW on Linux and QueryPerformanceCounter on
+    // Windows.
+#if defined(__linux__)
+    timespec monotonic;
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &monotonic) != 0) {
+      UR_LOG(ERR, "Failed to get CLOCK_MONOTONIC time");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    *HostTimestamp = static_cast<uint64_t>(monotonic.tv_sec) * 1'000'000'000 +
+                     static_cast<uint64_t>(monotonic.tv_nsec);
+    return UR_RESULT_SUCCESS;
+#elif defined(_WIN32)
+    // Use QueryPerformanceCounter on Windows
+    LARGE_INTEGER counter;
+    if (!QueryPerformanceCounter(&counter)) {
+      UR_LOG(ERR, "Failed to get performance counter");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    LARGE_INTEGER frequency;
+    if (!QueryPerformanceFrequency(&frequency)) {
+      UR_LOG(ERR, "Failed to get performance frequency");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    *HostTimestamp = static_cast<uint64_t>(counter.QuadPart) * 1'000'000'000 /
+                     frequency.QuadPart;
+    return UR_RESULT_SUCCESS;
+#endif
+  }
+
   const uint64_t &ZeTimerResolution =
       Device->ZeDeviceProperties->timerResolution;
   const uint64_t TimestampMaxCount = Device->getTimestampMask();
