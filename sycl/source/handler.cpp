@@ -2204,12 +2204,28 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   impl->MKernelIsCooperative = KernelIsCooperative;
 }
 
-void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
+void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
   impl->MKernelUsesClusterLaunch = true;
-  impl->MNDRDesc.setClusterDimensions(ClusterSize, Dims);
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelClusterLaunch(sycl::range<2> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelClusterLaunch(sycl::range<1> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
 }
 
 void handler::setKernelWorkGroupMem(size_t Size) {
@@ -2359,18 +2375,40 @@ bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
 void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
-void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
-                                         bool SetNumWorkGroups, int Dims) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups, Dims};
+void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
 }
-void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                         sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset, Dims};
+void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                                   sycl::id<3> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
 }
-void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                         sycl::range<3> LocalSize,
-                                         sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                                   sycl::range<3> LocalSize, sycl::id<3> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                                   sycl::id<2> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                                   sycl::range<2> LocalSize, sycl::id<2> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                                   sycl::id<1> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                                   sycl::range<1> LocalSize, sycl::id<1> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
 void handler::setKernelNameBasedCachePtr(

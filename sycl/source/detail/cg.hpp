@@ -63,98 +63,76 @@ public:
 // The structure represents NDRange - global, local sizes, global offset and
 // number of dimensions.
 class NDRDescT {
-  // The method initializes all sizes for dimensions greater than the passed one
-  // to the default values, so they will not affect execution.
-  void setNDRangeLeftover() {
-    for (int I = Dims; I < 3; ++I) {
-      GlobalSize[I] = 1;
-      LocalSize[I] = LocalSize[0] ? 1 : 0;
-      GlobalOffset[I] = 0;
-      NumWorkGroups[I] = 0;
-    }
-  }
-
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
-    if constexpr (Dims == 3) {
-      return Range;
-    } else {
-      sycl::range<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Range[I];
-      return Res;
-    }
-  }
-
-  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
-    if constexpr (Dims == 3) {
-      return Id;
-    } else {
-      sycl::id<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Id[I];
-      return Res;
-    }
-  }
 
 public:
   NDRDescT() = default;
   NDRDescT(const NDRDescT &Desc) = default;
   NDRDescT(NDRDescT &&Desc) = default;
 
-  NDRDescT(sycl::range<3> N, bool SetNumWorkGroups, int DimsArg)
-      : GlobalSize{SetNumWorkGroups ? sycl::range<3>{0, 0, 0} : N},
-        NumWorkGroups{SetNumWorkGroups ? N : sycl::range<3>{0, 0, 0}},
-        Dims{size_t(DimsArg)} {
-    setNDRangeLeftover();
+  template <int Dims_>
+  NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) : Dims{size_t(Dims_)} {
+    if (SetNumWorkGroups) {
+      for (size_t I = 0; I < Dims_; ++I) {
+        NumWorkGroups[I] = N[I];
+      }
+    } else {
+      for (size_t I = 0; I < Dims_; ++I) {
+        GlobalSize[I] = N[I];
+      }
+    }
   }
-
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
-           sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
-        Dims{size_t(DimsArg)} {
-    setNDRangeLeftover();
-  }
-
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
 
   template <int Dims_>
-  NDRDescT(sycl::nd_range<Dims_> ExecutionRange, int DimsArg)
-      : NDRDescT(padRange(ExecutionRange.get_global_range()),
-                 padRange(ExecutionRange.get_local_range()),
-                 padId(ExecutionRange.get_offset()), size_t(DimsArg)) {
-    setNDRangeLeftover();
+  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
+           sycl::id<Dims_> Offset)
+      : Dims{size_t(Dims_)} {
+    for (size_t I = 0; I < Dims_; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      LocalSize[I] = LocalSizes[I];
+      GlobalOffset[I] = Offset[I];
+    }
+  }
+
+  template <int Dims_>
+  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
+      : Dims{size_t(Dims_)} {
+    for (size_t I = 0; I < Dims_; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      GlobalOffset[I] = Offset[I];
+    }
   }
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange)
-      : NDRDescT(ExecutionRange, Dims_) {}
+      : NDRDescT(ExecutionRange.get_global_range(),
+                 ExecutionRange.get_local_range(),
+                 ExecutionRange.get_offset()) {}
 
   template <int Dims_>
   NDRDescT(sycl::range<Dims_> Range)
-      : NDRDescT(padRange(Range), /*SetNumWorkGroups=*/false, Dims_) {}
+      : NDRDescT(Range, /*SetNumWorkGroups=*/false) {}
 
-  void setClusterDimensions(sycl::range<3> N, int Dims) {
-    if (this->Dims != size_t(Dims)) {
+  template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
+    if (this->Dims != size_t(Dims_)) {
       throw std::runtime_error(
           "Dimensionality of cluster, global and local ranges must be same");
     }
 
-    for (int I = 0; I < 3; ++I)
-      ClusterDimensions[I] = (I < Dims) ? N[I] : 1;
+    for (int I = 0; I < Dims_; ++I)
+      ClusterDimensions[I] = N[I];
   }
 
   NDRDescT &operator=(const NDRDescT &Desc) = default;
   NDRDescT &operator=(NDRDescT &&Desc) = default;
 
-  sycl::range<3> GlobalSize{0, 0, 0};
-  sycl::range<3> LocalSize{0, 0, 0};
-  sycl::id<3> GlobalOffset{0, 0, 0};
+  std::array<size_t, 3> GlobalSize{0, 0, 0};
+  std::array<size_t, 3> LocalSize{0, 0, 0};
+  std::array<size_t, 3> GlobalOffset{0, 0, 0};
   /// Number of workgroups, used to record the number of workgroups from the
   /// simplest form of parallel_for_work_group. If set, all other fields must be
   /// zero
-  sycl::range<3> NumWorkGroups{0, 0, 0};
-  sycl::range<3> ClusterDimensions{1, 1, 1};
+  std::array<size_t, 3> NumWorkGroups{0, 0, 0};
+  std::array<size_t, 3> ClusterDimensions{1, 1, 1};
   size_t Dims = 0;
 };
 
