@@ -64,6 +64,12 @@ private:
 
   void recordSubmittedKernel(ur_kernel_handle_t hKernel);
 
+  inline ur_result_t enqueueCooperativeKernelLaunchHelper(
+      ur_kernel_handle_t hKernel, uint32_t workDim,
+      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+      const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+
   ur_result_t
   enqueueUSMAllocHelper(ur_usm_pool_handle_t pPool, const size_t size,
                         const ur_exp_async_usm_alloc_properties_t *pProperties,
@@ -86,13 +92,13 @@ public:
                                    ur_native_handle_t *phNativeQueue) override;
   ur_result_t queueFinish() override;
   ur_result_t queueFlush() override;
-  ur_result_t enqueueKernelLaunch(ur_kernel_handle_t hKernel, uint32_t workDim,
-                                  const size_t *pGlobalWorkOffset,
-                                  const size_t *pGlobalWorkSize,
-                                  const size_t *pLocalWorkSize,
-                                  uint32_t numEventsInWaitList,
-                                  const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) override;
+  ur_result_t enqueueKernelLaunch(
+      ur_kernel_handle_t hKernel, uint32_t workDim,
+      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+      const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+      const ur_kernel_launch_property_t *launchPropList,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t *phEvent) override;
   ur_result_t enqueueEventsWait(uint32_t numEventsInWaitList,
                                 const ur_event_handle_t *phEventWaitList,
                                 ur_event_handle_t *phEvent) override;
@@ -263,12 +269,6 @@ public:
       uint64_t signalValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueCooperativeKernelLaunchExp(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
   ur_result_t
   enqueueTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
@@ -278,13 +278,6 @@ public:
                           uint32_t numEventsInWaitList,
                           const ur_event_handle_t *phEventWaitList,
                           ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueKernelLaunchCustomExp(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-      const ur_exp_launch_property_t *launchPropList,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
   ur_result_t
   enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
                           uint32_t, const ur_mem_handle_t *,

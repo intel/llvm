@@ -440,46 +440,16 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  return enqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                             pGlobalWorkSize, pLocalWorkSize,
-                             numEventsInWaitList, phEventWaitList, phEvent,
-                             /*WorkGroupMemory=*/0);
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  if (pGlobalWorkOffset == nullptr || *pGlobalWorkOffset == 0) {
-    ur_exp_launch_property_t coop_prop;
-    coop_prop.id = UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE;
-    coop_prop.value.cooperative = 1;
-    return urEnqueueKernelLaunchCustomExp(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, 1, &coop_prop, numEventsInWaitList, phEventWaitList,
-        phEvent);
-  }
-  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numEventsInWaitList, phEventWaitList, phEvent);
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_exp_launch_property_t *launchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
   size_t WorkGroupMemory = [&]() -> size_t {
-    const ur_exp_launch_property_t *WorkGroupMemoryProp = std::find_if(
+    const ur_kernel_launch_property_t *WorkGroupMemoryProp = std::find_if(
         launchPropList, launchPropList + numPropsInLaunchPropList,
-        [](const ur_exp_launch_property_t &Prop) {
-          return Prop.id == UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY;
+        [](const ur_kernel_launch_property_t &Prop) {
+          return Prop.id == UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY;
         });
     if (WorkGroupMemoryProp != launchPropList + numPropsInLaunchPropList)
       return WorkGroupMemoryProp->value.workgroup_mem_size;
@@ -526,12 +496,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
   for (uint32_t i = 0; i < numPropsInLaunchPropList; i++) {
     switch (launchPropList[i].id) {
-    case UR_EXP_LAUNCH_PROPERTY_ID_IGNORE: {
+    case UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE: {
       auto &attr = launch_attribute.emplace_back();
       attr.id = CU_LAUNCH_ATTRIBUTE_IGNORE;
       break;
     }
-    case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION: {
+    case UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION: {
       auto &attr = launch_attribute.emplace_back();
       attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
       // Note that cuda orders from right to left wrt SYCL dimensional order.
@@ -554,20 +524,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
       break;
     }
-    case UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE: {
+    case UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE: {
       auto &attr = launch_attribute.emplace_back();
       attr.id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE;
       attr.value.cooperative = launchPropList[i].value.cooperative;
       break;
     }
-    case UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE: {
+    case UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE: {
       auto &attr = launch_attribute.emplace_back();
       attr.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
       attr.value.programmaticStreamSerializationAllowed =
           launchPropList[i].value.opportunistic_queue_serialize;
       break;
     }
-    case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY: {
+    case UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY: {
       break;
     }
     default: {

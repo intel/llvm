@@ -462,6 +462,8 @@ etors:
       desc: "[int32_t][optional-query] return max power limit in milliwatts."
     - name: BFLOAT16_CONVERSIONS_NATIVE
       desc: "[$x_bool_t] support for native bfloat16 conversions"
+    - name: KERNEL_LAUNCH_CAPABILITIES
+      desc: "[$x_kernel_launch_properties_flags_t] Bitfield of supported kernel launch properties."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -971,3 +973,21 @@ etors:
     - name: OTHER
       desc: "The clock frequency is throttled due to other reason."
       value: "$X_BIT(6)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Kernel launch properties support"
+class: $xDevice
+name: $x_kernel_launch_properties_flags_t
+etors:
+    - name: COOPERATIVE
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and $xKernelSuggestMaxCooperativeGroupCount"
+      value: "$X_BIT(0)"
+    - name: CLUSTER_DIMENSION
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION"
+      value: "$X_BIT(1)"
+    - name: WORK_GROUP_MEMORY
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY"
+      value: "$X_BIT(2)"
+    - name: OPPORTUNISTIC_QUEUE_SERIALIZE
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE"
+      value: "$X_BIT(3)"

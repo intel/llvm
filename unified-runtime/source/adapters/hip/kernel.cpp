@@ -156,7 +156,7 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t /*hKernel*/, ur_device_handle_t /*hDevice*/,
     uint32_t /*workDim*/, const size_t * /*pLocalWorkSize*/,
     size_t /*dynamicSharedMemorySize*/, uint32_t * /*pGroupCountRet*/) {
