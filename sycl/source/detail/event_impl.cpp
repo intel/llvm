@@ -25,6 +25,15 @@
 #include <sstream>
 #endif
 
+#ifdef _WIN32
+#include <intrin.h>
+#else
+// CP no op
+void __debugbreak() { }
+#endif
+
+//#define CP_LOG_EARLY_RELEASE 1
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -43,16 +52,42 @@ void event_impl::initContextIfNeeded() {
 }
 
 event_impl::~event_impl() {
+#ifdef CP_LOG_EVENT_LIFECYCLE
+	std::cout << "~event_impl destructor of (" << this << ") event_impl.cpp:54" << std::endl;
+	__debugbreak();
+#endif
+#ifdef CP_LOG_EARLY_RELEASE
+  if (MHasBeenReleased == 0xDEADBEEF)
+	  std::cout << "~event_impl MHasBeenReleased is already set to 0xDEADBEEF" << std::endl;
+  else if(MHasBeenReleased != 0)
+	  std::cout << "~event_impl MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
+#endif
+  
   try {
+	
     auto Handle = this->getHandle();
-    if (Handle)
+    if (Handle){
       getAdapter()->call<UrApiKind::urEventRelease>(Handle);
+	  //__debugbreak();
+	}
+    MHasBeenReleased = 0xDEADBEEF;
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
 }
 
+
 void event_impl::waitInternal(bool *Success) {
+#ifdef CP_LOG_EARLY_RELEASE
+	// CP -- this does not trip
+   if(MHasBeenReleased == 0xDEADBEEF){
+	   std::cout << "waitInternal HasBeenReleased is already set to 0xDEADBEEF.   this:  " << (unsigned long)this << std::endl;
+	   //__debugbreak();
+   }else if(MHasBeenReleased != 0){
+	  std::cout << "waitInternal MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
+   }
+#endif  
+   
   auto Handle = this->getHandle();
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
@@ -145,7 +180,10 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
-
+#ifdef CP_LOG_EVENT_LIFECYCLE
+	std::cout << "event_impl constructor. of (" << this << ") event_impl.cpp:178" << std::endl;
+	__debugbreak();
+#endif	
   ur_context_handle_t TempContext;
   getAdapter()->call<UrApiKind::urEventGetInfo>(
       this->getHandle(), UR_EVENT_INFO_CONTEXT, sizeof(ur_context_handle_t),
@@ -161,6 +199,10 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
 
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled} {
+#ifdef CP_LOG_EVENT_LIFECYCLE
+	std::cout << "event_impl constructor from QueImplPtr of  (" << this << ") event_impl.cpp:197" << std::endl;
+	__debugbreak();
+#endif	
   if (Queue)
     this->setContextImpl(Queue->getContextImplPtr());
   else {
@@ -246,6 +288,16 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
                       bool *Success) {
+#ifdef CP_LOG_EARLY_RELEASE						  
+	// CP -- this trips
+   if(MHasBeenReleased == 0xDEADBEEF) {
+	   std::cout << "wait HasBeenRelease already set to 0xDEADBEEF.  this:  " << (unsigned long)this << std::endl;
+	   //__debugbreak();
+   }else if(MHasBeenReleased != 0){
+	  std::cout << "wait MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
+   }
+#endif
+   
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
