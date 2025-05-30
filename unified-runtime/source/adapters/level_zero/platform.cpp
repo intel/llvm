@@ -294,6 +294,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeCopyOffloadExtensionSupported = true;
       }
     }
+    if (strncmp(extension.name, ZE_BINDLESS_IMAGE_EXP_NAME,
+                strlen(ZE_BINDLESS_IMAGE_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_BINDLESS_IMAGE_EXP_VERSION_1_0) {
+        ZeBindlessImagesExtensionSupported = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
