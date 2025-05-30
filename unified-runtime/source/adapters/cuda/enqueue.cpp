@@ -119,18 +119,14 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
-  size_t MaxBlockDim[3];
-  MaxBlockDim[0] = Device->getMaxWorkItemSizes(0);
-  MaxBlockDim[1] = Device->getMaxWorkItemSizes(1);
-  MaxBlockDim[2] = Device->getMaxWorkItemSizes(2);
-
   int MinGrid, MaxBlockSize;
   UR_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
       &MinGrid, &MaxBlockSize, Kernel->get(), NULL, Kernel->getLocalSize(),
-      MaxBlockDim[0]));
+      Device->getMaxWorkItemSizes(0)));
 
   roundToHighestFactorOfGlobalSizeIn3d(ThreadsPerBlock, GlobalSizeNormalized,
-                                       MaxBlockDim, MaxBlockSize);
+                                       Device->getMaxWorkItemSizes(),
+                                       MaxBlockSize);
 }
 
 // Helper to verify out-of-registers case (exceeded block max registers).
@@ -145,7 +141,6 @@ bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
 
 // Helper to compute kernel parameters from workload
 // dimensions.
-// @param [in]  Context handler to the target Context
 // @param [in]  Device handler to the target Device
 // @param [in]  WorkDim workload dimension
 // @param [in]  GlobalWorkOffset pointer workload global offsets
@@ -155,73 +150,56 @@ bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
 // @param [out] ThreadsPerBlock Number of threads per block we should run
 // @param [out] BlocksPerGrid Number of blocks per grid we should run
 ur_result_t
-setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
-                const ur_device_handle_t Device, const uint32_t WorkDim,
+setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
                 const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
                 const size_t *LocalWorkSize, ur_kernel_handle_t &Kernel,
                 CUfunction &CuFunc, size_t (&ThreadsPerBlock)[3],
                 size_t (&BlocksPerGrid)[3]) {
-  size_t MaxWorkGroupSize = 0u;
-  bool ProvidedLocalWorkGroupSize = LocalWorkSize != nullptr;
-
   try {
     // Set the active context here as guessLocalWorkSize needs an active context
     ScopedContext Active(Device);
-    {
-      size_t *MaxThreadsPerBlock = Kernel->MaxThreadsPerBlock;
-      size_t *ReqdThreadsPerBlock = Kernel->ReqdThreadsPerBlock;
-      MaxWorkGroupSize = Device->getMaxWorkGroupSize();
 
-      if (ProvidedLocalWorkGroupSize) {
-        auto IsValid = [&](int Dim) {
-          if (ReqdThreadsPerBlock[Dim] != 0 &&
-              LocalWorkSize[Dim] != ReqdThreadsPerBlock[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-
-          if (MaxThreadsPerBlock[Dim] != 0 &&
-              LocalWorkSize[Dim] > MaxThreadsPerBlock[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-
-          if (LocalWorkSize[Dim] > Device->getMaxWorkItemSizes(Dim))
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          // Checks that local work sizes are a divisor of the global work sizes
-          // which includes that the local work sizes are neither larger than
-          // the global work sizes and not 0.
-          if (0u == LocalWorkSize[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          if (0u != (GlobalWorkSize[Dim] % LocalWorkSize[Dim]))
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          ThreadsPerBlock[Dim] = LocalWorkSize[Dim];
-          return UR_RESULT_SUCCESS;
-        };
-
-        size_t KernelLocalWorkGroupSize = 1;
-        for (size_t Dim = 0; Dim < WorkDim; Dim++) {
-          auto Err = IsValid(Dim);
-          if (Err != UR_RESULT_SUCCESS)
-            return Err;
-          // If no error then compute the total local work size as a product of
-          // all dims.
-          KernelLocalWorkGroupSize *= LocalWorkSize[Dim];
-        }
-
-        if (size_t MaxLinearThreadsPerBlock = Kernel->MaxLinearThreadsPerBlock;
-            MaxLinearThreadsPerBlock &&
-            MaxLinearThreadsPerBlock < KernelLocalWorkGroupSize) {
+    if (LocalWorkSize != nullptr) {
+      size_t KernelLocalWorkGroupSize = 1;
+      for (size_t i = 0; i < WorkDim; i++) {
+        if (Kernel->ReqdThreadsPerBlock[i] &&
+            Kernel->ReqdThreadsPerBlock[i] != LocalWorkSize[i])
           return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-        }
 
-        if (hasExceededMaxRegistersPerBlock(Device, Kernel,
-                                            KernelLocalWorkGroupSize)) {
-          return UR_RESULT_ERROR_OUT_OF_RESOURCES;
-        }
-      } else {
-        guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
-                           Kernel);
+        if (Kernel->MaxThreadsPerBlock[i] &&
+            Kernel->MaxThreadsPerBlock[i] < LocalWorkSize[i])
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
+        if (LocalWorkSize[i] > Device->getMaxWorkItemSizes(i))
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+        // Checks that local work sizes are a divisor of the global work sizes
+        // which includes that the local work sizes are neither larger than
+        // the global work sizes and not 0.
+        if (0u == LocalWorkSize[i] ||
+            0u != (GlobalWorkSize[i] % LocalWorkSize[i]))
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
+        ThreadsPerBlock[i] = LocalWorkSize[i];
+
+        // Compute the total local work size as a product of all is.
+        KernelLocalWorkGroupSize *= LocalWorkSize[i];
       }
+
+      if (Kernel->MaxLinearThreadsPerBlock &&
+          Kernel->MaxLinearThreadsPerBlock < KernelLocalWorkGroupSize) {
+        return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+      }
+
+      if (hasExceededMaxRegistersPerBlock(Device, Kernel,
+                                          KernelLocalWorkGroupSize)) {
+        return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      }
+    } else {
+      guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
+                         Kernel);
     }
 
-    if (MaxWorkGroupSize <
+    if (Device->getMaxWorkGroupSize() <
         ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
       return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
     }
@@ -341,8 +319,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     }
 
     if (phEvent) {
-      *phEvent = ur_event_handle_t_::makeNative(
-          UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue, CuStream, StreamToken);
+      *phEvent = new ur_event_handle_t_(UR_COMMAND_EVENTS_WAIT_WITH_BARRIER,
+                                        hQueue, CuStream, StreamToken);
       UR_CHECK_ERROR((*phEvent)->start());
       UR_CHECK_ERROR((*phEvent)->record());
     }
@@ -407,10 +385,9 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
 
   // This might return UR_RESULT_ERROR_ADAPTER_SPECIFIC, which cannot be handled
   // using the standard UR_CHECK_ERROR
-  if (ur_result_t Ret =
-          setKernelParams(hQueue->getContext(), hQueue->Device, workDim,
-                          pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-                          hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+  if (ur_result_t Ret = setKernelParams(
+          hQueue->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+          pLocalWorkSize, hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
       Ret != UR_RESULT_SUCCESS)
     return Ret;
 
@@ -439,9 +416,8 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
     }
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -584,6 +560,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
       attr.value.cooperative = launchPropList[i].value.cooperative;
       break;
     }
+    case UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE: {
+      auto &attr = launch_attribute.emplace_back();
+      attr.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION;
+      attr.value.programmaticStreamSerializationAllowed =
+          launchPropList[i].value.opportunistic_queue_serialize;
+      break;
+    }
     case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY: {
       break;
     }
@@ -595,10 +578,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
   // This might return UR_RESULT_ERROR_ADAPTER_SPECIFIC, which cannot be handled
   // using the standard UR_CHECK_ERROR
-  if (ur_result_t Ret =
-          setKernelParams(hQueue->getContext(), hQueue->Device, workDim,
-                          pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-                          hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+  if (ur_result_t Ret = setKernelParams(
+          hQueue->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+          pLocalWorkSize, hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
       Ret != UR_RESULT_SUCCESS)
     return Ret;
 
@@ -627,9 +609,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     }
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -768,9 +749,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -817,9 +797,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -864,9 +843,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -910,9 +888,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, CuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, CuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1021,9 +998,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1195,9 +1171,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_IMAGE_READ, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_IMAGE_READ, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
@@ -1261,9 +1236,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_IMAGE_WRITE, hQueue, CuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_IMAGE_WRITE, hQueue, CuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1338,9 +1312,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_IMAGE_COPY, hQueue, CuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_IMAGE_COPY, hQueue, CuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1409,8 +1382,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
     if (phEvent) {
       try {
-        *phEvent = ur_event_handle_t_::makeNative(
-            UR_COMMAND_MEM_BUFFER_MAP, hQueue, hQueue->getNextTransferStream());
+        *phEvent = new ur_event_handle_t_(UR_COMMAND_MEM_BUFFER_MAP, hQueue,
+                                          hQueue->getNextTransferStream());
         UR_CHECK_ERROR((*phEvent)->start());
         UR_CHECK_ERROR((*phEvent)->record());
       } catch (ur_result_t Err) {
@@ -1456,8 +1429,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
 
     if (phEvent) {
       try {
-        *phEvent = ur_event_handle_t_::makeNative(
-            UR_COMMAND_MEM_UNMAP, hQueue, hQueue->getNextTransferStream());
+        *phEvent = new ur_event_handle_t_(UR_COMMAND_MEM_UNMAP, hQueue,
+                                          hQueue->getNextTransferStream());
         UR_CHECK_ERROR((*phEvent)->start());
         UR_CHECK_ERROR((*phEvent)->record());
       } catch (ur_result_t Err) {
@@ -1485,9 +1458,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                      phEventWaitList));
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_FILL, hQueue, CuStream, StreamToken));
+      EventPtr = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_USM_FILL, hQueue, CuStream, StreamToken);
       UR_CHECK_ERROR(EventPtr->start());
     }
 
@@ -1535,9 +1507,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                      phEventWaitList));
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_MEMCPY, hQueue, CuStream));
+      EventPtr = std::make_unique<ur_event_handle_t_>(UR_COMMAND_USM_MEMCPY,
+                                                      hQueue, CuStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
     UR_CHECK_ERROR(
@@ -1576,9 +1547,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                      phEventWaitList));
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY, hQueue, CuStream));
+      EventPtr = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY, hQueue, CuStream);
       UR_CHECK_ERROR(EventPtr->start());
     }
 
@@ -1631,9 +1601,8 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ScopedContext Active(hQueue->getDevice());
 
     if (phEvent) {
-      EventPtr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream()));
+      EventPtr = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream());
       UR_CHECK_ERROR(EventPtr->start());
     }
 
@@ -1722,9 +1691,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1785,9 +1753,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_READ, hQueue, Stream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_READ, hQueue, Stream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1835,9 +1802,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, CuStream));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_MEM_BUFFER_WRITE, hQueue, CuStream);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
@@ -1953,9 +1919,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                      phEventWaitList));
 
-    RetImplEvent =
-        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-            UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, CuStream));
+    // We need the profiling stream for timestamps, so ensure it's created if
+    // the queue doesn't have profiling enabled.
+    if (!(hQueue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+      hQueue->createHostSubmitTimeStream();
+    }
+
+    RetImplEvent = std::make_unique<ur_event_handle_t_>(
+        UR_COMMAND_TIMESTAMP_RECORDING_EXP, hQueue, CuStream);
     UR_CHECK_ERROR(RetImplEvent->start());
     UR_CHECK_ERROR(RetImplEvent->record());
 

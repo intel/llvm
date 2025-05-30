@@ -162,9 +162,11 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
-class graph_impl;
 class dynamic_parameter_base;
 class dynamic_work_group_memory_base;
+class dynamic_local_accessor_base;
+class graph_impl;
+class dynamic_parameter_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
@@ -559,7 +561,11 @@ private:
   /// object destruction.
   ///
   /// \return a SYCL event object representing the command group
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr finalize();
+#else
   event finalize();
+#endif
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
@@ -709,16 +715,52 @@ private:
         *static_cast<T *>(detail::getValueFromDynamicParameter(DynamicParam));
     // Set the arg in the handler as normal
     setArgHelper(ArgIndex, std::move(ArgValue));
+
     // Register the dynamic parameter with the handler for later association
     // with the node being added
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
 
-  // setArgHelper for graph dynamic_work_group_memory
-  void
-  setArgHelper(int ArgIndex,
-               ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-                   &DynWorkGroupBase);
+  template <typename DataT, typename PropertyListT>
+  void setArgHelper(
+      int ArgIndex,
+      ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
+          &DynWorkGroupMem) {
+    (void)ArgIndex;
+    (void)DynWorkGroupMem;
+
+#ifndef __SYCL_DEVICE_ONLY__
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &DynWorkGroupBase = DynWorkGroupMem;
+
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+        detail::getSyclObjImpl(DynWorkGroupBase).get();
+
+    addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
+           DynParamImpl, 0, ArgIndex);
+    registerDynamicParameter(DynParamImpl, ArgIndex);
+#endif
+  }
+
+  template <typename DataT, int Dimensions>
+  void setArgHelper(
+      int ArgIndex,
+      ext::oneapi::experimental::dynamic_local_accessor<DataT, Dimensions>
+          &DynLocalAccessor) {
+    (void)ArgIndex;
+    (void)DynLocalAccessor;
+#ifndef __SYCL_DEVICE_ONLY__
+    ext::oneapi::experimental::detail::dynamic_local_accessor_base
+        &DynLocalAccessorBase = DynLocalAccessor;
+
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+        detail::getSyclObjImpl(DynLocalAccessorBase).get();
+
+    addArg(detail::kernel_param_kind_t::kind_dynamic_accessor, DynParamImpl, 0,
+           ArgIndex);
+    registerDynamicParameter(DynParamImpl, ArgIndex);
+#endif
+  }
 
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
@@ -728,13 +770,22 @@ private:
            Arg.MArgSize, ArgIndex);
   }
 
-  /// Registers a dynamic parameter with the handler for later association with
-  /// the node being created
-  /// @param DynamicParamBase
-  /// @param ArgIndex
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: Remove in the next ABI-breaking window.
   void registerDynamicParameter(
       ext::oneapi::experimental::detail::dynamic_parameter_base
           &DynamicParamBase,
+      int ArgIndex);
+#endif
+
+  /// Registers a dynamic parameter with the handler for later association with
+  /// the node being created.
+  /// @param DynamicParamImpl The dynamic parameter impl object.
+  /// @param ArgIndex The index of the kernel argument that this dynamic
+  /// parameter represents.
+  void registerDynamicParameter(
+      ext::oneapi::experimental::detail::dynamic_parameter_impl
+          *DynamicParamImpl,
       int ArgIndex);
 
   /// Verifies the kernel bundle to be used if any is set. This throws a
@@ -770,6 +821,14 @@ private:
     // `std::unique_ptr<HostKernelBase>` is necessary.
     MHostKernel.reset(new detail::HostKernel<KernelType, LambdaArgType, Dims>(
         std::forward<KernelTypeUniversalRef>(KernelFunc)));
+
+    // Instantiating the kernel on the host improves debugging.
+    // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+    instantiateKernelOnHost(
+        detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
+                                              Dims>());
+#endif
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -1823,10 +1882,17 @@ public:
   void set_arg(
       int argIndex,
       ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
-          &dynWorkGroupMem) {
-    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-        &dynWorkGroupBase = dynWorkGroupMem;
-    setArgHelper(argIndex, dynWorkGroupBase);
+          &DynWorkGroupMem) {
+    setArgHelper<DataT, PropertyListT>(argIndex, DynWorkGroupMem);
+  }
+
+  // set_arg for graph dynamic_local_accessor
+  template <typename DataT, int Dimensions>
+  void
+  set_arg(int argIndex,
+          ext::oneapi::experimental::dynamic_local_accessor<DataT, Dimensions>
+              &DynLocalAccessor) {
+    setArgHelper<DataT, Dimensions>(argIndex, DynLocalAccessor);
   }
 
   // set_arg for the raw_kernel_arg extension type.
@@ -3331,7 +3397,11 @@ private:
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr MLastEvent;
+#else
   event MLastEvent;
+#endif
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
@@ -3775,6 +3845,8 @@ private:
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
                      bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+
+  void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
 

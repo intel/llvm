@@ -98,3 +98,8 @@ if config.tracing_enabled:
     config.available_features.add("tracing")
 if config.sanitizer_enabled:
     config.available_features.add("sanitizer")
+if config.has_cfi_sanitize:
+    config.available_features.add("has-cfi-sanitize")
+if config.valgrind is not None:
+    config.available_features.add("valgrind")
+    config.substitutions.append((f"%valgrind", config.valgrind))
