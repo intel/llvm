@@ -5,9 +5,6 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t.out
-// RUN: %if !gpu %{ %{run} %t.out %}
-
 #include "math_utils.hpp"
 #include <iostream>
 #include <math.h>

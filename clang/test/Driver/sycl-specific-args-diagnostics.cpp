@@ -22,12 +22,6 @@
 // RUN:   %clang_cl -### -fsycl-dead-args-optimization  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-dead-args-optimization %s
 
-// Warning should be emitted when using -fsycl-device-lib-jit-link without -fsycl
-// RUN:   %clang -### -fsycl-device-lib-jit-link  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-lib-jit-link %s
-// RUN:   %clang_cl -### -fsycl-device-lib-jit-link  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-device-lib-jit-link %s
-
 // Warning should be emitted when using -fsycl-default-sub-group-size= without -fsycl
 // RUN:   %clang -### -fsycl-default-sub-group-size=10  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-default-sub-group-size=10 %s

@@ -6,14 +6,14 @@
 
 /// ###########################################################################
 
-/// test behavior of device library default link and fno-sycl-device-lib-jit-link
+/// test behavior of device library default link
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// RUN: %clangxx -fsycl --no-offload-new-driver -fno-sycl-device-lib-jit-link %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
 // RUN: %clangxx -fsycl --no-offload-new-driver %s -fsycl-device-lib=libc --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// RUN: %clangxx -fsycl --no-offload-new-driver -fno-sycl-device-lib-jit-link %s -fsycl-device-lib=libc --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -fsycl-device-lib=libc --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
 // RUN: %clangxx -fsycl --no-offload-new-driver %s -fsycl-device-lib=libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
@@ -36,13 +36,6 @@
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-imf.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
-
-/// ###########################################################################
-/// test sycl fallback device libraries are not linked by default
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-lib-jit-link %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_NO_FALLBACK
-// SYCL_DEVICE_LIB_NO_FALLBACK: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
-// SYCL_DEVICE_LIB_NO_FALLBACK-NOT: "{{.*}}libsycl-fallback-{{.*}}.bc"
 
 /// ###########################################################################
 /// test behavior of device library link with libm-fp64
