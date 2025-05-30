@@ -158,9 +158,7 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   // set of events separately.
   for (uint32_t i = 0; i < numEvents; i++) {
     if (phEventWaitList[i]->Context != hContext) {
-      cl_int RetErr = clWaitForEvents(CLEvents.size(), CLEvents.data());
-      CL_RETURN_ON_FAILURE(RetErr);
-
+      CL_RETURN_ON_FAILURE(clWaitForEvents(CLEvents.size(), CLEvents.data()));
       CLEvents.clear();
     }
 
@@ -168,8 +166,7 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
     hContext = phEventWaitList[i]->Context;
   }
   if (CLEvents.size()) {
-    cl_int RetErr = clWaitForEvents(CLEvents.size(), CLEvents.data());
-    CL_RETURN_ON_FAILURE(RetErr);
+    CL_RETURN_ON_FAILURE(clWaitForEvents(CLEvents.size(), CLEvents.data()));
   }
   return UR_RESULT_SUCCESS;
 }
