@@ -3035,6 +3035,7 @@ enum CXTypeKind {
   /* HLSL Types */
   CXType_HLSLResource = 179,
   CXType_HLSLAttributedResource = 180,
+<<<<<<< HEAD
 
   /* SPIRV builtin types. */
   CXType_SampledOCLImage1dRO = 200,
@@ -3049,6 +3050,9 @@ enum CXTypeKind {
   CXType_SampledOCLImage2dMSAADepthRO = 209,
   CXType_SampledOCLImage2dArrayMSAADepthRO = 210,
   CXType_SampledOCLImage3dRO = 211
+=======
+  CXType_HLSLInlineSpirv = 181
+>>>>>>> 5a4571133af78e365e6e7b271688b9ceaa653e67
 };
 
 /**
