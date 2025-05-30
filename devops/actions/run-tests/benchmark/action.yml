@@ -37,6 +37,7 @@ runs:
     run: |
       case "$RUNNER_TAG" in
         '["PVC_PERF"]' ) ;;
+        '["BMG_PERF"]' ) ;;
         *)
           echo "#"
           echo "# WARNING: Only specific tuned runners are fully supported."
@@ -54,6 +55,7 @@ runs:
       # input.target_devices is not directly used, as this allows code injection
       case "$TARGET_DEVICE" in
         level_zero:*) ;;
+        level_zero_v2:*) ;;
         *)
           echo "#"
           echo "# WARNING: Only level_zero backend is fully supported."
@@ -135,8 +137,17 @@ runs:
         opencl:*) SAVE_SUFFIX="OCL" ;;
         *) SAVE_SUFFIX="${ONEAPI_DEVICE_SELECTOR%%:*}";;
       esac
-      # TODO accomodate for different GPUs and backends
-      SAVE_NAME="${SAVE_PREFIX}_PVC_${SAVE_SUFFIX}"
+      case "$RUNNER_TAG" in
+        '["PVC_PERF"]') MACHINE_TYPE="PVC" ;;
+        '["BMG_PERF"]') MACHINE_TYPE="BMG" ;;
+        # Best effort at matching
+        *)
+          MACHINE_TYPE="${RUNNER_TAG#[\"}"
+          MACHINE_TYPE="${MACHINE_TYPE%_PERF=\"]}"
+          ;;
+      esac
+      SAVE_NAME="${SAVE_PREFIX}_${MACHINE_TYPE}_${SAVE_SUFFIX}"
+      echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
       SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
 
       sycl-ls
@@ -221,5 +232,5 @@ runs:
     if: always()
     uses: actions/upload-artifact@v4
     with:
-      name: Benchmark run ${{ github.run_id }} (${{ runner.name }})
+      name: Benchmark run ${{ github.run_id }} (${{ env.SAVE_NAME }})
       path: ./cached_changes
