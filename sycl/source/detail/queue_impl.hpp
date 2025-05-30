@@ -732,24 +732,14 @@ protected:
   finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
     assert(MGraph.expired());
-    assert(MDefaultGraphDeps.LastEventPtr == nullptr ||
-           MContext->getBackend() == backend::opencl);
+    assert(MDefaultGraphDeps.LastEventPtr == nullptr);
     assert(MNoEventMode);
 
     MEmpty = false;
 
     synchronizeWithExternalEvent(Handler);
 
-    if (MContext->getBackend() == backend::opencl && MGraph.expired()) {
-      // This is needed to support queue_empty() call
-      auto Event = parseEvent(Handler.finalize());
-      if (Event) {
-        MDefaultGraphDeps.LastEventPtr = Event;
-      }
-      return Event;
-    } else {
-      return parseEvent(Handler.finalize());
-    }
+    return parseEvent(Handler.finalize());
   }
 
   template <typename HandlerType = handler>
