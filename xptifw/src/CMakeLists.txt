@@ -1,18 +1,10 @@
 # Fetch third party headers
 include(FetchContent)
-set(EMHASH_REPO https://github.com/ktprime/emhash)
-message(STATUS "Will fetch emhash from ${EMHASH_REPO}")
-FetchContent_Declare(emhash-headers
-  GIT_REPOSITORY    ${EMHASH_REPO}
-  GIT_TAG           4fc20c7c9b048651c03258460e4662c8d3a04520
-)
 
-FetchContent_GetProperties(emhash-headers)
-if(NOT emhash-headers_POPULATED)
-  FetchContent_Populate(emhash-headers)
+# The sycl target should download or find emhash.
+if (NOT SYCL_EMHASH_DIR)
+  message(FATAL_ERROR "emhash headers not found")
 endif()
-
-set(XPTIFW_EMHASH_HEADERS "${emhash-headers_SOURCE_DIR}")
 
 set(PARALLEL_HASHMAP_REPO https://github.com/greg7mdp/parallel-hashmap.git)
 message(STATUS "Will fetch parallel-hashmap from ${PARALLEL_HASHMAP_REPO}")
@@ -43,7 +35,7 @@ function(add_xpti_library LIB_NAME)
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
   target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
-    $<BUILD_INTERFACE:${XPTIFW_EMHASH_HEADERS}>
+    $<BUILD_INTERFACE:${SYCL_EMHASH_DIR}>
     $<BUILD_INTERFACE:${XPTIFW_PARALLEL_HASHMAP_HEADERS}>
     $<BUILD_INTERFACE:${XPTI_DIR}/include>
   )

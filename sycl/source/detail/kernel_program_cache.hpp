@@ -13,6 +13,7 @@
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/locked.hpp>
@@ -28,11 +29,9 @@
 #include <mutex>
 #include <numeric>
 #include <set>
+#include <sstream>
 #include <thread>
 #include <type_traits>
-
-#include <boost/unordered/unordered_flat_map.hpp>
-#include <boost/unordered_map.hpp>
 
 // For testing purposes
 class MockKernelProgramCache;
@@ -184,8 +183,8 @@ public:
   };
 
   struct ProgramCache {
-    ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
-    ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    emhash8::HashMap<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
+    UnorderedMultimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
     // Mapping between a UR program and its size.
     std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
 
@@ -225,10 +224,8 @@ public:
   };
   using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
-  using KernelByNameT =
-      ::boost::unordered_map<KernelNameStrT, KernelBuildResultPtr>;
-  using KernelCacheT =
-      ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
+  using KernelByNameT = emhash8::HashMap<KernelNameStrT, KernelBuildResultPtr>;
+  using KernelCacheT = emhash8::HashMap<ur_program_handle_t, KernelByNameT>;
 
   class FastKernelSubcacheWrapper {
   public:
@@ -286,7 +283,7 @@ public:
   };
 
   using FastKernelCacheT =
-      ::boost::unordered_flat_map<KernelNameStrT, FastKernelSubcacheWrapper>;
+      emhash8::HashMap<KernelNameStrT, FastKernelSubcacheWrapper>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -473,8 +470,9 @@ public:
                      FastKernelSubcacheT *KernelSubcacheHint) {
     FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
     if (!KernelSubcacheHint) {
-      auto It = MFastKernelCache.try_emplace(KernelName, KernelSubcacheHint,
-                                             getURContext());
+      auto It = MFastKernelCache.try_emplace(
+          KernelName,
+          FastKernelSubcacheWrapper(KernelSubcacheHint, getURContext()));
       KernelSubcacheHint = &It.first->second.get();
     }
 
@@ -511,8 +509,9 @@ public:
     // if no insertion took place, then some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", KernelName, true);
-    auto It = MFastKernelCache.try_emplace(KernelName, KernelSubcacheHint,
-                                           getURContext());
+    auto It = MFastKernelCache.try_emplace(
+        KernelName,
+        FastKernelSubcacheWrapper(KernelSubcacheHint, getURContext()));
     KernelSubcacheHint = &It.first->second.get();
 
     FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcacheHint->Mutex};
@@ -589,7 +588,7 @@ public:
       auto KeyMapItrRange = ProgCache.KeyMap.equal_range(CommonKey);
       for (auto KeyMapItr = KeyMapItrRange.first;
            KeyMapItr != KeyMapItrRange.second; ++KeyMapItr) {
-        if (KeyMapItr->second == CacheKey) {
+        if ((*KeyMapItr).second == CacheKey) {
           ProgCache.KeyMap.erase(KeyMapItr);
           break;
         }
@@ -828,7 +827,7 @@ public:
     if (It == ProgCache.KeyMap.end())
       return;
 
-    auto Key = It->second;
+    auto Key = (*It).second;
     removeProgramByKey(Key, ProgCache);
     {
       auto LockedEvictionList = acquireEvictionList();
