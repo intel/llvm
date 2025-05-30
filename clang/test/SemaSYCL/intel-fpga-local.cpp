@@ -423,16 +423,16 @@ void check_gnu_style() {
   //expected-warning@+1{{unknown attribute 'register' ignored}}
   int __attribute__((register)) reg;
 
-  //expected-warning@+1{{unknown attribute '__singlepump__' ignored}}
+  //expected-warning@+1{{unknown attribute 'singlepump' ignored}}
   unsigned int __attribute__((__singlepump__)) singlepump;
 
-  //expected-warning@+1{{unknown attribute '__doublepump__' ignored}}
+  //expected-warning@+1{{unknown attribute 'doublepump' ignored}}
   unsigned int __attribute__((__doublepump__)) doublepump;
 
-  //expected-warning@+1{{unknown attribute '__private_copies__' ignored}}
+  //expected-warning@+1{{unknown attribute 'private_copies' ignored}}
   int __attribute__((__private_copies__(4))) private_copies;
 
-  //expected-warning@+1{{unknown attribute '__merge__' ignored}}
+  //expected-warning@+1{{unknown attribute 'merge' ignored}}
   int __attribute__((__merge__("mrg1","depth"))) merge;
 
   //expected-warning@+1{{unknown attribute 'max_replicates' ignored}}
