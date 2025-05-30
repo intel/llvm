@@ -1,3 +1,4 @@
+// REQUIRES: cuda
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 //
