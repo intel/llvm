@@ -12420,6 +12420,132 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_get_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_get_params_t *params) {
+
+  os << ".NumEntries = ";
+
+  os << *(params->pNumEntries);
+
+  os << ", ";
+  os << ".phAdapters = ";
+  ur::details::printPtr(os,
+                        reinterpret_cast<const void *>(*(params->pphAdapters)));
+  if (*(params->pphAdapters) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pNumEntries; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphAdapters))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".pNumAdapters = ";
+
+  ur::details::printPtr(os, *(params->ppNumAdapters));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_release_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_release_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_retain_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_retain_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_get_last_error_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_adapter_get_last_error_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".ppMessage = ";
+
+  ur::details::printPtr(os, *(params->pppMessage));
+
+  os << ", ";
+  os << ".pError = ";
+
+  ur::details::printPtr(os, *(params->ppError));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_get_info_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_get_info_params_t *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".propName = ";
+
+  os << *(params->ppropName);
+
+  os << ", ";
+  os << ".propSize = ";
+
+  os << *(params->ppropSize);
+
+  os << ", ";
+  os << ".pPropValue = ";
+  ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
+                           *(params->ppropSize));
+
+  os << ", ";
+  os << ".pPropSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_adapter_set_logger_callback_params_t type
 /// @returns
 ///     std::ostream &
@@ -14934,132 +15060,6 @@ inline std::ostream &operator<<(
   os << ".hPhysicalMem = ";
 
   ur::details::printPtr(os, *(params->phPhysicalMem));
-
-  os << ", ";
-  os << ".propName = ";
-
-  os << *(params->ppropName);
-
-  os << ", ";
-  os << ".propSize = ";
-
-  os << *(params->ppropSize);
-
-  os << ", ";
-  os << ".pPropValue = ";
-  ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
-                           *(params->ppropSize));
-
-  os << ", ";
-  os << ".pPropSizeRet = ";
-
-  ur::details::printPtr(os, *(params->ppPropSizeRet));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_get_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_adapter_get_params_t *params) {
-
-  os << ".NumEntries = ";
-
-  os << *(params->pNumEntries);
-
-  os << ", ";
-  os << ".phAdapters = ";
-  ur::details::printPtr(os,
-                        reinterpret_cast<const void *>(*(params->pphAdapters)));
-  if (*(params->pphAdapters) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pNumEntries; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
-
-      ur::details::printPtr(os, (*(params->pphAdapters))[i]);
-    }
-    os << "}";
-  }
-
-  os << ", ";
-  os << ".pNumAdapters = ";
-
-  ur::details::printPtr(os, *(params->ppNumAdapters));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_release_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_adapter_release_params_t *params) {
-
-  os << ".hAdapter = ";
-
-  ur::details::printPtr(os, *(params->phAdapter));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_retain_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_adapter_retain_params_t *params) {
-
-  os << ".hAdapter = ";
-
-  ur::details::printPtr(os, *(params->phAdapter));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_get_last_error_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_adapter_get_last_error_params_t *params) {
-
-  os << ".hAdapter = ";
-
-  ur::details::printPtr(os, *(params->phAdapter));
-
-  os << ", ";
-  os << ".ppMessage = ";
-
-  ur::details::printPtr(os, *(params->pppMessage));
-
-  os << ", ";
-  os << ".pError = ";
-
-  ur::details::printPtr(os, *(params->ppError));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_adapter_get_info_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_adapter_get_info_params_t *params) {
-
-  os << ".hAdapter = ";
-
-  ur::details::printPtr(os, *(params->phAdapter));
 
   os << ", ";
   os << ".propName = ";
@@ -20906,6 +20906,21 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED: {
     os << (const struct ur_loader_config_set_mocking_enabled_params_t *)params;
   } break;
+  case UR_FUNCTION_ADAPTER_GET: {
+    os << (const struct ur_adapter_get_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_RELEASE: {
+    os << (const struct ur_adapter_release_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_RETAIN: {
+    os << (const struct ur_adapter_retain_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_GET_LAST_ERROR: {
+    os << (const struct ur_adapter_get_last_error_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_GET_INFO: {
+    os << (const struct ur_adapter_get_info_params_t *)params;
+  } break;
   case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK: {
     os << (const struct ur_adapter_set_logger_callback_params_t *)params;
   } break;
@@ -21167,21 +21182,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_PHYSICAL_MEM_GET_INFO: {
     os << (const struct ur_physical_mem_get_info_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_GET: {
-    os << (const struct ur_adapter_get_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_RELEASE: {
-    os << (const struct ur_adapter_release_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_RETAIN: {
-    os << (const struct ur_adapter_retain_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_GET_LAST_ERROR: {
-    os << (const struct ur_adapter_get_last_error_params_t *)params;
-  } break;
-  case UR_FUNCTION_ADAPTER_GET_INFO: {
-    os << (const struct ur_adapter_get_info_params_t *)params;
   } break;
   case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH: {
     os << (const struct ur_enqueue_kernel_launch_params_t *)params;

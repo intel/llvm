@@ -98,7 +98,6 @@ ur_result_t mock_urDeviceGetInfo(void *pParams) {
 
 //////////////////////////////////////////////////////////////////////////
 context_t::context_t() {
-  urGetGlobalProcAddrTable(version, &urDdiTable.Global);
   urGetBindlessImagesExpProcAddrTable(version, &urDdiTable.BindlessImagesExp);
   urGetCommandBufferExpProcAddrTable(version, &urDdiTable.CommandBufferExp);
   urGetContextProcAddrTable(version, &urDdiTable.Context);

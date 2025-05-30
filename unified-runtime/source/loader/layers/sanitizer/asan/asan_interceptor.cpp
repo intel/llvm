@@ -53,7 +53,7 @@ AsanInterceptor::~AsanInterceptor() {
   m_ShadowMap.clear();
 
   for (auto Adapter : m_Adapters) {
-    getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
+    getContext()->urDdiTable.Adapter.pfnRelease(Adapter);
   }
 }
 

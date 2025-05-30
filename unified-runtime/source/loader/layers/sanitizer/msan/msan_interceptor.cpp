@@ -38,7 +38,7 @@ MsanInterceptor::~MsanInterceptor() {
   m_ContextMap.clear();
 
   for (auto Adapter : m_Adapters) {
-    getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
+    getContext()->urDdiTable.Adapter.pfnRelease(Adapter);
   }
 }
 

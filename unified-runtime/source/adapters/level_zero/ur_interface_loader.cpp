@@ -33,22 +33,6 @@ namespace ur::level_zero {
 extern "C" {
 #endif
 
-UR_APIEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    ur_api_version_t version, ur_global_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-
-  pDdiTable->pfnAdapterGet = ur::level_zero::urAdapterGet;
-  pDdiTable->pfnAdapterRelease = ur::level_zero::urAdapterRelease;
-  pDdiTable->pfnAdapterRetain = ur::level_zero::urAdapterRetain;
-  pDdiTable->pfnAdapterGetLastError = ur::level_zero::urAdapterGetLastError;
-  pDdiTable->pfnAdapterGetInfo = ur::level_zero::urAdapterGetInfo;
-
-  return result;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -56,6 +40,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnGet = ur::level_zero::urAdapterGet;
+  pDdiTable->pfnRelease = ur::level_zero::urAdapterRelease;
+  pDdiTable->pfnRetain = ur::level_zero::urAdapterRetain;
+  pDdiTable->pfnGetLastError = ur::level_zero::urAdapterGetLastError;
+  pDdiTable->pfnGetInfo = ur::level_zero::urAdapterGetInfo;
   pDdiTable->pfnSetLoggerCallback = ur::level_zero::urAdapterSetLoggerCallback;
   pDdiTable->pfnSetLoggerCallbackLevel =
       ur::level_zero::urAdapterSetLoggerCallbackLevel;
@@ -573,10 +562,6 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
 #define NAMESPACE_
 #endif
 
-  result = NAMESPACE_::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
-                                                &ddi->Global);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
   result = NAMESPACE_::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,
                                                  &ddi->Adapter);
   if (result != UR_RESULT_SUCCESS)

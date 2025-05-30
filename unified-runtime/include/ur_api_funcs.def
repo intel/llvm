@@ -17,6 +17,11 @@
 
 // Auto-generated file, do not edit.
 
+_UR_API(urAdapterGet)
+_UR_API(urAdapterRelease)
+_UR_API(urAdapterRetain)
+_UR_API(urAdapterGetLastError)
+_UR_API(urAdapterGetInfo)
 _UR_API(urAdapterSetLoggerCallback)
 _UR_API(urAdapterSetLoggerCallbackLevel)
 _UR_API(urPlatformGet)
@@ -102,11 +107,6 @@ _UR_API(urPhysicalMemCreate)
 _UR_API(urPhysicalMemRetain)
 _UR_API(urPhysicalMemRelease)
 _UR_API(urPhysicalMemGetInfo)
-_UR_API(urAdapterGet)
-_UR_API(urAdapterRelease)
-_UR_API(urAdapterRetain)
-_UR_API(urAdapterGetLastError)
-_UR_API(urAdapterGetInfo)
 _UR_API(urEnqueueKernelLaunch)
 _UR_API(urEnqueueEventsWait)
 _UR_API(urEnqueueEventsWaitWithBarrier)
