@@ -29,26 +29,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   (void)pGlobalWorkOffset;
 
-  if (!pLocalWorkSize) {
-    // TODO: This is not optimal, but it is legal
-    static size_t DefaultWorkSize[3] = {1, 1, 1};
-    pLocalWorkSize = DefaultWorkSize;
+  // TODO: We default to 1, 1, 1 here. In future if pLocalWorkSize is not
+  // specified, we should pick the "best" one
+  size_t WorkSize[3] = {1, 1, 1};
+  if (pLocalWorkSize) {
+    for (uint32_t I = 0; I < workDim; I++) {
+      WorkSize[I] = pLocalWorkSize[I];
+    }
   }
 
-  if (pLocalWorkSize[0] > pGlobalWorkSize[0] ||
-      pLocalWorkSize[1] > pGlobalWorkSize[1] ||
-      pLocalWorkSize[2] > pGlobalWorkSize[2]) {
+  if (WorkSize[0] > pGlobalWorkSize[0] || WorkSize[1] > pGlobalWorkSize[1] ||
+      WorkSize[2] > pGlobalWorkSize[2]) {
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
   ol_kernel_launch_size_args_t LaunchArgs;
   LaunchArgs.Dimensions = workDim;
-  LaunchArgs.NumGroupsX = pGlobalWorkSize[0] / pLocalWorkSize[0];
-  LaunchArgs.NumGroupsY = pGlobalWorkSize[1] / pLocalWorkSize[1];
-  LaunchArgs.NumGroupsZ = pGlobalWorkSize[2] / pLocalWorkSize[2];
-  LaunchArgs.GroupSizeX = pLocalWorkSize[0];
-  LaunchArgs.GroupSizeY = pLocalWorkSize[1];
-  LaunchArgs.GroupSizeZ = pLocalWorkSize[2];
+  LaunchArgs.NumGroupsX = pGlobalWorkSize[0] / WorkSize[0];
+  LaunchArgs.NumGroupsY = pGlobalWorkSize[1] / WorkSize[1];
+  LaunchArgs.NumGroupsZ = pGlobalWorkSize[2] / WorkSize[2];
+  LaunchArgs.GroupSizeX = WorkSize[0];
+  LaunchArgs.GroupSizeY = WorkSize[1];
+  LaunchArgs.GroupSizeZ = WorkSize[2];
   LaunchArgs.DynSharedMemory = 0;
 
   ol_event_handle_t EventOut;
