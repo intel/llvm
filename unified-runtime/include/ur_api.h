@@ -953,6 +953,8 @@ typedef enum ur_backend_t {
   UR_BACKEND_HIP = 4,
   /// The backend is Native CPU
   UR_BACKEND_NATIVE_CPU = 5,
+  /// The backend is liboffload
+  UR_BACKEND_OFFLOAD = 0x100,
   /// @cond
   UR_BACKEND_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2870,7 +2872,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_device_handle_t *phDevice);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Returns synchronized Host and Device global timestamps.
+/// @brief Returns synchronized Host and Device global timestamps in
+/// nanoseconds.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads for
@@ -7635,7 +7638,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
 ///         + `NULL == hQueue`
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
@@ -7659,8 +7661,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// [in] number of dimensions, from 1 to 3, to specify the global and
     /// work-group work-items
     uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
     const size_t *pGlobalWorkOffset,
     /// [in] pointer to an array of workDim unsigned values that specify the
     /// number of global work-items in workDim that will execute the kernel

@@ -10,6 +10,10 @@ on:
       build_configure_extra_args:
         type: string
         required: false
+      build_target:
+        type: string
+        required: false
+        default: sycl-toolchain
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -58,6 +62,11 @@ on:
       build_configure_extra_args:
         type: string
         required: false
+      build_target:
+        type: choice
+        options:
+          - "sycl-toolchain"
+          - "all"
       artifact_archive_name:
         type: choice
         options:
@@ -143,7 +152,7 @@ jobs:
       id: build
       shell: bash
       run: |
-        cmake --build build --target sycl-toolchain
+        cmake --build build --target ${{ inputs.build_target }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       shell: bash
