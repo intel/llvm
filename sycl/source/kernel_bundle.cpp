@@ -135,8 +135,7 @@ bool kernel_bundle_plain::ext_oneapi_has_kernel(detail::string_view name) {
 }
 
 kernel kernel_bundle_plain::ext_oneapi_get_kernel(detail::string_view name) {
-  return impl->ext_oneapi_get_kernel(std::string(std::string_view(name)),
-      impl);
+  return impl->ext_oneapi_get_kernel(std::string(std::string_view(name)), impl);
 }
 
 detail::string
@@ -159,7 +158,8 @@ void *kernel_bundle_plain::ext_oneapi_get_device_global_address(
 
 size_t kernel_bundle_plain::ext_oneapi_get_device_global_size(
     detail::string_view name) {
-  return impl->ext_oneapi_get_device_global_size(std::string(std::string_view(name)));
+  return impl->ext_oneapi_get_device_global_size(
+      std::string(std::string_view(name)));
 }
 
 //////////////////////////////////
@@ -182,13 +182,13 @@ removeDuplicateDevices(const std::vector<device> &Devs) {
 kernel_id get_kernel_id_impl(string_view KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    std::string(
+      std::string(
 #endif
-      std::string_view(KernelName)
+          std::string_view(KernelName)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    )
+              )
 #endif
-    );
+  );
 }
 
 detail::KernelBundleImplPtr
@@ -476,8 +476,8 @@ make_kernel_bundle_from_source(const context &SyclContext,
   size_t n = IncludePairViews.size();
   IncludePairs.reserve(n);
   for (auto &p : IncludePairViews)
-    IncludePairs.push_back({ std::string{std::string_view(p.first)},
-        std::string{std::string_view(p.second)}});
+    IncludePairs.push_back({std::string{std::string_view(p.first)},
+                            std::string{std::string_view(p.second)}});
 
   if (!is_source_kernel_bundle_supported(Language, SyclContext))
     throw sycl::exception(make_error_code(errc::invalid),

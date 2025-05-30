@@ -284,7 +284,7 @@ namespace ext::oneapi {
 
 filter_selector::filter_selector(sycl::detail::string_view Input)
     : impl(std::make_shared<detail::filter_selector_impl>(
-        std::string(std::string_view(Input)))) {}
+          std::string(std::string_view(Input)))) {}
 
 int filter_selector::operator()(const device &Dev) const {
   return impl->operator()(Dev);
