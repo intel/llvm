@@ -6,6 +6,13 @@
 add_library (ur_mock_headers SHARED
     "${CMAKE_CURRENT_SOURCE_DIR}/ur_mock_helpers.cpp")
 
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+    set_target_properties(ur_mock_headers PROPERTIES DEBUG_POSTFIX d)
+    if (CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+        set_target_properties(ur_mock_headers PROPERTIES RELEASE_POSTFIX d)
+    endif()
+endif()
+
 target_include_directories(ur_mock_headers
     INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}"
 )

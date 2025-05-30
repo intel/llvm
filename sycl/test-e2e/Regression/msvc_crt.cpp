@@ -1,7 +1,5 @@
-// RUN: %{build} /MD -o %t1.exe
-// RUN: %{run} %t1.exe
-// RUN: %{build} /MDd -o %t2.exe
-// RUN: %{run} %t2.exe
+// RUN: %{build} %if debug_sycl_library %{ /MDd %} %else %{ /MD %} -o %t.exe
+// RUN: %{run} %t.exe
 // REQUIRES: system-windows, cl_options
 //==-------------- msvc_crt.cpp - SYCL MSVC CRT test -----------------------==//
 //

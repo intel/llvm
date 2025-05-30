@@ -56,8 +56,10 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 
     set(CMAKE_MSVC_RUNTIME_LIBRARY_BAK "${CMAKE_MSVC_RUNTIME_LIBRARY}")
-    # UMF has not yet been able to build as static
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    if (NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL$")
+        # UMF has not yet been able to build as static
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    endif()
     message(STATUS "Level Zero Adapter: Will fetch Level Zero Loader from ${UR_LEVEL_ZERO_LOADER_REPO}")
     include(FetchContent)
     FetchContent_Declare(level-zero-loader

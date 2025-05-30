@@ -120,9 +120,6 @@ function(add_ur_target_compile_options name)
     elseif(MSVC)
         target_compile_options(${name} PRIVATE
             $<$<CXX_COMPILER_ID:MSVC>:/MP>  # clang-cl.exe does not support /MP
-            /MD$<$<CONFIG:Debug>:d>
-
-            /W3
             /GS     # Enable: Buffer security check
             /Gy     # Enable: Function-level linking
 
@@ -138,6 +135,12 @@ function(add_ur_target_compile_options name)
             WIN32_LEAN_AND_MEAN NOMINMAX  # Cajole Windows.h to define fewer symbols
             _CRT_SECURE_NO_WARNINGS       # Slience warnings about getenv
         )
+
+        get_target_property(MSVC_RT_PROP ${name} MSVC_RUNTIME_LIBRARY)
+        if (NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL$" AND NOT MSVC_RT_PROP MATCHES "DLL$")
+            set_property(TARGET ${name} PROPERTY
+                            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+        endif()
 
         if(UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE
@@ -197,8 +200,11 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
-    if(UR_USE_DEBUG_POSTFIX)
+    if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
+        if (CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+            set_target_properties(${name} PROPERTIES RELEASE_POSTFIX d)
+        endif()
     endif()
     if(UR_EXTERNAL_DEPENDENCIES)
         add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})

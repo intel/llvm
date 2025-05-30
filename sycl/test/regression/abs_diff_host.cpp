@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx %fsycl %s -o %t.out
 // RUN: %t.out
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %clangxx %fsycl -fpreview-breaking-changes %s -o %t2.out %}
 // RUN: %if preview-breaking-changes-supported %{ %t2.out %}
 
 // Test checks that sycl::abs_diff correctly handles signed operations that
