@@ -1102,6 +1102,12 @@ else:
     clangxx += config.cxx_flags
     config.substitutions.append(("%clangxx", clangxx))
 
+# Check that no runtime features are available when in build-only
+from E2EExpr import E2EExpr
+
+if config.test_mode == "build-only":
+    E2EExpr.check_build_features(config.available_features)
+
 if lit_config.params.get("print_features", False):
     lit_config.note(
         "Global features: {}".format(" ".join(sorted(config.available_features)))

@@ -33,6 +33,23 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
+                                                    ur_kernel_info_t propName,
+                                                    size_t propSize,
+                                                    void *pPropValue,
+                                                    size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_KERNEL_INFO_REFERENCE_COUNT:
+    return ReturnValue(hKernel->RefCount.load());
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
   hKernel->RefCount++;
   return UR_RESULT_SUCCESS;
@@ -76,4 +93,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
     return ReturnValue(GroupSize, 3);
   }
   return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSubGroupInfo(
+    ur_kernel_handle_t, ur_device_handle_t, ur_kernel_sub_group_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  (void)propName;
+
+  return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
+    ur_native_handle_t, ur_context_handle_t, ur_program_handle_t,
+    const ur_kernel_native_properties_t *, ur_kernel_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    ur_kernel_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t, ur_queue_handle_t, uint32_t, const size_t *,
+    const size_t *, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

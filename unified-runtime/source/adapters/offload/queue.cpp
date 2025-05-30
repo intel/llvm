@@ -37,6 +37,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
+                                                   ur_queue_info_t propName,
+                                                   size_t propSize,
+                                                   void *pPropValue,
+                                                   size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_QUEUE_INFO_REFERENCE_COUNT:
+    return ReturnValue(hQueue->RefCount.load());
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
   hQueue->RefCount++;
   return UR_RESULT_SUCCESS;
@@ -56,4 +73,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   return offloadResultToUR(olWaitQueue(hQueue->OffloadQueue));
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
+    ur_queue_handle_t, ur_queue_native_desc_t *, ur_native_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
+    ur_native_handle_t, ur_context_handle_t, ur_device_handle_t,
+    const ur_queue_native_properties_t *, ur_queue_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

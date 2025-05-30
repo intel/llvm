@@ -215,6 +215,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
+urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
+                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_PROGRAM_INFO_REFERENCE_COUNT:
+    return ReturnValue(hProgram->RefCount.load());
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
   hProgram->RefCount++;
   return UR_RESULT_SUCCESS;
@@ -231,4 +246,20 @@ urProgramRelease(ur_program_handle_t hProgram) {
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramGetNativeHandle(ur_program_handle_t, ur_native_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
+    ur_native_handle_t, ur_context_handle_t,
+    const ur_program_native_properties_t *, ur_program_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
+    ur_program_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

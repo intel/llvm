@@ -23,6 +23,9 @@ inline ur_result_t offloadResultToUR(ol_result_t Result) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   case OL_ERRC_UNSUPPORTED:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  // Returned whenever a kernel can't be found
+  case OL_ERRC_NOT_FOUND:
+    return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }
