@@ -117,7 +117,6 @@ enum InternalCapability {
   ICapabilityJointMatrixBF16ComponentTypeINTEL = 6437,
   ICapabilityJointMatrixPackedInt2ComponentTypeINTEL = 6438,
   ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
-  ICapabilityCacheControlsINTEL = 6441,
   ICapabilitySubgroupRequirementsINTEL = 6445,
   ICapabilityBindlessImagesINTEL = 6528
 };
@@ -194,8 +193,6 @@ _SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
 _SPIRV_OP(Capability, MaskedGatherScatterINTEL)
 _SPIRV_OP(Op, MaskedGatherINTEL)
 _SPIRV_OP(Op, MaskedScatterINTEL)
-
-_SPIRV_OP(Capability, CacheControlsINTEL)
 
 _SPIRV_OP(Capability, SubgroupRequirementsINTEL)
 
