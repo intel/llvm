@@ -10,6 +10,7 @@ let suiteNames = new Set();
 let timeseriesData, barChartsData, allRunNames;
 let activeTags = new Set();
 let layerComparisonsData;
+let latestRunsLookup = new Map();
 
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
@@ -342,8 +343,7 @@ function createChartContainer(data, canvasId, type) {
     // Create and append extra info
     const extraInfo = document.createElement('div');
     extraInfo.className = 'extra-info';
-    latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
-    extraInfo.innerHTML = generateExtraInfo(latestRunsLookup, data, 'benchmark');
+    extraInfo.innerHTML = generateExtraInfo(data, 'benchmark');
     details.appendChild(extraInfo);
 
     container.appendChild(details);
@@ -371,11 +371,10 @@ function createLatestRunsLookup(benchmarkRuns) {
     const latestRunsMap = new Map();
 
     benchmarkRuns.forEach(run => {
-        // Yes, we need to convert the date every time. I checked.
-        const runDate = new Date(run.date);
+        const runDate = run.date;
         run.results.forEach(result => {
             const label = result.label;
-            if (!latestRunsMap.has(label) || runDate > new Date(latestRunsMap.get(label).date)) {
+            if (!latestRunsMap.has(label) || runDate > latestRunsMap.get(label).date) {
                 latestRunsMap.set(label, {
                     run,
                     result
@@ -417,7 +416,7 @@ function getDisplayLabel(label, data, metadata) {
     return label;
 }
 
-function generateExtraInfo(latestRunsLookup, data, type = 'benchmark') {
+function generateExtraInfo(data, type = 'benchmark') {
     const labels = extractLabels(data);
 
     return labels.map(label => {
@@ -958,6 +957,7 @@ function initializeCharts() {
     barChartsData = processBarChartsData(benchmarkRuns);
     layerComparisonsData = processLayerComparisonsData(benchmarkRuns);
     allRunNames = [...new Set(benchmarkRuns.map(run => run.name))];
+    latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
 
     // Set up active runs
     const runsParam = getQueryParam('runs');
