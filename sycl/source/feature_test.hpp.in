@@ -112,7 +112,7 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_GET_KERNEL_INFO 1
 #define SYCL_EXT_ONEAPI_WORK_GROUP_MEMORY 1
 #define SYCL_EXT_ONEAPI_WORK_GROUP_SCRATCH_MEMORY 1
-#define SYCL_EXT_ONEAPI_WORK_GROUP_STATIC 1 
+#define SYCL_EXT_ONEAPI_WORK_GROUP_STATIC 1
 #define SYCL_EXT_ONEAPI_NUM_COMPUTE_UNITS 1
 #define SYCL_EXT_ONEAPI_DEVICE_IMAGE_BACKEND_CONTENT 1
 #define SYCL_EXT_ONEAPI_CURRENT_DEVICE 1
@@ -120,6 +120,13 @@ inline namespace _V1 {
 // In progress yet
 #define SYCL_EXT_ONEAPI_ATOMIC16 0
 #define SYCL_KHR_DEFAULT_CONTEXT 1
+
+// Unfinished KHR extensions. These extensions are only available if the
+// __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS macro is defined.
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+#define SYCL_KHR_STATIC_ADDRSPACE_CAST 1
+#define SYCL_KHR_DYNAMIC_ADDRSPACE_CAST 1
+#endif
 
 #ifndef __has_include
 #define __has_include(x) 0
