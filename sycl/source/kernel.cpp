@@ -114,11 +114,15 @@ template __SYCL_EXPORT uint32_t
 kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
     const device &, const sycl::range<3> &) const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// This function is unused and should be removed in the next ABI-breaking
+// window.
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue) const {
   return impl->ext_oneapi_get_info<Param>(std::move(Queue));
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
@@ -162,6 +166,10 @@ kernel::ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                                           DynamicLocalMemorySize);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// These functions are unused and should be removed in the next ABI-breaking
+// window.
+
 template __SYCL_EXPORT typename ext::oneapi::experimental::info::
     kernel_queue_specific::max_work_group_size::return_type
     kernel::ext_oneapi_get_info<ext::oneapi::experimental::info::
@@ -185,6 +193,8 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
     kernel::ext_oneapi_get_info<
         ext::oneapi::experimental::info::kernel_queue_specific::
             max_work_item_sizes<3>>(queue Queue) const;
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template __SYCL_EXPORT typename ext::oneapi::experimental::info::
     kernel_queue_specific::max_sub_group_size::return_type
