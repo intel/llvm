@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <utility>
 
 namespace sycl {
@@ -1650,6 +1651,9 @@ public:
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
 
+  /// Resets the recorded device and host time bases.
+  void resetRecordedTimeBases();
+
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }
 
@@ -2203,7 +2207,7 @@ private:
   // This is used for getAdapter so should be above other properties.
   std::shared_ptr<platform_impl> MPlatform;
 
-  // TODO: Does this have a race?
+  std::shared_mutex MDeviceHostBaseTimeMutex;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;
