@@ -219,6 +219,16 @@ inline void __msan_exit() {
     __devicelib_exit();
 }
 
+// This function is only used for shadow propagation
+template <typename T>
+void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride) {
+  auto DestPtr = (__SYCL_GLOBAL__ T *)Dest;
+  auto SrcPtr = (const __SYCL_GLOBAL__ T *)Src;
+  for (size_t i = 0; i < NumElements; i++) {
+    DestPtr[i] = SrcPtr[i * Stride];
+  }
+}
+
 } // namespace
 
 #define MSAN_MAYBE_WARNING(type, size)                                         \
@@ -578,7 +588,8 @@ static __SYCL_CONSTANT__ const char __msan_print_private_base[] =
 
 DEVICE_EXTERN_C_NOINLINE void
 __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
-  if (!GetMsanLaunchInfo || GetMsanLaunchInfo->PrivateShadowOffset == 0)
+  if (!GetMsanLaunchInfo || GetMsanLaunchInfo->PrivateShadowOffset == 0 ||
+      GetMsanLaunchInfo->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
   if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
@@ -587,6 +598,43 @@ __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
   SubGroupBarrier();
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
+}
+
+static __SYCL_CONSTANT__ const char __msan_print_strided_copy_unsupport_type[] =
+    "[kernel] __msan_unpoison_strided_copy: unsupported type(%d)\n";
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
+                             uint32_t src_as, uint32_t element_size,
+                             uptr counts, uptr stride) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
+                                "__msan_unpoison_strided_copy"));
+
+  uptr shadow_dest = (uptr)__msan_get_shadow(dest, dest_as);
+  uptr shadow_src = (uptr)__msan_get_shadow(src, src_as);
+
+  switch (element_size) {
+  case 1:
+    GroupAsyncCopy<int8_t>(shadow_dest, shadow_src, counts, stride);
+    break;
+  case 2:
+    GroupAsyncCopy<int16_t>(shadow_dest, shadow_src, counts, stride);
+    break;
+  case 4:
+    GroupAsyncCopy<int32_t>(shadow_dest, shadow_src, counts, stride);
+    break;
+  case 8:
+    GroupAsyncCopy<int64_t>(shadow_dest, shadow_src, counts, stride);
+    break;
+  default:
+    __spirv_ocl_printf(__msan_print_strided_copy_unsupport_type, element_size);
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
+                                "__msan_unpoison_strided_copy"));
 }
 
 #endif // __SPIR__ || __SPIRV__

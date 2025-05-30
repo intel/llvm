@@ -1,3 +1,4 @@
+include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
@@ -245,6 +246,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/asan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     ${sycl-compiler_deps})
 
   set(sanitizer_generic_compile_opts ${compile_opts}
@@ -303,6 +305,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/msan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     sycl-compiler)
 
   set(tsan_obj_deps
@@ -311,6 +314,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/tsan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
+    include/group_utils.hpp
     sycl-compiler)
 endif()
 
@@ -341,6 +345,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
           COMPONENT libsycldevice)
 endif()
 
+check_cxx_compiler_flag(-Wno-invalid-noreturn HAS_NO_INVALID_NORETURN_WARN_FLAG)
 # Add all device libraries for each filetype except for the Intel math function
 # ones.
 add_devicelibs(libsycl-itt-stubs
@@ -355,7 +360,9 @@ add_devicelibs(libsycl-itt-user-wrappers
 
 add_devicelibs(libsycl-crt
   SRC crt_wrapper.cpp
-  DEPENDENCIES ${crt_obj_deps})
+  DEPENDENCIES ${crt_obj_deps}
+  EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
+
 add_devicelibs(libsycl-complex
   SRC complex_wrapper.cpp
   DEPENDENCIES ${complex_obj_deps})

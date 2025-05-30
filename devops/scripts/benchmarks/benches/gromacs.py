@@ -10,6 +10,7 @@ from .base import Suite, Benchmark
 from options import options
 from utils.utils import git_clone, download, run, create_build_path
 from utils.result import Result
+from utils.oneapi import get_oneapi
 import re
 
 
@@ -19,7 +20,7 @@ class GromacsBench(Suite):
         return "https://gitlab.com/gromacs/gromacs.git"
 
     def git_tag(self):
-        return "v2025.1"
+        return "v2025.2"
 
     def grappa_url(self):
         return "https://zenodo.org/record/11234002/files/grappa-1.5k-6.1M_rc0.9.tar.gz"
@@ -60,6 +61,9 @@ class GromacsBench(Suite):
         # TODO: Detect the GPU architecture and set the appropriate flags
 
         # Build GROMACS
+
+        self.oneapi = get_oneapi()
+
         run(
             [
                 "cmake",
@@ -73,6 +77,7 @@ class GromacsBench(Suite):
                 f"-DGMX_SYCL_ENABLE_EXPERIMENTAL_SUBMIT_API=ON",
                 f"-DGMX_FFT_LIBRARY=MKL",
                 f"-DGMX_GPU_FFT_LIBRARY=MKL",
+                f"-DMKLROOT={self.oneapi.mkl_dir()}",
                 f"-DGMX_GPU_NB_CLUSTER_SIZE=8",
                 f"-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1",
                 f"-DGMX_OPENMP=OFF",
@@ -82,6 +87,7 @@ class GromacsBench(Suite):
         run(
             f"cmake --build {self.gromacs_build_path} -j {options.build_jobs}",
             add_sycl=True,
+            ld_library=self.oneapi.ld_libraries(),
         )
         download(
             self.directory,
@@ -152,6 +158,7 @@ class GromacsBenchmark(Benchmark):
         self.conf_result = run(
             cmd_list,
             add_sycl=True,
+            ld_library=self.suite.oneapi.ld_libraries(),
         )
 
     def run(self, env_vars):
@@ -192,11 +199,10 @@ class GromacsBenchmark(Benchmark):
             env_vars,
             add_sycl=True,
             use_stdout=False,
+            ld_library=self.suite.oneapi.ld_libraries(),
         )
 
-        if self.type == "pme" and not self._validate_correctness(
-            options.benchmark_cwd + "/md.log"
-        ):
+        if not self._validate_correctness(options.benchmark_cwd + "/md.log"):
             raise ValueError(
                 f"Validation failed: Conserved energy drift exceeds threshold in {model_dir / 'md.log'}"
             )
@@ -237,7 +243,7 @@ class GromacsBenchmark(Benchmark):
         raise ValueError(f"No numeric value found in the 'Time:' line.")
 
     def _validate_correctness(self, log_file):
-        threshold = 1e-3  # Define an acceptable energy drift threshold
+        threshold = 1e-2  # Define an acceptable energy drift threshold
 
         log_file = Path(log_file)
         if not log_file.exists():

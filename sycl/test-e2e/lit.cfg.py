@@ -626,7 +626,9 @@ if config.dump_ir_supported:
 
 lit_config.note("Targeted devices: {}".format(", ".join(config.sycl_devices)))
 
-sycl_ls = FindTool("sycl-ls").resolve(llvm_config, config.llvm_tools_dir)
+sycl_ls = FindTool("sycl-ls").resolve(
+    llvm_config, os.pathsep.join([config.dpcpp_bin_dir, config.llvm_tools_dir])
+)
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
@@ -809,12 +811,14 @@ tools = [
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="ignore"),
 ] + feature_tools
 
-# Try and find each of these tools in the llvm tools directory or the PATH, in
-# that order. If found, they will be added as substitutions with the full path
+# Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
+# or the PATH, in that order. If found, they will be added as substitutions with the full path
 # to the tool. This allows us to support both in-tree builds and standalone
 # builds, where the tools may be externally defined.
+# The DPC++ bin directory is different from the LLVM bin directory when using
+# the Intel Compiler (icx), which puts tools into $dpcpp_root_dir/bin/compiler
 llvm_config.add_tool_substitutions(
-    tools, [config.llvm_tools_dir, os.environ.get("PATH", "")]
+    tools, [config.dpcpp_bin_dir, config.llvm_tools_dir, os.environ.get("PATH", "")]
 )
 for tool in feature_tools:
     if tool.was_resolved:
@@ -864,7 +868,7 @@ def get_sycl_ls_verbose(sycl_device, env):
                 f"stdout:{sp.stdout}\n"
                 f"stderr:{sp.stderr}\n"
             )
-        return sp.stdout.splitlines()
+        return sp
 
 
 # A device filter such as level_zero:gpu can have multiple devices under it and
@@ -893,7 +897,7 @@ for sycl_device in config.sycl_devices:
 
     platform_devices = remove_level_zero_suffix(backend + ":*")
 
-    for line in get_sycl_ls_verbose(platform_devices, env):
+    for line in get_sycl_ls_verbose(platform_devices, env).stdout.splitlines():
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             detected_architectures.append(architecture.strip())
@@ -952,7 +956,8 @@ for full_name, sycl_device in zip(
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
     intel_driver_ver = {}
-    for line in get_sycl_ls_verbose(sycl_device, env):
+    sycl_ls_sp = get_sycl_ls_verbose(sycl_device, env)
+    for line in sycl_ls_sp.stdout.splitlines():
         if re.match(r" *Vendor *: Intel\(R\) Corporation", line):
             is_intel_driver = True
         if re.match(r" *Driver *:", line):
@@ -989,7 +994,7 @@ for full_name, sycl_device in zip(
     if dev_aspects == []:
         lit_config.error(
             "Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n{}".format(
-                sycl_device, sp.stdout, sp.stderr
+                sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
             )
         )
         dev_aspects.append(set())
@@ -1001,7 +1006,7 @@ for full_name, sycl_device in zip(
     if dev_sg_sizes == []:
         lit_config.error(
             "Cannot detect device SG sizes for {}\nstdout:\n{}\nstderr:\n{}".format(
-                sycl_device, sp.stdout, sp.stderr
+                sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
             )
         )
         dev_sg_sizes.append(set())
@@ -1024,7 +1029,7 @@ for full_name, sycl_device in zip(
             if not config.allow_unknown_arch:
                 lit_config.error(
                     "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
-                        sycl_device, sp.stdout, sp.stderr
+                        sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
                     )
                 )
             architectures = set()
@@ -1096,6 +1101,12 @@ else:
         clangxx += "-fpreview-breaking-changes "
     clangxx += config.cxx_flags
     config.substitutions.append(("%clangxx", clangxx))
+
+# Check that no runtime features are available when in build-only
+from E2EExpr import E2EExpr
+
+if config.test_mode == "build-only":
+    E2EExpr.check_build_features(config.available_features)
 
 if lit_config.params.get("print_features", False):
     lit_config.note(

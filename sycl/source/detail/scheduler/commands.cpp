@@ -110,8 +110,9 @@ static void addDeviceMetadata(xpti_td *TraceEvent, const QueueImplPtr &Queue) {
   if (Queue) {
     xpti::addMetadata(TraceEvent, "sycl_device",
                       deviceToID(Queue->get_device()));
-    xpti::addMetadata(TraceEvent, "sycl_device_name",
-                      getSyclObjImpl(Queue->get_device())->getDeviceName());
+    xpti::addMetadata(
+        TraceEvent, "sycl_device_name",
+        getSyclObjImpl(Queue->get_device())->get_info<info::device::name>());
   }
 }
 
@@ -1302,7 +1303,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
 
     if (auto Result =
             callMemOpHelper(MemoryManager::unmap, MAllocaCmd->getSYCLMemObj(),
-                            Dst, Queue, Src, RawEvents, UREvent);
+                            Dst, *Queue, Src, RawEvents, UREvent);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -1387,7 +1388,7 @@ ur_result_t MapMemObject::enqueueImp() {
   ur_event_handle_t UREvent = nullptr;
   if (auto Result = callMemOpHelperRet(
           *MDstPtr, MemoryManager::map, MSrcAllocaCmd->getSYCLMemObj(),
-          MSrcAllocaCmd->getMemAllocation(), MQueue, MMapMode, MSrcReq.MDims,
+          MSrcAllocaCmd->getMemAllocation(), *MQueue, MMapMode, MSrcReq.MDims,
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
           MSrcReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
@@ -1470,7 +1471,7 @@ ur_result_t UnMapMemObject::enqueueImp() {
   ur_event_handle_t UREvent = nullptr;
   if (auto Result =
           callMemOpHelper(MemoryManager::unmap, MDstAllocaCmd->getSYCLMemObj(),
-                          MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
+                          MDstAllocaCmd->getMemAllocation(), *MQueue, *MSrcPtr,
                           std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
@@ -1579,9 +1580,9 @@ ur_result_t MemCpyCommand::enqueueImp() {
 
   if (auto Result = callMemOpHelper(
           MemoryManager::copy, MSrcAllocaCmd->getSYCLMemObj(),
-          MSrcAllocaCmd->getMemAllocation(), MSrcQueue, MSrcReq.MDims,
+          MSrcAllocaCmd->getMemAllocation(), MSrcQueue.get(), MSrcReq.MDims,
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
-          MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(), MQueue,
+          MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(), MQueue.get(),
           MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
           MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
@@ -1740,9 +1741,9 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
 
   if (auto Result = callMemOpHelper(
           MemoryManager::copy, MSrcAllocaCmd->getSYCLMemObj(),
-          MSrcAllocaCmd->getMemAllocation(), MSrcQueue, MSrcReq.MDims,
+          MSrcAllocaCmd->getMemAllocation(), MSrcQueue.get(), MSrcReq.MDims,
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
-          MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
+          MSrcReq.MElemSize, *MDstPtr, MQueue.get(), MDstReq.MDims,
           MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
           MDstReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
@@ -1979,6 +1980,7 @@ void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
@@ -2008,7 +2010,8 @@ void instrumentationAddExtraKernelMetadata(
     ur_program_handle_t Program = nullptr;
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName);
+            Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName,
+            KernelNameBasedCachePtr);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2093,7 +2096,8 @@ void instrumentationFillCommonData(const std::string &KernelName,
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string_view SyclKernelName, const QueueImplPtr &Queue,
+    const std::string_view SyclKernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, const QueueImplPtr &Queue,
     const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
@@ -2133,7 +2137,8 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                    getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(
         CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
-        std::string(SyclKernelName), SyclKernel, Queue, CGArgs);
+        std::string(SyclKernelName), KernelNameBasedCachePtr, SyclKernel, Queue,
+        CGArgs);
 
     xptiNotifySubscribers(
         StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,
@@ -2188,8 +2193,8 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle(),
-          KernelCG->MKernelName, KernelCG->MSyclKernel, MQueue,
-          KernelCG->MArgs);
+          KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
+          KernelCG->MSyclKernel, MQueue, KernelCG->MArgs);
     }
 
     xptiNotifySubscribers(
@@ -2309,6 +2314,7 @@ void SetArgBasedOnType(
     break;
   case kernel_param_kind_t::kind_stream:
     break;
+  case kernel_param_kind_t::kind_dynamic_accessor:
   case kernel_param_kind_t::kind_accessor: {
     Requirement *Req = (Requirement *)(Arg.MPtr);
 
@@ -2377,7 +2383,7 @@ void SetArgBasedOnType(
 }
 
 static ur_result_t SetKernelParamsAndLaunch(
-    const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
+    queue_impl &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
@@ -2389,8 +2395,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
-  assert(Queue && "Kernel submissions should have an associated queue");
-  const AdapterPtr &Adapter = Queue->getAdapter();
+  const AdapterPtr &Adapter = Queue.getAdapter();
 
   if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
     std::vector<unsigned char> Empty;
@@ -2428,7 +2433,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                     &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
       SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                        Queue->getContextImplPtr(), Arg, NextTrueIndex);
+                        Queue.getContextImplPtr(), Arg, NextTrueIndex);
     };
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
@@ -2444,7 +2449,7 @@ static ur_result_t SetKernelParamsAndLaunch(
         Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
   }
 
-  adjustNDRangePerKernel(NDRDesc, Kernel, Queue->getDeviceImpl());
+  adjustNDRangePerKernel(NDRDesc, Kernel, Queue.getDeviceImpl());
 
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
@@ -2458,7 +2463,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     LocalSize = &NDRDesc.LocalSize[0];
   else {
     Adapter->call<UrApiKind::urKernelGetGroupInfo>(
-        Kernel, Queue->getDeviceImpl().getHandleRef(),
+        Kernel, Queue.getDeviceImpl().getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
         /* pPropSizeRet = */ nullptr);
@@ -2469,6 +2474,11 @@ static ur_result_t SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
+
+  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
+                         NDRDesc.GlobalOffset[1] != 0 ||
+                         NDRDesc.GlobalOffset[2] != 0;
+
   std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
@@ -2498,9 +2508,10 @@ static ur_result_t SetKernelParamsAndLaunch(
     ur_event_handle_t UREvent = nullptr;
     ur_result_t Error =
         Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchCustomExp>(
-            Queue->getHandleRef(), Kernel, NDRDesc.Dims,
-            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
-            property_list.size(), property_list.data(), RawEvents.size(),
+            Queue.getHandleRef(), Kernel, NDRDesc.Dims,
+            HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
+            &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
+            property_list.data(), RawEvents.size(),
             RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEventImpl ? &UREvent : nullptr);
     if ((Error == UR_RESULT_SUCCESS) && OutEventImpl) {
@@ -2517,8 +2528,9 @@ static ur_result_t SetKernelParamsAndLaunch(
                   Args...);
         }
         return Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunch>(Args...);
-      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-        &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+      }(Queue.getHandleRef(), Kernel, NDRDesc.Dims,
+        HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
+        LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &UREvent : nullptr);
   if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
@@ -2528,9 +2540,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   return Error;
 }
 
-namespace {
-std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
-           const KernelArgMask *>
+static std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
+                  const KernelArgMask *>
 getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
                 device_impl &DeviceImpl,
                 std::vector<ur_kernel_handle_t> &UrKernelsToRelease,
@@ -2556,13 +2567,13 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName,
+            CommandGroup.MKernelNameBasedCachePtr);
     UrKernelsToRelease.push_back(UrKernel);
     UrProgramsToRelease.push_back(UrProgram);
   }
   return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
 }
-} // anonymous namespace
 
 ur_result_t enqueueImpCommandBufferKernel(
     context Ctx, device_impl &DeviceImpl,
@@ -2679,6 +2690,7 @@ void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
@@ -2726,7 +2738,8 @@ void enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, NDRDesc);
+            ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr,
+            NDRDesc);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2766,7 +2779,7 @@ void enqueueImpKernel(
     }
 
     Error = SetKernelParamsAndLaunch(
-        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
+        *Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, KernelName, KernelFuncPtr, KernelNumArgs,
@@ -3173,7 +3186,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     if (auto Result = callMemOpHelper(
             MemoryManager::copy, AllocaCmd->getSYCLMemObj(),
-            AllocaCmd->getMemAllocation(), MQueue, Req->MDims,
+            AllocaCmd->getMemAllocation(), MQueue.get(), Req->MDims,
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
             Copy->getDst(), nullptr, Req->MDims, Req->MAccessRange,
             Req->MAccessRange, /*DstOffset=*/sycl::id<3>{0, 0, 0},
@@ -3194,7 +3207,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             MemoryManager::copy, AllocaCmd->getSYCLMemObj(), Copy->getSrc(),
             nullptr, Req->MDims, Req->MAccessRange, Req->MAccessRange,
             /*SrcOffset*/ sycl::id<3>{0, 0, 0}, Req->MElemSize,
-            AllocaCmd->getMemAllocation(), MQueue, Req->MDims,
+            AllocaCmd->getMemAllocation(), MQueue.get(), Req->MDims,
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
             std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
@@ -3213,9 +3226,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     if (auto Result = callMemOpHelper(
             MemoryManager::copy, AllocaCmdSrc->getSYCLMemObj(),
-            AllocaCmdSrc->getMemAllocation(), MQueue, ReqSrc->MDims,
+            AllocaCmdSrc->getMemAllocation(), MQueue.get(), ReqSrc->MDims,
             ReqSrc->MMemoryRange, ReqSrc->MAccessRange, ReqSrc->MOffset,
-            ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(), MQueue,
+            ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(), MQueue.get(),
             ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
             ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), UREvent);
         Result != UR_RESULT_SUCCESS)
@@ -3231,7 +3244,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     if (auto Result = callMemOpHelper(
             MemoryManager::fill, AllocaCmd->getSYCLMemObj(),
-            AllocaCmd->getMemAllocation(), MQueue, Fill->MPattern.size(),
+            AllocaCmd->getMemAllocation(), *MQueue, Fill->MPattern.size(),
             Fill->MPattern.data(), Req->MDims, Req->MMemoryRange,
             Req->MAccessRange, Req->MOffset, Req->MElemSize,
             std::move(RawEvents), UREvent);
@@ -3272,23 +3285,23 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       std::tie(BinImage, std::ignore) =
-          retrieveKernelBinary(MQueue, KernelName.data());
+          retrieveKernelBinary(*MQueue, KernelName.data());
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
-                     SyclKernel.get(), KernelName, RawEvents, EventImpl,
-                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
-                     ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch,
-                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
+    enqueueImpKernel(
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel.get(),
+        KernelName, ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
+        getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+        ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
+        ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
-    if (auto Result = callMemOpHelper(MemoryManager::copy_usm, Copy->getSrc(),
-                                      MQueue, Copy->getLength(), Copy->getDst(),
-                                      std::move(RawEvents), Event);
+    if (auto Result = callMemOpHelper(
+            MemoryManager::copy_usm, Copy->getSrc(), *MQueue, Copy->getLength(),
+            Copy->getDst(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3298,7 +3311,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
-            MemoryManager::fill_usm, Fill->getDst(), MQueue, Fill->getLength(),
+            MemoryManager::fill_usm, Fill->getDst(), *MQueue, Fill->getLength(),
             Fill->getPattern(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -3309,7 +3322,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::PrefetchUSM: {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
-            MemoryManager::prefetch_usm, Prefetch->getDst(), MQueue,
+            MemoryManager::prefetch_usm, Prefetch->getDst(), *MQueue,
             Prefetch->getLength(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -3320,8 +3333,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     if (auto Result =
-            callMemOpHelper(MemoryManager::advise_usm, Advise->getDst(), MQueue,
-                            Advise->getLength(), Advise->getAdvice(),
+            callMemOpHelper(MemoryManager::advise_usm, Advise->getDst(),
+                            *MQueue, Advise->getLength(), Advise->getAdvice(),
                             std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -3333,7 +3346,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGCopy2DUSM *Copy = (CGCopy2DUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_2d_usm, Copy->getSrc(), Copy->getSrcPitch(),
-            MQueue, Copy->getDst(), Copy->getDstPitch(), Copy->getWidth(),
+            *MQueue, Copy->getDst(), Copy->getDstPitch(), Copy->getWidth(),
             Copy->getHeight(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -3344,7 +3357,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::Fill2DUSM: {
     CGFill2DUSM *Fill = (CGFill2DUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
-            MemoryManager::fill_2d_usm, Fill->getDst(), MQueue,
+            MemoryManager::fill_2d_usm, Fill->getDst(), *MQueue,
             Fill->getPitch(), Fill->getWidth(), Fill->getHeight(),
             Fill->getPattern(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
@@ -3356,7 +3369,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::Memset2DUSM: {
     CGMemset2DUSM *Memset = (CGMemset2DUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
-            MemoryManager::memset_2d_usm, Memset->getDst(), MQueue,
+            MemoryManager::memset_2d_usm, Memset->getDst(), *MQueue,
             Memset->getPitch(), Memset->getWidth(), Memset->getHeight(),
             Memset->getValue(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
@@ -3642,7 +3655,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGCopyToDeviceGlobal *Copy = (CGCopyToDeviceGlobal *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_to_device_global, Copy->getDeviceGlobalPtr(),
-            Copy->isDeviceImageScoped(), MQueue, Copy->getNumBytes(),
+            Copy->isDeviceImageScoped(), *MQueue, Copy->getNumBytes(),
             Copy->getOffset(), Copy->getSrc(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -3655,7 +3668,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         (CGCopyFromDeviceGlobal *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::copy_from_device_global, Copy->getDeviceGlobalPtr(),
-            Copy->isDeviceImageScoped(), MQueue, Copy->getNumBytes(),
+            Copy->isDeviceImageScoped(), *MQueue, Copy->getNumBytes(),
             Copy->getOffset(), Copy->getDest(), std::move(RawEvents), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -3700,7 +3713,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
 
     if (auto Result = callMemOpHelper(
-            MemoryManager::copy_image_bindless, MQueue, Copy->getSrc(),
+            MemoryManager::copy_image_bindless, *MQueue, Copy->getSrc(),
             Copy->getDst(), Copy->getSrcDesc(), Copy->getDstDesc(),
             Copy->getSrcFormat(), Copy->getDstFormat(), Copy->getCopyFlags(),
             Copy->getSrcOffset(), Copy->getDstOffset(), Copy->getCopyExtent(),

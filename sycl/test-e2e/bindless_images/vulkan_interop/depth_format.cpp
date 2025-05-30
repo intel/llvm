@@ -363,8 +363,7 @@ int main() {
 
   sycl::device syclDevice;
 
-  if (vkutil::setupDevice(syclDevice.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(syclDevice) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }
