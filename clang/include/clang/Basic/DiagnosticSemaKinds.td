@@ -4767,7 +4767,7 @@ def err_attribute_preferred_name_arg_invalid : Error<
   "argument %0 to 'preferred_name' attribute is not a typedef for "
   "a specialization of %1">;
 def err_attribute_builtin_alias : Error<
-  "%0 attribute can only be applied to a ARM, HLSL, SYCL or RISC-V builtin">;
+  "%0 attribute can only be applied to a ARM, HLSL, SPIR-V, SYCL or RISC-V builtin">;
 
 // called-once attribute diagnostics.
 def err_called_once_attribute_wrong_type : Error<
@@ -6153,7 +6153,7 @@ def err_undeclared_use : Error<"use of undeclared %0">;
 def warn_deprecated : Warning<"%0 is deprecated">,
     InGroup<DeprecatedDeclarations>;
 def warn_deprecated_switch_case : Warning<warn_deprecated.Summary>,
-    InGroup<DeprecatedSwitchCase>;
+    InGroup<DeprecatedDeclarationsSwitchCase>;
 def note_from_diagnose_if : Note<"from 'diagnose_if' attribute on %0:">;
 def warn_property_method_deprecated :
     Warning<"property access is using %0 method which is deprecated">,
@@ -13196,6 +13196,16 @@ def warn_sycl_old_and_new_kernel_attributes : Warning<
   "are ignored">, InGroup<IgnoredAttributes>;
 def err_attribute_argument_is_not_valid : Error<
   "%0 attribute requires integer constant value 0 or 1">;
+
+// SPIR-V builtins diagnostics
+def err_spirv_invalid_target : Error<
+   "builtin requires %select{spirv|spirv32 or spirv64}0 target">;
+def err_spirv_builtin_generic_cast_invalid_arg : Error<
+  "expecting a pointer argument to the generic address space">;
+def err_spirv_enum_not_int : Error<
+   "%0{storage class} argument for SPIR-V builtin is not a 32-bits integer">;
+def err_spirv_enum_not_valid : Error<
+   "invalid value for %select{storage class}0 argument">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<
