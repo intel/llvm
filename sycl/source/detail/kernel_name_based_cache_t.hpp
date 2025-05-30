@@ -47,6 +47,9 @@ struct FastKernelCacheVal {
       MAdapterPtr->call<sycl::detail::UrApiKind::urProgramRelease>(
           MProgramHandle);
   }
+
+  FastKernelCacheVal(const FastKernelCacheVal &) = delete;
+  FastKernelCacheVal &operator=(const FastKernelCacheVal &) = delete;
 };
 using FastKernelCacheValPtr = std::shared_ptr<FastKernelCacheVal>;
 
