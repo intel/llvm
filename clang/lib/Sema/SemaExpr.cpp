@@ -1946,9 +1946,11 @@ ExprResult Sema::CreateGenericSelectionExpr(
 
         if (D != 0) {
           Diag(Types[i]->getTypeLoc().getBeginLoc(), D)
-            << Types[i]->getTypeLoc().getSourceRange()
-            << Types[i]->getType();
-          TypeErrorFound = true;
+              << Types[i]->getTypeLoc().getSourceRange() << Types[i]->getType();
+          if (getDiagnostics().getDiagnosticLevel(
+                  D, Types[i]->getTypeLoc().getBeginLoc()) >=
+              DiagnosticsEngine::Error)
+            TypeErrorFound = true;
         }
 
         // C11 6.5.1.1p2 "No two generic associations in the same generic
@@ -4632,6 +4634,7 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
     case Type::ObjCTypeParam:
     case Type::Pipe:
     case Type::BitInt:
+    case Type::HLSLInlineSpirv:
       llvm_unreachable("type class is never variably-modified!");
     case Type::Elaborated:
       T = cast<ElaboratedType>(Ty)->getNamedType();
