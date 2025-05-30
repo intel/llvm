@@ -116,7 +116,7 @@ public:
                                        const range<3> &WGSize) const;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// This function is unused and should be removed in the next ABI breaking.
+  // This function is unused and should be removed in the next ABI breaking.
 
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue.
