@@ -13,7 +13,8 @@ struct urEnqueueUSMPrefetchWithParamTest
     // The setup for the parent fixture does a urQueueFlush, which isn't
     // supported by native cpu.
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-    uur::urUSMDeviceAllocTestWithParam<ur_usm_migration_flag_t>::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urUSMDeviceAllocTestWithParam<ur_usm_migration_flag_t>::SetUp());
   }
 };
 
@@ -24,11 +25,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 
 TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
   UUR_KNOWN_FAILURE_ON(
-      // HIP and CUDA return UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a
-      // warning about the hint being unsupported. The same applies for
-      // subsequent fails in this file.
-      // TODO: codify this in the spec and account for it in the CTS.
-      uur::HIP{}, uur::CUDA{},
       // The setup for the parent fixture does a urQueueFlush, which isn't
       // supported by native cpu. Again same goes for subsequent fails in
       // this file.
@@ -53,7 +49,7 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
  * executing.
  */
 TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{}, uur::NativeCPU{});
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   ur_queue_handle_t fill_queue;
   ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &fill_queue));

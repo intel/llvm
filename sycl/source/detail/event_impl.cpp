@@ -348,7 +348,10 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
       return get_event_profiling_info<info::event_profiling::command_start>(
           Handle, this->getAdapter());
     }
-    return 0;
+    // If command is nop (for example, USM operations for 0 bytes) return
+    // recorded submission time. If event is created using default constructor,
+    // 0 will be returned.
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
@@ -367,7 +370,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
       return get_event_profiling_info<info::event_profiling::command_end>(
           Handle, this->getAdapter());
     }
-    return 0;
+    // If command is nop (for example, USM operations for 0 bytes) return
+    // recorded submission time. If event is created using default constructor,
+    // 0 will be returned.
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
@@ -498,11 +504,6 @@ ur_native_handle_t event_impl::getNative() {
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
-  if (MState == HES_Discarded)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_wait_list() cannot be used for a discarded event.");
-
   std::lock_guard<std::mutex> Lock(MMutex);
 
   std::vector<EventImplPtr> Result;
@@ -581,9 +582,9 @@ void event_impl::setSubmissionTime() {
   } else {
     // Returning host time
     using namespace std::chrono;
-    MSubmitTime =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
+    MSubmitTime = duration_cast<nanoseconds>(
+                      high_resolution_clock::now().time_since_epoch())
+                      .count();
   }
 }
 

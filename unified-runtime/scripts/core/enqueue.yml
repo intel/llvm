@@ -19,6 +19,8 @@ name: KernelLaunch
 ordinal: "0"
 analogue:
     - "**clEnqueueNDRangeKernel**"
+details:
+    - "Providing invalid kernel arguments is Undefined Behavior."
 params:
     - type: $x_queue_handle_t
       name: hQueue
@@ -31,7 +33,7 @@ params:
       desc: "[in] number of dimensions, from 1 to 3, to specify the global and work-group work-items"
     - type: "const size_t*"
       name: pGlobalWorkOffset
-      desc: "[in] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
+      desc: "[in][optional] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
     - type: "const size_t*"
       name: pGlobalWorkSize
       desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
@@ -65,8 +67,6 @@ returns:
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
     - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGS
-        - "The kernel argument values have not been specified."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------

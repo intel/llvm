@@ -8,11 +8,11 @@
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/device_info.hpp>
 #include <sycl/backend_types.hpp>
 
 #include <algorithm>
 #include <regex>
+#include <sstream>
 
 namespace sycl {
 inline namespace _V1 {
@@ -426,18 +426,20 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     }
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
-        sycl::detail::get_device_info<info::device::vendor_id>(DeviceImpl);
+        DeviceImpl.get_info<info::device::vendor_id>();
     std::stringstream DeviceVendorIdHexStringStream;
+    // To avoid commas or other locale-specific modifications, call imbue().
+    DeviceVendorIdHexStringStream.imbue(std::locale::classic());
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
     const std::string &DriverVersionValue =
-        sycl::detail::get_device_info<info::device::driver_version>(DeviceImpl);
+        DeviceImpl.get_info<info::device::driver_version>();
     DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
     const std::string &DeviceNameValue =
-        sycl::detail::get_device_info<info::device::name>(DeviceImpl);
+        DeviceImpl.get_info<info::device::name>();
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc

@@ -50,6 +50,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   target_compile_definitions(
     ${LIB_OBJ_NAME}
     PRIVATE
+      __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
       __SYCL_INTERNAL_API
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
@@ -274,6 +275,7 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
+    "detail/kernel_name_based_cache.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
     "detail/pipes.cpp"
@@ -322,6 +324,7 @@ set(SYCL_COMMON_SOURCES
     "detail/memory_pool_impl.cpp"
     "detail/async_alloc.cpp"
     "detail/memory_pool.cpp"
+    "detail/graph_memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )

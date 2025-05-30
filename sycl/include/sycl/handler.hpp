@@ -18,6 +18,7 @@
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/kernel_name_based_cache.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
@@ -161,9 +162,11 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
-class graph_impl;
 class dynamic_parameter_base;
 class dynamic_work_group_memory_base;
+class dynamic_local_accessor_base;
+class graph_impl;
+class dynamic_parameter_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
@@ -426,8 +429,23 @@ private:
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  handler(const std::shared_ptr<detail::queue_impl> &Queue,
+          bool CallerNeedsEvent);
+#else
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
+#endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs SYCL handler from the pre-constructed handler_impl and the
+  /// associated queue. Inside of Graph implementation, the Queue value is not
+  /// used, for those cases it can be initialized with an empty shared_ptr.
+  ///
+  /// \param HandlerImpl is a pre-constructed handler_impl.
+  /// \param Queue is a SYCL queue.
+  handler(detail::handler_impl *HandlerImpl,
+          const std::shared_ptr<detail::queue_impl> &Queue);
+#else
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -449,7 +467,9 @@ private:
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
                            detail::queue_impl *SecondaryQueue,
                            bool CallerNeedsEvent);
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from Graph.
   ///
   /// The handler will add the command-group as a node to the graph rather than
@@ -457,6 +477,7 @@ private:
   ///
   /// \param Graph is a SYCL command_graph
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
+#endif
 
   void *storeRawArg(const void *Ptr, size_t Size);
 
@@ -539,7 +560,11 @@ private:
   /// object destruction.
   ///
   /// \return a SYCL event object representing the command group
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr finalize();
+#else
   event finalize();
+#endif
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
@@ -677,6 +702,8 @@ private:
            sizeof(sampler), ArgIndex);
   }
 
+  void setArgHelper(int ArgIndex, stream &&Str);
+
   // setArgHelper for graph dynamic_parameters
   template <typename T>
   void
@@ -687,16 +714,52 @@ private:
         *static_cast<T *>(detail::getValueFromDynamicParameter(DynamicParam));
     // Set the arg in the handler as normal
     setArgHelper(ArgIndex, std::move(ArgValue));
+
     // Register the dynamic parameter with the handler for later association
     // with the node being added
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
 
-  // setArgHelper for graph dynamic_work_group_memory
-  void
-  setArgHelper(int ArgIndex,
-               ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-                   &DynWorkGroupBase);
+  template <typename DataT, typename PropertyListT>
+  void setArgHelper(
+      int ArgIndex,
+      ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
+          &DynWorkGroupMem) {
+    (void)ArgIndex;
+    (void)DynWorkGroupMem;
+
+#ifndef __SYCL_DEVICE_ONLY__
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &DynWorkGroupBase = DynWorkGroupMem;
+
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+        detail::getSyclObjImpl(DynWorkGroupBase).get();
+
+    addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
+           DynParamImpl, 0, ArgIndex);
+    registerDynamicParameter(DynParamImpl, ArgIndex);
+#endif
+  }
+
+  template <typename DataT, int Dimensions>
+  void setArgHelper(
+      int ArgIndex,
+      ext::oneapi::experimental::dynamic_local_accessor<DataT, Dimensions>
+          &DynLocalAccessor) {
+    (void)ArgIndex;
+    (void)DynLocalAccessor;
+#ifndef __SYCL_DEVICE_ONLY__
+    ext::oneapi::experimental::detail::dynamic_local_accessor_base
+        &DynLocalAccessorBase = DynLocalAccessor;
+
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+        detail::getSyclObjImpl(DynLocalAccessorBase).get();
+
+    addArg(detail::kernel_param_kind_t::kind_dynamic_accessor, DynParamImpl, 0,
+           ArgIndex);
+    registerDynamicParameter(DynParamImpl, ArgIndex);
+#endif
+  }
 
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
@@ -706,13 +769,22 @@ private:
            Arg.MArgSize, ArgIndex);
   }
 
-  /// Registers a dynamic parameter with the handler for later association with
-  /// the node being created
-  /// @param DynamicParamBase
-  /// @param ArgIndex
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: Remove in the next ABI-breaking window.
   void registerDynamicParameter(
       ext::oneapi::experimental::detail::dynamic_parameter_base
           &DynamicParamBase,
+      int ArgIndex);
+#endif
+
+  /// Registers a dynamic parameter with the handler for later association with
+  /// the node being created.
+  /// @param DynamicParamImpl The dynamic parameter impl object.
+  /// @param ArgIndex The index of the kernel argument that this dynamic
+  /// parameter represents.
+  void registerDynamicParameter(
+      ext::oneapi::experimental::detail::dynamic_parameter_impl
+          *DynamicParamImpl,
       int ArgIndex);
 
   /// Verifies the kernel bundle to be used if any is set. This throws a
@@ -731,8 +803,8 @@ private:
 
   /// Stores lambda to the template-free object
   ///
-  /// Also initializes kernel name, list of arguments and requirements using
-  /// information from the integration header/built-ins.
+  /// Also initializes the kernel name and prepares for arguments to
+  /// be extracted from the lambda in handler::finalize().
   ///
   /// \param KernelFunc is a SYCL kernel function
   /// \param ParamDescs is the vector of kernel parameter descriptors.
@@ -748,6 +820,14 @@ private:
     // `std::unique_ptr<HostKernelBase>` is necessary.
     MHostKernel.reset(new detail::HostKernel<KernelType, LambdaArgType, Dims>(
         std::forward<KernelTypeUniversalRef>(KernelFunc)));
+
+    // Instantiating the kernel on the host improves debugging.
+    // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+    instantiateKernelOnHost(
+        detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
+                                              Dims>());
+#endif
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -778,11 +858,13 @@ private:
     if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
 
-      clearArgs();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
-                                   &(detail::getKernelParamDesc<KernelName>),
-                                   detail::getKernelNumParams<KernelName>(),
-                                   detail::isKernelESIMD<KernelName>());
+      // Force hasSpecialCaptures to be evaluated at compile-time.
+      constexpr bool HasSpecialCapt = detail::hasSpecialCaptures<KernelName>();
+      setKernelInfo((void *)MHostKernel->getPtr(),
+                    detail::getKernelNumParams<KernelName>(),
+                    &(detail::getKernelParamDesc<KernelName>),
+                    detail::isKernelESIMD<KernelName>(), HasSpecialCapt);
+
       MKernelName = detail::getKernelName<KernelName>();
     } else {
       // In case w/o the integration header it is necessary to process
@@ -791,6 +873,7 @@ private:
       // later during finalize.
       setArgsToAssociatedAccessors();
     }
+    setKernelNameBasedCachePtr(detail::getKernelNameBasedCache<KernelName>());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
@@ -1743,7 +1826,8 @@ public:
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value;         // Interop
+        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<stream, T>::value;         // Stream
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1794,10 +1878,17 @@ public:
   void set_arg(
       int argIndex,
       ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
-          &dynWorkGroupMem) {
-    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-        &dynWorkGroupBase = dynWorkGroupMem;
-    setArgHelper(argIndex, dynWorkGroupBase);
+          &DynWorkGroupMem) {
+    setArgHelper<DataT, PropertyListT>(argIndex, DynWorkGroupMem);
+  }
+
+  // set_arg for graph dynamic_local_accessor
+  template <typename DataT, int Dimensions>
+  void
+  set_arg(int argIndex,
+          ext::oneapi::experimental::dynamic_local_accessor<DataT, Dimensions>
+              &DynLocalAccessor) {
+    setArgHelper<DataT, Dimensions>(argIndex, DynLocalAccessor);
   }
 
   // set_arg for the raw_kernel_arg extension type.
@@ -3272,8 +3363,18 @@ public:
       uint64_t SignalValue);
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // In some cases we need to construct handler_impl in heap. Sole propose
+  // of MImplOwner is to destroy handler_impl in destructor of handler.
+  // Can't use unique_ptr because declaration of handler_impl is not available
+  // in this header.
+  std::shared_ptr<detail::handler_impl> MImplOwner;
+  detail::handler_impl *impl;
+  const std::shared_ptr<detail::queue_impl> &MQueue;
+#else
   std::shared_ptr<detail::handler_impl> impl;
   std::shared_ptr<detail::queue_impl> MQueue;
+#endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::ABINeutralKernelNameStrT MKernelName;
@@ -3292,7 +3393,11 @@ private:
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr MLastEvent;
+#else
   event MLastEvent;
+#endif
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
@@ -3733,8 +3838,19 @@ private:
                                   sycl::range<3> LocalSize, sycl::id<3> Offset,
                                   int Dims);
 
+  void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
+                     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+                     bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+
+  void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
+
   friend class detail::HandlerAccess;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
+#else
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
+#endif
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
   ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
@@ -3746,6 +3862,9 @@ private:
   __SYCL_EXPORT friend void *ext::oneapi::experimental::async_malloc_from_pool(
       sycl::handler &h, size_t size,
       const ext::oneapi::experimental::memory_pool &pool);
+
+  void setKernelNameBasedCachePtr(
+      detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
 
 protected:
   /// Registers event dependencies in this command group.

@@ -57,27 +57,6 @@ bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr) {
   return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_SHARED);
 }
 
-// Helper Function to check if the Copy Engine should be preferred given the
-// types of memory used.
-bool PreferCopyEngineUsage(ur_device_handle_t Device,
-                           ur_context_handle_t Context, const void *Src,
-                           void *Dst) {
-  bool PreferCopyEngine = false;
-  // Given Integrated Devices, Copy Engines are not preferred for any Copy
-  // operations.
-  if (!Device->isIntegrated()) {
-    // Given non D2D Copies, for better performance, Copy Engines are preferred
-    // only if one has both the Main and Link Copy Engines.
-    if (Device->hasLinkCopyEngine() && Device->hasMainCopyEngine() &&
-        (!IsDevicePointer(Context, Src) || !IsDevicePointer(Context, Dst))) {
-      PreferCopyEngine = true;
-    }
-  }
-  // Temporary option added to use force engine for D2D copy
-  PreferCopyEngine |= UseCopyEngineForD2DCopy;
-  return PreferCopyEngine;
-}
-
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
@@ -117,9 +96,8 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  logger::debug("calling zeCommandListAppendMemoryCopy() with"
-                "  ZeEvent {}",
-                ur_cast<std::uintptr_t>(ZeEvent));
+  UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
+         ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
@@ -170,9 +148,8 @@ ur_result_t enqueueMemCopyRectHelper(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  logger::debug("calling zeCommandListAppendMemoryCopy() with"
-                "  ZeEvent {}",
-                ur_cast<std::uintptr_t>(ZeEvent));
+  UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
+         ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
   auto ZeParams = ur2zeRegionParams(SrcOrigin, DstOrigin, Region, SrcRowPitch,
@@ -184,7 +161,7 @@ ur_result_t enqueueMemCopyRectHelper(
               ZeParams.srcPitch, ZeParams.srcSlicePitch, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
-  logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
+  UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopyRegion()");
 
   UR_CALL(Queue->executeCommandList(CommandList, Blocking, OkToBatch));
 
@@ -259,9 +236,8 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                (ZeCommandList, Ptr, Pattern, PatternSize, Size, ZeEvent,
                 WaitList.Length, WaitList.ZeEventList));
 
-    logger::debug("calling zeCommandListAppendMemoryFill() with"
-                  "  ZeEvent {}",
-                  ur_cast<uint64_t>(ZeEvent));
+    UR_LOG(DEBUG, "calling zeCommandListAppendMemoryFill() with ZeEvent {}",
+           ur_cast<uint64_t>(ZeEvent));
     printZeEventList(WaitList);
 
     // Execute command list asynchronously, as the event will be used
@@ -281,9 +257,8 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                   WaitList.Length, WaitList.ZeEventList));
     }
 
-    logger::debug("calling zeCommandListAppendMemoryCopy() with"
-                  "  ZeEvent {}",
-                  ur_cast<uint64_t>(ZeEvent));
+    UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
+           ur_cast<uint64_t>(ZeEvent));
     printZeEventList(WaitList);
 
     // Execute command list synchronously.
@@ -464,7 +439,7 @@ static ur_result_t enqueueMemImageCommandHelper(
                 ur_cast<ze_image_handle_t>(ZeHandleSrc), &ZeDstRegion,
                 &ZeSrcRegion, ZeEvent, 0, nullptr));
   } else {
-    logger::error("enqueueMemImageUpdate: unsupported image command type");
+    UR_LOG(ERR, "enqueueMemImageUpdate: unsupported image command type");
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
@@ -1041,7 +1016,7 @@ ur_result_t urEnqueueMemBufferMap(
     // False as the second value in pair means that mapping was not inserted
     // because mapping already exists.
     if (!Res.second) {
-      logger::error("urEnqueueMemBufferMap: duplicate mapping detected");
+      UR_LOG(ERR, "urEnqueueMemBufferMap: duplicate mapping detected");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
@@ -1102,7 +1077,7 @@ ur_result_t urEnqueueMemBufferMap(
   // False as the second value in pair means that mapping was not inserted
   // because mapping already exists.
   if (!Res.second) {
-    logger::error("urEnqueueMemBufferMap: duplicate mapping detected");
+    UR_LOG(ERR, "urEnqueueMemBufferMap: duplicate mapping detected");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -1156,7 +1131,7 @@ ur_result_t urEnqueueMemUnmap(
     std::scoped_lock<ur_shared_mutex> Guard(Buffer->Mutex);
     auto It = Buffer->Mappings.find(MappedPtr);
     if (It == Buffer->Mappings.end()) {
-      logger::error("urEnqueueMemUnmap: unknown memory mapping");
+      UR_LOG(ERR, "urEnqueueMemUnmap: unknown memory mapping");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     MapInfo = It->second;
@@ -1263,10 +1238,23 @@ ur_result_t urEnqueueUSMMemcpy(
     ur_event_handle_t *OutEvent) {
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
+                          !IsDevicePointer(Queue->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
+                                 IsSharedPointer(Queue->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueMemCopyHelper( // TODO: do we need a new command type for this?
       UR_COMMAND_MEM_BUFFER_COPY, Queue, Dst, Blocking, Size, Src,
-      NumEventsInWaitList, EventWaitList, OutEvent,
-      PreferCopyEngineUsage(Queue->Device, Queue->Context, Src, Dst));
+      NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
 ur_result_t urEnqueueUSMPrefetch(
@@ -1428,7 +1416,8 @@ ur_result_t urEnqueueUSMFill2D(
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t * /*OutEvent*/) {
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1465,13 +1454,26 @@ ur_result_t urEnqueueUSMMemcpy2D(
 
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
+                          !IsDevicePointer(Queue->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
+                                 IsSharedPointer(Queue->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueMemCopyRectHelper( // TODO: do we need a new command type for
                                    // this?
       UR_COMMAND_MEM_BUFFER_COPY_RECT, Queue, Src, Dst, ZeroOffset, ZeroOffset,
       Region, SrcPitch, DstPitch, 0, /*SrcSlicePitch=*/
       0,                             /*DstSlicePitch=*/
-      Blocking, NumEventsInWaitList, EventWaitList, Event,
-      PreferCopyEngineUsage(Queue->Device, Queue->Context, Src, Dst));
+      Blocking, NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 ur_result_t urMemImageCreate(
@@ -1871,7 +1873,8 @@ ur_result_t urMemImageGetInfo(
     /// [out][optional] pointer to the actual size in bytes of data queried by
     /// pImgInfo.
     size_t * /*PropSizeRet*/) {
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1917,7 +1920,8 @@ ur_result_t urEnqueueReadHostPipe(ur_queue_handle_t /*hQueue*/,
                                   uint32_t /*numEventsInWaitList*/,
                                   const ur_event_handle_t * /*phEventWaitList*/,
                                   ur_event_handle_t * /*phEvent*/) {
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1928,7 +1932,8 @@ ur_result_t urEnqueueWriteHostPipe(
     size_t /*size*/, uint32_t /*numEventsInWaitList*/,
     const ur_event_handle_t * /*phEventWaitList*/,
     ur_event_handle_t * /*phEvent*/) {
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -2193,8 +2198,8 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
     }
   }
 
-  logger::debug("getZeHandle(pi_device{{{}}}) = {}", (void *)Device,
-                (void *)Allocation.ZeHandle);
+  UR_LOG(DEBUG, "getZeHandle(pi_device{{{}}}) = {}", (void *)Device,
+         (void *)Allocation.ZeHandle);
   return UR_RESULT_SUCCESS;
 }
 

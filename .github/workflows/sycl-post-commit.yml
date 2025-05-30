@@ -102,7 +102,7 @@ jobs:
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      compiler: icx
+      cxx: icx
       build_configure_extra_args: -DCMAKE_C_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_CXX_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_EXE_LINKER_FLAGS=/manifest:no -DCMAKE_MODULE_LINKER_FLAGS=/manifest:no -DCMAKE_SHARED_LINKER_FLAGS=/manifest:no
       build_cache_suffix: icx
 
@@ -119,7 +119,9 @@ jobs:
       runner: '["Windows","gen12"]'
       target_devices: "level_zero:gpu"
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
-      compiler: icx
+      cxx: icx
+      # https://github.com/intel/llvm/issues/18458
+      env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
 
   macos_default:
     name: macOS

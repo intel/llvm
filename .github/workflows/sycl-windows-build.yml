@@ -10,6 +10,10 @@ on:
       build_configure_extra_args:
         type: string
         required: false
+      build_target:
+        type: string
+        required: false
+        default: sycl-toolchain
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -28,7 +32,7 @@ on:
       e2e_binaries_artifact:
         type: string
         required: false
-      compiler:
+      cxx:
         type: string
         required: false
         default: "cl"
@@ -58,6 +62,11 @@ on:
       build_configure_extra_args:
         type: string
         required: false
+      build_target:
+        type: choice
+        options:
+          - "sycl-toolchain"
+          - "all"
       artifact_archive_name:
         type: choice
         options:
@@ -67,7 +76,7 @@ on:
         type: choice
         options:
           - 3
-      compiler:
+      cxx:
         type: choice
         options:
           - cl
@@ -104,7 +113,7 @@ jobs:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -132,8 +141,8 @@ jobs:
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
           --ci-defaults %ARGS% ^
-          "-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
-          "-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
+          "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
+          "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
@@ -143,7 +152,7 @@ jobs:
       id: build
       shell: bash
       run: |
-        cmake --build build --target sycl-toolchain
+        cmake --build build --target ${{ inputs.build_target }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       shell: bash
@@ -244,6 +253,7 @@ jobs:
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
         extra_lit_opts: --param sycl_build_targets="spir"
+        cxx: ${{ inputs.cxx }}
 
     - name:  Detect hung tests
       if: always()

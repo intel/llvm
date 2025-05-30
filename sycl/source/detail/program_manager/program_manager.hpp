@@ -200,7 +200,9 @@ public:
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
              ur_program_handle_t>
   getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
-                    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {});
+                    KernelNameStrRefT KernelName,
+                    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+                    const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
       KernelNameStrRefT KernelName,

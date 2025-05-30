@@ -172,8 +172,9 @@ struct MsanRuntimeDataWrapper {
           Context, Device, nullptr, nullptr, sizeof(MsanRuntimeData),
           (void **)&DevicePtr);
       if (Result != UR_RESULT_SUCCESS) {
-        getContext()->logger.error(
-            "Failed to alloc device usm for msan runtime data: {}", Result);
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to alloc device usm for msan runtime data: {}",
+                 Result);
       }
     }
     return DevicePtr;

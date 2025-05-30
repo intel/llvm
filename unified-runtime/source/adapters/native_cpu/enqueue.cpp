@@ -30,7 +30,7 @@ struct NDRDescT {
            const size_t *GlobalWorkSize, const size_t *LocalWorkSize)
       : WorkDim(WorkDim) {
     for (uint32_t I = 0; I < WorkDim; I++) {
-      GlobalOffset[I] = GlobalWorkOffset[I];
+      GlobalOffset[I] = GlobalWorkOffset ? GlobalWorkOffset[I] : 0;
       GlobalSize[I] = GlobalWorkSize[I];
       LocalSize[I] = LocalWorkSize ? LocalWorkSize[I] : 1;
     }
@@ -72,7 +72,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   urEventWait(numEventsInWaitList, phEventWaitList);
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
@@ -538,14 +537,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
         UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
         UR_ASSERT(patternSize != 0, UR_RESULT_ERROR_INVALID_SIZE)
         UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_SIZE)
-        UR_ASSERT(patternSize < size, UR_RESULT_ERROR_INVALID_SIZE)
+        UR_ASSERT(patternSize <= size, UR_RESULT_ERROR_INVALID_SIZE)
         UR_ASSERT(size % patternSize == 0, UR_RESULT_ERROR_INVALID_SIZE)
         // TODO: add check for allocation size once the query is supported
 
         switch (patternSize) {
         case 1:
-          memset(ptr, *static_cast<const uint8_t *>(pPattern),
-                 size * patternSize);
+          memset(ptr, *static_cast<const uint8_t *>(pPattern), size);
           break;
         case 2: {
           const auto pattern = *static_cast<const uint16_t *>(pPattern);

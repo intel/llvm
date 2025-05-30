@@ -99,8 +99,6 @@ runs:
       # TODO generate summary + display helpful message here
       export CMPLR_ROOT=./toolchain
       echo "-----"
-      sycl-ls
-      echo "-----"
       # Using --break-system-packages because:
       # - venv is not installed
       # - unable to install anything via pip, as python packages in the docker
@@ -110,9 +108,17 @@ runs:
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
       echo "-----"
 
+      # By default, the benchmark scripts forceload level_zero
+      FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
+      echo "Adapter: $FORCELOAD_ADAPTER"
+
       case "$ONEAPI_DEVICE_SELECTOR" in
         level_zero:*) SAVE_SUFFIX="L0" ;;
-        level_zero_v2:*) SAVE_SUFFIX="L0v2" ;;
+        level_zero_v2:*)
+          SAVE_SUFFIX="L0v2"
+          export ONEAPI_DEVICE_SELECTOR="level_zero:gpu"  # "level_zero_v2:gpu" not supported anymore
+          export SYCL_UR_USE_LEVEL_ZERO_V2=1
+          ;;
         opencl:*) SAVE_SUFFIX="OCL" ;;
         *) SAVE_SUFFIX="${ONEAPI_DEVICE_SELECTOR%%:*}";;
       esac
@@ -126,9 +132,13 @@ runs:
       # docker images are built nightly. 
       export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
 
+      sycl-ls
+      echo "-----"
+
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
         --sycl "$(realpath ./toolchain)" \
+        --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
         --results-dir "./llvm-ci-perf-results/" \

@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
-import re
 import util
 
 
@@ -223,25 +222,6 @@ def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
         "make_loader_cpp path %s namespace %s version %s\n" % (path, namespace, version)
     )
     loc = 0
-    template = "ldrddi.hpp.mako"
-    fin = os.path.join(templates_dir, template)
-
-    name = "%s_ldrddi" % (namespace)
-    filename = "%s.hpp" % (name)
-    fout = os.path.join(path, filename)
-
-    print("Generating %s..." % fout)
-    loc += util.makoWrite(
-        fin,
-        fout,
-        name=name,
-        ver=version,
-        namespace=namespace,
-        tags=tags,
-        specs=specs,
-        meta=meta,
-    )
-
     template = "ldrddi.cpp.mako"
     fin = os.path.join(templates_dir, template)
 
@@ -447,7 +427,7 @@ def _mako_interface_loader_api(
     template = f"ur_interface_loader.{ext}.mako"
     fin = os.path.join(templates_dir, template)
 
-    name = f"ur_interface_loader"
+    name = "ur_interface_loader"
 
     filename = f"{name}.{ext}"
     fout = os.path.join(dstpath, filename)

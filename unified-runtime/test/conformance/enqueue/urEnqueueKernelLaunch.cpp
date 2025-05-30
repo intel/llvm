@@ -75,6 +75,19 @@ TEST_P(urEnqueueKernelLaunchTest, Success) {
                                        &global_offset, &global_size, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
+
+  ValidateBuffer(buffer, sizeof(val) * global_size, val);
+}
+
+TEST_P(urEnqueueKernelLaunchTest, SuccessNoOffset) {
+  ur_mem_handle_t buffer = nullptr;
+  AddBuffer1DArg(sizeof(val) * global_size, &buffer);
+  AddPodArg(val);
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
+                                       &global_size, nullptr, 0, nullptr,
+                                       nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
 
@@ -86,11 +99,6 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleQueue) {
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullPointer) {
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
-                                         &global_size, nullptr, 0, nullptr,
-                                         nullptr),
-                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                          &global_offset, nullptr, nullptr, 0,
                                          nullptr, nullptr),
@@ -151,29 +159,6 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
                             &global_size, &local_size, 0, nullptr, nullptr);
   ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE ||
               result == UR_RESULT_SUCCESS);
-}
-
-TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
-  // Cuda and hip both lack any way to validate kernel args
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-
-  ur_platform_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_platform_backend_t), &backend,
-                                   nullptr));
-
-  if (backend == UR_PLATFORM_BACKEND_CUDA ||
-      backend == UR_PLATFORM_BACKEND_HIP ||
-      backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-    GTEST_FAIL() << "AMD, L0 and Nvidia can't check kernel arguments.";
-  }
-
-  // Enqueue kernel without setting any args
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         &global_offset, &global_size, nullptr,
-                                         0, nullptr, nullptr),
-                   UR_RESULT_ERROR_INVALID_KERNEL_ARGS);
 }
 
 TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, Success) {
@@ -656,10 +641,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
 
 TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
-  if (use_pool) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
   ur_device_usm_access_capability_flags_t shared_usm_flags = 0;
   ASSERT_SUCCESS(
       uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
