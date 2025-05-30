@@ -7638,7 +7638,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
 ///         + `NULL == hQueue`
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
@@ -7662,8 +7661,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// [in] number of dimensions, from 1 to 3, to specify the global and
     /// work-group work-items
     uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
     const size_t *pGlobalWorkOffset,
     /// [in] pointer to an array of workDim unsigned values that specify the
     /// number of global work-items in workDim that will execute the kernel
@@ -12285,6 +12284,9 @@ typedef enum ur_exp_launch_property_id_t {
   UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2,
   /// Implicit work group memory allocation
   UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY = 3,
+  /// Whether to opportunistically execute kernel launches serially on a
+  /// native queue
+  UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE = 4,
   /// @cond
   UR_EXP_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12307,6 +12309,9 @@ typedef union ur_exp_launch_property_value_t {
   /// [in] non-zero value indicates the amount of work group memory to
   /// allocate in bytes
   size_t workgroup_mem_size;
+  /// [in] non-zero value indicates an opportunistic native queue serialized
+  /// kernel
+  int opportunistic_queue_serialize;
 
 } ur_exp_launch_property_value_t;
 

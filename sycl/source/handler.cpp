@@ -404,7 +404,11 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   setHandlerKernelBundle(KernelBundleImpl);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+detail::EventImplPtr handler::finalize() {
+#else
 event handler::finalize() {
+#endif
   // This block of code is needed only for reduction implementation.
   // It is harmless (does nothing) for everything else.
   if (MIsFinalized)
@@ -531,8 +535,13 @@ event handler::finalize() {
       // creation.
       std::vector<ur_event_handle_t> RawEvents =
           detail::Command::getUrEvents(impl->CGData.MEvents, MQueue, false);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      detail::EventImplPtr &LastEventImpl = MLastEvent;
+#else
       const detail::EventImplPtr &LastEventImpl =
           detail::getSyclObjImpl(MLastEvent);
+#endif
 
       bool DiscardEvent =
           !impl->MEventNeeded && MQueue->supportsDiscardingPiEvents();
@@ -544,6 +553,12 @@ event handler::finalize() {
                 MKernelName.data());
         DiscardEvent = !KernelUsesAssert;
       }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      if (!DiscardEvent) {
+        LastEventImpl = std::make_shared<detail::event_impl>();
+      }
+#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
       const bool xptiEnabled = xptiTraceEnabled();
@@ -567,7 +582,7 @@ event handler::finalize() {
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
           std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(MQueue, MKernelName.data());
+              detail::retrieveKernelBinary(*MQueue, MKernelName.data());
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
@@ -595,7 +610,9 @@ event handler::finalize() {
 
       if (DiscardEvent) {
         EnqueueKernel();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         LastEventImpl->setStateDiscarded();
+#endif
       } else {
         LastEventImpl->setQueue(MQueue);
         LastEventImpl->setWorkerQueue(MQueue);
@@ -757,7 +774,12 @@ event handler::finalize() {
     } else {
       event GraphCompletionEvent =
           impl->MExecGraph->enqueue(MQueue, std::move(impl->CGData));
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      MLastEvent = getSyclObjImpl(GraphCompletionEvent);
+#else
       MLastEvent = GraphCompletionEvent;
+#endif
       return MLastEvent;
     }
   } break;
@@ -805,8 +827,12 @@ event handler::finalize() {
   // so it can be retrieved by the graph later.
   if (impl->MGraph) {
     impl->MGraphNodeCG = std::move(CommandGroup);
-    return detail::createSyclObjFromImpl<event>(
-        std::make_shared<detail::event_impl>());
+    auto EventImpl = std::make_shared<detail::event_impl>();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return EventImpl;
+#else
+    return detail::createSyclObjFromImpl<event>(EventImpl);
+#endif
   }
 
   // If the queue has an associated graph then we need to take the CG and pass
@@ -861,13 +887,21 @@ event handler::finalize() {
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(EventImpl, std::move(NodeImpl));
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return EventImpl;
+#else
     return detail::createSyclObjFromImpl<event>(EventImpl);
+#endif
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue), impl->MEventNeeded);
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  MLastEvent = Event;
+#else
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+#endif
   return MLastEvent;
 }
 
@@ -2350,6 +2384,12 @@ void handler::setKernelInfo(
   impl->MKernelParamDescGetter = KernelParamDescGetter;
   impl->MKernelIsESIMD = KernelIsESIMD;
   impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
+}
+
+void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {
+  // Passing the pointer to the runtime is enough to prevent optimization.
+  // We don't need to use the pointer for anything.
+  (void)InstantiateKernelOnHostPtr;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
