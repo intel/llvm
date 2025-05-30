@@ -421,6 +421,12 @@ ur_result_t urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
+  // This mutex is to prevent concurrent kernel launches across different queues
+  // as the DeviceMSAN local/private shadow memory does not support concurrent
+  // kernel launches now.
+  std::scoped_lock<ur_shared_mutex> Guard(
+      getMsanInterceptor()->KernelLaunchMutex);
+
   UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
 
   USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
@@ -1346,6 +1352,11 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     /// are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) {
+  // This mutex is to prevent concurrent kernel launches across different queues
+  // as the DeviceTSAN local shadow memory does not support concurrent
+  // kernel launches now.
+  std::scoped_lock<ur_shared_mutex> Guard(
+      getMsanInterceptor()->KernelLaunchMutex);
 
   UR_LOG_L(getContext()->logger, DEBUG,
            "==== urEnqueueCooperativeKernelLaunchExp");

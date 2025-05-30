@@ -21,6 +21,11 @@ namespace tsan {
 
 TsanRuntimeDataWrapper::~TsanRuntimeDataWrapper() {
   [[maybe_unused]] ur_result_t Result;
+  if (Host.LocalArgs) {
+    Result =
+        getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.LocalArgs);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
   if (DevicePtr) {
     Result = getContext()->urDdiTable.USM.pfnFree(Context, DevicePtr);
     assert(Result == UR_RESULT_SUCCESS);
@@ -52,6 +57,24 @@ ur_result_t TsanRuntimeDataWrapper::syncToDevice(ur_queue_handle_t Queue) {
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
       Queue, true, getDevicePtr(), ur_cast<void *>(&Host),
       sizeof(TsanRuntimeData), 0, nullptr, nullptr));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanRuntimeDataWrapper::importLocalArgsInfo(
+    ur_queue_handle_t Queue, const std::vector<TsanLocalArgsInfo> &LocalArgs) {
+  assert(!LocalArgs.empty());
+
+  Host.NumLocalArgs = LocalArgs.size();
+  const size_t LocalArgsInfoSize =
+      sizeof(TsanLocalArgsInfo) * Host.NumLocalArgs;
+  UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+      Context, Device, nullptr, nullptr, LocalArgsInfoSize,
+      ur_cast<void **>(&Host.LocalArgs)));
+
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+      Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0, nullptr,
+      nullptr));
 
   return UR_RESULT_SUCCESS;
 }
@@ -303,11 +326,64 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
     }
   }
 
+  // Get suggested local work size is user doesn't determine it.
+  if (LaunchInfo.LocalWorkSize.empty()) {
+    LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    if (URes != UR_RESULT_SUCCESS) {
+      if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return URes;
+      }
+      // If urKernelGetSuggestedLocalWorkSize is not supported by driver, we
+      // fallback to inefficient implementation
+      for (size_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+        LaunchInfo.LocalWorkSize[Dim] = 1;
+      }
+    }
+  }
+
   // Prepare launch info data
   LaunchInfo.Data.Host.GlobalShadowOffset = DI->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DI->Shadow->ShadowEnd;
   LaunchInfo.Data.Host.DeviceTy = DI->Type;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
+
+  const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
+  uint32_t NumWG = 1;
+  for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+    NumWG *= (LaunchInfo.GlobalWorkSize[Dim] + LocalWorkSize[Dim] - 1) /
+             LocalWorkSize[Dim];
+  }
+
+  if (DI->Shadow->AllocLocalShadow(
+          Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
+          LaunchInfo.Data.Host.LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, WARN,
+             "Failed to allocate shadow memory for local memory, "
+             "maybe the number of workgroup ({}) is too large",
+             NumWG);
+    UR_LOG_L(getContext()->logger, WARN,
+             "Skip checking local memory of kernel <{}> ",
+             GetKernelName(Kernel));
+  } else {
+    UR_LOG_L(getContext()->logger, DEBUG,
+             "ShadowMemory(Local, WorkGroup={}, {} - {})", NumWG,
+             (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+             (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
+
+    // Write local arguments info
+    if (!KernelInfo.LocalArgs.empty()) {
+      std::vector<TsanLocalArgsInfo> LocalArgsInfo;
+      for (auto [ArgIndex, ArgInfo] : KernelInfo.LocalArgs) {
+        LocalArgsInfo.push_back(ArgInfo);
+        UR_LOG_L(getContext()->logger, DEBUG,
+                 "LocalArgs (argIndex={}, size={})", ArgIndex, ArgInfo.Size);
+      }
+      UR_CALL(LaunchInfo.Data.importLocalArgsInfo(Queue, LocalArgsInfo));
+    }
+  }
 
   LaunchInfo.Data.syncToDevice(Queue);
 

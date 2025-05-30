@@ -2968,15 +2968,6 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
     G->eraseFromParent();
 }
 
-static void getFunctionsOfUser(User *User, DenseSet<Function *> &Functions) {
-  if (Instruction *Inst = dyn_cast<Instruction>(User)) {
-    Functions.insert(Inst->getFunction());
-  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(User)) {
-    for (auto *U : CE->users())
-      getFunctionsOfUser(U, Functions);
-  }
-}
-
 void ModuleAddressSanitizer::initializeRetVecMap(Function *F) {
   if (KernelToRetVecMap.find(F) != KernelToRetVecMap.end())
     return;
@@ -3109,19 +3100,23 @@ void ModuleAddressSanitizer::instrumentSyclStaticLocalMemory(IRBuilder<> &IRB) {
   // We only instrument on spir_kernel, because local variables are
   // kind of global variable
   for (auto *G : LocalGlobals) {
-    DenseSet<Function *> InstrumentedFunc;
+    SmallVector<Function *> WorkList;
+    DenseSet<Function *> InstrumentedKernel;
     for (auto *User : G->users())
-      getFunctionsOfUser(User, InstrumentedFunc);
-    for (Function *F : InstrumentedFunc) {
+      getFunctionsOfUser(User, WorkList);
+    while (!WorkList.empty()) {
+      Function *F = WorkList.pop_back_val();
       if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
-        Instrument(G, F);
+        if (!InstrumentedKernel.contains(F)) {
+          Instrument(G, F);
+          InstrumentedKernel.insert(F);
+        }
         continue;
       }
       // Get root spir_kernel of spir_func
       initializeKernelCallerMap(F);
-      for (Function *Kernel : FuncToKernelCallerMap[F])
-        if (!InstrumentedFunc.contains(Kernel))
-          Instrument(G, Kernel);
+      for (auto *F : FuncToKernelCallerMap[F])
+        WorkList.push_back(F);
     }
   }
 }

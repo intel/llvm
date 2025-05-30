@@ -1012,15 +1012,6 @@ void MemorySanitizerOnSpirv::initializeKernelCallerMap(Function *F) {
   }
 }
 
-static void getFunctionsOfUser(User *User, DenseSet<Function *> &Functions) {
-  if (Instruction *Inst = dyn_cast<Instruction>(User)) {
-    Functions.insert(Inst->getFunction());
-  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(User)) {
-    for (auto *U : CE->users())
-      getFunctionsOfUser(U, Functions);
-  }
-}
-
 void MemorySanitizerOnSpirv::instrumentStaticLocalMemory() {
   if (!ClSpirOffloadLocals)
     return;
@@ -1057,18 +1048,23 @@ void MemorySanitizerOnSpirv::instrumentStaticLocalMemory() {
   // kind of global variable, which must be initialized only once.
   for (auto &G : M.globals()) {
     if (G.getAddressSpace() == kSpirOffloadLocalAS) {
-      DenseSet<Function *> InstrumentedFunc;
+      SmallVector<Function *> WorkList;
+      DenseSet<Function *> InstrumentedKernel;
       for (auto *User : G.users())
-        getFunctionsOfUser(User, InstrumentedFunc);
-      for (Function *F : InstrumentedFunc) {
+        getFunctionsOfUser(User, WorkList);
+      while (!WorkList.empty()) {
+        Function *F = WorkList.pop_back_val();
         if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
-          Instrument(&G, F);
+          if (!InstrumentedKernel.contains(F)) {
+            Instrument(&G, F);
+            InstrumentedKernel.insert(F);
+          }
           continue;
         }
         // Get root spir_kernel of spir_func
         initializeKernelCallerMap(F);
-        for (Function *Kernel : FuncToKernelCallerMap[F])
-          Instrument(&G, Kernel);
+        for (auto *F : FuncToKernelCallerMap[F])
+          WorkList.push_back(F);
       }
     }
   }
