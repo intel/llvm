@@ -114,6 +114,33 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
 };
 
+template <class T>
+struct urCommandBufferExpExecutionTestWithParam
+    : urKernelExecutionTestWithParam<T> {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urKernelExecutionTestWithParam<T>::SetUp());
+
+    UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
+
+    ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                      nullptr, false, false, false};
+    ASSERT_SUCCESS(urCommandBufferCreateExp(this->context, this->device, &desc,
+                                            &cmd_buf_handle));
+    ASSERT_NE(cmd_buf_handle, nullptr);
+  }
+
+  void TearDown() override {
+    if (cmd_buf_handle) {
+      EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
+    }
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urKernelExecutionTestWithParam<T>::TearDown());
+  }
+
+  ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
+};
+
 struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
