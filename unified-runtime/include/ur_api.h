@@ -12308,7 +12308,7 @@ typedef union ur_exp_launch_property_value_t {
   /// [in] non-zero value indicates the amount of work group memory to
   /// allocate in bytes
   size_t workgroup_mem_size;
-  /// [in] non-zero value indicates a opportunistic native queue serialized
+  /// [in] non-zero value indicates an opportunistic native queue serialized
   /// kernel
   int opportunistic_queue_serialize;
 
