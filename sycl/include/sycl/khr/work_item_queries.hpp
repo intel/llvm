@@ -11,8 +11,6 @@
 
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 
-#define SYCL_KHR_WORK_ITEM_QUERIES 1
-
 namespace sycl {
 inline namespace _V1 {
 namespace khr {
