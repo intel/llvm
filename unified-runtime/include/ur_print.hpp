@@ -6193,6 +6193,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY:
     os << "UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY";
     break;
+  case UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE:
+    os << "UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -6240,6 +6243,19 @@ printFlag<ur_kernel_launch_properties_flag_t>(std::ostream &os, uint32_t flag) {
       first = false;
     }
     os << UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
+  }
+
+  if ((val & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) ==
+      (uint32_t)
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+    val ^= (uint32_t)
+        UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -10773,6 +10789,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY:
     os << "UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY";
     break;
+  case UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE:
+    os << "UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -10815,6 +10834,13 @@ printUnion(std::ostream &os,
     os << ".workgroup_mem_size = ";
 
     os << (params.workgroup_mem_size);
+
+    break;
+  case UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE:
+
+    os << ".opportunistic_queue_serialize = ";
+
+    os << (params.opportunistic_queue_serialize);
 
     break;
   default:

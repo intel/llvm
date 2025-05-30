@@ -2998,13 +2998,15 @@ typedef enum ur_kernel_launch_properties_flag_t {
   UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION = UR_BIT(1),
   /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY
   UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY = UR_BIT(2),
+  /// Supports ::UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE
+  UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE = UR_BIT(3),
   /// @cond
   UR_KERNEL_LAUNCH_PROPERTIES_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_kernel_launch_properties_flag_t;
 /// @brief Bit Mask for validating ur_kernel_launch_properties_flags_t
-#define UR_KERNEL_LAUNCH_PROPERTIES_FLAGS_MASK 0xfffffff8
+#define UR_KERNEL_LAUNCH_PROPERTIES_FLAGS_MASK 0xfffffff0
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -7683,6 +7685,9 @@ typedef enum ur_kernel_launch_property_id_t {
   UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2,
   /// Implicit work group memory allocation.
   UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY = 3,
+  /// Whether to opportunistically execute kernel launches serially on a
+  /// native queue
+  UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE = 4,
   /// @cond
   UR_KERNEL_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -7705,6 +7710,9 @@ typedef union ur_kernel_launch_property_value_t {
   /// [in] non-zero value indicates the amount of work group memory to
   /// allocate in bytes
   size_t workgroup_mem_size;
+  /// [in] non-zero value indicates an opportunistic native queue serialized
+  /// kernel
+  int opportunistic_queue_serialize;
 
 } ur_kernel_launch_property_value_t;
 

@@ -105,6 +105,15 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
     props.push_back(cluster_dims_prop);
   }
 
+  if (supported_properties &
+      UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE) {
+    ur_kernel_launch_property_t opportunistic_queue_serialize_prop;
+    opportunistic_queue_serialize_prop.id =
+        UR_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE;
+    opportunistic_queue_serialize_prop.value.opportunistic_queue_serialize = 1;
+    props.push_back(opportunistic_queue_serialize_prop);
+  }
+
   ur_mem_handle_t buffer = nullptr;
   AddBuffer1DArg(sizeof(val) * global_size, &buffer);
   AddPodArg(val);

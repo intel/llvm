@@ -26,6 +26,8 @@ etors:
       desc: "work-group cluster dimensions."
     - name: WORK_GROUP_MEMORY
       desc: "Implicit work group memory allocation."
+    - name: OPPORTUNISTIC_QUEUE_SERIALIZE
+      desc: "Whether to opportunistically execute kernel launches serially on a native queue"
 --- #--------------------------------------------------------------------------
 type: union
 desc: "Specifies a launch property value"
@@ -46,6 +48,10 @@ members:
       name: workgroup_mem_size
       desc: "[in] non-zero value indicates the amount of work group memory to allocate in bytes"
       tag: $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY
+    - type: int
+      name: opportunistic_queue_serialize
+      desc: "[in] non-zero value indicates an opportunistic native queue serialized kernel"
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Kernel launch property"

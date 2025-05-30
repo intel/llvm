@@ -1180,7 +1180,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
     if (getAttribute(hDevice, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
         9) {
-      LaunchPropsSupport |= UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION;
+      LaunchPropsSupport |=
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION |
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
     }
 
     return ReturnValue(0);
