@@ -8,7 +8,7 @@ using namespace sycl;
 queue q;
 
 struct Func {
-  // expected-warning@+1 {{unknown attribute 'max_global_work_dim' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::max_global_work_dim' ignored}}
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 

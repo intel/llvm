@@ -152,7 +152,6 @@ math/rootn.cl
 math/round.cl
 math/sin.cl
 math/sincos.cl
-math/sincos_helpers.cl
 math/sinh.cl
 math/sinpi.cl
 math/sqrt.cl

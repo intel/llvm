@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
 #include <clc/math/clc_ceil.h>
+#include <clc/opencl/clc.h>
 
 #undef __CLC_FUNCTION
 #define __CLC_BUILTIN __clc_ceil

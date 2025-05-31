@@ -10,5 +10,5 @@
 
 #define __CLC_BODY <fast_distance.inc>
 #define __FLOAT_ONLY
-#include <clc/geometric/floatn.inc>
+#include <libspirv/generic/math/floatn.inc>
 #undef __FLOAT_ONLY

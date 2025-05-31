@@ -14,4 +14,4 @@
 #define __CLC_FUNCTION __spirv_ocl_copysign
 #define __CLC_BUILTIN __nv_copysign
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
-#include <math/binary_builtin.inc>
+#include <clc/math/binary_builtin.inc>

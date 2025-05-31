@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
 #include <clc/clc_convert.h>
 #include <clc/clcmacro.h>
 #include <clc/math/clc_fabs.h>
@@ -15,6 +14,7 @@
 #include <clc/math/clc_subnormal_config.h>
 #include <clc/math/math.h>
 #include <clc/math/tables.h>
+#include <clc/opencl/clc.h>
 #include <libspirv/spirv.h>
 
 /*
