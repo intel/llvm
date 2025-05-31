@@ -2155,11 +2155,14 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     if (static_cast<uint32_t>(Builtin) >= internal::BuiltInSubDeviceIDINTEL &&
         static_cast<uint32_t>(Builtin) <=
             internal::BuiltInGlobalHWThreadIDINTEL) {
-      std::string ErrorStr = "SPV_INTEL_hw_thread_queries\n"
-                             "Please report to "
-                             "https://github.com/intel/llvm in case if you see "
-                             "this error.\nRef LLVM Value:";
-      getErrorLog().checkError(false, SPIRVEC_DeprecatedExtension, V, ErrorStr);
+      if (!BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_hw_thread_queries)) {
+        std::string ErrorStr = "Intel HW thread queries must be enabled by "
+                               "SPV_INTEL_hw_thread_queries extension.\n"
+                               "LLVM value that is being translated:\n";
+        getErrorLog().checkError(false, SPIRVEC_InvalidModule, V, ErrorStr);
+      }
+      BM->addExtension(ExtensionID::SPV_INTEL_hw_thread_queries);
     }
 
     BVar->setBuiltin(Builtin);
