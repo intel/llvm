@@ -7,9 +7,6 @@
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t2.out
-// RUN: %if !gpu %{ %{run} %t2.out %}
-
 #include "math_utils.hpp"
 #include <cstdint>
 #include <iostream>

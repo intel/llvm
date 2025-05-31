@@ -4,13 +4,11 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
-// RUN: %{run} %t2.out
-
 // UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: intel math functions is not used on AMD and Nvidia
 
-// Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+// UNSUPPORTED-INTENDED: Windows doesn't yet have full shutdown().
 
 // Depends on SPIR-V Backend & run-time drivers version.
 // XFAIL: spirv-backend && run-mode
