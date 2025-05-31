@@ -10,18 +10,27 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
+#include <memory>   // for std::weak_ptr
 #include <stdint.h> // for uint64_t
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+class queue_impl;
+
 /// Profiling info for the host execution.
 class __SYCL_EXPORT HostProfilingInfo {
   uint64_t StartTime = 0;
   uint64_t EndTime = 0;
+  // Queue that was used to submit the host task.
+  std::weak_ptr<queue_impl> SubmitQueue;
 
 public:
+  // Sets the queue that was used to submit the host task.
+  void setSubmitQueue(const std::weak_ptr<queue_impl> &Queue) {
+    SubmitQueue = Queue;
+  }
   /// Returns event's start time.
   ///
   /// \return event's start time in nanoseconds.

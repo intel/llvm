@@ -243,6 +243,8 @@ public:
   /// @return
   void setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
     MSubmittedQueue = SubmittedQueue;
+    if (MHostProfilingInfo)
+      MHostProfilingInfo->setSubmitQueue(SubmittedQueue);
   };
 
   /// Indicates if this event is not associated with any command and doesn't
