@@ -387,6 +387,9 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   if (hCommandBuffer->decrementReferenceCount() == 0) {
+    if (hCommandBuffer->CurrentExecution) {
+      UR_CHECK_ERROR(hCommandBuffer->CurrentExecution->wait());
+    }
     // Ref count has reached zero, release of created commands
     for (auto &Command : hCommandBuffer->CommandHandles) {
       commandHandleDestroy(Command);
@@ -1160,18 +1163,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                    phEventWaitList));
 
-  if (phEvent) {
-    RetImplEvent = std::make_unique<ur_event_handle_t_>(
-        UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, hQueue, CuStream, StreamToken);
-    UR_CHECK_ERROR(RetImplEvent->start());
-  }
+  RetImplEvent = std::make_unique<ur_event_handle_t_>(
+      UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, hQueue, CuStream, StreamToken);
+  UR_CHECK_ERROR(RetImplEvent->start());
 
   // Launch graph
   UR_CHECK_ERROR(cuGraphLaunch(hCommandBuffer->CudaGraphExec, CuStream));
 
+  UR_CHECK_ERROR(RetImplEvent->record());
+  hCommandBuffer->CurrentExecution = RetImplEvent.release();
   if (phEvent) {
-    UR_CHECK_ERROR(RetImplEvent->record());
-    *phEvent = RetImplEvent.release();
+    *phEvent = hCommandBuffer->CurrentExecution;
   }
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
