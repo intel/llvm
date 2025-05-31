@@ -31,8 +31,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
-#include "detail/graph_impl.hpp"
-
 #include <memory>
 #include <utility>
 

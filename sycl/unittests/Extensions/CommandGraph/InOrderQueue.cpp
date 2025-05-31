@@ -24,7 +24,7 @@ TEST_F(CommandGraphTest, InOrderQueue) {
 
   auto PtrNode1 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
@@ -33,7 +33,7 @@ TEST_F(CommandGraphTest, InOrderQueue) {
 
   auto PtrNode2 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -46,7 +46,7 @@ TEST_F(CommandGraphTest, InOrderQueue) {
 
   auto PtrNode3 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -84,7 +84,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
 
   auto PtrNode1 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
@@ -92,7 +92,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
 
   auto PtrNode2 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -105,7 +105,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
 
   auto PtrNode3 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -143,7 +143,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
 
   auto PtrNode1 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
@@ -152,7 +152,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
 
   auto PtrNode2 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -165,7 +165,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
 
   auto PtrNode3 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -204,7 +204,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
 
   auto PtrNode1 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
@@ -213,7 +213,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
 
   auto PtrNode2 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -225,7 +225,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
 
   auto PtrNode3 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -276,7 +276,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
 
   auto PtrNode1 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
@@ -285,7 +285,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
 
   auto PtrNode2 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -298,7 +298,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
 
   auto PtrNode3 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -347,7 +347,7 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
 
     auto PtrNode1 =
         sycl::detail::getSyclObjImpl(InOrderGraph)
-            ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+            ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
     ASSERT_NE(PtrNode1, nullptr);
     ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
@@ -356,7 +356,7 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
 
     auto PtrNode2 =
         sycl::detail::getSyclObjImpl(InOrderGraph)
-            ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+            ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
     ASSERT_NE(PtrNode2, nullptr);
     ASSERT_NE(PtrNode2, PtrNode1);
     ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -369,7 +369,7 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
 
     auto PtrNode3 =
         sycl::detail::getSyclObjImpl(InOrderGraph)
-            ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+            ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
     ASSERT_NE(PtrNode3, nullptr);
     ASSERT_NE(PtrNode3, PtrNode2);
     ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -429,7 +429,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
 
   auto PtrNode1 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
@@ -438,7 +438,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
 
   auto PtrNode2 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -451,7 +451,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
 
   auto PtrNode3 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -493,7 +493,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
 
   auto PtrNode1 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
@@ -502,7 +502,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
 
   auto PtrNode2 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -515,7 +515,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
 
   auto PtrNode3 =
       sycl::detail::getSyclObjImpl(InOrderGraph)
-          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+          ->getLastInorderNode(*sycl::detail::getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
