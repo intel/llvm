@@ -3742,8 +3742,8 @@ void Sema::checkLifetimeCaptureBy(FunctionDecl *FD, bool IsMemberFunction,
   if (!FD || Args.empty())
     return;
   auto GetArgAt = [&](int Idx) -> const Expr * {
-    if (Idx == LifetimeCaptureByAttr::GLOBAL ||
-        Idx == LifetimeCaptureByAttr::UNKNOWN)
+    if (Idx == LifetimeCaptureByAttr::Global ||
+        Idx == LifetimeCaptureByAttr::Unknown)
       return nullptr;
     if (IsMemberFunction && Idx == 0)
       return ThisArg;
@@ -3758,7 +3758,7 @@ void Sema::checkLifetimeCaptureBy(FunctionDecl *FD, bool IsMemberFunction,
     for (int CapturingParamIdx : Attr->params()) {
       // lifetime_capture_by(this) case is handled in the lifetimebound expr
       // initialization codepath.
-      if (CapturingParamIdx == LifetimeCaptureByAttr::THIS &&
+      if (CapturingParamIdx == LifetimeCaptureByAttr::This &&
           isa<CXXConstructorDecl>(FD))
         continue;
       Expr *Capturing = const_cast<Expr *>(GetArgAt(CapturingParamIdx));
@@ -16002,7 +16002,7 @@ Sema::BuiltinVectorMath(CallExpr *TheCall,
   if (checkMathBuiltinElementType(*this, LocA, TyA, ArgTyRestr, 1))
     return std::nullopt;
 
-  if (TyA.getCanonicalType() != TyB.getCanonicalType()) {
+  if (!Context.hasSameUnqualifiedType(TyA, TyB)) {
     Diag(LocA, diag::err_typecheck_call_different_arg_types) << TyA << TyB;
     return std::nullopt;
   }
