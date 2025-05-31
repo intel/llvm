@@ -468,7 +468,7 @@ public:
     return std::make_pair(It->second, DidInsert);
   }
 
-  FastKernelCacheValT
+  FastKernelCacheValPtr
   tryToGetKernelFast(KernelNameStrRefT KernelName, ur_device_handle_t Device,
                      FastKernelSubcacheT *KernelSubcacheHint) {
     FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
@@ -486,27 +486,27 @@ public:
       traceKernel("Kernel fetched.", KernelName, true);
       return It->second;
     }
-    return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
+    return FastKernelCacheValPtr();
   }
 
   void saveKernel(KernelNameStrRefT KernelName, ur_device_handle_t Device,
-                  FastKernelCacheValT CacheVal,
+                  const FastKernelCacheValPtr &CacheVal,
                   FastKernelSubcacheT *KernelSubcacheHint) {
-    ur_program_handle_t Program = std::get<3>(CacheVal);
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
             isProgramCacheEvictionEnabled()) {
       // Save kernel in fast cache only if the corresponding program is also
       // in the cache.
       auto LockedCache = acquireCachedPrograms();
       auto &ProgCache = LockedCache.get();
-      if (ProgCache.ProgramSizeMap.find(Program) ==
+      if (ProgCache.ProgramSizeMap.find(CacheVal->MProgramHandle) ==
           ProgCache.ProgramSizeMap.end())
         return;
     }
 
     // Save reference between the program and the fast cache key.
     FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
-    MProgramToFastKernelCacheKeyMap[Program].emplace_back(KernelName, Device);
+    MProgramToFastKernelCacheKeyMap[CacheVal->MProgramHandle].emplace_back(
+        KernelName, Device);
 
     // if no insertion took place, then some other thread has already inserted
     // smth in the cache
@@ -518,7 +518,7 @@ public:
     FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcacheHint->Mutex};
     ur_context_handle_t Context = getURContext();
     KernelSubcacheHint->Map.emplace(FastKernelCacheKeyT(Device, Context),
-                                    std::move(CacheVal));
+                                    CacheVal);
   }
 
   // Expects locked program cache

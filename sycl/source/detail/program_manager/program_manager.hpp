@@ -12,6 +12,7 @@
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
@@ -197,8 +198,7 @@ public:
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-             ur_program_handle_t>
+  FastKernelCacheValPtr
   getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
                     KernelNameBasedCacheT *KernelNameBasedCachePtr,
