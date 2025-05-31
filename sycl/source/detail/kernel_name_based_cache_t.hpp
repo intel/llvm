@@ -36,6 +36,7 @@ struct FastKernelSubcacheT {
 
 struct KernelNameBasedCacheT {
   FastKernelSubcacheT FastKernelSubcache;
+  std::optional<std::optional<int>> ImplicitLocalArgPos;
 };
 
 } // namespace detail
