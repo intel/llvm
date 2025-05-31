@@ -13,15 +13,21 @@ _CLC_OVERLOAD TYPE __popcount_helper(TYPE c) { \
 }
 
 DEF_POPCOUNT_HELPER(char, unsigned char)
-DEF_POPCOUNT_HELPER(schar, unsigned char)
 DEF_POPCOUNT_HELPER(short, unsigned short)
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_popcount, __builtin_popcount, int)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(uint, __spirv_ocl_popcount, __builtin_popcount, uint)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(short, __spirv_ocl_popcount, __popcount_helper, short)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(ushort, __spirv_ocl_popcount, __builtin_popcountg, ushort)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(long, __spirv_ocl_popcount, __builtin_popcountl, long)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(ulong, __spirv_ocl_popcount, __builtin_popcountl, ulong)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(char, __spirv_ocl_popcount, __popcount_helper, char)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(uchar, __spirv_ocl_popcount, __builtin_popcountg, uchar)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(schar, __spirv_ocl_popcount, __popcount_helper, schar)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_popcount,
+                                    __builtin_popcount, int)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(uint, __spirv_ocl_popcount,
+                                    __builtin_popcount, uint)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(short, __spirv_ocl_popcount,
+                                    __popcount_helper, short)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(ushort, __spirv_ocl_popcount,
+                                    __builtin_popcountg, ushort)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(long, __spirv_ocl_popcount,
+                                    __builtin_popcountl, long)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(ulong, __spirv_ocl_popcount,
+                                    __builtin_popcountl, ulong)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(char, __spirv_ocl_popcount,
+                                    __popcount_helper, char)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(uchar, __spirv_ocl_popcount,
+                                    __builtin_popcountg, uchar)
