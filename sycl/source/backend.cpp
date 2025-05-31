@@ -158,7 +158,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
       &UrQueue);
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<queue>(
-      std::make_shared<queue_impl>(UrQueue, ContextImpl, Handler, PropList));
+      queue_impl::create(UrQueue, ContextImpl, Handler, PropList));
 }
 
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,

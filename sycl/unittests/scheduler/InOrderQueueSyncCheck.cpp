@@ -25,7 +25,8 @@ public:
   MockQueueImpl(sycl::detail::device_impl &Device,
                 const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
-      : sycl::detail::queue_impl(Device, AsyncHandler, PropList) {}
+      : sycl::detail::queue_impl(Device, AsyncHandler, PropList,
+                                 sycl::detail::queue_impl::private_tag{}) {}
   using sycl::detail::queue_impl::finalizeHandlerInOrderHostTaskUnlocked;
 };
 

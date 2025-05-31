@@ -331,12 +331,21 @@ uint64_t device_impl::getCurrentDeviceTime() {
 
   // To account for potential clock drift between host clock and device clock.
   // The value set is arbitrary: 200 seconds
+  std::shared_lock<std::shared_mutex> ReadLock(MDeviceHostBaseTimeMutex);
   constexpr uint64_t TimeTillRefresh = 200e9;
   assert(HostTime >= MDeviceHostBaseTime.second);
   uint64_t Diff = HostTime - MDeviceHostBaseTime.second;
 
   // If getCurrentDeviceTime is called for the first time or we have to refresh.
   if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
+    ReadLock.unlock();
+    std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
+    // Recheck the condition after acquiring the write lock.
+    if (MDeviceHostBaseTime.second && Diff <= TimeTillRefresh) {
+      // If we are here, it means that another thread has already updated
+      // MDeviceHostBaseTime, so we can just return the current device time.
+      return MDeviceHostBaseTime.first + Diff;
+    }
     const auto &Adapter = getAdapter();
     auto Result = Adapter->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
         MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);

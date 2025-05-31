@@ -453,7 +453,7 @@ public:
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   ur_kernel_handle_t completeSpecConstMaterialization(
-      const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
+      queue_impl &Queue, const RTDeviceBinaryImage *BinImage,
       KernelNameStrRefT KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);

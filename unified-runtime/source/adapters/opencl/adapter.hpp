@@ -22,6 +22,7 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   ~ur_adapter_handle_t_();
 
   ur_adapter_handle_t_(ur_adapter_handle_t_ &) = delete;
+  ur_adapter_handle_t_ &operator=(const ur_adapter_handle_t_ &) = delete;
 
   std::atomic<uint32_t> RefCount = 0;
   logger::Logger &log = logger::get_logger("opencl");

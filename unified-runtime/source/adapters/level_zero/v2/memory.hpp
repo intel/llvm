@@ -17,7 +17,9 @@
 #include "../device.hpp"
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
+#include "command_list_manager.hpp"
 #include "common.hpp"
+#include "lockable.hpp"
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
@@ -35,16 +37,15 @@ struct ur_mem_buffer_t : ur_object {
 
   // Returns pointer to the device memory. If device handle is NULL,
   // the buffer is allocated on the first device in the context.
-  virtual void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)> mecmpy) = 0;
-  virtual void *
-  mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-             std::function<void(void *src, void *dst, size_t)> memcpy) = 0;
-  virtual void
-  unmapHostPtr(void *pMappedPtr,
-               std::function<void(void *src, void *dst, size_t)> memcpy) = 0;
+  virtual void *getDevicePtr(ur_device_handle_t, device_access_mode_t,
+                             size_t offset, size_t size,
+                             ze_command_list_handle_t cmdList,
+                             wait_list_view &waitListView) = 0;
+  virtual void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
+                           ze_command_list_handle_t cmdList,
+                           wait_list_view &waitListView) = 0;
+  virtual void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                            wait_list_view &waitListView) = 0;
 
   device_access_mode_t getDeviceAccessMode() const { return accessMode; }
   ur_context_handle_t getContext() const { return hContext; }
@@ -72,14 +73,14 @@ protected:
 struct ur_usm_handle_t : ur_mem_buffer_t {
   ur_usm_handle_t(ur_context_handle_t hContext, size_t size, const void *ptr);
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
 private:
   void *ptr;
@@ -101,14 +102,14 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
 
   ~ur_integrated_buffer_handle_t();
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
 private:
   usm_unique_ptr_t ptr;
@@ -142,14 +143,14 @@ struct ur_discrete_buffer_handle_t : ur_mem_buffer_t {
                               size_t size, device_access_mode_t accesMode,
                               void *writeBackMemory, bool ownDevicePtr);
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
 private:
   void *getCurrentAllocation();
@@ -180,14 +181,14 @@ struct ur_shared_buffer_handle_t : ur_mem_buffer_t {
                             size_t size, device_access_mode_t accesMode,
                             bool ownDevicePtr);
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
 private:
   usm_unique_ptr_t ptr;
@@ -198,14 +199,14 @@ struct ur_mem_sub_buffer_t : ur_mem_buffer_t {
                       device_access_mode_t accesMode);
   ~ur_mem_sub_buffer_t();
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
   ur_shared_mutex &getMutex() override;
 

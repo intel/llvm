@@ -12284,6 +12284,9 @@ typedef enum ur_exp_launch_property_id_t {
   UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2,
   /// Implicit work group memory allocation
   UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY = 3,
+  /// Whether to opportunistically execute kernel launches serially on a
+  /// native queue
+  UR_EXP_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE = 4,
   /// @cond
   UR_EXP_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12306,6 +12309,9 @@ typedef union ur_exp_launch_property_value_t {
   /// [in] non-zero value indicates the amount of work group memory to
   /// allocate in bytes
   size_t workgroup_mem_size;
+  /// [in] non-zero value indicates an opportunistic native queue serialized
+  /// kernel
+  int opportunistic_queue_serialize;
 
 } ur_exp_launch_property_value_t;
 

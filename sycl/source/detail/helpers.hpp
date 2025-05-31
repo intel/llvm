@@ -27,7 +27,7 @@ void waitEvents(std::vector<sycl::event> DepEvents);
 #endif
 
 std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
-retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
+retrieveKernelBinary(queue_impl &Queue, const char *KernelName,
                      CGExecKernel *CGKernel = nullptr);
 } // namespace detail
 } // namespace _V1
