@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install dependencies
-        uses: aminya/setup-cpp@6370aaa0252a93c71dcc4cf49397f46810eeda56 # v1.5.3
+        uses: aminya/setup-cpp@9dc9c217f497fe7342eed97e6f200bf101c9cc04 # v1.6.2
         with:
           clangformat: 17.0.1
           ninja: true
