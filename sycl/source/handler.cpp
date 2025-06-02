@@ -316,8 +316,7 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(),
-                                                        CallerNeedsEvent)),
+    : MImplOwner(std::make_shared<detail::handler_impl>(CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
 handler::handler(detail::handler_impl *HandlerImpl,
@@ -328,7 +327,7 @@ handler::handler(detail::handler_impl *HandlerImpl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
+    : impl(std::make_shared<detail::handler_impl>(CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -337,17 +336,17 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
 handler::handler(
     std::shared_ptr<detail::queue_impl> Queue,
     [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
-    std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue.get(),
-                                                  CallerNeedsEvent)),
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
+    bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(CallerNeedsEvent)),
       MQueue(Queue) {}
-#endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue,
-                                                  CallerNeedsEvent)),
+                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
+#endif
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -1900,14 +1899,6 @@ void handler::use_kernel_bundle(
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the primary queue is different from the "
-        "context associated with the kernel bundle");
-
-  if (impl->MSubmissionSecondaryQueue &&
-      impl->MSubmissionSecondaryQueue->get_context() !=
-          ExecBundle.get_context())
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Context associated with the secondary queue is different from the "
         "context associated with the kernel bundle");
 
   setStateExplicitKernelBundle();
