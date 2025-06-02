@@ -2542,8 +2542,7 @@ static std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
                   const KernelArgMask *>
 getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
                 device_impl &DeviceImpl,
-                std::vector<ur_kernel_handle_t> &UrKernelsToRelease,
-                std::vector<ur_program_handle_t> &UrProgramsToRelease) {
+                std::vector<FastKernelCacheValPtr> &KernelCacheValsToRelease) {
 
   ur_kernel_handle_t UrKernel = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
@@ -2568,14 +2567,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
             CommandGroup.MKernelNameBasedCachePtr);
     UrKernel = FastKernelCacheVal->MKernelHandle;
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
-    // UrProgram/UrKernel are used after KernelCacheVal is destroyed, so caller
-    // must call ur*Release.
-    ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
-        FastKernelCacheVal->MProgramHandle);
-    ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(UrKernel);
-
-    UrKernelsToRelease.push_back(UrKernel);
-    UrProgramsToRelease.push_back(FastKernelCacheVal->MProgramHandle);
+    // To keep UrKernel valid, we return FastKernelCacheValPtr.
+    KernelCacheValsToRelease.push_back(std::move(FastKernelCacheVal));
   }
   return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
 }
@@ -2588,11 +2581,10 @@ ur_result_t enqueueImpCommandBufferKernel(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint,
     ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
-  // List of ur objects to be released after UR call. We don't do anything
-  // with the ur_program_handle_t objects, but need to update their reference
-  // count.
-  std::vector<ur_kernel_handle_t> UrKernelsToRelease;
-  std::vector<ur_program_handle_t> UrProgramsToRelease;
+  // List of fast cache elements to be released after UR call. We don't do
+  // anything with them, but they must exist to keep ur_kernel_handle_t-s
+  // valid.
+  std::vector<FastKernelCacheValPtr> FastKernelCacheValsToRelease;
 
   ur_kernel_handle_t UrKernel = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
@@ -2600,8 +2592,8 @@ ur_result_t enqueueImpCommandBufferKernel(
 
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   std::tie(UrKernel, DeviceImageImpl, EliminatedArgMask) =
-      getCGKernelInfo(CommandGroup, ContextImpl, DeviceImpl, UrKernelsToRelease,
-                      UrProgramsToRelease);
+      getCGKernelInfo(CommandGroup, ContextImpl, DeviceImpl,
+                      FastKernelCacheValsToRelease);
 
   // Build up the list of UR kernel handles that the UR command could be
   // updated to use.
@@ -2615,7 +2607,7 @@ ur_result_t enqueueImpCommandBufferKernel(
     ur_kernel_handle_t AltUrKernel = nullptr;
     std::tie(AltUrKernel, std::ignore, std::ignore) =
         getCGKernelInfo(*AltCGKernel.get(), ContextImpl, DeviceImpl,
-                        UrKernelsToRelease, UrProgramsToRelease);
+                        FastKernelCacheValsToRelease);
     AltUrKernels.push_back(AltUrKernel);
   }
 
@@ -2675,13 +2667,6 @@ ur_result_t enqueueImpCommandBufferKernel(
           SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr, 0,
           nullptr, OutSyncPoint, nullptr,
           CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
-
-  for (auto &Kernel : UrKernelsToRelease) {
-    Adapter->call<UrApiKind::urKernelRelease>(Kernel);
-  }
-  for (auto &Program : UrProgramsToRelease) {
-    Adapter->call<UrApiKind::urProgramRelease>(Program);
-  }
 
   if (Res != UR_RESULT_SUCCESS) {
     detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImpl,
