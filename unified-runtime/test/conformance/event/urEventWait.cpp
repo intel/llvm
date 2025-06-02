@@ -130,6 +130,7 @@ TEST_P(urEventWaitTest, WaitWithMultipleContexts) {
 }
 
 TEST_P(urEventWaitTest, WithCrossContextDependencies) {
+  // OpenCL: https://github.com/intel/llvm/issues/18765
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{}, uur::OpenCL{});
 
   std::vector<uint32_t> output(count, 1);
