@@ -304,11 +304,11 @@ ur_result_t UR_APICALL urAdapterGet(
     ur_adapter_handle_t *phAdapters,
     /// [out][optional] returns the total number of adapters available.
     uint32_t *pNumAdapters) try {
-  auto pfnAdapterGet = ur_lib::getContext()->urDdiTable.Global.pfnAdapterGet;
-  if (nullptr == pfnAdapterGet)
+  auto pfnGet = ur_lib::getContext()->urDdiTable.Adapter.pfnGet;
+  if (nullptr == pfnGet)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+  return pfnGet(NumEntries, phAdapters, pNumAdapters);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -333,12 +333,11 @@ ur_result_t UR_APICALL urAdapterGet(
 ur_result_t UR_APICALL urAdapterRelease(
     /// [in][release] Adapter handle to release
     ur_adapter_handle_t hAdapter) try {
-  auto pfnAdapterRelease =
-      ur_lib::getContext()->urDdiTable.Global.pfnAdapterRelease;
-  if (nullptr == pfnAdapterRelease)
+  auto pfnRelease = ur_lib::getContext()->urDdiTable.Adapter.pfnRelease;
+  if (nullptr == pfnRelease)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnAdapterRelease(hAdapter);
+  return pfnRelease(hAdapter);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -359,12 +358,11 @@ ur_result_t UR_APICALL urAdapterRelease(
 ur_result_t UR_APICALL urAdapterRetain(
     /// [in][retain] Adapter handle to retain
     ur_adapter_handle_t hAdapter) try {
-  auto pfnAdapterRetain =
-      ur_lib::getContext()->urDdiTable.Global.pfnAdapterRetain;
-  if (nullptr == pfnAdapterRetain)
+  auto pfnRetain = ur_lib::getContext()->urDdiTable.Adapter.pfnRetain;
+  if (nullptr == pfnRetain)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnAdapterRetain(hAdapter);
+  return pfnRetain(hAdapter);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -421,12 +419,12 @@ ur_result_t UR_APICALL urAdapterGetLastError(
     /// [out] pointer to an integer where the adapter specific error code will
     /// be stored.
     int32_t *pError) try {
-  auto pfnAdapterGetLastError =
-      ur_lib::getContext()->urDdiTable.Global.pfnAdapterGetLastError;
-  if (nullptr == pfnAdapterGetLastError)
+  auto pfnGetLastError =
+      ur_lib::getContext()->urDdiTable.Adapter.pfnGetLastError;
+  if (nullptr == pfnGetLastError)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+  return pfnGetLastError(hAdapter, ppMessage, pError);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -474,13 +472,11 @@ ur_result_t UR_APICALL urAdapterGetInfo(
     /// [out][optional] pointer to the actual number of bytes being queried by
     /// pPropValue.
     size_t *pPropSizeRet) try {
-  auto pfnAdapterGetInfo =
-      ur_lib::getContext()->urDdiTable.Global.pfnAdapterGetInfo;
-  if (nullptr == pfnAdapterGetInfo)
+  auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Adapter.pfnGetInfo;
+  if (nullptr == pfnGetInfo)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue,
-                           pPropSizeRet);
+  return pfnGetInfo(hAdapter, propName, propSize, pPropValue, pPropSizeRet);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
