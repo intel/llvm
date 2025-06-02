@@ -114,11 +114,11 @@ class type_traits:
     RE_ARRAY = r"(.*)\[([1-9][0-9]*)\]"
 
     @staticmethod
-    def base(name) -> Union[str, bool]:
+    def base(name) -> Union[str, None]:
         try:
             return _remove_const_ptr(name)
         except BaseException:
-            return False
+            return None
 
     @classmethod
     def is_handle(cls, name) -> bool:
@@ -1005,7 +1005,6 @@ def find_param_name(name_re, namespace: str, tags: dict, obj) -> Union[str, None
     """
     for param in obj["params"]:
         param_cpp_name = _get_param_name(namespace, tags, param)
-        print("searching {0} for pattner {1}".format(param_cpp_name, name_re))
         if re.search(name_re, param_cpp_name):
             return param_cpp_name
     return None

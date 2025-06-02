@@ -72,7 +72,7 @@ sycl::range<1> r(3);
 // DEVICE:       16 |   class sycl::range<> MemRange
 
 // CHECK:         0 | class sycl::detail::queue_impl
-// CHECK:        40 |   device_impl & MDevice
+// CHECK:        56 |   device_impl & MDevice
 
 // CHECK:         0 | class sycl::accessor<int>
 // HOST:          0 |     {{.*}} sycl::detail::AccessorImplHost{{.*}} impl
