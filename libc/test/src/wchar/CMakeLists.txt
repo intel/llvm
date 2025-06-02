@@ -54,3 +54,43 @@ add_libc_test(
   DEPENDS
     libc.src.wchar.wcschr
 )
+
+add_libc_test(
+  wcspbrk_test
+  SUITE
+    libc_wchar_unittests
+  SRCS
+    wcspbrk_test.cpp
+  DEPENDS
+    libc.src.wchar.wcspbrk
+)
+
+add_libc_test(
+  wcsspn_test
+  SUITE
+    libc_wchar_unittests
+  SRCS
+    wcsspn_test.cpp
+  DEPENDS
+    libc.src.wchar.wcsspn
+)
+
+add_libc_test(
+  wmemcmp_test
+  SUITE
+    libc_wchar_unittests
+  SRCS
+    wmemcmp_test.cpp
+  DEPENDS
+    libc.src.wchar.wmemcmp
+)
+
+add_libc_test(
+  wmemcpy_test
+  SUITE
+    libc_wchar_unittests
+  SRCS
+    wmemcpy_test.cpp
+  DEPENDS
+    libc.src.wchar.wmemcpy
+)

@@ -19,6 +19,7 @@
 #include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "CodeGenPGO.h"
 #include "ConstantEmitter.h"
 #include "EHScopeStack.h"
 #include "PatternInit.h"
@@ -400,7 +401,7 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
     return GV;
   }
 
-  PGO.markStmtMaybeUsed(D.getInit()); // FIXME: Too lazy
+  PGO->markStmtMaybeUsed(D.getInit()); // FIXME: Too lazy
 
 #ifndef NDEBUG
   CharUnits VarSize = CGM.getContext().getTypeSizeInChars(D.getType()) +
@@ -2002,7 +2003,7 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
   // unless it contains a label.
   if (!HaveInsertPoint()) {
     if (!Init || !ContainsLabel(Init)) {
-      PGO.markStmtMaybeUsed(Init);
+      PGO->markStmtMaybeUsed(Init);
       return;
     }
     EnsureInsertPoint();
@@ -2115,7 +2116,7 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
     return EmitExprAsInit(Init, &D, lv, capturedByInit);
   }
 
-  PGO.markStmtMaybeUsed(Init);
+  PGO->markStmtMaybeUsed(Init);
 
   if (!emission.IsConstantAggregate) {
     // For simple scalar/complex initialization, store the value directly.

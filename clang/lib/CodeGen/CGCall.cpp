@@ -22,6 +22,7 @@
 #include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "CodeGenPGO.h"
 #include "TargetInfo.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -6076,7 +6077,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // For more details, see the comment before the definition of
   // IPVK_IndirectCallTarget in InstrProfData.inc.
   if (!CI->getCalledFunction())
-    PGO.valueProfile(Builder, llvm::IPVK_IndirectCallTarget, CI, CalleePtr);
+    PGO->valueProfile(Builder, llvm::IPVK_IndirectCallTarget, CI, CalleePtr);
 
   // In ObjC ARC mode with no ObjC ARC exception safety, tell the ARC
   // optimizer it can aggressively ignore unwind edges.
