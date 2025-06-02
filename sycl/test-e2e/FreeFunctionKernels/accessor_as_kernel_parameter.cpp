@@ -11,8 +11,8 @@
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
 void globalScopeSingleFreeFunc(sycl::accessor<int, 1> Accessor,
                                size_t NumOfElements, int Value) {
-  for (size_t i = 0; i < NumOfElements; ++i) {
-    Accessor[i] = Value;
+  for (size_t I = 0; I < NumOfElements; ++I) {
+    Accessor[I] = Value;
   }
 }
 
