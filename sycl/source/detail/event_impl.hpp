@@ -20,6 +20,13 @@
 #include <condition_variable>
 #include <optional>
 
+#ifdef _WIN32
+#include <intrin.h>
+#endif
+// also in event.hpp. Probably needs to be moved elsewhere
+//#define CP_LOG_EVENT_LIFECYCLE 1
+
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
@@ -56,6 +63,10 @@ public:
     // event methods. This ::get() call uses static vars to read and parse the
     // ODS env var exactly once.
     SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+#ifdef CP_LOG_EVENT_LIFECYCLE
+		std::cout << "event_impl ready constructor of (" << this << ") event_impl.hpp:53" << std::endl;
+		__debugbreak();
+#endif
   }
 
   /// Constructs an event instance from a UR event handle.
@@ -67,6 +78,12 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
+  
+  // delete the copy constructors and assignment operators
+  event_impl(const event_impl&) = delete;
+  event_impl &operator=(const event_impl&) = delete;
+  event_impl(event_impl&&) = delete;
+  event_impl &operator=(event_impl&&) = delete;
 
   /// Sets a queue associated with the event
   ///
@@ -347,7 +364,7 @@ public:
     // queue and command, as well as the fact that it is not in enqueued state.
     return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
   }
-
+uint32_t MHasBeenReleased = 0;
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -433,6 +450,7 @@ protected:
   // MEvent is lazily created in first ur handle query.
   bool MIsDefaultConstructed = false;
   bool MIsHostEvent = false;
+  
 };
 
 } // namespace detail

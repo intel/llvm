@@ -3,6 +3,8 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+set(CMAKE_BUILD_TYPE Debug)
+
 add_definitions(-DUR_VERSION="${PROJECT_VERSION_MAJOR}")
 add_definitions(-DUR_VALIDATION_LAYER_SUPPORTED_VERSION="${PROJECT_VERSION_MAJOR}")
 

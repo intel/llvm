@@ -381,3 +381,5 @@ extern thread_local int32_t ErrorAdapterNativeCode;
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode);
+
+extern bool ReleaseTracker;
