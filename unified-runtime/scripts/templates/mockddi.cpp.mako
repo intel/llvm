@@ -26,6 +26,9 @@ from templates import helper as th
 namespace driver
 {
     %for obj in th.get_adapter_functions(specs):
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
     ///////////////////////////////////////////////////////////////////////////////
     <%
         fname = th.make_func_name(n, tags, obj)
@@ -152,6 +155,9 @@ namespace driver
     %if 'condition' in obj:
     #endif // ${th.subt(n, tags, obj['condition'])}
     %endif
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
 
     %endfor
 } // namespace driver
@@ -161,6 +167,9 @@ extern "C" {
 #endif
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's ${tbl['name']} table
 ///        with current process' addresses
@@ -185,6 +194,9 @@ try {
     ${x}_result_t result = ${X}_RESULT_SUCCESS;
 
     %for obj in tbl['functions']:
+%if 'guard' in obj and 'guard' not in tbl:
+#if ${obj['guard']}
+%endif
     %if 'condition' in obj:
 #if ${th.subt(n, tags, obj['condition'])}
     %endif
@@ -194,10 +206,16 @@ try {
     pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = nullptr;
 #endif
     %endif
+%if 'guard' in obj and 'guard' not in tbl:
+#endif // ${obj['guard']}
+%endif
 
     %endfor
     return result;
 } catch(...) { return exceptionToResult(std::current_exception()); }
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
 
 %endfor
 #if defined(__cplusplus)

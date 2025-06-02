@@ -9,7 +9,7 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2022-2023 Intel Corporation
+ * Copyright (C) 2022 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -26,6 +26,9 @@ from templates import helper as th
 namespace ur_loader
 {
     %for obj in th.get_adapter_functions(specs):
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
     <%
         func_name = th.make_func_name(n, tags, obj)
         if func_name.startswith(x):
@@ -83,6 +86,9 @@ namespace ur_loader
     %if 'condition' in obj:
     #endif // ${th.subt(n, tags, obj['condition'])}
     %endif
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
 
     %endfor
 } // namespace ur_loader
@@ -92,6 +98,9 @@ extern "C" {
 #endif
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's ${tbl['name']} table
 ///        with current process' addresses
@@ -138,6 +147,9 @@ ${tbl['export']['name']}(
         {
             // return pointers to loader's DDIs
             %for obj in tbl['functions']:
+%if 'guard' in obj and 'guard' not in tbl:
+#if ${obj['guard']}
+%endif
             %if 'condition' in obj:
         #if ${th.subt(n, tags, obj['condition'])}
             %endif
@@ -147,6 +159,9 @@ ${tbl['export']['name']}(
             pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = nullptr;
         #endif
             %endif
+%if 'guard' in obj and 'guard' not in tbl:
+#endif // ${obj['guard']}
+%endif
             %endfor
         }
         else
@@ -158,6 +173,9 @@ ${tbl['export']['name']}(
 
     return result;
 }
+%if 'guard' in tbl:
+#endif // ${obj['guard']}
+%endif
 
 %endfor
 

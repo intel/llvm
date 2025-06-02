@@ -34,6 +34,9 @@ extern "C" {
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
 %for obj in tbl['functions']:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for ${th.make_func_name(n, tags, obj)} 
 %if 'condition' in obj:
@@ -47,13 +50,22 @@ typedef ${x}_result_t (${X}_APICALL *${th.make_pfn_type(n, tags, obj)})(
 %if 'condition' in obj:
 #endif // ${th.subt(n, tags, obj['condition'])}
 %endif
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 
 %endfor
+%if 'guard' in tbl:
+// ${tbl['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of ${tbl['name']} functions pointers
 typedef struct ${tbl['type']}
 {
     %for obj in tbl['functions']:
+%if 'guard' in obj and 'guard' not in tbl:
+// ${obj['guard']}
+%endif
     %if 'condition' in obj:
 #if ${th.subt(n, tags, obj['condition'])}
     %endif
@@ -63,6 +75,9 @@ typedef struct ${tbl['type']}
     ${th.append_ws("void*", 59)} ${th.make_pfn_name(n, tags, obj)};
 #endif // ${th.subt(n, tags, obj['condition'])}
     %endif
+%if 'guard' in obj and 'guard' not in tbl:
+// end ${obj['guard']}
+%endif
     %endfor
 } ${tbl['type']};
 
@@ -89,6 +104,9 @@ typedef ${x}_result_t (${X}_APICALL *${tbl['pfn']})(
     ${line}
     %endfor
     );
+%if 'guard' in tbl:
+// end ${tbl['guard']}
+%endif
 
 %endfor
 ///////////////////////////////////////////////////////////////////////////////
@@ -96,7 +114,13 @@ typedef ${x}_result_t (${X}_APICALL *${tbl['pfn']})(
 typedef struct ${n}_dditable_t
 {
 %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+// ${tbl['guard']}
+%endif
     ${th.append_ws(tbl['type'], 35)} ${tbl['name']};
+%if 'guard' in tbl:
+// end ${tbl['guard']}
+%endif
 %endfor
 } ${n}_dditable_t;
 

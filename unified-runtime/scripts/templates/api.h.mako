@@ -42,15 +42,24 @@ extern "C" {
 
 %for spec in specs:
 %if len(spec['objects']) and 'manifest' not in spec['name']:
+%if 'guard' in spec['header']:
+// ${spec['header']['guard']}
+%endif
 // ${th.subt(n, tags, spec['header']['desc'])}
 #if !defined(__GNUC__)
 #pragma region ${spec['name'].replace(' ', '_')}
 #endif
+%if 'guard' in spec:
+// end ${obj['guard']}
+%endif
 %endif
 %for obj in spec['objects']:
 %if "manifest" in obj['type']:
 <%continue%>
 %elif not re.match(r"class", obj['type']):
+%if 'guard' in obj and 'guard' not in spec['header']:
+// ${obj['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 ## MACRO ######################################################################
 %if re.match(r"macro", obj['type']):
@@ -141,13 +150,22 @@ typedef struct ${th.subt(n, tags, obj['name'])}_ *${th.subt(n, tags, obj['name']
 %if re.match(r"macro", obj['type']):
 #endif // ${th.make_macro_name(n, tags, obj, params=False)}
 %endif
+%if 'guard' in obj and 'guard' not in spec['header']:
+// end ${obj['guard']}
+%endif
 
 %endif  # not re.match(r"class", obj['type'])
 %endfor # obj in spec['objects']
 %if len(spec['objects']) and 'manifest' not in spec['name']:
+%if 'guard' in spec:
+// ${obj['guard']}
+%endif
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+%if 'guard' in spec['header']:
+// end ${spec['header']['guard']}
+%endif
 %endif
 %endfor # spec in specs
 %if n not in ["zet", "zes"]:
@@ -157,6 +175,9 @@ typedef struct ${th.subt(n, tags, obj['name'])}_ *${th.subt(n, tags, obj['name']
 #endif
 %for tbl in th.get_pfncbtables(specs, meta, n, tags):
 %for obj in tbl['functions']:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 %if obj['params']:
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for ${th.make_func_name(n, tags, obj)} 
@@ -174,6 +195,9 @@ typedef struct ${th.make_pfncb_param_type(n, tags, obj)}
 %if 'condition' in obj:
 #endif // ${th.subt(n, tags, obj['condition'])}
 %endif
+%endif
+%if 'guard' in obj:
+// end ${obj['guard']}
 %endif
 
 %endfor
