@@ -305,8 +305,9 @@ void queue_impl::addEvent(const detail::EventImplPtr &EventImpl) {
 }
 
 detail::EventImplPtr
-queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF, bool CallerNeedsEvent,
-                        const detail::code_location &Loc, bool IsTopCodeLoc,
+queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                        bool CallerNeedsEvent, const detail::code_location &Loc,
+                        bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImplVal(CallerNeedsEvent);

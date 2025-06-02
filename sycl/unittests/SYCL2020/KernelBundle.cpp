@@ -262,90 +262,6 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
   }
 }
 
-TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
-  sycl::unittest::UrMock<> Mock;
-
-  const sycl::device Dev = sycl::platform().get_devices()[0];
-  const sycl::context PrimaryCtx{Dev};
-  const sycl::context SecondaryCtx{Dev};
-
-  ASSERT_NE(PrimaryCtx, SecondaryCtx);
-
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-      SecondaryCtx, {Dev});
-
-  sycl::queue PrimaryQueue{PrimaryCtx, Dev};
-  sycl::queue SecondaryQueue{SecondaryCtx, Dev};
-
-  size_t EnqueueCounter = 0;
-  try {
-    PrimaryQueue.submit(
-        [&](sycl::handler &CGH) {
-          try {
-            ++EnqueueCounter;
-            CGH.use_kernel_bundle(KernelBundle);
-            if (EnqueueCounter == 1)
-              FAIL() << "No exception was thrown.";
-            CGH.single_task<TestKernel>([]() {});
-          } catch (const sycl::exception &e) {
-            ASSERT_EQ(EnqueueCounter, size_t{1})
-                << "Only the primary queue was supposed to throw.";
-            ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
-                << "sycl::exception code was not the expected "
-                   "sycl::errc::invalid.";
-            throw;
-          } catch (...) {
-            FAIL() << "Unexpected exception was thrown in kernel invocation "
-                      "function.";
-          }
-        },
-        SecondaryQueue);
-  } catch (...) {
-    FAIL() << "Unexpected exception was thrown in submit.";
-  }
-  ASSERT_EQ(EnqueueCounter, size_t{2});
-}
-
-TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
-  sycl::unittest::UrMock<> Mock;
-
-  const sycl::device Dev = sycl::platform().get_devices()[0];
-  const sycl::context PrimaryCtx{Dev};
-  const sycl::context SecondaryCtx{Dev};
-
-  ASSERT_NE(PrimaryCtx, SecondaryCtx);
-
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-      PrimaryCtx, {Dev});
-
-  sycl::queue PrimaryQueue{PrimaryCtx, Dev};
-  sycl::queue SecondaryQueue{SecondaryCtx, Dev};
-
-  size_t EnqueueCounter = 0;
-  try {
-    PrimaryQueue.submit(
-        [&](sycl::handler &CGH) {
-          CGH.use_kernel_bundle(KernelBundle);
-          ++EnqueueCounter;
-          // Throw a non-sycl exception to force the secondary queue to try and
-          // enqueue. The secondary queue should never get beyond the
-          // use_kernel_bundle.
-          throw std::exception{};
-          CGH.single_task<TestKernel>([]() {});
-        },
-        SecondaryQueue);
-    FAIL() << "Submit should always throw.";
-  } catch (const sycl::exception &e) {
-    ASSERT_EQ(EnqueueCounter, size_t{1})
-        << "Exception was thrown from primary queue.";
-    ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
-        << "sycl::exception code was not the expected "
-           "sycl::errc::invalid.";
-  } catch (...) {
-    FAIL() << "Unexpected exception was thrown in submit.";
-  }
-}
-
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
   sycl::unittest::UrMock<> Mock;
 
@@ -368,9 +284,9 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
   try {
     PrimaryQueue.submit(
         [&](sycl::handler &CGH) {
-            CGH.use_kernel_bundle(KernelBundle);
-            ++EnqueueCounter;
-            CGH.single_task<TestKernel>([]() {});
+          CGH.use_kernel_bundle(KernelBundle);
+          ++EnqueueCounter;
+          CGH.single_task<TestKernel>([]() {});
         },
         SecondaryQueue);
     FAIL() << "Submit should always throw.";

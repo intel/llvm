@@ -328,8 +328,7 @@ handler::handler(detail::handler_impl *HandlerImpl,
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(CallerNeedsEvent)),
-      MQueue(std::move(Queue)) {
-}
+      MQueue(std::move(Queue)) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: This function is not used anymore, remove it in the next
@@ -337,12 +336,14 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
 handler::handler(
     std::shared_ptr<detail::queue_impl> Queue,
     [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
-    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
+    bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(CallerNeedsEvent)),
       MQueue(Queue) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-  [[maybe_unused]] detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
+                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
+                 bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 #endif
