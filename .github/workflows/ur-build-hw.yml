@@ -144,7 +144,6 @@ jobs:
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
-        -DUR_CONFORMANCE_TEST_LOADER=${{ matrix.adapter.other_name != '' && 'ON' || 'OFF' }}
         ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
@@ -165,14 +164,16 @@ jobs:
     - name: Test adapter specific
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-      run: ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
+        LIT_OPTS: "--timeout 120 --filter-out 'adapters/level_zero/memcheck.test'"
+      run: cmake --build build -j $(nproc) -- check-unified-runtime-adapter
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-      run: ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "conformance" --timeout 600 -VV
+        LIT_OPTS: "--timeout 120"
+      run: cmake --build build -j $(nproc) -- check-unified-runtime-conformance
 
     - name: Get information about platform
       if: ${{ always() }}

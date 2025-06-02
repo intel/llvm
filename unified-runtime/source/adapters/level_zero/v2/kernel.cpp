@@ -277,7 +277,7 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const size_t *pGlobalWorkOffset, uint32_t workDim, uint32_t groupSizeX,
     uint32_t groupSizeY, uint32_t groupSizeZ,
-    std::function<void(void *, void *, size_t)> migrate) {
+    ze_command_list_handle_t commandList, wait_list_view &waitListView) {
   auto hZeKernel = getZeHandle(hDevice);
 
   if (pGlobalWorkOffset != NULL) {
@@ -293,8 +293,9 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     if (pending.hMem) {
       if (!pending.hMem->isImage()) {
         auto hBuffer = pending.hMem->getBuffer();
-        zePtr = hBuffer->getDevicePtr(hDevice, pending.mode, 0,
-                                      hBuffer->getSize(), migrate);
+        zePtr =
+            hBuffer->getDevicePtr(hDevice, pending.mode, 0, hBuffer->getSize(),
+                                  commandList, waitListView);
       } else {
         auto hImage = static_cast<ur_mem_image_t *>(pending.hMem->getImage());
         zePtr = reinterpret_cast<void *>(hImage->getZeImage());
@@ -674,7 +675,7 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
+ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
     const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
     uint32_t *pGroupCountRet) {

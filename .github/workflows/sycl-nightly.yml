@@ -33,6 +33,7 @@ jobs:
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
       build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu --no-assertions'
+      build_target: all
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
@@ -151,6 +152,7 @@ jobs:
       artifact_archive_name: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
       build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
+      build_target: all
 
   e2e-win:
     needs: build-win
@@ -217,9 +219,6 @@ jobs:
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
-    # Normally these jobs take less than 10m. But sometimes the job hangs up and
-    # reaches the 360m limit. Set a lower limit to free up the runner earlier.
-    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:

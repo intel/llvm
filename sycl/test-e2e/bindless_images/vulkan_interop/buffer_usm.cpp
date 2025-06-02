@@ -2,7 +2,7 @@
 // REQUIRES: vulkan
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
-// RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+// RUN: %{run} %t.out
 
 /**
  * This test does not use any image specific APIs.

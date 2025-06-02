@@ -669,7 +669,7 @@ public:
     // of using a throw-away queue.
     queue InitQueue{MContext, Dev};
     auto &USMMem =
-        Entry->getOrAllocateDeviceGlobalUSM(getSyclObjImpl(InitQueue));
+        Entry->getOrAllocateDeviceGlobalUSM(*getSyclObjImpl(InitQueue));
     InitQueue.wait_and_throw();
     return USMMem.getPtr();
   }
