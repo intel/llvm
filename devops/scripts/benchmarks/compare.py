@@ -319,6 +319,12 @@ if __name__ == "__main__":
         help="Timestamp (in YYYYMMDD_HHMMSS) of oldest result to include in historic average calculation",
         default="20000101_010101",
     )
+    parser_avg.add_argument(
+        "--regression-filter",
+        type=str,
+        help="If provided, only regressions matching provided regex will cause exit status 1.",
+        default=None,
+    )
 
     args = parser.parse_args()
 
@@ -333,24 +339,40 @@ if __name__ == "__main__":
             "median", args.name, args.compare_file, args.results_dir, args.cutoff
         )
 
+        # Not all regressions are of concern: if a filter is provided, filter
+        # regressions using filter
+        regressions_ignored = []
+        regressions_of_concern = []
+        if args.regression_filter is not None:
+            filter_pattern = re.compile(args.regression_filter)
+            for test in regressions:
+                if filter_pattern.search(test["name"]):
+                    regressions_of_concern.append(test)
+                else:
+                    regressions_ignored.append(test)
+
         def print_regression(entry: dict):
             """Print an entry outputted from Compare.to_hist"""
             print(f"Test: {entry['name']}")
             print(f"-- Historic {entry['avg_type']}: {entry['hist_avg']}")
-            print(f"-- Run result: {test['value']}")
-            print(f"-- Delta: {test['delta']}")
+            print(f"-- Run result: {entry['value']}")
+            print(f"-- Delta: {entry['delta']}")
             print("")
 
         if improvements:
             print("#\n# Improvements:\n#\n")
             for test in improvements:
                 print_regression(test)
-        if regressions:
+        if regressions_ignored:
+            print("#\n# Regressions (filtered out by regression-filter):\n#\n")
+            for test in regressions_ignored:
+                print_regression(test)
+        if regressions_of_concern:
             print("#\n# Regressions:\n#\n")
-            for test in regressions:
+            for test in regressions_of_concern:
                 print_regression(test)
             exit(1)  # Exit 1 to trigger github test failure
-        print("\nNo regressions found!")
+        print("\nNo unexpected regressions found!")
     else:
         print("Unsupported operation: exiting.")
         exit(1)
