@@ -3519,8 +3519,8 @@ _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 3, v2f16,
         imageHandle, coord_parameter, level)[0];                               \
   }                                                                            \
   __attribute__((always_inline)) elem_t                                        \
-  __nvvm_tex_##dimension##d_grad_##vec_size##_f32(unsigned long imageHandle,   \
-                                                  coord_input, grad_input) {   \
+      __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                         \
+          unsigned long imageHandle, coord_input, grad_input) {                \
     return (elem_t)__nvvm_tex_##dimension##d_grad_##fetch_vec_size##_f32(      \
         imageHandle, coord_parameter, __VA_ARGS__)[0];                         \
   }
