@@ -24,11 +24,6 @@ __urdlllocal ur_result_t context_t::ddiInit() {
 
   if (UR_RESULT_SUCCESS == result) {
     result =
-        urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Global);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    result =
         urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Adapter);
   }
 
