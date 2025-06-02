@@ -309,6 +309,8 @@ endfunction()
 #      Optimization options (for opt)
 #  * TARGET_ENV <string>
 #      Prefix to give the final builtin library aliases
+#  * REMANGLE <string>
+#      Bool string indicating whether remangler will be run
 #  * ALIASES <string> ...
 #      List of aliases
 #  * INTERNAL_LINK_DEPENDENCIES <target> ...
@@ -318,7 +320,7 @@ endfunction()
 function(add_libclc_builtin_set)
   cmake_parse_arguments(ARG
     "CLC_INTERNAL"
-    "ARCH;TRIPLE;ARCH_SUFFIX;TARGET_ENV;PARENT_TARGET"
+    "ARCH;TRIPLE;ARCH_SUFFIX;TARGET_ENV;REMANGLE;PARENT_TARGET"
     "LIB_FILES;GEN_FILES;COMPILE_FLAGS;OPT_FLAGS;ALIASES;INTERNAL_LINK_DEPENDENCIES"
     ${ARGN}
   )
@@ -484,7 +486,7 @@ function(add_libclc_builtin_set)
   install( FILES ${builtins_lib} DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 
   # Generate remangled variants if requested
-  if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+  if( ARG_REMANGLE )
     set( dummy_in ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
       COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
