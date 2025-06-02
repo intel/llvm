@@ -2383,7 +2383,7 @@ void SetArgBasedOnType(
 }
 
 static ur_result_t SetKernelParamsAndLaunch(
-    const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
+    queue_impl &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
@@ -2395,8 +2395,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
-  assert(Queue && "Kernel submissions should have an associated queue");
-  const AdapterPtr &Adapter = Queue->getAdapter();
+  const AdapterPtr &Adapter = Queue.getAdapter();
 
   if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
     std::vector<unsigned char> Empty;
@@ -2434,7 +2433,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                     &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
       SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                        Queue->getContextImplPtr(), Arg, NextTrueIndex);
+                        Queue.getContextImplPtr(), Arg, NextTrueIndex);
     };
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
@@ -2450,7 +2449,7 @@ static ur_result_t SetKernelParamsAndLaunch(
         Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
   }
 
-  adjustNDRangePerKernel(NDRDesc, Kernel, Queue->getDeviceImpl());
+  adjustNDRangePerKernel(NDRDesc, Kernel, Queue.getDeviceImpl());
 
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
@@ -2464,7 +2463,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     LocalSize = &NDRDesc.LocalSize[0];
   else {
     Adapter->call<UrApiKind::urKernelGetGroupInfo>(
-        Kernel, Queue->getDeviceImpl().getHandleRef(),
+        Kernel, Queue.getDeviceImpl().getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
         /* pPropSizeRet = */ nullptr);
@@ -2506,7 +2505,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
   ur_event_handle_t UREvent = nullptr;
   ur_result_t Error = Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunch>(
-      Queue->getHandleRef(), Kernel, NDRDesc.Dims,
+      Queue.getHandleRef(), Kernel, NDRDesc.Dims,
       HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
       LocalSize, property_list.size(),
       property_list.empty() ? nullptr : property_list.data(), RawEvents.size(),
@@ -2758,7 +2757,7 @@ void enqueueImpKernel(
     }
 
     Error = SetKernelParamsAndLaunch(
-        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
+        *Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, KernelName, KernelFuncPtr, KernelNumArgs,
@@ -3264,7 +3263,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       std::tie(BinImage, std::ignore) =
-          retrieveKernelBinary(MQueue, KernelName.data());
+          retrieveKernelBinary(*MQueue, KernelName.data());
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(

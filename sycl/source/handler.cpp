@@ -582,7 +582,7 @@ event handler::finalize() {
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
           std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(MQueue, MKernelName.data());
+              detail::retrieveKernelBinary(*MQueue, MKernelName.data());
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(

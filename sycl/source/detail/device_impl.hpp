@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <utility>
 
 namespace sycl {
@@ -2202,7 +2203,7 @@ private:
   // This is used for getAdapter so should be above other properties.
   std::shared_ptr<platform_impl> MPlatform;
 
-  // TODO: Does this have a race?
+  std::shared_mutex MDeviceHostBaseTimeMutex;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;
