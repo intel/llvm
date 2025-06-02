@@ -254,8 +254,12 @@ class Compare:
             from the average for this benchmark run.
         """
 
-        if avg_type != "median":
-            print("Only median is currently supported: Refusing to continue.")
+        if avg_type == "median":
+            aggregator_type = SimpleMedian
+        elif avg_type == "EWMA":
+            aggregator_type = EWMA
+        else:
+            print("Error: Unsupported avg_type f{avg_type}.")
             exit(1)
 
         try:
@@ -281,6 +285,7 @@ class Compare:
             result_dir,
             compare_result.hostname,
             cutoff,
+            aggregator=aggregator_type,
             exclude=[Path(compare_file).stem],
         )
         return Compare.to_hist_avg(hist_avg, compare_result)
@@ -323,14 +328,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.operation == "to_hist":
-        if args.avg_type != "median":
-            print("Only median is currently supported: exiting.")
-            exit(1)
         if not Validate.timestamp(args.cutoff):
             raise ValueError("Timestamp must be provided as YYYYMMDD_HHMMSS.")
+        if args.avg_type not in ["median", "EWMA"]:
+            print("Only median is currently supported: exiting.")
+            exit(1)
 
         improvements, regressions = Compare.to_hist(
-            "median", args.name, args.compare_file, args.results_dir, args.cutoff
+            args.avg_type, args.name, args.compare_file, args.results_dir, args.cutoff
         )
 
         def print_regression(entry: dict):
