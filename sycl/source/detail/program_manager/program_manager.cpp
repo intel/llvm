@@ -1128,7 +1128,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     auto KernelCacheValPtr =
         Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr);
     if (auto KernelCacheValPtr =
-        Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr)) {
+            Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr)) {
       return KernelCacheValPtr;
     }
   }

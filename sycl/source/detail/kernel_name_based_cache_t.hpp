@@ -41,8 +41,7 @@ struct FastKernelCacheVal {
 
   ~FastKernelCacheVal() {
     if (MKernelHandle)
-      MAdapterPtr.call<sycl::detail::UrApiKind::urKernelRelease>(
-          MKernelHandle);
+      MAdapterPtr.call<sycl::detail::UrApiKind::urKernelRelease>(MKernelHandle);
     if (MProgramHandle)
       MAdapterPtr.call<sycl::detail::UrApiKind::urProgramRelease>(
           MProgramHandle);
