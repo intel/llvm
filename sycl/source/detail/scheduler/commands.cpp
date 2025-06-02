@@ -2591,9 +2591,8 @@ ur_result_t enqueueImpCommandBufferKernel(
   const KernelArgMask *EliminatedArgMask = nullptr;
 
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
-  std::tie(UrKernel, DeviceImageImpl, EliminatedArgMask) =
-      getCGKernelInfo(CommandGroup, ContextImpl, DeviceImpl,
-                      FastKernelCacheValsToRelease);
+  std::tie(UrKernel, DeviceImageImpl, EliminatedArgMask) = getCGKernelInfo(
+      CommandGroup, ContextImpl, DeviceImpl, FastKernelCacheValsToRelease);
 
   // Build up the list of UR kernel handles that the UR command could be
   // updated to use.
