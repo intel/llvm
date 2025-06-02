@@ -32,12 +32,13 @@ struct ur_queue_handle_t_ : RefCounted {
     events.insert(event);
   }
 
-  void removeEvent(ur_event_handle_t event, bool needQueueLock) {
-    if (needQueueLock) {
+  void removeEvent(ur_event_handle_t event, bool queue_already_locked) {
+    if (queue_already_locked) {
+      events.erase(event);
+    } else {
       std::unique_lock<std::mutex> lock(mutex);
       events.erase(event);
-    } else
-      events.erase(event);
+    }
   }
 
   void finish() {
@@ -46,7 +47,7 @@ struct ur_queue_handle_t_ : RefCounted {
       auto ev = *events.begin();
       // ur_event_handle_t_::wait removes itself from the events set in the
       // queue
-      ev->wait(false /*lock already taken*/);
+      ev->wait(true /*mutex is already locked*/);
     }
     events.clear();
   }
