@@ -382,6 +382,13 @@ uint64_t device_impl::getCurrentDeviceTime() {
   return MDeviceHostBaseTime.first + Diff;
 }
 
+// Reset the recorded device and host time base to zero, so that the next call
+// to getCurrentDeviceTime() will query them from backend.
+void device_impl::resetRecordedTimeBases() {
+  std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
+  MDeviceHostBaseTime = {0, 0};
+}
+
 bool device_impl::extOneapiCanBuild(
     ext::oneapi::experimental::source_language Language) {
   try {
