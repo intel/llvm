@@ -95,7 +95,7 @@ static void StaticsingleTaskKernelMethod(int Value) {
 
 };
 
-class TestStruct {
+struct TestStruct {
 
 // expected-error@+2 {{kernel function 'ndRangeKernelMethod' must be a free function or static member function}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void 
