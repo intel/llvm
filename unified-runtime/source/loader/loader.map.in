@@ -117,7 +117,6 @@
 		urGetEnqueueExpProcAddrTable;
 		urGetEnqueueProcAddrTable;
 		urGetEventProcAddrTable;
-		urGetGlobalProcAddrTable;
 		urGetKernelProcAddrTable;
 		urGetMemProcAddrTable;
 		urGetPhysicalMemProcAddrTable;

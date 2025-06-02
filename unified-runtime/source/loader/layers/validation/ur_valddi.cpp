@@ -31,9 +31,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     ur_adapter_handle_t *phAdapters,
     /// [out][optional] returns the total number of adapters available.
     uint32_t *pNumAdapters) {
-  auto pfnAdapterGet = getContext()->urDdiTable.Global.pfnAdapterGet;
+  auto pfnGet = getContext()->urDdiTable.Adapter.pfnGet;
 
-  if (nullptr == pfnAdapterGet) {
+  if (nullptr == pfnGet) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -42,7 +42,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
       return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
-  ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+  ur_result_t result = pfnGet(NumEntries, phAdapters, pNumAdapters);
 
   if (getContext()->enableLeakChecking && phAdapters &&
       result == UR_RESULT_SUCCESS) {
@@ -60,9 +60,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     /// [in][release] Adapter handle to release
     ur_adapter_handle_t hAdapter) {
-  auto pfnAdapterRelease = getContext()->urDdiTable.Global.pfnAdapterRelease;
+  auto pfnRelease = getContext()->urDdiTable.Adapter.pfnRelease;
 
-  if (nullptr == pfnAdapterRelease) {
+  if (nullptr == pfnRelease) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -75,7 +75,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     getContext()->refCountContext->decrementRefCount(hAdapter, true);
   }
 
-  ur_result_t result = pfnAdapterRelease(hAdapter);
+  ur_result_t result = pfnRelease(hAdapter);
 
   return result;
 }
@@ -85,9 +85,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
 __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     /// [in][retain] Adapter handle to retain
     ur_adapter_handle_t hAdapter) {
-  auto pfnAdapterRetain = getContext()->urDdiTable.Global.pfnAdapterRetain;
+  auto pfnRetain = getContext()->urDdiTable.Adapter.pfnRetain;
 
-  if (nullptr == pfnAdapterRetain) {
+  if (nullptr == pfnRetain) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -96,7 +96,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
-  ur_result_t result = pfnAdapterRetain(hAdapter);
+  ur_result_t result = pfnRetain(hAdapter);
 
   if (getContext()->enableLeakChecking) {
     getContext()->refCountContext->incrementRefCount(hAdapter, true);
@@ -116,10 +116,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
     /// [out] pointer to an integer where the adapter specific error code will
     /// be stored.
     int32_t *pError) {
-  auto pfnAdapterGetLastError =
-      getContext()->urDdiTable.Global.pfnAdapterGetLastError;
+  auto pfnGetLastError = getContext()->urDdiTable.Adapter.pfnGetLastError;
 
-  if (nullptr == pfnAdapterGetLastError) {
+  if (nullptr == pfnGetLastError) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -139,7 +138,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
     URLOG_CTX_INVALID_REFERENCE(hAdapter);
   }
 
-  ur_result_t result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+  ur_result_t result = pfnGetLastError(hAdapter, ppMessage, pError);
 
   return result;
 }
@@ -162,9 +161,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
     /// [out][optional] pointer to the actual number of bytes being queried by
     /// pPropValue.
     size_t *pPropSizeRet) {
-  auto pfnAdapterGetInfo = getContext()->urDdiTable.Global.pfnAdapterGetInfo;
+  auto pfnGetInfo = getContext()->urDdiTable.Adapter.pfnGetInfo;
 
-  if (nullptr == pfnAdapterGetInfo) {
+  if (nullptr == pfnGetInfo) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -191,7 +190,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
   }
 
   ur_result_t result =
-      pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue, pPropSizeRet);
+      pfnGetInfo(hAdapter, propName, propSize, pPropValue, pPropSizeRet);
 
   return result;
 }
@@ -10761,51 +10760,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) {
-  auto &dditable = ur_validation_layer::getContext()->urDdiTable.Global;
-
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
-          UR_MINOR_VERSION(version))
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  dditable.pfnAdapterGet = pDdiTable->pfnAdapterGet;
-  pDdiTable->pfnAdapterGet = ur_validation_layer::urAdapterGet;
-
-  dditable.pfnAdapterRelease = pDdiTable->pfnAdapterRelease;
-  pDdiTable->pfnAdapterRelease = ur_validation_layer::urAdapterRelease;
-
-  dditable.pfnAdapterRetain = pDdiTable->pfnAdapterRetain;
-  pDdiTable->pfnAdapterRetain = ur_validation_layer::urAdapterRetain;
-
-  dditable.pfnAdapterGetLastError = pDdiTable->pfnAdapterGetLastError;
-  pDdiTable->pfnAdapterGetLastError =
-      ur_validation_layer::urAdapterGetLastError;
-
-  dditable.pfnAdapterGetInfo = pDdiTable->pfnAdapterGetInfo;
-  pDdiTable->pfnAdapterGetInfo = ur_validation_layer::urAdapterGetInfo;
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
@@ -10830,6 +10784,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnGet = pDdiTable->pfnGet;
+  pDdiTable->pfnGet = ur_validation_layer::urAdapterGet;
+
+  dditable.pfnRelease = pDdiTable->pfnRelease;
+  pDdiTable->pfnRelease = ur_validation_layer::urAdapterRelease;
+
+  dditable.pfnRetain = pDdiTable->pfnRetain;
+  pDdiTable->pfnRetain = ur_validation_layer::urAdapterRetain;
+
+  dditable.pfnGetLastError = pDdiTable->pfnGetLastError;
+  pDdiTable->pfnGetLastError = ur_validation_layer::urAdapterGetLastError;
+
+  dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
+  pDdiTable->pfnGetInfo = ur_validation_layer::urAdapterGetInfo;
 
   dditable.pfnSetLoggerCallback = pDdiTable->pfnSetLoggerCallback;
   pDdiTable->pfnSetLoggerCallback =
@@ -12122,11 +12091,6 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (!enableParameterValidation && !enableLeakChecking &&
       !enableLifetimeValidation) {
     return result;
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    result = ur_validation_layer::urGetGlobalProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Global);
   }
 
   if (UR_RESULT_SUCCESS == result) {

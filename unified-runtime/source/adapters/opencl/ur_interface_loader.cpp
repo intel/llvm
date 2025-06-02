@@ -33,6 +33,23 @@ ur_result_t validateProcInputs(ur_api_version_t Version, void *pDdiTable) {
 extern "C" {
 #endif
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnGet = urAdapterGet;
+  pDdiTable->pfnRelease = urAdapterRelease;
+  pDdiTable->pfnRetain = urAdapterRetain;
+  pDdiTable->pfnGetLastError = urAdapterGetLastError;
+  pDdiTable->pfnGetInfo = urAdapterGetInfo;
+  pDdiTable->pfnSetLoggerCallback = urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel = urAdapterSetLoggerCallbackLevel;
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_api_version_t Version, ur_platform_dditable_t *pDdiTable) {
   auto Result = validateProcInputs(Version, pDdiTable);
@@ -200,20 +217,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
   pDdiTable->pfnReadHostPipe = urEnqueueReadHostPipe;
   pDdiTable->pfnWriteHostPipe = urEnqueueWriteHostPipe;
-  return UR_RESULT_SUCCESS;
-}
-
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    ur_api_version_t Version, ur_global_dditable_t *pDdiTable) {
-  auto Result = validateProcInputs(Version, pDdiTable);
-  if (UR_RESULT_SUCCESS != Result) {
-    return Result;
-  }
-  pDdiTable->pfnAdapterGet = urAdapterGet;
-  pDdiTable->pfnAdapterRelease = urAdapterRelease;
-  pDdiTable->pfnAdapterRetain = urAdapterRetain;
-  pDdiTable->pfnAdapterGetLastError = urAdapterGetLastError;
-  pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
   return UR_RESULT_SUCCESS;
 }
 
@@ -437,21 +440,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
-    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-  pDdiTable->pfnSetLoggerCallback = urAdapterSetLoggerCallback;
-  pDdiTable->pfnSetLoggerCallbackLevel = urAdapterSetLoggerCallbackLevel;
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
                                                    ur_dditable_t *pDdiTable) {
-  urGetGlobalProcAddrTable(version, &pDdiTable->Global);
+  urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
   urGetBindlessImagesExpProcAddrTable(version, &pDdiTable->BindlessImagesExp);
   urGetCommandBufferExpProcAddrTable(version, &pDdiTable->CommandBufferExp);
   urGetContextProcAddrTable(version, &pDdiTable->Context);
@@ -471,7 +462,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetUsmP2PExpProcAddrTable(version, &pDdiTable->UsmP2PExp);
   urGetVirtualMemProcAddrTable(version, &pDdiTable->VirtualMem);
   urGetDeviceProcAddrTable(version, &pDdiTable->Device);
-  urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
 
   return UR_RESULT_SUCCESS;
 }

@@ -24,6 +24,32 @@ extern "C" {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGet
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGet_t)(uint32_t,
+                                                    ur_adapter_handle_t *,
+                                                    uint32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterRelease
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterRelease_t)(ur_adapter_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterRetain
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterRetain_t)(ur_adapter_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGetLastError
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetLastError_t)(
+    ur_adapter_handle_t, const char **, int32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGetInfo
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetInfo_t)(ur_adapter_handle_t,
+                                                        ur_adapter_info_t,
+                                                        size_t, void *,
+                                                        size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urAdapterSetLoggerCallback
 typedef ur_result_t(UR_APICALL *ur_pfnAdapterSetLoggerCallback_t)(
     ur_adapter_handle_t, ur_logger_callback_t, void *, ur_logger_level_t);
@@ -36,6 +62,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnAdapterSetLoggerCallbackLevel_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Adapter functions pointers
 typedef struct ur_adapter_dditable_t {
+  ur_pfnAdapterGet_t pfnGet;
+  ur_pfnAdapterRelease_t pfnRelease;
+  ur_pfnAdapterRetain_t pfnRetain;
+  ur_pfnAdapterGetLastError_t pfnGetLastError;
+  ur_pfnAdapterGetInfo_t pfnGetInfo;
   ur_pfnAdapterSetLoggerCallback_t pfnSetLoggerCallback;
   ur_pfnAdapterSetLoggerCallbackLevel_t pfnSetLoggerCallbackLevel;
 } ur_adapter_dditable_t;
@@ -849,62 +880,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
 /// @brief Function-pointer for urGetPhysicalMemProcAddrTable
 typedef ur_result_t(UR_APICALL *ur_pfnGetPhysicalMemProcAddrTable_t)(
     ur_api_version_t, ur_physical_mem_dditable_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGet
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGet_t)(uint32_t,
-                                                    ur_adapter_handle_t *,
-                                                    uint32_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterRelease
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterRelease_t)(ur_adapter_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterRetain
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterRetain_t)(ur_adapter_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGetLastError
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetLastError_t)(
-    ur_adapter_handle_t, const char **, int32_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGetInfo
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetInfo_t)(ur_adapter_handle_t,
-                                                        ur_adapter_info_t,
-                                                        size_t, void *,
-                                                        size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Table of Global functions pointers
-typedef struct ur_global_dditable_t {
-  ur_pfnAdapterGet_t pfnAdapterGet;
-  ur_pfnAdapterRelease_t pfnAdapterRelease;
-  ur_pfnAdapterRetain_t pfnAdapterRetain;
-  ur_pfnAdapterGetLastError_t pfnAdapterGetLastError;
-  ur_pfnAdapterGetInfo_t pfnAdapterGetInfo;
-} ur_global_dditable_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGetGlobalProcAddrTable
-typedef ur_result_t(UR_APICALL *ur_pfnGetGlobalProcAddrTable_t)(
-    ur_api_version_t, ur_global_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueKernelLaunch
@@ -2009,7 +1984,6 @@ typedef struct ur_dditable_t {
   ur_sampler_dditable_t Sampler;
   ur_mem_dditable_t Mem;
   ur_physical_mem_dditable_t PhysicalMem;
-  ur_global_dditable_t Global;
   ur_enqueue_dditable_t Enqueue;
   ur_enqueue_exp_dditable_t EnqueueExp;
   ur_usm_dditable_t USM;

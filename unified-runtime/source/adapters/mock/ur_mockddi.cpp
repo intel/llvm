@@ -11800,42 +11800,6 @@ extern "C" {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) try {
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (driver::d_context.version < version)
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  pDdiTable->pfnAdapterGet = driver::urAdapterGet;
-
-  pDdiTable->pfnAdapterRelease = driver::urAdapterRelease;
-
-  pDdiTable->pfnAdapterRetain = driver::urAdapterRetain;
-
-  pDdiTable->pfnAdapterGetLastError = driver::urAdapterGetLastError;
-
-  pDdiTable->pfnAdapterGetInfo = driver::urAdapterGetInfo;
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
@@ -11855,6 +11819,16 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnGet = driver::urAdapterGet;
+
+  pDdiTable->pfnRelease = driver::urAdapterRelease;
+
+  pDdiTable->pfnRetain = driver::urAdapterRetain;
+
+  pDdiTable->pfnGetLastError = driver::urAdapterGetLastError;
+
+  pDdiTable->pfnGetInfo = driver::urAdapterGetInfo;
 
   pDdiTable->pfnSetLoggerCallback = driver::urAdapterSetLoggerCallback;
 

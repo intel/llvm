@@ -65,7 +65,7 @@ ur_result_t urAdapterGet(
     ur_adapter_handle_t *phAdapters,
     /// [out][optional] returns the total number of adapters available.
     uint32_t *pNumAdapters) {
-  auto pfnAdapterGet = getContext()->urDdiTable.Global.pfnAdapterGet;
+  auto pfnAdapterGet = getContext()->urDdiTable.Adapter.pfnGet;
 
   // FIXME: This is a W/A to disable heap extended for MSAN so that we can
   // reserve large VA of GPU.
@@ -1725,18 +1725,22 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
+/// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-ur_result_t urGetGlobalProcAddrTable(
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+ur_result_t urGetAdapterProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t,
     /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) {
+    ur_adapter_dditable_t *pDdiTable) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  pDdiTable->pfnAdapterGet = ur_sanitizer_layer::msan::urAdapterGet;
+  pDdiTable->pfnGet = ur_sanitizer_layer::msan::urAdapterGet;
 
   return result;
 }
@@ -1921,8 +1925,8 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result =
-        ur_sanitizer_layer::msan::urGetGlobalProcAddrTable(&dditable->Global);
+    result = ur_sanitizer_layer::msan::urGetAdapterProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
