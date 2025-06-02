@@ -436,27 +436,18 @@ public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
-  /// On a kernel error, this command group function object is then scheduled
-  /// for execution on a secondary queue.
-  ///
   /// \param CGF is a function object containing command group.
-  /// \param SecondaryQueue is a fallback SYCL queue.
+  /// \param SecondaryQueue is a fallback SYCL queue. (unused)
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   template <typename T>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
-      T CGF, queue &SecondaryQueue,
+      T CGF, [[maybe_unused]] queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    try {
-      return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-          sycl::ext::oneapi::experimental::empty_properties_t{},
-          detail::type_erased_cgfo_ty{CGF}, CodeLoc);
-    } catch (...) {
-      return SecondaryQueue.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-          sycl::ext::oneapi::experimental::empty_properties_t{},
-          detail::type_erased_cgfo_ty{CGF}, CodeLoc);
-    }
+    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
