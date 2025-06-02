@@ -2474,14 +2474,14 @@ static ur_result_t SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-
   const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
                          NDRDesc.GlobalOffset[1] != 0 ||
                          NDRDesc.GlobalOffset[2] != 0;
 
-  std::vector<ur_exp_launch_property_t> property_list;
+  std::vector<ur_kernel_launch_property_t> property_list;
+
   if (KernelUsesClusterLaunch) {
-    ur_exp_launch_property_value_t launch_property_value_cluster_range;
+    ur_kernel_launch_property_value_t launch_property_value_cluster_range;
     launch_property_value_cluster_range.clusterDim[0] =
         NDRDesc.ClusterDimensions[0];
     launch_property_value_cluster_range.clusterDim[1] =
@@ -2489,50 +2489,28 @@ static ur_result_t SetKernelParamsAndLaunch(
     launch_property_value_cluster_range.clusterDim[2] =
         NDRDesc.ClusterDimensions[2];
 
-    property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
                              launch_property_value_cluster_range});
-
-    if (IsCooperative) {
-      ur_exp_launch_property_value_t launch_property_value_cooperative;
-      launch_property_value_cooperative.cooperative = 1;
-      property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
-                               launch_property_value_cooperative});
-    }
+  }
+  if (IsCooperative) {
+    ur_kernel_launch_property_value_t launch_property_value_cooperative;
+    launch_property_value_cooperative.cooperative = 1;
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE,
+                             launch_property_value_cooperative});
   }
   // If there is no implicit arg, let the driver handle it via a property
   if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
-    property_list.push_back(
-        {UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY, {{WorkGroupMemorySize}}});
-  }
-  if (!property_list.empty()) {
-    ur_event_handle_t UREvent = nullptr;
-    ur_result_t Error =
-        Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchCustomExp>(
-            Queue.getHandleRef(), Kernel, NDRDesc.Dims,
-            HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
-            &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
-            property_list.data(), RawEvents.size(),
-            RawEvents.empty() ? nullptr : &RawEvents[0],
-            OutEventImpl ? &UREvent : nullptr);
-    if ((Error == UR_RESULT_SUCCESS) && OutEventImpl) {
-      OutEventImpl->setHandle(UREvent);
-    }
-    return Error;
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
+                             {{WorkGroupMemorySize}}});
   }
   ur_event_handle_t UREvent = nullptr;
-  ur_result_t Error =
-      [&](auto... Args) {
-        if (IsCooperative) {
-          return Adapter
-              ->call_nocheck<UrApiKind::urEnqueueCooperativeKernelLaunchExp>(
-                  Args...);
-        }
-        return Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunch>(Args...);
-      }(Queue.getHandleRef(), Kernel, NDRDesc.Dims,
-        HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
-        LocalSize, RawEvents.size(),
-        RawEvents.empty() ? nullptr : &RawEvents[0],
-        OutEventImpl ? &UREvent : nullptr);
+  ur_result_t Error = Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunch>(
+      Queue.getHandleRef(), Kernel, NDRDesc.Dims,
+      HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
+      LocalSize, property_list.size(),
+      property_list.empty() ? nullptr : property_list.data(), RawEvents.size(),
+      RawEvents.empty() ? nullptr : &RawEvents[0],
+      OutEventImpl ? &UREvent : nullptr);
   if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
     OutEventImpl->setHandle(UREvent);
   }

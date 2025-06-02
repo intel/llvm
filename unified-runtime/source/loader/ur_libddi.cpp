@@ -62,11 +62,6 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                         &urDdiTable.KernelExp);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
     result = urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Mem);
   }
 
