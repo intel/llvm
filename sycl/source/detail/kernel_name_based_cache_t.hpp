@@ -12,6 +12,7 @@
 #include <sycl/detail/ur.hpp>
 
 #include <mutex>
+#include <optional>
 
 #include <boost/unordered/unordered_flat_map.hpp>
 
@@ -36,6 +37,7 @@ struct FastKernelSubcacheT {
 
 struct KernelNameBasedCacheT {
   FastKernelSubcacheT FastKernelSubcache;
+  std::optional<bool> UsesAssert;
   std::optional<std::optional<int>> ImplicitLocalArgPos;
 };
 
