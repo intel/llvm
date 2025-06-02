@@ -27,17 +27,6 @@ void singleTaskKernelVariadic(...) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
 void ndRangeKernelVariadic(...) {}
 
-class DummyClass {
-public:
-  // Diagnostic for these violations of the restrictions haven't been
-  // implemented yet.
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
-  void singleTaskKernelNonStaticMemberFunc(int *Ptr) {}
-
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<2>)
-  void ndRangeKernelNonStaticMemberFunc(float *Ptr) {}
-};
-
 // expected-error@+2 {{SYCL free function kernel should have return type 'void'}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 float singleTaskKernelNonVoid() { return 0.0F; }
