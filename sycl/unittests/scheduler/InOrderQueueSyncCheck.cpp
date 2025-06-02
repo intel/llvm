@@ -25,7 +25,8 @@ public:
   MockQueueImpl(sycl::detail::device_impl &Device,
                 const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
-      : sycl::detail::queue_impl(Device, AsyncHandler, PropList) {}
+      : sycl::detail::queue_impl(Device, AsyncHandler, PropList,
+                                 sycl::detail::queue_impl::private_tag{}) {}
   using sycl::detail::queue_impl::finalizeHandlerInOrderHostTaskUnlocked;
 };
 
@@ -41,11 +42,17 @@ public:
   virtual void depends_on(const std::vector<detail::EventImplPtr> &Events) {}
   virtual void depends_on(event Event) {};
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  virtual sycl::detail::EventImplPtr finalize() {
+    return std::make_shared<detail::event_impl>();
+  }
+#else
   virtual event finalize() {
     sycl::detail::EventImplPtr NewEvent =
         std::make_shared<detail::event_impl>();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }
+#endif
 
   sycl::detail::CGType getType() { return MCGType; }
 

@@ -560,7 +560,11 @@ private:
   /// object destruction.
   ///
   /// \return a SYCL event object representing the command group
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr finalize();
+#else
   event finalize();
+#endif
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
@@ -816,6 +820,14 @@ private:
     // `std::unique_ptr<HostKernelBase>` is necessary.
     MHostKernel.reset(new detail::HostKernel<KernelType, LambdaArgType, Dims>(
         std::forward<KernelTypeUniversalRef>(KernelFunc)));
+
+    // Instantiating the kernel on the host improves debugging.
+    // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+    instantiateKernelOnHost(
+        detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
+                                              Dims>());
+#endif
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -3381,7 +3393,11 @@ private:
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr MLastEvent;
+#else
   event MLastEvent;
+#endif
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
@@ -3825,6 +3841,8 @@ private:
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
                      bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+
+  void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
 

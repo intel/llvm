@@ -77,7 +77,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     ur_adapter_handle_t *phAdapters,
     /// [out][optional] returns the total number of adapters available.
     uint32_t *pNumAdapters) {
-  auto pfnAdapterGet = getContext()->urDdiTable.Global.pfnAdapterGet;
+  auto pfnAdapterGet = getContext()->urDdiTable.Adapter.pfnGet;
 
   if (nullptr == pfnAdapterGet) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1685,18 +1685,19 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
+/// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-__urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
+__urdlllocal ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     /// [in] API version requested
     ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) {
+    ur_adapter_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1710,7 +1711,7 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  pDdiTable->pfnAdapterGet = ur_sanitizer_layer::asan::urAdapterGet;
+  pDdiTable->pfnGet = ur_sanitizer_layer::asan::urAdapterGet;
 
   return result;
 }
@@ -2154,8 +2155,8 @@ ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
   UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: ASAN");
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetGlobalProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Global);
+    result = ur_sanitizer_layer::asan::urGetAdapterProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
