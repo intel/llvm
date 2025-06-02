@@ -1,0 +1,1802 @@
+
+== Architecture Categories
+
+[%header,cols="8,3,10"]
+|===
+|Name
+|Value
+|Description
+
+a|
+[source]
+----
+unknown
+----
+| 0
+| Unknown category
+
+a|
+[source]
+----
+cpu
+----
+| 1
+| Central processing unit
+
+a|
+[source]
+----
+gpu
+----
+| 2
+| Graphics processing unit
+
+a|
+[source]
+----
+npu
+----
+| 3
+| Neural processing unit (AI accelerator)
+|===
+
+== Architecture Families
+
+[%header,cols="8,3,3,10"]
+|===
+|Name
+|Category
+|Value
+|Description
+
+4+^|*Category: unknown (0)*
+
+a|
+[source]
+----
+generic
+----
+| 0
+| 0
+| Generic family
+
+4+^|*Category: cpu (1)*
+
+a|
+[source]
+----
+generic
+----
+| 1
+| 0
+| Generic CPU
+
+a|
+[source]
+----
+intel
+----
+| 1
+| 1
+| Intel main line of CPUs
+
+a|
+[source]
+----
+intel_atom
+----
+| 1
+| 2
+| Intel Atom/Low-power line of CPUs
+
+a|
+[source]
+----
+amd
+----
+| 1
+| 3
+| AMD CPU
+
+a|
+[source]
+----
+arm_a
+----
+| 1
+| 4
+| ARM Cortex-A CPU family
+
+a|
+[source]
+----
+arm_m
+----
+| 1
+| 5
+| ARM Cortex-M CPU family
+
+a|
+[source]
+----
+arm_r
+----
+| 1
+| 6
+| ARM Cortex-R CPU family
+
+4+^|*Category: gpu (2)*
+
+a|
+[source]
+----
+generic
+----
+| 2
+| 0
+| Generic GPU
+
+a|
+[source]
+----
+intel
+----
+| 2
+| 1
+| Intel GPU
+
+a|
+[source]
+----
+amd
+----
+| 2
+| 2
+| AMD GPU
+
+a|
+[source]
+----
+nvidia
+----
+| 2
+| 3
+| NVIDIA GPU
+
+4+^|*Category: npu (3)*
+
+a|
+[source]
+----
+generic
+----
+| 3
+| 0
+| Generic NPU
+
+a|
+[source]
+----
+intel
+----
+| 3
+| 1
+| Intel NPU
+
+a|
+[source]
+----
+amd_xdna
+----
+| 3
+| 2
+| AMD XDNA NPU
+|===
+
+== Architectures
+
+[%header,cols="8,3,3,3,10"]
+|===
+|Name
+|Category
+|Family
+|Value
+|Description
+
+5+^|*Category: unknown (0), Family: generic (0)*
+
+a|
+[source]
+----
+any
+----
+| 0
+| 0
+| 0
+| Any architecture
+
+5+^|*Category: cpu (1), Family: generic (0)*
+
+a|
+[source]
+----
+any
+----
+| 1
+| 0
+| 0
+| Any CPU
+
+5+^|*Category: cpu (1), Family: intel (1)*
+
+a|
+[source]
+----
+any
+----
+| 1
+| 1
+| 0
+| Any Intel CPU
+
+a|
+[source]
+----
+nhm
+----
+| 1
+| 1
+| 1
+| Intel Nehalem microarchitecture
+
+a|
+[source]
+----
+wsm
+----
+| 1
+| 1
+| 2
+| Intel Westmere microarchitecture
+
+a|
+[source]
+----
+sdb
+----
+| 1
+| 1
+| 3
+| Intel Sandy Bridge microarchitecture
+
+a|
+[source]
+----
+ivb
+----
+| 1
+| 1
+| 4
+| Intel Ivy Bridge microarchitecture
+
+a|
+[source]
+----
+hsw
+----
+| 1
+| 1
+| 5
+| Intel Haswell microarchitecture
+
+a|
+[source]
+----
+bdw
+----
+| 1
+| 1
+| 6
+| Intel Broadwell microarchitecture
+
+a|
+[source]
+----
+skl
+----
+| 1
+| 1
+| 7
+| Intel Skylake microarchitecture
+
+a|
+[source]
+----
+pmc
+----
+| 1
+| 1
+| 8
+| Intel Palm Cove microarchitecture
+
+a|
+[source]
+----
+snc
+----
+| 1
+| 1
+| 9
+| Intel Sunny Cove microarchitecture
+
+a|
+[source]
+----
+wlc
+----
+| 1
+| 1
+| 10
+| Intel Willow Cove microarchitecture
+
+a|
+[source]
+----
+cpc
+----
+| 1
+| 1
+| 11
+| Intel Cypress Cove microarchitecture
+
+a|
+[source]
+----
+gdc
+----
+| 1
+| 1
+| 12
+| Intel Golden Cove microarchitecture
+
+a|
+[source]
+----
+rpc
+----
+| 1
+| 1
+| 13
+| Intel Raptor Cove microarchitecture
+
+a|
+[source]
+----
+rdc
+----
+| 1
+| 1
+| 14
+| Intel Redwood Cove microarchitecture
+
+a|
+[source]
+----
+lnc
+----
+| 1
+| 1
+| 15
+| Intel Lion Cove microarchitecture
+
+5+^|*Category: cpu (1), Family: intel_atom (2)*
+
+a|
+[source]
+----
+any
+----
+| 1
+| 2
+| 0
+| Any Intel Atom/Low-power CPU
+
+a|
+[source]
+----
+bnl
+----
+| 1
+| 2
+| 1
+| Intel Bonnell microarchitecture
+
+a|
+[source]
+----
+slw
+----
+| 1
+| 2
+| 2
+| Intel Saltwell microarchitecture
+
+a|
+[source]
+----
+svm
+----
+| 1
+| 2
+| 3
+| Intel Silvermont microarchitecture
+
+a|
+[source]
+----
+aim
+----
+| 1
+| 2
+| 4
+| Intel Airmont microarchitecture
+
+a|
+[source]
+----
+gdm
+----
+| 1
+| 2
+| 5
+| Intel Goldmont microarchitecture
+
+a|
+[source]
+----
+gdm_p
+----
+| 1
+| 2
+| 6
+| Intel Goldmont Plus microarchitecture
+
+a|
+[source]
+----
+trm
+----
+| 1
+| 2
+| 7
+| Intel Tremont microarchitecture
+
+a|
+[source]
+----
+gcm
+----
+| 1
+| 2
+| 8
+| Intel Gracemont microarchitecture
+
+a|
+[source]
+----
+csm
+----
+| 1
+| 2
+| 9
+| Intel Crestmont microarchitecture
+
+a|
+[source]
+----
+skm
+----
+| 1
+| 2
+| 10
+| Intel Skymont microarchitecture
+
+5+^|*Category: cpu (1), Family: amd (3)*
+
+a|
+[source]
+----
+any
+----
+| 1
+| 3
+| 0
+| Any AMD CPU
+
+5+^|*Category: cpu (1), Family: arm_a (4)*
+
+a|
+[source]
+----
+any
+----
+| 1
+| 4
+| 0
+| Any CPU microarchitecture from the ARM Cortex-A family
+
+a|
+[source]
+----
+a8
+----
+| 1
+| 4
+| 1
+| ARM Cortex-A8 (32-bit)
+
+a|
+[source]
+----
+a9
+----
+| 1
+| 4
+| 2
+| ARM Cortex-A9 (32-bit)
+
+a|
+[source]
+----
+a5
+----
+| 1
+| 4
+| 3
+| ARM Cortex-A5 (32-bit)
+
+a|
+[source]
+----
+a15
+----
+| 1
+| 4
+| 4
+| ARM Cortex-A15 (32-bit)
+
+a|
+[source]
+----
+a7
+----
+| 1
+| 4
+| 5
+| ARM Cortex-A7 (32-bit)
+
+a|
+[source]
+----
+a53
+----
+| 1
+| 4
+| 6
+| ARM Cortex-A53 (32/64-bit)
+
+a|
+[source]
+----
+a57
+----
+| 1
+| 4
+| 7
+| ARM Cortex-A57 (32/64-bit)
+
+a|
+[source]
+----
+a12
+----
+| 1
+| 4
+| 8
+| ARM Cortex-A12 (32-bit)
+
+a|
+[source]
+----
+a17
+----
+| 1
+| 4
+| 9
+| ARM Cortex-A17 (32-bit)
+
+a|
+[source]
+----
+a32
+----
+| 1
+| 4
+| 10
+| ARM Cortex-A32 (32-bit)
+
+a|
+[source]
+----
+a34
+----
+| 1
+| 4
+| 11
+| ARM Cortex-A34 (64-bit)
+
+a|
+[source]
+----
+a73
+----
+| 1
+| 4
+| 12
+| ARM Cortex-A73 (32/64-bit)
+
+a|
+[source]
+----
+a55
+----
+| 1
+| 4
+| 13
+| ARM Cortex-A55 (32/64-bit)
+
+a|
+[source]
+----
+a75
+----
+| 1
+| 4
+| 14
+| ARM Cortex-A75 (32/64-bit)
+
+a|
+[source]
+----
+a65
+----
+| 1
+| 4
+| 15
+| ARM Cortex-A65 (64-bit)
+
+a|
+[source]
+----
+a76
+----
+| 1
+| 4
+| 16
+| ARM Cortex-A76 (32/64-bit)
+
+a|
+[source]
+----
+a77
+----
+| 1
+| 4
+| 17
+| ARM Cortex-A77 (32/64-bit)
+
+a|
+[source]
+----
+a78
+----
+| 1
+| 4
+| 18
+| ARM Cortex-A78 (32/64-bit)
+
+a|
+[source]
+----
+a78ae
+----
+| 1
+| 4
+| 19
+| ARM Cortex-A78AE (32/64-bit)
+
+a|
+[source]
+----
+a510
+----
+| 1
+| 4
+| 20
+| ARM Cortex-A510 (64-bit)
+
+a|
+[source]
+----
+a710
+----
+| 1
+| 4
+| 21
+| ARM Cortex-A710 (32/64-bit)
+
+a|
+[source]
+----
+a510r
+----
+| 1
+| 4
+| 22
+| ARM Cortex-A510 (refresh) (32/64-bit)
+
+a|
+[source]
+----
+a715
+----
+| 1
+| 4
+| 23
+| ARM Cortex-A715 (64-bit)
+
+a|
+[source]
+----
+a520
+----
+| 1
+| 4
+| 24
+| ARM Cortex-A520 (64-bit)
+
+a|
+[source]
+----
+a720
+----
+| 1
+| 4
+| 25
+| ARM Cortex-A720 (64-bit)
+
+a|
+[source]
+----
+a520ae
+----
+| 1
+| 4
+| 26
+| ARM Cortex-A520AE (64-bit)
+
+a|
+[source]
+----
+a720ae
+----
+| 1
+| 4
+| 27
+| ARM Cortex-A720AE (64-bit)
+
+a|
+[source]
+----
+a725
+----
+| 1
+| 4
+| 28
+| ARM Cortex-A725 (64-bit)
+
+a|
+[source]
+----
+a320
+----
+| 1
+| 4
+| 29
+| ARM Cortex-A320 (64-bit)
+
+a|
+[source]
+----
+a530
+----
+| 1
+| 4
+| 30
+| ARM Cortex-A530 (64-bit)
+
+a|
+[source]
+----
+a730
+----
+| 1
+| 4
+| 31
+| ARM Cortex-A730 (64-bit)
+
+5+^|*Category: cpu (1), Family: arm_m (5)*
+
+a|
+[source]
+----
+any
+----
+| 1
+| 5
+| 0
+| Any CPU microarchitecture from the ARM Cortex-M family
+
+a|
+[source]
+----
+m3
+----
+| 1
+| 5
+| 1
+| ARM Cortex-M3
+
+a|
+[source]
+----
+m1
+----
+| 1
+| 5
+| 2
+| ARM Cortex-M1
+
+a|
+[source]
+----
+m0
+----
+| 1
+| 5
+| 3
+| ARM Cortex-M0
+
+a|
+[source]
+----
+m4
+----
+| 1
+| 5
+| 4
+| ARM Cortex-M4
+
+a|
+[source]
+----
+m0p
+----
+| 1
+| 5
+| 5
+| ARM Cortex-M0+
+
+a|
+[source]
+----
+m7
+----
+| 1
+| 5
+| 6
+| ARM Cortex-M7
+
+a|
+[source]
+----
+m23
+----
+| 1
+| 5
+| 7
+| ARM Cortex-M23
+
+a|
+[source]
+----
+m33
+----
+| 1
+| 5
+| 8
+| ARM Cortex-M33
+
+a|
+[source]
+----
+m35p
+----
+| 1
+| 5
+| 9
+| ARM Cortex-M35P
+
+a|
+[source]
+----
+m55
+----
+| 1
+| 5
+| 10
+| ARM Cortex-M55
+
+a|
+[source]
+----
+m85
+----
+| 1
+| 5
+| 11
+| ARM Cortex-M85
+
+a|
+[source]
+----
+m52
+----
+| 1
+| 5
+| 12
+| ARM Cortex-M52
+
+5+^|*Category: cpu (1), Family: arm_r (6)*
+
+a|
+[source]
+----
+any
+----
+| 1
+| 6
+| 0
+| Any CPU microarchitecture from the ARM Cortex-R family
+
+a|
+[source]
+----
+r4
+----
+| 1
+| 6
+| 1
+| ARM Cortex-R4 (32-bit)
+
+a|
+[source]
+----
+r5
+----
+| 1
+| 6
+| 2
+| ARM Cortex-R5 (32-bit)
+
+a|
+[source]
+----
+r7
+----
+| 1
+| 6
+| 3
+| ARM Cortex-R7 (32-bit)
+
+a|
+[source]
+----
+r8
+----
+| 1
+| 6
+| 4
+| ARM Cortex-R8 (32-bit)
+
+a|
+[source]
+----
+r52
+----
+| 1
+| 6
+| 5
+| ARM Cortex-R52 (32-bit)
+
+a|
+[source]
+----
+r82
+----
+| 1
+| 6
+| 6
+| ARM Cortex-R82 (64-bit)
+
+a|
+[source]
+----
+r52p
+----
+| 1
+| 6
+| 7
+| ARM Cortex-R52+ (32-bit)
+
+5+^|*Category: gpu (2), Family: generic (0)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 0
+| 0
+| Any GPU
+
+5+^|*Category: gpu (2), Family: intel (1)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 1
+| 0
+| Any Intel GPU
+
+a|
+[source]
+----
+bdw
+v8_0_0 = bdw
+----
+| 2
+| 1
+| 1
+| Broadwell Intel graphics architecture
+
+a|
+[source]
+----
+skl
+v9_0_9 = skl
+----
+| 2
+| 1
+| 2
+| Skylake Intel graphics architecture
+
+a|
+[source]
+----
+kbl
+v9_1_9 = kbl
+----
+| 2
+| 1
+| 3
+| Kaby Lake Intel graphics architecture
+
+a|
+[source]
+----
+cfl
+v9_2_9 = cfl
+----
+| 2
+| 1
+| 4
+| Coffee Lake Intel graphics architecture
+
+a|
+[source]
+----
+apl
+v9_3_0 = apl
+bxt = apl
+----
+| 2
+| 1
+| 5
+| Apollo Lake Intel graphics architecture
+
+a|
+[source]
+----
+glk
+v9_4_0 = glk
+----
+| 2
+| 1
+| 6
+| Gemini Lake Intel graphics architecture
+
+a|
+[source]
+----
+whl
+v9_5_0 = whl
+----
+| 2
+| 1
+| 7
+| Whiskey Lake Intel graphics architecture
+
+a|
+[source]
+----
+aml
+v9_6_0 = aml
+----
+| 2
+| 1
+| 8
+| Amber Lake Intel graphics architecture
+
+a|
+[source]
+----
+cml
+v9_7_0 = cml
+----
+| 2
+| 1
+| 9
+| Comet Lake Intel graphics architecture
+
+a|
+[source]
+----
+icllp
+icl = icllp
+v11_0_0 = icllp
+----
+| 2
+| 1
+| 10
+| Ice Lake Intel graphics architecture
+
+a|
+[source]
+----
+ehl
+v11_2_0 = ehl
+jsl = ehl
+----
+| 2
+| 1
+| 11
+| Elkhart Lake Intel graphics architecture
+
+a|
+[source]
+----
+tgllp
+tgl = tgllp
+v12_0_0 = tgllp
+----
+| 2
+| 1
+| 12
+| Tiger Lake Intel graphics architecture
+
+a|
+[source]
+----
+rkl
+v12_1_0 = rkl
+----
+| 2
+| 1
+| 13
+| Rocket Lake Intel graphics architecture
+
+a|
+[source]
+----
+adl_s
+v12_2_0 = adl_s
+rpl_s = adl_s
+----
+| 2
+| 1
+| 14
+| Alder Lake S Intel graphics architecture
+
+a|
+[source]
+----
+adl_p
+v12_3_0 = adl_p
+----
+| 2
+| 1
+| 15
+| Alder Lake P Intel graphics architecture
+
+a|
+[source]
+----
+adl_n
+v12_4_0 = adl_n
+----
+| 2
+| 1
+| 16
+| Alder Lake N Intel graphics architecture
+
+a|
+[source]
+----
+dg1
+v12_10_0 = dg1
+----
+| 2
+| 1
+| 17
+| DG1 Intel graphics architecture
+
+a|
+[source]
+----
+acm_g10
+dg2_g10 = acm_g10
+v12_55_8 = acm_g10
+----
+| 2
+| 1
+| 18
+| Alchemist G10 Intel graphics architecture
+
+a|
+[source]
+----
+acm_g11
+dg2_g11 = acm_g11
+v12_56_5 = acm_g11
+----
+| 2
+| 1
+| 19
+| Alchemist G11 Intel graphics architecture
+
+a|
+[source]
+----
+acm_g12
+dg2_g12 = acm_g12
+v12_57_0 = acm_g12
+----
+| 2
+| 1
+| 20
+| Alchemist G12 Intel graphics architecture
+
+a|
+[source]
+----
+pvc
+v12_60_7 = pvc
+----
+| 2
+| 1
+| 21
+| Ponte Vecchio Intel graphics architecture
+
+a|
+[source]
+----
+pvc_vg
+v12_61_7 = pvc_vg
+----
+| 2
+| 1
+| 22
+| Ponte Vecchio VG Intel graphics architecture
+
+a|
+[source]
+----
+mtl_u
+mtl_s = mtl_u
+arl_u = mtl_u
+arl_s = mtl_u
+v12_70_4 = mtl_u
+----
+| 2
+| 1
+| 23
+| Meteor Lake U Intel graphics architecture
+
+a|
+[source]
+----
+mtl_h
+v12_71_4 = mtl_h
+----
+| 2
+| 1
+| 24
+| Meteor Lake H Intel graphics architecture
+
+a|
+[source]
+----
+arl_h
+v12_74_4 = arl_h
+----
+| 2
+| 1
+| 25
+| Arrow Lake H Intel graphics architecture
+
+a|
+[source]
+----
+bmg_g21
+v20_1_4 = bmg_g21
+----
+| 2
+| 1
+| 26
+| Battlemage G21 Intel graphics architecture
+
+a|
+[source]
+----
+lnl_m
+v20_4_4 = lnl_m
+----
+| 2
+| 1
+| 27
+| Lunar Lake Intel graphics architecture
+
+a|
+[source]
+----
+ptl_h
+v30_0_4 = ptl_h
+----
+| 2
+| 1
+| 28
+| Panther Lake H Intel graphics architecture
+
+a|
+[source]
+----
+ptl_u
+v30_1_1 = ptl_u
+----
+| 2
+| 1
+| 29
+| Panther Lake U Intel graphics architecture
+
+5+^|*Category: gpu (2), Family: amd (2)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 2
+| 0
+| Any AMD GPU
+
+a|
+[source]
+----
+gfx700
+gfx701 = gfx700
+gfx702 = gfx700
+gfx703 = gfx700
+gfx704 = gfx700
+gfx705 = gfx700
+----
+| 2
+| 2
+| 1
+| AMD GCN 2.0 microarchitecture
+
+a|
+[source]
+----
+gfx801
+gfx802 = gfx801
+----
+| 2
+| 2
+| 2
+| AMD GCN 3.0 microarchitecture
+
+a|
+[source]
+----
+gfx803
+----
+| 2
+| 2
+| 3
+| AMD GCN 4.0 microarchitecture
+
+a|
+[source]
+----
+gfx805
+gfx810 = gfx805
+----
+| 2
+| 2
+| 4
+| AMD GCN 3.0 microarchitecture
+
+a|
+[source]
+----
+gfx900
+gfx902 = gfx900
+gfx904 = gfx900
+----
+| 2
+| 2
+| 5
+| AMD GCN 5.0 microarchitecture
+
+a|
+[source]
+----
+gfx906
+----
+| 2
+| 2
+| 6
+| AMD GCN 5.1 microarchitecture
+
+a|
+[source]
+----
+gfx908
+----
+| 2
+| 2
+| 7
+| AMD CDNA 1 microarchitecture
+
+a|
+[source]
+----
+gfx909
+----
+| 2
+| 2
+| 8
+| AMD GCN 5.0 microarchitecture
+
+a|
+[source]
+----
+gfx90a
+----
+| 2
+| 2
+| 9
+| AMD CDNA 2 microarchitecture
+
+a|
+[source]
+----
+gfx90c
+----
+| 2
+| 2
+| 10
+| AMD GCN 5.1 microarchitecture
+
+a|
+[source]
+----
+gfx940
+gfx941 = gfx940
+gfx942 = gfx940
+----
+| 2
+| 2
+| 11
+| AMD CDNA 3 microarchitecture
+
+a|
+[source]
+----
+gfx1010
+gfx1011 = gfx1010
+gfx1012 = gfx1010
+gfx1013 = gfx1010
+----
+| 2
+| 2
+| 12
+| AMD RDNA 1 microarchitecture
+
+a|
+[source]
+----
+gfx1030
+gfx1031 = gfx1030
+gfx1032 = gfx1030
+gfx1033 = gfx1030
+gfx1034 = gfx1030
+gfx1035 = gfx1030
+gfx1036 = gfx1030
+----
+| 2
+| 2
+| 13
+| AMD RDNA 2 microarchitecture
+
+a|
+[source]
+----
+gfx1100
+gfx1101 = gfx1100
+gfx1102 = gfx1100
+gfx1103 = gfx1100
+----
+| 2
+| 2
+| 14
+| AMD RDNA 3 microarchitecture
+
+a|
+[source]
+----
+gfx1150
+gfx1151 = gfx1150
+----
+| 2
+| 2
+| 15
+| AMD RDNA 3.5 microarchitecture
+
+a|
+[source]
+----
+gfx1200
+gfx1201 = gfx1200
+----
+| 2
+| 2
+| 16
+| AMD RDNA 4 microarchitecture
+
+5+^|*Category: gpu (2), Family: nvidia (3)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 3
+| 0
+| Any NVIDIA GPU
+
+a|
+[source]
+----
+sm50
+----
+| 2
+| 3
+| 1
+| NVIDIA Maxwell microarchitecture (compute capability 5.0)
+
+a|
+[source]
+----
+sm52
+----
+| 2
+| 3
+| 2
+| NVIDIA Maxwell microarchitecture (compute capability 5.2)
+
+a|
+[source]
+----
+sm53
+----
+| 2
+| 3
+| 3
+| NVIDIA Maxwell microarchitecture (compute capability 5.3)
+
+a|
+[source]
+----
+sm60
+----
+| 2
+| 3
+| 4
+| NVIDIA Pascal microarchitecture (compute capability 6.0)
+
+a|
+[source]
+----
+sm61
+----
+| 2
+| 3
+| 5
+| NVIDIA Pascal microarchitecture (compute capability 6.1)
+
+a|
+[source]
+----
+sm62
+sm70 = sm62
+----
+| 2
+| 3
+| 6
+| NVIDIA Pascal microarchitecture (compute capability 6.2)
+
+a|
+[source]
+----
+sm72
+----
+| 2
+| 3
+| 7
+| NVIDIA Volta microarchitecture (compute capability 7.2)
+
+a|
+[source]
+----
+sm75
+----
+| 2
+| 3
+| 8
+| NVIDIA Turing microarchitecture (compute capability 7.5)
+
+a|
+[source]
+----
+sm80
+----
+| 2
+| 3
+| 9
+| NVIDIA Ampere microarchitecture (compute capability 8.0)
+
+a|
+[source]
+----
+sm86
+----
+| 2
+| 3
+| 10
+| NVIDIA Ampere microarchitecture (compute capability 8.6)
+
+a|
+[source]
+----
+sm87
+----
+| 2
+| 3
+| 11
+| NVIDIA Jetson/Drive AGX Orin microarchitecture
+
+a|
+[source]
+----
+sm89
+----
+| 2
+| 3
+| 12
+| NVIDIA Ada Lovelace arhitecture
+
+a|
+[source]
+----
+sm90
+sm90a = sm90
+----
+| 2
+| 3
+| 13
+| NVIDIA Hopper arhitecture
+
+5+^|*Category: npu (3), Family: generic (0)*
+
+a|
+[source]
+----
+any
+----
+| 3
+| 0
+| 0
+| Any NPU
+
+5+^|*Category: npu (3), Family: intel (1)*
+
+a|
+[source]
+----
+any
+----
+| 3
+| 1
+| 0
+| Any Intel NPU
+
+a|
+[source]
+----
+mtl
+----
+| 3
+| 1
+| 1
+| Intel NPU used in Meteor Lake processors
+
+a|
+[source]
+----
+lnl
+----
+| 3
+| 1
+| 2
+| Intel NPU used in Lunar Lake processors
+
+5+^|*Category: npu (3), Family: amd_xdna (2)*
+
+a|
+[source]
+----
+any
+----
+| 3
+| 2
+| 0
+| Any AMD XDNA architecture
+|===

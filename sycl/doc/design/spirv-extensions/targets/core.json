@@ -1,0 +1,1484 @@
+{
+  "version": 0,
+  "targets": [
+    {
+      "name": "unknown",
+      "value": 0,
+      "desc": "Unknown target"
+    },
+    {
+      "name": "arm",
+      "value": 1,
+      "desc": "ARM (32-bit)"
+    },
+    {
+      "name": "arm32",
+      "value": 1,
+      "desc": "ARM (32-bit)"
+    },
+    {
+      "name": "arm64",
+      "value": 2,
+      "desc": "ARM (64-bit)"
+    },
+    {
+      "name": "aarch64",
+      "value": 2,
+      "desc": "ARM (64-bit)"
+    },
+    {
+      "name": "x86",
+      "value": 3,
+      "desc": "x86 (32-bit)"
+    },
+    {
+      "name": "x86_64",
+      "value": 4,
+      "desc": "x86 (64-bit)"
+    },
+    {
+      "name": "riscv32",
+      "value": 5,
+      "desc": "RISC-V (32-bit)"
+    },
+    {
+      "name": "riscv64",
+      "value": 6,
+      "desc": "RISC-V (64-bit)"
+    },
+    {
+      "name": "nvptx",
+      "value": 7,
+      "desc": "NVIDIA PTX (32-bit)"
+    },
+    {
+      "name": "nvptx64",
+      "value": 8,
+      "desc": "NVIDIA PTX (64-bit)"
+    },
+    {
+      "name": "amdgcn",
+      "value": 9,
+      "desc": "AMD GCN"
+    }
+  ],
+  "features": {
+    "unknown": [
+      {
+        "name": "none",
+        "value": 0,
+        "desc": "No features"
+      }
+    ],
+    "arm32": [
+      {
+        "name": "none",
+        "value": 0,
+        "desc": "No features"
+      },
+      {
+        "name": "neon",
+        "value": 1,
+        "desc": "Enable NEON instructions"
+      }
+    ],
+    "arm64": [
+      {
+        "name": "none",
+        "value": 0,
+        "desc": "No features"
+      },
+      {
+        "name": "fp8",
+        "value": 1,
+        "desc": "Enable FP8 instructions"
+      },
+      {
+        "name": "fp8dot2",
+        "value": 2,
+        "desc": "Enable FP8 2-way dot product instructions"
+      },
+      {
+        "name": "fp8dot4",
+        "value": 3,
+        "desc": "Enable FP8 4-way dot product instructions"
+      },
+      {
+        "name": "neon",
+        "value": 4,
+        "desc": "Enable NEON instructions"
+      },
+      {
+        "name": "sve",
+        "value": 5,
+        "desc": "Enable SVE instructions"
+      }
+    ],
+    "x86": [
+      {
+        "name": "none",
+        "value": 0,
+        "desc": "No features"
+      },
+      {
+        "name": "fma",
+        "value": 1,
+        "desc": "Enable fused three-operand multiply-add"
+      },
+      {
+        "name": "fma4",
+        "value": 2,
+        "desc": "Enable fused four-operand multiply-add"
+      },
+      {
+        "name": "mmx",
+        "value": 3,
+        "desc": "Enable MMX instructions"
+      },
+      {
+        "name": "sse",
+        "value": 4,
+        "desc": "Enable SSE instructions"
+      },
+      {
+        "name": "sse2",
+        "value": 5,
+        "desc": "Enable SSE2 instructions"
+      },
+      {
+        "name": "sse3",
+        "value": 6,
+        "desc": "Enable SSE3 instructions"
+      },
+      {
+        "name": "sse4.1",
+        "value": 7,
+        "desc": "Enable SSE4.1 instructions"
+      },
+      {
+        "name": "sse4.2",
+        "value": 8,
+        "desc": "Enable SSE4.2 instructions"
+      },
+      {
+        "name": "sse4a",
+        "value": 9,
+        "desc": "Enable SSE4a instructions"
+      },
+      {
+        "name": "avx",
+        "value": 10,
+        "desc": "Enable AVX instructions"
+      },
+      {
+        "name": "avx2",
+        "value": 11,
+        "desc": "Enable AVX2 instructions"
+      },
+      {
+        "name": "avx512f",
+        "value": 12,
+        "desc": "Enable AVX512 instructions"
+      }
+    ],
+    "x86_64": [
+      {
+        "name": "none",
+        "value": 0,
+        "desc": "No features"
+      },
+      {
+        "name": "fma",
+        "value": 1,
+        "desc": "Enable fused three-operand multiply-add"
+      },
+      {
+        "name": "fma4",
+        "value": 2,
+        "desc": "Enable fused four-operand multiply-add"
+      },
+      {
+        "name": "mmx",
+        "value": 3,
+        "desc": "Enable MMX instructions"
+      },
+      {
+        "name": "sse",
+        "value": 4,
+        "desc": "Enable SSE instructions"
+      },
+      {
+        "name": "sse2",
+        "value": 5,
+        "desc": "Enable SSE2 instructions"
+      },
+      {
+        "name": "sse3",
+        "value": 6,
+        "desc": "Enable SSE3 instructions"
+      },
+      {
+        "name": "sse4.1",
+        "value": 7,
+        "desc": "Enable SSE4.1 instructions"
+      },
+      {
+        "name": "sse4.2",
+        "value": 8,
+        "desc": "Enable SSE4.2 instructions"
+      },
+      {
+        "name": "sse4a",
+        "value": 9,
+        "desc": "Enable SSE4a instructions"
+      },
+      {
+        "name": "avx",
+        "value": 10,
+        "desc": "Enable AVX instructions"
+      },
+      {
+        "name": "avx2",
+        "value": 11,
+        "desc": "Enable AVX2 instructions"
+      },
+      {
+        "name": "avx512f",
+        "value": 12,
+        "desc": "Enable AVX512 instructions"
+      }
+    ]
+  },
+  "architecture_categories": [
+    {
+      "name": "unknown",
+      "value": 0,
+      "desc": "Unknown category"
+    },
+    {
+      "name": "cpu",
+      "value": 1,
+      "desc": "Central processing unit"
+    },
+    {
+      "name": "gpu",
+      "value": 2,
+      "desc": "Graphics processing unit"
+    },
+    {
+      "name": "npu",
+      "value": 3,
+      "desc": "Neural processing unit (AI accelerator)"
+    }
+  ],
+  "architecture_families": {
+    "unknown": [
+      {
+        "name": "generic",
+        "value": 0,
+        "desc": "Generic family"
+      }
+    ],
+    "cpu": [
+      {
+        "name": "generic",
+        "value": 0,
+        "desc": "Generic CPU"
+      },
+      {
+        "name": "intel",
+        "value": 1,
+        "desc": "Intel main line of CPUs"
+      },
+      {
+        "name": "intel_atom",
+        "value": 2,
+        "desc": "Intel Atom/Low-power line of CPUs"
+      },
+      {
+        "name": "amd",
+        "value": 3,
+        "desc": "AMD CPU"
+      },
+      {
+        "name": "arm_a",
+        "value": 4,
+        "desc": "ARM Cortex-A CPU family"
+      },
+      {
+        "name": "arm_m",
+        "value": 5,
+        "desc": "ARM Cortex-M CPU family"
+      },
+      {
+        "name": "arm_r",
+        "value": 6,
+        "desc": "ARM Cortex-R CPU family"
+      }
+    ],
+    "gpu": [
+      {
+        "name": "generic",
+        "value": 0,
+        "desc": "Generic GPU"
+      },
+      {
+        "name": "intel",
+        "value": 1,
+        "desc": "Intel GPU"
+      },
+      {
+        "name": "amd",
+        "value": 2,
+        "desc": "AMD GPU"
+      },
+      {
+        "name": "nvidia",
+        "value": 3,
+        "desc": "NVIDIA GPU"
+      }
+    ],
+    "npu": [
+      {
+        "name": "generic",
+        "value": 0,
+        "desc": "Generic NPU"
+      },
+      {
+        "name": "intel",
+        "value": 1,
+        "desc": "Intel NPU"
+      },
+      {
+        "name": "amd_xdna",
+        "value": 2,
+        "desc": "AMD XDNA NPU"
+      }
+    ]
+  },
+  "architectures": {
+    "unknown": {
+      "generic": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any architecture"
+        }
+      ]
+    },
+    "cpu": {
+      "generic": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any CPU"
+        }
+      ],
+      "intel": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Intel CPU"
+        },
+        {
+          "name": "nhm",
+          "value": 1,
+          "desc": "Intel Nehalem microarchitecture"
+        },
+        {
+          "name": "wsm",
+          "value": 2,
+          "desc": "Intel Westmere microarchitecture"
+        },
+        {
+          "name": "sdb",
+          "value": 3,
+          "desc": "Intel Sandy Bridge microarchitecture"
+        },
+        {
+          "name": "ivb",
+          "value": 4,
+          "desc": "Intel Ivy Bridge microarchitecture"
+        },
+        {
+          "name": "hsw",
+          "value": 5,
+          "desc": "Intel Haswell microarchitecture"
+        },
+        {
+          "name": "bdw",
+          "value": 6,
+          "desc": "Intel Broadwell microarchitecture"
+        },
+        {
+          "name": "skl",
+          "value": 7,
+          "desc": "Intel Skylake microarchitecture"
+        },
+        {
+          "name": "pmc",
+          "value": 8,
+          "desc": "Intel Palm Cove microarchitecture"
+        },
+        {
+          "name": "snc",
+          "value": 9,
+          "desc": "Intel Sunny Cove microarchitecture"
+        },
+        {
+          "name": "wlc",
+          "value": 10,
+          "desc": "Intel Willow Cove microarchitecture"
+        },
+        {
+          "name": "cpc",
+          "value": 11,
+          "desc": "Intel Cypress Cove microarchitecture"
+        },
+        {
+          "name": "gdc",
+          "value": 12,
+          "desc": "Intel Golden Cove microarchitecture"
+        },
+        {
+          "name": "rpc",
+          "value": 13,
+          "desc": "Intel Raptor Cove microarchitecture"
+        },
+        {
+          "name": "rdc",
+          "value": 14,
+          "desc": "Intel Redwood Cove microarchitecture"
+        },
+        {
+          "name": "lnc",
+          "value": 15,
+          "desc": "Intel Lion Cove microarchitecture"
+        }
+      ],
+      "intel_atom": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Intel Atom/Low-power CPU"
+        },
+        {
+          "name": "bnl",
+          "value": 1,
+          "desc": "Intel Bonnell microarchitecture"
+        },
+        {
+          "name": "slw",
+          "value": 2,
+          "desc": "Intel Saltwell microarchitecture"
+        },
+        {
+          "name": "svm",
+          "value": 3,
+          "desc": "Intel Silvermont microarchitecture"
+        },
+        {
+          "name": "aim",
+          "value": 4,
+          "desc": "Intel Airmont microarchitecture"
+        },
+        {
+          "name": "gdm",
+          "value": 5,
+          "desc": "Intel Goldmont microarchitecture"
+        },
+        {
+          "name": "gdm_p",
+          "value": 6,
+          "desc": "Intel Goldmont Plus microarchitecture"
+        },
+        {
+          "name": "trm",
+          "value": 7,
+          "desc": "Intel Tremont microarchitecture"
+        },
+        {
+          "name": "gcm",
+          "value": 8,
+          "desc": "Intel Gracemont microarchitecture"
+        },
+        {
+          "name": "csm",
+          "value": 9,
+          "desc": "Intel Crestmont microarchitecture"
+        },
+        {
+          "name": "skm",
+          "value": 10,
+          "desc": "Intel Skymont microarchitecture"
+        }
+      ],
+      "amd": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any AMD CPU"
+        }
+      ],
+      "arm_a": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any CPU microarchitecture from the ARM Cortex-A family"
+        },
+        {
+          "name": "a8",
+          "value": 1,
+          "desc": "ARM Cortex-A8 (32-bit)"
+        },
+        {
+          "name": "a9",
+          "value": 2,
+          "desc": "ARM Cortex-A9 (32-bit)"
+        },
+        {
+          "name": "a5",
+          "value": 3,
+          "desc": "ARM Cortex-A5 (32-bit)"
+        },
+        {
+          "name": "a15",
+          "value": 4,
+          "desc": "ARM Cortex-A15 (32-bit)"
+        },
+        {
+          "name": "a7",
+          "value": 5,
+          "desc": "ARM Cortex-A7 (32-bit)"
+        },
+        {
+          "name": "a53",
+          "value": 6,
+          "desc": "ARM Cortex-A53 (32/64-bit)"
+        },
+        {
+          "name": "a57",
+          "value": 7,
+          "desc": "ARM Cortex-A57 (32/64-bit)"
+        },
+        {
+          "name": "a12",
+          "value": 8,
+          "desc": "ARM Cortex-A12 (32-bit)"
+        },
+        {
+          "name": "a17",
+          "value": 9,
+          "desc": "ARM Cortex-A17 (32-bit)"
+        },
+        {
+          "name": "a32",
+          "value": 10,
+          "desc": "ARM Cortex-A32 (32-bit)"
+        },
+        {
+          "name": "a34",
+          "value": 11,
+          "desc": "ARM Cortex-A34 (64-bit)"
+        },
+        {
+          "name": "a73",
+          "value": 12,
+          "desc": "ARM Cortex-A73 (32/64-bit)"
+        },
+        {
+          "name": "a55",
+          "value": 13,
+          "desc": "ARM Cortex-A55 (32/64-bit)"
+        },
+        {
+          "name": "a75",
+          "value": 14,
+          "desc": "ARM Cortex-A75 (32/64-bit)"
+        },
+        {
+          "name": "a65",
+          "value": 15,
+          "desc": "ARM Cortex-A65 (64-bit)"
+        },
+        {
+          "name": "a76",
+          "value": 16,
+          "desc": "ARM Cortex-A76 (32/64-bit)"
+        },
+        {
+          "name": "a77",
+          "value": 17,
+          "desc": "ARM Cortex-A77 (32/64-bit)"
+        },
+        {
+          "name": "a78",
+          "value": 18,
+          "desc": "ARM Cortex-A78 (32/64-bit)"
+        },
+        {
+          "name": "a78ae",
+          "value": 19,
+          "desc": "ARM Cortex-A78AE (32/64-bit)"
+        },
+        {
+          "name": "a510",
+          "value": 20,
+          "desc": "ARM Cortex-A510 (64-bit)"
+        },
+        {
+          "name": "a710",
+          "value": 21,
+          "desc": "ARM Cortex-A710 (32/64-bit)"
+        },
+        {
+          "name": "a510r",
+          "value": 22,
+          "desc": "ARM Cortex-A510 (refresh) (32/64-bit)"
+        },
+        {
+          "name": "a715",
+          "value": 23,
+          "desc": "ARM Cortex-A715 (64-bit)"
+        },
+        {
+          "name": "a520",
+          "value": 24,
+          "desc": "ARM Cortex-A520 (64-bit)"
+        },
+        {
+          "name": "a720",
+          "value": 25,
+          "desc": "ARM Cortex-A720 (64-bit)"
+        },
+        {
+          "name": "a520ae",
+          "value": 26,
+          "desc": "ARM Cortex-A520AE (64-bit)"
+        },
+        {
+          "name": "a720ae",
+          "value": 27,
+          "desc": "ARM Cortex-A720AE (64-bit)"
+        },
+        {
+          "name": "a725",
+          "value": 28,
+          "desc": "ARM Cortex-A725 (64-bit)"
+        },
+        {
+          "name": "a320",
+          "value": 29,
+          "desc": "ARM Cortex-A320 (64-bit)"
+        },
+        {
+          "name": "a530",
+          "value": 30,
+          "desc": "ARM Cortex-A530 (64-bit)"
+        },
+        {
+          "name": "a730",
+          "value": 31,
+          "desc": "ARM Cortex-A730 (64-bit)"
+        }
+      ],
+      "arm_m": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any CPU microarchitecture from the ARM Cortex-M family"
+        },
+        {
+          "name": "m3",
+          "value": 1,
+          "desc": "ARM Cortex-M3"
+        },
+        {
+          "name": "m1",
+          "value": 2,
+          "desc": "ARM Cortex-M1"
+        },
+        {
+          "name": "m0",
+          "value": 3,
+          "desc": "ARM Cortex-M0"
+        },
+        {
+          "name": "m4",
+          "value": 4,
+          "desc": "ARM Cortex-M4"
+        },
+        {
+          "name": "m0p",
+          "value": 5,
+          "desc": "ARM Cortex-M0+"
+        },
+        {
+          "name": "m7",
+          "value": 6,
+          "desc": "ARM Cortex-M7"
+        },
+        {
+          "name": "m23",
+          "value": 7,
+          "desc": "ARM Cortex-M23"
+        },
+        {
+          "name": "m33",
+          "value": 8,
+          "desc": "ARM Cortex-M33"
+        },
+        {
+          "name": "m35p",
+          "value": 9,
+          "desc": "ARM Cortex-M35P"
+        },
+        {
+          "name": "m55",
+          "value": 10,
+          "desc": "ARM Cortex-M55"
+        },
+        {
+          "name": "m85",
+          "value": 11,
+          "desc": "ARM Cortex-M85"
+        },
+        {
+          "name": "m52",
+          "value": 12,
+          "desc": "ARM Cortex-M52"
+        }
+      ],
+      "arm_r": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any CPU microarchitecture from the ARM Cortex-R family"
+        },
+        {
+          "name": "r4",
+          "value": 1,
+          "desc": "ARM Cortex-R4 (32-bit)"
+        },
+        {
+          "name": "r5",
+          "value": 2,
+          "desc": "ARM Cortex-R5 (32-bit)"
+        },
+        {
+          "name": "r7",
+          "value": 3,
+          "desc": "ARM Cortex-R7 (32-bit)"
+        },
+        {
+          "name": "r8",
+          "value": 4,
+          "desc": "ARM Cortex-R8 (32-bit)"
+        },
+        {
+          "name": "r52",
+          "value": 5,
+          "desc": "ARM Cortex-R52 (32-bit)"
+        },
+        {
+          "name": "r82",
+          "value": 6,
+          "desc": "ARM Cortex-R82 (64-bit)"
+        },
+        {
+          "name": "r52p",
+          "value": 7,
+          "desc": "ARM Cortex-R52+ (32-bit)"
+        }
+      ]
+    },
+    "gpu": {
+      "generic": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any GPU"
+        }
+      ],
+      "intel": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Intel GPU"
+        },
+        {
+          "name": "bdw",
+          "value": 1,
+          "desc": "Broadwell Intel graphics architecture"
+        },
+        {
+          "name": "v8_0_0",
+          "value": 1,
+          "desc": "Broadwell Intel graphics architecture"
+        },
+        {
+          "name": "skl",
+          "value": 2,
+          "desc": "Skylake Intel graphics architecture"
+        },
+        {
+          "name": "v9_0_9",
+          "value": 2,
+          "desc": "Skylake Intel graphics architecture"
+        },
+        {
+          "name": "kbl",
+          "value": 3,
+          "desc": "Kaby Lake Intel graphics architecture"
+        },
+        {
+          "name": "v9_1_9",
+          "value": 3,
+          "desc": "Kaby Lake Intel graphics architecture"
+        },
+        {
+          "name": "cfl",
+          "value": 4,
+          "desc": "Coffee Lake Intel graphics architecture"
+        },
+        {
+          "name": "v9_2_9",
+          "value": 4,
+          "desc": "Coffee Lake Intel graphics architecture"
+        },
+        {
+          "name": "apl",
+          "value": 5,
+          "desc": "Apollo Lake Intel graphics architecture"
+        },
+        {
+          "name": "v9_3_0",
+          "value": 5,
+          "desc": "Apollo Lake Intel graphics architecture"
+        },
+        {
+          "name": "bxt",
+          "value": 5,
+          "desc": "Broxton Intel graphics architecture"
+        },
+        {
+          "name": "glk",
+          "value": 6,
+          "desc": "Gemini Lake Intel graphics architecture"
+        },
+        {
+          "name": "v9_4_0",
+          "value": 6,
+          "desc": "Gemini Lake Intel graphics architecture"
+        },
+        {
+          "name": "whl",
+          "value": 7,
+          "desc": "Whiskey Lake Intel graphics architecture"
+        },
+        {
+          "name": "v9_5_0",
+          "value": 7,
+          "desc": "Whiskey Lake Intel graphics architecture"
+        },
+        {
+          "name": "aml",
+          "value": 8,
+          "desc": "Amber Lake Intel graphics architecture"
+        },
+        {
+          "name": "v9_6_0",
+          "value": 8,
+          "desc": "Amber Lake Intel graphics architecture"
+        },
+        {
+          "name": "cml",
+          "value": 9,
+          "desc": "Comet Lake Intel graphics architecture"
+        },
+        {
+          "name": "v9_7_0",
+          "value": 9,
+          "desc": "Comet Lake Intel graphics architecture"
+        },
+        {
+          "name": "icllp",
+          "value": 10,
+          "desc": "Ice Lake Intel graphics architecture"
+        },
+        {
+          "name": "icl",
+          "value": 10,
+          "desc": "Ice Lake Intel graphics architecture"
+        },
+        {
+          "name": "v11_0_0",
+          "value": 10,
+          "desc": "Ice Lake Intel graphics architecture"
+        },
+        {
+          "name": "ehl",
+          "value": 11,
+          "desc": "Elkhart Lake Intel graphics architecture"
+        },
+        {
+          "name": "v11_2_0",
+          "value": 11,
+          "desc": "Elkhart Lake Intel graphics architecture"
+        },
+        {
+          "name": "jsl",
+          "value": 11,
+          "desc": "Jasper Lake Intel graphics architecture"
+        },
+        {
+          "name": "tgllp",
+          "value": 12,
+          "desc": "Tiger Lake Intel graphics architecture"
+        },
+        {
+          "name": "tgl",
+          "value": 12,
+          "desc": "Tiger Lake Intel graphics architecture"
+        },
+        {
+          "name": "v12_0_0",
+          "value": 12,
+          "desc": "Tiger Lake Intel graphics architecture"
+        },
+        {
+          "name": "rkl",
+          "value": 13,
+          "desc": "Rocket Lake Intel graphics architecture"
+        },
+        {
+          "name": "v12_1_0",
+          "value": 13,
+          "desc": "Rocket Lake Intel graphics architecture"
+        },
+        {
+          "name": "adl_s",
+          "value": 14,
+          "desc": "Alder Lake S Intel graphics architecture"
+        },
+        {
+          "name": "v12_2_0",
+          "value": 14,
+          "desc": "Alder Lake S Intel graphics architecture"
+        },
+        {
+          "name": "rpl_s",
+          "value": 14,
+          "desc": "Raptor Lake Intel graphics architecture"
+        },
+        {
+          "name": "adl_p",
+          "value": 15,
+          "desc": "Alder Lake P Intel graphics architecture"
+        },
+        {
+          "name": "v12_3_0",
+          "value": 15,
+          "desc": "Alder Lake P Intel graphics architecture"
+        },
+        {
+          "name": "adl_n",
+          "value": 16,
+          "desc": "Alder Lake N Intel graphics architecture"
+        },
+        {
+          "name": "v12_4_0",
+          "value": 16,
+          "desc": "Alder Lake N Intel graphics architecture"
+        },
+        {
+          "name": "dg1",
+          "value": 17,
+          "desc": "DG1 Intel graphics architecture"
+        },
+        {
+          "name": "v12_10_0",
+          "value": 17,
+          "desc": "DG1 Intel graphics architecture"
+        },
+        {
+          "name": "acm_g10",
+          "value": 18,
+          "desc": "Alchemist G10 Intel graphics architecture"
+        },
+        {
+          "name": "dg2_g10",
+          "value": 18,
+          "desc": "Alchemist G10 Intel graphics architecture"
+        },
+        {
+          "name": "v12_55_8",
+          "value": 18,
+          "desc": "Alchemist G10 Intel graphics architecture"
+        },
+        {
+          "name": "acm_g11",
+          "value": 19,
+          "desc": "Alchemist G11 Intel graphics architecture"
+        },
+        {
+          "name": "dg2_g11",
+          "value": 19,
+          "desc": "Alchemist G11 Intel graphics architecture"
+        },
+        {
+          "name": "v12_56_5",
+          "value": 19,
+          "desc": "Alchemist G11 Intel graphics architecture"
+        },
+        {
+          "name": "acm_g12",
+          "value": 20,
+          "desc": "Alchemist G12 Intel graphics architecture"
+        },
+        {
+          "name": "dg2_g12",
+          "value": 20,
+          "desc": "Alchemist G12 Intel graphics architecture"
+        },
+        {
+          "name": "v12_57_0",
+          "value": 20,
+          "desc": "Alchemist G12 Intel graphics architecture"
+        },
+        {
+          "name": "pvc",
+          "value": 21,
+          "desc": "Ponte Vecchio Intel graphics architecture"
+        },
+        {
+          "name": "v12_60_7",
+          "value": 21,
+          "desc": "Ponte Vecchio Intel graphics architecture"
+        },
+        {
+          "name": "pvc_vg",
+          "value": 22,
+          "desc": "Ponte Vecchio VG Intel graphics architecture"
+        },
+        {
+          "name": "v12_61_7",
+          "value": 22,
+          "desc": "Ponte Vecchio VG Intel graphics architecture"
+        },
+        {
+          "name": "mtl_u",
+          "value": 23,
+          "desc": "Meteor Lake U Intel graphics architecture"
+        },
+        {
+          "name": "mtl_s",
+          "value": 23,
+          "desc": "Meteor Lake S Intel graphics architecture"
+        },
+        {
+          "name": "arl_u",
+          "value": 23,
+          "desc": "Arrow Lake U Intel graphics architecture"
+        },
+        {
+          "name": "arl_s",
+          "value": 23,
+          "desc": "Arrow Lake S Intel graphics architecture"
+        },
+        {
+          "name": "v12_70_4",
+          "value": 23,
+          "desc": "Meteor Lake U Intel graphics architecture"
+        },
+        {
+          "name": "mtl_h",
+          "value": 24,
+          "desc": "Meteor Lake H Intel graphics architecture"
+        },
+        {
+          "name": "v12_71_4",
+          "value": 24,
+          "desc": "Meteor Lake H Intel graphics architecture"
+        },
+        {
+          "name": "arl_h",
+          "value": 25,
+          "desc": "Arrow Lake H Intel graphics architecture"
+        },
+        {
+          "name": "v12_74_4",
+          "value": 25,
+          "desc": "Arrow Lake H Intel graphics architecture"
+        },
+        {
+          "name": "bmg_g21",
+          "value": 26,
+          "desc": "Battlemage G21 Intel graphics architecture"
+        },
+        {
+          "name": "v20_1_4",
+          "value": 26,
+          "desc": "Battlemage G21 Intel graphics architecture"
+        },
+        {
+          "name": "lnl_m",
+          "value": 27,
+          "desc": "Lunar Lake Intel graphics architecture"
+        },
+        {
+          "name": "v20_4_4",
+          "value": 27,
+          "desc": "Lunar Lake Intel graphics architecture"
+        },
+        {
+          "name": "ptl_h",
+          "value": 28,
+          "desc": "Panther Lake H Intel graphics architecture"
+        },
+        {
+          "name": "v30_0_4",
+          "value": 28,
+          "desc": "Panther Lake H Intel graphics architecture"
+        },
+        {
+          "name": "ptl_u",
+          "value": 29,
+          "desc": "Panther Lake U Intel graphics architecture"
+        },
+        {
+          "name": "v30_1_1",
+          "value": 29,
+          "desc": "Panther Lake U Intel graphics architecture"
+        }
+      ],
+      "amd": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any AMD GPU"
+        },
+        {
+          "name": "gfx700",
+          "value": 1,
+          "desc": "AMD GCN 2.0 microarchitecture"
+        },
+        {
+          "name": "gfx701",
+          "value": 1,
+          "desc": "AMD GCN 2.0 microarchitecture"
+        },
+        {
+          "name": "gfx702",
+          "value": 1,
+          "desc": "AMD GCN 2.0 microarchitecture"
+        },
+        {
+          "name": "gfx703",
+          "value": 1,
+          "desc": "AMD GCN 2.0 microarchitecture"
+        },
+        {
+          "name": "gfx704",
+          "value": 1,
+          "desc": "AMD GCN 2.0 microarchitecture"
+        },
+        {
+          "name": "gfx705",
+          "value": 1,
+          "desc": "AMD GCN 2.0 microarchitecture"
+        },
+        {
+          "name": "gfx801",
+          "value": 2,
+          "desc": "AMD GCN 3.0 microarchitecture"
+        },
+        {
+          "name": "gfx802",
+          "value": 2,
+          "desc": "AMD GCN 3.0 microarchitecture"
+        },
+        {
+          "name": "gfx803",
+          "value": 3,
+          "desc": "AMD GCN 4.0 microarchitecture"
+        },
+        {
+          "name": "gfx805",
+          "value": 4,
+          "desc": "AMD GCN 3.0 microarchitecture"
+        },
+        {
+          "name": "gfx810",
+          "value": 4,
+          "desc": "AMD GCN 3.0 microarchitecture"
+        },
+        {
+          "name": "gfx900",
+          "value": 5,
+          "desc": "AMD GCN 5.0 microarchitecture"
+        },
+        {
+          "name": "gfx902",
+          "value": 5,
+          "desc": "AMD GCN 5.0 microarchitecture"
+        },
+        {
+          "name": "gfx904",
+          "value": 5,
+          "desc": "AMD GCN 5.0 microarchitecture"
+        },
+        {
+          "name": "gfx906",
+          "value": 6,
+          "desc": "AMD GCN 5.1 microarchitecture"
+        },
+        {
+          "name": "gfx908",
+          "value": 7,
+          "desc": "AMD CDNA 1 microarchitecture"
+        },
+        {
+          "name": "gfx909",
+          "value": 8,
+          "desc": "AMD GCN 5.0 microarchitecture"
+        },
+        {
+          "name": "gfx90a",
+          "value": 9,
+          "desc": "AMD CDNA 2 microarchitecture"
+        },
+        {
+          "name": "gfx90c",
+          "value": 10,
+          "desc": "AMD GCN 5.1 microarchitecture"
+        },
+        {
+          "name": "gfx940",
+          "value": 11,
+          "desc": "AMD CDNA 3 microarchitecture"
+        },
+        {
+          "name": "gfx941",
+          "value": 11,
+          "desc": "AMD CDNA 3 microarchitecture"
+        },
+        {
+          "name": "gfx942",
+          "value": 11,
+          "desc": "AMD CDNA 3 microarchitecture"
+        },
+        {
+          "name": "gfx1010",
+          "value": 12,
+          "desc": "AMD RDNA 1 microarchitecture"
+        },
+        {
+          "name": "gfx1011",
+          "value": 12,
+          "desc": "AMD RDNA 1 microarchitecture"
+        },
+        {
+          "name": "gfx1012",
+          "value": 12,
+          "desc": "AMD RDNA 1 microarchitecture"
+        },
+        {
+          "name": "gfx1013",
+          "value": 12,
+          "desc": "AMD RDNA 1 microarchitecture"
+        },
+        {
+          "name": "gfx1030",
+          "value": 13,
+          "desc": "AMD RDNA 2 microarchitecture"
+        },
+        {
+          "name": "gfx1031",
+          "value": 13,
+          "desc": "AMD RDNA 2 microarchitecture"
+        },
+        {
+          "name": "gfx1032",
+          "value": 13,
+          "desc": "AMD RDNA 2 microarchitecture"
+        },
+        {
+          "name": "gfx1033",
+          "value": 13,
+          "desc": "AMD RDNA 2 microarchitecture"
+        },
+        {
+          "name": "gfx1034",
+          "value": 13,
+          "desc": "AMD RDNA 2 microarchitecture"
+        },
+        {
+          "name": "gfx1035",
+          "value": 13,
+          "desc": "AMD RDNA 2 microarchitecture"
+        },
+        {
+          "name": "gfx1036",
+          "value": 13,
+          "desc": "AMD RDNA 2 microarchitecture"
+        },
+        {
+          "name": "gfx1100",
+          "value": 14,
+          "desc": "AMD RDNA 3 microarchitecture"
+        },
+        {
+          "name": "gfx1101",
+          "value": 14,
+          "desc": "AMD RDNA 3 microarchitecture"
+        },
+        {
+          "name": "gfx1102",
+          "value": 14,
+          "desc": "AMD RDNA 3 microarchitecture"
+        },
+        {
+          "name": "gfx1103",
+          "value": 14,
+          "desc": "AMD RDNA 3 microarchitecture"
+        },
+        {
+          "name": "gfx1150",
+          "value": 15,
+          "desc": "AMD RDNA 3.5 microarchitecture"
+        },
+        {
+          "name": "gfx1151",
+          "value": 15,
+          "desc": "AMD RDNA 3.5 microarchitecture"
+        },
+        {
+          "name": "gfx1200",
+          "value": 16,
+          "desc": "AMD RDNA 4 microarchitecture"
+        },
+        {
+          "name": "gfx1201",
+          "value": 16,
+          "desc": "AMD RDNA 4 microarchitecture"
+        }
+      ],
+      "nvidia": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any NVIDIA GPU"
+        },
+        {
+          "name": "sm50",
+          "value": 1,
+          "desc": "NVIDIA Maxwell microarchitecture (compute capability 5.0)"
+        },
+        {
+          "name": "sm52",
+          "value": 2,
+          "desc": "NVIDIA Maxwell microarchitecture (compute capability 5.2)"
+        },
+        {
+          "name": "sm53",
+          "value": 3,
+          "desc": "NVIDIA Maxwell microarchitecture (compute capability 5.3)"
+        },
+        {
+          "name": "sm60",
+          "value": 4,
+          "desc": "NVIDIA Pascal microarchitecture (compute capability 6.0)"
+        },
+        {
+          "name": "sm61",
+          "value": 5,
+          "desc": "NVIDIA Pascal microarchitecture (compute capability 6.1)"
+        },
+        {
+          "name": "sm62",
+          "value": 6,
+          "desc": "NVIDIA Pascal microarchitecture (compute capability 6.2)"
+        },
+        {
+          "name": "sm70",
+          "value": 6,
+          "desc": "NVIDIA Volta microarchitecture (compute capability 7.0)"
+        },
+        {
+          "name": "sm72",
+          "value": 7,
+          "desc": "NVIDIA Volta microarchitecture (compute capability 7.2)"
+        },
+        {
+          "name": "sm75",
+          "value": 8,
+          "desc": "NVIDIA Turing microarchitecture (compute capability 7.5)"
+        },
+        {
+          "name": "sm80",
+          "value": 9,
+          "desc": "NVIDIA Ampere microarchitecture (compute capability 8.0)"
+        },
+        {
+          "name": "sm86",
+          "value": 10,
+          "desc": "NVIDIA Ampere microarchitecture (compute capability 8.6)"
+        },
+        {
+          "name": "sm87",
+          "value": 11,
+          "desc": "NVIDIA Jetson/Drive AGX Orin microarchitecture"
+        },
+        {
+          "name": "sm89",
+          "value": 12,
+          "desc": "NVIDIA Ada Lovelace arhitecture"
+        },
+        {
+          "name": "sm90",
+          "value": 13,
+          "desc": "NVIDIA Hopper arhitecture"
+        },
+        {
+          "name": "sm90a",
+          "value": 13,
+          "desc": "NVIDIA Hopper arhitecture"
+        }
+      ]
+    },
+    "npu": {
+      "generic": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any NPU"
+        }
+      ],
+      "intel": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Intel NPU"
+        },
+        {
+          "name": "mtl",
+          "value": 1,
+          "desc": "Intel NPU used in Meteor Lake processors"
+        },
+        {
+          "name": "lnl",
+          "value": 2,
+          "desc": "Intel NPU used in Lunar Lake processors"
+        }
+      ],
+      "amd_xdna": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any AMD XDNA architecture"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,426 @@
+
+== Targets
+
+[%header,cols="8,3,10"]
+|===
+|Name
+|Value
+|Description
+
+a|
+[source]
+----
+unknown
+----
+| 0
+| Unknown target
+
+a|
+[source]
+----
+arm
+arm32 = arm
+----
+| 1
+| ARM (32-bit)
+
+a|
+[source]
+----
+arm64
+aarch64 = arm64
+----
+| 2
+| ARM (64-bit)
+
+a|
+[source]
+----
+x86
+----
+| 3
+| x86 (32-bit)
+
+a|
+[source]
+----
+x86_64
+----
+| 4
+| x86 (64-bit)
+
+a|
+[source]
+----
+riscv32
+----
+| 5
+| RISC-V (32-bit)
+
+a|
+[source]
+----
+riscv64
+----
+| 6
+| RISC-V (64-bit)
+
+a|
+[source]
+----
+nvptx
+----
+| 7
+| NVIDIA PTX (32-bit)
+
+a|
+[source]
+----
+nvptx64
+----
+| 8
+| NVIDIA PTX (64-bit)
+
+a|
+[source]
+----
+amdgcn
+----
+| 9
+| AMD GCN
+|===
+
+== Features
+
+[%header,cols="8,3,3,10"]
+|===
+|Name
+|Target
+|Value
+|Description
+
+4+^|*Target: unknown (0)*
+
+a|
+[source]
+----
+none
+----
+| 0
+| 0
+| No features
+
+4+^|*Target: arm, arm32 (1)*
+
+a|
+[source]
+----
+none
+----
+| 1
+| 0
+| No features
+
+a|
+[source]
+----
+neon
+----
+| 1
+| 1
+| Enable NEON instructions
+
+4+^|*Target: arm64, aarch64 (2)*
+
+a|
+[source]
+----
+none
+----
+| 2
+| 0
+| No features
+
+a|
+[source]
+----
+fp8
+----
+| 2
+| 1
+| Enable FP8 instructions
+
+a|
+[source]
+----
+fp8dot2
+----
+| 2
+| 2
+| Enable FP8 2-way dot product instructions
+
+a|
+[source]
+----
+fp8dot4
+----
+| 2
+| 3
+| Enable FP8 4-way dot product instructions
+
+a|
+[source]
+----
+neon
+----
+| 2
+| 4
+| Enable NEON instructions
+
+a|
+[source]
+----
+sve
+----
+| 2
+| 5
+| Enable SVE instructions
+
+4+^|*Target: x86 (3)*
+
+a|
+[source]
+----
+none
+----
+| 3
+| 0
+| No features
+
+a|
+[source]
+----
+fma
+----
+| 3
+| 1
+| Enable fused three-operand multiply-add
+
+a|
+[source]
+----
+fma4
+----
+| 3
+| 2
+| Enable fused four-operand multiply-add
+
+a|
+[source]
+----
+mmx
+----
+| 3
+| 3
+| Enable MMX instructions
+
+a|
+[source]
+----
+sse
+----
+| 3
+| 4
+| Enable SSE instructions
+
+a|
+[source]
+----
+sse2
+----
+| 3
+| 5
+| Enable SSE2 instructions
+
+a|
+[source]
+----
+sse3
+----
+| 3
+| 6
+| Enable SSE3 instructions
+
+a|
+[source]
+----
+sse4.1
+----
+| 3
+| 7
+| Enable SSE4.1 instructions
+
+a|
+[source]
+----
+sse4.2
+----
+| 3
+| 8
+| Enable SSE4.2 instructions
+
+a|
+[source]
+----
+sse4a
+----
+| 3
+| 9
+| Enable SSE4a instructions
+
+a|
+[source]
+----
+avx
+----
+| 3
+| 10
+| Enable AVX instructions
+
+a|
+[source]
+----
+avx2
+----
+| 3
+| 11
+| Enable AVX2 instructions
+
+a|
+[source]
+----
+avx512f
+----
+| 3
+| 12
+| Enable AVX512 instructions
+
+4+^|*Target: x86_64 (4)*
+
+a|
+[source]
+----
+none
+----
+| 4
+| 0
+| No features
+
+a|
+[source]
+----
+fma
+----
+| 4
+| 1
+| Enable fused three-operand multiply-add
+
+a|
+[source]
+----
+fma4
+----
+| 4
+| 2
+| Enable fused four-operand multiply-add
+
+a|
+[source]
+----
+mmx
+----
+| 4
+| 3
+| Enable MMX instructions
+
+a|
+[source]
+----
+sse
+----
+| 4
+| 4
+| Enable SSE instructions
+
+a|
+[source]
+----
+sse2
+----
+| 4
+| 5
+| Enable SSE2 instructions
+
+a|
+[source]
+----
+sse3
+----
+| 4
+| 6
+| Enable SSE3 instructions
+
+a|
+[source]
+----
+sse4.1
+----
+| 4
+| 7
+| Enable SSE4.1 instructions
+
+a|
+[source]
+----
+sse4.2
+----
+| 4
+| 8
+| Enable SSE4.2 instructions
+
+a|
+[source]
+----
+sse4a
+----
+| 4
+| 9
+| Enable SSE4a instructions
+
+a|
+[source]
+----
+avx
+----
+| 4
+| 10
+| Enable AVX instructions
+
+a|
+[source]
+----
+avx2
+----
+| 4
+| 11
+| Enable AVX2 instructions
+
+a|
+[source]
+----
+avx512f
+----
+| 4
+| 12
+| Enable AVX512 instructions
+|===
