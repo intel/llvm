@@ -239,9 +239,8 @@ pixelf32 as_pixelf32(int4 v) { return __clc_as_float4(v); }
   }
 
 #define _DEFINE_READ_1D_PIXELF(pixelf_size, cuda_address_mode)                 \
-  __attribute__((always_inline))                                               \
-  pixelf##pixelf_size read_1d_##pixelf_size##_##cuda_address_mode(long image,  \
-                                                                  int x) {     \
+  __attribute__((always_inline)) pixelf##pixelf_size                           \
+      read_1d_##pixelf_size##_##cuda_address_mode(long image, int x) {         \
     return as_pixelf##pixelf_size(                                             \
         __nvvm_suld_1d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
             image, x * sizeof(pixelf##pixelf_size)));                          \
@@ -3519,9 +3518,9 @@ _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 3, v2f16,
     return (elem_t)__nvvm_tex_##dimension##d_level_##fetch_vec_size##_f32(     \
         imageHandle, coord_parameter, level)[0];                               \
   }                                                                            \
-  __attribute__((always_inline)) elem_t
-      __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                         \
-          unsigned long imageHandle, coord_input, grad_input) {                \
+  __attribute__((always_inline)) elem_t                                        \
+  __nvvm_tex_##dimension##d_grad_##vec_size##_f32(unsigned long imageHandle,   \
+                                                  coord_input, grad_input) {   \
     return (elem_t)__nvvm_tex_##dimension##d_grad_##fetch_vec_size##_f32(      \
         imageHandle, coord_parameter, __VA_ARGS__)[0];                         \
   }
