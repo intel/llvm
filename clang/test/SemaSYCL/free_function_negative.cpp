@@ -69,3 +69,52 @@ singleTaskKernelReturnType(int Value) {
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] int 
 ndRangeKernelReturnType(int Value) {
 }
+
+class TestClass {
+public:
+
+// expected-error@+2 {{kernel function 'ndRangeKernelMethod' must be a free function or static member function}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void 
+ndRangeKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{kernel function 'singleTaskKernelMethod' must be a free function or static member function}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
+singleTaskKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{static class method can not be used as SYCL kernel free function}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+static void StaticndRangeKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{static class method can not be used as SYCL kernel free function}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+static void StaticsingleTaskKernelMethod(int Value) {
+}
+
+};
+
+class TestStruct {
+
+// expected-error@+2 {{kernel function 'ndRangeKernelMethod' must be a free function or static member function}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void 
+ndRangeKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{kernel function 'singleTaskKernelMethod' must be a free function or static member function}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
+singleTaskKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{static class method can not be used as SYCL kernel free function}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+static void StaticndRangeKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{static class method can not be used as SYCL kernel free function}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+static void StaticsingleTaskKernelMethod(int Value) {
+}
+
+};

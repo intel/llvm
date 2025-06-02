@@ -12873,6 +12873,9 @@ def err_free_function_return_type : Error<
   "SYCL free function kernel should have return type 'void'">;
 def err_free_function_first_occurrence_missing_attr: Error<
   "the first occurrence of SYCL kernel free function should be declared with 'sycl-nd-range-kernel' or 'sycl-single-task-kernel' compile time properties">;
+def err_free_function_static_class_method : Error<
+  "static class method can not be used as SYCL kernel free function">;
+
 
 // SYCL kernel entry point diagnostics
 def err_sycl_entry_point_invalid : Error<
