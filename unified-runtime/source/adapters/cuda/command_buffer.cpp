@@ -56,10 +56,11 @@ ur_result_t commandHandleDestroy(
 } // end anonymous namespace
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
-    ur_context_handle_t Context, ur_device_handle_t Device, bool IsUpdatable)
-    : Context(Context), Device(Device), IsUpdatable(IsUpdatable),
-      CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1},
-      NextSyncPoint{0} {
+    ur_context_handle_t Context, ur_device_handle_t Device, bool IsUpdatable,
+    bool IsInOrder)
+    : handle_base(), Context(Context), Device(Device), IsUpdatable(IsUpdatable),
+      IsInOrder(IsInOrder), CudaGraph{nullptr}, CudaGraphExec{nullptr},
+      RefCount{1}, NextSyncPoint{0} {
   urContextRetain(Context);
 }
 
@@ -79,8 +80,7 @@ ur_exp_command_buffer_handle_t_::addSignalNode(CUgraphNode DepNode,
   UR_CHECK_ERROR(
       cuGraphAddEventRecordNode(&SignalNode, CudaGraph, &DepNode, 1, Event));
 
-  return std::unique_ptr<ur_event_handle_t_>(
-      ur_event_handle_t_::makeWithNative(Context, Event));
+  return std::make_unique<ur_event_handle_t_>(Context, Event);
 }
 
 ur_result_t ur_exp_command_buffer_handle_t_::addWaitNodes(
@@ -128,7 +128,7 @@ kernel_command_data::kernel_command_data(
     ValidKernelHandles.insert(KernelAlternatives,
                               KernelAlternatives + NumKernelAlternatives);
   }
-};
+}
 
 /// Helper function for finding the Cuda Nodes associated with the
 /// commands in a command-buffer, each event is pointed to by a sync-point in
@@ -151,11 +151,24 @@ static ur_result_t getNodesFromSyncPoints(
   // the event associated with each sync-point
   auto SyncPoints = CommandBuffer->SyncPoints;
 
+  // If command-buffer is in-order use last node in ordered map, and return
+  // early as other user passed sync-points will be redundant for scheduling.
+  if (CommandBuffer->IsInOrder && !SyncPoints.empty()) {
+    auto LastNode = std::prev(SyncPoints.end());
+    CuNodesList.push_back(LastNode->second);
+    return UR_RESULT_SUCCESS;
+  }
+
   // For each sync-point add associated CUDA graph node to the return list.
   for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
     if (auto NodeHandle = SyncPoints.find(SyncPointWaitList[i]);
         NodeHandle != SyncPoints.end()) {
-      CuNodesList.push_back(NodeHandle->second);
+      auto DepNode = NodeHandle->second;
+      // Cuda driver API won't let you add duplicates to the dependency list
+      if (std::find(CuNodesList.begin(), CuNodesList.end(), DepNode) ==
+          CuNodesList.end()) {
+        CuNodesList.push_back(DepNode);
+      }
     } else {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -346,9 +359,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
   const bool IsUpdatable = pCommandBufferDesc->isUpdatable;
+  const bool IsInOrder = pCommandBufferDesc->isInOrder;
   try {
-    *phCommandBuffer =
-        new ur_exp_command_buffer_handle_t_(hContext, hDevice, IsUpdatable);
+    *phCommandBuffer = new ur_exp_command_buffer_handle_t_(
+        hContext, hDevice, IsUpdatable, IsInOrder);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -457,8 +471,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
             cuGraphAddEventRecordNode(&GraphNode, hCommandBuffer->CudaGraph,
                                       DepsList.data(), DepsList.size(), Event));
 
-        auto RetEventUP = std::unique_ptr<ur_event_handle_t_>(
-            ur_event_handle_t_::makeWithNative(hCommandBuffer->Context, Event));
+        auto RetEventUP = std::make_unique<ur_event_handle_t_>(
+            hCommandBuffer->Context, Event);
 
         *phEvent = RetEventUP.release();
       }
@@ -487,9 +501,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t LocalSize = hKernel->getLocalSize();
     CUfunction CuFunc = hKernel->get();
     UR_CHECK_ERROR(setKernelParams(
-        hCommandBuffer->Context, hCommandBuffer->Device, workDim,
-        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, hKernel, CuFunc,
-        ThreadsPerBlock, BlocksPerGrid));
+        hCommandBuffer->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid));
 
     // Set node param structure with the kernel related data
     auto &ArgPointers = hKernel->getArgPointers();
@@ -1148,9 +1161,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
                                    phEventWaitList));
 
   if (phEvent) {
-    RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
-        ur_event_handle_t_::makeNative(UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP,
-                                       hQueue, CuStream, StreamToken));
+    RetImplEvent = std::make_unique<ur_event_handle_t_>(
+        UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, hQueue, CuStream, StreamToken);
     UR_CHECK_ERROR(RetImplEvent->start());
   }
 
@@ -1358,9 +1370,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     size_t BlocksPerGrid[3] = {1u, 1u, 1u};
     CUfunction CuFunc = KernelData.Kernel->get();
     auto Result = setKernelParams(
-        hCommandBuffer->Context, hCommandBuffer->Device, KernelData.WorkDim,
-        KernelData.GlobalWorkOffset, KernelData.GlobalWorkSize, LocalWorkSize,
-        KernelData.Kernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+        hCommandBuffer->Device, KernelData.WorkDim, KernelData.GlobalWorkOffset,
+        KernelData.GlobalWorkSize, LocalWorkSize, KernelData.Kernel, CuFunc,
+        ThreadsPerBlock, BlocksPerGrid);
     if (Result != UR_RESULT_SUCCESS) {
       return Result;
     }
@@ -1414,10 +1426,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
   UR_CHECK_ERROR(cuGraphEventRecordNodeGetEvent(SignalNode, &SignalEvent));
 
   if (phEvent) {
-    *phEvent = std::unique_ptr<ur_event_handle_t_>(
-                   ur_event_handle_t_::makeWithNative(CommandBuffer->Context,
-                                                      SignalEvent))
-                   .release();
+    *phEvent = new ur_event_handle_t_(CommandBuffer->Context, SignalEvent);
   }
 
   return UR_RESULT_SUCCESS;

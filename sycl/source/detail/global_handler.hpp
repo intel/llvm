@@ -11,6 +11,7 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
+#include <deque>
 #include <memory>
 #include <unordered_map>
 
@@ -26,6 +27,7 @@ class Adapter;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
+struct KernelNameBasedCacheT;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using AdapterPtr = std::shared_ptr<Adapter>;
@@ -73,7 +75,7 @@ public:
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
-
+  KernelNameBasedCacheT *createKernelNameBasedCache();
   static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
@@ -129,6 +131,7 @@ private:
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
+  InstWithLock<std::deque<KernelNameBasedCacheT>> MKernelNameBasedCaches;
 };
 } // namespace detail
 } // namespace _V1

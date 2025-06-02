@@ -163,7 +163,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
     }
   } else {
     // If pooling is disabled, do nothing.
-    logger::info("USM pooling is disabled. Skiping pool limits adjustment.");
+    UR_LOG(INFO, "USM pooling is disabled. Skiping pool limits adjustment.");
   }
 
   auto devicesAndSubDevices =
@@ -171,14 +171,19 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
   auto descriptors = usm::pool_descriptor::createFromDevices(
       this, hContext, devicesAndSubDevices);
   for (auto &desc : descriptors) {
+    std::unique_ptr<UsmPool> usmPool;
     if (disjointPoolConfigs.has_value()) {
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
-      poolManager.addPool(
-          desc, usm::makeDisjointPool(makeProvider(desc), poolConfig));
+      auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
+      usmPool = std::make_unique<UsmPool>(std::move(pool));
     } else {
-      poolManager.addPool(desc, usm::makeProxyPool(makeProvider(desc)));
+      auto pool = usm::makeProxyPool(makeProvider(desc));
+      usmPool = std::make_unique<UsmPool>(std::move(pool));
     }
+    UMF_CALL_THROWS(
+        umfPoolSetTag(usmPool->umfPool.get(), usmPool.get(), nullptr));
+    poolManager.addPool(desc, std::move(usmPool));
   }
 }
 
@@ -186,8 +191,7 @@ ur_context_handle_t ur_usm_pool_handle_t_::getContextHandle() const {
   return hContext;
 }
 
-umf_memory_pool_handle_t
-ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &desc) {
+UsmPool *ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &desc) {
   auto pool = poolManager.getPool(desc).value();
   assert(pool);
   return pool;
@@ -215,12 +219,13 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
 
   auto deviceFlags = getDeviceFlags(pUSMDesc);
 
-  auto umfPool = getPool(usm::pool_descriptor{
+  auto pool = getPool(usm::pool_descriptor{
       this, hContext, hDevice, type,
       bool(deviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY)});
-  if (!umfPool) {
+  if (!pool) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
+  auto umfPool = pool->umfPool.get();
 
   *ppRetMem = umfPoolAlignedMalloc(umfPool, size, alignment);
   if (*ppRetMem == nullptr) {
@@ -236,9 +241,56 @@ ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
   if (umfPool) {
     return umf::umf2urResult(umfPoolFree(umfPool, ptr));
   } else {
-    logger::error("Failed to find pool for pointer: {}", ptr);
+    UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
+}
+
+std::optional<std::pair<void *, ur_event_handle_t>>
+ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
+                                        void *hQueue, bool isInOrderQueue,
+                                        ur_device_handle_t hDevice,
+                                        const ur_usm_desc_t *pUSMDesc,
+                                        ur_usm_type_t type, size_t size) {
+  uint32_t alignment = pUSMDesc ? pUSMDesc->align : 0;
+  if ((alignment & (alignment - 1)) != 0) {
+    return std::nullopt;
+  }
+
+  auto deviceFlags = getDeviceFlags(pUSMDesc);
+
+  auto umfPool = getPool(usm::pool_descriptor{
+      this, hContext, hDevice, type,
+      bool(deviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY)});
+  if (!umfPool) {
+    return std::nullopt;
+  }
+
+  auto allocation = umfPool->asyncPool.getBestFit(size, alignment, hQueue);
+  if (!allocation) {
+    return std::nullopt;
+  }
+
+  if (allocation->Queue == hQueue && isInOrderQueue && allocation->Event) {
+    allocation->Event->release();
+    return std::make_pair(allocation->Ptr, nullptr);
+  } else {
+    return std::make_pair(allocation->Ptr, allocation->Event);
+  }
+}
+
+void ur_usm_pool_handle_t_::cleanupPools() {
+  poolManager.forEachPool([&](UsmPool *p) {
+    return p->asyncPool.cleanup();
+    return true;
+  });
+}
+
+void ur_usm_pool_handle_t_::cleanupPoolsForQueue(void *hQueue) {
+  poolManager.forEachPool([&](UsmPool *p) {
+    return p->asyncPool.cleanupForQueue(hQueue);
+    return true;
+  });
 }
 
 namespace ur::level_zero {
@@ -439,7 +491,7 @@ ur_result_t urUSMGetMemAllocInfo(
       memAllocType = UR_USM_TYPE_SHARED;
       break;
     default:
-      logger::error("urUSMGetMemAllocInfo: unexpected usm memory type");
+      UR_LOG(ERR, "urUSMGetMemAllocInfo: unexpected usm memory type");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return ReturnValue(memAllocType);
@@ -468,7 +520,7 @@ ur_result_t urUSMGetMemAllocInfo(
     // TODO
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   default:
-    logger::error("urUSMGetMemAllocInfo: unsupported ParamName");
+    UR_LOG(ERR, "urUSMGetMemAllocInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   }

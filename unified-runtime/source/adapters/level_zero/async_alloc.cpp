@@ -92,8 +92,8 @@ static ur_result_t enqueueUSMAllocHelper(
     CommandType = UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP;
     break;
   default:
-    logger::error("enqueueUSMAllocHelper: unsupported USM type");
-    throw UR_RESULT_ERROR_UNKNOWN;
+    UR_LOG(ERR, "enqueueUSMAllocHelper: unsupported USM type");
+    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
                                        IsInternal, false));
@@ -247,6 +247,7 @@ ur_result_t urEnqueueUSMFreeExp(
   }
 
   size_t size = umfPoolMallocUsableSize(hPool, Mem);
+  (*Event)->RefCount.increment();
   usmPool->AsyncPool.insert(Mem, size, *Event, Queue);
 
   // Signal that USM free event was finished

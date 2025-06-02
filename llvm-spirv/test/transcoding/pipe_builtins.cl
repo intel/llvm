@@ -8,6 +8,16 @@
 // RUN: llvm-spirv -r %t.spv -o %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+// CHECK-SPIRV-DAG: Name [[#ConvenienceWriteUint:]] "test_pipe_convenience_write_uint"
+// CHECK-SPIRV-DAG: Name [[#ConvenienceReadUint:]] "test_pipe_convenience_read_uint"
+// CHECK-SPIRV-DAG: Name [[#Write:]] "test_pipe_write"
+// CHECK-SPIRV-DAG: Name [[#Query:]] "test_pipe_query_functions"
+// CHECK-SPIRV-DAG: Name [[#Read:]] "test_pipe_read"
+// CHECK-SPIRV-DAG: Name [[#WorkgroupWriteChar:]] "__clang_ocl_kern_imp_test_pipe_workgroup_write_char"
+// CHECK-SPIRV-DAG: Name [[#WorkgroupReadChar:]] "__clang_ocl_kern_imp_test_pipe_workgroup_read_char"
+// CHECK-SPIRV-DAG: Name [[#SubgroupWriteUint:]] "__clang_ocl_kern_imp_test_pipe_subgroup_write_uint"
+// CHECK-SPIRV-DAG: Name [[#SubgroupReadUint:]] "__clang_ocl_kern_imp_test_pipe_subgroup_read_uint"
+
 // CHECK-SPIRV-DAG: TypePipe [[ROPipeTy:[0-9]+]] 0
 // CHECK-SPIRV-DAG: TypePipe [[WOPipeTy:[0-9]+]] 1
 
@@ -16,32 +26,30 @@
 // CHECK-LLVM-LABEL: @test_pipe_convenience_write_uint
 __kernel void test_pipe_convenience_write_uint(__global uint *src, __write_only pipe uint out_pipe)
 {
-  // CHECK-SPIRV: 5 Function
+  // CHECK-SPIRV: Function [[#]] [[#ConvenienceWriteUint]]
   // CHECK-SPIRV-NEXT:  FunctionParameter
   // CHECK-SPIRV-NEXT:  FunctionParameter [[WOPipeTy]] [[PipeArgID:[0-9]+]]
   // CHECK-LLVM: call{{.*}}@__write_pipe_2
   // CHECK-SPIRV: WritePipe {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-  // CHECK-SPIRV-LABEL: 1 FunctionEnd
 
   int gid = get_global_id(0);
   write_pipe(out_pipe, &src[gid]);
 }
 
 // CHECK-LLVM-LABEL: @test_pipe_convenience_read_uint
-// CHECK-SPIRV-LABEL: 5 Function
+// CHECK-SPIRV: Function [[#]] [[#ConvenienceReadUint]]
 __kernel void test_pipe_convenience_read_uint(__read_only pipe uint in_pipe, __global uint *dst)
 {
   // CHECK-SPIRV-NEXT:  FunctionParameter [[ROPipeTy]] [[PipeArgID:[0-9]+]]
   // CHECK-LLVM: call{{.*}}@__read_pipe_2
   // CHECK-SPIRV: ReadPipe {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-  // CHECK-SPIRV-LABEL: 1 FunctionEnd
 
   int gid = get_global_id(0);
   read_pipe(in_pipe, &dst[gid]);
 }
 
 // CHECK-LLVM-LABEL: @test_pipe_write
-// CHECK-SPIRV-LABEL: 5 Function
+// CHECK-SPIRV: Function [[#]] [[#Write]]
 __kernel void test_pipe_write(__global int *src, __write_only pipe int out_pipe)
 {
   // CHECK-SPIRV-NEXT:  FunctionParameter
@@ -52,7 +60,6 @@ __kernel void test_pipe_write(__global int *src, __write_only pipe int out_pipe)
   // CHECK-SPIRV: ReservedWritePipe {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
   // CHECK-LLVM: call{{.*}}@__commit_write_pipe
   // CHECK-SPIRV: CommitWritePipe [[PipeArgID]] {{[0-9]+}} {{[0-9]+}}
-  // CHECK-SPIRV-LABEL: 1 FunctionEnd
 
   int gid = get_global_id(0);
   reserve_id_t res_id;
@@ -65,7 +72,7 @@ __kernel void test_pipe_write(__global int *src, __write_only pipe int out_pipe)
 }
 
 // CHECK-LLVM-LABEL: @test_pipe_query_functions
-// CHECK-SPIRV-LABEL: 5 Function
+// CHECK-SPIRV: Function [[#]] [[#Query]]
 __kernel void test_pipe_query_functions(__write_only pipe int out_pipe, __global int *num_packets, __global int *max_packets)
 {
   // CHECK-SPIRV-NEXT:  FunctionParameter [[WOPipeTy]] [[PipeArgID:[0-9]+]]
@@ -73,14 +80,13 @@ __kernel void test_pipe_query_functions(__write_only pipe int out_pipe, __global
   // CHECK-SPIRV: GetMaxPipePackets {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}}
   // CHECK-LLVM: call{{.*}}@__get_pipe_num_packets
   // CHECK-SPIRV: GetNumPipePackets {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}}
-  // CHECK-SPIRV-LABEL: 1 FunctionEnd
 
   *max_packets = get_pipe_max_packets(out_pipe);
   *num_packets = get_pipe_num_packets(out_pipe);
 }
 
 // CHECK-LLVM-LABEL: @test_pipe_read
-// CHECK-SPIRV-LABEL: 5 Function
+// CHECK-SPIRV: Function [[#]] [[#Read]]
 __kernel void test_pipe_read(__read_only pipe int in_pipe, __global int *dst)
 {
   // CHECK-SPIRV-NEXT:  FunctionParameter [[ROPipeTy]] [[PipeArgID:[0-9]+]]
@@ -90,7 +96,6 @@ __kernel void test_pipe_read(__read_only pipe int in_pipe, __global int *dst)
   // CHECK-SPIRV: ReservedReadPipe {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
   // CHECK-LLVM: call{{.*}}@__commit_read_pipe
   // CHECK-SPIRV: CommitReadPipe [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-  // CHECK-SPIRV-LABEL: 1 FunctionEnd
 
   int gid = get_global_id(0);
   reserve_id_t res_id;
@@ -103,7 +108,7 @@ __kernel void test_pipe_read(__read_only pipe int in_pipe, __global int *dst)
 }
 
 // CHECK-LLVM-LABEL: @test_pipe_workgroup_write_char
-// CHECK-SPIRV-LABEL: 5 Function
+// CHECK-SPIRV: Function [[#]] [[#WorkgroupWriteChar]]
 __kernel void test_pipe_workgroup_write_char(__global char *src, __write_only pipe char out_pipe)
 {
   // CHECK-SPIRV-NEXT:  FunctionParameter
@@ -112,7 +117,6 @@ __kernel void test_pipe_workgroup_write_char(__global char *src, __write_only pi
   // CHECK-SPIRV: GroupReserveWritePipePackets {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
   // CHECK-LLVM: call{{.*}}@__work_group_commit_write_pipe
   // CHECK-SPIRV: GroupCommitWritePipe {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-  // CHECK-SPIRV-LABEL: 1 FunctionEnd
 
   int gid = get_global_id(0);
   __local reserve_id_t res_id;
@@ -126,7 +130,7 @@ __kernel void test_pipe_workgroup_write_char(__global char *src, __write_only pi
 }
 
 // CHECK-LLVM-LABEL: @test_pipe_workgroup_read_char
-// CHECK-SPIRV-LABEL: 5 Function
+// CHECK-SPIRV: Function [[#]] [[#WorkgroupReadChar]]
 __kernel void test_pipe_workgroup_read_char(__read_only pipe char in_pipe, __global char *dst)
 {
   // CHECK-SPIRV-NEXT:  FunctionParameter [[ROPipeTy]] [[PipeArgID:[0-9]+]]
@@ -134,7 +138,6 @@ __kernel void test_pipe_workgroup_read_char(__read_only pipe char in_pipe, __glo
   // CHECK-SPIRV: GroupReserveReadPipePackets {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
   // CHECK-LLVM: call{{.*}}@__work_group_commit_read_pipe
   // CHECK-SPIRV: GroupCommitReadPipe {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-  // CHECK-SPIRV-LABEL: 1 FunctionEnd
 
   int gid = get_global_id(0);
   __local reserve_id_t res_id;
@@ -148,7 +151,7 @@ __kernel void test_pipe_workgroup_read_char(__read_only pipe char in_pipe, __glo
 }
 
 // CHECK-LLVM-LABEL: @test_pipe_subgroup_write_uint
-// CHECK-SPIRV-LABEL: 5 Function
+// CHECK-SPIRV: Function [[#]] [[#SubgroupWriteUint]]
 __kernel void test_pipe_subgroup_write_uint(__global uint *src, __write_only pipe uint out_pipe)
 {
   // CHECK-SPIRV-NEXT:  FunctionParameter
@@ -170,7 +173,7 @@ __kernel void test_pipe_subgroup_write_uint(__global uint *src, __write_only pip
 }
 
 // CHECK-LLVM-LABEL: @test_pipe_subgroup_read_uint
-// CHECK-SPIRV-LABEL: 5 Function
+// CHECK-SPIRV: Function [[#]] [[#SubgroupReadUint]]
 __kernel void test_pipe_subgroup_read_uint(__read_only pipe uint in_pipe, __global uint *dst)
 {
   // CHECK-SPIRV-NEXT:  FunctionParameter [[ROPipeTy]] [[PipeArgID:[0-9]+]]
@@ -178,7 +181,6 @@ __kernel void test_pipe_subgroup_read_uint(__read_only pipe uint in_pipe, __glob
   // CHECK-SPIRV: GroupReserveReadPipePackets {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
   // CHECK-LLVM: call{{.*}}@__sub_group_commit_read_pipe
   // CHECK-SPIRV: GroupCommitReadPipe {{[0-9]+}} [[PipeArgID]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-  // CHECK-SPIRV-LABEL: 1 FunctionEnd
 
   int gid = get_global_id(0);
   reserve_id_t res_id;

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <detail/adapter.hpp>
+#include <detail/split_string.hpp>
 #include <detail/ur.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
@@ -42,10 +43,10 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
                          const std::shared_ptr<Adapter> &AAdapter)
       : MPlatform(APlatform), MAdapter(AAdapter) {
     // Find out backend of the platform
-    ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
+    ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
     AAdapter->call_nocheck<UrApiKind::urPlatformGetInfo>(
-        APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
-        &UrBackend, nullptr);
+        APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
+        nullptr);
     MBackend = convertUrBackend(UrBackend);
   }
 
@@ -79,7 +80,15 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <typename Param> typename Param::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info() const {
+    std::string InfoStr = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+        *this, detail::UrInfoCode<Param>::value);
+    if constexpr (std::is_same_v<Param, info::platform::extensions>) {
+      return split_string(InfoStr, ' ');
+    } else {
+      return InfoStr;
+    }
+  }
 
   /// Queries this SYCL platform for SYCL backend-specific information.
   ///

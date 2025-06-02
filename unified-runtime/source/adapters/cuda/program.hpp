@@ -17,7 +17,7 @@
 
 #include "context.hpp"
 
-struct ur_program_handle_t_ {
+struct ur_program_handle_t_ : ur::cuda::handle_base {
   using native_type = CUmodule;
   native_type Module;
   const char *Binary;
@@ -48,11 +48,15 @@ struct ur_program_handle_t_ {
   ur_program_build_status_t BuildStatus = UR_PROGRAM_BUILD_STATUS_NONE;
 
   ur_program_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device)
-      : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-        Context{Context}, Device{Device}, KernelReqdWorkGroupSizeMD{},
-        KernelMaxWorkGroupSizeMD{}, KernelMaxLinearWorkGroupSizeMD{},
-        KernelReqdSubGroupSizeMD{} {
+      : handle_base(), Module{nullptr}, Binary{}, BinarySizeInBytes{0},
+        RefCount{1}, Context{Context}, Device{Device},
+        KernelReqdWorkGroupSizeMD{}, KernelMaxWorkGroupSizeMD{},
+        KernelMaxLinearWorkGroupSizeMD{}, KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
+
+    // When the log is queried we use strnlen(InfoLog), so it needs to be
+    // initialized like this when it's empty to correctly return 0.
+    InfoLog[0] = '\0';
   }
 
   ~ur_program_handle_t_() { urContextRelease(Context); }

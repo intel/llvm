@@ -14,7 +14,7 @@
 
 #include <vector>
 
-struct ur_event_handle_t_ {
+struct ur_event_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_event;
   native_type CLEvent;
   ur_context_handle_t Context;
@@ -24,7 +24,7 @@ struct ur_event_handle_t_ {
 
   ur_event_handle_t_(native_type Event, ur_context_handle_t Ctx,
                      ur_queue_handle_t Queue)
-      : CLEvent(Event), Context(Ctx), Queue(Queue) {
+      : handle_base(), CLEvent(Event), Context(Ctx), Queue(Queue) {
     RefCount = 1;
     urContextRetain(Context);
     if (Queue) {
@@ -69,16 +69,20 @@ inline cl_event *ifUrEvent(ur_event_handle_t *ReturnedEvent, cl_event &Event) {
 inline ur_result_t createUREvent(cl_event Event, ur_context_handle_t Context,
                                  ur_queue_handle_t Queue,
                                  ur_event_handle_t *ReturnedEvent) {
+  assert(Queue);
   if (ReturnedEvent) {
     try {
       auto UREvent =
           std::make_unique<ur_event_handle_t_>(Event, Context, Queue);
       *ReturnedEvent = UREvent.release();
+      UR_RETURN_ON_FAILURE(Queue->storeLastEvent(*ReturnedEvent));
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
+  } else {
+    UR_RETURN_ON_FAILURE(Queue->storeLastEvent(nullptr));
   }
   return UR_RESULT_SUCCESS;
 }
