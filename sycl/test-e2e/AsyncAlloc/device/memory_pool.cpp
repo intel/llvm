@@ -1,3 +1,7 @@
+// Fails on AWS.
+// UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: The memory pool maximum size feature requires CUDA 12.2 or later.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
