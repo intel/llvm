@@ -28,7 +28,13 @@ from templates import helper as th
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
 %for obj in tbl['functions']:
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 _UR_API(${th.make_func_name(n, tags, obj)})
+%if 'guard' in obj:
+// end ${obj['guard']}
+%endif
 %endfor
 %endfor
 %for obj in th.get_loader_functions(specs, meta, n, tags):

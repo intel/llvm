@@ -9,7 +9,7 @@ from templates import print_helper as tph
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -58,9 +58,15 @@ ${x}_result_t str_copy(std::stringstream *ss, char *buff, const size_t buff_size
     api_types_funcs = tph.get_api_types_funcs(specs, meta, n, tags)
 %>
 %for func in api_types_funcs:
+%if func.guard:
+#if ${func.guard}
+%endif
 ${x}_result_t ${func.c_name}(${func.c_args}) {
     ${ss_copy(func.print_arg.name)}
 }
+%if func.guard:
+#endif // ${func.guard}
+%endif
 
 %endfor
 
