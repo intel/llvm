@@ -39,8 +39,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     for (auto &platform : context->platforms) {
       if (platform.initStatus != UR_RESULT_SUCCESS)
         continue;
-      platform.dditable.Global.pfnAdapterGet(1, &phAdapters[adapterIndex],
-                                             nullptr);
+      platform.dditable.Adapter.pfnGet(1, &phAdapters[adapterIndex], nullptr);
       adapterIndex++;
       if (adapterIndex == NumEntries) {
         break;
@@ -63,12 +62,12 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
 
-  auto *pfnAdapterRelease = dditable->Global.pfnAdapterRelease;
-  if (nullptr == pfnAdapterRelease)
+  auto *pfnRelease = dditable->Adapter.pfnRelease;
+  if (nullptr == pfnRelease)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAdapterRelease(hAdapter);
+  return pfnRelease(hAdapter);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -79,12 +78,12 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
 
-  auto *pfnAdapterRetain = dditable->Global.pfnAdapterRetain;
-  if (nullptr == pfnAdapterRetain)
+  auto *pfnRetain = dditable->Adapter.pfnRetain;
+  if (nullptr == pfnRetain)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAdapterRetain(hAdapter);
+  return pfnRetain(hAdapter);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -101,12 +100,12 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
 
-  auto *pfnAdapterGetLastError = dditable->Global.pfnAdapterGetLastError;
-  if (nullptr == pfnAdapterGetLastError)
+  auto *pfnGetLastError = dditable->Adapter.pfnGetLastError;
+  if (nullptr == pfnGetLastError)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+  return pfnGetLastError(hAdapter, ppMessage, pError);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -130,13 +129,12 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
 
-  auto *pfnAdapterGetInfo = dditable->Global.pfnAdapterGetInfo;
-  if (nullptr == pfnAdapterGetInfo)
+  auto *pfnGetInfo = dditable->Adapter.pfnGetInfo;
+  if (nullptr == pfnGetInfo)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue,
-                           pPropSizeRet);
+  return pfnGetInfo(hAdapter, propName, propSize, pPropValue, pPropSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2538,8 +2536,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// [in] number of dimensions, from 1 to 3, to specify the global and
     /// work-group work-items
     uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
     const size_t *pGlobalWorkOffset,
     /// [in] pointer to an array of workDim unsigned values that specify the
     /// number of global work-items in workDim that will execute the kernel
@@ -5788,62 +5786,6 @@ extern "C" {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) {
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (ur_loader::getContext()->version < version)
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  // Load the device-platform DDI tables
-  for (auto &platform : ur_loader::getContext()->platforms) {
-    // statically linked adapter inside of the loader
-    if (platform.handle == nullptr)
-      continue;
-
-    if (platform.initStatus != UR_RESULT_SUCCESS)
-      continue;
-    auto getTable = reinterpret_cast<ur_pfnGetGlobalProcAddrTable_t>(
-        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
-                                             "urGetGlobalProcAddrTable"));
-    if (!getTable)
-      continue;
-    platform.initStatus = getTable(version, &platform.dditable.Global);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    if (ur_loader::getContext()->platforms.size() != 1 ||
-        ur_loader::getContext()->forceIntercept) {
-      // return pointers to loader's DDIs
-      pDdiTable->pfnAdapterGet = ur_loader::urAdapterGet;
-      pDdiTable->pfnAdapterRelease = ur_loader::urAdapterRelease;
-      pDdiTable->pfnAdapterRetain = ur_loader::urAdapterRetain;
-      pDdiTable->pfnAdapterGetLastError = ur_loader::urAdapterGetLastError;
-      pDdiTable->pfnAdapterGetInfo = ur_loader::urAdapterGetInfo;
-    } else {
-      // return pointers directly to platform's DDIs
-      *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Global;
-    }
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
@@ -5885,6 +5827,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
+      pDdiTable->pfnGet = ur_loader::urAdapterGet;
+      pDdiTable->pfnRelease = ur_loader::urAdapterRelease;
+      pDdiTable->pfnRetain = ur_loader::urAdapterRetain;
+      pDdiTable->pfnGetLastError = ur_loader::urAdapterGetLastError;
+      pDdiTable->pfnGetInfo = ur_loader::urAdapterGetInfo;
       pDdiTable->pfnSetLoggerCallback = ur_loader::urAdapterSetLoggerCallback;
       pDdiTable->pfnSetLoggerCallbackLevel =
           ur_loader::urAdapterSetLoggerCallbackLevel;
