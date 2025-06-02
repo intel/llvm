@@ -204,26 +204,26 @@ pixelf16 as_pixelf16(short4 v) { return __clc_as_half4(v); }
 pixelf32 as_pixelf32(int4 v) { return __clc_as_float4(v); }
 
 #define _DEFINE_VEC4_CAST(from_t, to_t)                                        \
-  __attribute__((always_inline))                                               \
-  to_t##4 cast_##from_t##4_to_##to_t##4(from_t##4 from) {                      \
+  __attribute__((always_inline)) to_t##4 cast_##from_t##4_to_##to_t##4(        \
+      from_t##4 from) {                                                        \
     return (to_t##4)((to_t)from.x, (to_t)from.y, (to_t)from.z, (to_t)from.w);  \
   }
 
 #define _DEFINE_VEC2_CAST(from_t, to_t)                                        \
-  __attribute__((always_inline))                                               \
-  to_t##2 cast_##from_t##2_to_##to_t##2(from_t##2 from) {                      \
+  __attribute__((always_inline)) to_t##2 cast_##from_t##2_to_##to_t##2(        \
+      from_t##2 from) {                                                        \
     return (to_t##2)((to_t)from.x, (to_t)from.y);                              \
   }
 
 #define _DEFINE_VEC4_TO_VEC2_CAST(from_t, to_t)                                \
-  __attribute__((always_inline))                                               \
-  to_t##2 cast_##from_t##4_to_##to_t##2(from_t##4 from) {                      \
+  __attribute__((always_inline)) to_t##2 cast_##from_t##4_to_##to_t##2(        \
+      from_t##4 from) {                                                        \
     return (to_t##2)((to_t)from.x, (to_t)from.y);                              \
   }
 
 #define _DEFINE_VEC4_TO_SINGLE_CAST(from_t, to_t)                              \
-  __attribute__((always_inline))                                               \
-  to_t cast_##from_t##4_to_##to_t(from_t##4 from) {                            \
+  __attribute__((always_inline)) to_t cast_##from_t##4_to_##to_t(              \
+      from_t##4 from) {                                                        \
     return (to_t)from[0];                                                      \
   }
 
@@ -233,8 +233,8 @@ pixelf32 as_pixelf32(int4 v) { return __clc_as_float4(v); }
   }
 
 #define _DEFINE_PIXELF_CAST(pixelf_size, pixelf_base_t, to_t)                  \
-  __attribute__((always_inline))                                               \
-  to_t cast_pixelf##pixelf_size##_to_##to_t(pixelf##pixelf_size from) {        \
+  __attribute__((always_inline)) to_t cast_pixelf##pixelf_size##_to_##to_t(    \
+      pixelf##pixelf_size from) {                                              \
     return cast_##pixelf_base_t##_to_##to_t(from);                             \
   }
 
@@ -248,18 +248,17 @@ pixelf32 as_pixelf32(int4 v) { return __clc_as_float4(v); }
   }
 
 #define _DEFINE_READ_2D_PIXELF(pixelf_size, cuda_address_mode)                 \
-  __attribute__((always_inline))                                               \
-  pixelf##pixelf_size read_2d_##pixelf_size##_##cuda_address_mode(             \
-      long image, int x, int y) {                                              \
+  __attribute__((always_inline)) pixelf##pixelf_size                           \
+      read_2d_##pixelf_size##_##cuda_address_mode(long image, int x, int y) {  \
     return as_pixelf##pixelf_size(                                             \
         __nvvm_suld_2d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
             image, x * sizeof(pixelf##pixelf_size), y));                       \
   }
 
 #define _DEFINE_READ_3D_PIXELF(pixelf_size, cuda_address_mode)                 \
-  __attribute__((always_inline))                                               \
-  pixelf##pixelf_size read_3d_##pixelf_size##_##cuda_address_mode(             \
-      long image, int x, int y, int z) {                                       \
+  __attribute__((always_inline)) pixelf##pixelf_size                           \
+      read_3d_##pixelf_size##_##cuda_address_mode(long image, int x, int y,    \
+                                                  int z) {                     \
     return as_pixelf##pixelf_size(                                             \
         __nvvm_suld_3d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
             image, x * sizeof(pixelf##pixelf_size), y, z));                    \
@@ -1369,8 +1368,9 @@ __attribute__((always_inline)) half __nvvm_suld_2d_f16_clamp_s(long imageHandle,
                                                                int x, int y) {
   return __clc_as_half(__nvvm_suld_2d_i16_clamp_s(imageHandle, x, y));
 }
-__attribute__((always_inline)) half
-__nvvm_suld_3d_f16_clamp_s(long imageHandle, int x, int y, int z) {
+__attribute__((always_inline)) half __nvvm_suld_3d_f16_clamp_s(long imageHandle,
+                                                               int x, int y,
+                                                               int z) {
   return __clc_as_half(__nvvm_suld_3d_i16_clamp_s(imageHandle, x, y, z));
 }
 __attribute__((always_inline)) half2
@@ -2855,9 +2855,9 @@ float4 __nvvm_tex_3d_v4f32_i32(unsigned long, int, int,
 #define _CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(                      \
     elem_t, fetch_elem_t, dimension, vec_size, fetch_vec_size, coord_input,    \
     coord_parameter)                                                           \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_tex_##dimension##d_##vec_size##_i32(unsigned long imageHandle, \
-                                                    coord_input) {             \
+  __attribute__((always_inline)) elem_t                                        \
+      __nvvm_tex_##dimension##d_##vec_size##_i32(unsigned long imageHandle,    \
+                                                 coord_input) {                \
     return (elem_t)__nvvm_tex_##dimension##d_##fetch_vec_size##_i32(           \
         imageHandle, coord_parameter)[0];                                      \
   }
@@ -3513,15 +3513,15 @@ _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 3, v2f16,
 #define _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(                       \
     elem_t, dimension, vec_size, fetch_vec_size, coord_input, coord_parameter, \
     grad_input, ...)                                                           \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_tex_##dimension##d_level_##vec_size##_f32(                     \
-      unsigned long imageHandle, coord_input, float level) {                   \
+  __attribute__((always_inline)) elem_t                                        \
+      __nvvm_tex_##dimension##d_level_##vec_size##_f32(                        \
+          unsigned long imageHandle, coord_input, float level) {               \
     return (elem_t)__nvvm_tex_##dimension##d_level_##fetch_vec_size##_f32(     \
         imageHandle, coord_parameter, level)[0];                               \
   }                                                                            \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                      \
-      unsigned long imageHandle, coord_input, grad_input) {                    \
+  __attribute__((always_inline)) elem_t
+      __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                         \
+          unsigned long imageHandle, coord_input, grad_input) {                \
     return (elem_t)__nvvm_tex_##dimension##d_grad_##fetch_vec_size##_f32(      \
         imageHandle, coord_parameter, __VA_ARGS__)[0];                         \
   }
@@ -4051,16 +4051,16 @@ BINDLESS_INTRINSIC_FUNC_ALL(float, f, f, 32, )
 // Macro to generate surface array fetches
 #define _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(                \
     elem_t, fetch_elem_t, cast_to_elem_t, vec_size, fetch_vec_size, helper)    \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_suld_1d_array_##vec_size##_clamp_s(unsigned long imageHandle,  \
-                                                   int idx, int x) {           \
+  __attribute__((always_inline)) elem_t                                        \
+      __nvvm_suld_1d_array_##vec_size##_clamp_s(unsigned long imageHandle,     \
+                                                int idx, int x) {              \
     fetch_elem_t a = __nvvm_suld_1d_array_##fetch_vec_size##_clamp_s##helper(  \
         imageHandle, idx, x);                                                  \
     return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));    \
   }                                                                            \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_suld_2d_array_##vec_size##_clamp_s(unsigned long imageHandle,  \
-                                                   int idx, int x, int y) {    \
+  __attribute__((always_inline)) elem_t                                        \
+      __nvvm_suld_2d_array_##vec_size##_clamp_s(unsigned long imageHandle,     \
+                                                int idx, int x, int y) {       \
     fetch_elem_t a = __nvvm_suld_2d_array_##fetch_vec_size##_clamp_s##helper(  \
         imageHandle, idx, x, y);                                               \
     return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));    \
@@ -4202,30 +4202,30 @@ _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v4f16,
 // Macro to generate texture array fetches
 #define _CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(                \
     elem_t, fetch_elem_t, vec_size, fetch_vec_size, index)                     \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_tex_unified_1d_array_##vec_size##_i32(                         \
-      unsigned long imageHandle, int idx, int x) {                             \
+  __attribute__((always_inline)) elem_t                                        \
+      __nvvm_tex_unified_1d_array_##vec_size##_i32(unsigned long imageHandle,  \
+                                                   int idx, int x) {           \
     fetch_elem_t a = __nvvm_tex_unified_1d_array_##fetch_vec_size##_i32(       \
         imageHandle, idx, x) index;                                            \
     return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));            \
   }                                                                            \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_tex_unified_1d_array_##vec_size##_f32(                         \
-      unsigned long imageHandle, int idx, float x) {                           \
+  __attribute__((always_inline)) elem_t                                        \
+      __nvvm_tex_unified_1d_array_##vec_size##_f32(unsigned long imageHandle,  \
+                                                   int idx, float x) {         \
     fetch_elem_t a = __nvvm_tex_unified_1d_array_##fetch_vec_size##_f32(       \
         imageHandle, idx, x) index;                                            \
     return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));            \
   }                                                                            \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_tex_unified_2d_array_##vec_size##_i32(                         \
-      unsigned long imageHandle, int idx, int x, int y) {                      \
+  __attribute__((always_inline)) elem_t                                        \
+      __nvvm_tex_unified_2d_array_##vec_size##_i32(unsigned long imageHandle,  \
+                                                   int idx, int x, int y) {    \
     fetch_elem_t a = __nvvm_tex_unified_2d_array_##fetch_vec_size##_i32(       \
         imageHandle, idx, x, y) index;                                         \
     return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));            \
   }                                                                            \
-  __attribute__((always_inline))                                               \
-  elem_t __nvvm_tex_unified_2d_array_##vec_size##_f32(                         \
-      unsigned long imageHandle, int idx, float x, float y) {                  \
+  __attribute__((always_inline)) elem_t                                        \
+      __nvvm_tex_unified_2d_array_##vec_size##_f32(                            \
+          unsigned long imageHandle, int idx, float x, float y) {              \
     fetch_elem_t a = __nvvm_tex_unified_2d_array_##fetch_vec_size##_f32(       \
         imageHandle, idx, x, y) index;                                         \
     return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));            \
