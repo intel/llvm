@@ -18,20 +18,19 @@ namespace detail {
 using KernelNameStrT = std::string_view;
 using KernelNameStrRefT = std::string_view;
 using ABINeutralKernelNameStrT = detail::string_view;
-
-inline KernelNameStrT toKernelNameStrT(ABINeutralKernelNameStrT str) {
-  return std::string_view(str);
-}
-
 #else
 using KernelNameStrT = std::string;
 using KernelNameStrRefT = const std::string &;
 using ABINeutralKernelNameStrT = detail::string;
+#endif
 
 inline KernelNameStrT toKernelNameStrT(const ABINeutralKernelNameStrT &str) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  return std::string_view(str);
+#else
   return str.data();
-}
 #endif
+}
 
 } // namespace detail
 } // namespace _V1
