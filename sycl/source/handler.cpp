@@ -316,8 +316,8 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(),
-                                                        CallerNeedsEvent)),
+    : MImplOwner(
+          std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
 handler::handler(detail::handler_impl *HandlerImpl,
@@ -550,7 +550,7 @@ event handler::finalize() {
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                toKernelNameStrT(MKernelName));
+                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
         DiscardEvent = !KernelUsesAssert;
       }
 

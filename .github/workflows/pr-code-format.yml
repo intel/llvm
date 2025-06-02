@@ -27,7 +27,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: step-security/changed-files@3dbe17c78367e7d60f00d78ae6781a35be47b4a1 # v45.0.1
+        uses: step-security/changed-files@95b56dadb92a30ca9036f16423fd3c088a71ee94 # v46.0.5
         with:
           separator: ","
           skip_initial_fetch: true
@@ -55,7 +55,7 @@ jobs:
           echo "$CHANGED_FILES"
 
       - name: Install clang-format
-        uses: aminya/setup-cpp@6370aaa0252a93c71dcc4cf49397f46810eeda56 # v1.5.3
+        uses: aminya/setup-cpp@9dc9c217f497fe7342eed97e6f200bf101c9cc04 # v1.6.2
         with:
           clangformat: 19.1.6
 

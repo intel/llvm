@@ -12,6 +12,7 @@
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
@@ -359,8 +360,16 @@ public:
   ~ProgramManager() = default;
 
   template <typename NameT>
-  bool kernelUsesAssert(const NameT &KernelName) const {
-    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+  bool kernelUsesAssert(const NameT &KernelName,
+                        KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
+    if (!KernelNameBasedCachePtr)
+      return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+
+    std::optional<bool> &UsesAssert = KernelNameBasedCachePtr->UsesAssert;
+    if (!UsesAssert.has_value())
+      UsesAssert =
+          m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+    return UsesAssert.value();
   }
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
