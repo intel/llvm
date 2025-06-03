@@ -5,8 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 USER root
 
 # Configure LLVM nightly repo
-RUN apt-get update -qq
-RUN apt-get install -yqq curl
+RUN apt-get update -qq && apt-get install --no-install-recommends -yqq curl
 RUN curl -sSL https://apt.llvm.org/llvm-snapshot.gpg.key -o /etc/apt/trusted.gpg.d/apt.llvm.org.asc
 RUN echo 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble main' > /etc/apt/sources.list.d/llvm.list
 
