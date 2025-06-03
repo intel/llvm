@@ -73,11 +73,6 @@ int main() {
 
   // Create one queue
   auto D = Queue.get_device();
-  const char *devType = D.is_cpu() ? "CPU" : "GPU";
-  std::string adapterName = D.get_platform().get_info<info::platform::name>();
-  std::cout << "Running on device " << devType << " ("
-            << D.get_info<info::device::name>() << ") " << adapterName
-            << " adapter\n";
 
   // Use queue in multiple threads
   std::thread T1(run_sample, Queue, 0);

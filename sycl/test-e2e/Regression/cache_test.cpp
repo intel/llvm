@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl::ext::oneapi;
 

@@ -88,13 +88,6 @@ int main(int argc, char *argv[]) {
   device D = Q.get_device();
   context C = Q.get_context();
 
-  const char *devType = D.is_cpu() ? "CPU" : "GPU";
-  std::string adapterName =
-      D.get_platform().get_info<sycl::info::platform::name>();
-  std::cout << "Running on device " << devType << " ("
-            << D.get_info<sycl::info::device::name>() << ") " << adapterName
-            << " adapter\n";
-
   if (*argv[1] == 'h') {
     std::cerr << "Test zeMemAllocHost\n";
     test_host(C);

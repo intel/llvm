@@ -7,6 +7,7 @@
 // devices and run the kernel on each device.
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 class Kernel;
 
