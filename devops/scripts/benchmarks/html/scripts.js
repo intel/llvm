@@ -132,6 +132,8 @@ function createChart(data, containerId, type) {
                                 `Stddev: ${point.stddev.toFixed(2)} ${data.unit}`,
                                 `Git Hash: ${point.gitHash}`,
                                 `Compute Runtime: ${point.compute_runtime}`,
+                                `Bench hash: ${point.gitBenchHash?.substring(0, 7)}`,
+                                `Bench URL: ${point.gitBenchUrl}`,
                             ];
                         } else {
                             return [`${context.dataset.label}:`,
@@ -140,7 +142,10 @@ function createChart(data, containerId, type) {
                         }
                     }
                 }
-            }
+            },
+            annotation: type === 'time' ? {
+                annotations: {}
+            } : undefined
         },
         scales: {
             y: {
@@ -158,7 +163,7 @@ function createChart(data, containerId, type) {
     if (type === 'time') {
         options.interaction = {
             mode: 'nearest',
-            intersect: false
+            intersect: true // Require to hover directly over a point
         };
         options.onClick = (event, elements) => {
             if (elements.length > 0) {
@@ -180,6 +185,11 @@ function createChart(data, containerId, type) {
                 maxTicksLimit: 10
             }
         };
+        
+        // Add dependencies version change annotations
+        if (Object.keys(data.runs).length > 0) {
+            ChartAnnotations.addVersionChangeAnnotations(data, options);
+        }
     }
 
     const chartConfig = {
@@ -202,27 +212,13 @@ function createChart(data, containerId, type) {
 
     const chart = new Chart(ctx, chartConfig);
     chartInstances.set(containerId, chart);
+    
+    // Add annotation interaction handlers for time-series charts
+    if (type === 'time') {
+        ChartAnnotations.setupAnnotationListeners(chart, ctx, options);
+    }
+    
     return chart;
-}
-
-function createTimeseriesDatasets(data) {
-    return Object.entries(data.runs).map(([name, runData], index) => ({
-        label: runData.runName, // Use run name for legend
-        data: runData.points.map(p => ({
-            seriesName: runData.runName, // Use run name for tooltips
-            x: p.date,
-            y: p.value,
-            gitHash: p.git_hash,
-            gitRepo: p.github_repo,
-            stddev: p.stddev
-        })),
-        borderColor: colorPalette[index % colorPalette.length],
-        backgroundColor: colorPalette[index % colorPalette.length],
-        borderWidth: 1,
-        pointRadius: 3,
-        pointStyle: 'circle',
-        pointHoverRadius: 5
-    }));
 }
 
 function updateCharts() {
@@ -815,7 +811,9 @@ function addRunDataPoint(group, run, result, comparison, name = null) {
         stddev: result.stddev,
         gitHash: run.git_hash,
         gitRepo: run.github_repo,
-        compute_runtime: run.compute_runtime
+        compute_runtime: run.compute_runtime,
+        gitBenchUrl: result.git_url,
+        gitBenchHash: result.git_hash,
     });
 
     return group;
