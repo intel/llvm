@@ -320,12 +320,12 @@ private:
 
   sub_group_mask(BitsType rhs, size_t bn)
       : Bits(rhs & valuable_bits(bn)), bits_num(bn) {
-#ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SYCL_DEVICE_ONLY__
     assert(bits_num <= max_bits);
 #endif
   }
   inline BitsType valuable_bits(size_t bn) const {
-#ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SYCL_DEVICE_ONLY__
     assert(bn <= max_bits);
 #endif
     BitsType one = 1;
