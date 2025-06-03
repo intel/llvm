@@ -151,8 +151,7 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
   return MutableVec;
 }
 
-event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
-                         void *Ptr, int Value, size_t Count,
+event queue_impl::memset(void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents,
                          bool CallerNeedsEvent) {
 #if XPTI_ENABLE_INSTRUMENTATION
@@ -180,7 +179,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 #endif
   const std::vector<unsigned char> Pattern{static_cast<unsigned char>(Value)};
   return submitMemOpHelper(
-      Self, DepEvents, CallerNeedsEvent,
+      DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
       MemoryManager::fill_usm, Ptr, *this, Count, Pattern);
 }
@@ -198,8 +197,7 @@ void report(const code_location &CodeLoc) {
   std::cout << '\n';
 }
 
-event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
-                         void *Dest, const void *Src, size_t Count,
+event queue_impl::memcpy(void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents,
                          bool CallerNeedsEvent, const code_location &CodeLoc) {
 #if XPTI_ENABLE_INSTRUMENTATION
@@ -231,28 +229,28 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                     "NULL pointer argument in memory copy operation.");
   }
   return submitMemOpHelper(
-      Self, DepEvents, CallerNeedsEvent,
+      DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
       MemoryManager::copy_usm, Src, *this, Count, Dest);
 }
 
-event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
-                             const void *Ptr, size_t Length,
+event queue_impl::mem_advise(const void *Ptr, size_t Length,
                              ur_usm_advice_flags_t Advice,
                              const std::vector<event> &DepEvents,
                              bool CallerNeedsEvent) {
   return submitMemOpHelper(
-      Self, DepEvents, CallerNeedsEvent,
+      DepEvents, CallerNeedsEvent,
       [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
       MemoryManager::advise_usm, Ptr, *this, Length, Advice);
 }
 
-event queue_impl::memcpyToDeviceGlobal(
-    const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
-    const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
-    const std::vector<event> &DepEvents, bool CallerNeedsEvent) {
+event queue_impl::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
+                                       bool IsDeviceImageScope, size_t NumBytes,
+                                       size_t Offset,
+                                       const std::vector<event> &DepEvents,
+                                       bool CallerNeedsEvent) {
   return submitMemOpHelper(
-      Self, DepEvents, CallerNeedsEvent,
+      DepEvents, CallerNeedsEvent,
       [&](handler &CGH) {
         CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
                                  NumBytes, Offset);
@@ -261,12 +259,14 @@ event queue_impl::memcpyToDeviceGlobal(
       *this, NumBytes, Offset, Src);
 }
 
-event queue_impl::memcpyFromDeviceGlobal(
-    const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
-    const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
-    size_t Offset, const std::vector<event> &DepEvents, bool CallerNeedsEvent) {
+event queue_impl::memcpyFromDeviceGlobal(void *Dest,
+                                         const void *DeviceGlobalPtr,
+                                         bool IsDeviceImageScope,
+                                         size_t NumBytes, size_t Offset,
+                                         const std::vector<event> &DepEvents,
+                                         bool CallerNeedsEvent) {
   return submitMemOpHelper(
-      Self, DepEvents, CallerNeedsEvent,
+      DepEvents, CallerNeedsEvent,
       [&](handler &CGH) {
         CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
                                    NumBytes, Offset);
@@ -275,8 +275,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       IsDeviceImageScope, *this, NumBytes, Offset, Dest);
 }
 
-sycl::detail::optional<event>
-queue_impl::getLastEvent(const std::shared_ptr<queue_impl> &Self) {
+sycl::detail::optional<event> queue_impl::getLastEvent() {
   // The external event is required to finish last if set, so it is considered
   // the last event if present.
   if (std::optional<event> ExternalEvent = MInOrderExternalEvent.read())
@@ -291,7 +290,7 @@ queue_impl::getLastEvent(const std::shared_ptr<queue_impl> &Self) {
   if (LastEvent)
     return detail::createSyclObjFromImpl<event>(LastEvent);
   // We insert a marker to represent an event at end.
-  return detail::createSyclObjFromImpl<event>(insertMarkerEvent(Self));
+  return detail::createSyclObjFromImpl<event>(insertMarkerEvent());
 }
 
 void queue_impl::addEvent(const detail::EventImplPtr &EventImpl) {
@@ -307,16 +306,18 @@ void queue_impl::addEvent(const detail::EventImplPtr &EventImpl) {
 
 detail::EventImplPtr
 queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                        const std::shared_ptr<queue_impl> &Self,
                         queue_impl *SecondaryQueue, bool CallerNeedsEvent,
                         const detail::code_location &Loc, bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
+  // Inlining `Self` results in a crash when SYCL RT is built using MSVC with
+  // optimizations enabled. No crash if built using OneAPI.
+  auto Self = shared_from_this();
   handler Handler(HandlerImpl, Self);
 #else
-  handler Handler(Self, SecondaryQueue, CallerNeedsEvent);
+  handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #endif
 
@@ -398,9 +399,8 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       Stream->generateFlushCommand(ServiceCGH);
     };
     detail::type_erased_cgfo_ty CGF{L};
-    detail::EventImplPtr FlushEvent =
-        submit_impl(CGF, Self, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
-                    IsTopCodeLoc, {});
+    detail::EventImplPtr FlushEvent = submit_impl(
+        CGF, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
     if (EventImpl)
       EventImpl->attachEventToCompleteWeak(FlushEvent);
     registerStreamServiceEvent(FlushEvent);
@@ -412,19 +412,17 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::EventImplPtr
 queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                        const std::shared_ptr<queue_impl> &Self,
-                        const std::shared_ptr<queue_impl> &,
+                        const std::shared_ptr<queue_impl> & /*PrimaryQueue*/,
                         const std::shared_ptr<queue_impl> &SecondaryQueue,
                         bool CallerNeedsEvent, const detail::code_location &Loc,
                         bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo) {
-  return submit_impl(CGF, Self, SecondaryQueue.get(), CallerNeedsEvent, Loc,
+  return submit_impl(CGF, SecondaryQueue.get(), CallerNeedsEvent, Loc,
                      IsTopCodeLoc, SubmitInfo);
 }
 #endif
 
 template <typename HandlerFuncT>
-event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
-                                    const std::vector<event> &DepEvents,
+event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
   v1::SubmissionInfo SI{};
@@ -435,17 +433,16 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
   detail::type_erased_cgfo_ty CGF{L};
 
   if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
-    submit_without_event(CGF, Self, SI,
+    submit_without_event(CGF, SI,
                          /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
     return createDiscardedEvent();
   }
-  return submit_with_event(CGF, Self, SI,
+  return submit_with_event(CGF, SI,
                            /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
-event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
-                                    const std::vector<event> &DepEvents,
+event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc,
                                     MemOpFuncT MemOpFunc,
@@ -475,7 +472,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         return createDiscardedEvent();
       }
 
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(shared_from_this());
       const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
@@ -499,8 +496,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         }
       }
 
-      if (isInOrder() &&
-          (!isNoEventsMode || MContext->getBackend() == backend::opencl)) {
+      if (isInOrder() && !isNoEventsMode) {
         auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                                 : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
@@ -509,7 +505,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       return ResEvent;
     }
   }
-  return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
+  return submitWithHandler(DepEvents, CallerNeedsEvent, HandlerFunc);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,

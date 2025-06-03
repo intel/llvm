@@ -20,7 +20,6 @@
 #define __CLC_DOUBLEN __CLC_XCONCAT(double, __CLC_VECSIZE)
 
 #define __CLC_CHARN __CLC_XCONCAT(char, __CLC_VECSIZE)
-#define __CLC_SCHARN __CLC_XCONCAT(schar, __CLC_VECSIZE)
 #define __CLC_SHORTN __CLC_XCONCAT(short, __CLC_VECSIZE)
 #define __CLC_INTN __CLC_XCONCAT(int, __CLC_VECSIZE)
 #define __CLC_LONGN __CLC_XCONCAT(long, __CLC_VECSIZE)
@@ -35,7 +34,6 @@
 #define __CLC_AS_DOUBLEN __CLC_XCONCAT(__clc_as_, __CLC_DOUBLEN)
 
 #define __CLC_AS_CHARN __CLC_XCONCAT(__clc_as_, __CLC_CHARN)
-#define __CLC_AS_SCHARN __CLC_XCONCAT(__clc_as_, __CLC_SCHARN)
 #define __CLC_AS_SHORTN __CLC_XCONCAT(__clc_as_, __CLC_SHORTN)
 #define __CLC_AS_INTN __CLC_XCONCAT(__clc_as_, __CLC_INTN)
 #define __CLC_AS_LONGN __CLC_XCONCAT(__clc_as_, __CLC_LONGN)
@@ -50,7 +48,6 @@
 #define __CLC_CONVERT_DOUBLEN __CLC_XCONCAT(__clc_convert_double, __CLC_VECSIZE)
 
 #define __CLC_CONVERT_CHARN __CLC_XCONCAT(__clc_convert_, __CLC_CHARN)
-#define __CLC_CONVERT_SCHARN __CLC_XCONCAT(__clc_convert_, __CLC_SCHARN)
 #define __CLC_CONVERT_SHORTN __CLC_XCONCAT(__clc_convert_, __CLC_SHORTN)
 #define __CLC_CONVERT_INTN __CLC_XCONCAT(__clc_convert_, __CLC_INTN)
 #define __CLC_CONVERT_LONGN __CLC_XCONCAT(__clc_convert_, __CLC_LONGN)
@@ -344,7 +341,6 @@
 #undef __CLC_LONGN
 #undef __CLC_INTN
 #undef __CLC_SHORTN
-#undef __CLC_SCHARN
 #undef __CLC_CHARN
 
 #undef __CLC_DOUBLEN

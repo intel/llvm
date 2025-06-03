@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
@@ -302,14 +303,13 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
   printString("Creating input image\n");
   // Create input image memory
-  auto inputImage = vkutil::createImage(imgType, format, {width, height, depth},
-                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                            VK_IMAGE_USAGE_STORAGE_BIT,
-                                        1 /*mipLevels*/
+  auto inputImage = vkutil::createImage(
+      imgType, format, {width, height, depth},
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+      1 /*mipLevels*/
 #ifdef ENABLE_LINEAR_TILING
-                                        ,
-                                        true /*linearTiling*/
+      ,
+      true /*linearTiling*/
 #endif
   );
   VkMemoryRequirements memRequirements;

@@ -39,9 +39,9 @@ ur_result_t getMemPtr(ur_mem_handle_t memObj,
       urAccessMode =
           ur_mem_buffer_t::getDeviceAccessMode(properties->memoryAccess);
     }
-    ptr = ur_cast<char *>(
-        memBuffer->getDevicePtr(device, urAccessMode, 0, memBuffer->getSize(),
-                                [&](void *, void *, size_t) {}));
+    wait_list_view emptyWaitList(nullptr, 0);
+    ptr = ur_cast<char *>(memBuffer->getDevicePtr(
+        device, urAccessMode, 0, memBuffer->getSize(), nullptr, emptyWaitList));
   }
   assert(ptrStorage != nullptr);
   ptrStorage->push_back(std::make_unique<char *>(ptr));
