@@ -326,7 +326,7 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
     }
   }
 
-  // Get suggested local work size is user doesn't determine it.
+  // Get suggested local work size if user doesn't determine it.
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
     auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
