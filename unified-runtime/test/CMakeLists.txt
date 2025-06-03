@@ -31,7 +31,7 @@ enable_testing()
 find_program(VALGRIND valgrind)
 
 function(configure_ur_lit_site_cfg input output)
-  if (UR_STANDALONE_BUILD)
+  if(UR_STANDALONE_BUILD)
     configure_file(${input} ${output} @ONLY)
   else()
     configure_lit_site_cfg(${input} ${output} ${ARGN})
