@@ -102,4 +102,6 @@
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: detail/image_ocl_types.hpp
+// CHECK-NEXT: properties/image_properties.hpp
+// CHECK-NEXT: properties/image_properties.def
 // CHECK-EMPTY:
