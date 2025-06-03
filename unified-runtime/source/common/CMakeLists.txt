@@ -134,9 +134,7 @@ target_link_libraries(ur_umf INTERFACE
     umf::headers
 )
 
-if (CMAKE_SYSTEM_NAME STREQUAL Windows)
-    set_target_properties(ur_umf PROPERTIES DEBUG_POSTFIX d)
-    if (CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
-        set_target_properties(ur_umf PROPERTIES RELEASE_POSTFIX d)
-    endif()
+if (CMAKE_SYSTEM_NAME STREQUAL Windows AND
+    (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL))
+    set_target_properties(ur_umf PROPERTIES OUTPUT_NAME "ur_umfd")
 endif()

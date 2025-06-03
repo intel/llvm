@@ -53,11 +53,9 @@ function(add_xpti_library LIB_NAME)
       target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
   endif()
 
-  if (CMAKE_SYSTEM_NAME STREQUAL Windows)
-      set_target_properties(${LIB_NAME} PROPERTIES DEBUG_POSTFIX d)
-      if (CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
-          set_target_properties(${LIB_NAME} PROPERTIES RELEASE_POSTFIX d)
-      endif()
+  if (CMAKE_SYSTEM_NAME STREQUAL Windows AND
+      (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL))
+    set_target_properties(${LIB_NAME} PROPERTIES OUTPUT_NAME "${LIB_NAME}d")
   endif()
 
   # Set the location of the library installation
