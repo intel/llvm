@@ -461,8 +461,8 @@ struct payload_t {
   //  indicates a partial but valid payload.
   payload_t(const void *codeptr) {
     code_ptr_va = codeptr;
-    name = nullptr;         ///< Invalid name string pointer
-    source_file = nullptr;  ///< Invalid source file string pointer
+    name = nullptr;           ///< Invalid name string pointer
+    source_file = nullptr;    ///< Invalid source file string pointer
     line_no = invalid_id<>;   ///< Invalid line number
     column_no = invalid_id<>; ///< Invalid column number
     if (codeptr) {
