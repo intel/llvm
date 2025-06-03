@@ -93,7 +93,6 @@
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
-// CHECK-NEXT: platform.hpp
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: detail/cg_types.hpp

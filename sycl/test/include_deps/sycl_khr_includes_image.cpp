@@ -92,14 +92,13 @@
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
-// CHECK-NEXT: platform.hpp
-// CHECK-NEXT: detail/string_view.hpp
-// CHECK-NEXT: detail/util.hpp
-// CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: detail/image_accessor_util.hpp
 // CHECK-NEXT: device.hpp
+// CHECK-NEXT: detail/string_view.hpp
+// CHECK-NEXT: detail/util.hpp
+// CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: detail/image_ocl_types.hpp
 // CHECK-NEXT: properties/image_properties.hpp
