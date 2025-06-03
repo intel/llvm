@@ -5,4 +5,6 @@
 // CHECK-LABEL: Dependencies for <sycl/khr/includes/byte>:
 // CHECK-NEXT: /dev/null: /dev/null
 // CHECK-NEXT: khr/includes/byte
+// CHECK-NEXT: aliases.hpp
+// CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-EMPTY:
