@@ -18,14 +18,17 @@
 #include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/__spirv/spirv_types.hpp>
 
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
-
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
 #endif
 
+#include <sycl/aliases.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/half_type.hpp>
+#include <sycl/id.hpp>
+#include <sycl/multi_ptr.hpp>
 
 namespace sycl {
 inline namespace _V1 {

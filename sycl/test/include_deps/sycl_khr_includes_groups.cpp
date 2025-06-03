@@ -54,8 +54,5 @@
 // CHECK-NEXT: detail/vector_arith.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: detail/spirv.hpp
-// CHECK-NEXT: ext/oneapi/experimental/non_uniform_groups.hpp
-// CHECK-NEXT: ext/oneapi/sub_group_mask.hpp
-// CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: group_barrier.hpp
 // CHECK-EMPTY:
