@@ -373,8 +373,9 @@ public:
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  std::optional<int>
-  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
+  std::optional<int> kernelImplicitLocalArgPos(
+      KernelNameStrRefT KernelName,
+      KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
