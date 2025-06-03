@@ -84,14 +84,13 @@
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
-// CHECK-NEXT: platform.hpp
-// CHECK-NEXT: detail/string_view.hpp
-// CHECK-NEXT: detail/util.hpp
-// CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: device.hpp
+// CHECK-NEXT: detail/string_view.hpp
+// CHECK-NEXT: detail/util.hpp
+// CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: event.hpp
 // CHECK-NEXT: feature_test.hpp
@@ -101,6 +100,7 @@
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
+// CHECK-NEXT: platform.hpp
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
