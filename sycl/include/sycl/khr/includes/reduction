@@ -10,5 +10,6 @@
 #define __SYCL_KHR_INCLUDES_REDUCTION
 
 #include <sycl/reduction.hpp>
+#include <sycl/properties/reduction_properties.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_REDUCTION
