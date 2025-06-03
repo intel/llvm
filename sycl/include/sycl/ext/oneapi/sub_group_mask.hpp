@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/builtins.hpp>       // for assert
 #include <sycl/detail/helpers.hpp> // for Builder
 #include <sycl/detail/memcpy.hpp>  // detail::memcpy
 #include <sycl/exception.hpp>      // for errc, exception
