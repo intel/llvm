@@ -945,7 +945,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
     : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
-      MQueueImpl(std::make_shared<sycl::detail::queue_impl>(
+      MQueueImpl(sycl::detail::queue_impl::create(
           *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
           sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
           sycl::property_list{})),
@@ -1480,8 +1480,7 @@ bool exec_graph_impl::needsScheduledUpdate(
 }
 
 void exec_graph_impl::populateURKernelUpdateStructs(
-    const std::shared_ptr<node_impl> &Node,
-    std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
+    const std::shared_ptr<node_impl> &Node, FastKernelCacheValPtr &BundleObjs,
     std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
     std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
     std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
@@ -1517,12 +1516,11 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
-    ur_program_handle_t UrProgram = nullptr;
-    std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
-        sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, ExecCG.MKernelName,
-            ExecCG.MKernelNameBasedCachePtr);
-    BundleObjs = std::make_pair(UrProgram, UrKernel);
+    BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
+        ContextImpl, DeviceImpl, ExecCG.MKernelName,
+        ExecCG.MKernelNameBasedCachePtr);
+    UrKernel = BundleObjs->MKernelHandle;
+    EliminatedArgMask = BundleObjs->MKernelArgMask;
   }
 
   // Remove eliminated args
@@ -1717,8 +1715,7 @@ void exec_graph_impl::updateURImpl(
   std::vector<sycl::detail::NDRDescT> NDRDescList(NumUpdatableNodes);
   std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> UpdateDescList(
       NumUpdatableNodes);
-  std::vector<std::pair<ur_program_handle_t, ur_kernel_handle_t>>
-      KernelBundleObjList(NumUpdatableNodes);
+  std::vector<FastKernelCacheValPtr> KernelBundleObjList(NumUpdatableNodes);
 
   size_t StructListIndex = 0;
   for (auto &Node : Nodes) {
@@ -1743,17 +1740,6 @@ void exec_graph_impl::updateURImpl(
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   Adapter->call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
       CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
-
-  for (auto &BundleObjs : KernelBundleObjList) {
-    // We retained these objects by inside populateUpdateStruct() by calling
-    // getOrCreateKernel()
-    if (auto &UrKernel = BundleObjs.second; nullptr != UrKernel) {
-      Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(UrKernel);
-    }
-    if (auto &UrProgram = BundleObjs.first; nullptr != UrProgram) {
-      Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
-    }
-  }
 }
 
 modifiable_command_graph::modifiable_command_graph(

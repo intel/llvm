@@ -432,7 +432,7 @@ class SYCLQueue(SYCLValue):
     """Provides information about a sycl::queue from a gdb.Value."""
 
     DEVICE_TYPE_NAME = "sycl::_V1::device"
-    IMPL_OFFSET_TO_DEVICE = 0x28
+    IMPL_OFFSET_TO_DEVICE = 0x38
 
     def __init__(self, gdb_value):
         super().__init__(gdb_value)

@@ -187,7 +187,7 @@ jobs:
       tests_selector: cts
       repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       devops_ref: sycl
-      tests_ref: ead7474b9cb2189ce48025550912ccad5a72bd30
+      tests_ref: 87f8677c4b67cfe56ad6f09246036f10c306c977
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}

@@ -316,8 +316,8 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(),
-                                                        CallerNeedsEvent)),
+    : MImplOwner(
+          std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
 handler::handler(detail::handler_impl *HandlerImpl,
@@ -550,7 +550,7 @@ event handler::finalize() {
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                MKernelName.data());
+                MKernelName.data(), impl->MKernelNameBasedCachePtr);
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -582,7 +582,7 @@ event handler::finalize() {
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
           std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(MQueue, MKernelName.data());
+              detail::retrieveKernelBinary(*MQueue, MKernelName.data());
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
@@ -2384,6 +2384,12 @@ void handler::setKernelInfo(
   impl->MKernelParamDescGetter = KernelParamDescGetter;
   impl->MKernelIsESIMD = KernelIsESIMD;
   impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
+}
+
+void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {
+  // Passing the pointer to the runtime is enough to prevent optimization.
+  // We don't need to use the pointer for anything.
+  (void)InstantiateKernelOnHostPtr;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {

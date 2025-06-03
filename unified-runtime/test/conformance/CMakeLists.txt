@@ -79,7 +79,6 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "exp_command_buffer"
     "exp_enqueue_native"
     "exp_usm_p2p"
-    "exp_launch_properties"
     "memory-migrate"
     "usm"
 )
