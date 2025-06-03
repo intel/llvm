@@ -591,7 +591,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  int32_t StreamID = xpti::invalid_id;
+  int32_t StreamID = xpti::invalid_id<>;
   if (xptiEnabled) {
     StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
     TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
