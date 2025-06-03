@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sycl/accessor.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/graph_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
@@ -29,6 +31,27 @@ getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
   }
   return RetUrEvents;
 }
+
+std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
+    sycl::handler &Handler, const std::shared_ptr<detail::queue_impl> &Queue,
+    const std::shared_ptr<detail::graph_impl> &Graph,
+    const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
+  auto HandlerImpl = detail::getSyclObjImpl(Handler);
+  // Get dependent graph nodes from any events
+  auto DepNodes = Graph->getNodesForEvents(DepEvents);
+  // If this node was added explicitly we may have node deps in the handler as
+  // well, so add them to the list
+  DepNodes.insert(DepNodes.end(), HandlerImpl->MNodeDeps.begin(),
+                  HandlerImpl->MNodeDeps.end());
+  // If this is being recorded from an in-order queue we need to get the last
+  // in-order node if any, since this will later become a dependency of the
+  // node being processed here.
+  if (const auto &LastInOrderNode = Graph->getLastInorderNode(Queue);
+      LastInOrderNode) {
+    DepNodes.push_back(LastInOrderNode);
+  }
+  return DepNodes;
+}
 } // namespace
 
 __SYCL_EXPORT
@@ -44,23 +67,26 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device backed asynchronous allocations are supported!");
 
-  h.throwIfGraphAssociated<
-      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_async_alloc>();
-
   auto &Adapter = h.getContextImplPtr()->getAdapter();
-  auto &Q = h.MQueue->getHandleRef();
 
-  // Get events to wait on.
-  auto depEvents = getUrEvents(h.impl->CGData.MEvents);
-  uint32_t numEvents = h.impl->CGData.MEvents.size();
+  // Get CG event dependencies for this allocation.
+  const auto &DepEvents = h.impl->CGData.MEvents;
+  auto UREvents = getUrEvents(DepEvents);
 
   void *alloc = nullptr;
-  ur_event_handle_t Event;
-  Adapter->call<sycl::errc::runtime,
-                sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-      Q, (ur_usm_pool_handle_t)0, size, nullptr, numEvents, depEvents.data(),
-      &alloc, &Event);
+
+  ur_event_handle_t Event = nullptr;
+  // If a graph is present do the allocation from the graph memory pool instead.
+  if (auto Graph = h.getCommandGraph(); Graph) {
+    auto DepNodes = getDepGraphNodes(h, h.MQueue, Graph, DepEvents);
+    alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
+  } else {
+    auto &Q = h.MQueue->getHandleRef();
+    Adapter->call<sycl::errc::runtime,
+                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+        Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
+        UREvents.data(), &alloc, &Event);
+  }
 
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the
@@ -90,25 +116,30 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
 
-  h.throwIfGraphAssociated<
-      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_async_alloc>();
-
   auto &Adapter = h.getContextImplPtr()->getAdapter();
-  auto &Q = h.MQueue->getHandleRef();
   auto &memPoolImpl = sycl::detail::getSyclObjImpl(pool);
 
-  // Get events to wait on.
-  auto depEvents = getUrEvents(h.impl->CGData.MEvents);
-  uint32_t numEvents = h.impl->CGData.MEvents.size();
+  // Get CG event dependencies for this allocation.
+  const auto &DepEvents = h.impl->CGData.MEvents;
+  auto UREvents = getUrEvents(DepEvents);
 
   void *alloc = nullptr;
-  ur_event_handle_t Event;
-  Adapter->call<sycl::errc::runtime,
-                sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-      Q, memPoolImpl.get()->get_handle(), size, nullptr, numEvents,
-      depEvents.data(), &alloc, &Event);
 
+  ur_event_handle_t Event = nullptr;
+  // If a graph is present do the allocation from the graph memory pool instead.
+  if (auto Graph = h.getCommandGraph(); Graph) {
+    auto DepNodes = getDepGraphNodes(h, h.MQueue, Graph, DepEvents);
+
+    // Memory pool is passed as the graph may use some properties of it.
+    alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(), DepNodes,
+                                       sycl::detail::getSyclObjImpl(pool));
+  } else {
+    auto &Q = h.MQueue->getHandleRef();
+    Adapter->call<sycl::errc::runtime,
+                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+        Q, memPoolImpl.get()->get_handle(), size, nullptr, UREvents.size(),
+        UREvents.data(), &alloc, &Event);
+  }
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the event from the alloc.
   h.impl->MAsyncAllocEvent = Event;
@@ -135,9 +166,18 @@ async_malloc_from_pool(const sycl::queue &q, size_t size,
 }
 
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr) {
-  h.throwIfGraphAssociated<
-      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_async_alloc>();
+  // We only check for errors for the graph here because marking the allocation
+  // as free in the graph memory pool requires a node object which doesn't exist
+  // at this point.
+  if (auto Graph = h.getCommandGraph(); Graph) {
+    // Check if the pointer to be freed has an associated allocation node, and
+    // error if not
+    if (!Graph->getMemPool().hasAllocation(ptr)) {
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Cannot add a free node to a graph for which "
+                            "there is no associated allocation node!");
+    }
+  }
 
   h.impl->MFreePtr = ptr;
   h.setType(detail::CGType::AsyncFree);

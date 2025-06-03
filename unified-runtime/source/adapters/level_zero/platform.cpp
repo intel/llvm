@@ -98,11 +98,11 @@ ur_result_t urPlatformGetInfo(
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
+    return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(GlobalAdapter);
   default:
-    logger::debug("urPlatformGetInfo: unrecognized ParamName");
+    UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -111,10 +111,9 @@ ur_result_t urPlatformGetInfo(
 
 ur_result_t urPlatformGetApiVersion(
     /// [in] handle of the platform
-    ur_platform_handle_t Driver,
+    ur_platform_handle_t /*Driver*/,
     /// [out] api version
     ur_api_version_t *Version) {
-  std::ignore = Driver;
   *Version = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
@@ -133,10 +132,9 @@ ur_result_t urPlatformCreateWithNativeHandle(
     /// [in] the native handle of the platform.
     ur_native_handle_t NativePlatform, ur_adapter_handle_t,
     /// [in][optional] pointer to native platform properties struct.
-    const ur_platform_native_properties_t *Properties,
+    const ur_platform_native_properties_t * /*Properties*/,
     /// [out] pointer to the handle of the platform object created.
     ur_platform_handle_t *Platform) {
-  std::ignore = Properties;
   auto ZeDriver = ur_cast<ze_driver_handle_t>(NativePlatform);
 
   uint32_t NumPlatforms = 0;
@@ -173,13 +171,12 @@ ur_result_t urPlatformCreateWithNativeHandle(
 // frontend_option=-ftarget-compile-fast.
 ur_result_t urPlatformGetBackendOption(
     /// [in] handle of the platform instance.
-    ur_platform_handle_t Platform,
+    ur_platform_handle_t /*Platform*/,
     /// [in] string containing the frontend option.
     const char *FrontendOption,
     /// [out] returns the correct platform specific compiler option based on
     /// the frontend option.
     const char **PlatformOption) {
-  std::ignore = Platform;
   using namespace std::literals;
   if (FrontendOption == nullptr) {
     return UR_RESULT_SUCCESS;
@@ -295,6 +292,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
       if (extension.version ==
           ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_VERSION_1_0) {
         ZeCopyOffloadExtensionSupported = true;
+      }
+    }
+    if (strncmp(extension.name, ZE_BINDLESS_IMAGE_EXP_NAME,
+                strlen(ZE_BINDLESS_IMAGE_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_BINDLESS_IMAGE_EXP_VERSION_1_0) {
+        ZeBindlessImagesExtensionSupported = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
@@ -545,6 +548,22 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeCommandListImmediateAppendExt
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeImageGetDeviceOffsetExp",
+                   reinterpret_cast<void **>(
+                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+
+  ZeImageGetDeviceOffsetExt.Supported =
+      ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeMemGetPitchFor2dImage",
+                   reinterpret_cast<void **>(
+                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+
+  ZeMemGetPitchFor2dImageExt.Supported =
+      ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
   return UR_RESULT_SUCCESS;
 }

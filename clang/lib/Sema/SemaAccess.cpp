@@ -1673,24 +1673,21 @@ Sema::AccessResult Sema::CheckConstructorAccess(SourceLocation UseLoc,
   case InitializedEntity::EK_Base:
     PD = PDiag(diag::err_access_base_ctor);
     PD << Entity.isInheritedVirtualBase()
-       << Entity.getBaseSpecifier()->getType()
-       << llvm::to_underlying(getSpecialMember(Constructor));
+       << Entity.getBaseSpecifier()->getType() << getSpecialMember(Constructor);
     break;
 
   case InitializedEntity::EK_Member:
   case InitializedEntity::EK_ParenAggInitMember: {
     const FieldDecl *Field = cast<FieldDecl>(Entity.getDecl());
     PD = PDiag(diag::err_access_field_ctor);
-    PD << Field->getType()
-       << llvm::to_underlying(getSpecialMember(Constructor));
+    PD << Field->getType() << getSpecialMember(Constructor);
     break;
   }
 
   case InitializedEntity::EK_LambdaCapture: {
     StringRef VarName = Entity.getCapturedVarName();
     PD = PDiag(diag::err_access_lambda_capture);
-    PD << VarName << Entity.getType()
-       << llvm::to_underlying(getSpecialMember(Constructor));
+    PD << VarName << Entity.getType() << getSpecialMember(Constructor);
     break;
   }
 
@@ -1876,38 +1873,45 @@ Sema::AccessResult Sema::CheckAddressOfMemberAccess(Expr *OvlExpr,
   return CheckAccess(*this, Ovl->getNameLoc(), Entity);
 }
 
-Sema::AccessResult Sema::CheckBaseClassAccess(SourceLocation AccessLoc,
-                                              QualType Base,
-                                              QualType Derived,
-                                              const CXXBasePath &Path,
-                                              unsigned DiagID,
-                                              bool ForceCheck,
-                                              bool ForceUnprivileged) {
+Sema::AccessResult Sema::CheckBaseClassAccess(
+    SourceLocation AccessLoc, CXXRecordDecl *Base, CXXRecordDecl *Derived,
+    const CXXBasePath &Path, unsigned DiagID,
+    llvm::function_ref<void(PartialDiagnostic &)> SetupPDiag, bool ForceCheck,
+    bool ForceUnprivileged) {
   if (!ForceCheck && !getLangOpts().AccessControl)
     return AR_accessible;
 
   if (Path.Access == AS_public)
     return AR_accessible;
 
-  CXXRecordDecl *BaseD, *DerivedD;
-  BaseD = cast<CXXRecordDecl>(Base->castAs<RecordType>()->getDecl());
-  DerivedD = cast<CXXRecordDecl>(Derived->castAs<RecordType>()->getDecl());
-
-  AccessTarget Entity(Context, AccessTarget::Base, BaseD, DerivedD,
-                      Path.Access);
+  AccessTarget Entity(Context, AccessTarget::Base, Base, Derived, Path.Access);
   if (DiagID)
-    Entity.setDiag(DiagID) << Derived << Base;
+    SetupPDiag(Entity.setDiag(DiagID));
 
   if (ForceUnprivileged) {
-    switch (CheckEffectiveAccess(*this, EffectiveContext(),
-                                 AccessLoc, Entity)) {
-    case ::AR_accessible: return Sema::AR_accessible;
-    case ::AR_inaccessible: return Sema::AR_inaccessible;
-    case ::AR_dependent: return Sema::AR_dependent;
+    switch (
+        CheckEffectiveAccess(*this, EffectiveContext(), AccessLoc, Entity)) {
+    case ::AR_accessible:
+      return Sema::AR_accessible;
+    case ::AR_inaccessible:
+      return Sema::AR_inaccessible;
+    case ::AR_dependent:
+      return Sema::AR_dependent;
     }
     llvm_unreachable("unexpected result from CheckEffectiveAccess");
   }
   return CheckAccess(*this, AccessLoc, Entity);
+}
+
+Sema::AccessResult Sema::CheckBaseClassAccess(SourceLocation AccessLoc,
+                                              QualType Base, QualType Derived,
+                                              const CXXBasePath &Path,
+                                              unsigned DiagID, bool ForceCheck,
+                                              bool ForceUnprivileged) {
+  return CheckBaseClassAccess(
+      AccessLoc, Base->getAsCXXRecordDecl(), Derived->getAsCXXRecordDecl(),
+      Path, DiagID, [&](PartialDiagnostic &PD) { PD << Derived << Base; },
+      ForceCheck, ForceUnprivileged);
 }
 
 void Sema::CheckLookupAccess(const LookupResult &R) {

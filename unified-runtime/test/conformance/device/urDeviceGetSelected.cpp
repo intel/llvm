@@ -6,14 +6,49 @@
 
 #include <uur/fixtures.h>
 
-using urDeviceGetSelectedTest = uur::urPlatformTest;
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
+
+namespace uur {
+static int set_env(const char *name, const char *value) {
+#ifdef _MSC_VER
+  return _putenv_s(name, value);
+#else
+  return setenv(name, value, 1);
+#endif
+}
+
+static int unset_env(const char *name) {
+#ifdef _MSC_VER
+  return _putenv_s(name, "");
+#else
+  return unsetenv(name);
+#endif
+}
+
+} // namespace uur
+
+struct urDeviceGetSelectedTest : uur::urPlatformTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urPlatformTest::SetUp());
+
+    // These tests require at least one device in the platform
+    uint32_t totalCount = 0;
+    ASSERT_SUCCESS(
+        urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &totalCount));
+    if (!totalCount) {
+      GTEST_SKIP() << "Platform has no devices";
+    }
+  }
+};
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urDeviceGetSelectedTest);
 
 /* adpater agnostic tests -- none assume the existence or support of any
  * specific adapter */
 
 TEST_P(urDeviceGetSelectedTest, Success) {
-  unsetenv("ONEAPI_DEVICE_SELECTOR");
+  uur::unset_env("ONEAPI_DEVICE_SELECTOR");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -27,7 +62,7 @@ TEST_P(urDeviceGetSelectedTest, Success) {
 }
 
 TEST_P(urDeviceGetSelectedTest, SuccessSubsetOfDevices) {
-  unsetenv("ONEAPI_DEVICE_SELECTOR");
+  uur::unset_env("ONEAPI_DEVICE_SELECTOR");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -38,13 +73,13 @@ TEST_P(urDeviceGetSelectedTest, SuccessSubsetOfDevices) {
   std::vector<ur_device_handle_t> devices(count - 1);
   ASSERT_SUCCESS(urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, count - 1,
                                      devices.data(), nullptr));
-  for (auto device : devices) {
+  for (auto *device : devices) {
     ASSERT_NE(nullptr, device);
   }
 }
 
 TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonStar) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:*", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:*");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -74,7 +109,7 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonStar) {
 }
 
 TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonZero) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:0", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -88,7 +123,7 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonZero) {
 }
 
 TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonZeroCommaStar) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:0,*", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0,*");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -102,7 +137,7 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonZeroCommaStar) {
 }
 
 TEST_P(urDeviceGetSelectedTest, SuccessSelected_DiscardStarColonStar) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "!*:*", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "!*:*");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -110,7 +145,7 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_DiscardStarColonStar) {
 }
 
 TEST_P(urDeviceGetSelectedTest, SuccessSelected_SelectAndDiscard) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:0;!*:*", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0;!*:*");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -119,7 +154,7 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_SelectAndDiscard) {
 
 TEST_P(urDeviceGetSelectedTest,
        SuccessSelected_SelectSomethingAndDiscardSomethingElse) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:0;!*:1", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0;!*:1");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -133,7 +168,7 @@ TEST_P(urDeviceGetSelectedTest,
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidNullHandlePlatform) {
-  unsetenv("ONEAPI_DEVICE_SELECTOR");
+  uur::unset_env("ONEAPI_DEVICE_SELECTOR");
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_NULL_HANDLE,
@@ -141,7 +176,7 @@ TEST_P(urDeviceGetSelectedTest, InvalidNullHandlePlatform) {
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidEnumerationDevicesType) {
-  unsetenv("ONEAPI_DEVICE_SELECTOR");
+  uur::unset_env("ONEAPI_DEVICE_SELECTOR");
   uint32_t count = 0;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                    urDeviceGetSelected(platform, UR_DEVICE_TYPE_FORCE_UINT32, 0,
@@ -149,7 +184,7 @@ TEST_P(urDeviceGetSelectedTest, InvalidEnumerationDevicesType) {
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidValueNumEntries) {
-  unsetenv("ONEAPI_DEVICE_SELECTOR");
+  uur::unset_env("ONEAPI_DEVICE_SELECTOR");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -161,16 +196,16 @@ TEST_P(urDeviceGetSelectedTest, InvalidValueNumEntries) {
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidMissingBackend) {
-  setenv("ONEAPI_DEVICE_SELECTOR", ":garbage", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", ":garbage");
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_UNKNOWN,
+      UR_RESULT_ERROR_INVALID_VALUE,
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
   ASSERT_EQ(count, 0);
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidGarbageBackendString) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "garbage:0", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "garbage:0");
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_VALUE,
@@ -178,14 +213,21 @@ TEST_P(urDeviceGetSelectedTest, InvalidGarbageBackendString) {
   ASSERT_EQ(count, 0);
 }
 
+TEST_P(urDeviceGetSelectedTest, SuccessCaseSensitive) {
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "OpEnCl:0");
+  uint32_t count = 0;
+  ASSERT_SUCCESS(
+      urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
+}
+
 TEST_P(urDeviceGetSelectedTest, InvalidMissingFilterStrings) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*");
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_VALUE,
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
   ASSERT_EQ(count, 0);
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:");
   uint32_t count2 = 0;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_VALUE,
@@ -194,16 +236,16 @@ TEST_P(urDeviceGetSelectedTest, InvalidMissingFilterStrings) {
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidMissingFilterString) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:0,,2", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0,,2");
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_UNKNOWN,
+      UR_RESULT_ERROR_INVALID_VALUE,
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
   ASSERT_EQ(count, 0);
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidTooManyDotsInFilterString) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:0.1.2.3", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0.1.2.3");
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_VALUE,
@@ -212,13 +254,13 @@ TEST_P(urDeviceGetSelectedTest, InvalidTooManyDotsInFilterString) {
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidBadWildardInFilterString) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:*.", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:*.");
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_VALUE,
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
   ASSERT_EQ(count, 0);
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:*.0", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:*.0");
   uint32_t count2 = 0;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_VALUE,
@@ -227,7 +269,7 @@ TEST_P(urDeviceGetSelectedTest, InvalidBadWildardInFilterString) {
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidSelectingNonexistentDevice) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:4321", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:4321");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -235,7 +277,7 @@ TEST_P(urDeviceGetSelectedTest, InvalidSelectingNonexistentDevice) {
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidSelectingNonexistentSubDevice) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:0.4321", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0.4321");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -243,7 +285,7 @@ TEST_P(urDeviceGetSelectedTest, InvalidSelectingNonexistentSubDevice) {
 }
 
 TEST_P(urDeviceGetSelectedTest, InvalidSelectingNonexistentSubSubDevice) {
-  setenv("ONEAPI_DEVICE_SELECTOR", "*:0.0.4321", 1);
+  uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0.0.4321");
   uint32_t count = 0;
   ASSERT_SUCCESS(
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));

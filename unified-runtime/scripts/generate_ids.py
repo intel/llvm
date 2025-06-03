@@ -1,12 +1,14 @@
-"""
-Copyright (C) 2023 Intel Corporation
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-Generates a unique id for each spec function that doesn't have it.
-"""
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from fileinput import FileInput
+"""Generates a unique id for each spec function that doesn't have it."""
+
+from typing import Callable, List
+from yaml.dumper import Dumper
+from yaml.representer import Node
 import util
 import yaml
 import re
@@ -15,46 +17,48 @@ import copy
 ENUM_NAME = "$x_function_t"
 
 
-class quoted(str):
+class Quoted(str):
     pass
 
 
-def quoted_presenter(dumper, data):
+def quoted_presenter(dumper: Dumper, data: Quoted) -> Node:
     return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
 
 
-def get_registry_header():
+def get_registry_header() -> dict:
     return {
         "type": "header",
-        "desc": quoted("Intel $OneApi Unified Runtime function registry"),
-        "ordinal": quoted(-1),
+        "desc": Quoted("Intel $OneApi Unified Runtime function registry"),
+        "ordinal": Quoted(-1),
     }
 
 
-def write_registry(data, path):
+def write_registry(data: List[dict], path: str) -> None:
     with open(path, "w") as fout:
-        yaml.add_representer(quoted, quoted_presenter)
+        yaml.add_representer(Quoted, quoted_presenter)
         yaml.dump_all(
             data, fout, default_flow_style=False, sort_keys=False, explicit_start=True
         )
 
 
-def find_type_in_specs(specs, type):
+def find_type_in_specs(specs: List[dict], type: str) -> dict:
     return [obj for s in specs for obj in s["objects"] if obj["name"] == type][0]
 
 
-def get_max_enum(enum):
+def get_max_enum(enum: dict) -> int:
     return int(max(enum["etors"], key=lambda x: int(x["value"]))["value"])
 
 
-def copy_and_strip_prefix_from_enums(enum, prefix):
+def copy_and_strip_prefix_from_enums(enum: dict, prefix: str) -> dict:
     cpy = copy.deepcopy(enum)
     for etor in cpy["etors"]:
         etor["name"] = etor["name"][len(prefix) :]
     return cpy
 
 
-def generate_function_type(specs, meta, update_fn) -> dict:
+def generate_function_type(
+    specs: List[dict], meta: dict, update_fn: Callable[[dict, dict], None]
+) -> dict:
     existing_function_type = find_type_in_specs(specs, "$x_function_t")
     existing_etors = {
         etor["name"]: etor["value"] for etor in existing_function_type["etors"]
@@ -84,7 +88,9 @@ def generate_function_type(specs, meta, update_fn) -> dict:
     return copy_and_strip_prefix_from_enums(existing_function_type, "$X_FUNCTION_")
 
 
-def generate_structure_type(specs, meta, refresh_fn) -> dict:
+def generate_structure_type(
+    specs: List[dict], meta: dict, refresh_fn: Callable[[dict, dict], None]
+) -> dict:
     structure_type = find_type_in_specs(specs, "$x_structure_type_t")
     extended_structs = [
         obj
@@ -124,7 +130,9 @@ def generate_structure_type(specs, meta, refresh_fn) -> dict:
     return copy_and_strip_prefix_from_enums(structure_type, "$X_STRUCTURE_TYPE_")
 
 
-def generate_registry(path, specs, meta, update_fn):
+def generate_registry(
+    path: str, specs: List[dict], meta: dict, update_fn: Callable[[dict, dict], None]
+) -> None:
     try:
         write_registry(
             [

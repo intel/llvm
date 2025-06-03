@@ -60,50 +60,12 @@ NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &,
   }());
   if (HostTriple.getArch() != llvm::Triple::UnknownArch) {
     HostTarget = AllocateTarget(HostTriple, Opts);
-
-    // Copy properties from host target.
-    BoolWidth = HostTarget->getBoolWidth();
-    BoolAlign = HostTarget->getBoolAlign();
-    IntWidth = HostTarget->getIntWidth();
-    IntAlign = HostTarget->getIntAlign();
-    HalfWidth = HostTarget->getHalfWidth();
-    HalfAlign = HostTarget->getHalfAlign();
-    FloatWidth = HostTarget->getFloatWidth();
-    FloatAlign = HostTarget->getFloatAlign();
-    DoubleWidth = HostTarget->getDoubleWidth();
-    DoubleAlign = HostTarget->getDoubleAlign();
-    LongWidth = HostTarget->getLongWidth();
-    LongAlign = HostTarget->getLongAlign();
-    LongLongWidth = HostTarget->getLongLongWidth();
-    LongLongAlign = HostTarget->getLongLongAlign();
-    PointerWidth = HostTarget->getPointerWidth(LangAS::Default);
-    PointerAlign = HostTarget->getPointerAlign(LangAS::Default);
-    MinGlobalAlign = HostTarget->getMinGlobalAlign(/*TypeSize=*/0,
-                                                   /*HasNonWeakDef=*/true);
-    NewAlign = HostTarget->getNewAlign();
-    DefaultAlignForAttributeAligned =
-        HostTarget->getDefaultAlignForAttributeAligned();
-    SizeType = HostTarget->getSizeType();
-    PtrDiffType = HostTarget->getPtrDiffType(LangAS::Default);
-    IntMaxType = HostTarget->getIntMaxType();
-    WCharType = HostTarget->getWCharType();
-    WIntType = HostTarget->getWIntType();
-    Char16Type = HostTarget->getChar16Type();
-    Char32Type = HostTarget->getChar32Type();
-    Int64Type = HostTarget->getInt64Type();
-    SigAtomicType = HostTarget->getSigAtomicType();
-    ProcessIDType = HostTarget->getProcessIDType();
-
-    UseBitFieldTypeAlignment = HostTarget->useBitFieldTypeAlignment();
-    UseZeroLengthBitfieldAlignment =
-        HostTarget->useZeroLengthBitfieldAlignment();
-    UseExplicitBitFieldAlignment = HostTarget->useExplicitBitFieldAlignment();
-    ZeroLengthBitfieldBoundary = HostTarget->getZeroLengthBitfieldBoundary();
-
-    // This is a bit of a lie, but it controls __GCC_ATOMIC_XXX_LOCK_FREE, and
-    // we need those macros to be identical on host and device, because (among
-    // other things) they affect which standard library classes are defined,
-    // and we need all classes to be defined on both the host and device.
-    MaxAtomicInlineWidth = HostTarget->getMaxAtomicInlineWidth();
+    copyAuxTarget(&*HostTarget);
   }
+}
+
+void NativeCPUTargetInfo::setAuxTarget(const TargetInfo *Aux) {
+  assert(Aux && "Cannot invoke setAuxTarget without a valid auxiliary target!");
+  copyAuxTarget(Aux);
+  getTargetOpts() = Aux->getTargetOpts();
 }

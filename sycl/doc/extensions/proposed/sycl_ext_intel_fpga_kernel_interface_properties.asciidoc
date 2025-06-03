@@ -319,7 +319,7 @@ struct KernelFunctor {
     *a = *b + *c;
   }
 
-  auto get(properties_tag) {
+  auto get(properties_tag) const {
     return properties{streaming_interface_accept_downstream_stall};
   }
 

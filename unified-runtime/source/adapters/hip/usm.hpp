@@ -15,7 +15,7 @@
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
-struct ur_usm_pool_handle_t_ {
+struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
   std::atomic_uint32_t RefCount = 1;
 
   ur_context_handle_t Context = nullptr;
@@ -37,15 +37,6 @@ struct ur_usm_pool_handle_t_ {
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   bool hasUMFPool(umf_memory_pool_t *umf_pool);
-};
-
-// Exception type to pass allocation errors
-class UsmAllocationException {
-  const ur_result_t Error;
-
-public:
-  UsmAllocationException(ur_result_t Err) : Error{Err} {}
-  ur_result_t getError() const { return Error; }
 };
 
 // Implements memory allocation via driver API for USM allocator interface
@@ -71,7 +62,7 @@ public:
   umf_result_t alloc(size_t Size, size_t Align, void **Ptr);
   umf_result_t free(void *Ptr, size_t Size);
   void get_last_native_error(const char **ErrMsg, int32_t *ErrCode);
-  umf_result_t get_min_page_size(void *, size_t *);
+  umf_result_t get_min_page_size(const void *, size_t *);
   umf_result_t get_recommended_page_size(size_t, size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
@@ -87,16 +78,13 @@ public:
   umf_result_t allocation_split(void *, size_t, size_t) {
     return UMF_RESULT_ERROR_UNKNOWN;
   }
-  virtual const char *get_name() = 0;
+  const char *get_name() { return "HIP"; }
 
   virtual ~USMMemoryProvider() = default;
 };
 
 // Allocation routines for shared memory type
 class USMSharedMemoryProvider final : public USMMemoryProvider {
-public:
-  const char *get_name() override { return "USMSharedMemoryProvider"; }
-
 protected:
   ur_result_t allocateImpl(void **ResultPtr, size_t Size,
                            uint32_t Alignment) override;
@@ -104,9 +92,6 @@ protected:
 
 // Allocation routines for device memory type
 class USMDeviceMemoryProvider final : public USMMemoryProvider {
-public:
-  const char *get_name() override { return "USMSharedMemoryProvider"; }
-
 protected:
   ur_result_t allocateImpl(void **ResultPtr, size_t Size,
                            uint32_t Alignment) override;
@@ -114,9 +99,6 @@ protected:
 
 // Allocation routines for host memory type
 class USMHostMemoryProvider final : public USMMemoryProvider {
-public:
-  const char *get_name() override { return "USMSharedMemoryProvider"; }
-
 protected:
   ur_result_t allocateImpl(void **ResultPtr, size_t Size,
                            uint32_t Alignment) override;
@@ -138,8 +120,3 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                              uint32_t Alignment);
 
 bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc);
-
-bool checkUSMImplAlignment(uint32_t Alignment, void **ResultPtr);
-
-ur_result_t umfPoolMallocHelper(ur_usm_pool_handle_t hPool, void **ppMem,
-                                size_t size, uint32_t alignment);

@@ -16,7 +16,7 @@ ordinal: "99"
 --- #--------------------------------------------------------------------------
 type: manifest
 name: opencl
-backend: $X_ADAPTER_BACKEND_OPENCL
+backend: $X_BACKEND_OPENCL
 device_types:
     - $X_DEVICE_TYPE_CPU
     - $X_DEVICE_TYPE_GPU
@@ -26,19 +26,19 @@ device_types:
 --- #--------------------------------------------------------------------------
 type: manifest
 name: cuda
-backend: $X_ADAPTER_BACKEND_CUDA
+backend: $X_BACKEND_CUDA
 device_types:
     - $X_DEVICE_TYPE_GPU
 --- #--------------------------------------------------------------------------
 type: manifest
 name: hip
-backend: $X_ADAPTER_BACKEND_HIP
+backend: $X_BACKEND_HIP
 device_types:
     - $X_DEVICE_TYPE_GPU
 --- #--------------------------------------------------------------------------
 type: manifest
 name: level_zero
-backend: $X_ADAPTER_BACKEND_LEVEL_ZERO
+backend: $X_BACKEND_LEVEL_ZERO
 device_types:
     - $X_DEVICE_TYPE_CPU
     - $X_DEVICE_TYPE_GPU
@@ -48,7 +48,7 @@ device_types:
 --- #--------------------------------------------------------------------------
 type: manifest
 name: level_zero_v2
-backend: $X_ADAPTER_BACKEND_LEVEL_ZERO
+backend: $X_BACKEND_LEVEL_ZERO
 device_types:
     - $X_DEVICE_TYPE_CPU
     - $X_DEVICE_TYPE_GPU
@@ -58,6 +58,13 @@ device_types:
 --- #--------------------------------------------------------------------------
 type: manifest
 name: native_cpu
-backend: $X_ADAPTER_BACKEND_NATIVE_CPU
+backend: $X_BACKEND_NATIVE_CPU
 device_types:
     - $X_DEVICE_TYPE_CPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: offload
+backend: $X_BACKEND_OFFLOAD
+device_types:
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU

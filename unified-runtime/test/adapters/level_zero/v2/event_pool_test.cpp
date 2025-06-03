@@ -4,6 +4,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v2 ./event_pool-test
+// REQUIRES: v2
+
+// Level Zero V2 Event Pool tests are disabled when using CFI sanitizer
+// See https://github.com/oneapi-src/unified-runtime/issues/2324
+// UNSUPPORTED: has-cfi-sanitizer
+
 #include "command_list_cache.hpp"
 
 #include "level_zero/common.hpp"
@@ -28,6 +35,12 @@
 using namespace v2;
 
 static constexpr size_t MAX_DEVICES = 10;
+
+const ur_dditable_t *ur::level_zero::ddi_getter::value() {
+  // Return a blank dditable
+  static ur_dditable_t table{};
+  return &table;
+};
 
 // mock necessary functions from context, we can't pull in entire context
 // implementation due to a lot of other dependencies
@@ -272,39 +285,18 @@ TEST_P(EventPoolTestWithQueue, WithTimestamp) {
                                 &hDevice, nullptr));
 
   ur_event_handle_t first;
-  ze_event_handle_t zeFirst;
   {
     ASSERT_SUCCESS(
         urEnqueueTimestampRecordingExp(queue, false, 1, &hEvent, &first));
-    zeFirst = first->getZeEvent();
-
     urEventRelease(first); // should not actually release the event until
                            // recording is completed
   }
   ur_event_handle_t second;
-  ze_event_handle_t zeSecond;
-  {
-    ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &second));
-    zeSecond = second->getZeEvent();
-    ASSERT_SUCCESS(urEventRelease(second));
-  }
-  ASSERT_NE(first, second);
-  ASSERT_NE(zeFirst, zeSecond);
+  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &second));
+  // even if the event is reused, it should not be timestamped anymore
+  ASSERT_FALSE(second->isTimestamped());
+  ASSERT_SUCCESS(urEventRelease(second));
 
   ASSERT_EQ(zeEventHostSignal(zeEvent.get()), ZE_RESULT_SUCCESS);
-
   ASSERT_SUCCESS(urQueueFinish(queue));
-
-  // Now, the first event should be avilable for reuse
-  ur_event_handle_t third;
-  ze_event_handle_t zeThird;
-  {
-    ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &third));
-    zeThird = third->getZeEvent();
-    ASSERT_SUCCESS(urEventRelease(third));
-
-    ASSERT_FALSE(third->isTimestamped());
-  }
-  ASSERT_EQ(first, third);
-  ASSERT_EQ(zeFirst, zeThird);
 }

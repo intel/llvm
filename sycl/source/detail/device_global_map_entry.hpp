@@ -109,8 +109,7 @@ struct DeviceGlobalMapEntry {
   }
 
   // Gets or allocates USM memory for a device_global.
-  DeviceGlobalUSMMem &
-  getOrAllocateDeviceGlobalUSM(const std::shared_ptr<queue_impl> &QueueImpl);
+  DeviceGlobalUSMMem &getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl);
 
   // This overload allows the allocation to be initialized without a queue. The
   // UR adapter in use must report true for

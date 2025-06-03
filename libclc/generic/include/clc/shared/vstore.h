@@ -1,3 +1,11 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #define _CLC_VSTORE_DECL(SUFFIX, PRIM_TYPE, VEC_TYPE, WIDTH, ADDR_SPACE, RND)  \
   _CLC_OVERLOAD _CLC_DECL void vstore##SUFFIX##WIDTH##RND(                     \
       VEC_TYPE vec, size_t offset, ADDR_SPACE PRIM_TYPE *out);
@@ -49,25 +57,24 @@ _CLC_VECTOR_VSTORE_PRIM1(long)
 _CLC_VECTOR_VSTORE_PRIM1(ulong)
 _CLC_VECTOR_VSTORE_PRIM1(float)
 
-_CLC_VECTOR_VSTORE_HALF_PRIM1(float,)
+_CLC_VECTOR_VSTORE_HALF_PRIM1(float, )
 _CLC_VECTOR_VSTORE_HALF_PRIM1(float, _rtz)
 _CLC_VECTOR_VSTORE_HALF_PRIM1(float, _rtn)
 _CLC_VECTOR_VSTORE_HALF_PRIM1(float, _rtp)
 _CLC_VECTOR_VSTORE_HALF_PRIM1(float, _rte)
 
 #ifdef cl_khr_fp64
-  _CLC_VECTOR_VSTORE_PRIM1(double)
-  _CLC_VECTOR_VSTORE_HALF_PRIM1(double,)
-  _CLC_VECTOR_VSTORE_HALF_PRIM1(double, _rtz)
-  _CLC_VECTOR_VSTORE_HALF_PRIM1(double, _rtn)
-  _CLC_VECTOR_VSTORE_HALF_PRIM1(double, _rtp)
-  _CLC_VECTOR_VSTORE_HALF_PRIM1(double, _rte)
+_CLC_VECTOR_VSTORE_PRIM1(double)
+_CLC_VECTOR_VSTORE_HALF_PRIM1(double, )
+_CLC_VECTOR_VSTORE_HALF_PRIM1(double, _rtz)
+_CLC_VECTOR_VSTORE_HALF_PRIM1(double, _rtn)
+_CLC_VECTOR_VSTORE_HALF_PRIM1(double, _rtp)
+_CLC_VECTOR_VSTORE_HALF_PRIM1(double, _rte)
 #endif
 
 #ifdef cl_khr_fp16
-  _CLC_VECTOR_VSTORE_PRIM1(half)
+_CLC_VECTOR_VSTORE_PRIM1(half)
 #endif
-
 
 #undef _CLC_VSTORE_DECL
 #undef _CLC_VSTORE_GENERIC_DECL

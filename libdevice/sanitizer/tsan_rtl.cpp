@@ -76,7 +76,7 @@ inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
 }
 
 inline Epoch IncrementEpoch(Sid sid) {
-  return atomicAdd(&TsanLaunchInfo->Clock[sid].clk_[sid], 1);
+  return TsanLaunchInfo->Clock[sid].clk_[sid]++;
 }
 
 inline __SYCL_GLOBAL__ RawShadow *MemToShadow_CPU(uptr addr, uint32_t) {
@@ -115,6 +115,11 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow_PVC(uptr addr, uint32_t as) {
 inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
   __SYCL_GLOBAL__ RawShadow *shadow_ptr = nullptr;
 
+#if defined(__LIBDEVICE_CPU__)
+  shadow_ptr = MemToShadow_CPU(addr, as);
+#elif defined(__LIBDEVICE_PVC__)
+  shadow_ptr = MemToShadow_PVC(addr, as);
+#else
   if (TsanLaunchInfo->DeviceTy == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr, as);
   } else if (TsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
@@ -124,39 +129,14 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
                                   (int)TsanLaunchInfo->DeviceTy));
     return nullptr;
   }
+#endif
 
   return shadow_ptr;
 }
 
-// For CPU device, each work group is a thread
-inline Sid GetCurrentSid_CPU() {
-  // work-group linear id
-  const auto wg_lid =
-      __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-          __spirv_BuiltInNumWorkgroups.z +
-      __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-      __spirv_BuiltInWorkgroupId.z;
-  return wg_lid;
-}
-
-// For GPU device, each sub group is a thread
-inline Sid GetCurrentSid_GPU() {
-  // sub-group linear id
-  const auto sg_lid =
-      __spirv_BuiltInGlobalLinearId / __spirv_BuiltInSubgroupSize;
-  return sg_lid;
-}
-
 inline Sid GetCurrentSid() {
-  if (TsanLaunchInfo->DeviceTy == DeviceType::CPU) {
-    return GetCurrentSid_CPU();
-  } else if (TsanLaunchInfo->DeviceTy != DeviceType::UNKNOWN) {
-    return GetCurrentSid_GPU();
-  } else {
-    TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_unsupport_device_type,
-                                  (int)TsanLaunchInfo->DeviceTy));
-    return 0;
-  }
+  const auto lid = __spirv_BuiltInGlobalLinearId;
+  return lid % kThreadSlotCount;
 }
 
 inline RawShadow LoadShadow(const __SYCL_GLOBAL__ RawShadow *p) {
@@ -426,10 +406,7 @@ __tsan_unaligned_read16(uptr addr, uint32_t as,
   __tsan_unaligned_read8(addr + 8, as, file, line, func);
 }
 
-DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, uint32_t size) {
-  if (TsanLaunchInfo->DeviceTy != DeviceType::CPU)
-    return;
-
+static inline void __tsan_cleanup_private_cpu_impl(uptr addr, uint32_t size) {
   if (size) {
     addr = RoundDownTo(addr, kShadowCell);
     size = RoundUpTo(size, kShadowCell);
@@ -443,12 +420,21 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, uint32_t size) {
   }
 }
 
+DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, uint32_t size) {
+#if defined(__LIBDEVICE_CPU__)
+  __tsan_cleanup_private_cpu_impl(addr, size);
+#elif defined(__LIBDEVICE_PVC__)
+  return;
+#else
+  if (TsanLaunchInfo->DeviceTy != DeviceType::CPU)
+    return;
+
+  __tsan_cleanup_private_cpu_impl(addr, size);
+#endif
+}
+
 DEVICE_EXTERN_C_INLINE void __tsan_device_barrier() {
   Sid sid = GetCurrentSid();
-  __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,
-                         __spv::MemorySemanticsMask::SequentiallyConsistent |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory);
 
   // sync current thread clock to global state
   TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
@@ -463,22 +449,10 @@ DEVICE_EXTERN_C_INLINE void __tsan_device_barrier() {
   for (uptr i = 0; i < kThreadSlotCount; i++)
     TsanLaunchInfo->Clock[sid].clk_[i] =
         TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
-
-  __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,
-                         __spv::MemorySemanticsMask::SequentiallyConsistent |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory);
 }
 
 DEVICE_EXTERN_C_INLINE void __tsan_group_barrier() {
-  if (TsanLaunchInfo->DeviceTy == DeviceType::CPU)
-    return;
-
   Sid sid = GetCurrentSid();
-  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
-                         __spv::MemorySemanticsMask::SequentiallyConsistent |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory);
 
   // sync current thread clock to global state
   TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
@@ -493,11 +467,6 @@ DEVICE_EXTERN_C_INLINE void __tsan_group_barrier() {
   for (uptr i = 0; i < kThreadSlotCount; i++)
     TsanLaunchInfo->Clock[sid].clk_[i] =
         TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
-
-  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
-                         __spv::MemorySemanticsMask::SequentiallyConsistent |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory);
 }
 
 #endif // __SPIR__ || __SPIRV__

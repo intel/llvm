@@ -19,7 +19,7 @@ TEST_F(urTest, testUrAdapterHandleLifetimeExpectFail) {
 
 // CHECK: [ RUN      ] valAdapterTest.testUrAdapterHandleLifetimeExpectSuccess
 // CHECK-NEXT: <VALIDATION>[DEBUG]: Reference count for handle {{[0-9xa-fA-F]+}} changed to 1
-// CHECK-NEXT: {{^(?!.*There are no valid references to handle).*$}}
+// CHECK-NOT: There are no valid references to handle
 TEST_F(valAdapterTest, testUrAdapterHandleLifetimeExpectSuccess) {
   size_t size = 0;
   ur_adapter_info_t info_type = UR_ADAPTER_INFO_BACKEND;

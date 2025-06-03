@@ -10,7 +10,7 @@
 #include <libspirv/spirv.h>
 
 #define _CLC_GEN_DOT(DECLSPEC, TYPE)                                           \
-  DECLSPEC TYPE __spirv_Dot(TYPE x, TYPE y) { return x * y; }                  \
+  DECLSPEC static TYPE __spirv_Dot(TYPE x, TYPE y) { return x * y; }           \
   DECLSPEC TYPE __spirv_Dot(TYPE##2 x, TYPE##2 y) {                            \
     return __spirv_Dot(x.x, y.x) + __spirv_Dot(x.y, y.y);                      \
   }                                                                            \

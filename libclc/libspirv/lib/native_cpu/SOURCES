@@ -11,4 +11,8 @@ math/native_log2.cl
 math/native_sin.cl
 math/native_sqrt.cl
 math/round.cl
+workitem/get_global_id.cl
+workitem/get_global_size.cl
+workitem/get_num_sub_groups.cl
+workitem/get_sub_group_size.cl
 cl_khr_int64_extended_atomics/minmax_helpers.ll

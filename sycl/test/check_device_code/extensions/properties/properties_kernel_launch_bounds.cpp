@@ -9,7 +9,9 @@ constexpr auto Props = sycl::ext::oneapi::experimental::properties{
 };
 struct TestKernelLaunchBounds {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) { return Props; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return Props;
+  }
 };
 
 int main() {

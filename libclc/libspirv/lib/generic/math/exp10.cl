@@ -7,10 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <libspirv/spirv.h>
-#include <math/clc_exp10.h>
+#include <clc/math/clc_exp10.h>
 
-#define __CLC_FUNC __spirv_ocl_exp10
-#define __CLC_SW_FUNC __clc_exp10
-#define __CLC_BODY <clc_sw_unary.inc>
+#define FUNCTION __spirv_ocl_exp10
+#define __CLC_FUNCTION(x) __clc_exp10
+#define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>
-#undef __CLC_SW_FUNC

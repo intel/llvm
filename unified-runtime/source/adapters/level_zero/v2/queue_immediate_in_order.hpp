@@ -27,14 +27,13 @@ namespace v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
 
-struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_t_ {
+struct ur_queue_immediate_in_order_t : ur_object, public ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
   ur_queue_flags_t flags;
 
   lockable<ur_command_list_manager> commandListManager;
-  std::vector<ur_event_handle_t> deferredEvents;
   std::vector<ur_kernel_handle_t> submittedKernels;
 
   wait_list_view
@@ -45,8 +44,6 @@ private:
   ze_event_handle_t getSignalEvent(locked<ur_command_list_manager> &commandList,
                                    ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
-
-  void deferEventFree(ur_event_handle_t hEvent) override;
 
   ur_result_t enqueueGenericFillUnlocked(
       ur_mem_buffer_t *hBuffer, size_t offset, size_t patternSize,
@@ -67,6 +64,19 @@ private:
 
   void recordSubmittedKernel(ur_kernel_handle_t hKernel);
 
+  inline ur_result_t enqueueCooperativeKernelLaunchHelper(
+      ur_kernel_handle_t hKernel, uint32_t workDim,
+      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+      const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+
+  ur_result_t
+  enqueueUSMAllocHelper(ur_usm_pool_handle_t pPool, const size_t size,
+                        const ur_exp_async_usm_alloc_properties_t *pProperties,
+                        uint32_t numEventsInWaitList,
+                        const ur_event_handle_t *phEventWaitList, void **ppMem,
+                        ur_event_handle_t *phEvent, ur_usm_type_t Type);
+
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
                                 const ur_queue_properties_t *);
@@ -82,13 +92,13 @@ public:
                                    ur_native_handle_t *phNativeQueue) override;
   ur_result_t queueFinish() override;
   ur_result_t queueFlush() override;
-  ur_result_t enqueueKernelLaunch(ur_kernel_handle_t hKernel, uint32_t workDim,
-                                  const size_t *pGlobalWorkOffset,
-                                  const size_t *pGlobalWorkSize,
-                                  const size_t *pLocalWorkSize,
-                                  uint32_t numEventsInWaitList,
-                                  const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) override;
+  ur_result_t enqueueKernelLaunch(
+      ur_kernel_handle_t hKernel, uint32_t workDim,
+      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+      const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+      const ur_kernel_launch_property_t *launchPropList,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t *phEvent) override;
   ur_result_t enqueueEventsWait(uint32_t numEventsInWaitList,
                                 const ur_event_handle_t *phEventWaitList,
                                 ur_event_handle_t *phEvent) override;
@@ -259,12 +269,6 @@ public:
       uint64_t signalValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueCooperativeKernelLaunchExp(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
   ur_result_t
   enqueueTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
@@ -274,13 +278,6 @@ public:
                           uint32_t numEventsInWaitList,
                           const ur_event_handle_t *phEventWaitList,
                           ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueKernelLaunchCustomExp(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-      const ur_exp_launch_property_t *launchPropList,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
   ur_result_t
   enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
                           uint32_t, const ur_mem_handle_t *,

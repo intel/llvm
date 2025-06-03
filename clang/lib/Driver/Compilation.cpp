@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/Compilation.h"
-#include "ToolChains/SYCL.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Driver.h"
@@ -128,8 +127,7 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     if (DeviceOffloadKind == Action::OFK_OpenMP ||
         DeviceOffloadKind == Action::OFK_SYCL) {
       const ToolChain *HostTC = getSingleOffloadToolChain<Action::OFK_Host>();
-      bool SameTripleAsHost = (TC->getTriple() == HostTC->getTriple()) ||
-                              isSYCLNativeCPU(TC->getTriple());
+      bool SameTripleAsHost = (TC->getTriple() == HostTC->getTriple());
       OffloadArgs = TC->TranslateOffloadTargetArgs(
           *TranslatedArgs, SameTripleAsHost, AllocatedArgs, DeviceOffloadKind);
     }
@@ -225,8 +223,7 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
     if (File.second == types::TY_Tempfilelist ||
-        File.second == types::TY_Tempfiletable ||
-        File.second == types::TY_FPGA_Dependencies_List) {
+        File.second == types::TY_Tempfiletable) {
       // These are temporary files and need to be removed.
       bool IsTable = File.second == types::TY_Tempfiletable;
 

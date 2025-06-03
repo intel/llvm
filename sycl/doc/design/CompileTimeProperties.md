@@ -298,7 +298,7 @@ void foo(handler &cgh) {
 ```
 
 The second way an application can specify kernel properties is by adding a
-member function named `get(sycl::ext::oneapi::properties_tag)` to a named
+const member function named `get(sycl::ext::oneapi::properties_tag)` to a named
 kernel function object:
 
 ```
@@ -309,7 +309,7 @@ class MyKernel {
  public:
   void operator()() {/* ... */}
 
-  auto get(properties_tag) {
+  auto get(properties_tag) const {
     return properties{sub_group_size<32>, device_has<aspect::fp16>};
   }
 };

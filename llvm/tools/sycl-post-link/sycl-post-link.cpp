@@ -21,7 +21,6 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Demangle/Demangle.h"
-#include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -32,7 +31,6 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
-#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
@@ -40,6 +38,7 @@
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
+#include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -49,13 +48,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
-#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/DCE.h"
-#include "llvm/Transforms/Scalar/EarlyCSE.h"
-#include "llvm/Transforms/Scalar/SROA.h"
 
 #include <algorithm>
 #include <memory>
@@ -252,6 +245,11 @@ cl::opt<bool> GenerateDeviceImageWithDefaultSpecConsts{
              "replaced with default values from specialization id(s)."),
     cl::cat(PostLinkCat)};
 
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"), cl::cat(PostLinkCat),
+    cl::init(false)};
+
 struct IrPropSymFilenameTriple {
   std::string Ir;
   std::string Prop;
@@ -316,7 +314,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   // native version of bf16 devicelib and we need new property values to
   // indicate all exported function.
   if (!MD.isSYCLDeviceLib())
-    PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+    PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps,
+                                      AllowDeviceImageDependencies);
   else
     PropSet = computeDeviceLibProperties(MD.getModule(), MD.Name);
 
@@ -355,69 +354,6 @@ std::string saveModuleSymbolTable(const module_split::ModuleDesc &MD, int I,
   return OutFileName;
 }
 
-template <class PassClass> bool runModulePass(Module &M) {
-  ModulePassManager MPM;
-  ModuleAnalysisManager MAM;
-  // Register required analysis
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  MPM.addPass(PassClass{});
-  PreservedAnalyses Res = MPM.run(M, MAM);
-  return !Res.areAllPreserved();
-}
-
-// When ESIMD code was separated from the regular SYCL code,
-// we can safely process ESIMD part.
-// TODO: support options like -debug-pass, -print-[before|after], and others
-bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
-  LoopAnalysisManager LAM;
-  CGSCCAnalysisManager CGAM;
-  FunctionAnalysisManager FAM;
-  ModuleAnalysisManager MAM;
-
-  PassBuilder PB;
-  PB.registerModuleAnalyses(MAM);
-  PB.registerCGSCCAnalyses(CGAM);
-  PB.registerFunctionAnalyses(FAM);
-  PB.registerLoopAnalyses(LAM);
-  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-
-  ModulePassManager MPM;
-  MPM.addPass(SYCLLowerESIMDPass(!SplitEsimd));
-
-  if (!OptLevelO0) {
-    FunctionPassManager FPM;
-    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-  }
-  MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
-  FunctionPassManager MainFPM;
-  MainFPM.addPass(ESIMDLowerLoadStorePass{});
-
-  if (!OptLevelO0) {
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-    // TODO: maybe remove some passes below that don't affect code quality
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-  }
-  MPM.addPass(ESIMDLowerSLMReservationCalls{});
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
-  MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
-                                     /*RewriteSingleElementVectorsIn*/ false));
-  // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
-  // versions so the entry point table must be rebuilt.
-  // TODO Change entry point search to analysis?
-  std::vector<std::string> Names;
-  MD.saveEntryPointNames(Names);
-  PreservedAnalyses Res = MPM.run(MD.getModule(), MAM);
-  MD.rebuildEntryPoints(Names);
-  return !Res.areAllPreserved();
-}
-
 // Compute the filename suffix for the module
 StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
   return MD.isESIMD() ? "_esimd" : "";
@@ -445,7 +381,7 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       // don't save IR, just record the filename
       BaseTriple.Ir = IRFilename.str();
     } else {
-      MD.cleanup();
+      MD.cleanup(AllowDeviceImageDependencies);
       BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
     }
   } else {
@@ -586,8 +522,9 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   // unless -split-esimd option is specified. The graphs become disjoint
   // when linked back because functions shared between graphs are cloned and
   // renamed.
-  SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
-      std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+  SmallVector<module_split::ModuleDesc, 2> Result =
+      module_split::splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
+                                 AllowDeviceImageDependencies);
 
   if (Result.size() > 1 && SplitOccurred &&
       (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
@@ -603,7 +540,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   for (auto &MD : Result) {
     DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
     if (LowerEsimd && MD.isESIMD())
-      Modified |= lowerEsimdConstructs(MD);
+      Modified |= sycl::lowerESIMDConstructs(MD, OptLevelO0, SplitEsimd);
   }
 
   if (!SplitEsimd && Result.size() > 1) {
@@ -622,7 +559,8 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
     Linked.restoreLinkageOfDirectInvokeSimdTargets();
     string_vector Names;
     Linked.saveEntryPointNames(Names);
-    Linked.cleanup(); // may remove some entry points, need to save/rebuild
+    // cleanup may remove some entry points, need to save/rebuild
+    Linked.cleanup(AllowDeviceImageDependencies);
     Linked.rebuildEntryPoints(Names);
     Result.clear();
     Result.emplace_back(std::move(Linked));
@@ -730,7 +668,7 @@ processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
           module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints);
+          EmitOnlyKernelsAsEntryPoints, AllowDeviceImageDependencies);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -771,7 +709,7 @@ processInputModule(std::unique_ptr<Module> M) {
         error("some modules had to be split, '-" + IROutputOnly.ArgStr +
               "' can't be used");
       }
-      MMs.front().cleanup();
+      MMs.front().cleanup(AllowDeviceImageDependencies);
       saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
       return Tables;
     }
@@ -816,8 +754,7 @@ int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
   LLVMContext Context;
-  cl::HideUnrelatedOptions(
-      {&PostLinkCat, &module_split::getModuleSplitCategory()});
+  cl::HideUnrelatedOptions({&PostLinkCat});
   cl::ParseCommandLineOptions(
       argc, argv,
       "SYCL post-link device code processing tool.\n"

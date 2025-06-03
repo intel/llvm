@@ -44,13 +44,14 @@ struct MsanLocalArgsInfo {
   uint64_t Size = 0;
 };
 
-struct MsanLaunchInfo {
+struct MsanRuntimeData {
   uintptr_t GlobalShadowOffset = 0;
   uintptr_t GlobalShadowOffsetEnd = 0;
 
   uintptr_t LocalShadowOffset = 0;
   uintptr_t LocalShadowOffsetEnd = 0;
 
+  uintptr_t *PrivateBase = nullptr;
   uintptr_t PrivateShadowOffset = 0;
   uintptr_t PrivateShadowOffsetEnd = 0;
 

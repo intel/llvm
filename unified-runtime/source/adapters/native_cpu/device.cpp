@@ -99,7 +99,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   if (NumEntries == 0) {
     /// Runtime queries number of devices
     if (phDevices != nullptr) {
-      logger::error("Invalid Arguments for urDevicesGet");
+      UR_LOG(ERR, "Invalid Arguments for urDevicesGet");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return UR_RESULT_SUCCESS;
@@ -396,10 +396,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
@@ -444,17 +445,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(false);
 
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(false);
-
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
 
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
     return ReturnValue(false);
+
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(0);
 
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(false);
@@ -479,42 +477,31 @@ urDeviceRelease(ur_device_handle_t hDevice) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
-    ur_device_handle_t hDevice,
-    const ur_device_partition_properties_t *pProperties, uint32_t NumDevices,
-    ur_device_handle_t *phSubDevices, uint32_t *pNumDevicesRet) {
-  std::ignore = hDevice;
-  std::ignore = NumDevices;
-  std::ignore = pProperties;
-  std::ignore = phSubDevices;
-  std::ignore = pNumDevicesRet;
+    ur_device_handle_t /*hDevice*/,
+    const ur_device_partition_properties_t * /*pProperties*/,
+    uint32_t /*NumDevices*/, ur_device_handle_t * /*phSubDevices*/,
+    uint32_t * /*pNumDevicesRet*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
-    ur_device_handle_t hDevice, ur_native_handle_t *phNativeDevice) {
-  std::ignore = hDevice;
-  std::ignore = phNativeDevice;
+    ur_device_handle_t /*hDevice*/, ur_native_handle_t * /*phNativeDevice*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ur_adapter_handle_t hAdapter,
-    const ur_device_native_properties_t *pProperties,
-    ur_device_handle_t *phDevice) {
-  std::ignore = hNativeDevice;
-  std::ignore = hAdapter;
-  std::ignore = pProperties;
-  std::ignore = phDevice;
+    ur_native_handle_t /*hNativeDevice*/, ur_adapter_handle_t /*hAdapter*/,
+    const ur_device_native_properties_t * /*pProperties*/,
+    ur_device_handle_t * /*phDevice*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
-    ur_device_handle_t hDevice, uint64_t *pDeviceTimestamp,
+    ur_device_handle_t /*hDevice*/, uint64_t *pDeviceTimestamp,
     uint64_t *pHostTimestamp) {
-  std::ignore = hDevice;
   if (pHostTimestamp) {
     *pHostTimestamp = get_timestamp();
   }
@@ -525,12 +512,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
-    ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
+    ur_device_handle_t /*hDevice*/, const ur_device_binary_t *pBinaries,
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  std::ignore = hDevice;
-  std::ignore = pBinaries;
-  std::ignore = NumBinaries;
-  std::ignore = pSelectedBinary;
 
 #define UR_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
   // look for a binary with type "native_cpu"

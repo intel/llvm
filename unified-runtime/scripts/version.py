@@ -1,11 +1,8 @@
-"""
-Copyright (C) 2024 Intel Corporation
-
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-"""
+# Copyright (C) 2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import functools
 import re
@@ -13,7 +10,7 @@ import re
 
 @functools.total_ordering
 class Version:
-    def __init__(self, version: str):
+    def __init__(self, version):
         assert isinstance(version, (str, Version))
         if isinstance(version, str):
             self.str = version

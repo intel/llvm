@@ -66,7 +66,8 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
       uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
   std::shared_ptr<std::vector<char>> il_binary;
-  uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+  UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+      "foo", platform, il_binary));
 
   for (size_t i = 0; i < devices.size(); i++) {
     uur::raii::Program program;
@@ -83,9 +84,9 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
     ASSERT_SUCCESS(
         urKernelCreate(program.get(), kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[i], kernel.get(), n_dimensions,
-                                         &global_offset, &local_size,
-                                         &global_size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
+        &global_size, 0, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }
@@ -101,7 +102,8 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
       uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
   std::shared_ptr<std::vector<char>> il_binary;
-  uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+  UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+      "foo", platform, il_binary));
 
   for (size_t i = 0; i < devices.size(); i++) {
     uur::raii::Program program;
@@ -124,9 +126,9 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
     ASSERT_SUCCESS(
         urKernelCreate(linked_program.get(), kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[i], kernel.get(), n_dimensions,
-                                         &global_offset, &local_size,
-                                         &global_size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
+        &global_size, 0, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }

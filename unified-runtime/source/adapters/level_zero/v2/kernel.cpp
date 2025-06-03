@@ -182,9 +182,8 @@ ur_kernel_handle_t_::getProperties(ur_device_handle_t hDevice) const {
 
 ur_result_t ur_kernel_handle_t_::setArgValue(
     uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties,
+    const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
-  std::ignore = pProperties;
 
   // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
   // in which case a NULL value will be used as the value for the argument
@@ -221,9 +220,9 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
 }
 
 ur_result_t ur_kernel_handle_t_::setArgPointer(
-    uint32_t argIndex, const ur_kernel_arg_pointer_properties_t *pProperties,
+    uint32_t argIndex,
+    const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
     const void *pArgValue) {
-  std::ignore = pProperties;
 
   // KernelSetArgValue is expecting a pointer to the argument
   return setArgValue(argIndex, sizeof(const void *), nullptr, &pArgValue);
@@ -265,7 +264,7 @@ ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
       ZE2UR_CALL(zeKernelSetCacheConfig,
                  (kernel->hKernel.get(), zeCacheConfig););
     } else {
-      logger::error("urKernelSetExecInfo: unsupported ParamName");
+      UR_LOG(ERR, "urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -278,7 +277,7 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const size_t *pGlobalWorkOffset, uint32_t workDim, uint32_t groupSizeX,
     uint32_t groupSizeY, uint32_t groupSizeZ,
-    std::function<void(void *, void *, size_t)> migrate) {
+    ze_command_list_handle_t commandList, wait_list_view &waitListView) {
   auto hZeKernel = getZeHandle(hDevice);
 
   if (pGlobalWorkOffset != NULL) {
@@ -294,8 +293,9 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     if (pending.hMem) {
       if (!pending.hMem->isImage()) {
         auto hBuffer = pending.hMem->getBuffer();
-        zePtr = hBuffer->getDevicePtr(hDevice, pending.mode, 0,
-                                      hBuffer->getSize(), migrate);
+        zePtr =
+            hBuffer->getDevicePtr(hDevice, pending.mode, 0, hBuffer->getSize(),
+                                  commandList, waitListView);
       } else {
         auto hImage = static_cast<ur_mem_image_t *>(pending.hMem->getImage());
         zePtr = reinterpret_cast<void *>(hImage->getZeImage());
@@ -450,15 +450,12 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t
-urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize,
-                    const ur_kernel_arg_local_properties_t *pProperties) try {
+ur_result_t urKernelSetArgLocal(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_local_properties_t * /*pProperties*/) try {
   TRACK_SCOPE_LATENCY("urKernelSetArgLocal");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-
-  std::ignore = pProperties;
 
   return hKernel->setArgValue(argIndex, argSize, nullptr, nullptr);
 } catch (...) {
@@ -471,14 +468,12 @@ ur_result_t urKernelSetExecInfo(
     /// [in] name of the execution attribute
     ur_kernel_exec_info_t propName,
     /// [in] size in byte the attribute value
-    size_t propSize,
+    size_t /*propSize*/,
     /// [in][optional] pointer to execution info properties
-    const ur_kernel_exec_info_properties_t *pProperties,
+    const ur_kernel_exec_info_properties_t * /*pProperties*/,
     /// [in][range(0, propSize)] pointer to memory location holding the property
     /// value.
     const void *pPropValue) try {
-  std::ignore = propSize;
-  std::ignore = pProperties;
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
@@ -561,9 +556,8 @@ ur_result_t urKernelGetGroupInfo(
     // No corresponding enumeration in Level Zero
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default: {
-    logger::error(
-        "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
-        paramName, logger::toHex(paramName));
+    UR_LOG(ERR, "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
+           paramName, logger::toHex(paramName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   }
@@ -646,9 +640,8 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(static_cast<const char *>(attributes.data()));
   }
   default:
-    logger::error(
-        "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
-        paramName, logger::toHex(paramName));
+    UR_LOG(ERR, "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
+           paramName, logger::toHex(paramName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -682,7 +675,7 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
+ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
     const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
     uint32_t *pGroupCountRet) {
@@ -702,13 +695,12 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue) try {
+ur_result_t urKernelSetArgSampler(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_sampler_properties_t * /*pProperties*/,
+    ur_sampler_handle_t hArgValue) try {
   TRACK_SCOPE_LATENCY("urKernelSetArgSampler");
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-  std::ignore = pProperties;
   return hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
                               &hArgValue->ZeSampler);
 } catch (...) {

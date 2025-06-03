@@ -31,7 +31,7 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
     DI->Type = GetDeviceType(Context, DI->Handle);
     if (DI->Type == DeviceType::UNKNOWN) {
-      getContext()->logger.error("Unsupport device");
+      UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
     if (!DI->Shadow)
@@ -54,7 +54,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     const ur_context_properties_t *pProperties,
     /// [out] pointer to handle of context object created
     ur_context_handle_t *phContext) {
-  getContext()->logger.debug("==== urContextCreate");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextCreate");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnCreate(numDevices, phDevices,
                                                      pProperties, phContext));
@@ -78,7 +78,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     const ur_context_native_properties_t *pProperties,
     /// [out] pointer to the handle of the context object created.
     ur_context_handle_t *phContext) {
-  getContext()->logger.debug("==== urContextCreateWithNativeHandle");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextCreateWithNativeHandle");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnCreateWithNativeHandle(
       hNativeContext, hAdapter, numDevices, phDevices, pProperties, phContext));
@@ -94,13 +94,13 @@ ur_result_t urContextRetain(
 
     /// [in] handle of the context to get a reference of.
     ur_context_handle_t hContext) {
-  getContext()->logger.debug("==== urContextRetain");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextRetain");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnRetain(hContext));
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    getContext()->logger.error("Invalid context");
+    UR_LOG_L(getContext()->logger, ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
   ContextInfo->RefCount++;
@@ -113,13 +113,13 @@ ur_result_t urContextRetain(
 ur_result_t urContextRelease(
     /// [in] handle of the context to release.
     ur_context_handle_t hContext) {
-  getContext()->logger.debug("==== urContextRelease");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextRelease");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnRelease(hContext));
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    getContext()->logger.error("Invalid context");
+    UR_LOG_L(getContext()->logger, ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
@@ -138,10 +138,15 @@ ur_result_t urProgramBuild(
     ur_program_handle_t hProgram,
     /// [in] string of build options
     const char *pOptions) {
-  getContext()->logger.debug("==== urProgramBuild");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuild");
 
-  UR_CALL(
-      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions));
+  auto UrRes =
+      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, hProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
 
@@ -161,11 +166,15 @@ ur_result_t urProgramLink(
     const char *pOptions,
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *phProgram) {
-  getContext()->logger.debug("==== urProgramLink");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLink");
 
-  UR_CALL(getContext()->urDdiTable.Program.pfnLink(hContext, count, phPrograms,
-                                                   pOptions, phProgram));
-
+  auto UrRes = getContext()->urDdiTable.Program.pfnLink(
+      hContext, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
   return UR_RESULT_SUCCESS;
@@ -182,10 +191,14 @@ ur_result_t urProgramBuildExp(
     ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
-  getContext()->logger.debug("==== urProgramBuildExp");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuildExp");
 
-  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnBuildExp(hProgram, numDevices,
-                                                          phDevices, pOptions));
+  auto UrRes = getContext()->urDdiTable.ProgramExp.pfnBuildExp(
+      hProgram, numDevices, phDevices, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
+    return UrRes;
+  }
   UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
 
   return UR_RESULT_SUCCESS;
@@ -207,10 +220,14 @@ ur_result_t urProgramLinkExp(
     const char *pOptions,
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *phProgram) {
-  getContext()->logger.debug("==== urProgramLinkExp");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLinkExp");
 
-  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnLinkExp(
-      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram));
+  auto UrRes = getContext()->urDdiTable.ProgramExp.pfnLinkExp(
+      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+    return UrRes;
+  }
 
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
@@ -234,7 +251,7 @@ ur_result_t urMemBufferCreate(
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  getContext()->logger.debug("==== urMemBufferCreate");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemBufferCreate");
 
   void *Host = nullptr;
   if (pProperties) {
@@ -270,7 +287,7 @@ ur_result_t urMemBufferCreate(
 ur_result_t urMemRetain(
     /// [in] handle of the memory object to get access
     ur_mem_handle_t hMem) {
-  getContext()->logger.debug("==== urMemRetain");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRetain");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
     MemBuffer->RefCount++;
@@ -286,7 +303,7 @@ ur_result_t urMemRetain(
 ur_result_t urMemRelease(
     /// [in] handle of the memory object to release
     ur_mem_handle_t hMem) {
-  getContext()->logger.debug("==== urMemRelease");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRelease");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
     if (--MemBuffer->RefCount != 0) {
@@ -315,7 +332,7 @@ ur_result_t urMemBufferPartition(
     const ur_buffer_region_t *pRegion,
     /// [out] pointer to the handle of sub buffer created
     ur_mem_handle_t *phMem) {
-  getContext()->logger.debug("==== urMemBufferPartition");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemBufferPartition");
 
   if (auto ParentBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     if (ParentBuffer->Size < (pRegion->origin + pRegion->size)) {
@@ -340,7 +357,7 @@ ur_result_t urMemGetNativeHandle(
     ur_mem_handle_t hMem, ur_device_handle_t hDevice,
     /// [out] a pointer to the native handle of the mem.
     ur_native_handle_t *phNativeMem) {
-  getContext()->logger.debug("==== urMemGetNativeHandle");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemGetNativeHandle");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
     char *Handle = nullptr;
@@ -371,7 +388,7 @@ ur_result_t urMemGetInfo(
     /// [out][optional] pointer to the actual size in bytes of the queried
     /// propName.
     size_t *pPropSizeRet) {
-  getContext()->logger.debug("==== urMemGetInfo");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemGetInfo");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMemory)) {
     UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
@@ -419,7 +436,7 @@ ur_result_t urEnqueueMemBufferRead(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueMemBufferRead");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferRead");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     ur_device_handle_t Device = GetDevice(hQueue);
@@ -462,23 +479,15 @@ ur_result_t urEnqueueMemBufferWrite(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueMemBufferWrite");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferWrite");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     ur_device_handle_t Device = GetDevice(hQueue);
     char *pDst = nullptr;
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     UR_CALL(MemBuffer->getHandle(Device, pDst));
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
         hQueue, blockingWrite, pDst + offset, pSrc, size, numEventsInWaitList,
-        phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferWrite(
         hQueue, hBuffer, blockingWrite, offset, size, pSrc, numEventsInWaitList,
@@ -525,7 +534,7 @@ ur_result_t urEnqueueMemBufferReadRect(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueMemBufferReadRect");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferReadRect");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     char *SrcHandle = nullptr;
@@ -583,7 +592,7 @@ ur_result_t urEnqueueMemBufferWriteRect(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueMemBufferWriteRect");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferWriteRect");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     char *DstHandle = nullptr;
@@ -629,7 +638,7 @@ ur_result_t urEnqueueMemBufferCopy(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueMemBufferCopy");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferCopy");
 
   auto SrcBuffer = getTsanInterceptor()->getMemBuffer(hBufferSrc);
   auto DstBuffer = getTsanInterceptor()->getMemBuffer(hBufferDst);
@@ -647,17 +656,9 @@ ur_result_t urEnqueueMemBufferCopy(
     char *DstHandle = nullptr;
     UR_CALL(DstBuffer->getHandle(Device, DstHandle));
 
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
         hQueue, false, DstHandle + dstOffset, SrcHandle + srcOffset, size,
-        numEventsInWaitList, phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        numEventsInWaitList, phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferCopy(
         hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset, size,
@@ -700,7 +701,7 @@ ur_result_t urEnqueueMemBufferCopyRect(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueMemBufferCopyRect");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferCopyRect");
 
   auto SrcBuffer = getTsanInterceptor()->getMemBuffer(hBufferSrc);
   auto DstBuffer = getTsanInterceptor()->getMemBuffer(hBufferDst);
@@ -755,23 +756,15 @@ ur_result_t urEnqueueMemBufferFill(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueMemBufferFill");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferFill");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     char *Handle = nullptr;
-    std::vector<ur_event_handle_t> Events;
-    ur_event_handle_t Event{};
     ur_device_handle_t Device = GetDevice(hQueue);
     UR_CALL(MemBuffer->getHandle(Device, Handle));
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
         hQueue, Handle + offset, patternSize, pPattern, size,
-        numEventsInWaitList, phEventWaitList, &Event));
-    Events.push_back(Event);
-
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
+        numEventsInWaitList, phEventWaitList, phEvent));
   } else {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnMemBufferFill(
         hQueue, hBuffer, pPattern, patternSize, offset, size,
@@ -809,7 +802,7 @@ ur_result_t urEnqueueMemBufferMap(
     ur_event_handle_t *phEvent,
     /// [out] return mapped pointer. TODO: move it before numEventsInWaitList?
     void **ppRetMap) {
-  getContext()->logger.debug("==== urEnqueueMemBufferMap");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferMap");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     // Translate the host access mode info.
@@ -888,7 +881,7 @@ ur_result_t urEnqueueMemUnmap(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueMemUnmap");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemUnmap");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
     MemBuffer::Mapping Mapping{};
@@ -932,7 +925,7 @@ ur_result_t UR_APICALL urKernelCreate(
     const char *pKernelName,
     /// [out][alloc] pointer to handle of kernel object created.
     ur_kernel_handle_t *phKernel) {
-  getContext()->logger.debug("==== urKernelCreate");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelCreate");
 
   UR_CALL(getContext()->urDdiTable.Kernel.pfnCreate(hProgram, pKernelName,
                                                     phKernel));
@@ -952,7 +945,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     const ur_kernel_native_properties_t *pProperties,
     /// [out][alloc] pointer to the handle of the kernel object created.
     ur_kernel_handle_t *phKernel) {
-  getContext()->logger.debug("==== urKernelCreate");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelCreate");
 
   UR_CALL(getContext()->urDdiTable.Kernel.pfnCreateWithNativeHandle(
       hNativeKernel, hContext, hProgram, pProperties, phKernel));
@@ -967,7 +960,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t hKernel) {
-  getContext()->logger.debug("==== urKernelRetain");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRetain");
 
   UR_CALL(getContext()->urDdiTable.Kernel.pfnRetain(hKernel));
 
@@ -984,7 +977,7 @@ ur_result_t urKernelRelease(
     ur_kernel_handle_t hKernel) {
   auto pfnRelease = getContext()->urDdiTable.Kernel.pfnRelease;
 
-  getContext()->logger.debug("==== urKernelRelease");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRelease");
 
   auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
   if (--KernelInfo.RefCount == 0) {
@@ -1008,7 +1001,7 @@ ur_result_t urKernelSetArgValue(
     const ur_kernel_arg_value_properties_t *pProperties,
     /// [in] argument value represented as matching arg type.
     const void *pArgValue) {
-  getContext()->logger.debug("==== urKernelSetArgValue");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgValue");
 
   std::shared_ptr<MemBuffer> MemBuffer;
   if (argSize == sizeof(ur_mem_handle_t) &&
@@ -1036,7 +1029,7 @@ ur_result_t urKernelSetArgMemObj(
     const ur_kernel_arg_mem_obj_properties_t *pProperties,
     /// [in][optional] handle of Memory object.
     ur_mem_handle_t hArgValue) {
-  getContext()->logger.debug("==== urKernelSetArgMemObj");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgMemObj");
 
   if (std::shared_ptr<MemBuffer> MemBuffer =
           getTsanInterceptor()->getMemBuffer(hArgValue)) {
@@ -1066,7 +1059,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     size_t size,
     /// [out] pointer to USM device memory object
     void **ppMem) {
-  getContext()->logger.debug("==== urUSMDeviceAlloc");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
 
   return getTsanInterceptor()->allocateMemory(
       hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
@@ -1085,7 +1078,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     size_t size,
     /// [out] pointer to USM host memory object
     void **ppMem) {
-  getContext()->logger.debug("==== urUSMHostAlloc");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
 
   return getTsanInterceptor()->allocateMemory(hContext, nullptr, pUSMDesc, pool,
                                               size, AllocType::HOST_USM, ppMem);
@@ -1106,7 +1099,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     size_t size,
     /// [out] pointer to USM shared memory object
     void **ppMem) {
-  getContext()->logger.debug("==== urUSMSharedAlloc");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
 
   return getTsanInterceptor()->allocateMemory(
       hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
@@ -1134,6 +1127,11 @@ ur_result_t urEnqueueKernelLaunch(
     /// execute the kernel function. If nullptr, the runtime implementation will
     /// choose the work-group size.
     const size_t *pLocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -1144,7 +1142,7 @@ ur_result_t urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueKernelLaunch");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
 
   LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
 
@@ -1152,54 +1150,8 @@ ur_result_t urEnqueueKernelLaunch(
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent));
-
-  UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueCooperativeKernelLaunchExp");
-
-  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
-
-  UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent));
+      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -1384,31 +1336,12 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's EnqueueExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-__urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
-    /// [in,out] pointer to table of DDI function pointers
-    ur_enqueue_exp_dditable_t *pDdiTable) {
-  if (nullptr == pDdiTable) {
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-  }
-
-  pDdiTable->pfnCooperativeKernelLaunchExp =
-      ur_sanitizer_layer::tsan::urEnqueueCooperativeKernelLaunchExp;
-  return UR_RESULT_SUCCESS;
-}
-
 } // namespace tsan
 
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  getContext()->logger.always("==== DeviceSanitizer: TSAN");
+  UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: TSAN");
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urCheckVersion(UR_API_VERSION_CURRENT);
@@ -1447,13 +1380,9 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
         ur_sanitizer_layer::tsan::urGetEnqueueProcAddrTable(&dditable->Enqueue);
   }
 
-  if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::tsan::urGetEnqueueExpProcAddrTable(
-        &dditable->EnqueueExp);
-  }
-
   if (result != UR_RESULT_SUCCESS) {
-    getContext()->logger.error("Initialize TSAN DDI table failed: {}", result);
+    UR_LOG_L(getContext()->logger, ERR, "Initialize TSAN DDI table failed: {}",
+             result);
   }
 
   return result;

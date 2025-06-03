@@ -169,8 +169,11 @@ std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter);
 inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
   std::string platform_name;
   GetPlatformInfo<std::string>(hPlatform, UR_PLATFORM_INFO_NAME, platform_name);
-  return GTestSanitizeString(
-      std::string(platform_name.data(), platform_name.size()));
+  ur_adapter_handle_t adapter = nullptr;
+  GetPlatformInfo<ur_adapter_handle_t>(hPlatform, UR_PLATFORM_INFO_ADAPTER,
+                                       adapter);
+  std::string full_name = GetAdapterBackendName(adapter) + "__" + platform_name;
+  return GTestSanitizeString(std::string(full_name.data(), full_name.size()));
 }
 
 inline std::string GetPlatformNameWithID(ur_platform_handle_t hPlatform) {

@@ -216,13 +216,13 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     std::vector<sycl::device> Devices =
         InteropCtxPtr->get_info<info::context::devices>();
     assert(Devices.size() != 0);
-    DeviceImplPtr Dev = detail::getSyclObjImpl(Devices[0]);
+    device_impl &Dev = *detail::getSyclObjImpl(Devices[0]);
 
     // Since all the Scheduler commands require queue but we have only context
     // here, we need to create a dummy queue bound to the context and one of the
     // devices from the context.
-    QueueImplPtr InteropQueuePtr{new detail::queue_impl{
-        Dev, InteropCtxPtr, /*AsyncHandler=*/{}, /*PropertyList=*/{}}};
+    std::shared_ptr<queue_impl> InteropQueuePtr = queue_impl::create(
+        Dev, InteropCtxPtr, async_handler{}, property_list{});
 
     MemObject->MRecord.reset(
         new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});

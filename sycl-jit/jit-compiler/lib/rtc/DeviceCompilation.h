@@ -1,4 +1,4 @@
-//==---- DeviceCompilation.h - Compile SYCL device code with libtooling ----==//
+//===- DeviceCompilation.h - Compile SYCL device code with libtooling -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_JIT_COMPILER_RTC_DEVICE_COMPILATION_H
-#define SYCL_JIT_COMPILER_RTC_DEVICE_COMPILATION_H
+#pragma once
 
-#include "Kernel.h"
-#include "View.h"
+#include "RTC.h"
 
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Module.h>
@@ -22,11 +20,13 @@
 
 namespace jit_compiler {
 
+using ModuleUPtr = std::unique_ptr<llvm::Module>;
+
 llvm::Expected<std::string>
 calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
               const llvm::opt::InputArgList &UserArgList);
 
-llvm::Expected<std::unique_ptr<llvm::Module>>
+llvm::Expected<ModuleUPtr>
 compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                   const llvm::opt::InputArgList &UserArgList,
                   std::string &BuildLog, llvm::LLVMContext &Context);
@@ -35,11 +35,9 @@ llvm::Error linkDeviceLibraries(llvm::Module &Module,
                                 const llvm::opt::InputArgList &UserArgList,
                                 std::string &BuildLog);
 
-using PostLinkResult =
-    std::pair<RTCBundleInfo, llvm::SmallVector<std::unique_ptr<llvm::Module>>>;
+using PostLinkResult = std::pair<RTCBundleInfo, llvm::SmallVector<ModuleUPtr>>;
 llvm::Expected<PostLinkResult>
-performPostLink(std::unique_ptr<llvm::Module> Module,
-                const llvm::opt::InputArgList &UserArgList);
+performPostLink(ModuleUPtr Module, const llvm::opt::InputArgList &UserArgList);
 
 llvm::Expected<llvm::opt::InputArgList>
 parseUserArgs(View<const char *> UserArgs);
@@ -50,5 +48,3 @@ void encodeBuildOptions(RTCBundleInfo &BundleInfo,
 void configureDiagnostics(llvm::LLVMContext &Context, std::string &BuildLog);
 
 } // namespace jit_compiler
-
-#endif // SYCL_JIT_COMPILER_RTC_DEVICE_COMPILATION_H

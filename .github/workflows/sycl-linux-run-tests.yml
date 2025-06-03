@@ -25,7 +25,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Three possible options: "e2e", "cts", and "compute-benchmarks".
+          Three possible options: "e2e", "cts", and "benchmarks".
         type: string
         default: "e2e"
 
@@ -111,6 +111,33 @@ on:
         default: ''
         required: False
 
+      benchmark_upload_results:
+        description: |
+          Set to true to upload results to git repository storing benchmarking
+          results.
+        type: string
+        default: 'false'
+        required: False
+      benchmark_save_name:
+        description: |
+          Save name to use for benchmark results: Save names are stored in
+          metadata of result file, and are used to identify benchmark results in
+          the same series (e.g. same configuration, same device, etc.).
+
+          Note: Currently, benchmark result filenames are in the format of
+          <benchmark_save_name>_<Device>_<Backend>_YYYYMMDD_HHMMSS.json
+        type: string
+        default: ''
+        required: False
+      benchmark_preset:
+        description: |
+          Name of benchmark preset to run.
+
+          See /devops/scripts/benchmarks/presets.py for all presets available.
+        type: string
+        default: 'Minimal'
+        required: False
+
   workflow_dispatch:
     inputs:
       runner:
@@ -150,7 +177,7 @@ on:
         options:
           - e2e
           - cts
-          - compute-benchmarks
+          - benchmarks
 
       env:
         description: |
@@ -294,6 +321,9 @@ jobs:
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/cts
+      # Normally this job takes less than 10m. But sometimes it hangs up and
+      # reaches the 360m limit. Set a lower limit to free up the runner earlier.
+      timeout-minutes: 35
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
         cts_exclude_ref: ${{ inputs.repo_ref }}
@@ -303,11 +333,14 @@ jobs:
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Run compute-benchmarks on SYCL
-      if: inputs.tests_selector == 'compute-benchmarks'
+    - name: Run benchmarks
+      if: inputs.tests_selector == 'benchmarks'
       uses: ./devops/actions/run-tests/benchmark
       with:
         target_devices: ${{ inputs.target_devices }}
+        upload_results: ${{ inputs.benchmark_upload_results }}
+        save_name: ${{ inputs.benchmark_save_name }}
+        preset: ${{ inputs.benchmark_preset }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

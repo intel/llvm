@@ -224,7 +224,7 @@ using ur_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using ur_command_list_ptr_t = ur_command_list_map_t::iterator;
 
-struct ur_queue_handle_t_ : _ur_object {
+struct ur_queue_handle_t_ : ur_object {
   ur_queue_handle_t_(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      ur_context_handle_t Context, ur_device_handle_t Device,
@@ -420,7 +420,7 @@ struct ur_queue_handle_t_ : _ur_object {
   active_barriers ActiveBarriers;
 
   // Besides each PI object keeping a total reference count in
-  // _ur_object::RefCount we keep special track of the queue *external*
+  // ur_object::RefCount we keep special track of the queue *external*
   // references. This way we are able to tell when the queue is being finished
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.

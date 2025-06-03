@@ -269,7 +269,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   // Have to look up the context from the kernel
   cl_context CLContext = hQueue->Context->CLContext;
 
-  if (patternSize <= 128 && isPowerOf2(patternSize)) {
+  if (patternSize <= 128 && isPowerOf2(patternSize) &&
+      isPointerAlignedTo(patternSize, ptr)) {
     clEnqueueMemFillINTEL_fn EnqueueMemFill = nullptr;
     UR_RETURN_ON_FAILURE(
         cl_ext::getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
@@ -293,10 +294,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   // as the largest CL type (double16/long16 - 128 bytes), anything larger or
   // not a power of 2, we need to do on the host side and copy it into the
   // target allocation.
-  clHostMemAllocINTEL_fn HostMemAlloc = nullptr;
-  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
-      cl_ext::HostMemAllocName, &HostMemAlloc));
 
   clEnqueueMemcpyINTEL_fn USMMemcpy = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
@@ -308,10 +305,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       CLContext, ur::cl::getAdapter()->fnCache.clMemBlockingFreeINTELCache,
       cl_ext::MemBlockingFreeName, &USMFree));
 
-  cl_int ClErr = CL_SUCCESS;
-  auto HostBuffer =
-      static_cast<uint8_t *>(HostMemAlloc(CLContext, nullptr, size, 0, &ClErr));
-  CL_RETURN_ON_FAILURE(ClErr);
+  uint8_t *HostBuffer = new uint8_t[size];
 
   auto *End = HostBuffer + size;
   for (auto *Iter = HostBuffer; Iter < End; Iter += patternSize) {
@@ -343,9 +337,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   }
 
   // This self destructs taking the event and allocation with it.
-  auto Info = new AllocDeleterCallbackInfo(USMFree, CLContext, HostBuffer);
+  AllocDeleterCallbackInfo *Info =
+      new AllocDeleterCallbackInfo(CLContext, HostBuffer);
 
-  ClErr =
+  cl_int ClErr =
       clSetEventCallback(CopyEvent, CL_COMPLETE,
                          AllocDeleterCallback<AllocDeleterCallbackInfo>, Info);
   if (ClErr != CL_SUCCESS) {
@@ -422,7 +417,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
         cl_ext::HostMemAllocName, &HostMemAlloc));
 
-    auto HostAlloc = HostMemAlloc(CLContext, nullptr, size, 0, &CLErr);
+    auto HostAlloc = static_cast<uint8_t *>(
+        HostMemAlloc(CLContext, nullptr, size, 0, &CLErr));
     CL_RETURN_ON_FAILURE(CLErr);
 
     // Now that we've successfully allocated we should try to clean it up if we
@@ -489,12 +485,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       }
 
       // This self destructs taking the event and allocation with it.
-      auto DeleterInfo = new AllocDeleterCallbackInfoWithQueue(
+      auto DeleterInfo = new AllocDeleterCallbackInfoUSMWithQueue(
           USMFree, CLContext, HostAlloc, MissingQueue);
 
       CLErr = clSetEventCallback(
           HostCopyEvent, CL_COMPLETE,
-          AllocDeleterCallback<AllocDeleterCallbackInfoWithQueue>, DeleterInfo);
+          AllocDeleterCallback<AllocDeleterCallbackInfoUSMWithQueue>,
+          DeleterInfo);
 
       if (CLErr != CL_SUCCESS) {
         // We can attempt to recover gracefully by attempting to wait for the
