@@ -268,6 +268,21 @@ ur_result_t urDeviceGetInfo(
     const auto &UUID = Device->ZeDeviceProperties->uuid.id;
     return ReturnValue(UUID, sizeof(UUID));
   }
+  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH: {
+    // ZeDeviceMemoryProperties should be set already by initialization
+    if (Device->ZeDeviceMemoryProperties->second.empty())
+      return ReturnValue(uint64_t{0});
+
+    uint32_t maxBandwidth = 0;
+    for (const auto &extProp : Device->ZeDeviceMemoryProperties->second) {
+      // Only consider bandwidth if the unit is BYTES_PER_NANOSEC
+      if (extProp.bandwidthUnit == ZE_BANDWIDTH_UNIT_BYTES_PER_NANOSEC) {
+        maxBandwidth = std::max(
+            {maxBandwidth, extProp.readBandwidth, extProp.writeBandwidth});
+      }
+    }
+    return ReturnValue(uint64_t{maxBandwidth});
+  }
   case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(
         static_cast<ur_bool_t>(Device->ZeDeviceModuleProperties->flags &
