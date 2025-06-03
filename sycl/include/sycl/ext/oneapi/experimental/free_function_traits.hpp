@@ -44,16 +44,6 @@ template <auto *Func> struct is_kernel {
 template <auto *Func>
 inline constexpr bool is_kernel_v = is_kernel<Func>::value;
 
-namespace detail {
-template <typename T> struct is_explicitly_allowed_arg {
-    static constexpr bool value = false;
-};
-
-template <typename T>
-inline constexpr bool is_explicitly_allowed_arg_v = 
-    is_explicitly_allowed_arg<T>::value;
-
-} // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

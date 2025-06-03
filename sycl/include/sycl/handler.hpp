@@ -36,7 +36,6 @@
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
-#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
@@ -1816,8 +1815,7 @@ public:
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value          // Interop
-        || is_same_type<stream, T>::value          // Stream
-        || ext::oneapi::experimental::detail::is_explicitly_allowed_arg<remove_cv_ref_t<T>>::value;
+        || is_same_type<stream, T>::value;         // Stream
   };
 
   /// Sets argument for OpenCL interoperability kernels.
