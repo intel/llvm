@@ -8140,7 +8140,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     result = replaceCallback(&params);
   } else {
 
-    *ppMem = mock::createDummyHandle<void *>(widthInBytes * height);
+    ppMem = mock::createDummyHandle<void *>(widthInBytes * height);
     result = UR_RESULT_SUCCESS;
   }
 
