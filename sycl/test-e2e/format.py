@@ -333,12 +333,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 dev_features = test.config.sycl_dev_features[full_dev_name]
                 if "level_zero_v2_adapter" in dev_features:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
-                    if any(
-                        "pvc" in feature or "gen12" in feature or "bmg" in feature
-                        for feature in test.config.sycl_dev_features[full_dev_name]
-                    ):
-                        # TODO: For those platforms, devices using copy offload results in test timeouts
-                        expanded += " env UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD=1"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
                     parsed_dev_name, test.config.run_launcher
