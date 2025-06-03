@@ -316,8 +316,8 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(),
-                                                        CallerNeedsEvent)),
+    : MImplOwner(
+          std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
 handler::handler(detail::handler_impl *HandlerImpl,
@@ -480,13 +480,13 @@ event handler::finalize() {
           !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
-          !KernelBundleImpPtr->tryGetKernel(MKernelName.data(),
+          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName),
                                             KernelBundleImpPtr)) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                MKernelName.data());
+                toKernelNameStrT(MKernelName));
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -550,7 +550,7 @@ event handler::finalize() {
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                MKernelName.data());
+                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -581,14 +581,15 @@ event handler::finalize() {
 #endif
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(MQueue, MKernelName.data());
+          std::tie(BinImage, std::ignore) = detail::retrieveKernelBinary(
+              *MQueue, toKernelNameStrT(MKernelName));
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
             MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
-            MKernel.get(), MKernelName.data(), impl->MKernelNameBasedCachePtr,
-            RawEvents, DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
+            MKernel.get(), toKernelNameStrT(MKernelName),
+            impl->MKernelNameBasedCachePtr, RawEvents,
+            DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
             impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
@@ -638,13 +639,15 @@ event handler::finalize() {
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
   case detail::CGType::Kernel: {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions
+#endif
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), MKernelName.data(),
+        std::move(impl->MArgs), toKernelNameStrT(MKernelName),
         impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
@@ -2093,7 +2096,7 @@ backend handler::getDeviceBackend() const {
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;
@@ -2103,7 +2106,7 @@ void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
 
 void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                         size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;

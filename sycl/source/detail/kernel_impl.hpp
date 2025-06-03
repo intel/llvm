@@ -371,7 +371,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
 
   uint32_t GroupCount{0};
   if (auto Result = Adapter->call_nocheck<
-                    UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
+                    UrApiKind::urKernelSuggestMaxCooperativeGroupCount>(
           Handle, DeviceHandleRef, Dimensions, WG, DynamicLocalMemorySize,
           &GroupCount);
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE &&
