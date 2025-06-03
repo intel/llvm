@@ -17,7 +17,24 @@
 
 namespace ur_sanitizer_layer {
 
-uint32_t StackDepotPut(StackTrace &Stack);
-StackTrace StackDepotGet(uint32_t Id);
+enum class HeapType { DeviceUSM, HostUSM, SharedUSM, Local };
+
+inline const char *ToString(HeapType Type) {
+  switch (Type) {
+  case HeapType::DeviceUSM:
+    return "Device USM";
+  case HeapType::HostUSM:
+    return "Host USM";
+  case HeapType::SharedUSM:
+    return "Shared USM";
+  case HeapType::Local:
+    return "Local Memory";
+  default:
+    return "Unknown Heap Type";
+  }
+}
+
+uint32_t StackDepotPut(StackTrace &Stack, HeapType Type);
+StackTrace StackDepotGet(uint32_t Id, HeapType Type);
 
 } // namespace ur_sanitizer_layer

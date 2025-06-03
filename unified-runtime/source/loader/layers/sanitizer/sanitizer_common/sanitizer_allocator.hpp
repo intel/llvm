@@ -43,15 +43,11 @@ inline const char *ToString(AllocType Type) {
   }
 }
 
-class Allocator {
-public:
-  Allocator();
-
-  void *allocate(uptr Size, const ur_usm_desc_t *Properties, AllocType Type);
-
-private:
-  ur_context_handle_t Context;
-  ur_device_handle_t Device;
-};
+// Allocating USM with validation, so that we can ensure the allocated addresses
+// satisfy the assumption we made for shadow memory
+ur_result_t SafeAllocate(ur_context_handle_t Context, ur_device_handle_t Device,
+                         uptr Size, const ur_usm_desc_t *Properties,
+                         ur_usm_pool_handle_t Pool, AllocType Type,
+                         void **Allocated);
 
 } // namespace ur_sanitizer_layer

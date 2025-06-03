@@ -65,24 +65,19 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   if (Alignment < MSAN_ORIGIN_TRACKING_GRANULARITY) {
     Alignment = MSAN_ORIGIN_TRACKING_GRANULARITY;
   }
-  uptr RoundedSize = RoundUpTo(Size, Alignment);
+
+  ur_usm_desc_t NewProperties;
+  if (Properties) {
+    NewProperties = *Properties;
+    NewProperties.align = Alignment;
+  } else {
+    NewProperties = {UR_STRUCTURE_TYPE_USM_DESC, nullptr,
+                     UR_USM_ADVICE_FLAG_DEFAULT, Alignment};
+  }
 
   void *Allocated = nullptr;
-
-  if (Type == AllocType::DEVICE_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, RoundedSize, &Allocated));
-  } else if (Type == AllocType::HOST_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                                      RoundedSize, &Allocated));
-  } else if (Type == AllocType::SHARED_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, Properties, Pool, RoundedSize, &Allocated));
-  } else {
-    UR_LOG_L(getContext()->logger, ERR, "Unsupported allocation type: {}",
-             ToString(Type));
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  UR_CALL(
+      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
 
   *ResultPtr = Allocated;
 
@@ -107,6 +102,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     m_AllocationMap.emplace(AI->AllocBegin, AI);
   }
 
+  // For origin tracking
   HeapType HeapType;
   switch (Type) {
   case AllocType::DEVICE_USM:
@@ -119,7 +115,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     HeapType = HeapType::SharedUSM;
     break;
   default:
-    assert(false);
+    assert(false && "Unknown heap type");
   }
 
   Origin HeapOrigin = Origin::CreateHeapOrigin(Stack, HeapType);
@@ -127,7 +123,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   // Update shadow memory
   ManagedQueue Queue(Context, Device);
   DeviceInfo->Shadow->EnqueuePoisonShadowWithOrigin(
-      Queue, AI->AllocBegin, AI->AllocSize, 0xff, HeapOrigin.raw_id());
+      Queue, AI->AllocBegin, AI->AllocSize, 0xff, HeapOrigin.rawId());
 
   return UR_RESULT_SUCCESS;
 }

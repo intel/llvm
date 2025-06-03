@@ -31,29 +31,10 @@ namespace msan {
 //   0000 xxxx xxxx xxxx   private memory
 //   0zzz xxxx xxxx xxxx   chained
 //
-enum class HeapType { DeviceUSM, HostUSM, SharedUSM, Local };
-
-inline const char *ToString(HeapType Type) {
-  switch (Type) {
-  case HeapType::DeviceUSM:
-    return "Device USM";
-  case HeapType::HostUSM:
-    return "Host USM";
-  case HeapType::SharedUSM:
-    return "Shared USM";
-  case HeapType::Local:
-    return "Local Memory";
-  default:
-    return "Unknown Heap Type";
-  }
-}
 
 class Origin {
 public:
-  //   static bool isValidId(uint32_t id) { return id != 0 && id !=
-  //   (uint32_t)-1; }
-
-  uint32_t raw_id() const { return raw_id_; }
+  uint32_t rawId() const { return raw_id_; }
 
   bool isHeapOrigin() const {
     return isDeviceUSMOrigin() || isHostUSMOrigin() || isSharedUSMOrigin() ||
@@ -148,46 +129,15 @@ public:
     return raw_id_ & kChainedIdMask;
   }
 
-  // Returns the next origin in the chain and the current stack trace.
-  // Origin getNextChainedOrigin(StackTrace *stack) const {
-  //   assert(isChainedOrigin());
-  //   uint32_t prev_id;
-  //   uint32_t StackId = ChainedOriginDepotGet(getChainedId(), &prev_id);
-  //   if (stack)
-  //     *stack = StackDepotGet(StackId);
-  //   return Origin(prev_id);
-  // }
-
-  // StackTrace getStackTraceForDeviceUSM() const {
-  //   return StackDepotGet(getDeviceUSMId());
-  // }
-
-  // StackTrace getStackTraceForHostUSM() const {
-  //   return StackDepotGet(getHostUSMId());
-  // }
-
-  // StackTrace getStackTraceForSharedUSM() const {
-  //   return StackDepotGet(getSharedUSMId());
-  // }
-
-  // StackTrace getStackTraceForLocal() const {
-  //   return StackDepotGet(getLocalId());
-  // }
-
-  // static Origin CreateStackOrigin(uint32_t id) {
-  //   assert((id & kStackIdMask) == id);
-  //   return Origin((1 << kHeapShift) | id);
-  // }
-
   StackTrace getHeapStackTrace() const {
     assert(isHeapOrigin());
-    uint32_t StackId = getHeapId();
-    return StackDepotGet(StackId);
+    return StackDepotGet(getHeapId(), getHeapType());
   }
 
   static Origin CreateHeapOrigin(StackTrace &Stack, HeapType Type) {
-    uint32_t StackId = StackDepotPut(Stack);
+    uint32_t StackId = StackDepotPut(Stack, Type);
     assert(StackId);
+
     switch (Type) {
     case HeapType::DeviceUSM:
       assert((StackId & kDeviceUSMIdMask) == StackId);
@@ -207,8 +157,9 @@ public:
       break;
     default:
       assert(false && "Unknown heap type");
-      return Origin(0); // Should never reach here
+      StackId = 0;
     }
+
     return Origin(StackId);
   }
 

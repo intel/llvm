@@ -11,9 +11,8 @@
  *
  */
 
-#pragma once
-
 #include "sanitizer_stackdepot.hpp"
+
 #include <atomic>
 #include <unordered_map>
 
@@ -40,10 +39,52 @@ private:
   std::unordered_map<uint32_t, StackTrace> _Depot;
 };
 
-static StackDepot theDepot;
+uint32_t StackDepotPut(StackTrace &Stack, HeapType Type) {
+  switch (Type) {
+  case HeapType::DeviceUSM: {
+    static StackDepot TheDepot;
+    return TheDepot.Put(Stack);
+  }
+  case HeapType::HostUSM: {
+    static StackDepot TheDepot;
+    return TheDepot.Put(Stack);
+  }
+  case HeapType::SharedUSM: {
+    static StackDepot TheDepot;
+    return TheDepot.Put(Stack);
+  }
+  case HeapType::Local: {
+    static StackDepot TheDepot;
+    return TheDepot.Put(Stack);
+  }
+  default:
+    assert(false && "Unknown heap type");
+    return 0;
+  }
+}
 
-uint32_t StackDepotPut(StackTrace &Stack) { return theDepot.Put(Stack); }
-
-StackTrace StackDepotGet(uint32_t Id) { return theDepot.Get(Id); }
+StackTrace StackDepotGet(uint32_t Id, HeapType Type) {
+  switch (Type) {
+  case HeapType::DeviceUSM: {
+    static StackDepot TheDepot;
+    return TheDepot.Get(Id);
+  }
+  case HeapType::HostUSM: {
+    static StackDepot TheDepot;
+    return TheDepot.Get(Id);
+  }
+  case HeapType::SharedUSM: {
+    static StackDepot TheDepot;
+    return TheDepot.Get(Id);
+  }
+  case HeapType::Local: {
+    static StackDepot TheDepot;
+    return TheDepot.Get(Id);
+  }
+  default:
+    assert(false && "Unknown heap type");
+    return StackTrace();
+  }
+}
 
 } // namespace ur_sanitizer_layer

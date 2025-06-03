@@ -48,10 +48,10 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
 
   Origin Origin = Origin::FromRawId(Report.Origin);
   if (Origin.isHeapOrigin()) {
-    HeapType HeapType = Origin.getHeapType();
+    HeapType Type = Origin.getHeapType();
     StackTrace Stack = Origin.getHeapStackTrace();
     UR_LOG_L(getContext()->logger, QUIET,
-             "ORIGIN: {} allocation:", ToString(HeapType));
+             "ORIGIN: {} allocation:", ToString(Type));
     Stack.print();
   }
 }

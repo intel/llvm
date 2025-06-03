@@ -19,51 +19,59 @@
 namespace ur_sanitizer_layer {
 
 namespace {
-void validate(uptr Allocated, AllocType AllocType, DeviceType DeviceType) {
-  if (DeviceType == DeviceType::GPU_PVC) {
-    switch (AllocType) {
-    case AllocType::DEVICE_USM:
-      assert((Allocated >> 52) == 0xff0);
-      break;
-    case AllocType::HOST_USM:
-      assert((Allocated >> 40) == 0xffff);
-      break;
-    case AllocType::SHARED_USM:
-      assert((Allocated >> 40) == 0x7f);
-      break;
-    default:
-      return;
-    }
+void validateDeviceUSM(uptr Allocated, DeviceType DeviceType) {
+  switch (DeviceType) {
+  case DeviceType::GPU_PVC: {
+    assert((Allocated >> 52) == 0xff0);
+    break;
+  default:
+    break;
+  }
+  }
+}
+
+void validateSharedUSM(uptr Allocated, DeviceType DeviceType) {
+  switch (DeviceType) {
+  case DeviceType::GPU_PVC: {
+    assert((Allocated >> 40) == 0x7f);
+    break;
+  default:
+    break;
+  }
   }
 }
 } // namespace
 
-void *Allocator::allocate(uptr Size, const ur_usm_desc_t *Properties,
-                          AllocType Type) {
-  void *Allocated = nullptr;
-  ur_result_t Result;
-  ur_usm_pool_handle_t Pool = nullptr;
-
-  if (Type == AllocType::DEVICE_USM) {
-    Result = getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated);
-  } else if (Type == AllocType::HOST_USM) {
-    Result = getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties,
-                                                       Pool, Size, &Allocated);
-  } else if (Type == AllocType::SHARED_USM) {
-    Result = getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated);
-  } else {
-    return nullptr;
+ur_result_t SafeAllocate(ur_context_handle_t Context, ur_device_handle_t Device,
+                         uptr Size, const ur_usm_desc_t *Properties,
+                         ur_usm_pool_handle_t Pool, AllocType Type,
+                         void **Allocated) {
+  DeviceType DevieType =
+      Device ? GetDeviceType(Context, Device) : DeviceType::UNKNOWN;
+  switch (Type) {
+  case AllocType::DEVICE_USM:
+  case AllocType::MEM_BUFFER:
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, Properties, Pool, Size, Allocated));
+    validateDeviceUSM((uptr)*Allocated, DevieType);
+    break;
+  case AllocType::HOST_USM:
+    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
+                                                      Size, Allocated));
+    // FIXME: it's hard to validate host USM pointer because we don't have
+    // device information here
+    break;
+  case AllocType::SHARED_USM:
+    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
+        Context, Device, Properties, Pool, Size, Allocated));
+    validateSharedUSM((uptr)*Allocated, DevieType);
+    break;
+  default:
+    UR_LOG_L(getContext()->logger, ERR, "Unsupport memory type: {}",
+             ToString(Type));
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
-
-  if (Result != UR_RESULT_SUCCESS) {
-    return nullptr;
-  }
-
-  validate((uptr)Allocated, Type, GetDeviceType(Context, Device));
-
-  return Allocated;
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur_sanitizer_layer
