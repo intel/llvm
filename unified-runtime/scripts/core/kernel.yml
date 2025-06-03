@@ -598,3 +598,34 @@ params:
             suggested local work size that will contain the result of the query
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query the maximum number of work groups for a cooperative kernel"
+class: $xKernel
+name: SuggestMaxCooperativeGroupCount
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: uint32_t
+      name: workDim
+      desc: "[in] number of dimensions, from 1 to 3, to specify the work-group work-items"
+    - type: "const size_t*"
+      name: pLocalWorkSize
+      desc: |
+            [in] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
+    - type: size_t
+      name: dynamicSharedMemorySize
+      desc: "[in] size of dynamic shared memory, for each work-group, in bytes, that will be used when the kernel is launched"
+    - type: "uint32_t*"
+      name: "pGroupCountRet"
+      desc: "[out] pointer to maximum number of groups"
+returns:
+    - $X_RESULT_ERROR_INVALID_KERNEL
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If $X_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES returns a value without the $X_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE bit set."
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION:
+        - "`workDim < 1 || workDim > 3`"

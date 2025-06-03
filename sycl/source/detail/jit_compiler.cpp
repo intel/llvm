@@ -12,8 +12,6 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -126,8 +124,8 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   }
 }
 
-static ::jit_compiler::BinaryFormat getTargetFormat(const QueueImplPtr &Queue) {
-  auto Backend = Queue->getDeviceImpl().getBackend();
+static ::jit_compiler::BinaryFormat getTargetFormat(queue_impl &Queue) {
+  auto Backend = Queue.getDeviceImpl().getBackend();
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
   case backend::opencl:
@@ -145,7 +143,7 @@ static ::jit_compiler::BinaryFormat getTargetFormat(const QueueImplPtr &Queue) {
 #endif // _WIN32
 
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
-    const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
+    queue_impl &Queue, const RTDeviceBinaryImage *BinImage,
     KernelNameStrRefT KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
 #ifndef _WIN32
@@ -222,8 +220,8 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   }
 
   RTDeviceBinaryImage MaterializedRTDevBinImage{&MaterializedRawDeviceImage};
-  const auto &Context = Queue->get_context();
-  const auto &Device = Queue->get_device();
+  const auto &Context = Queue.get_context();
+  const auto &Device = Queue.get_device();
   auto NewKernel = PM.getOrCreateMaterializedKernel(
       MaterializedRTDevBinImage, Context, Device, KernelName, SpecConstBlob);
 
@@ -267,7 +265,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
 
     for (const auto &FPS : DevImgInfo.Properties) {
       bool IsDeviceGlobalsPropSet =
-          FPS.Name == llvm::util::PropertySetRegistry::SYCL_DEVICE_GLOBALS;
+          FPS.Name == __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS;
       PropertySetContainer PropSet{FPS.Name.c_str()};
       for (const auto &FPV : FPS.Values) {
         if (FPV.IsUIntValue) {

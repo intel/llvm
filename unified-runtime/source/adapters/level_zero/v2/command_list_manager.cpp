@@ -14,14 +14,16 @@
 #include "../ur_interface_loader.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
+#include "memory.hpp"
 
 ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
-    ur_queue_t_ *queue)
-    : context(context), device(device),
-      eventPool(context->getEventPoolCache().borrow(device->Id.value(), flags)),
-      zeCommandList(std::move(commandList)), queue(queue) {
+    ur_queue_t_ *queue, PoolCacheType listType)
+    : context(context), device(device), zeCommandList(std::move(commandList)),
+      queue(queue) {
+  auto &eventPoolTmp = context->getEventPoolCache(listType);
+  eventPool = eventPoolTmp.borrow(device->Id.value(), flags);
   UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
   UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));
 }
@@ -43,12 +45,7 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
       device, ur_mem_buffer_t::device_access_mode_t::read_only, offset, size,
-      [&](void *src, void *dst, size_t size) {
-        ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                          (zeCommandList.get(), dst, src, size, nullptr,
-                           waitListView.num, waitListView.handles));
-        waitListView.clear();
-      }));
+      zeCommandList.get(), waitListView));
 
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
@@ -86,21 +83,11 @@ ur_result_t ur_command_list_manager::appendGenericCopyUnlocked(
 
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
       device, ur_mem_buffer_t::device_access_mode_t::read_only, srcOffset, size,
-      [&](void *src, void *dst, size_t size) {
-        ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                          (zeCommandList.get(), dst, src, size, nullptr,
-                           waitListView.num, waitListView.handles));
-        waitListView.clear();
-      }));
+      zeCommandList.get(), waitListView));
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
       device, ur_mem_buffer_t::device_access_mode_t::write_only, dstOffset,
-      size, [&](void *src, void *dst, size_t size) {
-        ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                          (zeCommandList.get(), dst, src, size, nullptr,
-                           waitListView.num, waitListView.handles));
-        waitListView.clear();
-      }));
+      size, zeCommandList.get(), waitListView));
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (zeCommandList.get(), pDst, pSrc, size, zeSignalEvent,
@@ -129,20 +116,10 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
 
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
       device, ur_mem_buffer_t::device_access_mode_t::read_only, 0,
-      src->getSize(), [&](void *src, void *dst, size_t size) {
-        ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                          (zeCommandList.get(), dst, src, size, nullptr,
-                           waitListView.num, waitListView.handles));
-        waitListView.clear();
-      }));
+      src->getSize(), zeCommandList.get(), waitListView));
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
       device, ur_mem_buffer_t::device_access_mode_t::write_only, 0,
-      dst->getSize(), [&](void *src, void *dst, size_t size) {
-        ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                          (zeCommandList.get(), dst, src, size, nullptr,
-                           waitListView.num, waitListView.handles));
-        waitListView.clear();
-      }));
+      dst->getSize(), zeCommandList.get(), waitListView));
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
              (zeCommandList.get(), pDst, &zeParams.dstRegion, zeParams.dstPitch,
@@ -212,26 +189,9 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
 
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  auto memoryMigrate = [&](void *src, void *dst, size_t size) {
-    ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                      (zeCommandList.get(), dst, src, size, nullptr,
-                       waitListView.num, waitListView.handles));
-    waitListView.clear();
-  };
-
-  // If the offset is {0, 0, 0}, pass NULL instead.
-  // This allows us to skip setting the offset.
-  bool hasOffset = false;
-  for (uint32_t i = 0; i < workDim; ++i) {
-    hasOffset |= pGlobalWorkOffset[i];
-  }
-  if (!hasOffset) {
-    pGlobalWorkOffset = NULL;
-  }
-
   UR_CALL(hKernel->prepareForSubmission(context, device, pGlobalWorkOffset,
                                         workDim, WG[0], WG[1], WG[2],
-                                        memoryMigrate));
+                                        zeCommandList.get(), waitListView));
 
   TRACK_SCOPE_LATENCY(
       "ur_command_list_manager::zeCommandListAppendLaunchKernel");
@@ -320,17 +280,18 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-ur_command_list_manager::appendUSMAdvise(const void *pMem, size_t size,
-                                         ur_usm_advice_flags_t advice,
-                                         ur_event_handle_t *phEvent) {
+ur_result_t ur_command_list_manager::appendUSMAdvise(
+    const void *pMem, size_t size, ur_usm_advice_flags_t advice,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMAdvise");
 
   auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_ADVISE);
 
-  auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
 
   if (pWaitEvents) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,

@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <climits>
 #include <optional>
+#include <vector>
 
 // UR_L0_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
@@ -1086,21 +1087,18 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
-                       Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims2D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims3D > 0);
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
@@ -1221,10 +1219,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
@@ -1315,19 +1309,27 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
   case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
-    if (!ParamValue) {
-      // If ParamValue is nullptr, then we are only interested in the size of
-      // the value.
-      return ReturnValue(int32_t{0});
-    }
-
     [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
         getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
       return Result;
 
     zes_pwr_handle_t ZesPwrHandle = nullptr;
-    ZE2UR_CALL(zesDeviceGetCardPowerDomain, (ZesDevice, &ZesPwrHandle));
+    auto DomainResult = zesDeviceGetCardPowerDomain(ZesDevice, &ZesPwrHandle);
+    if (DomainResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    } else if (DomainResult != ZE_RESULT_SUCCESS) {
+      return ze2urResult(DomainResult);
+    }
+
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      // Do this after calling getCardPowerDomain so that UNSUPPORTED is
+      // returned correctly if required
+      return ReturnValue(int32_t{0});
+    }
+
     ZesStruct<zes_power_properties_t> PowerProperties;
     ZE2UR_CALL(zesPowerGetProperties, (ZesPwrHandle, &PowerProperties));
 
@@ -1337,6 +1339,8 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(int32_t{PowerProperties.maxLimit});
     }
   }
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -1448,7 +1452,7 @@ ur_result_t urDevicePartition(
 
 ur_result_t urDeviceSelectBinary(
     /// [in] handle of the device to select binary for.
-    ur_device_handle_t /*Device*/,
+    [[maybe_unused]] ur_device_handle_t Device,
     /// [in] the array of binaries to select from.
     const ur_device_binary_t *Binaries,
     /// [in] the number of binaries passed in ppBinaries. Must greater than or
@@ -1478,21 +1482,34 @@ ur_result_t urDeviceSelectBinary(
 
   uint32_t *SelectedBinaryInd = SelectedBinary;
 
-  // Find the appropriate device image, fallback to spirv if not found
-  constexpr uint32_t InvalidInd = (std::numeric_limits<uint32_t>::max)();
-  uint32_t Spirv = InvalidInd;
+  // Find the appropriate device image
+  // The order of elements is important, as it defines the priority:
+  std::vector<const char *> FallbackTargets = {UR_DEVICE_BINARY_TARGET_SPIRV64};
+
+  constexpr uint32_t InvalidInd = std::numeric_limits<uint32_t>::max();
+  uint32_t FallbackInd = InvalidInd;
+  uint32_t FallbackPriority = InvalidInd;
 
   for (uint32_t i = 0; i < NumBinaries; ++i) {
     if (strcmp(Binaries[i].pDeviceTargetSpec, BinaryTarget) == 0) {
       *SelectedBinaryInd = i;
       return UR_RESULT_SUCCESS;
     }
-    if (strcmp(Binaries[i].pDeviceTargetSpec,
-               UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-      Spirv = i;
+    for (uint32_t j = 0; j < FallbackTargets.size(); ++j) {
+      // We have a fall-back with the same or higher priority already
+      // no need to check the rest
+      if (FallbackPriority <= j)
+        break;
+
+      if (strcmp(Binaries[i].pDeviceTargetSpec, FallbackTargets[j]) == 0) {
+        FallbackInd = i;
+        FallbackPriority = j;
+        break;
+      }
+    }
   }
-  // Points to a spirv image, if such indeed was found
-  if ((*SelectedBinaryInd = Spirv) != InvalidInd)
+  // We didn't find a primary target, try the highest-priority fall-back
+  if ((*SelectedBinaryInd = FallbackInd) != InvalidInd)
     return UR_RESULT_SUCCESS;
 
   // No image can be loaded for the given device

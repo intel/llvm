@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
@@ -677,8 +678,7 @@ int main() {
 
   sycl::device dev;
 
-  if (vkutil::setupDevice(dev.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(dev) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

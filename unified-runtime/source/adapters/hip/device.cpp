@@ -382,12 +382,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to HIP's "shared memory".
     // HIP has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    int LocalMemSize = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &LocalMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock,
-        hDevice->get()));
-    assert(LocalMemSize >= 0);
-    return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    if (hDevice->getMaxChosenLocalMem()) {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
+    } else {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxCapacityLocalMem()));
+    }
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int EccEnabled = 0;
@@ -992,7 +993,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
   case UR_DEVICE_INFO_FAN_SPEED:
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
@@ -1040,12 +1040,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(0);
   default:
     break;
   }

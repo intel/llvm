@@ -807,6 +807,8 @@ private:
   void initializeKernelCallerMap(Function *F);
 
 private:
+  friend struct MemorySanitizerVisitor;
+
   Module &M;
   LLVMContext &C;
   const DataLayout &DL;
@@ -834,6 +836,7 @@ private:
   FunctionCallee MsanBarrierFunc;
   FunctionCallee MsanUnpoisonStackFunc;
   FunctionCallee MsanSetPrivateBaseFunc;
+  FunctionCallee MsanUnpoisonStridedCopyFunc;
 };
 
 } // end anonymous namespace
@@ -900,14 +903,14 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
       M.getOrInsertFunction("__msan_unpoison_shadow_static_local",
                             IRB.getVoidTy(), IntptrTy, IntptrTy);
 
-  // __asan_poison_shadow_dynamic_local(
+  // __msan_poison_shadow_dynamic_local(
   //   uptr ptr,
   //   uint32_t num_args
   // )
   MsanPoisonShadowDynamicLocalFunc = M.getOrInsertFunction(
       "__msan_poison_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty);
 
-  // __asan_unpoison_shadow_dynamic_local(
+  // __msan_unpoison_shadow_dynamic_local(
   //   uptr ptr,
   //   uint32_t num_args
   // )
@@ -931,6 +934,18 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   MsanSetPrivateBaseFunc =
       M.getOrInsertFunction("__msan_set_private_base", IRB.getVoidTy(),
                             PointerType::get(C, kSpirOffloadPrivateAS));
+
+  // __msan_unpoison_strided_copy(
+  //   uptr dest, uint32_t dest_as,
+  //   uptr src, uint32_t src_as,
+  //   uint32_t element_size,
+  //   uptr counts,
+  //   uptr stride
+  // )
+  MsanUnpoisonStridedCopyFunc = M.getOrInsertFunction(
+      "__msan_unpoison_strided_copy", IRB.getVoidTy(), IntptrTy,
+      IRB.getInt32Ty(), IntptrTy, IRB.getInt32Ty(), IRB.getInt32Ty(),
+      IRB.getInt64Ty(), IRB.getInt64Ty());
 }
 
 // Handle global variables:
@@ -1839,7 +1854,8 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
         }
       } else {
         auto FuncName = Func->getName();
-        if (FuncName.contains("__spirv_"))
+        if (FuncName.contains("__spirv_") &&
+            !FuncName.contains("__spirv_GroupAsyncCopy"))
           I.setNoSanitizeMetadata();
       }
     }
@@ -1847,6 +1863,55 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
 
   if (Addr && isUnsupportedSPIRAccess(Addr, &I))
     I.setNoSanitizeMetadata();
+}
+
+// This is not a general-purpose function, but a helper for demangling
+// "__spirv_GroupAsyncCopy" function name
+static int getTypeSizeFromManglingName(StringRef Name) {
+  auto GetTypeSize = [](const char C) {
+    switch (C) {
+    case 'a': // signed char
+    case 'c': // char
+      return 1;
+    case 's': // short
+      return 2;
+    case 'f': // float
+    case 'i': // int
+      return 4;
+    case 'd': // double
+    case 'l': // long
+      return 8;
+    default:
+      return 0;
+    }
+  };
+
+  // Name should always be long enough since it has other unmeaningful chars,
+  // it should have at least 6 chars, such as "Dv16_d"
+  if (Name.size() < 6)
+    return 0;
+
+  // 1. Basic type
+  if (Name[0] != 'D')
+    return GetTypeSize(Name[0]);
+
+  // 2. Vector type
+
+  // Drop "Dv"
+  assert(Name[0] == 'D' && Name[1] == 'v' &&
+         "Invalid mangling name for vector type");
+  Name = Name.drop_front(2);
+
+  // Vector length
+  assert(isDigit(Name[0]) && "Invalid mangling name for vector type");
+  int Len = std::stoi(Name.str());
+  Name = Name.drop_front(Len >= 10 ? 2 : 1);
+
+  assert(Name[0] == '_' && "Invalid mangling name for vector type");
+  Name = Name.drop_front(1);
+
+  int Size = GetTypeSize(Name[0]);
+  return Len * Size;
 }
 
 namespace {
@@ -6362,6 +6427,41 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     FunctionType *FT = CB.getFunctionType();
     if (FT->isVarArg()) {
       VAHelper->visitCallBase(CB, IRB);
+    }
+
+    if (SpirOrSpirv) {
+      auto *Func = CB.getCalledFunction();
+      if (Func) {
+        auto FuncName = Func->getName();
+        if (FuncName.contains("__spirv_GroupAsyncCopy")) {
+          // clang-format off
+          // Handle functions like "_Z22__spirv_GroupAsyncCopyiPU3AS3dPU3AS1dllP13__spirv_Event", 
+          // its demangled name is "__spirv_GroupAsyncCopy(int, double AS3* dst, double AS1* src, long, long, __spirv_Event*)"
+          // The type of "src" and "dst" should always be same.
+          // clang-format on
+
+          auto *Dest = CB.getArgOperand(1);
+          auto *Src = CB.getArgOperand(2);
+          auto *NumElements = CB.getArgOperand(3);
+          auto *Stride = CB.getArgOperand(4);
+
+          // Skip "_Z22__spirv_GroupAsyncCopyiPU3AS3" (33 char), get the size of
+          // parameter type directly
+          const size_t kManglingPrefixLength = 33;
+          int ElementSize = getTypeSizeFromManglingName(
+              FuncName.substr(kManglingPrefixLength));
+          assert(ElementSize != 0 &&
+                 "Unsupported __spirv_GroupAsyncCopy element type");
+
+          IRB.CreateCall(
+              MS.Spirv.MsanUnpoisonStridedCopyFunc,
+              {IRB.CreatePointerCast(Dest, MS.Spirv.IntptrTy),
+               IRB.getInt32(Dest->getType()->getPointerAddressSpace()),
+               IRB.CreatePointerCast(Src, MS.Spirv.IntptrTy),
+               IRB.getInt32(Src->getType()->getPointerAddressSpace()),
+               IRB.getInt32(ElementSize), NumElements, Stride});
+        }
+      }
     }
 
     // Now, get the shadow for the RetVal.

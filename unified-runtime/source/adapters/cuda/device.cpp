@@ -505,7 +505,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to CUDA's "shared memory".
     // CUDA has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    if (hDevice->maxLocalMemSizeChosen()) {
+    if (hDevice->getMaxChosenLocalMem()) {
       return ReturnValue(
           static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
     } else {
@@ -1096,7 +1096,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
     constexpr unsigned long long NVMLThrottleFlags[] = {
         nvmlClocksThrottleReasonSwPowerCap,
-        nvmlClocksThrottleReasonHwThermalSlowdown ||
+        nvmlClocksThrottleReasonHwThermalSlowdown |
             nvmlClocksThrottleReasonSwThermalSlowdown,
         nvmlClocksThrottleReasonHwPowerBrakeSlowdown,
         nvmlClocksThrottleReasonApplicationsClocksSetting};
@@ -1164,25 +1164,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP: {
-    int Value = getAttribute(hDevice,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 9;
-    return ReturnValue(static_cast<bool>(Value));
-  }
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(true);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
+    auto LaunchPropsSupport =
+        UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE |
+        UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
+    if (getAttribute(hDevice, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
+        9) {
+      LaunchPropsSupport |=
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION |
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+    }
+
+    return ReturnValue(0);
+  }
   default:
     break;
   }

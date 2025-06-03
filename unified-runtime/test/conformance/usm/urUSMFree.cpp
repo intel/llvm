@@ -107,7 +107,7 @@ TEST_P(urUSMFreeTest, InvalidNullPtrMem) {
 // This goal of this test is to ensure urUSMFree blocks and waits for operations
 // accessing the given allocation to finish before actually freeing the memory.
 struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "fill_usm";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
   }
@@ -133,8 +133,9 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
 
   EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
   EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, 1, &wg_offset, &array_size, nullptr, 0, nullptr, nullptr));
+  EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+                                       &array_size, nullptr, 0, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
@@ -153,8 +154,9 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
   EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
   EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
 
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, 1, &wg_offset, &array_size, nullptr, 0, nullptr, nullptr));
+  EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+                                       &array_size, nullptr, 0, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
@@ -173,8 +175,9 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessShared) {
 
   EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
   EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(
-      queue, kernel, 1, &wg_offset, &array_size, nullptr, 0, nullptr, nullptr));
+  EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+                                       &array_size, nullptr, 0, nullptr, 0,
+                                       nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
