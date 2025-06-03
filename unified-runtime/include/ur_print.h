@@ -344,6 +344,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintDeviceThrottleReasonsFlags(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_launch_properties_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelLaunchPropertiesFlags(
+    enum ur_kernel_launch_properties_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_context_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1102,6 +1112,26 @@ urPrintExecutionInfo(enum ur_execution_info_t value, char *buffer,
                      const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_launch_property_id_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelLaunchPropertyId(
+    enum ur_kernel_launch_property_id_t value, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_kernel_launch_property_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelLaunchProperty(
+    const struct ur_kernel_launch_property_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_map_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1374,26 +1404,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urPrintExpCommandBufferUpdateKernelLaunchDesc(
     const struct ur_exp_command_buffer_update_kernel_launch_desc_t params,
     char *buffer, const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_exp_launch_property_id_t enum
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL
-urPrintExpLaunchPropertyId(enum ur_exp_launch_property_id_t value, char *buffer,
-                           const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_exp_launch_property_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintExpLaunchProperty(
-    const struct ur_exp_launch_property_t params, char *buffer,
-    const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_peer_info_t enum
@@ -2131,16 +2141,14 @@ urPrintKernelSetSpecializationConstantsParams(
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_suggest_max_cooperative_group_count_exp_params_t
-/// struct
+/// @brief Print ur_kernel_suggest_max_cooperative_group_count_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL
-urPrintKernelSuggestMaxCooperativeGroupCountExpParams(
-    const struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t
-        *params,
+urPrintKernelSuggestMaxCooperativeGroupCountParams(
+    const struct ur_kernel_suggest_max_cooperative_group_count_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2677,16 +2685,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueWriteHostPipeParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_enqueue_kernel_launch_custom_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueKernelLaunchCustomExpParams(
-    const struct ur_enqueue_kernel_launch_custom_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_enqueue_events_wait_with_barrier_ext_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2746,17 +2744,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueUsmFreeExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueCommandBufferExpParams(
     const struct ur_enqueue_command_buffer_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_enqueue_cooperative_kernel_launch_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL
-urPrintEnqueueCooperativeKernelLaunchExpParams(
-    const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_enqueue_timestamp_recording_exp_params_t struct

@@ -105,7 +105,6 @@ context_t::context_t() {
   urGetEnqueueExpProcAddrTable(version, &urDdiTable.EnqueueExp);
   urGetEventProcAddrTable(version, &urDdiTable.Event);
   urGetKernelProcAddrTable(version, &urDdiTable.Kernel);
-  urGetKernelExpProcAddrTable(version, &urDdiTable.KernelExp);
   urGetMemProcAddrTable(version, &urDdiTable.Mem);
   urGetPhysicalMemProcAddrTable(version, &urDdiTable.PhysicalMem);
   urGetPlatformProcAddrTable(version, &urDdiTable.Platform);

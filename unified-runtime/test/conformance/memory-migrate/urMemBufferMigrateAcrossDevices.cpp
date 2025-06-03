@@ -216,8 +216,8 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
 
   // Kernel increments the fill val by 1
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernels[1], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 1, &e1,
-                                       &e2));
+                                       offset, work_dims, nullptr, 0, nullptr,
+                                       1, &e1, &e2));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[0], buffer, false, 0,
                                         buffer_size_bytes, out_vec.data(), 1,
@@ -252,13 +252,13 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
 
   // Kernel increments the fill val by 1
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernels[1], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 1, &e1,
-                                       &e2));
+                                       offset, work_dims, nullptr, 0, nullptr,
+                                       1, &e1, &e2));
 
   // Kernel increments the fill val by 1
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernels[0], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 1, &e2,
-                                       &e3));
+                                       offset, work_dims, nullptr, 0, nullptr,
+                                       1, &e2, &e3));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
                                         buffer_size_bytes, out_vec.data(), 1,
