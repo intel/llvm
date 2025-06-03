@@ -4637,7 +4637,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     Addr = emitArraySubscriptGEP(*this, BaseAddr, Idx, E->getType(),
                                  !getLangOpts().PointerOverflowDefined,
                                  SignedIndices, E->getExprLoc(), &ptrType,
-                                 E->getBase());
+                                 E->getBase(), "arrayidx", PtrDecl);
 
     if (SanOpts.has(SanitizerKind::ArrayBounds)) {
       StructFieldAccess Visitor;
