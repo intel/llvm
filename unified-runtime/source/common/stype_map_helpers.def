@@ -162,3 +162,9 @@ struct stype_map<ur_exp_enqueue_native_command_properties_t>
 template <>
 struct stype_map<ur_exp_enqueue_ext_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES> {};
+template <>
+struct stype_map<ur_exp_kernel_arg_mem_obj_tuple_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_MEM_OBJ_TUPLE> {};
+template <>
+struct stype_map<ur_exp_kernel_arg_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES> {};

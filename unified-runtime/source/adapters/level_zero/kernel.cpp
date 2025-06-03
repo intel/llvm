@@ -56,6 +56,172 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
+inline ur_result_t KernelSetArgValueHelper(
+    ur_kernel_handle_t Kernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex,
+    /// [in] size of argument type
+    size_t ArgSize,
+    /// [in] argument value represented as matching arg type.
+    const void *PArgValue) {
+  // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
+  // in which case a NULL value will be used as the value for the argument
+  // declared as a pointer to global or constant memory in the kernel"
+  //
+  // We don't know the type of the argument but it seems that the only time
+  // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
+  // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
+  if (ArgSize == sizeof(void *) && PArgValue &&
+      *(void **)(const_cast<void *>(PArgValue)) == nullptr) {
+    PArgValue = nullptr;
+  }
+
+  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
+  ze_result_t ZeResult = ZE_RESULT_SUCCESS;
+  if (Kernel->ZeKernelMap.empty()) {
+    auto ZeKernel = Kernel->ZeKernel;
+    ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                               (ZeKernel, ArgIndex, ArgSize, PArgValue));
+  } else {
+    for (auto It : Kernel->ZeKernelMap) {
+      auto ZeKernel = It.second;
+      ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                                 (ZeKernel, ArgIndex, ArgSize, PArgValue));
+    }
+  }
+
+  if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
+  }
+
+  return ze2urResult(ZeResult);
+}
+
+inline ur_result_t KernelSetArgMemObjHelper(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex,
+    /// [in][optional] pointer to Memory object properties.
+    const ur_kernel_arg_mem_obj_properties_t *Properties,
+    /// [in][optional] handle of Memory object.
+    ur_mem_handle_t ArgValue) {
+  // The ArgValue may be a NULL pointer in which case a NULL value is used for
+  // the kernel argument declared as a pointer to global or constant memory.
+
+  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
+  ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
+
+  ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
+  if (Properties) {
+    switch (Properties->memoryAccess) {
+    case UR_MEM_FLAG_READ_WRITE:
+      UrAccessMode = ur_mem_handle_t_::read_write;
+      break;
+    case UR_MEM_FLAG_WRITE_ONLY:
+      UrAccessMode = ur_mem_handle_t_::write_only;
+      break;
+    case UR_MEM_FLAG_READ_ONLY:
+      UrAccessMode = ur_mem_handle_t_::read_only;
+      break;
+    case 0:
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+  }
+  auto Arg = UrMem ? UrMem : nullptr;
+  Kernel->PendingArguments.push_back(
+      {ArgIndex, sizeof(void *), Arg, UrAccessMode});
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// offset used to calculate the global ID of a work-item
+    const size_t GlobalWorkOffset[3],
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t GlobalWorkSize[3],
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that
+    /// will execute the kernel function. If nullptr, the runtime
+    /// implementation will choose the work-group size.
+    const size_t LocalWorkSize[3],
+    /// [in] size of the event wait list
+    uint32_t NumArgs, const ur_exp_kernel_arg_properties_t *Args,
+    /// [in] size of the launch prop list
+    uint32_t NumPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *LaunchPropList,
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *OutEvent) {
+  {
+    std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+    for (uint32_t i = 0; i < NumArgs; i++) {
+      switch (Args[i].type) {
+      case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                        nullptr));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                        Args[i].arg.pointer));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                        &Args[i].arg.pointer));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+        ur_kernel_arg_mem_obj_properties_t Properties = {
+            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+            Args[i].arg.memObjTuple.flags};
+        UR_CALL(KernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
+                                         Args[i].arg.memObjTuple.hMem));
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+        ZE2UR_CALL(zeKernelSetArgumentValue,
+                   (Kernel->ZeKernel, Args[i].index, sizeof(void *),
+                    &Args[i].arg.sampler->ZeSampler));
+        break;
+      }
+      default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+    }
+  }
+  // Normalize so each dimension has at least one work item
+  const std::array<size_t, 3> GlobalWorkSize3D = {
+      std::max(GlobalWorkSize[0], std::size_t{1}),
+      std::max(GlobalWorkSize[1], std::size_t{1}),
+      std::max(GlobalWorkSize[2], std::size_t{1})};
+  return level_zero::urEnqueueKernelLaunch(
+      Queue, Kernel, 3, GlobalWorkOffset, GlobalWorkSize3D.data(),
+      LocalWorkSize, NumPropsInLaunchPropList, LaunchPropList,
+      NumEventsInWaitList, EventWaitList, OutEvent);
+}
+
 inline ur_result_t EnqueueCooperativeKernelLaunchHelper(
     /// [in] handle of the queue object
     ur_queue_handle_t Queue,

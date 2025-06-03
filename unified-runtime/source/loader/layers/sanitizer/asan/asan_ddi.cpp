@@ -1638,6 +1638,128 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunch
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t pGlobalWorkOffset[3],
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t pGlobalWorkSize[3],
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t pLocalWorkSize[3],
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *phEvent) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urEnqueueKernelLaunchWithArgsExp");
+
+  // Sanitizer layer arg processing sometimes results in an arg not getting
+  // passed through to the adapter's SetArg implementation. To implement this
+  // for set args + launch we build our own list of "accepted" args to pass to
+  // the entry point.
+  std::vector<ur_exp_kernel_arg_properties_t> KeepArgs;
+  for (uint32_t ArgIndex = 0; ArgIndex < numArgs; ArgIndex++) {
+    switch (pArgs[ArgIndex].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
+      auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+      std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+      // TODO: get local variable alignment
+      auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
+          pArgs[ArgIndex].size, ASAN_SHADOW_GRANULARITY,
+          ASAN_SHADOW_GRANULARITY);
+      KI.LocalArgs[pArgs[ArgIndex].index] =
+          LocalArgsInfo{pArgs[ArgIndex].size, argSizeWithRZ};
+      KeepArgs.push_back(pArgs[ArgIndex]);
+      KeepArgs.back().size = argSizeWithRZ;
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
+      std::shared_ptr<KernelInfo> KI;
+      if (getContext()->Options.DetectKernelArguments) {
+        auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+        KI.PointerArgs[pArgs[ArgIndex].index] = {pArgs[ArgIndex].arg.pointer,
+                                                 GetCurrentBacktrace()};
+      }
+      KeepArgs.push_back(pArgs[ArgIndex]);
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
+      std::shared_ptr<MemBuffer> MemBuffer;
+      if (pArgs[ArgIndex].size == sizeof(ur_mem_handle_t) &&
+          (MemBuffer = getAsanInterceptor()->getMemBuffer(
+               *ur_cast<const ur_mem_handle_t *>(
+                   pArgs[ArgIndex].arg.memObjTuple.hMem)))) {
+        auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+        KernelInfo.BufferArgs[pArgs[ArgIndex].index] = std::move(MemBuffer);
+      } else {
+        KeepArgs.push_back(pArgs[ArgIndex]);
+      }
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+      std::shared_ptr<MemBuffer> MemBuffer;
+      if ((MemBuffer = getAsanInterceptor()->getMemBuffer(
+               pArgs[ArgIndex].arg.memObjTuple.hMem))) {
+        auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+        KernelInfo.BufferArgs[pArgs[ArgIndex].index] = std::move(MemBuffer);
+      } else {
+        KeepArgs.push_back(pArgs[ArgIndex]);
+      }
+      break;
+    }
+    default:
+      KeepArgs.push_back(pArgs[ArgIndex]);
+      break;
+    }
+  }
+
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, 3);
+  UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
+
+  UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
+      hQueue, hKernel, pGlobalWorkOffset, pGlobalWorkSize,
+      LaunchInfo.LocalWorkSize.data(), KeepArgs.size(), KeepArgs.data(),
+      numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+      phEventWaitList, phEvent));
+
+  UR_CALL(getAsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
@@ -1952,6 +2074,22 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
   return result;
 }
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetEnqueueExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_enqueue_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnKernelLaunchWithArgsExp =
+      ur_sanitizer_layer::asan::urEnqueueKernelLaunchWithArgsExp;
+
+  return result;
+}
 
 template <class A, class B> struct NotSupportedApi;
 
@@ -2146,6 +2284,11 @@ ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::asan::urGetVirtualMemProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->VirtualMem);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::asan::urGetEnqueueExpProcAddrTable(
+        &dditable->EnqueueExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

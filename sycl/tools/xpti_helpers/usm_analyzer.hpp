@@ -254,6 +254,11 @@ public:
       handleKernelSetArgPointer(
           static_cast<ur_kernel_set_arg_pointer_params_t *>(Data->args_data));
       return;
+    case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP:
+      handleEnqueueKernelLaunchWithArgsExp(
+          static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(
+              Data->args_data));
+      return;
     default:
       return;
     }
@@ -420,5 +425,19 @@ public:
     CheckPointerValidness(
         "kernel parameter with index = " + std::to_string(*Params->pargIndex),
         Ptr, 0 /*no data how it will be used in kernel*/, "kernel");
+  }
+
+  static void handleEnqueueKernelLaunchWithArgsExp(
+      const ur_enqueue_kernel_launch_with_args_exp_params_t *Params) {
+    // Search for pointer args and validate the pointers
+    for (uint32_t i = 0; i < *Params->pnumArgs; i++) {
+      if ((*Params->ppArgs)[i].type == UR_EXP_KERNEL_ARG_TYPE_POINTER) {
+        void *Ptr = (const_cast<void *>((*Params->ppArgs)[i].arg.pointer));
+        CheckPointerValidness("kernel parameter with index = " +
+                                  std::to_string((*Params->ppArgs)[i].index),
+                              Ptr, 0 /*no data how it will be used in kernel*/,
+                              "kernel");
+      }
+    }
   }
 };

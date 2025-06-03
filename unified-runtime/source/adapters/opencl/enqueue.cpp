@@ -16,6 +16,10 @@
 #include "memory.hpp"
 #include "program.hpp"
 #include "queue.hpp"
+#include "sampler.hpp"
+
+#include <array>
+#include <algorithm>
 
 cl_map_flags convertURMapFlagsToCL(ur_map_flags_t URFlags) {
   cl_map_flags CLFlags = 0;
@@ -499,5 +503,112 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
         createUREvent(Event, hQueue->Context, hQueue, phEvent));
   }
 
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
+    const size_t pGlobalWorkOffset[3], const size_t pGlobalWorkSize[3],
+    const size_t pLocalWorkSize[3], uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
+       propIndex++) {
+    // Adapters that don't support cooperative kernels are currently expected
+    // to ignore COOPERATIVE launch properties. Ideally we should avoid passing
+    // these at the SYCL RT level instead, see
+    // https://github.com/intel/llvm/issues/18421
+    if (launchPropList[propIndex].id == UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE ||
+        launchPropList[propIndex].id ==
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+      continue;
+    }
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  // TODO: search arg list for pointer args real quick to see if we need to do
+  // this
+  clSetKernelArgMemPointerINTEL_fn SetKernelArgMemPointerPtr = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
+          hQueue->Context->CLContext,
+          ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
+          cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
+
+  for (uint32_t i = 0; i < numArgs; i++) {
+    switch (pArgs[i].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, nullptr));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, pArgs[i].arg.pointer));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+      cl_mem mem = pArgs[i].arg.memObjTuple.hMem
+                       ? pArgs[i].arg.memObjTuple.hMem->CLMemory
+                       : nullptr;
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, &mem));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      CL_RETURN_ON_FAILURE(SetKernelArgMemPointerPtr(
+          hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
+          pArgs[i].arg.pointer));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+      CL_RETURN_ON_FAILURE(clSetKernelArg(
+          hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
+          pArgs[i].size, &pArgs[i].arg.sampler->CLSampler));
+      break;
+    }
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  std::vector<size_t> compiledLocalWorksize;
+  if (!pLocalWorkSize) {
+    cl_device_id device = nullptr;
+    CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+        hQueue->CLQueue, CL_QUEUE_DEVICE, sizeof(device), &device, nullptr));
+    // This query always returns size_t[3], if nothing was specified it
+    // returns all zeroes.
+    size_t queriedLocalWorkSize[3] = {0, 0, 0};
+    CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
+        hKernel->CLKernel, device, CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
+        sizeof(size_t[3]), queriedLocalWorkSize, nullptr));
+    if (queriedLocalWorkSize[0] != 0) {
+      for (uint32_t i = 0; i < 3; i++) {
+        compiledLocalWorksize.push_back(queriedLocalWorkSize[i]);
+      }
+    }
+  }
+
+  // Normalize so each dimension has at least one work item
+  const std::array<size_t, 3> GlobalWorkSize3D = {
+      std::max(pGlobalWorkSize[0], std::size_t{1}),
+      std::max(pGlobalWorkSize[1], std::size_t{1}),
+      std::max(pGlobalWorkSize[2], std::size_t{1})};
+
+  cl_event Event;
+  std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
+  MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
+  CL_RETURN_ON_FAILURE(clEnqueueNDRangeKernel(
+      hQueue->CLQueue, hKernel->CLKernel, 3, pGlobalWorkOffset,
+      GlobalWorkSize3D.data(),
+      compiledLocalWorksize.empty() ? pLocalWorkSize
+                                    : compiledLocalWorksize.data(),
+      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+
+  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;
 }
