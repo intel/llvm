@@ -30,12 +30,22 @@ enable_testing()
 # It is found here for use in `lit.site.cfg.py.in`, which is inherited by said testing.
 find_program(VALGRIND valgrind)
 
+function(configure_ur_lit_site_cfg input output)
+  if (UR_STANDALONE_BUILD)
+    configure_file(${input} ${output} @ONLY)
+  else()
+    configure_lit_site_cfg(${input} ${output} ${ARGN})
+  endif()
+endfunction()
+
 # Set up the root `check-unified-runtime` target
 add_custom_target(deps_check-unified-runtime)
+configure_ur_lit_site_cfg(
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
+  MAIN_CONFIG
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
 if(UR_STANDALONE_BUILD)
-  configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
-    ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py)
   add_custom_target(check-unified-runtime
     COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -sv
     DEPENDS deps_check-unified-runtime
@@ -43,12 +53,6 @@ if(UR_STANDALONE_BUILD)
   )
 else()
   # Use the LLVM method to add the test suite - this also registers it under `check-all`
-  # and sets up the source to build directory mapping
-  configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
-    ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
-    MAIN_CONFIG
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
   add_lit_testsuite(check-unified-runtime "Running Unified Runtime ${suite} tests"
     ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS FileCheck deps_check-unified-runtime
@@ -68,7 +72,11 @@ function(add_ur_lit_testsuite suite)
   set(TARGET "check-unified-runtime-${suite}")
 
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in)
-    configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+    configure_ur_lit_site_cfg(
+      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+      ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
+      MAIN_CONFIG
+      ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
   endif()
 
   if(UR_STANDALONE_BUILD)
