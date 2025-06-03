@@ -6900,6 +6900,7 @@ void CodeGenModule::EmitGlobalFunctionDefinition(GlobalDecl GD,
         !D->hasAttr<NoInlineAttr>() &&
         !Fn->hasFnAttribute(llvm::Attribute::NoInline) &&
         !D->hasAttr<OptimizeNoneAttr>() && !LangOpts.SYCLIsNativeCPU &&
+        !LangOpts.SYCLIsDevice &&
         !Fn->hasFnAttribute(llvm::Attribute::OptimizeNone) &&
         !ShouldAddOptNone) {
       Fn->addFnAttr(llvm::Attribute::AlwaysInline);
