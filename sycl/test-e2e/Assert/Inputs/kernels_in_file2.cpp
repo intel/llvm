@@ -27,8 +27,11 @@ void enqueueKernel_1_fromFile2(queue *Q) {
   Q->submit([&](handler &CGH) {
     auto Acc = Buf.template get_access<mode::read_write>(CGH);
 
-    CGH.parallel_for<class kernel1_from_separate_file>(
-        numOfItems, [=](sycl::id<1> wiID) { check_nil(Acc[wiID]); });
+    CGH.parallel_for<class kernel1_from_separate_file>(numOfItems,
+                                                       [=](sycl::id<1> wiID) {
+                                                         Acc[wiID] = wiID % 2;
+                                                         check_nil(Acc[wiID]);
+                                                       });
   });
 }
 
@@ -39,7 +42,10 @@ void enqueueKernel_2_fromFile2(queue *Q) {
   Q->submit([&](handler &CGH) {
     auto Acc = Buf.template get_access<mode::read_write>(CGH);
 
-    CGH.parallel_for<class kernel2_from_separate_file>(
-        numOfItems, [=](sycl::id<1> wiID) { check_nil(Acc[wiID]); });
+    CGH.parallel_for<class kernel2_from_separate_file>(numOfItems,
+                                                       [=](sycl::id<1> wiID) {
+                                                         Acc[wiID] = wiID % 2;
+                                                         heck_nil(Acc[wiID]);
+                                                       });
   });
 }
