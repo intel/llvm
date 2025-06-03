@@ -530,7 +530,7 @@ ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
                                  const ur_usm_desc_t *pUSMDesc,
                                  ur_usm_pool_handle_t pool, size_t widthInBytes,
                                  size_t height, size_t elementSizeBytes,
-                                 void **ppMem, size_t *pResultPitch);
+                                 void *ppMem, size_t *pResultPitch);
 ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage);

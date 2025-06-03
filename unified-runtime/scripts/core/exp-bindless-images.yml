@@ -371,7 +371,7 @@ params:
     - type: "size_t"
       name: elementSizeBytes
       desc: "[in] size in bytes of an element in the allocation"
-    - type: void**
+    - type: void*
       name: ppMem
       desc: "[out] pointer to USM shared memory object"
     - type: size_t*

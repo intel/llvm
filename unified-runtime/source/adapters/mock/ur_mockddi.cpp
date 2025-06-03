@@ -8116,7 +8116,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     /// [in] size in bytes of an element in the allocation
     size_t elementSizeBytes,
     /// [out] pointer to USM shared memory object
-    void **ppMem,
+    void *ppMem,
     /// [out] pitch of the allocation
     size_t *pResultPitch) try {
   ur_result_t result = UR_RESULT_SUCCESS;

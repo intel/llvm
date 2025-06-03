@@ -1315,7 +1315,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolTrimToExp_t)(ur_context_handle_t,
 /// @brief Function-pointer for urUSMPitchedAllocExp
 typedef ur_result_t(UR_APICALL *ur_pfnUSMPitchedAllocExp_t)(
     ur_context_handle_t, ur_device_handle_t, const ur_usm_desc_t *,
-    ur_usm_pool_handle_t, size_t, size_t, size_t, void **, size_t *);
+    ur_usm_pool_handle_t, size_t, size_t, size_t, void *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMImportExp

@@ -10017,7 +10017,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     /// [in] size in bytes of an element in the allocation
     size_t elementSizeBytes,
     /// [out] pointer to USM shared memory object
-    void **ppMem,
+    void *ppMem,
     /// [out] pitch of the allocation
     size_t *pResultPitch);
 
@@ -14531,7 +14531,7 @@ typedef struct ur_usm_pitched_alloc_exp_params_t {
   size_t *pwidthInBytes;
   size_t *pheight;
   size_t *pelementSizeBytes;
-  void ***pppMem;
+  void **pppMem;
   size_t **ppResultPitch;
 } ur_usm_pitched_alloc_exp_params_t;
 
