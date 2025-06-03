@@ -86,8 +86,7 @@ TEST(RootGroupTests, ValidNumWorkGroupsQuery) {
   mock::getCallbacks().set_replace_callback(
       "urKernelSuggestMaxCooperativeGroupCountExp", [](void *pParams) {
         auto params = static_cast<
-            ur_kernel_suggest_max_cooperative_group_count_exp_params_t *>(
-            pParams);
+            ur_kernel_suggest_max_cooperative_group_count_params_t *>(pParams);
         **params->ppGroupCountRet = mock_group_count;
         return UR_RESULT_SUCCESS;
       });
