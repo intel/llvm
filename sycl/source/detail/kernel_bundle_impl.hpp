@@ -676,7 +676,7 @@ public:
     } else {
       queue InitQueue{MContext, Dev};
       auto &USMMem =
-          Entry->getOrAllocateDeviceGlobalUSM(getSyclObjImpl(InitQueue));
+          Entry->getOrAllocateDeviceGlobalUSM(*getSyclObjImpl(InitQueue));
       InitQueue.wait_and_throw();
       return USMMem.getPtr();
     }
