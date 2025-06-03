@@ -105,7 +105,7 @@ inline xpti::uid128_t make_uid128(uint64_t FileID, uint64_t FuncID, int Line,
                                   int Col) {
   xpti::uid128_t UID;
   UID.p1 = (FileID << 32) | FuncID;
-  UID.p2 = ((uint64_t)Col << 32) | Line;
+  UID.p2 = ((uint64_t)Col << 32) | (uint64_t)Line;
   UID.instance = 0;
   return UID;
 }
@@ -147,7 +147,15 @@ struct hash_t {
   ///
   /// @param value A 64-bit integer for which the bit count is to be calculated.
   /// @return The number of bits required to represent the input value.
-  int bit_count(uint64_t value) { return (int)log2(value) + 1; }
+  unsigned bit_count(uint64_t value) {
+    // FIXME: using std::log2 is imprecise. There is no guarantee that the
+    // implementation has actual integer overload for log2 and it is allowed to
+    // do a static_cast<double>(value) to compute the result. Not every integer
+    // is represetntable as floating-point, meaning that byte representation of
+    // value as double may not be the same as for integer, resulting in
+    // different result.
+    return static_cast<unsigned>(std::log2(value)) + 1;
+  }
 
   /// @brief Compacts the file ID, function ID, line number, and column number
   /// into a single 64-bit hash value.
@@ -164,7 +172,8 @@ struct hash_t {
   /// @param col An integer that represents the column number.
   /// @return A 64-bit hash value that represents the compacted file ID,
   /// function ID, line number, and column number.
-  uint64_t compact(uint64_t file_id, uint64_t func_id, int line, int col) {
+  uint64_t compact(uint64_t file_id, uint64_t func_id, uint64_t line,
+                   uint64_t col) {
     uint64_t funcB, lineB, colB;
     // Figure out the bit counts necessary to represent the input values
     funcB = bit_count(func_id);
@@ -177,9 +186,9 @@ struct hash_t {
     hash <<= funcB;
     hash = hash | func_id;
     hash <<= lineB;
-    hash = hash | (uint64_t)line;
+    hash = hash | line;
     hash <<= colB;
-    hash = hash | (uint64_t)col;
+    hash = hash | col;
 #ifdef DEBUG
     uint64_t fileB = bit_count(file_id);
     std::cout << "Total bits: " << (fileB + funcB + lineB + colB) << "\n";
@@ -203,7 +212,7 @@ struct hash_t {
   /// @param line An integer that represents the line number.
   /// @return A 64-bit hash value that represents the compacted file ID,
   /// function ID, and line number.
-  uint64_t compact_short(uint64_t file_id, uint64_t func_id, int line) {
+  uint64_t compact_short(uint64_t file_id, uint64_t func_id, uint64_t line) {
     uint64_t funcB, lineB;
     funcB = bit_count(func_id);
     lineB = bit_count(line);
@@ -215,7 +224,7 @@ struct hash_t {
     hash <<= funcB;
     hash = hash | func_id;
     hash <<= lineB;
-    hash = hash | (uint64_t)line;
+    hash = hash | line;
 #ifdef DEBUG
     uint64_t fileB = bit_count(file_id);
     std::cout << "Total bits: " << (fileB + funcB + lineB) << "\n";
@@ -312,7 +321,8 @@ struct uid_t {
 } // namespace xpti
 
 namespace xpti {
-constexpr int invalid_id = -1;
+template <typename T = uint32_t>
+constexpr T invalid_id = std::numeric_limits<T>::max();
 constexpr uint64_t invalid_uid = 0;
 constexpr uint8_t default_vendor = 0;
 
@@ -428,11 +438,11 @@ struct payload_t {
   /// Absolute path of the source file; may have to to be unicode string
   const char *source_file = nullptr;
   /// Line number information to correlate the trace point
-  uint32_t line_no = invalid_id;
+  uint32_t line_no = invalid_id<>;
   /// For a complex statement, column number may be needed to resolve the
   /// trace point; currently none of the compiler builtins return a valid
   /// column no
-  uint32_t column_no = invalid_id;
+  uint32_t column_no = invalid_id<>;
   /// Kernel/lambda/function address
   const void *code_ptr_va = nullptr;
   /// Internal bookkeeping slot - do not change.
@@ -453,8 +463,8 @@ struct payload_t {
     code_ptr_va = codeptr;
     name = nullptr;         ///< Invalid name string pointer
     source_file = nullptr;  ///< Invalid source file string pointer
-    line_no = invalid_id;   ///< Invalid line number
-    column_no = invalid_id; ///< Invalid column number
+    line_no = invalid_id<>;   ///< Invalid line number
+    column_no = invalid_id<>; ///< Invalid column number
     if (codeptr) {
       flags = (uint64_t)payload_flag_t::CodePointerAvailable;
     }
@@ -517,8 +527,8 @@ struct payload_t {
     /// Capture the rest of the parameters
     name = kname;
     source_file = sf;
-    line_no = line;
-    column_no = col;
+    line_no = static_cast<uint32_t>(line);
+    column_no = static_cast<uint32_t>(col);
     if (kname && kname[0] != '\0') {
       flags = (uint64_t)payload_flag_t::NameAvailable;
     }
