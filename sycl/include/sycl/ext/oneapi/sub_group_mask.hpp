@@ -9,7 +9,6 @@
 
 #include <sycl/detail/helpers.hpp> // for Builder
 #include <sycl/detail/memcpy.hpp>  // detail::memcpy
-#include <sycl/exception.hpp>      // for errc, exception
 #include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 #include <sycl/id.hpp>             // for id
 #include <sycl/marray.hpp>         // for marray
@@ -338,8 +337,7 @@ template <typename Group>
 std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group> ||
                      std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
                  sub_group_mask>
-group_ballot(Group g, bool predicate) {
-  (void)g;
+group_ballot([[maybe_unused]] Group g, [[maybe_unused]] bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
       sycl::detail::spirv::group_scope<Group>::value, predicate);
@@ -349,9 +347,8 @@ group_ballot(Group g, bool predicate) {
   return sycl::detail::Builder::createSubGroupMask<sub_group_mask>(
       val, g.get_max_local_range()[0]);
 #else
-  (void)predicate;
-  throw exception{errc::feature_not_supported,
-                  "Sub-group mask is not supported on host device"};
+  // Groups are not user-constructible, this call should not be reachable from
+  // host and therefore we do nothing here.
 #endif
 }
 
