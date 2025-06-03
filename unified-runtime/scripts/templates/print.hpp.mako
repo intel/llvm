@@ -99,14 +99,7 @@ def findMemberType(_item):
         ${x}::details::printUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif th.type_traits.is_array(item['type']):
         os << ".${iname} = {";
-        for(auto i = 0; i < ${th.type_traits.get_array_length(item['type'])}; i++){
-            if(i != 0){
-                os << ", ";
-            }
-            <%call expr="member(iname, itype, True)">
-                ${deref}(params${access}${item['name']}[i])
-            </%call>
-        }
+        ${x}::details::printArray<${th.type_traits.get_array_length(item['type'])}>(os, ${deref}params${access}${pname});
         os << "}";
     %elif typename is not None:
         os << ".${iname} = ";
@@ -134,6 +127,7 @@ inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T> inline ${x}_result_t printPtr(std::ostream &os, const T *ptr);
 template <typename T> inline ${x}_result_t printFlag(std::ostream &os, uint32_t flag);
 template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const void *ptr, T value, size_t size);
+template <size_t size, typename T> inline ur_result_t printArray(std::ostream &os, const T *ptr);
 
 %for spec in specs:
 %for obj in spec['objects']:
@@ -448,6 +442,25 @@ template <typename T> inline ${x}_result_t printPtr(std::ostream &os, const T *p
     }
 
     return ${X}_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// @brief Print array of literals
+template <size_t size, typename T>
+inline ur_result_t printArray(std::ostream &os, const T *ptr) {
+  if(ptr == NULL)  {
+    return printPtr(os, ptr);
+  }
+
+  for (size_t i = 0; i < size; i++) {
+    if (i != 0) {
+      os << ", ";
+    }
+
+    os << ptr[i];
+  }
+
+  return ${X}_RESULT_SUCCESS;
 }
 } // namespace ${x}::details
 
