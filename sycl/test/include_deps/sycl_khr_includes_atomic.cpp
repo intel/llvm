@@ -21,11 +21,11 @@
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: exception.hpp
-// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: detail/array.hpp
+// CHECK-NEXT: exception.hpp
+// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
