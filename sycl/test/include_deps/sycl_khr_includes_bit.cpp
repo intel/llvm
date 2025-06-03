@@ -5,4 +5,5 @@
 // CHECK-LABEL: Dependencies for <sycl/khr/includes/bit>:
 // CHECK-NEXT: /dev/null: /dev/null
 // CHECK-NEXT: khr/includes/bit
+// CHECK-NEXT: bit_cast.hpp
 // CHECK-EMPTY:
