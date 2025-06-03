@@ -14,6 +14,7 @@
 
 #include "msan_interceptor.hpp"
 #include "msan_ddi.hpp"
+#include "msan_origin.hpp"
 #include "msan_report.hpp"
 #include "msan_shadow.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
@@ -53,18 +54,30 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   std::shared_ptr<DeviceInfo> DeviceInfo =
       Device ? getDeviceInfo(Device) : nullptr;
 
-  void *Allocated = nullptr;
+  // Origin tracking needs alignment at leat is 4
+  constexpr uint32_t MSAN_ORIGIN_TRACKING_GRANULARITY = 4;
 
-  if (Type == AllocType::DEVICE_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  } else if (Type == AllocType::HOST_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                                      Size, &Allocated));
-  } else if (Type == AllocType::SHARED_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
+  uint32_t Alignment = Properties ? Properties->align : 4;
+  // Alignment must be zero or a power-of-two
+  if (0 != (Alignment & (Alignment - 1))) {
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
+  if (Alignment < MSAN_ORIGIN_TRACKING_GRANULARITY) {
+    Alignment = MSAN_ORIGIN_TRACKING_GRANULARITY;
+  }
+
+  ur_usm_desc_t NewProperties;
+  if (Properties) {
+    NewProperties = *Properties;
+    NewProperties.align = Alignment;
+  } else {
+    NewProperties = {UR_STRUCTURE_TYPE_USM_DESC, nullptr,
+                     UR_USM_ADVICE_FLAG_DEFAULT, Alignment};
+  }
+
+  void *Allocated = nullptr;
+  UR_CALL(
+      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
 
   *ResultPtr = Allocated;
 
@@ -78,14 +91,9 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   }
   assert(Device);
 
-  auto AI = std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
-                                                          Size,
-                                                          false,
-                                                          Context,
-                                                          Device,
-                                                          GetCurrentBacktrace(),
-                                                          {}});
-
+  StackTrace Stack = GetCurrentBacktrace();
+  auto AI = std::make_shared<MsanAllocInfo>(
+      MsanAllocInfo{(uptr)Allocated, Size, false, Context, Device, Stack, {}});
   AI->print();
 
   // For memory release
@@ -94,10 +102,28 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     m_AllocationMap.emplace(AI->AllocBegin, AI);
   }
 
+  // For origin tracking
+  HeapType HeapType;
+  switch (Type) {
+  case AllocType::DEVICE_USM:
+    HeapType = HeapType::DeviceUSM;
+    break;
+  case AllocType::HOST_USM:
+    HeapType = HeapType::HostUSM;
+    break;
+  case AllocType::SHARED_USM:
+    HeapType = HeapType::SharedUSM;
+    break;
+  default:
+    assert(false && "Unknown heap type");
+  }
+
+  Origin HeapOrigin = Origin::CreateHeapOrigin(Stack, HeapType);
+
   // Update shadow memory
   ManagedQueue Queue(Context, Device);
-  DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin, AI->AllocSize,
-                                          0xff);
+  DeviceInfo->Shadow->EnqueuePoisonShadowWithOrigin(
+      Queue, AI->AllocBegin, AI->AllocSize, 0xff, HeapOrigin.rawId());
 
   return UR_RESULT_SUCCESS;
 }
@@ -286,9 +312,9 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
       // Only support device global USM
       if (DeviceInfo->Type == DeviceType::CPU ||
           (DeviceInfo->Type == DeviceType::GPU_PVC &&
-           MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
+           MsanShadowMemoryPVC::isDeviceUSM(GVInfo.Addr)) ||
           (DeviceInfo->Type == DeviceType::GPU_DG2 &&
-           MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
+           MsanShadowMemoryDG2::isDeviceUSM(GVInfo.Addr))) {
         UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
                                                         GVInfo.Size, 0));
         ContextInfo->CleanShadowSize =
