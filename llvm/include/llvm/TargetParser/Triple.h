@@ -105,6 +105,7 @@ public:
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
     fpga,           // Intel FPGA
+    native_cpu,     // Native CPU
     ve,             // NEC SX-Aurora Vector Engine
     LastArchType = ve
   };
@@ -1086,6 +1087,9 @@ public:
   bool isCSKY() const {
     return getArch() == Triple::csky;
   }
+
+  // Tests whether the target is NativeCPU.
+  bool isNativeCPU() const { return getArch() == Triple::native_cpu; }
 
   /// Tests whether the target is the Apple "arm64e" AArch64 subarch.
   bool isArm64e() const {

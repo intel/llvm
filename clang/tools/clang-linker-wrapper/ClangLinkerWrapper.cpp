@@ -648,9 +648,8 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                                SmallVector<StringRef, 8> &PostLinkArgs,
                                const llvm::Triple Triple) {
   const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
-  bool SYCLNativeCPU = Triple.str() == "native_cpu";
   bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
-                              !Triple.isSPIRAOT() && !SYCLNativeCPU);
+                              !Triple.isSPIRAOT() && !Triple.isNativeCPU());
   if (SpecConstsSupported)
     PostLinkArgs.push_back("-spec-const=native");
   else
@@ -677,7 +676,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   // TODO: Try to extend this feature for non-Intel GPUs.
   if ((!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
                      OPT_sycl_remove_unused_external_funcs, false) &&
-       !SYCLNativeCPU) &&
+       !Triple.isNativeCPU()) &&
       !Args.hasArg(OPT_sycl_allow_device_image_dependencies) &&
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     PostLinkArgs.push_back("-emit-only-kernels-as-entry-points");
@@ -685,7 +684,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   if (!Triple.isAMDGCN())
     PostLinkArgs.push_back("-emit-param-info");
   // Enable program metadata
-  if (Triple.isNVPTX() || Triple.isAMDGCN() || SYCLNativeCPU)
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isNativeCPU())
     PostLinkArgs.push_back("-emit-program-metadata");
 
   bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
@@ -1565,7 +1564,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     return ClangPath.takeError();
 
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  if (Triple.str() == "native_cpu")
+  if (Triple.isNativeCPU())
     Triple = llvm::Triple(Args.getLastArgValue(OPT_host_triple_EQ));
 
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
@@ -1688,6 +1687,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
+  case Triple::native_cpu:
     return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:
@@ -1720,9 +1720,6 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::loongarch64:
     return generic::clang(InputFiles, Args, IsSYCLKind);
   default:
-    if (Triple.str() == "native_cpu" && IsSYCLKind)
-      return generic::clang(InputFiles, Args);
-
     return createStringError(Triple.getArchName() +
                              " linking is not supported");
   }

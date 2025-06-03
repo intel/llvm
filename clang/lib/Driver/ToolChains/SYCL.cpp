@@ -770,7 +770,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addSingleLibrary(SYCLDeviceTsanLibs[sanitizer_lib_idx]);
 #endif
 
-  if (isSYCLNativeCPU(TargetTriple))
+  if (TargetTriple.isNativeCPU())
     addLibraries(SYCLNativeCpuDeviceLibs);
 
   return LibraryList;
@@ -948,7 +948,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
       const bool IsSYCLNativeCPU =
-          isSYCLNativeCPU(this->getToolChain().getTriple());
+          this->getToolChain().getTriple().isNativeCPU();
       StringRef LibPostfix = ".bc";
       StringRef NewLibPostfix = ".new.o";
       if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
@@ -1092,7 +1092,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   assert((getToolChain().getTriple().isSPIROrSPIRV() ||
           getToolChain().getTriple().isNVPTX() ||
           getToolChain().getTriple().isAMDGCN() ||
-          isSYCLNativeCPU(getToolChain().getTriple())) &&
+          getToolChain().getTriple().isNativeCPU()) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -1480,7 +1480,7 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
 // Currently supported options by SYCL NativeCPU device compilation
 static inline bool SupportedByNativeCPU(const llvm::Triple &Triple,
                                         const OptSpecifier &Opt) {
-  if (!isSYCLNativeCPU(Triple))
+  if (!Triple.isNativeCPU())
     return false;
 
   switch (Opt.getID()) {
@@ -1929,7 +1929,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 }
 
 Tool *SYCLToolChain::buildLinker() const {
-  assert(getTriple().isSPIROrSPIRV() || isSYCLNativeCPU(getTriple()));
+  assert(getTriple().isSPIROrSPIRV() || getTriple().isNativeCPU());
   return new tools::SYCL::Linker(*this);
 }
 

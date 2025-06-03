@@ -964,7 +964,7 @@ static bool isValidSYCLTriple(llvm::Triple T) {
     return true;
 
   // 'native_cpu' is valid for Native CPU.
-  if (isSYCLNativeCPU(T))
+  if (T.isNativeCPU())
     return true;
 
   // Check for invalid SYCL device triple values.
@@ -5554,7 +5554,7 @@ class OffloadingActionBuilder final {
       auto IsAMDGCN = TargetTriple.isAMDGCN();
       auto IsSPIR = TargetTriple.isSPIROrSPIRV();
       bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-      bool IsSYCLNativeCPU = isSYCLNativeCPU(TargetTriple);
+      bool IsSYCLNativeCPU = TargetTriple.isNativeCPU();
       for (const auto &Input : ListIndex) {
         // No need for any conversion if we are coming in from the
         // clang-offload-deps or regular compilation path.
@@ -9128,7 +9128,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       Action::OffloadKind DependentOffloadKind;
       if (UI.DependentOffloadKind == Action::OFK_SYCL &&
           TargetDeviceOffloadKind == Action::OFK_None &&
-          !(isSYCLNativeCPU(C.getDefaultToolChain().getTriple()) &&
+          !(C.getDefaultToolChain().getTriple().isNativeCPU() &&
             UA->getDependentActionsInfo().size() > 1))
         DependentOffloadKind = Action::OFK_Host;
       else
@@ -10025,7 +10025,7 @@ const ToolChain &Driver::getOffloadToolChain(
                                                            *HostTC, Args, Kind);
       break;
     default:
-      if (Kind == Action::OFK_SYCL && isSYCLNativeCPU(Target))
+      if (Kind == Action::OFK_SYCL && Target.isNativeCPU())
         TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target, *HostTC,
                                                          Args);
       break;
