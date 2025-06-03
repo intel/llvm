@@ -1904,7 +1904,7 @@ void modifiable_command_graph::end_recording(
 
 void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
                                            bool verbose) const {
-  std::string path{pathstr.data()};
+  std::string path{std::string_view(pathstr)};
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
     impl->printGraphAsDot(std::move(path), verbose);

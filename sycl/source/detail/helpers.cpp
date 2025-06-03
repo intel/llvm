@@ -38,7 +38,7 @@ markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
 }
 
 std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
-retrieveKernelBinary(queue_impl &Queue, const char *KernelName,
+retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
                      CGExecKernel *KernelCG) {
   device_impl &Dev = Queue.getDeviceImpl();
   bool isNvidia = Dev.getBackend() == backend::ext_oneapi_cuda;
