@@ -4402,6 +4402,56 @@ ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Query the maximum number of work groups for a cooperative kernel
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pLocalWorkSize`
+///         + `NULL == pGroupCountRet`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES returns a value
+///         without the ::UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE bit set.
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///         + `workDim < 1 || workDim > 3`
+ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] number of dimensions, from 1 to 3, to specify the work-group
+    /// work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of local work-items forming a work-group that will execute the
+    /// kernel function.
+    const size_t *pLocalWorkSize,
+    /// [in] size of dynamic shared memory, for each work-group, in bytes,
+    /// that will be used when the kernel is launched
+    size_t dynamicSharedMemorySize,
+    /// [out] pointer to maximum number of groups
+    uint32_t *pGroupCountRet) try {
+  auto pfnSuggestMaxCooperativeGroupCount =
+      ur_lib::getContext()
+          ->urDdiTable.Kernel.pfnSuggestMaxCooperativeGroupCount;
+  if (nullptr == pfnSuggestMaxCooperativeGroupCount)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSuggestMaxCooperativeGroupCount(
+      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+      pGroupCountRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
 ///
 /// @remarks
@@ -5066,6 +5116,7 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
+///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -5080,6 +5131,8 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any property in `launchPropList` isn't supported by the device.
 ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
@@ -5100,6 +5153,11 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
+    const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -5118,8 +5176,9 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                         pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList,
-                         phEventWaitList, phEvent);
+                         pGlobalWorkSize, pLocalWorkSize,
+                         numPropsInLaunchPropList, launchPropList,
+                         numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -9841,121 +9900,6 @@ ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to execute a cooperative kernel
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
-///         + `NULL == pGlobalWorkSize`
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) try {
-  auto pfnCooperativeKernelLaunchExp =
-      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
-  if (nullptr == pfnCooperativeKernelLaunchExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnCooperativeKernelLaunchExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Query the maximum number of work groups for a cooperative kernel
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pLocalWorkSize`
-///         + `NULL == pGroupCountRet`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] number of dimensions, from 1 to 3, to specify the work-group
-    /// work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of local work-items forming a work-group that will execute the
-    /// kernel function.
-    const size_t *pLocalWorkSize,
-    /// [in] size of dynamic shared memory, for each work-group, in bytes,
-    /// that will be used when the kernel is launched
-    size_t dynamicSharedMemorySize,
-    /// [out] pointer to maximum number of groups
-    uint32_t *pGroupCountRet) try {
-  auto pfnSuggestMaxCooperativeGroupCountExp =
-      ur_lib::getContext()
-          ->urDdiTable.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
-  if (nullptr == pfnSuggestMaxCooperativeGroupCountExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSuggestMaxCooperativeGroupCountExp(
-      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
-      pGroupCountRet);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command for recording the device timestamp
 ///
 /// @returns
@@ -10002,103 +9946,6 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 
   return pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
                                   phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Launch kernel with custom launch properties
-///
-/// @details
-///     - Launches the kernel using the specified launch properties
-///     - If numPropsInLaunchPropList == 0 then a regular kernel launch is used:
-///       `urEnqueueKernelLaunch`
-///     - Consult the appropriate adapter driver documentation for details of
-///       adapter specific behavior and native error codes that may be returned.
-///
-/// @remarks
-///   _Analogues_
-///     - **cuLaunchKernelEx**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///         + NULL == hQueue
-///         + NULL == hKernel
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
-///         + `NULL == pGlobalWorkSize`
-///         + `NULL == launchPropList`
-///         + NULL == pGlobalWorkSize
-///         + numPropsInLaunchpropList != 0 && launchPropList == NULL
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + phEventWaitList == NULL && numEventsInWaitList > 0
-///         + phEventWaitList != NULL && numEventsInWaitList == 0
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
-///         + An event in phEventWaitList has ::UR_EVENT_STATUS_ERROR
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function. If nullptr, the runtime implementation
-    /// will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_exp_launch_property_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If nullptr,
-    /// the numEventsInWaitList must be 0, indicating that no wait event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) try {
-  auto pfnKernelLaunchCustomExp =
-      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
-  if (nullptr == pfnKernelLaunchCustomExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnKernelLaunchCustomExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

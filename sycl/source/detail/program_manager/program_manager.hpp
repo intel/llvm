@@ -198,8 +198,7 @@ public:
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-             ur_program_handle_t>
+  FastKernelCacheValPtr
   getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
                     KernelNameBasedCacheT *KernelNameBasedCachePtr,
