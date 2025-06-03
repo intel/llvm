@@ -1,0 +1,115 @@
+= sycl_ext_oneapi_ternary_bitwise
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+Some hardware offers efficient bitwise operations on three arguments. To expose
+these bitwise operations in SYCL, this extension adds a new `ternary_bitwise`
+function, where the bitwise operation computed is controlled through a
+look-up table (LUT) index computed by applying the bitwise operation to a
+predefined set of operands.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_TERNARY_BITWISE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New `ternary_bitwise` function
+
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <uint8_t LUTIndex, typename T> T ternary_bitwise(T A, T B, T C)
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ The type `T` must be a generic integer type, as listed in section
+link:https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:integer-functions[4.17.7. Integer functions]
+of the SYCL 2020 specification.
+
+_Returns:_ The result of the bitwise operation identified by `LUTIndex` applied
+to `a`, `b` and `c`.  For any `I` it holds that
+`ternary_bitwise<I, uint8_t>(0xAA, 0xCC, 0xF0) == I` evaluates to `true, so the
+`LUTIndex` for a bitwise operation can be determined by applying the bitwise
+operation to `0xAA`, `0xCC` and `0xF0` in place of `a`, `b` and `c`
+respectively.
+|====
+
