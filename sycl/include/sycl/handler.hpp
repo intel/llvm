@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
+#include <iostream>
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cg_types.hpp>
@@ -36,7 +36,6 @@
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
-#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
@@ -163,6 +162,10 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
+template <typename>
+struct is_special_type_wrapper;
+template <typename>
+struct special_type_wrapper_info;
 class dynamic_parameter_base;
 class dynamic_work_group_memory_base;
 class dynamic_local_accessor_base;
@@ -666,6 +669,7 @@ private:
 
   void setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg);
 
+
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -673,6 +677,7 @@ private:
   setArgHelper(
       int ArgIndex,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
+    std::cout << "Called accessor " << ArgIndex << std::endl;
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     const detail::AccessorImplPtr &AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
@@ -683,7 +688,7 @@ private:
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
-
+    std::cout << "Called " << ArgIndex << std::endl;
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
@@ -1816,9 +1821,7 @@ public:
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value          // Interop
-        || is_same_type<stream, T>::value          // Stream
-        || ext::oneapi::experimental::detail::is_explicitly_allowed_arg<
-               remove_cv_ref_t<T>>::value;
+        || is_same_type<stream, T>::value;         // Stream
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1838,7 +1841,7 @@ public:
   void
   set_arg(int ArgIndex,
           accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> Arg) {
-    setArgHelper(ArgIndex, std::move(Arg));
+  setArgHelper(ArgIndex, std::move(Arg));
   }
 
   template <typename DataT, int Dims>
@@ -1854,6 +1857,19 @@ public:
     // slice the base class object out of Arg
     detail::work_group_memory_impl &ArgImpl = Arg;
     setArgHelper(ArgIndex, ArgImpl);
+  }
+
+  template <typename T>
+  typename std::enable_if_t<
+      ext::oneapi::experimental::detail::is_special_type_wrapper<
+          remove_cv_ref_t<T>>::value,
+      void>
+  set_arg(int ArgIndex, T &Arg) {
+    setArgHelper(ArgIndex, Arg);
+    int Shift;
+    ext::oneapi::experimental::detail::special_type_wrapper_info<
+      remove_cv_ref_t<T>>::template set_arg(ArgIndex + 1, Arg, *this, Shift);
+    MArgShift += Shift;
   }
 
   // set_arg for graph dynamic_parameters
@@ -3386,6 +3402,8 @@ private:
   bool MIsFinalized = false;
   event MLastEvent;
 
+  int MArgShift = 0;
+
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
   // Make accessor class friend to keep the list of associated accessors.
@@ -3395,7 +3413,8 @@ private:
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
   friend detail::device_impl &detail::getDeviceImplFromHandler(handler &);
-
+  //template <typename, typename>
+  //friend struct ext::oneapi::experimental::detail::special_type_wrapper_info;
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
   friend class detail::image_accessor;

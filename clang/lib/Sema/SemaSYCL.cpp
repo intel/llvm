@@ -2634,8 +2634,6 @@ public:
   }
 
   bool handleScalarType(ParmVarDecl *PD, QualType ParamTy) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2843,9 +2841,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // For free function kernels the arguments are named in direct mapping
       // with the names they have in the __init method i.e __arg_Ptr for work
       // group memory since its init function takes a parameter with Ptr name.
-      if constexpr (std::is_same_v<ParentDecl, FieldDecl>)
-        addParam(decl, ParamTy.getCanonicalType());
-      else
         addParam(Param, ParamTy.getCanonicalType());
       // Propagate add_ir_attributes_kernel_parameter attribute.
       if (const auto *AddIRAttr =
@@ -2955,6 +2950,7 @@ public:
         SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
 
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
+    KernelDecl->dump();
   }
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
@@ -2990,7 +2986,7 @@ public:
   }
 
   bool handleStructType(ParmVarDecl *PD, QualType Ty) final {
-    StringRef Name = "_arg_struct";
+  StringRef Name = "_arg_struct";
     addParam(Name, Ty);
     CurrentStruct = Params.back();
     return true;
@@ -4349,6 +4345,10 @@ public:
 class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
+  // Keep track of the structs we have encountered on our way to a special type.
+  // They will be needed to properly generate the __init call. Note that the
+  // top-level struct parameter is not kept track here because that is done by
+  // the DeclCreator.
   llvm::SmallVector<FieldDecl *, 8> CurrentStructs;
   FunctionDecl *FreeFunc = nullptr;
   SourceLocation FreeFunctionSrcLoc; // Free function source location.
@@ -4516,15 +4516,15 @@ public:
 
   ~FreeFunctionKernelBodyCreator() {
     CompoundStmt *KernelBody = createFreeFunctionKernelBody();
+    KernelBody->dumpPretty(SemaSYCLRef.SemaRef.getASTContext());
     DeclCreator.setBody(KernelBody);
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     // Being inside this function means there is a struct parameter to the free
     // function kernel that contains a special type.
-    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
-    // special_type_wrapper_map[ParentStruct->getType()] = true;
-    Expr *Base = createParamReferenceExpr(ParentStruct);
+    //ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
+    Expr *Base = ArgExprs.back();
     for (const auto &child : CurrentStructs) {
       Base = buildMemberExpr(Base, child);
     }
@@ -4634,8 +4634,6 @@ public:
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4663,8 +4661,41 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
-                   QualType Ty) final {
-    return true;
+                   QualType ParamTy) final {
+ const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+    AccessSpecifier DefaultConstructorAccess;
+    auto DefaultConstructor =
+        std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
+
+    ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
+    VarDecl *SpecialObjectClone =
+        VarDecl::Create(Ctx, DeclCreator.getKernelDecl(), FreeFunctionSrcLoc,
+                        FreeFunctionSrcLoc, PD->getIdentifier(), ParamTy,
+                        Ctx.getTrivialTypeSourceInfo(ParamTy), SC_None);
+    InitializedEntity VarEntity =
+        InitializedEntity::InitializeVariable(SpecialObjectClone);
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(FreeFunctionSrcLoc);
+    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
+                                   std::nullopt);
+    ExprResult Init =
+        InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity, InitKind, std::nullopt);
+    SpecialObjectClone->setInit(
+        SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
+    SpecialObjectClone->setInitStyle(VarDecl::CallInit);
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
+
+    Stmt *DS = new (SemaSYCLRef.getASTContext())
+        DeclStmt(DeclGroupRef(SpecialObjectClone), FreeFunctionSrcLoc,
+                 FreeFunctionSrcLoc);
+    BodyStmts.push_back(DS);
+    Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        SpecialObjectClone, ParamTy, VK_PRValue, FreeFunctionSrcLoc);
+   ArgExprs.push_back(MemberBaseExpr);
+return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
@@ -4673,9 +4704,9 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
-    ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        ParentStruct, ParentStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
+    //ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
+    //ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+      //  ParentStruct, ParentStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
     return true;
   }
 
@@ -4724,6 +4755,153 @@ public:
     assert(CurrentStructs.size() &&
            "Current free function parameter is not inside a structure!");
     return CurrentStructs.back();
+  }
+};
+
+class FreeFunctionKernelParamDecomposer : public SyclKernelFieldHandler {
+  ParmVarDecl *TopLevelStruct;
+  llvm::SmallVector<FieldDecl *, 8> CurrentStructs;
+  SourceLocation FreeFunctionSrcLoc;
+  FunctionDecl *FreeFunction;
+  SYCLIntegrationHeader &H;
+  SyclKernelDeclCreator &DeclCreator;
+
+  // Creates a DeclRefExpr to the ParmVar that represents an arbitrary
+  // free function parameter
+  Expr *createParamReferenceExpr(ParmVarDecl *FreeFunctionParameter) {
+    QualType FreeFunctionParamType = FreeFunctionParameter->getOriginalType();
+    Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        FreeFunctionParameter, FreeFunctionParamType, VK_LValue,
+        FreeFunctionSrcLoc);
+    DRE = SemaSYCLRef.SemaRef.DefaultLvalueConversion(DRE).get();
+    return DRE;
+  }
+
+  MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
+    return MemberExpr::CreateImplicit(
+        SemaSYCLRef.getASTContext(), Base, /*IsArrow */ false, Member,
+        Member->getType(), VK_LValue, OK_Ordinary);
+  }
+
+public:
+  static constexpr const bool VisitInsideSimpleContainers = false;
+
+  FreeFunctionKernelParamDecomposer(SemaSYCL &S, SYCLIntegrationHeader &Header, FunctionDecl *FF, SyclKernelDeclCreator &DC)
+      : SyclKernelFieldHandler(S), FreeFunctionSrcLoc(FF->getLocation()), FreeFunction(FF), H(Header), DeclCreator(DC) {}
+
+bool handleSyclSpecialType(ParmVarDecl *, QualType) final { return true; }
+
+  bool handleSyclSpecialType(FieldDecl *FD, QualType Ty) final {
+    ParmVarDecl * ParentStruct = DeclCreator.getParentStructForCurrentField();
+    Expr *Base = createParamReferenceExpr(ParentStruct);
+    for (const auto &child : CurrentStructs) {
+      Base = buildMemberExpr(Base, child);
+    }
+    MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
+    H.addFreeFunctionParamDecomposition(TopLevelStruct->getType(), MemberAccess);
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
+    CurrentStructs.push_back(FD);
+    return true;
+  }
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+    CurrentStructs.pop_back();
+    return true;
+  }
+  bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
+                   QualType Ty) final {
+    TopLevelStruct = PD;
+    return true;
+  }
+
+bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType Ty) final {
+    return true;
+  }
+
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    return true;
+  }
+
+  bool handlePointerType(ParmVarDecl *PD, QualType ParamTy) final {
+    return true;
+  }
+
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
+                             QualType) final {
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *RD,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    return true;
+  }
+
+  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
+    ParmVarDecl * ParentStruct = DeclCreator.getParentStructForCurrentField();
+    Expr *Base = createParamReferenceExpr(ParentStruct);
+    for (const auto &child : CurrentStructs) {
+      Base = buildMemberExpr(Base, child);
+    }
+    MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
+    H.addFreeFunctionParamDecomposition(TopLevelStruct->getType(), MemberAccess);
+    return true;
+  }
+
+  bool handleScalarType(ParmVarDecl *, QualType) final {
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return true;
+  }
+
+  bool handleUnionType(ParmVarDecl *, QualType) final {
+    return true;
+  }
+  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *FD, QualType Ty) final {
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                   QualType) final {
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                   QualType) final {
+    return true;
+  }
+
+  bool enterArray(FieldDecl *FD, QualType ArrayType,
+                  QualType ElementType) final {
+    return true;
+  }
+
+  bool enterArray(ParmVarDecl *PD, QualType ArrayType,
+                  QualType ElementType) final {
+    return true;
+  }
+
+  bool leaveArray(FieldDecl *FD, QualType ArrayType,
+                  QualType ElementType) final {
+    return true;
+  }
+
+  bool leaveArray(ParmVarDecl *PD, QualType ArrayType,
+                  QualType ElementType) final {
+    return true;
   }
 };
 
@@ -5012,7 +5190,8 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
+  bool enterStruct(const CXXRecordDecl *, ParmVarDecl * PD, QualType Ty) final {
+    addParam(PD, Ty, SYCLIntegrationHeader::kind_std_layout);
     return true;
   }
 
@@ -5527,14 +5706,16 @@ void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
 
   FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);
 
-  SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
-                                        FD->getType(), FD);
+  FreeFunctionKernelParamDecomposer decomposer(*this, getSyclIntegrationHeader(), FD, kernel_decl);
+
+  SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(), FD->getType(), FD);
 
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   KernelObjVisitor Visitor{*this};
 
-  Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body, int_header, int_footer);
-  
+  Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body, decomposer,
+                                  int_header, int_footer);
+
   assert(getKernelFDPairs().back().first == FD &&
          "OpenCL Kernel not found for free function entry");
   // Register the kernel name with the OpenCL kernel generated for the
@@ -6068,6 +6249,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(work_group_memory);
     CASE(dynamic_work_group_memory);
     CASE(dynamic_accessor);
+    CASE(special_type_wrapper);
   }
   return "<ERROR>";
 
@@ -6710,6 +6892,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
   O << "#include <sycl/access/access.hpp>\n";
+  O << "#include <type_traits>\n";
   O << "\n";
 
   LangOptions LO;
@@ -7016,25 +7199,45 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     ParmListWithNamesOstream.flush();
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
-      // if (FreeFunctionKernelBodyCreator::isSpecialTypeWrapper(
-      //       Param->getType())) {
-      //  this is a struct that contains a special type so its neither a
-      //  special type nor a trivially copyable type. We therefore need to
-      //  explicitly communicate to the runtime that this argument should be
-      //  allowed as a free function kernel argument. We do this by defining
-      //  a certain trait recognized by the runtime to be true.
-      O << "template <>\n";
-      O << "struct "
-           "sycl::ext::oneapi::experimental::detail::is_explicitly_allowed_"
-           "arg<";
-      Policy.SuppressTagKeyword = true;
+      if (DecompositionMap.count(Param->getType().getAsOpaquePtr())) {
+        //  this is a struct that contains a special type so its neither a
+        //  special type nor a trivially copyable type. We therefore need to
+        //  explicitly communicate to the runtime that this argument should be
+        //  allowed as a free function kernel argument. We do this by defining
+        //  a certain trait recognized by the runtime to be true.
+        O << "template <>\n";
+        O << "struct "
+             "sycl::ext::oneapi::experimental::detail::is_special_type_"
+             "wrapper<";
+        Policy.SuppressTagKeyword = true;
 
-      Param->getType().print(O, Policy);
-      Policy.SuppressTagKeyword = false;
-      O << "> {\n";
-      O << " static constexpr bool value = true;\n};\n";
-      //}
+        Param->getType().print(O, Policy);
+        O << "> {\n";
+        O << " inline static constexpr bool value = true;\n};\n\n";
+        O << " namespace sycl { inline namespace _V1 { namespace ext { namespace oneapi { namespace "
+             "experimental { namespace detail { \n";
+        O << "template <> struct special_type_wrapper_info<";
+        Param->getType().print(O, Policy);
+        O << "> {\n";
+        O << "template< typename DataT, typename HandlerT, typename = "
+             "std::enable_if_t<std::is_same_v<std::remove_cv_t<DataT>, ";
+        Param->getType().print(O, Policy);
+        O << ">>>\n";
+        O << "static void set_arg(int ArgIndex, DataT& ";
+        O << "_arg_struct";
+        O << ", HandlerT& cgh, int &Shift) {\n";
+        for (const MemberExpr *wrappedSpecialType :
+             DecompositionMap[Param->getType().getAsOpaquePtr()]) {
+          O << "  cgh.set_arg(ArgIndex, ";
+          wrappedSpecialType->printPretty(O, nullptr, Policy);
+          O << ");\n";
+          O << "  ++ArgIndex;\n";
+        }
+        O << "  Shift = " << DecompositionMap[Param->getType().getAsOpaquePtr()].size() << ";\n"; 
+        O << "}\n };\n} // namespace detail \n} // namespace experimental \n} // namespace oneapi \n} // namespace ext \n} // namespace _V1\n} //namespace sycl\n";
+      }
     }
+    Policy.SuppressTagKeyword = false;
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
     Policy.SuppressDefinition = true;

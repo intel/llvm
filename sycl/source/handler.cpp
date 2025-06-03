@@ -1153,6 +1153,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                     "Invalid kernel param kind");
     break;
   }
+    std::cout << impl->MArgs.size() << std::endl;
 }
 
 void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
@@ -1177,12 +1178,12 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
 // TODO: the constant can be removed if the size of MArgs will be calculated at
 // compile time.
 inline constexpr size_t MaxNumAdditionalArgs = 13;
-
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(impl->MArgs);
   clearArgs();
-
+  MArgShift = 0;
+  std::cout << detail::KernelInfoData<getKernelName()>::getNumParams() << std::endl;
   std::sort(
       UnPreparedArgs.begin(), UnPreparedArgs.end(),
       [](const detail::ArgDesc &first, const detail::ArgDesc &second) -> bool {
@@ -2299,7 +2300,7 @@ void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
 
 void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
-  impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex);
+  impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex + MArgShift);
 }
 
 void handler::clearArgs() { impl->MArgs.clear(); }

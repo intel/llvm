@@ -2308,6 +2308,8 @@ void SetArgBasedOnType(
     const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
     size_t NextTrueIndex) {
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_special_type_wrapper:
+    break;
   case kernel_param_kind_t::kind_dynamic_work_group_memory:
     break;
   case kernel_param_kind_t::kind_work_group_memory:
