@@ -2389,8 +2389,9 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    KernelNameStrRefT KernelName, void *KernelFuncPtr = nullptr,
-    int KernelNumArgs = 0,
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
   const AdapterPtr &Adapter = Queue.getAdapter();
@@ -2437,7 +2438,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
 
   std::optional<int> ImplicitLocalArg =
-      ProgramManager::getInstance().kernelImplicitLocalArgPos(KernelName);
+      ProgramManager::getInstance().kernelImplicitLocalArgPos(
+          KernelName, KernelNameBasedCachePtr);
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
@@ -2752,8 +2754,8 @@ void enqueueImpKernel(
         *Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, KernelName, KernelFuncPtr, KernelNumArgs,
-        KernelParamDescGetter, KernelHasSpecialCaptures);
+        BinImage, KernelName, KernelNameBasedCachePtr, KernelFuncPtr,
+        KernelNumArgs, KernelParamDescGetter, KernelHasSpecialCaptures);
   }
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
