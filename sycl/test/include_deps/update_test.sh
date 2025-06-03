@@ -9,7 +9,9 @@ HEADERS=(
 
     sycl/khr/includes/accessor
     sycl/khr/includes/atomic
-    sycl/khr/includes/backend
+    # backend header depends on how the project was configured and as such it
+    # is not exactly portable, so it is excluded
+    # sycl/khr/includes/backend
     sycl/khr/includes/bit
     sycl/khr/includes/buffer
     sycl/khr/includes/byte
