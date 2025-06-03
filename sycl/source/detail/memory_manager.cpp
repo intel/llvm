@@ -902,6 +902,11 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                     "NULL pointer argument in memory copy operation.");
 
   const AdapterPtr &Adapter = SrcQueue->getAdapter();
+  // CP 
+#ifdef CP_LOG_EARLY_RELEASE
+  sycl::detail::USMMemcopyCalled = true;   // turn on when calling memcpy, off when releasing. Check if imbalance.
+#endif
+
   Adapter->call<UrApiKind::urEnqueueUSMMemcpy>(SrcQueue->getHandleRef(),
                                                /* blocking */ false, DstMem,
                                                SrcMem, Len, DepEvents.size(),

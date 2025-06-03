@@ -20,8 +20,15 @@
 #include <condition_variable>
 #include <optional>
 
+
+// CP -- enables logging of "early release" and also global var to track memcpy :: ~event_impl  tracking
+#define CP_LOG_EARLY_RELEASE 1
+
 #ifdef _WIN32
 #include <intrin.h>
+#else
+// CP no op
+void __debugbreak() { }
 #endif
 // also in event.hpp. Probably needs to be moved elsewhere
 //#define CP_LOG_EVENT_LIFECYCLE 1
@@ -41,6 +48,11 @@ class queue_impl;
 using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
+
+#ifdef CP_LOG_EARLY_RELEASE
+// CP Adding a global
+bool USMMemcopyCalled = false;
+#endif
 
 class event_impl {
 public:
@@ -65,7 +77,6 @@ public:
     SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
 #ifdef CP_LOG_EVENT_LIFECYCLE
 		std::cout << "event_impl ready constructor of (" << this << ") event_impl.hpp:53" << std::endl;
-		__debugbreak();
 #endif
   }
 

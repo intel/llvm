@@ -29,7 +29,6 @@ inline namespace _V1 {
 event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {
 #ifdef CP_LOG_EVENT_LIFECYCLE
 		std::cout << "EVENT() constructor (of " << this << ") impl: " << impl.get() << " (use_count: " << impl.use_count() << ") event.cpp:25" << std::endl;
-		__debugbreak();
 #endif		
 }
 
@@ -38,7 +37,6 @@ event::event(cl_event ClEvent, const context &SyclContext)
           detail::ur::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
 #ifdef CP_LOG_EVENT_LIFECYCLE
 	std::cout << "EVENT(ClEvent, Context) constructor. event.cpp:31" << std::endl;
-	__debugbreak();
 #endif	
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
@@ -78,7 +76,6 @@ event::event(std::shared_ptr<detail::event_impl> event_impl)
     : impl(std::move(event_impl)) {
 #ifdef CP_LOG_EVENT_LIFECYCLE
 	std::cout << "EVENT(impl) constructor of (" << this << ") impl: " << impl.get() << " (use_count: " << impl.use_count() << ") event.cpp:71" << std::endl;
-	__debugbreak();
 #endif	
 }
 

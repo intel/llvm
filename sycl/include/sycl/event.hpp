@@ -68,13 +68,11 @@ public:
 	// Copy Constructor          // event(const event &rhs) = default;
     event(const event &rhs) : impl(rhs.impl) { // Calls std::shared_ptr's copy constructor
         std::cout << "EVENT: Copy Constructor (of " << this << ") from " << &rhs << " - new impl: " << impl.get() << " (use_count: " << impl.use_count() << ")" << std::endl;
-		__debugbreak();
     }
 
     // Move Constructor          // event(event &&rhs) = default;
     event(event &&rhs) noexcept : impl(std::move(rhs.impl)) { // Calls std::shared_ptr's move constructor
         std::cout << "EVENT: Move Constructor (of " << this << ") from " << &rhs << " - new impl: " << impl.get() << " (use_count: " << impl.use_count() << ")" << std::endl;
-		__debugbreak();
     }
 
     // Copy Assignment Operator  //event &operator=(const event &rhs) = default;
@@ -83,7 +81,6 @@ public:
             impl = rhs.impl; // Calls std::shared_ptr's copy assignment operator
         }
         std::cout << "EVENT: Copy Assignment (of " << this << ") from " << &rhs << " - new impl: " << impl.get() << " (use_count: " << impl.use_count() << ")" << std::endl;
-        __debugbreak();
 		return *this;
     }
 
@@ -93,7 +90,6 @@ public:
             impl = std::move(rhs.impl); // Calls std::shared_ptr's move assignment operator
         }
         std::cout << "EVENT: Move Assignment (of " << this << ") from " << &rhs << " - new impl: " << impl.get() << " (use_count: " << impl.use_count() << ")" << std::endl;
-        __debugbreak();
 		return *this;
     }
 

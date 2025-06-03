@@ -25,14 +25,9 @@
 #include <sstream>
 #endif
 
-#ifdef _WIN32
-#include <intrin.h>
-#else
-// CP no op
-void __debugbreak() { }
-#endif
 
-//#define CP_LOG_EARLY_RELEASE 1
+
+
 
 namespace sycl {
 inline namespace _V1 {
@@ -52,23 +47,41 @@ void event_impl::initContextIfNeeded() {
 }
 
 event_impl::~event_impl() {
+  auto Handle = this->getHandle();
+
 #ifdef CP_LOG_EVENT_LIFECYCLE
-	std::cout << "~event_impl destructor of (" << this << ") event_impl.cpp:54" << std::endl;
-	__debugbreak();
+  std::cout << "~event_impl destructor of (" << this
+            << ") event_impl.cpp:54  UREvent: " << Handle << std::endl;
 #endif
 #ifdef CP_LOG_EARLY_RELEASE
   if (MHasBeenReleased == 0xDEADBEEF)
-	  std::cout << "~event_impl MHasBeenReleased is already set to 0xDEADBEEF" << std::endl;
+	  std::cout << "~event_impl MHasBeenReleased is already set to 0xDEADBEEF this:  "
+        << this << "  UREvent: " << Handle
+        << "  USMMemcopyCalled: " << sycl::detail::USMMemcopyCalled
+        << std::endl;
   else if(MHasBeenReleased != 0)
 	  std::cout << "~event_impl MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
 #endif
   
   try {
 	
-    auto Handle = this->getHandle();
+    
     if (Handle){
+#ifdef CP_LOG_EARLY_RELEASE
+      // CP abuse
+      // turn on when calling memcpy, off when releasing an event with a URHandle.
+      // check
+      if (!sycl::detail::USMMemcopyCalled) {
+        // put breakpoint here: 
+        std::cout << "GOTCHA!!  ~event_impl this: (" << this
+                  << ")  UREvent: " << std::hex << Handle
+                  << "  USMMemcopyCalled: " << sycl::detail::USMMemcopyCalled
+                  << std::endl;
+      }
+      sycl::detail::USMMemcopyCalled = false; // toggle it off
+#endif
       getAdapter()->call<UrApiKind::urEventRelease>(Handle);
-	  //__debugbreak();
+      
 	}
     MHasBeenReleased = 0xDEADBEEF;
   } catch (std::exception &e) {
@@ -78,17 +91,22 @@ event_impl::~event_impl() {
 
 
 void event_impl::waitInternal(bool *Success) {
+  auto Handle = this->getHandle();
+
 #ifdef CP_LOG_EARLY_RELEASE
 	// CP -- this does not trip
    if(MHasBeenReleased == 0xDEADBEEF){
-	   std::cout << "waitInternal HasBeenReleased is already set to 0xDEADBEEF.   this:  " << (unsigned long)this << std::endl;
-	   //__debugbreak();
+          std::cout << "waitInternal HasBeenReleased is already set to "
+                       "0xDEADBEEF.   this:  "
+               << this << "  UREvent: " << std::hex << Handle
+               << "  USMMemcopyCalled: " << sycl::detail::USMMemcopyCalled
+               << std::endl;
    }else if(MHasBeenReleased != 0){
 	  std::cout << "waitInternal MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
    }
 #endif  
    
-  auto Handle = this->getHandle();
+  
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
     ur_result_t Err =
@@ -182,7 +200,6 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
       MIsFlushed(true), MState(HES_Complete) {
 #ifdef CP_LOG_EVENT_LIFECYCLE
 	std::cout << "event_impl constructor. of (" << this << ") event_impl.cpp:178" << std::endl;
-	__debugbreak();
 #endif	
   ur_context_handle_t TempContext;
   getAdapter()->call<UrApiKind::urEventGetInfo>(
@@ -201,7 +218,6 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled} {
 #ifdef CP_LOG_EVENT_LIFECYCLE
 	std::cout << "event_impl constructor from QueImplPtr of  (" << this << ") event_impl.cpp:197" << std::endl;
-	__debugbreak();
 #endif	
   if (Queue)
     this->setContextImpl(Queue->getContextImplPtr());
@@ -291,7 +307,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
 #ifdef CP_LOG_EARLY_RELEASE						  
 	// CP -- this trips
    if(MHasBeenReleased == 0xDEADBEEF) {
-	   std::cout << "wait HasBeenRelease already set to 0xDEADBEEF.  this:  " << (unsigned long)this << std::endl;
+	   std::cout << "wait HasBeenRelease already set to 0xDEADBEEF.  this:  " << this << std::endl;
 	   //__debugbreak();
    }else if(MHasBeenReleased != 0){
 	  std::cout << "wait MHasBeenReleased corrupted? " << std::hex << MHasBeenReleased << std::endl;
