@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
 #include <clc/common/clc_degrees.h>
 #include <libspirv/spirv.h>
 

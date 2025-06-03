@@ -71,7 +71,7 @@ print(
 
 #include <clc/clcfunc.h>
 #include <clc/clctypes.h>
-#include <core/convert.h>
+#include <clc/clc_convert.h>
 #include <libspirv/spirv.h>
 
 #ifdef cl_khr_fp16

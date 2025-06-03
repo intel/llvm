@@ -9,7 +9,7 @@
 
 [[intel::no_global_work_offset(0, 1)]] void test1() {} // expected-error{{'no_global_work_offset' attribute takes no more than 1 argument}}
 
-[[intelfpga::no_global_work_offset]] void RemovedSpell(); // expected-warning {{unknown attribute 'no_global_work_offset' ignored}}
+[[intelfpga::no_global_work_offset]] void RemovedSpell(); // expected-warning {{unknown attribute 'intelfpga::no_global_work_offset' ignored}}
 
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
