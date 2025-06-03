@@ -45,7 +45,7 @@ void enqueueKernel_2_fromFile2(queue *Q) {
     CGH.parallel_for<class kernel2_from_separate_file>(numOfItems,
                                                        [=](sycl::id<1> wiID) {
                                                          Acc[wiID] = wiID % 2;
-                                                         heck_nil(Acc[wiID]);
+                                                         check_nil(Acc[wiID]);
                                                        });
   });
 }
