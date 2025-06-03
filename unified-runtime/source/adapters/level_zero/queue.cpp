@@ -930,20 +930,6 @@ ur_result_t urQueueFlush(
   return Queue->executeAllOpenCommandLists();
 }
 
-ur_result_t urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t /*hQueue*/, ur_kernel_handle_t /*hKernel*/,
-    uint32_t /*workDim*/, const size_t * /*pGlobalWorkOffset*/,
-    const size_t * /*pGlobalWorkSize*/, const size_t * /*pLocalWorkSize*/,
-    uint32_t /*numPropsInLaunchPropList*/,
-    const ur_exp_launch_property_t * /*launchPropList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-  UR_LOG(ERR, "[UR][L0] {} function not implemented!",
-         "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 } // namespace ur::level_zero
 
 // Configuration of the command-list batching.

@@ -427,7 +427,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =
-          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl);
+          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(*QueueImpl);
 
       // If the device global still has a initialization event it should be
       // added to the initialization events list. Since initialization events

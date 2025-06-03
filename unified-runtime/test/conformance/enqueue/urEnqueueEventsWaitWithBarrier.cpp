@@ -183,10 +183,12 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
                             nullptr, &event);
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
     EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
-                                         nullptr, 0, nullptr, &event));
+                                         nullptr, 0, nullptr, 0, nullptr,
+                                         &event));
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
     EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset, &count,
-                                         nullptr, 0, nullptr, &event));
+                                         nullptr, 0, nullptr, 0, nullptr,
+                                         &event));
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
     addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
   }
@@ -212,10 +214,12 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
                             nullptr, nullptr);
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
     EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
-                                         nullptr, 1, &event, nullptr));
+                                         nullptr, 0, nullptr, 1, &event,
+                                         nullptr));
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
     EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset, &count,
-                                         nullptr, 1, &event, nullptr));
+                                         nullptr, 0, nullptr, 1, &event,
+                                         nullptr));
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
     addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
   }
@@ -241,11 +245,13 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest, SuccessEventDependencies) {
     EXPECT_SUCCESS(
         urEnqueueEventsWaitWithBarrier(queue, 1, &event[0], &event[1]));
     EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
-                                         nullptr, 1, &event[1], &event[2]));
+                                         nullptr, 0, nullptr, 1, &event[1],
+                                         &event[2]));
     EXPECT_SUCCESS(
         urEnqueueEventsWaitWithBarrier(queue, 1, &event[2], &event[3]));
     EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset, &count,
-                                         nullptr, 1, &event[3], &event[4]));
+                                         nullptr, 0, nullptr, 1, &event[3],
+                                         &event[4]));
     EXPECT_SUCCESS(
         urEnqueueEventsWaitWithBarrier(queue, 1, &event[4], &event[5]));
     addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
@@ -271,10 +277,12 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
                             nullptr, nullptr);
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
     EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
-                                         nullptr, 0, nullptr, nullptr));
+                                         nullptr, 0, nullptr, 0, nullptr,
+                                         nullptr));
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
     EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset, &count,
-                                         nullptr, 0, nullptr, nullptr));
+                                         nullptr, 0, nullptr, 0, nullptr,
+                                         nullptr));
     EXPECT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
     addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
   }
