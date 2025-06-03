@@ -54,5 +54,19 @@
 // CHECK-NEXT: detail/vector_arith.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: detail/spirv.hpp
+// CHECK-NEXT: ext/oneapi/experimental/non_uniform_groups.hpp
+// CHECK-NEXT: ext/oneapi/sub_group_mask.hpp
+// CHECK-NEXT: builtins.hpp
+// CHECK-NEXT: detail/builtins/builtins.hpp
+// CHECK-NEXT: detail/vector_convert.hpp
+// CHECK-NEXT: detail/builtins/common_functions.inc
+// CHECK-NEXT: detail/builtins/helper_macros.hpp
+// CHECK-NEXT: detail/builtins/geometric_functions.inc
+// CHECK-NEXT: detail/builtins/half_precision_math_functions.inc
+// CHECK-NEXT: detail/builtins/integer_functions.inc
+// CHECK-NEXT: detail/builtins/math_functions.inc
+// CHECK-NEXT: detail/builtins/native_math_functions.inc
+// CHECK-NEXT: detail/builtins/relational_functions.inc
+// CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: group_barrier.hpp
 // CHECK-EMPTY:
