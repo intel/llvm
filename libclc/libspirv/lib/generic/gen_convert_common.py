@@ -152,5 +152,5 @@ def clc_core_fn_name(dst, size="", mode="", sat=""):
     and saturation arguments.
     """
     return "__clc_convert_{DST}{N}{SAT}{MODE}".format(
-        DST='char' if dst == 'schar' else dst, N=size, SAT=sat, MODE=mode
+        DST="char" if dst == "schar" else dst, N=size, SAT=sat, MODE=mode
     )
