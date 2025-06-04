@@ -12,6 +12,7 @@
 
 #include "../helpers.hpp"
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 using namespace std;

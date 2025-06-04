@@ -680,9 +680,7 @@ public:
 
   bool empty() const noexcept { return MDeviceImages.empty(); }
 
-  backend get_backend() const noexcept {
-    return MContext.get_backend();
-  }
+  backend get_backend() const noexcept { return MContext.get_backend(); }
 
   context get_context() const noexcept { return MContext; }
 

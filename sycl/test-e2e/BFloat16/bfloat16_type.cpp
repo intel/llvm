@@ -13,6 +13,8 @@
 
 #include "bfloat16_type.hpp"
 
+#include <sycl/platform.hpp>
+
 int main() {
 
 #ifdef USE_CUDA_SM80
