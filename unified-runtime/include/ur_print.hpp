@@ -50,6 +50,8 @@ inline ur_result_t printFlag(std::ostream &os, uint32_t flag);
 template <typename T>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, T value,
                                size_t size);
+template <size_t size, typename T>
+inline ur_result_t printArray(std::ostream &os, const T *ptr);
 
 inline ur_result_t printStruct(std::ostream &os, const void *ptr);
 
@@ -262,6 +264,10 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr,
                                ur_exp_peer_info_t value, size_t size);
+
+inline ur_result_t printUnion(std::ostream &os,
+                              const union ur_exp_kernel_arg_value_t params,
+                              const enum ur_exp_kernel_arg_type_t tag);
 
 template <>
 inline ur_result_t printFlag<ur_exp_enqueue_ext_flag_t>(std::ostream &os,
@@ -590,6 +596,14 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
            ur_exp_command_buffer_update_kernel_launch_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_peer_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_kernel_arg_type_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_kernel_arg_mem_obj_tuple_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_kernel_arg_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_enqueue_ext_flag_t value);
 inline std::ostream &operator<<(
@@ -1257,6 +1271,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT:
     os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT";
     break;
+  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP:
+    os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1425,6 +1442,12 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES";
+    break;
+  case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_MEM_OBJ_TUPLE:
+    os << "UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_MEM_OBJ_TUPLE";
+    break;
+  case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES";
     break;
   default:
     os << "unknown enumerator";
@@ -1740,6 +1763,18 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES: {
     const ur_exp_enqueue_ext_properties_t *pstruct =
         (const ur_exp_enqueue_ext_properties_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_MEM_OBJ_TUPLE: {
+    const ur_exp_kernel_arg_mem_obj_tuple_t *pstruct =
+        (const ur_exp_kernel_arg_mem_obj_tuple_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES: {
+    const ur_exp_kernel_arg_properties_t *pstruct =
+        (const ur_exp_kernel_arg_properties_t *)ptr;
     printPtr(os, pstruct);
   } break;
   default:
@@ -10812,13 +10847,7 @@ printUnion(std::ostream &os,
   case UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION:
 
     os << ".clusterDim = {";
-    for (auto i = 0; i < 3; i++) {
-      if (i != 0) {
-        os << ", ";
-      }
-
-      os << (params.clusterDim[i]);
-    }
+    ur::details::printArray<3>(os, params.clusterDim);
     os << "}";
 
     break;
@@ -11457,13 +11486,7 @@ operator<<(std::ostream &os, const struct ur_exp_sampler_addr_modes_t params) {
 
   os << ", ";
   os << ".addrModes = {";
-  for (auto i = 0; i < 3; i++) {
-    if (i != 0) {
-      os << ", ";
-    }
-
-    os << (params.addrModes[i]);
-  }
+  ur::details::printArray<3>(os, params.addrModes);
   os << "}";
 
   os << "}";
@@ -12182,6 +12205,134 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 }
 } // namespace ur::details
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_kernel_arg_type_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_kernel_arg_type_t value) {
+  switch (value) {
+  case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+    os << "UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+    os << "UR_EXP_KERNEL_ARG_TYPE_VALUE";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+    os << "UR_EXP_KERNEL_ARG_TYPE_POINTER";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+    os << "UR_EXP_KERNEL_ARG_TYPE_LOCAL";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+    os << "UR_EXP_KERNEL_ARG_TYPE_SAMPLER";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_kernel_arg_mem_obj_tuple_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_kernel_arg_mem_obj_tuple_t params) {
+  os << "(struct ur_exp_kernel_arg_mem_obj_tuple_t){";
+
+  os << ".hMem = ";
+
+  ur::details::printPtr(os, (params.hMem));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_mem_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+namespace ur::details {
+
+///////////////////////////////////////////////////////////////////////////////
+// @brief Print ur_exp_kernel_arg_value_t union
+inline ur_result_t printUnion(std::ostream &os,
+                              const union ur_exp_kernel_arg_value_t params,
+                              const enum ur_exp_kernel_arg_type_t tag) {
+  os << "(union ur_exp_kernel_arg_value_t){";
+
+  switch (tag) {
+  case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+
+    os << ".pointer = ";
+
+    ur::details::printPtr(os, (params.pointer));
+
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+
+    os << ".memObjTuple = ";
+
+    os << (params.memObjTuple);
+
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+
+    os << ".sampler = ";
+
+    ur::details::printPtr(os, (params.sampler));
+
+    break;
+  default:
+    os << "<unknown>";
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+  os << "}";
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_kernel_arg_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_kernel_arg_properties_t params) {
+  os << "(struct ur_exp_kernel_arg_properties_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".type = ";
+
+  os << (params.type);
+
+  os << ", ";
+  os << ".index = ";
+
+  os << (params.index);
+
+  os << ", ";
+  os << ".size = ";
+
+  os << (params.size);
+
+  os << ", ";
+  os << ".arg = ";
+  ur::details::printUnion(os, (params.arg), params.type);
+
+  os << "}";
+  return os;
+}
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_enqueue_ext_flag_t type
 /// @returns
@@ -16833,6 +16984,109 @@ inline std::ostream &operator<<(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
+/// ur_enqueue_kernel_launch_with_args_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_enqueue_kernel_launch_with_args_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hKernel = ";
+
+  ur::details::printPtr(os, *(params->phKernel));
+
+  os << ", ";
+  os << ".pGlobalWorkOffset = {";
+  ur::details::printArray<3>(os, *params->ppGlobalWorkOffset);
+  os << "}";
+
+  os << ", ";
+  os << ".pGlobalWorkSize = {";
+  ur::details::printArray<3>(os, *params->ppGlobalWorkSize);
+  os << "}";
+
+  os << ", ";
+  os << ".pLocalWorkSize = {";
+  ur::details::printArray<3>(os, *params->ppLocalWorkSize);
+  os << "}";
+
+  os << ", ";
+  os << ".numArgs = ";
+
+  os << *(params->pnumArgs);
+
+  os << ", ";
+  os << ".pArgs = ";
+  ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->ppArgs)));
+  if (*(params->ppArgs) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumArgs; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      os << (*(params->ppArgs))[i];
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".numPropsInLaunchPropList = ";
+
+  os << *(params->pnumPropsInLaunchPropList);
+
+  os << ", ";
+  os << ".launchPropList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->plaunchPropList)));
+  if (*(params->plaunchPropList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumPropsInLaunchPropList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      os << (*(params->plaunchPropList))[i];
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
 /// ur_enqueue_events_wait_with_barrier_ext_params_t type
 /// @returns
 ///     std::ostream &
@@ -20795,6 +21049,25 @@ inline ur_result_t printPtr(std::ostream &os, const T *ptr) {
 
   return UR_RESULT_SUCCESS;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// @brief Print array of literals
+template <size_t size, typename T>
+inline ur_result_t printArray(std::ostream &os, const T *ptr) {
+  if (ptr == NULL) {
+    return printPtr(os, ptr);
+  }
+
+  for (size_t i = 0; i < size; i++) {
+    if (i != 0) {
+      os << ", ";
+    }
+
+    os << ptr[i];
+  }
+
+  return UR_RESULT_SUCCESS;
+}
 } // namespace ur::details
 
 namespace ur::extras {
@@ -21188,6 +21461,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE: {
     os << (const struct ur_enqueue_write_host_pipe_params_t *)params;
+  } break;
+  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP: {
+    os << (const struct ur_enqueue_kernel_launch_with_args_exp_params_t *)
+            params;
   } break;
   case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT: {
     os << (const struct ur_enqueue_events_wait_with_barrier_ext_params_t *)
