@@ -16,6 +16,7 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 #include <memory>
 #include <mutex>
@@ -24,9 +25,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-
-// Forward declaration
-class platform;
 
 namespace detail {
 

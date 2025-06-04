@@ -1,17 +1,18 @@
 // Use update_test.sh to (re-)generate the checks
 // REQUIRES: linux
-// RUN: bash %S/deps_known.sh sycl/detail/core.hpp | FileCheck %s
+// RUN: bash %S/deps_known.sh sycl/khr/includes/queue | FileCheck %s
 
-// CHECK-LABEL: Dependencies for <sycl/detail/core.hpp>:
+// CHECK-LABEL: Dependencies for <sycl/khr/includes/queue>:
 // CHECK-NEXT: /dev/null: /dev/null
-// CHECK-NEXT: detail/core.hpp
-// CHECK-NEXT: accessor.hpp
+// CHECK-NEXT: khr/includes/queue
+// CHECK-NEXT: queue.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
@@ -85,7 +86,6 @@
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
-// CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
 // CHECK-NEXT: detail/host_profiling_info.hpp
@@ -143,5 +143,6 @@
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
-// CHECK-NEXT: feature_test.hpp
+// CHECK-NEXT: properties/queue_properties.hpp
+// CHECK-NEXT: properties/queue_properties.def
 // CHECK-EMPTY:
