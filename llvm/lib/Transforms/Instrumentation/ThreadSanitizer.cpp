@@ -127,6 +127,8 @@ struct ThreadSanitizerOnSpirv {
 
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
+  bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst);
+
 private:
   void instrumentGlobalVariables();
 
@@ -407,6 +409,39 @@ void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
   auto *FuncNameGV = GetOrCreateGlobalString("__tsan_func", demangle(FuncName),
                                              kSpirOffloadConstantAS);
   Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
+}
+
+bool ThreadSanitizerOnSpirv::isUnsupportedSPIRAccess(Value *Addr,
+                                                     Instruction *Inst) {
+  auto *OrigValue = getUnderlyingObject(Addr);
+  if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  // Ignore load/store for target ext type since we can't know exactly what size
+  // it is.
+  if (auto *SI = dyn_cast<StoreInst>(Inst))
+    if (getTargetExtType(SI->getValueOperand()->getType()) ||
+        isJointMatrixAccess(SI->getPointerOperand()))
+      return true;
+
+  if (auto *LI = dyn_cast<LoadInst>(Inst))
+    if (getTargetExtType(Inst->getType()) ||
+        isJointMatrixAccess(LI->getPointerOperand()))
+      return true;
+
+  auto AddrAS = cast<PointerType>(Addr->getType()->getScalarType())
+                    ->getPointerAddressSpace();
+  switch (AddrAS) {
+  case kSpirOffloadPrivateAS:
+  case kSpirOffloadConstantAS:
+    return true;
+  case kSpirOffloadLocalAS:
+    return ClSpirOffloadLocals;
+  case kSpirOffloadGlobalAS:
+  case kSpirOffloadGenericAS:
+    return false;
+  }
+  return false;
 }
 
 bool ThreadSanitizerOnSpirv::isSupportedSPIRKernel(Function &F) {
@@ -869,31 +904,12 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
     }
   }
 
-  if (Triple(M->getTargetTriple()).isSPIROrSPIRV()) {
-    auto *OrigValue = getUnderlyingObject(Addr);
-    if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+  // Do not instrument accesses from different address spaces; we cannot deal
+  // with them.
+  if (Addr) {
+    Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
+    if (PtrTy->getPointerAddressSpace() != 0)
       return false;
-
-    auto AddrAS = cast<PointerType>(Addr->getType()->getScalarType())
-                      ->getPointerAddressSpace();
-    switch (AddrAS) {
-    case kSpirOffloadPrivateAS:
-    case kSpirOffloadConstantAS:
-      return false;
-    case kSpirOffloadLocalAS:
-      return ClSpirOffloadLocals;
-    case kSpirOffloadGlobalAS:
-    case kSpirOffloadGenericAS:
-      return true;
-    }
-  } else {
-    // Do not instrument accesses from different address spaces; we cannot deal
-    // with them.
-    if (Addr) {
-      Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-      if (PtrTy->getPointerAddressSpace() != 0)
-        return false;
-    }
   }
 
   return true;
@@ -942,7 +958,10 @@ void ThreadSanitizer::chooseInstructionsToInstrument(
     Value *Addr = IsWrite ? cast<StoreInst>(I)->getPointerOperand()
                           : cast<LoadInst>(I)->getPointerOperand();
 
-    if (!shouldInstrumentReadWriteFromAddress(I->getModule(), Addr))
+    if (Spirv) {
+      if (Spirv->isUnsupportedSPIRAccess(Addr, I))
+        continue;
+    } else if (!shouldInstrumentReadWriteFromAddress(I->getModule(), Addr))
       continue;
 
     if (!IsWrite) {
@@ -1051,7 +1070,8 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
       else if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
         LocalLoadsAndStores.push_back(&Inst);
       else if (Spirv && isa<AllocaInst>(Inst) &&
-               cast<AllocaInst>(Inst).getAllocatedType()->isSized())
+               cast<AllocaInst>(Inst).getAllocatedType()->isSized() &&
+               !getTargetExtType(cast<AllocaInst>(Inst).getAllocatedType()))
         Allocas.push_back(&Inst);
       else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
                isa<InvokeInst>(Inst)) {
