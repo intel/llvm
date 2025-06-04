@@ -1038,11 +1038,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
-<<<<<<< HEAD
   case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
-=======
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
->>>>>>> 33e7f735ea1a ([SYCL] Add new descriptors based on sycl_ext_intel_device_info extension (#17492))
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
   case UR_DEVICE_INFO_FAN_SPEED:
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
