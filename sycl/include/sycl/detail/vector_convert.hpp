@@ -399,7 +399,7 @@ using enable_if_to_int_vector_t =
   enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N, VecSize,   \
                             To>                                                \
       Op##Convert(From value) {                                                \
-    return __spirv_##Op##Convert_R##SPVType##N(value);                        \
+    return __spirv_##Op##Convert_R##SPVType##N(value);                         \
   }
 
 #define __SYCL_INT_INT_CONVERT(Op, DestType, SPVType)                          \
