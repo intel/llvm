@@ -1087,21 +1087,18 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
-                       Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims2D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims3D > 0);
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
@@ -1221,10 +1218,6 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
-    return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1346,6 +1339,8 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(int32_t{PowerProperties.maxLimit});
     }
   }
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,

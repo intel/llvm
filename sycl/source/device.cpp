@@ -118,7 +118,7 @@ template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
     info::partition_property::ext_intel_partition_by_cslice>() const;
 
 bool device::has_extension(detail::string_view ext_name) const {
-  return impl->has_extension(ext_name.data());
+  return impl->has_extension(std::string(std::string_view(ext_name)));
 }
 
 template <typename Param>
@@ -292,7 +292,7 @@ bool device::ext_oneapi_supports_cl_c_feature(detail::string_view Feature) {
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
-      Feature.data(), ipVersion);
+      std::string(std::string_view(Feature)), ipVersion);
 }
 
 bool device::ext_oneapi_supports_cl_c_version(
@@ -321,7 +321,7 @@ bool device::ext_oneapi_supports_cl_extension(
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Supports_Extension(
-      Name.data(), VersionPtr, ipVersion);
+      std::string(std::string_view(Name)), VersionPtr, ipVersion);
 }
 
 detail::string device::ext_oneapi_cl_profile_impl() const {

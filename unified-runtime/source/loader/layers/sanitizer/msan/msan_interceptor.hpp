@@ -297,7 +297,7 @@ public:
     if (m_Adapters.find(Adapter) != m_Adapters.end()) {
       return UR_RESULT_SUCCESS;
     }
-    UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
+    UR_CALL(getContext()->urDdiTable.Adapter.pfnRetain(Adapter));
     m_Adapters.insert(Adapter);
     return UR_RESULT_SUCCESS;
   }

@@ -7,8 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/allowlist.hpp>
+#include <sycl/platform.hpp>
 
 #include <gtest/gtest.h>
+
+#ifdef _WIN32
+#include <windows.h> // SetEnvironmentVariable
+#endif
 
 constexpr char SyclDeviceAllowList[] =
     "BackendName:opencl,DeviceType:gpu,DeviceVendorId:0x8086,DriverVersion:{{("
@@ -83,6 +88,35 @@ TEST(DeviceIsAllowedTests, CheckSupportedOpenCLGPUDeviceIsAllowed) {
   bool Actual = sycl::detail::deviceIsAllowed(
       OpenCLGPUDeviceDesc, sycl::detail::parseAllowList(SyclDeviceAllowList));
   EXPECT_EQ(Actual, true);
+}
+
+TEST(DeviceIsAllowedTests, CheckLocalizationDoesNotImpact) {
+  // The localization can affect std::stringstream output.
+  // We want to make sure that DeviceVenderId doesn't have a comma
+  // inserted (ie "0x8,086" ), which will break the platform retrieval.
+
+  try {
+    auto previous = std::locale::global(std::locale("en_US.UTF-8"));
+#ifdef _WIN32
+    SetEnvironmentVariableA("SYCL_DEVICE_ALLOWLIST", SyclDeviceAllowList);
+#else
+    setenv("SYCL_DEVICE_ALLOWLIST", SyclDeviceAllowList, 1);
+#endif
+
+    auto post_platforms = sycl::platform::get_platforms();
+    std::locale::global(previous);
+#ifdef _WIN32
+    SetEnvironmentVariableA("SYCL_DEVICE_ALLOWLIST", nullptr);
+#else
+    unsetenv("SYCL_DEVICE_ALLOWLIST");
+#endif
+
+    EXPECT_NE(size_t{0}, post_platforms.size());
+  } catch (...) {
+    // It is possible that the en_US locale is not available.
+    // In this case, we just skip the test.
+    GTEST_SKIP() << "Locale en_US.UTF-8 not available.";
+  }
 }
 
 TEST(DeviceIsAllowedTests, CheckSupportedOpenCLCPUDeviceIsAllowed) {

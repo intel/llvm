@@ -30,7 +30,7 @@ struct NDRDescT {
            const size_t *GlobalWorkSize, const size_t *LocalWorkSize)
       : WorkDim(WorkDim) {
     for (uint32_t I = 0; I < WorkDim; I++) {
-      GlobalOffset[I] = GlobalWorkOffset[I];
+      GlobalOffset[I] = GlobalWorkOffset ? GlobalWorkOffset[I] : 0;
       GlobalSize[I] = GlobalWorkSize[I];
       LocalSize[I] = LocalWorkSize ? LocalWorkSize[I] : 1;
     }
@@ -117,12 +117,20 @@ static inline void execute_range(native_cpu::state &state,
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  // We don't support any launch properties.
+  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
+       propIndex++) {
+    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 

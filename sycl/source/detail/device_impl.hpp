@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <utility>
 
 namespace sycl {
@@ -885,11 +886,10 @@ public:
     }
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
-      if (getBackend() != backend::ext_oneapi_cuda)
-        return false;
-
-      return get_info_impl_nocheck<UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP>()
-                 .value_or(0) != 0;
+      auto SupportFlags =
+          get_info_impl<UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES>();
+      return static_cast<bool>(
+          SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
     // ext_codeplay_device_traits.def
@@ -2203,7 +2203,7 @@ private:
   // This is used for getAdapter so should be above other properties.
   std::shared_ptr<platform_impl> MPlatform;
 
-  // TODO: Does this have a race?
+  std::shared_mutex MDeviceHostBaseTimeMutex;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;

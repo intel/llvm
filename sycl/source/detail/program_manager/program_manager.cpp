@@ -13,7 +13,6 @@
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -1108,11 +1107,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
   return ResProgram;
 }
-// When caching is enabled, the returned UrProgram and UrKernel will
-// already have their ref count incremented.
-std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-           ur_program_handle_t>
-ProgramManager::getOrCreateKernel(
+
+FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
     KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc) {
@@ -1129,18 +1125,11 @@ ProgramManager::getOrCreateKernel(
       KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcache
                               : nullptr;
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    auto ret_tuple =
+    auto KernelCacheValPtr =
         Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr);
-    constexpr size_t Kernel = 0;  // see FastKernelCacheValT tuple
-    constexpr size_t Program = 3; // see FastKernelCacheValT tuple
-    if (std::get<Kernel>(ret_tuple)) {
-      // Pulling a copy of a kernel and program from the cache,
-      // so we need to retain those resources.
-      ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-          std::get<Kernel>(ret_tuple));
-      ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
-          std::get<Program>(ret_tuple));
-      return ret_tuple;
+    if (auto KernelCacheValPtr =
+            Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr)) {
+      return KernelCacheValPtr;
     }
   }
 
@@ -1179,20 +1168,21 @@ ProgramManager::getOrCreateKernel(
     // threads when caching is disabled, so we can return
     // nullptr for the mutex.
     auto [Kernel, ArgMask] = BuildF();
-    return make_tuple(Kernel, nullptr, ArgMask, Program);
+    return std::make_shared<FastKernelCacheVal>(
+        Kernel, nullptr, ArgMask, Program, *ContextImpl->getAdapter().get());
   }
 
   auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
-  auto ret_val = std::make_tuple(KernelArgMaskPair.first,
-                                 &(BuildResult->MBuildResultMutex),
-                                 KernelArgMaskPair.second, Program);
+  auto ret_val = std::make_shared<FastKernelCacheVal>(
+      KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
+      KernelArgMaskPair.second, Program, *ContextImpl->getAdapter().get());
   // If caching is enabled, one copy of the kernel handle will be
-  // stored in the cache, and one handle is returned to the
-  // caller. In that case, we need to increase the ref count of the
-  // kernel.
+  // stored in FastKernelCacheVal, and one is in
+  // KernelProgramCache::MKernelsPerProgramCache. To cover
+  // MKernelsPerProgramCache, we need to increase the ref count of the kernel.
   ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
   Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);
@@ -1851,12 +1841,24 @@ void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
     }
 }
 
-std::optional<int>
-ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
-  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-  if (it != m_KernelImplicitLocalArgPos.end())
-    return it->second;
-  return {};
+std::optional<int> ProgramManager::kernelImplicitLocalArgPos(
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
+  auto getLocalArgPos = [&]() -> std::optional<int> {
+    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+    if (it != m_KernelImplicitLocalArgPos.end())
+      return it->second;
+    return {};
+  };
+
+  if (!KernelNameBasedCachePtr)
+    return getLocalArgPos();
+  std::optional<std::optional<int>> &ImplicitLocalArgPos =
+      KernelNameBasedCachePtr->ImplicitLocalArgPos;
+  if (!ImplicitLocalArgPos.has_value()) {
+    ImplicitLocalArgPos = getLocalArgPos();
+  }
+  return ImplicitLocalArgPos.value();
 }
 
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
