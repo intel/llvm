@@ -731,6 +731,14 @@ protected:
     return true;
   }
 
+  bool isKernelFastPath(const handler &Handler) {
+    return !Handler.impl->CGData.MRequirements.size() &&
+           !Handler.MStreamStorage.size() &&
+           detail::Scheduler::areEventsSafeForSchedulerBypass(
+               Handler.impl->CGData.MEvents, MContext) &&
+           MNoLastEventMode.load(std::memory_order_acquire);
+  }
+
   template <typename HandlerType = handler>
   detail::EventImplPtr
   finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
