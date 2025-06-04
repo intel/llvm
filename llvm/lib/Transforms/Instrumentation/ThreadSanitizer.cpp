@@ -436,7 +436,7 @@ bool ThreadSanitizerOnSpirv::isUnsupportedSPIRAccess(Value *Addr,
   case kSpirOffloadConstantAS:
     return true;
   case kSpirOffloadLocalAS:
-    return ClSpirOffloadLocals;
+    return !ClSpirOffloadLocals;
   case kSpirOffloadGlobalAS:
   case kSpirOffloadGenericAS:
     return false;
