@@ -8,137 +8,197 @@
 
 #include "helpers.hpp"
 
+template <int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
-void globalScopeSingleFreeFunc(sycl::accessor<int, 1> Accessor,
-                               size_t NumOfElements, int Value) {
-  for (size_t I = 0; I < NumOfElements; ++I) {
-    Accessor[I] = Value;
+void globalScopeSingleFreeFunc(
+    sycl::accessor<int, Dims, sycl::access::mode::read_write,
+                   sycl::access::target::device,
+                   sycl::access::placeholder::false_t>
+        Accessor,
+    sycl::range<Dims> NumOfElements, int Value) {
+  if constexpr (Dims == 1) {
+    for (size_t I = 0; I < NumOfElements[0]; ++I)
+      Accessor[I] = Value;
+  } else if constexpr (Dims == 2) {
+    for (size_t I = 0; I < NumOfElements[0]; ++I) {
+      for (size_t J = 0; J < NumOfElements[1]; ++J) {
+        Accessor[I][J] = Value;
+      }
+    }
+  } else if constexpr (Dims == 3) {
+    for (size_t I = 0; I < NumOfElements[0]; ++I) {
+      for (size_t J = 0; J < NumOfElements[1]; ++J) {
+        for (size_t K = 0; K < NumOfElements[2]; ++K) {
+          Accessor[I][J][K] = Value;
+        }
+      }
+    }
   }
 }
-
 namespace ns {
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<3>))
-void nsNdRangeFreeFunc(sycl::accessor<int, 1> Accessor, int Value) {
-  size_t Item =
-      syclext::this_work_item::get_nd_item<3>().get_global_linear_id();
+template <int Dims>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
+void nsNdRangeFreeFunc(sycl::accessor<int, Dims, sycl::access::mode::read_write,
+                                      sycl::access::target::device,
+                                      sycl::access::placeholder::false_t>
+                           Accessor,
+                       int Value) {
+  auto Item = syclext::this_work_item::get_nd_item<Dims>().get_global_id();
   Accessor[Item] = Value;
 }
-
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<3>))
-void nsNdRangeFreeFuncWith3DimAccessor(sycl::accessor<int, 3> Accessor,
-                                       int Value) {
-  sycl::nd_item<3> NdItem = syclext::this_work_item::get_nd_item<3>();
-  Accessor[NdItem.get_global_id(0)][NdItem.get_global_id(1)]
-          [NdItem.get_global_id(2)] = Value;
-}
-
 } // namespace ns
 
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<2>))
-void globalndRangeFreeFuncWith2DimAccessor(sycl::accessor<int, 2> Accessor,
-                                           int Value) {
-  sycl::nd_item<2> NdItem = syclext::this_work_item::get_nd_item<2>();
-  Accessor[NdItem.get_group_linear_id()][NdItem.get_local_linear_id()] = Value;
+template <int Dims>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
+void ndRangeFreeFuncMultipleParameters(
+    sycl::accessor<int, Dims, sycl::access::mode::read,
+                   sycl::access::target::device,
+                   sycl::access::placeholder::false_t>
+        InputAAcc,
+    sycl::accessor<int, Dims, sycl::access::mode::read,
+                   sycl::access::target::device,
+                   sycl::access::placeholder::false_t>
+        InputBAcc,
+    sycl::accessor<int, Dims, sycl::access::mode::write,
+                   sycl::access::target::device,
+                   sycl::access::placeholder::false_t>
+        ResultAcc) {
+  auto Item = syclext::this_work_item::get_nd_item<Dims>().get_global_id();
+  ResultAcc[Item] = InputAAcc[Item] + InputBAcc[Item];
 }
 
 // TODO: Need to add checks for a static member functions of a class as free
 // function kernel.
 
+template <auto Func, size_t Dims>
+int runSingleTaskTest(sycl::queue &Queue, sycl::context &Context,
+                      sycl::range<Dims> NumOfElementsPerDim,
+                      std::string_view ErrorMessage,
+                      const int ExpectedResultValue) {
+  sycl::kernel UsedKernel = getKernel<Func>(Context);
+  std::vector<int> ResultData(NumOfElementsPerDim.size(), 0);
+  {
+    sycl::buffer<int, Dims> Buffer(ResultData.data(), NumOfElementsPerDim);
+    Queue.submit([&](sycl::handler &Handler) {
+      sycl::accessor<int, Dims> Accessor{Buffer, Handler};
+      Handler.set_args(Accessor, NumOfElementsPerDim, ExpectedResultValue);
+      Handler.single_task(UsedKernel);
+    });
+  }
+  return performResultCheck(NumOfElementsPerDim.size(), ResultData.data(),
+                            ErrorMessage, ExpectedResultValue);
+}
+template <auto Func, size_t Dims>
+int runNdRangeTest(sycl::queue &Queue, sycl::context &Context,
+                   sycl::nd_range<Dims> NdRange, std::string_view ErrorMessage,
+                   const int ExpectedResultValue) {
+  sycl::kernel UsedKernel = getKernel<Func>(Context);
+  std::vector<int> ResultData(NdRange.get_global_range().size(), 0);
+  {
+    sycl::buffer<int, Dims> Buffer(ResultData.data(),
+                                   NdRange.get_global_range());
+    Queue.submit([&](sycl::handler &Handler) {
+      sycl::accessor<int, Dims> Accessor{Buffer, Handler};
+      Handler.set_args(Accessor, ExpectedResultValue);
+      Handler.parallel_for(NdRange, UsedKernel);
+    });
+  }
+  return performResultCheck(NdRange.get_global_range().size(),
+                            ResultData.data(), ErrorMessage,
+                            ExpectedResultValue);
+}
+
+template <auto Func, size_t Dims>
+int runNdRangeTestMultipleParameters(sycl::queue &Queue, sycl::context &Context,
+                                     sycl::nd_range<Dims> NdRange,
+                                     std::string_view ErrorMessage,
+                                     sycl::range<3> Values) {
+  sycl::kernel UsedKernel = getKernel<Func>(Context);
+  std::vector<int> InputAData(NdRange.get_global_range().size(), Values[0]);
+  std::vector<int> InputBData(NdRange.get_global_range().size(), Values[1]);
+  std::vector<int> ResultData(NdRange.get_global_range().size(), 0);
+
+  {
+    sycl::buffer<int, Dims> InputABuffer(InputAData.data(),
+                                         NdRange.get_global_range());
+    sycl::buffer<int, Dims> InputBBuffer(InputBData.data(),
+                                         NdRange.get_global_range());
+    sycl::buffer<int, Dims> ResultBuffer(ResultData.data(),
+                                         NdRange.get_global_range());
+    Queue.submit([&](sycl::handler &Handler) {
+      sycl::accessor<int, Dims, sycl::access::mode::read,
+                     sycl::access::target::device>
+          InputAAcc{InputABuffer, Handler};
+      sycl::accessor<int, Dims, sycl::access::mode::read,
+                     sycl::access::target::device>
+          InputBAcc{InputBBuffer, Handler};
+      sycl::accessor<int, Dims, sycl::access::mode::write> ResultAcc{
+          ResultBuffer, Handler};
+      Handler.set_args(InputAAcc, InputBAcc, ResultAcc);
+      Handler.parallel_for(NdRange, UsedKernel);
+    });
+  }
+  return performResultCheck(NdRange.get_global_range().size(),
+                            ResultData.data(), ErrorMessage, Values[2]);
+}
 int main() {
 
   int Failed = 0;
   sycl::queue Queue;
   sycl::context Context = Queue.get_context();
-  constexpr size_t NumOfElements = 1024;
-  {
-    // Check that sycl::accessor is supported inside nd_range free function
-    // kernel.
-    std::vector<int> ResultHostData(NumOfElements, 0);
-    constexpr int ExpectedResultValue = 111;
-    {
-      sycl::buffer<int, 1> Buffer(ResultHostData);
-      sycl::kernel UsedKernel = getKernel<ns::nsNdRangeFreeFunc>(Context);
-      Queue.submit([&](sycl::handler &Handler) {
-        sycl::accessor<int, 1> Accessor{Buffer, Handler};
-        Handler.set_args(Accessor, ExpectedResultValue);
-        sycl::nd_range<3> Ndr{{4, 4, NumOfElements / 16}, {4, 4, 4}};
-        Handler.parallel_for(Ndr, UsedKernel);
-      });
-    }
-
-    Failed += performResultCheck(NumOfElements, ResultHostData.data(),
-                                 "ns::nsNdRangeFreeFunc with sycl::accessor",
-                                 ExpectedResultValue);
-  }
-
   {
     // Check that sycl::accessor is supported inside single_task free function
-    // kernel.
-    std::vector<int> ResultHostData(NumOfElements, 0);
-    constexpr int ExpectedResultValue = 222;
-    {
-      sycl::buffer<int, 1> Buffer(ResultHostData);
-      sycl::kernel UsedKernel = getKernel<globalScopeSingleFreeFunc>(Context);
-      Queue.submit([&](sycl::handler &Handler) {
-        sycl::accessor<int, 1> Accessor{Buffer, Handler};
-        Handler.set_arg(0, Accessor);
-        Handler.set_arg(1, NumOfElements);
-        Handler.set_arg(2, ExpectedResultValue);
-        Handler.single_task(UsedKernel);
-      });
-    }
-    Failed += performResultCheck(
-        NumOfElements, ResultHostData.data(),
-        "globalScopeSingleFreeFunc with sycl::accessor", ExpectedResultValue);
+    // kernel
+    Failed += runSingleTaskTest<globalScopeSingleFreeFunc<1>, 1>(
+        Queue, Context, sycl::range<1>{10},
+        "globalScopeSingleFreeFunc with sycl::accessor<1>", 1);
+    Failed += runSingleTaskTest<globalScopeSingleFreeFunc<2>, 2>(
+        Queue, Context, sycl::range<2>{10, 10},
+        "globalScopeSingleFreeFunc with sycl::accessor<2>", 2);
+    Failed += runSingleTaskTest<globalScopeSingleFreeFunc<3>, 3>(
+        Queue, Context, sycl::range<3>{10, 10, 10},
+        "globalScopeSingleFreeFunc with sycl::accessor<3>", 3);
   }
 
   {
-    // Check that sycl::accessor<2> is supported inside single_task free
-    // function kernel.
-    std::vector<int> ResultHostData(NumOfElements, 0);
-    constexpr int ExpectedResultValue = 333;
-    {
-      sycl::range<2> BufRange{8, NumOfElements / 8};
-      sycl::buffer<int, 2> Buffer(ResultHostData.data(), BufRange);
-      sycl::kernel UsedKernel =
-          getKernel<globalndRangeFreeFuncWith2DimAccessor>(Context);
-      Queue.submit([&](sycl::handler &Handler) {
-        sycl::accessor<int, 2> Accessor{Buffer, Handler};
-        Handler.set_arg(0, Accessor);
-        Handler.set_arg(1, ExpectedResultValue);
-        sycl::nd_range<2> Ndr{{128, 8}, {16, 8}};
-        Handler.parallel_for(Ndr, UsedKernel);
-      });
-    }
-    Failed += performResultCheck(
-        NumOfElements, ResultHostData.data(),
-        "globalndRangeFreeFuncWith2DimAccessor with sycl::accessor<2>",
-        ExpectedResultValue);
+    // Check that sycl::accessor is supported inside nd_range free function
+    // kernel
+    Failed += runNdRangeTest<ns::nsNdRangeFreeFunc<1>, 1>(
+        Queue, Context, sycl::nd_range{sycl::range{10}, sycl::range{10}},
+        "ns::nsNdRangeFreeFunc with sycl::accessor<1>", 4);
+    Failed += runNdRangeTest<ns::nsNdRangeFreeFunc<2>, 2>(
+        Queue, Context,
+        sycl::nd_range{sycl::range{10, 10}, sycl::range{10, 10}},
+        "ns::nsNdRangeFreeFunc with sycl::accessor<2>", 5);
+    Failed += runNdRangeTest<ns::nsNdRangeFreeFunc<3>, 3>(
+        Queue, Context,
+        sycl::nd_range{sycl::range{10, 10, 10}, sycl::range{10, 10, 10}},
+        "ns::nsNdRangeFreeFunc with sycl::accessor<3>", 5);
   }
 
   {
-    // Check that sycl::accessor<3> is supported inside single_task free
-    // function kernel.
-    std::vector<int> ResultHostData(NumOfElements, 0);
-    constexpr int ExpectedResultValue = 444;
-    {
-      sycl::range<3> BufRange{64, 4, 4};
-      sycl::buffer<int, 3> Buffer(ResultHostData.data(), BufRange);
-      sycl::kernel UsedKernel =
-          getKernel<ns::nsNdRangeFreeFuncWith3DimAccessor>(Context);
-      Queue.submit([&](sycl::handler &Handler) {
-        sycl::accessor<int, 3> Accessor{Buffer, Handler};
-        Handler.set_arg(0, Accessor);
-        Handler.set_arg(1, ExpectedResultValue);
-        sycl::nd_range<3> Ndr{{64, 4, 4}, {16, 4, 2}};
-        Handler.parallel_for(Ndr, UsedKernel);
-      });
-    }
-    Failed += performResultCheck(
-        NumOfElements, ResultHostData.data(),
-        "ns::nsNdRangeFreeFuncWith3DimAccessor with sycl::accessor<3>",
-        ExpectedResultValue);
+    // Check that multiple sycl::accessor are supported inside nd_range free
+    // function kernel
+    Failed +=
+        runNdRangeTestMultipleParameters<ndRangeFreeFuncMultipleParameters<1>,
+                                         1>(
+            Queue, Context, sycl::nd_range{sycl::range{10}, sycl::range{10}},
+            "ndRangeFreeFuncMultipleParameters with multiple sycl::accessor<1>",
+            sycl::range{111, 111, 222});
+    Failed +=
+        runNdRangeTestMultipleParameters<ndRangeFreeFuncMultipleParameters<2>,
+                                         2>(
+            Queue, Context,
+            sycl::nd_range{sycl::range{10, 10}, sycl::range{10, 10}},
+            "ndRangeFreeFuncMultipleParameters with multiple sycl::accessor<2>",
+            sycl::range{222, 222, 444});
+    Failed +=
+        runNdRangeTestMultipleParameters<ndRangeFreeFuncMultipleParameters<3>,
+                                         3>(
+            Queue, Context,
+            sycl::nd_range{sycl::range{10, 10, 10}, sycl::range{10, 10, 10}},
+            "ndRangeFreeFuncMultipleParameters with multiple sycl::accessor<3>",
+            sycl::range{444, 444, 888});
   }
-
   return Failed;
 }
