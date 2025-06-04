@@ -347,7 +347,8 @@ A memory pool has a number of attributes which dictate it's behavior:
 * A memory pool has a *used size* (in bytes) which tracks the total memory which
   allocated has been allocated to a USM pointer.
 * A memory pool has a *allocation kind* which is a value of `usm::alloc` which
-  dictates the type of USM memory that is allocated to the pool.
+  dictates the type of USM memory that is allocated to the pool. Currently only
+  `usm::alloc::device` is permitted.
 * A memory pool is associated with a context and one or more device(s),
   depending on the allocation kind.
 
@@ -361,14 +362,16 @@ them adhere to the following behaviors:
   malloc command has completed.
 * When an asynchronous malloc command executes it will allocate USM memory of
   the allocation kind from the memory pool.
-* When an asynchronous free command is enqueued, the USM pointer to be freed is
-  no longer valid once the dependencies of that command are satisfied. The
-  asynchronous free command may execute any time between the point when the
-  dependencies are satisfied and the command being synchronized with. Once the
-  asynchronous free command is enqueued memory allocated to that USM pointer is
-  now free for the memory pool to re-allocate to another USM pointer either once
-  the command has completed, or if an asynchronous command is dependent on this
-  asynchronous free command.
+* When an asynchronous free command is enqueued the memory is not freed
+  immediately. The asynchronous free command may execute any time from when the
+  dependencies of the command are satisfied to when the command is synchronized
+  with. The USM pointer to be freed is no longer valid once the dependencies of
+  that command are satisfied.
+* When executing an asynchronous malloc command, a memory pool may re-allocate
+  memory from a previous USM pointer to a new USM pointer if an asynchronous
+  free command to free that memory has completed, or if there is a dependent
+  asynchronous free command enqueued such that the memory will be free by the
+  time the asynchronous malloc command executes.
 * A memory pool may reserve further memory from the memory provider at any time
   to grow the size of the memory pool's reserve, though it may not exceed the
   maximum size of the memory pool.
@@ -378,8 +381,7 @@ them adhere to the following behaviors:
 * The amount of reserved and used memory reported by the memory pool is updated
   immediately after returning from calls to enqueue asynchronous malloc and once
   free commands have completed.
-* If the memory is not constructed from a user provided memory allocation, when
-  the reserve threshold of the memory pool is set, the value specified may
+* When the reserve threshold of the memory pool is set, the value specified may
   round down to the nearest multiple of an implementation defined allocation
   chunk size, and the memory pool will immediately start using this new size.
 * When the maximum size of the memory pool is set, the value specified may
@@ -395,18 +397,11 @@ namespace ext::oneapi::experimental {
 class memory_pool {
 
   template <typename Properties = empty_properties_t>
-  memory_pool(const context &ctx, usm::alloc kind, Properties props = {});
-
-  template <typename Properties = empty_properties_t>
   memory_pool(const context &ctx, const device &dev, usm::alloc kind,
     Properties props = {});
 
   template <typename Properties = empty_properties_t>
   memory_pool(const queue &que, usm::alloc kind, Properties props = {});
-
-  template <typename Properties = empty_properties_t>
-  memory_pool(const context &ctx, void *ptr, size_t size,
-    Properties props = {});
 
   ~memory_pool();
 
@@ -432,19 +427,6 @@ class memory_pool {
 [source, c++]
 ----
 template <typename Properties = empty_properties_t>
-memory_pool(const context &ctx, usm::alloc kind, Properties props = {});
-----
-
-_Effects_: Constructs a memory pool which is associated with the context `ctx`
-and all SYCL devices associated with it, which allocates host USM memory,
-applying any properties in `props`.
-
-_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
-is `usm::alloc::device`, `usm::alloc::shared` or `usm::alloc::unknown`.
-
-[source, c++]
-----
-template <typename Properties = empty_properties_t>
 memory_pool(const context &ctx, const device &dev, usm::alloc kind,
   Properties props = {});
 ----
@@ -453,8 +435,10 @@ _Effects_: Constructs a memory pool which is associated with the context `ctx`
 and device `dev`, which allocates either device or shared USM memory depending
 on the allocation kind `kind`, and applying any properties in `props`.
 
-_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
-is `usm::alloc::host` or `usm::alloc::unknown`.
+_Throws_: A synchronous exception with the `errc::feature_not_supported` error
+code if `dev` does not support the `aspect::ext_oneapi_async_memory_alloc`
+aspect. A synchronous exception with the `errc::invalid` error code if `kind`
+is not `usm::alloc::device`.
 
 [source, c++]
 ----
@@ -465,34 +449,13 @@ memory_pool(const queue &que, usm::alloc kind, Properties props = {});
 _Effects_: Constructs a memory pool which is associated with the context and
 device from the queue `que`, which allocates either device or shared USM memory
 depending on the allocation kind `kind`, and applying any properties in `props`.
-If `kind` is `usm::alloc::host` this is equivalent to calling
-`memory_pool(queue.get_context(), props)` otherwise this is equivalent to
-calling `memory_pool(queue.get_context(), queue.get_device(), props)`.
+This is equivalent to calling
+`memory_pool(queue.get_context(), queue.get_device(), props)`.
 
-_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
-is `usm::alloc::unknown`.
-
-[source, c++]
-----
-template <typename Properties = empty_properties_t>
-memory_pool(const context &ctx, void *ptr, size_t size, Properties props = {});
-----
-
-_Constraints_: Available when `props` does not contain either the `maximum_size`
-or `initial_threshold` properties.
-
-_Effects_: Constructs a memory pool which is associated with context `ctx`, 
-uses an existing USM memory allocation `ptr` of size (in bytes) `size`,
-and applying any properties in `props`. The memory pool will use the existing
-USM memory allocation instead of reserving memory from the memory provider. The
-associated device and allocation kind of the memory pool is inferred from the
-`ptr`. If `ptr` is not a valid USM pointer of kind `usm::alloc::host`,
-`usm::alloc::device` or `usm::alloc::shared` or the value `size` does not match
-the size of memory allocated for `ptr` the result is undefined behavior. If
-`ptr` is freed or the memory it points to is written to whilst the memory pool
-is still alive the result is undefined behavior. The maximum size and initial
-threshold of the memory pool are set to `size`.
-
+_Throws_: A synchronous exception with the `errc::feature_not_supported` error
+code if the device from `que` does not support the
+`aspect::ext_oneapi_async_memory_alloc` aspect. A synchronous exception with the
+`errc::invalid` error code if `kind` is not `usm::alloc::device`.
 
 [source, c++]
 ----
@@ -515,12 +478,8 @@ _Returns_: The SYCL context associated with the memory pool.
 device get_device() const;
 ----
 
-_Returns_: The SYCL device associated with the memory pool. If the memory pool
-allocates memory of kind `usm::alloc::device` or `usm::alloc::host::shared` the
-device returned is the same device which was passed when constructing the memory
-pool. If the memory pool allocates memory of kind `usm::alloc::host` the device
-returned is the first of the devices associated with the context, which is
-associated with the memory pool.
+_Returns_: The SYCL device associated with the memory pool, which was passed
+when constructing the memory pool.
 
 [source, c++]
 ----
@@ -587,12 +546,6 @@ struct maximum_size {
 
 using maximum_size_key = maximum_size;
 
-struct read_only {
-  read_only();
-};
-
-using read_only_key = read_only;
-
 struct zero_init {
   zero_init();
 };
@@ -621,16 +574,6 @@ using zero_init_key = zero_init;
  support an exception with the `errc::memory_allocation` error code is thrown.
  If this property is not used the default value is implementation-defined.
 
-|`read_only`
-|The `read_only` property is an assertion by the application that allocations
-from this pool will never be written from a kernel. Implementations may be able
-to perform certain optimizations when a memory pool is created with this
-property.
-
-[Note: A memory pool created with the `read_only` property may still be written
-from the host and may still be the destination of a memory copy operation that
-is submitted to a device. -- end note]
-
 |`zero_init`
 |The `zero_init` property adds the requirement that all memory reserved by the
  memory pool will be initialised to zero. Note that there is no guarantee that
@@ -657,25 +600,11 @@ semantics.
 ----
 class context {
 
-  memory_pool context::ext_oneapi_get_default_memory_pool(usm::alloc kind)
-    const;
-
   memory_pool context::ext_oneapi_get_default_memory_pool(const device &dev,
     usm::alloc kind) const;
 
 }; // context
 ----
-
-[source, c++]
-----
-memory_pool context::ext_oneapi_get_default_memory_pool(usm::alloc kind) const;
-----
-
-_Returns_: The default memory pool associated with the context for allocating
-host USM memory.
-
-_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
-is `usm::alloc::device`, `usm::alloc::shared` or `usm::alloc::unknown`.
 
 [source, c++]
 ----
@@ -686,10 +615,11 @@ memory_pool context::ext_oneapi_get_default_memory_pool(const device &dev,
 _Returns_: The default memory pool associated with the context and `dev` for
 allocating device or shared USM memory depending on the allocation kind `kind`.
 
-_Throws_: A synchronous exception with the `errc::invalid` error code if `dev`
+_Throws_: A synchronous exception with the `errc::feature_not_supported` error
+code if `dev` does not support the `aspect::ext_oneapi_async_memory_alloc`
+aspect. A synchronous exception with the `errc::invalid` error code if `dev`
 is not one of the devices associated with the context. A synchronous exception
-with the `errc::invalid` error code if `kind` is `usm::alloc::host` or
-`usm::alloc::unknown`.
+with the `errc::invalid` error code if `kind` is not `usm::alloc::device`.
 
 
 === Asynchronous malloc & free
@@ -756,12 +686,15 @@ size is zero bytes, these functions behave in a manner consistent with C++
 pointer may not be used to access storage. If this pointer is not `null`, it
 must be passed to `sycl::async_free` to avoid a memory leak.
 
-_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
-is `usm::alloc::unknown`. A synchronous exception with the `errc::invalid` error
-code if a memory pool `pool` is provided and it is not associated with the same
-SYCL context and device as `que` or the SYCL queue associated with `cgh`. An
-asynchronous exception with the `errc::memory_allocation` error code if the
-allocation brings the memory pool over the maximum size.
+_Throws_:  A synchronous exception with the `errc::feature_not_supported` error
+code if the device from `que` or the queue associated with `cgh` does not
+support the `aspect::ext_oneapi_async_memory_alloc` aspect. A synchronous
+exception with the `errc::invalid` error code if `kind` is not
+`usm::alloc::device`. A synchronous exception with the `errc::invalid` error
+code if `pool` is provided and it is not associated with the same context and
+device as `que` or the queue associated with `cgh`. An asynchronous exception
+with the `errc::memory_allocation` error code if the allocation brings the
+memory pool over it's maximum size.
 
 [source, c++]
 ----
@@ -778,6 +711,10 @@ _Effects_: Enqueues a command to `que` or the SYCL queue associated with `cgh`
 which will asynchronously free the memory allocation at the address of `ptr`.
 Accessing the memory at the address of `ptr` after the asynchronous free command
 has completed execution is undefined behavior.
+
+_Throws_:  A synchronous exception with the `errc::feature_not_supported` error
+code if the device from `que` or the queue associated with `cgh` does not
+support the `aspect::ext_oneapi_async_memory_alloc` aspect.
 
 
 == Implementation notes
@@ -801,8 +738,6 @@ follow to provide performance benefits to using the memory pool:
   allocated to a USM pointer, however, it may release any free memory in the
   pool. When the memory pool releases memory from the pool, this may be done so
   in multiples of an implementation defined allocation chunk size.
-
-...
 
 It is expected that for L0 this extension will be implemented within the L0
 adapter, by reserving allocations for the memory pool and opportunistically
@@ -845,4 +780,29 @@ memory but using this lower threshold at the next synchronization point.
 --
 *UNRESOLVED*: Currently this extension uses the properties extension but there
 are no API for retrieving properties from a `memory_pool`.
+--
+
+. Support host and shared USM allocations
++
+--
+*UNRESOLVED*: Currently this extension does not support host and shared USM
+allocations, as these are much more complex to implement compared to device USM
+allocations. It is expected these will be supported in the future. Host USM
+allocations will be supported via the following `memory_pool` constructor:
+
+  template <typename Properties = empty_properties_t>
+  memory_pool(const context &ctx, usm::alloc kind, Properties props = {});
+--
+
+. Support user provided allocations
++
+--
+*UNRESOLVED*: Currently this extension does not support user provided
+allocations, as these are much more complex to implement. It is expected this
+will be supported in the future. User provided allocations will be supported via
+the following `memory_pool` constructor:
+
+  template <typename Properties = empty_properties_t>
+  memory_pool(const context &ctx, void *ptr, size_t size,
+    Properties props = {});
 --
