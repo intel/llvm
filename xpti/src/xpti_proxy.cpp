@@ -151,7 +151,7 @@ public:
   inline bool noErrors() { return m_loaded; }
 
   void *functionByIndex(unsigned index) {
-    if (index >= XPTI_FRAMEWORK_INITIALIZE && index < XPTI_FW_API_COUNT) {
+    if (index < XPTI_FW_API_COUNT) {
       return reinterpret_cast<void *>(m_dispatch_table[index]);
     }
     return nullptr;
