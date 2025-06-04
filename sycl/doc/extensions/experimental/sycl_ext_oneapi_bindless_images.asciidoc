@@ -2074,6 +2074,7 @@ enum class external_mem_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,
   win32_nt_dx12_resource = 2,
+  win32_nt_dx11_resource = 3,
 };
 
 // Descriptor templated on specific resource type
@@ -2728,3 +2729,5 @@ This query should be added in a later revision of the proposal.
 |6.10|2025-05-09| - Add `unmap_external_image_memory` and 
                     `unmap_external_linear_memory` APIs.
                   - Clarify how and when external memory should be unmapped.
+|6.11|2025-05-29| - Add `win32_nt_dx11_resource` enum entry to
+                    `external_mem_handle_type` for Direct3D 11 memory interop.

@@ -9796,6 +9796,8 @@ typedef enum ur_exp_external_mem_type_t {
   UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT = 1,
   /// Win32 NT DirectX 12 resource handle
   UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE = 2,
+  /// Win32 NT DirectX 11 resource handle
+  UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE = 3,
   /// @cond
   UR_EXP_EXTERNAL_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10514,7 +10516,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE <
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
 ///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`

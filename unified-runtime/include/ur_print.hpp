@@ -11313,6 +11313,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
     os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE";
     break;
+  case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+    os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE";
+    break;
   default:
     os << "unknown enumerator";
     break;
