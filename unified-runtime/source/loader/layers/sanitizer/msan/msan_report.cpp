@@ -50,8 +50,8 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
   if (Origin.isHeapOrigin()) {
     HeapType Type = Origin.getHeapType();
     StackTrace Stack = Origin.getHeapStackTrace();
-    UR_LOG_L(getContext()->logger, QUIET,
-             "ORIGIN: {} allocation:", ToString(Type));
+    UR_LOG_L(getContext()->logger, QUIET, "ORIGIN: {} allocation ({})",
+             ToString(Type), (void *)(uptr)Report.Origin);
     Stack.print();
   }
 }

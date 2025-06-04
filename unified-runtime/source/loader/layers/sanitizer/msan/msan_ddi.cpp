@@ -1473,14 +1473,10 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
                      numEventsInWaitList, phEventWaitList, &Event));
   Events.push_back(Event);
 
-  const auto Mem = (uptr)pMem;
-  auto MemInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Mem);
-  if (MemInfoItOp) {
-    auto MemInfo = (*MemInfoItOp)->second;
-
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(MemInfo->Device);
-    const auto MemShadow = DeviceInfo->Shadow->MemToShadow(Mem);
+  {
+    ur_device_handle_t Device = GetDevice(hQueue);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     Event = nullptr;
     UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size, 0,
@@ -1532,33 +1528,15 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                        phEventWaitList, &Event));
   Events.push_back(Event);
 
-  const auto Src = (uptr)pSrc, Dst = (uptr)pDst;
-  auto SrcInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Src);
-  auto DstInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Dst);
-
-  if (SrcInfoItOp && DstInfoItOp) {
-    auto SrcInfo = (*SrcInfoItOp)->second;
-    auto DstInfo = (*DstInfoItOp)->second;
-
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(SrcInfo->Device);
-    const auto SrcShadow = DeviceInfo->Shadow->MemToShadow(Src);
-    const auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
+  {
+    ur_device_handle_t Device = GetDevice(hQueue);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    const auto SrcShadow = DeviceInfo->Shadow->MemToShadow((uptr)pSrc);
+    const auto DstShadow = DeviceInfo->Shadow->MemToShadow((uptr)pDst);
 
     Event = nullptr;
     UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow, (void *)SrcShadow,
                          size, 0, nullptr, &Event));
-    Events.push_back(Event);
-  } else if (DstInfoItOp) {
-    auto DstInfo = (*DstInfoItOp)->second;
-
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(DstInfo->Device);
-    auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
-
-    Event = nullptr;
-    UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)DstShadow, 0, size, 0,
-                                  nullptr, &Event));
     Events.push_back(Event);
   }
 
@@ -1612,14 +1590,10 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
                        height, numEventsInWaitList, phEventWaitList, &Event));
   Events.push_back(Event);
 
-  const auto Mem = (uptr)pMem;
-  auto MemInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Mem);
-  if (MemInfoItOp) {
-    auto MemInfo = (*MemInfoItOp)->second;
-
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(MemInfo->Device);
-    const auto MemShadow = DeviceInfo->Shadow->MemToShadow(Mem);
+  {
+    ur_device_handle_t Device = GetDevice(hQueue);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     const char Pattern = 0;
     Event = nullptr;
@@ -1680,36 +1654,16 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
                          &Event));
   Events.push_back(Event);
 
-  const auto Src = (uptr)pSrc, Dst = (uptr)pDst;
-  auto SrcInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Src);
-  auto DstInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Dst);
-
-  if (SrcInfoItOp && DstInfoItOp) {
-    auto SrcInfo = (*SrcInfoItOp)->second;
-    auto DstInfo = (*DstInfoItOp)->second;
-
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(SrcInfo->Device);
-    const auto SrcShadow = DeviceInfo->Shadow->MemToShadow(Src);
-    const auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
+  {
+    ur_device_handle_t Device = GetDevice(hQueue);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    const auto SrcShadow = DeviceInfo->Shadow->MemToShadow((uptr)pSrc);
+    const auto DstShadow = DeviceInfo->Shadow->MemToShadow((uptr)pDst);
 
     Event = nullptr;
     UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
                            (void *)SrcShadow, srcPitch, width, height, 0,
                            nullptr, &Event));
-    Events.push_back(Event);
-  } else if (DstInfoItOp) {
-    auto DstInfo = (*DstInfoItOp)->second;
-
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(DstInfo->Device);
-    const auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
-
-    const char Pattern = 0;
-    Event = nullptr;
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
-        hQueue, (void *)DstShadow, dstPitch, 1, &Pattern, width, height, 0,
-        nullptr, &Event));
     Events.push_back(Event);
   }
 

@@ -272,17 +272,17 @@ public:
 
   ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                               ur_queue_handle_t Queue,
-                              msan::USMLaunchInfo &LaunchInfo);
+                              USMLaunchInfo &LaunchInfo);
   ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
                                ur_queue_handle_t Queue,
-                               msan::USMLaunchInfo &LaunchInfo);
+                               USMLaunchInfo &LaunchInfo);
 
   ur_result_t insertContext(ur_context_handle_t Context,
-                            std::shared_ptr<msan::ContextInfo> &CI);
+                            std::shared_ptr<ContextInfo> &CI);
   ur_result_t eraseContext(ur_context_handle_t Context);
 
   ur_result_t insertDevice(ur_device_handle_t Device,
-                           std::shared_ptr<msan::DeviceInfo> &CI);
+                           std::shared_ptr<DeviceInfo> &CI);
   ur_result_t eraseDevice(ur_device_handle_t Device);
 
   ur_result_t insertProgram(ur_program_handle_t Program);
@@ -302,26 +302,19 @@ public:
     return UR_RESULT_SUCCESS;
   }
 
-  std::optional<MsanAllocationIterator> findAllocInfoByAddress(uptr Address);
-
-  std::vector<MsanAllocationIterator>
-  findAllocInfoByContext(ur_context_handle_t Context);
-
-  std::shared_ptr<msan::ContextInfo>
-  getContextInfo(ur_context_handle_t Context) {
+  std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
     std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
     assert(m_ContextMap.find(Context) != m_ContextMap.end());
     return m_ContextMap[Context];
   }
 
-  std::shared_ptr<msan::DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
+  std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
     std::shared_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
     assert(m_DeviceMap.find(Device) != m_DeviceMap.end());
     return m_DeviceMap[Device];
   }
 
-  std::shared_ptr<msan::ProgramInfo>
-  getProgramInfo(ur_program_handle_t Program) {
+  std::shared_ptr<ProgramInfo> getProgramInfo(ur_program_handle_t Program) {
     std::shared_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
     assert(m_ProgramMap.find(Program) != m_ProgramMap.end());
     return m_ProgramMap[Program];
@@ -339,39 +332,35 @@ public:
 
 private:
   /// Initialize Global Variables & Kernel Name at first Launch
-  ur_result_t prepareLaunch(std::shared_ptr<msan::DeviceInfo> &DeviceInfo,
+  ur_result_t prepareLaunch(std::shared_ptr<DeviceInfo> &DeviceInfo,
                             ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                            msan::USMLaunchInfo &LaunchInfo);
+                            USMLaunchInfo &LaunchInfo);
 
   ur_result_t allocShadowMemory(ur_context_handle_t Context,
-                                std::shared_ptr<msan::DeviceInfo> &DeviceInfo);
+                                std::shared_ptr<DeviceInfo> &DeviceInfo);
 
   ur_result_t registerSpirKernels(ur_program_handle_t Program);
   ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
 
 private:
-  std::unordered_map<ur_context_handle_t, std::shared_ptr<msan::ContextInfo>>
+  std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
       m_ContextMap;
   ur_shared_mutex m_ContextMapMutex;
-  std::unordered_map<ur_device_handle_t, std::shared_ptr<msan::DeviceInfo>>
+  std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
       m_DeviceMap;
   ur_shared_mutex m_DeviceMapMutex;
 
-  std::unordered_map<ur_program_handle_t, std::shared_ptr<msan::ProgramInfo>>
+  std::unordered_map<ur_program_handle_t, std::shared_ptr<ProgramInfo>>
       m_ProgramMap;
   ur_shared_mutex m_ProgramMapMutex;
 
-  std::unordered_map<ur_kernel_handle_t, std::shared_ptr<msan::KernelInfo>>
+  std::unordered_map<ur_kernel_handle_t, std::shared_ptr<KernelInfo>>
       m_KernelMap;
   ur_shared_mutex m_KernelMapMutex;
 
   std::unordered_map<ur_mem_handle_t, std::shared_ptr<MemBuffer>>
       m_MemBufferMap;
   ur_shared_mutex m_MemBufferMapMutex;
-
-  /// Assumption: all USM chunks are allocated in one VA
-  MsanAllocationMap m_AllocationMap;
-  ur_shared_mutex m_AllocationMapMutex;
 
   std::unordered_set<ur_adapter_handle_t> m_Adapters;
   ur_shared_mutex m_AdaptersMutex;

@@ -34,7 +34,6 @@ MsanInterceptor::~MsanInterceptor() {
   }
 
   m_MemBufferMap.clear();
-  m_AllocationMap.clear();
   m_KernelMap.clear();
   m_ContextMap.clear();
 
@@ -51,8 +50,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
-  std::shared_ptr<DeviceInfo> DeviceInfo =
-      Device ? getDeviceInfo(Device) : nullptr;
+  std::shared_ptr<DeviceInfo> DI = Device ? getDeviceInfo(Device) : nullptr;
 
   // Origin tracking needs alignment at leat is 4
   constexpr uint32_t MSAN_ORIGIN_TRACKING_GRANULARITY = 4;
@@ -81,26 +79,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   *ResultPtr = Allocated;
 
-  if (Type != AllocType::DEVICE_USM) {
-    ContextInfo->CleanShadowSize = std::max(ContextInfo->CleanShadowSize, Size);
-  }
-
-  // For host/shared usm, we only record the alloc size.
-  if (Type != AllocType::DEVICE_USM) {
-    return UR_RESULT_SUCCESS;
-  }
-  assert(Device);
-
-  StackTrace Stack = GetCurrentBacktrace();
-  auto AI = std::make_shared<MsanAllocInfo>(
-      MsanAllocInfo{(uptr)Allocated, Size, false, Context, Device, Stack, {}});
-  AI->print();
-
-  // For memory release
-  {
-    std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-    m_AllocationMap.emplace(AI->AllocBegin, AI);
-  }
+  ContextInfo->CleanShadowSize = std::max(ContextInfo->CleanShadowSize, Size);
 
   // For origin tracking
   HeapType HeapType;
@@ -118,26 +97,33 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     assert(false && "Unknown heap type");
   }
 
+  StackTrace Stack = GetCurrentBacktrace();
   Origin HeapOrigin = Origin::CreateHeapOrigin(Stack, HeapType);
 
   // Update shadow memory
-  ManagedQueue Queue(Context, Device);
-  DeviceInfo->Shadow->EnqueuePoisonShadowWithOrigin(
-      Queue, AI->AllocBegin, AI->AllocSize, 0xff, HeapOrigin.rawId());
+  auto EnqueuePoison = [&](ur_device_handle_t Device) {
+    ManagedQueue Queue(Context, Device);
+    std::shared_ptr<DeviceInfo> DI = getDeviceInfo(Device);
+    DI->Shadow->EnqueuePoisonShadowWithOrigin(Queue, (uptr)Allocated, Size,
+                                              0xff, HeapOrigin.rawId());
+  };
+  if (Device) { // shared/device USM
+    EnqueuePoison(Device);
+  } else { // host USM
+    for (const auto &[Device, _] : m_DeviceMap) {
+      EnqueuePoison(Device);
+    }
+  }
+
+  UR_LOG_L(getContext()->logger, INFO,
+           "AllocInfo {} (Size={}, Type={}, Origin={})", (void *)Allocated,
+           Size, ToString(Type), (void *)(uptr)HeapOrigin.rawId());
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
                                            void *Ptr) {
-  auto Addr = reinterpret_cast<uptr>(Ptr);
-  auto AddrInfoItOp = findAllocInfoByAddress(Addr);
-
-  if (AddrInfoItOp) {
-    std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-    m_AllocationMap.erase(*AddrInfoItOp);
-  }
-
   return getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
 }
 
@@ -622,38 +608,6 @@ ur_result_t MsanInterceptor::prepareLaunch(
   }
 
   return UR_RESULT_SUCCESS;
-}
-
-std::optional<MsanAllocationIterator>
-MsanInterceptor::findAllocInfoByAddress(uptr Address) {
-  std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-  auto It = m_AllocationMap.upper_bound(Address);
-  if (It == m_AllocationMap.begin()) {
-    return std::nullopt;
-  }
-  --It;
-
-  // Since we haven't intercepted all USM APIs, we can't make sure the found
-  // AllocInfo is correct.
-  if (Address < It->second->AllocBegin ||
-      Address >= It->second->AllocBegin + It->second->AllocSize) {
-    return std::nullopt;
-  }
-
-  return It;
-}
-
-std::vector<MsanAllocationIterator>
-MsanInterceptor::findAllocInfoByContext(ur_context_handle_t Context) {
-  std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-  std::vector<MsanAllocationIterator> AllocInfos;
-  for (auto It = m_AllocationMap.begin(); It != m_AllocationMap.end(); It++) {
-    const auto &[_, AI] = *It;
-    if (AI->Context == Context) {
-      AllocInfos.emplace_back(It);
-    }
-  }
-  return AllocInfos;
 }
 
 ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {

@@ -131,12 +131,12 @@ public:
 
   StackTrace getHeapStackTrace() const {
     assert(isHeapOrigin());
-    return StackDepotGet(getHeapId(), getHeapType());
+    return StackDepotGet(raw_id_);
   }
 
   static Origin CreateHeapOrigin(StackTrace &Stack, HeapType Type) {
-    uint32_t StackId = StackDepotPut(Stack, Type);
-    assert(StackId);
+    static std::array<std::atomic_uint32_t, kHeapTypeCount> _NextIds;
+    uint32_t StackId = _NextIds[(uint32_t)Type].fetch_add(1);
 
     switch (Type) {
     case HeapType::DeviceUSM:
@@ -159,6 +159,8 @@ public:
       assert(false && "Unknown heap type");
       StackId = 0;
     }
+
+    StackDepotPut(StackId, Stack);
 
     return Origin(StackId);
   }

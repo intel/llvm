@@ -83,6 +83,7 @@ SourceInfo ParseSymbolizerOutput(const std::string &Output) {
 void StackTrace::print() const {
   if (!stack.size()) {
     UR_LOG_L(getContext()->logger, QUIET, "  failed to acquire backtrace");
+    return;
   }
 
   unsigned index = 0;

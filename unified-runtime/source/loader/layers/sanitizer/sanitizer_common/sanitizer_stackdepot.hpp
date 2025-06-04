@@ -17,7 +17,8 @@
 
 namespace ur_sanitizer_layer {
 
-enum class HeapType { DeviceUSM, HostUSM, SharedUSM, Local };
+const uint32_t kHeapTypeCount = 4;
+enum HeapType { DeviceUSM, HostUSM, SharedUSM, Local };
 
 inline const char *ToString(HeapType Type) {
   switch (Type) {
@@ -34,7 +35,7 @@ inline const char *ToString(HeapType Type) {
   }
 }
 
-uint32_t StackDepotPut(StackTrace &Stack, HeapType Type);
-StackTrace StackDepotGet(uint32_t Id, HeapType Type);
+void StackDepotPut(uint32_t Id, StackTrace &Stack);
+StackTrace StackDepotGet(uint32_t Id);
 
 } // namespace ur_sanitizer_layer
