@@ -77,39 +77,39 @@ public:
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  friend constexpr bool operator==(
-      string_view lhs, std::string_view rhs) noexcept {
+  friend constexpr bool operator==(string_view lhs,
+                                   std::string_view rhs) noexcept {
     return rhs == std::string_view(lhs);
   }
-  friend constexpr bool operator==(
-      std::string_view lhs, string_view rhs) noexcept {
+  friend constexpr bool operator==(std::string_view lhs,
+                                   string_view rhs) noexcept {
     return lhs == std::string_view(rhs);
   }
 
-  friend constexpr bool operator!=(
-      string_view lhs, std::string_view rhs) noexcept {
+  friend constexpr bool operator!=(string_view lhs,
+                                   std::string_view rhs) noexcept {
     return rhs != std::string_view(lhs);
   }
-  friend constexpr bool operator!=(
-      std::string_view lhs, string_view rhs) noexcept {
+  friend constexpr bool operator!=(std::string_view lhs,
+                                   string_view rhs) noexcept {
     return lhs != std::string_view(rhs);
   }
 #else
-  friend constexpr bool operator==(
-      string_view lhs, std::string_view rhs) noexcept {
+  friend constexpr bool operator==(string_view lhs,
+                                   std::string_view rhs) noexcept {
     return rhs == lhs.data();
   }
-  friend constexpr bool operator==(
-      std::string_view lhs, string_view rhs) noexcept {
+  friend constexpr bool operator==(std::string_view lhs,
+                                   string_view rhs) noexcept {
     return lhs == rhs.data();
   }
 
-  friend constexpr bool operator!=(
-      string_view lhs, std::string_view rhs) noexcept {
+  friend constexpr bool operator!=(string_view lhs,
+                                   std::string_view rhs) noexcept {
     return rhs != lhs.data();
   }
-  friend constexpr bool operator!=(
-      std::string_view lhs, string_view rhs) noexcept {
+  friend constexpr bool operator!=(std::string_view lhs,
+                                   string_view rhs) noexcept {
     return lhs != rhs.data();
   }
 #endif
