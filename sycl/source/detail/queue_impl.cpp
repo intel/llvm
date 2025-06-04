@@ -351,15 +351,15 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask && !isGraphSubmission &&
-                         MNoEventMode.load(std::memory_order_relaxed) &&
+                         MNoLastEventMode.load(std::memory_order_relaxed) &&
                          !requiresPostProcess;
 
   if (noLastEventPath) {
     std::unique_lock<std::mutex> Lock(MMutex);
 
-    // Check if we are still in no event mode. There could
+    // Check if we are still in no last event mode. There could
     // have been a concurrent submit.
-    if (MNoEventMode.load(std::memory_order_relaxed)) {
+    if (MNoLastEventMode.load(std::memory_order_relaxed)) {
       return finalizeHandlerInOrderNoEventsUnlocked(Handler);
     }
   }
