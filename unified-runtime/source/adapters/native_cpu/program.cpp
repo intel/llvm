@@ -171,13 +171,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  hProgram->incrementReferenceCount();
+  hProgram->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  decrementOrDelete(hProgram);
+  if (hProgram->getRefCounter().decrement() == 0) {
+    delete hProgram;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -205,7 +207,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return returnValue(hProgram->getReferenceCount());
+    return returnValue(hProgram->getRefCounter().getCount());
   case UR_PROGRAM_INFO_CONTEXT:
     return returnValue(nullptr);
   case UR_PROGRAM_INFO_NUM_DEVICES:

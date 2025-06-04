@@ -9,6 +9,7 @@
 //===-----------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 
 #include <umf_helpers.hpp>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
@@ -16,8 +17,6 @@
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
 struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
-  std::atomic_uint32_t RefCount = 1;
-
   ur_context_handle_t Context = nullptr;
 
   usm::DisjointPoolAllConfigs DisjointPoolConfigs =
@@ -30,13 +29,12 @@ struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc);
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   bool hasUMFPool(umf_memory_pool_t *umf_pool);
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 // Implements memory allocation via driver API for USM allocator interface

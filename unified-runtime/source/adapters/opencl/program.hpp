@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "context.hpp"
 
 #include <vector>
@@ -18,7 +19,6 @@ struct ur_program_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_program;
   native_type CLProgram;
   ur_context_handle_t Context;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
   uint32_t NumDevices = 0;
   std::vector<ur_device_handle_t> Devices;
@@ -26,7 +26,6 @@ struct ur_program_handle_t_ : ur::opencl::handle_base {
   ur_program_handle_t_(native_type Prog, ur_context_handle_t Ctx,
                        uint32_t NumDevices, ur_device_handle_t *Devs)
       : handle_base(), CLProgram(Prog), Context(Ctx), NumDevices(NumDevices) {
-    RefCount = 1;
     urContextRetain(Context);
     for (uint32_t i = 0; i < NumDevices; i++) {
       Devices.push_back(Devs[i]);
@@ -40,13 +39,12 @@ struct ur_program_handle_t_ : ur::opencl::handle_base {
     }
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   static ur_result_t makeWithNative(native_type NativeProg,
                                     ur_context_handle_t Context,
                                     ur_program_handle_t &Program);
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

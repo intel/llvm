@@ -12,8 +12,10 @@
 #include <ur_api.h>
 #include <ur_print.hpp>
 
+#include "common/ur_ref_counter.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
+
 #include <cuda.h>
 #include <memory>
 #include <unordered_set>
@@ -173,9 +175,7 @@ struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
     return SyncPoint;
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
@@ -191,7 +191,6 @@ struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
   CUgraphExec CudaGraphExec = nullptr;
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
-  std::atomic_uint32_t RefCount;
 
   // Ordered map of sync_points to ur_events, so that we can find the last
   // node added to an in-order command-buffer.
@@ -203,4 +202,7 @@ struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
   // Handles to individual commands in the command-buffer
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
       CommandHandles;
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

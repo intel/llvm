@@ -439,14 +439,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRetain(
     /// [in] pointer to USM memory pool
     ur_usm_pool_handle_t Pool) {
-  Pool->incrementReferenceCount();
+  Pool->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRelease(
     /// [in] pointer to USM memory pool
     ur_usm_pool_handle_t Pool) {
-  if (Pool->decrementReferenceCount() > 0) {
+  if (Pool->getRefCounter().decrement() > 0) {
     return UR_RESULT_SUCCESS;
   }
   Pool->Context->removePool(Pool);
@@ -469,7 +469,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
 
   switch (propName) {
   case UR_USM_POOL_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hPool->getReferenceCount());
+    return ReturnValue(hPool->getRefCounter().getCount());
   }
   case UR_USM_POOL_INFO_CONTEXT: {
     return ReturnValue(hPool->Context);

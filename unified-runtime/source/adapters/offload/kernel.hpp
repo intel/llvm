@@ -18,8 +18,9 @@
 #include <vector>
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 
-struct ur_kernel_handle_t_ : RefCounted {
+struct ur_kernel_handle_t_ {
 
   // Simplified version of the CUDA adapter's argument implementation
   struct OffloadKernelArguments {
@@ -59,4 +60,9 @@ struct ur_kernel_handle_t_ : RefCounted {
 
   ol_kernel_handle_t OffloadKernel;
   OffloadKernelArguments Args{};
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

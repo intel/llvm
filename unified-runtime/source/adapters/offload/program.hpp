@@ -14,7 +14,13 @@
 #include <ur_api.h>
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 
-struct ur_program_handle_t_ : RefCounted {
+struct ur_program_handle_t_ {
   ol_program_handle_t OffloadProgram;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 
@@ -51,11 +52,7 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
     }
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   ur_result_t getDeviceVersion(oclv::OpenCLVersion &Version) {
     size_t DevVerSize = 0;
@@ -114,4 +111,7 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
 
     return UR_RESULT_SUCCESS;
   }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
