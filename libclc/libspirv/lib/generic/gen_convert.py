@@ -164,12 +164,12 @@ def generate_spirv_fn_impl(src, dst, size="", mode="", sat="", force_decoration=
     # equivalent char type which in OpenCL C is signed. For vector types, we
     # cannot rely on implicit casts back to the schar type so insert an
     # explicit cast.
-    if dst.startswith('schar') and size:
-        cast = '__builtin_convertvector('
-        cast_end = f', {dst}{size})'
+    if dst.startswith("schar") and size:
+        cast = "__builtin_convertvector("
+        cast_end = f", {dst}{size})"
     else:
-        cast = ''
-        cast_end = ''
+        cast = ""
+        cast_end = ""
 
     print(
         """_CLC_DEF _CLC_OVERLOAD _CLC_CONSTFN
@@ -227,7 +227,7 @@ for src in float_types:
 for src in int_types:
     # We're not interested in schar as source types; remangling will do that
     # for us.
-    if src == 'schar':
+    if src == "schar":
         continue
     for dst in float_types:
         for size in vector_sizes:
@@ -245,7 +245,7 @@ for src in float_types:
 for src in int_types:
     # We're not interested in schar as source types; remangling will do that
     # for us.
-    if src == 'schar':
+    if src == "schar":
         continue
     for dst in unsigned_types:
         for size in vector_sizes:
@@ -256,7 +256,7 @@ for src in int_types:
 for src in int_types:
     # We're not interested in schar as source types; remangling will do that
     # for us.
-    if src == 'schar':
+    if src == "schar":
         continue
     for dst in signed_types:
         for size in vector_sizes:
