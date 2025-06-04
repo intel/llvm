@@ -1,5 +1,6 @@
 import io
 import json
+import re
 from pathlib import Path
 
 SOURCE_JSON = "core.json"
@@ -22,7 +23,8 @@ ASCIIDOC_COLS_W = {
 
 
 def _name(name: str) -> str:
-    return "".join([part.capitalize() for part in name.replace(".", "_").split("_")])
+    replaced = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+    return "".join([part.capitalize() for part in replaced.split("_")])
 
 
 def write_header_init(data: dict, outfile: io.TextIOWrapper):
@@ -61,7 +63,7 @@ def write_header_features(data: dict, outfile: io.TextIOWrapper):
         for feature in features:
             outfile.write(
                 f"    {prefix}_{_name(feature['name'])} = {feature['value']}, //"
-                f" {feature['desc']}\n".replace(".", "_")
+                f" {feature['desc']}\n"
             )
 
         outfile.write(f"    {prefix}_Max = {HEADER_MAXVAL:#08x},\n")
@@ -99,7 +101,7 @@ def write_header_architecture_families(data: dict, outfile: io.TextIOWrapper):
         for arch_fam in arch_fams:
             outfile.write(
                 f"    {prefix}_{_name(arch_fam['name'])} = {arch_fam['value']}, //"
-                f" {arch_fam['desc']}\n".replace(".", "_")
+                f" {arch_fam['desc']}\n"
             )
 
         outfile.write(f"    {prefix}_Max = {HEADER_MAXVAL:#08x},\n")
