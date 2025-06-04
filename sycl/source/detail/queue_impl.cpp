@@ -735,10 +735,9 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 bool queue_impl::queue_empty() const {
   // If we have in-order queue with non-empty last event, just check its status.
   if (isInOrder()) {
-    if (MEmpty.load(std::memory_order_acquire))
-      return true;
-
     std::lock_guard<std::mutex> Lock(MMutex);
+    if (MEmpty)
+      return true;
 
     if (MDefaultGraphDeps.LastEventPtr &&
         !MDefaultGraphDeps.LastEventPtr->isDiscarded())
