@@ -76,6 +76,7 @@ public:
     MSVC,
     OMP,
     HLSL,
+    VK,
     GSL,
     RISCV,
     INTEL,
