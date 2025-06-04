@@ -140,7 +140,7 @@ int main() {
         Queue, Context, sycl::range<2>{10, 10},
         "globalScopeSingleFreeFunc with sycl::accessor<2>", 2);
     Failed += runSingleTaskTest<globalScopeSingleFreeFunc<3>, 3>(
-        Queue, Context, sycl::range<3>{10, 10, 10},
+        Queue, Context, sycl::range<3>{5, 5, 5},
         "globalScopeSingleFreeFunc with sycl::accessor<3>", 3);
   }
 
@@ -148,16 +148,16 @@ int main() {
     // Check that sycl::accessor is supported inside nd_range free function
     // kernel
     Failed += runNdRangeTest<ns::nsNdRangeFreeFunc<1>, 1>(
-        Queue, Context, sycl::nd_range{sycl::range{10}, sycl::range{10}},
+        Queue, Context, sycl::nd_range{sycl::range{10}, sycl::range{2}},
         "ns::nsNdRangeFreeFunc with sycl::accessor<1>", 4);
     Failed += runNdRangeTest<ns::nsNdRangeFreeFunc<2>, 2>(
         Queue, Context,
-        sycl::nd_range{sycl::range{10, 10}, sycl::range{10, 10}},
+        sycl::nd_range{sycl::range{16, 16}, sycl::range{4, 4}},
         "ns::nsNdRangeFreeFunc with sycl::accessor<2>", 5);
     Failed += runNdRangeTest<ns::nsNdRangeFreeFunc<3>, 3>(
         Queue, Context,
-        sycl::nd_range{sycl::range{10, 10, 10}, sycl::range{10, 10, 10}},
-        "ns::nsNdRangeFreeFunc with sycl::accessor<3>", 5);
+        sycl::nd_range{sycl::range{10, 10, 10}, sycl::range{2, 2, 2}},
+        "ns::nsNdRangeFreeFunc with sycl::accessor<3>", 6);
   }
 
   {
@@ -166,21 +166,21 @@ int main() {
     Failed +=
         runNdRangeTestMultipleParameters<ndRangeFreeFuncMultipleParameters<1>,
                                          1>(
-            Queue, Context, sycl::nd_range{sycl::range{10}, sycl::range{10}},
+            Queue, Context, sycl::nd_range{sycl::range{10}, sycl::range{2}},
             "ndRangeFreeFuncMultipleParameters with multiple sycl::accessor<1>",
             sycl::range{111, 111, 222});
     Failed +=
         runNdRangeTestMultipleParameters<ndRangeFreeFuncMultipleParameters<2>,
                                          2>(
             Queue, Context,
-            sycl::nd_range{sycl::range{10, 10}, sycl::range{10, 10}},
+            sycl::nd_range{sycl::range{10, 10}, sycl::range{4, 4}},
             "ndRangeFreeFuncMultipleParameters with multiple sycl::accessor<2>",
             sycl::range{222, 222, 444});
     Failed +=
         runNdRangeTestMultipleParameters<ndRangeFreeFuncMultipleParameters<3>,
                                          3>(
             Queue, Context,
-            sycl::nd_range{sycl::range{10, 10, 10}, sycl::range{10, 10, 10}},
+            sycl::nd_range{sycl::range{10, 10, 10}, sycl::range{2, 2, 2}},
             "ndRangeFreeFuncMultipleParameters with multiple sycl::accessor<3>",
             sycl::range{444, 444, 888});
   }
