@@ -1,6 +1,4 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// XFAIL: level_zero
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18727
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
 
