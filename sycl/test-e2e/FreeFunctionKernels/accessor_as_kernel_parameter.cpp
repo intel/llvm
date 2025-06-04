@@ -15,25 +15,9 @@ void globalScopeSingleFreeFunc(
                    sycl::access::target::device,
                    sycl::access::placeholder::false_t>
         Accessor,
-    sycl::range<Dims> NumOfElements, int Value) {
-  if constexpr (Dims == 1) {
-    for (size_t I = 0; I < NumOfElements[0]; ++I)
-      Accessor[I] = Value;
-  } else if constexpr (Dims == 2) {
-    for (size_t I = 0; I < NumOfElements[0]; ++I) {
-      for (size_t J = 0; J < NumOfElements[1]; ++J) {
-        Accessor[I][J] = Value;
-      }
-    }
-  } else if constexpr (Dims == 3) {
-    for (size_t I = 0; I < NumOfElements[0]; ++I) {
-      for (size_t J = 0; J < NumOfElements[1]; ++J) {
-        for (size_t K = 0; K < NumOfElements[2]; ++K) {
-          Accessor[I][J][K] = Value;
-        }
-      }
-    }
-  }
+    int Value) {
+  for (auto &Elem : Accessor)
+    Elem = Value;
 }
 namespace ns {
 template <int Dims>
@@ -81,7 +65,7 @@ int runSingleTaskTest(sycl::queue &Queue, sycl::context &Context,
     sycl::buffer<int, Dims> Buffer(ResultData.data(), NumOfElementsPerDim);
     Queue.submit([&](sycl::handler &Handler) {
       sycl::accessor<int, Dims> Accessor{Buffer, Handler};
-      Handler.set_args(Accessor, NumOfElementsPerDim, ExpectedResultValue);
+      Handler.set_args(Accessor, ExpectedResultValue);
       Handler.single_task(UsedKernel);
     });
   }
