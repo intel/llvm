@@ -247,6 +247,2440 @@
         "value": 12,
         "desc": "Enable AVX512 instructions"
       }
+    ],
+    "riscv32": [
+      {
+        "name": "32bit",
+        "value": 0,
+        "desc": "Implements RV32."
+      },
+      {
+        "name": "64bit",
+        "value": 1,
+        "desc": "Implements RV64."
+      },
+      {
+        "name": "a",
+        "value": 2,
+        "desc": "'A' (Atomic Instructions)."
+      },
+      {
+        "name": "auipc-addi-fusion",
+        "value": 3,
+        "desc": "Enable AUIPC+ADDI macrofusion."
+      },
+      {
+        "name": "b",
+        "value": 4,
+        "desc": "'B' (the collection of the Zba, Zbb, Zbs extensions)."
+      },
+      {
+        "name": "c",
+        "value": 5,
+        "desc": "'C' (Compressed Instructions)."
+      },
+      {
+        "name": "conditional-cmv-fusion",
+        "value": 6,
+        "desc": "Enable branch+c.mv fusion."
+      },
+      {
+        "name": "d",
+        "value": 7,
+        "desc": "'D' (Double-Precision Floating-Point)."
+      },
+      {
+        "name": "dlen-factor-2",
+        "value": 8,
+        "desc": "Vector unit DLEN(data path width) is half of VLEN."
+      },
+      {
+        "name": "e",
+        "value": 9,
+        "desc": "Implements RV{32,64}E (provides 16 rather than 32 GPRs)."
+      },
+      {
+        "name": "experimental",
+        "value": 10,
+        "desc": "Experimental intrinsics."
+      },
+      {
+        "name": "experimental-rva23s64",
+        "value": 11,
+        "desc": "RISC-V experimental-rva23s64 profile."
+      },
+      {
+        "name": "experimental-rva23u64",
+        "value": 12,
+        "desc": "RISC-V experimental-rva23u64 profile."
+      },
+      {
+        "name": "experimental-rvb23s64",
+        "value": 13,
+        "desc": "RISC-V experimental-rvb23s64 profile."
+      },
+      {
+        "name": "experimental-rvb23u64",
+        "value": 14,
+        "desc": "RISC-V experimental-rvb23u64 profile."
+      },
+      {
+        "name": "experimental-rvm23u32",
+        "value": 15,
+        "desc": "RISC-V experimental-rvm23u32 profile."
+      },
+      {
+        "name": "experimental-smmpm",
+        "value": 16,
+        "desc": "'Smmpm' (Machine-level Pointer Masking for M-mode)."
+      },
+      {
+        "name": "experimental-smnpm",
+        "value": 17,
+        "desc": "'Smnpm' (Machine-level Pointer Masking for next lower privilege mode)."
+      },
+      {
+        "name": "experimental-ssnpm",
+        "value": 18,
+        "desc": "'Ssnpm' (Supervisor-level Pointer Masking for next lower privilege mode)."
+      },
+      {
+        "name": "experimental-sspm",
+        "value": 19,
+        "desc": "'Sspm' (Indicates Supervisor-mode Pointer Masking)."
+      },
+      {
+        "name": "experimental-ssqosid",
+        "value": 20,
+        "desc": "'Ssqosid' (Quality-of-Service (QoS) Identifiers)."
+      },
+      {
+        "name": "experimental-supm",
+        "value": 21,
+        "desc": "'Supm' (Indicates User-mode Pointer Masking)."
+      },
+      {
+        "name": "experimental-zacas",
+        "value": 22,
+        "desc": "'Zacas' (Atomic Compare-And-Swap Instructions)."
+      },
+      {
+        "name": "experimental-zalasr",
+        "value": 23,
+        "desc": "'Zalasr' (Load-Acquire and Store-Release Instructions)."
+      },
+      {
+        "name": "experimental-zicfilp",
+        "value": 24,
+        "desc": "'Zicfilp' (Landing pad)."
+      },
+      {
+        "name": "experimental-zicfiss",
+        "value": 25,
+        "desc": "'Zicfiss' (Shadow stack)."
+      },
+      {
+        "name": "f",
+        "value": 26,
+        "desc": "'F' (Single-Precision Floating-Point)."
+      },
+      {
+        "name": "forced-atomics",
+        "value": 27,
+        "desc": "Assume that lock-free native-width atomics are available."
+      },
+      {
+        "name": "forced-sw-shadow-stack",
+        "value": 28,
+        "desc": "Implement shadow stack with software.."
+      },
+      {
+        "name": "h",
+        "value": 29,
+        "desc": "'H' (Hypervisor)."
+      },
+      {
+        "name": "i",
+        "value": 30,
+        "desc": "'I' (Base Integer Instruction Set)."
+      },
+      {
+        "name": "ld-add-fusion",
+        "value": 31,
+        "desc": "Enable LD+ADD macrofusion."
+      },
+      {
+        "name": "lui-addi-fusion",
+        "value": 32,
+        "desc": "Enable LUI+ADDI macro fusion."
+      },
+      {
+        "name": "m",
+        "value": 33,
+        "desc": "'M' (Integer Multiplication and Division)."
+      },
+      {
+        "name": "no-default-unroll",
+        "value": 34,
+        "desc": "Disable default unroll preference.."
+      },
+      {
+        "name": "no-rvc-hints",
+        "value": 35,
+        "desc": "Disable RVC Hint Instructions.."
+      },
+      {
+        "name": "no-sink-splat-operands",
+        "value": 36,
+        "desc": "Disable sink splat operands to enable .vx, .vf,.wx, and .wf instructions."
+      },
+      {
+        "name": "no-trailing-seq-cst-fence",
+        "value": 37,
+        "desc": "Disable trailing fence for seq-cst store.."
+      },
+      {
+        "name": "optimized-zero-stride-load",
+        "value": 38,
+        "desc": "Optimized (perform fewer memory operations)zero-stride vector load."
+      },
+      {
+        "name": "predictable-select-expensive",
+        "value": 39,
+        "desc": "Prefer likely predicted branches over selects."
+      },
+      {
+        "name": "prefer-w-inst",
+        "value": 40,
+        "desc": "Prefer instructions with W suffix."
+      },
+      {
+        "name": "relax",
+        "value": 41,
+        "desc": "Enable Linker relaxation.."
+      },
+      {
+        "name": "reserve-x1",
+        "value": 42,
+        "desc": "Reserve X1."
+      },
+      {
+        "name": "reserve-x10",
+        "value": 43,
+        "desc": "Reserve X10."
+      },
+      {
+        "name": "reserve-x11",
+        "value": 44,
+        "desc": "Reserve X11."
+      },
+      {
+        "name": "reserve-x12",
+        "value": 45,
+        "desc": "Reserve X12."
+      },
+      {
+        "name": "reserve-x13",
+        "value": 46,
+        "desc": "Reserve X13."
+      },
+      {
+        "name": "reserve-x14",
+        "value": 47,
+        "desc": "Reserve X14."
+      },
+      {
+        "name": "reserve-x15",
+        "value": 48,
+        "desc": "Reserve X15."
+      },
+      {
+        "name": "reserve-x16",
+        "value": 49,
+        "desc": "Reserve X16."
+      },
+      {
+        "name": "reserve-x17",
+        "value": 50,
+        "desc": "Reserve X17."
+      },
+      {
+        "name": "reserve-x18",
+        "value": 51,
+        "desc": "Reserve X18."
+      },
+      {
+        "name": "reserve-x19",
+        "value": 52,
+        "desc": "Reserve X19."
+      },
+      {
+        "name": "reserve-x2",
+        "value": 53,
+        "desc": "Reserve X2."
+      },
+      {
+        "name": "reserve-x20",
+        "value": 54,
+        "desc": "Reserve X20."
+      },
+      {
+        "name": "reserve-x21",
+        "value": 55,
+        "desc": "Reserve X21."
+      },
+      {
+        "name": "reserve-x22",
+        "value": 56,
+        "desc": "Reserve X22."
+      },
+      {
+        "name": "reserve-x23",
+        "value": 57,
+        "desc": "Reserve X23."
+      },
+      {
+        "name": "reserve-x24",
+        "value": 58,
+        "desc": "Reserve X24."
+      },
+      {
+        "name": "reserve-x25",
+        "value": 59,
+        "desc": "Reserve X25."
+      },
+      {
+        "name": "reserve-x26",
+        "value": 60,
+        "desc": "Reserve X26."
+      },
+      {
+        "name": "reserve-x27",
+        "value": 61,
+        "desc": "Reserve X27."
+      },
+      {
+        "name": "reserve-x28",
+        "value": 62,
+        "desc": "Reserve X28."
+      },
+      {
+        "name": "reserve-x29",
+        "value": 63,
+        "desc": "Reserve X29."
+      },
+      {
+        "name": "reserve-x3",
+        "value": 64,
+        "desc": "Reserve X3."
+      },
+      {
+        "name": "reserve-x30",
+        "value": 65,
+        "desc": "Reserve X30."
+      },
+      {
+        "name": "reserve-x31",
+        "value": 66,
+        "desc": "Reserve X31."
+      },
+      {
+        "name": "reserve-x4",
+        "value": 67,
+        "desc": "Reserve X4."
+      },
+      {
+        "name": "reserve-x5",
+        "value": 68,
+        "desc": "Reserve X5."
+      },
+      {
+        "name": "reserve-x6",
+        "value": 69,
+        "desc": "Reserve X6."
+      },
+      {
+        "name": "reserve-x7",
+        "value": 70,
+        "desc": "Reserve X7."
+      },
+      {
+        "name": "reserve-x8",
+        "value": 71,
+        "desc": "Reserve X8."
+      },
+      {
+        "name": "reserve-x9",
+        "value": 72,
+        "desc": "Reserve X9."
+      },
+      {
+        "name": "rva20s64",
+        "value": 73,
+        "desc": "RISC-V rva20s64 profile."
+      },
+      {
+        "name": "rva20u64",
+        "value": 74,
+        "desc": "RISC-V rva20u64 profile."
+      },
+      {
+        "name": "rva22s64",
+        "value": 75,
+        "desc": "RISC-V rva22s64 profile."
+      },
+      {
+        "name": "rva22u64",
+        "value": 76,
+        "desc": "RISC-V rva22u64 profile."
+      },
+      {
+        "name": "rvi20u32",
+        "value": 77,
+        "desc": "RISC-V rvi20u32 profile."
+      },
+      {
+        "name": "rvi20u64",
+        "value": 78,
+        "desc": "RISC-V rvi20u64 profile."
+      },
+      {
+        "name": "save-restore",
+        "value": 79,
+        "desc": "Enable save/restore.."
+      },
+      {
+        "name": "shcounterenw",
+        "value": 80,
+        "desc": "'Shcounterenw' (Support writeable hcounteren enable bit for any hpmcounter that is not read-only zero)."
+      },
+      {
+        "name": "shgatpa",
+        "value": 81,
+        "desc": "'Sgatpa' (SvNNx4 mode supported for all modes supported by satp, as well as Bare)."
+      },
+      {
+        "name": "shifted-zextw-fusion",
+        "value": 82,
+        "desc": "Enable SLLI+SRLI to be fused when computing (shifted) word zero extension."
+      },
+      {
+        "name": "short-forward-branch-opt",
+        "value": 83,
+        "desc": "Enable short forward branch optimization."
+      },
+      {
+        "name": "shtvala",
+        "value": 84,
+        "desc": "'Shtvala' (htval provides all needed values)."
+      },
+      {
+        "name": "shvsatpa",
+        "value": 85,
+        "desc": "'Svsatpa' (vsatp supports all modes supported by satp)."
+      },
+      {
+        "name": "shvstvala",
+        "value": 86,
+        "desc": "'Shvstvala' (vstval provides all needed values)."
+      },
+      {
+        "name": "shvstvecd",
+        "value": 87,
+        "desc": "'Shvstvecd' (vstvec supports Direct mode)."
+      },
+      {
+        "name": "sifive7",
+        "value": 88,
+        "desc": "SiFive 7-Series processors."
+      },
+      {
+        "name": "smaia",
+        "value": 89,
+        "desc": "'Smaia' (Advanced Interrupt Architecture Machine Level)."
+      },
+      {
+        "name": "smcdeleg",
+        "value": 90,
+        "desc": "'Smcdeleg' (Counter Delegation Machine Level)."
+      },
+      {
+        "name": "smcsrind",
+        "value": 91,
+        "desc": "'Smcsrind' (Indirect CSR Access Machine Level)."
+      },
+      {
+        "name": "smepmp",
+        "value": 92,
+        "desc": "'Smepmp' (Enhanced Physical Memory Protection)."
+      },
+      {
+        "name": "smstateen",
+        "value": 93,
+        "desc": "'Smstateen' (Machine-mode view of the state-enable extension)."
+      },
+      {
+        "name": "ssaia",
+        "value": 94,
+        "desc": "'Ssaia' (Advanced Interrupt Architecture Supervisor Level)."
+      },
+      {
+        "name": "ssccfg",
+        "value": 95,
+        "desc": "'Ssccfg' (Counter Configuration Supervisor Level)."
+      },
+      {
+        "name": "ssccptr",
+        "value": 96,
+        "desc": "'Ssccptr' (Main memory supports page table reads)."
+      },
+      {
+        "name": "sscofpmf",
+        "value": 97,
+        "desc": "'Sscofpmf' (Count Overflow and Mode-Based Filtering)."
+      },
+      {
+        "name": "sscounterenw",
+        "value": 98,
+        "desc": "'Sscounterenw' (Support writeable scounteren enable bit for any hpmcounter that is not read-only zero)."
+      },
+      {
+        "name": "sscsrind",
+        "value": 99,
+        "desc": "'Sscsrind' (Indirect CSR Access Supervisor Level)."
+      },
+      {
+        "name": "ssstateen",
+        "value": 100,
+        "desc": "'Ssstateen' (Supervisor-mode view of the state-enable extension)."
+      },
+      {
+        "name": "ssstrict",
+        "value": 101,
+        "desc": "'Ssstrict' (No non-conforming extensions are present)."
+      },
+      {
+        "name": "sstc",
+        "value": 102,
+        "desc": "'Sstc' (Supervisor-mode timer interrupts)."
+      },
+      {
+        "name": "sstvala",
+        "value": 103,
+        "desc": "'Sstvala' (stval provides all needed values)."
+      },
+      {
+        "name": "sstvecd",
+        "value": 104,
+        "desc": "'Sstvecd' (stvec supports Direct mode)."
+      },
+      {
+        "name": "ssu64xl",
+        "value": 105,
+        "desc": "'Ssu64xl' (UXLEN=64 supported)."
+      },
+      {
+        "name": "svade",
+        "value": 106,
+        "desc": "'Svade' (Raise exceptions on improper A/D bits)."
+      },
+      {
+        "name": "svadu",
+        "value": 107,
+        "desc": "'Svadu' (Hardware A/D updates)."
+      },
+      {
+        "name": "svbare",
+        "value": 108,
+        "desc": "'Svbare' $(satp mode Bare supported)."
+      },
+      {
+        "name": "svinval",
+        "value": 109,
+        "desc": "'Svinval' (Fine-Grained Address-Translation Cache Invalidation)."
+      },
+      {
+        "name": "svnapot",
+        "value": 110,
+        "desc": "'Svnapot' (NAPOT Translation Contiguity)."
+      },
+      {
+        "name": "svpbmt",
+        "value": 111,
+        "desc": "'Svpbmt' (Page-Based Memory Types)."
+      },
+      {
+        "name": "tagged-globals",
+        "value": 112,
+        "desc": "Use an instruction sequence for taking the address of a global that allows a memory tag in the upper address bits."
+      },
+      {
+        "name": "unaligned-scalar-mem",
+        "value": 113,
+        "desc": "Has reasonably performant unaligned scalar loads and stores."
+      },
+      {
+        "name": "unaligned-vector-mem",
+        "value": 114,
+        "desc": "Has reasonably performant unaligned vector loads and stores."
+      },
+      {
+        "name": "use-postra-scheduler",
+        "value": 115,
+        "desc": "Schedule again after register allocation."
+      },
+      {
+        "name": "v",
+        "value": 116,
+        "desc": "'V' (Vector Extension for Application Processors)."
+      },
+      {
+        "name": "ventana-veyron",
+        "value": 117,
+        "desc": "Ventana Veyron-Series processors."
+      },
+      {
+        "name": "xcvalu",
+        "value": 118,
+        "desc": "'XCValu' (CORE-V ALU Operations)."
+      },
+      {
+        "name": "xcvbi",
+        "value": 119,
+        "desc": "'XCVbi' (CORE-V Immediate Branching)."
+      },
+      {
+        "name": "xcvbitmanip",
+        "value": 120,
+        "desc": "'XCVbitmanip' (CORE-V Bit Manipulation)."
+      },
+      {
+        "name": "xcvelw",
+        "value": 121,
+        "desc": "'XCVelw' (CORE-V Event Load Word)."
+      },
+      {
+        "name": "xcvmac",
+        "value": 122,
+        "desc": "'XCVmac' (CORE-V Multiply-Accumulate)."
+      },
+      {
+        "name": "xcvmem",
+        "value": 123,
+        "desc": "'XCVmem' (CORE-V Post-incrementing Load & Store)."
+      },
+      {
+        "name": "xcvsimd",
+        "value": 124,
+        "desc": "'XCVsimd' (CORE-V SIMD ALU)."
+      },
+      {
+        "name": "xsfcease",
+        "value": 125,
+        "desc": "'XSfcease' (SiFive sf.cease Instruction)."
+      },
+      {
+        "name": "xsfvcp",
+        "value": 126,
+        "desc": "'XSfvcp' (SiFive Custom Vector Coprocessor Interface Instructions)."
+      },
+      {
+        "name": "xsfvfnrclipxfqf",
+        "value": 127,
+        "desc": "'XSfvfnrclipxfqf' (SiFive FP32-to-int8 Ranged Clip Instructions)."
+      },
+      {
+        "name": "xsfvfwmaccqqq",
+        "value": 128,
+        "desc": "'XSfvfwmaccqqq' (SiFive Matrix Multiply Accumulate Instruction and 4-by-4))."
+      },
+      {
+        "name": "xsfvqmaccdod",
+        "value": 129,
+        "desc": "'XSfvqmaccdod' (SiFive Int8 Matrix Multiplication Instructions (2-by-8 and 8-by-2))."
+      },
+      {
+        "name": "xsfvqmaccqoq",
+        "value": 130,
+        "desc": "'XSfvqmaccqoq' (SiFive Int8 Matrix Multiplication Instructions (4-by-8 and 8-by-4))."
+      },
+      {
+        "name": "xsifivecdiscarddlone",
+        "value": 131,
+        "desc": "'XSiFivecdiscarddlone' (SiFive sf.cdiscard.d.l1 Instruction)."
+      },
+      {
+        "name": "xsifivecflushdlone",
+        "value": 132,
+        "desc": "'XSiFivecflushdlone' (SiFive sf.cflush.d.l1 Instruction)."
+      },
+      {
+        "name": "xtheadba",
+        "value": 133,
+        "desc": "'XTHeadBa' (T-Head address calculation instructions)."
+      },
+      {
+        "name": "xtheadbb",
+        "value": 134,
+        "desc": "'XTHeadBb' (T-Head basic bit-manipulation instructions)."
+      },
+      {
+        "name": "xtheadbs",
+        "value": 135,
+        "desc": "'XTHeadBs' (T-Head single-bit instructions)."
+      },
+      {
+        "name": "xtheadcmo",
+        "value": 136,
+        "desc": "'XTHeadCmo' (T-Head cache management instructions)."
+      },
+      {
+        "name": "xtheadcondmov",
+        "value": 137,
+        "desc": "'XTHeadCondMov' (T-Head conditional move instructions)."
+      },
+      {
+        "name": "xtheadfmemidx",
+        "value": 138,
+        "desc": "'XTHeadFMemIdx' (T-Head FP Indexed Memory Operations)."
+      },
+      {
+        "name": "xtheadmac",
+        "value": 139,
+        "desc": "'XTHeadMac' (T-Head Multiply-Accumulate Instructions)."
+      },
+      {
+        "name": "xtheadmemidx",
+        "value": 140,
+        "desc": "'XTHeadMemIdx' (T-Head Indexed Memory Operations)."
+      },
+      {
+        "name": "xtheadmempair",
+        "value": 141,
+        "desc": "'XTHeadMemPair' (T-Head two-GPR Memory Operations)."
+      },
+      {
+        "name": "xtheadsync",
+        "value": 142,
+        "desc": "'XTHeadSync' (T-Head multicore synchronization instructions)."
+      },
+      {
+        "name": "xtheadvdot",
+        "value": 143,
+        "desc": "'XTHeadVdot' (T-Head Vector Extensions for Dot)."
+      },
+      {
+        "name": "xventanacondops",
+        "value": 144,
+        "desc": "'XVentanaCondOps' (Ventana Conditional Ops)."
+      },
+      {
+        "name": "xwchc",
+        "value": 145,
+        "desc": "'Xwchc' (WCH/QingKe additional compressed opcodes)."
+      },
+      {
+        "name": "za128rs",
+        "value": 146,
+        "desc": "'Za128rs' (Reservation Set Size of at Most 128 Bytes)."
+      },
+      {
+        "name": "za64rs",
+        "value": 147,
+        "desc": "'Za64rs' (Reservation Set Size of at Most 64 Bytes)."
+      },
+      {
+        "name": "zaamo",
+        "value": 148,
+        "desc": "'Zaamo' (Atomic Memory Operations)."
+      },
+      {
+        "name": "zabha",
+        "value": 149,
+        "desc": "'Zabha' (Byte and Halfword Atomic Memory Operations)."
+      },
+      {
+        "name": "zalrsc",
+        "value": 150,
+        "desc": "'Zalrsc' (Load-Reserved/Store-Conditional)."
+      },
+      {
+        "name": "zama16b",
+        "value": 151,
+        "desc": "'Zama16b' (Atomic 16-byte misaligned loads, stores and AMOs)."
+      },
+      {
+        "name": "zawrs",
+        "value": 152,
+        "desc": "'Zawrs' (Wait on Reservation Set)."
+      },
+      {
+        "name": "zba",
+        "value": 153,
+        "desc": "'Zba' (Address Generation Instructions)."
+      },
+      {
+        "name": "zbb",
+        "value": 154,
+        "desc": "'Zbb' (Basic Bit-Manipulation)."
+      },
+      {
+        "name": "zbc",
+        "value": 155,
+        "desc": "'Zbc' (Carry-Less Multiplication)."
+      },
+      {
+        "name": "zbkb",
+        "value": 156,
+        "desc": "'Zbkb' (Bitmanip instructions for Cryptography)."
+      },
+      {
+        "name": "zbkc",
+        "value": 157,
+        "desc": "'Zbkc' (Carry-less multiply instructions for Cryptography)."
+      },
+      {
+        "name": "zbkx",
+        "value": 158,
+        "desc": "'Zbkx' (Crossbar permutation instructions)."
+      },
+      {
+        "name": "zbs",
+        "value": 159,
+        "desc": "'Zbs' (Single-Bit Instructions)."
+      },
+      {
+        "name": "zca",
+        "value": 160,
+        "desc": "'Zca' (part of the C extension, excluding compressed floating point loads/stores)."
+      },
+      {
+        "name": "zcb",
+        "value": 161,
+        "desc": "'Zcb' (Compressed basic bit manipulation instructions)."
+      },
+      {
+        "name": "zcd",
+        "value": 162,
+        "desc": "'Zcd' (Compressed Double-Precision Floating-Point Instructions)."
+      },
+      {
+        "name": "zce",
+        "value": 163,
+        "desc": "'Zce' (Compressed extensions for microcontrollers)."
+      },
+      {
+        "name": "zcf",
+        "value": 164,
+        "desc": "'Zcf' (Compressed Single-Precision Floating-Point Instructions)."
+      },
+      {
+        "name": "zcmop",
+        "value": 165,
+        "desc": "'Zcmop' (Compressed May-Be-Operations)."
+      },
+      {
+        "name": "zcmp",
+        "value": 166,
+        "desc": "'Zcmp' (sequenced instructions for code-size reduction)."
+      },
+      {
+        "name": "zcmt",
+        "value": 167,
+        "desc": "'Zcmt' (table jump instructions for code-size reduction)."
+      },
+      {
+        "name": "zdinx",
+        "value": 168,
+        "desc": "'Zdinx' (Double in Integer)."
+      },
+      {
+        "name": "zexth-fusion",
+        "value": 169,
+        "desc": "Enable SLLI+SRLI to be fused to zero extension of halfword."
+      },
+      {
+        "name": "zextw-fusion",
+        "value": 170,
+        "desc": "Enable SLLI+SRLI to be fused to zero extension of word."
+      },
+      {
+        "name": "zfa",
+        "value": 171,
+        "desc": "'Zfa' (Additional Floating-Point)."
+      },
+      {
+        "name": "zfbfmin",
+        "value": 172,
+        "desc": "'Zfbfmin' (Scalar BF16 Converts)."
+      },
+      {
+        "name": "zfh",
+        "value": 173,
+        "desc": "'Zfh' (Half-Precision Floating-Point)."
+      },
+      {
+        "name": "zfhmin",
+        "value": 174,
+        "desc": "'Zfhmin' (Half-Precision Floating-Point Minimal)."
+      },
+      {
+        "name": "zfinx",
+        "value": 175,
+        "desc": "'Zfinx' (Float in Integer)."
+      },
+      {
+        "name": "zhinx",
+        "value": 176,
+        "desc": "'Zhinx' (Half Float in Integer)."
+      },
+      {
+        "name": "zhinxmin",
+        "value": 177,
+        "desc": "'Zhinxmin' (Half Float in Integer Minimal)."
+      },
+      {
+        "name": "zic64b",
+        "value": 178,
+        "desc": "'Zic64b' (Cache Block Size Is 64 Bytes)."
+      },
+      {
+        "name": "zicbom",
+        "value": 179,
+        "desc": "'Zicbom' (Cache-Block Management Instructions)."
+      },
+      {
+        "name": "zicbop",
+        "value": 180,
+        "desc": "'Zicbop' (Cache-Block Prefetch Instructions)."
+      },
+      {
+        "name": "zicboz",
+        "value": 181,
+        "desc": "'Zicboz' (Cache-Block Zero Instructions)."
+      },
+      {
+        "name": "ziccamoa",
+        "value": 182,
+        "desc": "'Ziccamoa' (Main Memory Supports All Atomics in A)."
+      },
+      {
+        "name": "ziccif",
+        "value": 183,
+        "desc": "'Ziccif' (Main Memory Supports Instruction Fetch with Atomicity Requirement)."
+      },
+      {
+        "name": "zicclsm",
+        "value": 184,
+        "desc": "'Zicclsm' (Main Memory Supports Misaligned Loads/Stores)."
+      },
+      {
+        "name": "ziccrse",
+        "value": 185,
+        "desc": "'Ziccrse' (Main Memory Supports Forward Progress on LR/SC Sequences)."
+      },
+      {
+        "name": "zicntr",
+        "value": 186,
+        "desc": "'Zicntr' (Base Counters and Timers)."
+      },
+      {
+        "name": "zicond",
+        "value": 187,
+        "desc": "'Zicond' (Integer Conditional Operations)."
+      },
+      {
+        "name": "zicsr",
+        "value": 188,
+        "desc": "'zicsr' (CSRs)."
+      },
+      {
+        "name": "zifencei",
+        "value": 189,
+        "desc": "'Zifencei' (fence.i)."
+      },
+      {
+        "name": "zihintntl",
+        "value": 190,
+        "desc": "'Zihintntl' (Non-Temporal Locality Hints)."
+      },
+      {
+        "name": "zihintpause",
+        "value": 191,
+        "desc": "'Zihintpause' (Pause Hint)."
+      },
+      {
+        "name": "zihpm",
+        "value": 192,
+        "desc": "'Zihpm' (Hardware Performance Counters)."
+      },
+      {
+        "name": "zimop",
+        "value": 193,
+        "desc": "'Zimop' (May-Be-Operations)."
+      },
+      {
+        "name": "zk",
+        "value": 194,
+        "desc": "'Zk' (Standard scalar cryptography extension)."
+      },
+      {
+        "name": "zkn",
+        "value": 195,
+        "desc": "'Zkn' (NIST Algorithm Suite)."
+      },
+      {
+        "name": "zknd",
+        "value": 196,
+        "desc": "'Zknd' (NIST Suite: AES Decryption)."
+      },
+      {
+        "name": "zkne",
+        "value": 197,
+        "desc": "'Zkne' (NIST Suite: AES Encryption)."
+      },
+      {
+        "name": "zknh",
+        "value": 198,
+        "desc": "'Zknh' (NIST Suite: Hash Function Instructions)."
+      },
+      {
+        "name": "zkr",
+        "value": 199,
+        "desc": "'Zkr' (Entropy Source Extension)."
+      },
+      {
+        "name": "zks",
+        "value": 200,
+        "desc": "'Zks' (ShangMi Algorithm Suite)."
+      },
+      {
+        "name": "zksed",
+        "value": 201,
+        "desc": "'Zksed' (ShangMi Suite: SM4 Block Cipher Instructions)."
+      },
+      {
+        "name": "zksh",
+        "value": 202,
+        "desc": "'Zksh' (ShangMi Suite: SM3 Hash Function Instructions)."
+      },
+      {
+        "name": "zkt",
+        "value": 203,
+        "desc": "'Zkt' (Data Independent Execution Latency)."
+      },
+      {
+        "name": "zmmul",
+        "value": 204,
+        "desc": "'Zmmul' (Integer Multiplication)."
+      },
+      {
+        "name": "ztso",
+        "value": 205,
+        "desc": "'Ztso' (Memory Model"
+      },
+      {
+        "name": "zvbb",
+        "value": 206,
+        "desc": "'Zvbb' (Vector basic bit-manipulation instructions)."
+      },
+      {
+        "name": "zvbc",
+        "value": 207,
+        "desc": "'Zvbc' (Vector Carryless Multiplication)."
+      },
+      {
+        "name": "zve32f",
+        "value": 208,
+        "desc": "'Zve32f' (Vector Extensions for Embedded Processors with maximal 32 EEW and F extension)."
+      },
+      {
+        "name": "zve32x",
+        "value": 209,
+        "desc": "'Zve32x' (Vector Extensions for Embedded Processors with maximal 32 EEW)."
+      },
+      {
+        "name": "zve64d",
+        "value": 210,
+        "desc": "'Zve64d' (Vector Extensions for Embedded Processors with maximal 64 EEW, F and D extension)."
+      },
+      {
+        "name": "zve64f",
+        "value": 211,
+        "desc": "'Zve64f' (Vector Extensions for Embedded Processors with maximal 64 EEW and F extension)."
+      },
+      {
+        "name": "zve64x",
+        "value": 212,
+        "desc": "'Zve64x' (Vector Extensions for Embedded Processors with maximal 64 EEW)."
+      },
+      {
+        "name": "zvfbfmin",
+        "value": 213,
+        "desc": "'Zvbfmin' (Vector BF16 Converts)."
+      },
+      {
+        "name": "zvfbfwma",
+        "value": 214,
+        "desc": "'Zvfbfwma' (Vector BF16 widening mul-add)."
+      },
+      {
+        "name": "zvfh",
+        "value": 215,
+        "desc": "'Zvfh' (Vector Half-Precision Floating-Point)."
+      },
+      {
+        "name": "zvfhmin",
+        "value": 216,
+        "desc": "'Zvfhmin' (Vector Half-Precision Floating-Point Minimal)."
+      },
+      {
+        "name": "zvkb",
+        "value": 217,
+        "desc": "'Zvkb' (Vector Bit-manipulation used in Cryptography)."
+      },
+      {
+        "name": "zvkg",
+        "value": 218,
+        "desc": "'Zvkg' (Vector GCM instructions for Cryptography)."
+      },
+      {
+        "name": "zvkn",
+        "value": 219,
+        "desc": "'Zvkn' (shorthand for 'Zvkned', 'Zvknhb', 'Zvkb', and 'Zvkt')."
+      },
+      {
+        "name": "zvknc",
+        "value": 220,
+        "desc": "'Zvknc' (shorthand for 'Zvknc' and 'Zvbc')."
+      },
+      {
+        "name": "zvkned",
+        "value": 221,
+        "desc": "'Zvkned' (Vector AES Encryption & Decryption (Single Round))."
+      },
+      {
+        "name": "zvkng",
+        "value": 222,
+        "desc": "'zvkng' (shorthand for 'Zvkn' and 'Zvkg')."
+      },
+      {
+        "name": "zvknha",
+        "value": 223,
+        "desc": "'Zvknha' (Vector SHA-2 (SHA-256 only))."
+      },
+      {
+        "name": "zvknhb",
+        "value": 224,
+        "desc": "'Zvknhb' (Vector SHA-2 (SHA-256 and SHA-512))."
+      },
+      {
+        "name": "zvks",
+        "value": 225,
+        "desc": "'Zvks' (shorthand for 'Zvksed', 'Zvksh', 'Zvkb', and 'Zvkt')."
+      },
+      {
+        "name": "zvksc",
+        "value": 226,
+        "desc": "'Zvksc' (shorthand for 'Zvks' and 'Zvbc')."
+      },
+      {
+        "name": "zvksed",
+        "value": 227,
+        "desc": "'Zvksed' (SM4 Block Cipher Instructions)."
+      },
+      {
+        "name": "zvksg",
+        "value": 228,
+        "desc": "'Zvksg' (shorthand for 'Zvks' and 'Zvkg')."
+      },
+      {
+        "name": "zvksh",
+        "value": 229,
+        "desc": "'Zvksh' (SM3 Hash Function Instructions)."
+      },
+      {
+        "name": "zvkt",
+        "value": 230,
+        "desc": "'Zvkt' (Vector Data-Independent Execution Latency)."
+      },
+      {
+        "name": "zvl1024b",
+        "value": 231,
+        "desc": "'Zvl' (Minimum Vector Length) 1024."
+      },
+      {
+        "name": "zvl128b",
+        "value": 232,
+        "desc": "'Zvl' (Minimum Vector Length) 128."
+      },
+      {
+        "name": "zvl16384b",
+        "value": 233,
+        "desc": "'Zvl' (Minimum Vector Length) 16384."
+      },
+      {
+        "name": "zvl2048b",
+        "value": 234,
+        "desc": "'Zvl' (Minimum Vector Length) 2048."
+      },
+      {
+        "name": "zvl256b",
+        "value": 235,
+        "desc": "'Zvl' (Minimum Vector Length) 256."
+      },
+      {
+        "name": "zvl32768b",
+        "value": 236,
+        "desc": "'Zvl' (Minimum Vector Length) 32768."
+      },
+      {
+        "name": "zvl32b",
+        "value": 237,
+        "desc": "'Zvl' (Minimum Vector Length) 32."
+      },
+      {
+        "name": "zvl4096b",
+        "value": 238,
+        "desc": "'Zvl' (Minimum Vector Length) 4096."
+      },
+      {
+        "name": "zvl512b",
+        "value": 239,
+        "desc": "'Zvl' (Minimum Vector Length) 512."
+      },
+      {
+        "name": "zvl64b",
+        "value": 240,
+        "desc": "'Zvl' (Minimum Vector Length) 64."
+      },
+      {
+        "name": "zvl65536b",
+        "value": 241,
+        "desc": "'Zvl' (Minimum Vector Length) 65536."
+      },
+      {
+        "name": "zvl8192b",
+        "value": 242,
+        "desc": "'Zvl' (Minimum Vector Length) 8192."
+      }
+    ],
+    "riscv64": [
+      {
+        "name": "32bit",
+        "value": 0,
+        "desc": "Implements RV32."
+      },
+      {
+        "name": "64bit",
+        "value": 1,
+        "desc": "Implements RV64."
+      },
+      {
+        "name": "a",
+        "value": 2,
+        "desc": "'A' (Atomic Instructions)."
+      },
+      {
+        "name": "auipc-addi-fusion",
+        "value": 3,
+        "desc": "Enable AUIPC+ADDI macrofusion."
+      },
+      {
+        "name": "b",
+        "value": 4,
+        "desc": "'B' (the collection of the Zba, Zbb, Zbs extensions)."
+      },
+      {
+        "name": "c",
+        "value": 5,
+        "desc": "'C' (Compressed Instructions)."
+      },
+      {
+        "name": "conditional-cmv-fusion",
+        "value": 6,
+        "desc": "Enable branch+c.mv fusion."
+      },
+      {
+        "name": "d",
+        "value": 7,
+        "desc": "'D' (Double-Precision Floating-Point)."
+      },
+      {
+        "name": "dlen-factor-2",
+        "value": 8,
+        "desc": "Vector unit DLEN(data path width) is half of VLEN."
+      },
+      {
+        "name": "e",
+        "value": 9,
+        "desc": "Implements RV{32,64}E (provides 16 rather than 32 GPRs)."
+      },
+      {
+        "name": "experimental",
+        "value": 10,
+        "desc": "Experimental intrinsics."
+      },
+      {
+        "name": "experimental-rva23s64",
+        "value": 11,
+        "desc": "RISC-V experimental-rva23s64 profile."
+      },
+      {
+        "name": "experimental-rva23u64",
+        "value": 12,
+        "desc": "RISC-V experimental-rva23u64 profile."
+      },
+      {
+        "name": "experimental-rvb23s64",
+        "value": 13,
+        "desc": "RISC-V experimental-rvb23s64 profile."
+      },
+      {
+        "name": "experimental-rvb23u64",
+        "value": 14,
+        "desc": "RISC-V experimental-rvb23u64 profile."
+      },
+      {
+        "name": "experimental-rvm23u32",
+        "value": 15,
+        "desc": "RISC-V experimental-rvm23u32 profile."
+      },
+      {
+        "name": "experimental-smmpm",
+        "value": 16,
+        "desc": "'Smmpm' (Machine-level Pointer Masking for M-mode)."
+      },
+      {
+        "name": "experimental-smnpm",
+        "value": 17,
+        "desc": "'Smnpm' (Machine-level Pointer Masking for next lower privilege mode)."
+      },
+      {
+        "name": "experimental-ssnpm",
+        "value": 18,
+        "desc": "'Ssnpm' (Supervisor-level Pointer Masking for next lower privilege mode)."
+      },
+      {
+        "name": "experimental-sspm",
+        "value": 19,
+        "desc": "'Sspm' (Indicates Supervisor-mode Pointer Masking)."
+      },
+      {
+        "name": "experimental-ssqosid",
+        "value": 20,
+        "desc": "'Ssqosid' (Quality-of-Service (QoS) Identifiers)."
+      },
+      {
+        "name": "experimental-supm",
+        "value": 21,
+        "desc": "'Supm' (Indicates User-mode Pointer Masking)."
+      },
+      {
+        "name": "experimental-zacas",
+        "value": 22,
+        "desc": "'Zacas' (Atomic Compare-And-Swap Instructions)."
+      },
+      {
+        "name": "experimental-zalasr",
+        "value": 23,
+        "desc": "'Zalasr' (Load-Acquire and Store-Release Instructions)."
+      },
+      {
+        "name": "experimental-zicfilp",
+        "value": 24,
+        "desc": "'Zicfilp' (Landing pad)."
+      },
+      {
+        "name": "experimental-zicfiss",
+        "value": 25,
+        "desc": "'Zicfiss' (Shadow stack)."
+      },
+      {
+        "name": "f",
+        "value": 26,
+        "desc": "'F' (Single-Precision Floating-Point)."
+      },
+      {
+        "name": "forced-atomics",
+        "value": 27,
+        "desc": "Assume that lock-free native-width atomics are available."
+      },
+      {
+        "name": "forced-sw-shadow-stack",
+        "value": 28,
+        "desc": "Implement shadow stack with software.."
+      },
+      {
+        "name": "h",
+        "value": 29,
+        "desc": "'H' (Hypervisor)."
+      },
+      {
+        "name": "i",
+        "value": 30,
+        "desc": "'I' (Base Integer Instruction Set)."
+      },
+      {
+        "name": "ld-add-fusion",
+        "value": 31,
+        "desc": "Enable LD+ADD macrofusion."
+      },
+      {
+        "name": "lui-addi-fusion",
+        "value": 32,
+        "desc": "Enable LUI+ADDI macro fusion."
+      },
+      {
+        "name": "m",
+        "value": 33,
+        "desc": "'M' (Integer Multiplication and Division)."
+      },
+      {
+        "name": "no-default-unroll",
+        "value": 34,
+        "desc": "Disable default unroll preference.."
+      },
+      {
+        "name": "no-rvc-hints",
+        "value": 35,
+        "desc": "Disable RVC Hint Instructions.."
+      },
+      {
+        "name": "no-sink-splat-operands",
+        "value": 36,
+        "desc": "Disable sink splat operands to enable .vx, .vf,.wx, and .wf instructions."
+      },
+      {
+        "name": "no-trailing-seq-cst-fence",
+        "value": 37,
+        "desc": "Disable trailing fence for seq-cst store.."
+      },
+      {
+        "name": "optimized-zero-stride-load",
+        "value": 38,
+        "desc": "Optimized (perform fewer memory operations)zero-stride vector load."
+      },
+      {
+        "name": "predictable-select-expensive",
+        "value": 39,
+        "desc": "Prefer likely predicted branches over selects."
+      },
+      {
+        "name": "prefer-w-inst",
+        "value": 40,
+        "desc": "Prefer instructions with W suffix."
+      },
+      {
+        "name": "relax",
+        "value": 41,
+        "desc": "Enable Linker relaxation.."
+      },
+      {
+        "name": "reserve-x1",
+        "value": 42,
+        "desc": "Reserve X1."
+      },
+      {
+        "name": "reserve-x10",
+        "value": 43,
+        "desc": "Reserve X10."
+      },
+      {
+        "name": "reserve-x11",
+        "value": 44,
+        "desc": "Reserve X11."
+      },
+      {
+        "name": "reserve-x12",
+        "value": 45,
+        "desc": "Reserve X12."
+      },
+      {
+        "name": "reserve-x13",
+        "value": 46,
+        "desc": "Reserve X13."
+      },
+      {
+        "name": "reserve-x14",
+        "value": 47,
+        "desc": "Reserve X14."
+      },
+      {
+        "name": "reserve-x15",
+        "value": 48,
+        "desc": "Reserve X15."
+      },
+      {
+        "name": "reserve-x16",
+        "value": 49,
+        "desc": "Reserve X16."
+      },
+      {
+        "name": "reserve-x17",
+        "value": 50,
+        "desc": "Reserve X17."
+      },
+      {
+        "name": "reserve-x18",
+        "value": 51,
+        "desc": "Reserve X18."
+      },
+      {
+        "name": "reserve-x19",
+        "value": 52,
+        "desc": "Reserve X19."
+      },
+      {
+        "name": "reserve-x2",
+        "value": 53,
+        "desc": "Reserve X2."
+      },
+      {
+        "name": "reserve-x20",
+        "value": 54,
+        "desc": "Reserve X20."
+      },
+      {
+        "name": "reserve-x21",
+        "value": 55,
+        "desc": "Reserve X21."
+      },
+      {
+        "name": "reserve-x22",
+        "value": 56,
+        "desc": "Reserve X22."
+      },
+      {
+        "name": "reserve-x23",
+        "value": 57,
+        "desc": "Reserve X23."
+      },
+      {
+        "name": "reserve-x24",
+        "value": 58,
+        "desc": "Reserve X24."
+      },
+      {
+        "name": "reserve-x25",
+        "value": 59,
+        "desc": "Reserve X25."
+      },
+      {
+        "name": "reserve-x26",
+        "value": 60,
+        "desc": "Reserve X26."
+      },
+      {
+        "name": "reserve-x27",
+        "value": 61,
+        "desc": "Reserve X27."
+      },
+      {
+        "name": "reserve-x28",
+        "value": 62,
+        "desc": "Reserve X28."
+      },
+      {
+        "name": "reserve-x29",
+        "value": 63,
+        "desc": "Reserve X29."
+      },
+      {
+        "name": "reserve-x3",
+        "value": 64,
+        "desc": "Reserve X3."
+      },
+      {
+        "name": "reserve-x30",
+        "value": 65,
+        "desc": "Reserve X30."
+      },
+      {
+        "name": "reserve-x31",
+        "value": 66,
+        "desc": "Reserve X31."
+      },
+      {
+        "name": "reserve-x4",
+        "value": 67,
+        "desc": "Reserve X4."
+      },
+      {
+        "name": "reserve-x5",
+        "value": 68,
+        "desc": "Reserve X5."
+      },
+      {
+        "name": "reserve-x6",
+        "value": 69,
+        "desc": "Reserve X6."
+      },
+      {
+        "name": "reserve-x7",
+        "value": 70,
+        "desc": "Reserve X7."
+      },
+      {
+        "name": "reserve-x8",
+        "value": 71,
+        "desc": "Reserve X8."
+      },
+      {
+        "name": "reserve-x9",
+        "value": 72,
+        "desc": "Reserve X9."
+      },
+      {
+        "name": "rva20s64",
+        "value": 73,
+        "desc": "RISC-V rva20s64 profile."
+      },
+      {
+        "name": "rva20u64",
+        "value": 74,
+        "desc": "RISC-V rva20u64 profile."
+      },
+      {
+        "name": "rva22s64",
+        "value": 75,
+        "desc": "RISC-V rva22s64 profile."
+      },
+      {
+        "name": "rva22u64",
+        "value": 76,
+        "desc": "RISC-V rva22u64 profile."
+      },
+      {
+        "name": "rvi20u32",
+        "value": 77,
+        "desc": "RISC-V rvi20u32 profile."
+      },
+      {
+        "name": "rvi20u64",
+        "value": 78,
+        "desc": "RISC-V rvi20u64 profile."
+      },
+      {
+        "name": "save-restore",
+        "value": 79,
+        "desc": "Enable save/restore.."
+      },
+      {
+        "name": "shcounterenw",
+        "value": 80,
+        "desc": "'Shcounterenw' (Support writeable hcounteren enable bit for any hpmcounter that is not read-only zero)."
+      },
+      {
+        "name": "shgatpa",
+        "value": 81,
+        "desc": "'Sgatpa' (SvNNx4 mode supported for all modes supported by satp, as well as Bare)."
+      },
+      {
+        "name": "shifted-zextw-fusion",
+        "value": 82,
+        "desc": "Enable SLLI+SRLI to be fused when computing (shifted) word zero extension."
+      },
+      {
+        "name": "short-forward-branch-opt",
+        "value": 83,
+        "desc": "Enable short forward branch optimization."
+      },
+      {
+        "name": "shtvala",
+        "value": 84,
+        "desc": "'Shtvala' (htval provides all needed values)."
+      },
+      {
+        "name": "shvsatpa",
+        "value": 85,
+        "desc": "'Svsatpa' (vsatp supports all modes supported by satp)."
+      },
+      {
+        "name": "shvstvala",
+        "value": 86,
+        "desc": "'Shvstvala' (vstval provides all needed values)."
+      },
+      {
+        "name": "shvstvecd",
+        "value": 87,
+        "desc": "'Shvstvecd' (vstvec supports Direct mode)."
+      },
+      {
+        "name": "sifive7",
+        "value": 88,
+        "desc": "SiFive 7-Series processors."
+      },
+      {
+        "name": "smaia",
+        "value": 89,
+        "desc": "'Smaia' (Advanced Interrupt Architecture Machine Level)."
+      },
+      {
+        "name": "smcdeleg",
+        "value": 90,
+        "desc": "'Smcdeleg' (Counter Delegation Machine Level)."
+      },
+      {
+        "name": "smcsrind",
+        "value": 91,
+        "desc": "'Smcsrind' (Indirect CSR Access Machine Level)."
+      },
+      {
+        "name": "smepmp",
+        "value": 92,
+        "desc": "'Smepmp' (Enhanced Physical Memory Protection)."
+      },
+      {
+        "name": "smstateen",
+        "value": 93,
+        "desc": "'Smstateen' (Machine-mode view of the state-enable extension)."
+      },
+      {
+        "name": "ssaia",
+        "value": 94,
+        "desc": "'Ssaia' (Advanced Interrupt Architecture Supervisor Level)."
+      },
+      {
+        "name": "ssccfg",
+        "value": 95,
+        "desc": "'Ssccfg' (Counter Configuration Supervisor Level)."
+      },
+      {
+        "name": "ssccptr",
+        "value": 96,
+        "desc": "'Ssccptr' (Main memory supports page table reads)."
+      },
+      {
+        "name": "sscofpmf",
+        "value": 97,
+        "desc": "'Sscofpmf' (Count Overflow and Mode-Based Filtering)."
+      },
+      {
+        "name": "sscounterenw",
+        "value": 98,
+        "desc": "'Sscounterenw' (Support writeable scounteren enable bit for any hpmcounter that is not read-only zero)."
+      },
+      {
+        "name": "sscsrind",
+        "value": 99,
+        "desc": "'Sscsrind' (Indirect CSR Access Supervisor Level)."
+      },
+      {
+        "name": "ssstateen",
+        "value": 100,
+        "desc": "'Ssstateen' (Supervisor-mode view of the state-enable extension)."
+      },
+      {
+        "name": "ssstrict",
+        "value": 101,
+        "desc": "'Ssstrict' (No non-conforming extensions are present)."
+      },
+      {
+        "name": "sstc",
+        "value": 102,
+        "desc": "'Sstc' (Supervisor-mode timer interrupts)."
+      },
+      {
+        "name": "sstvala",
+        "value": 103,
+        "desc": "'Sstvala' (stval provides all needed values)."
+      },
+      {
+        "name": "sstvecd",
+        "value": 104,
+        "desc": "'Sstvecd' (stvec supports Direct mode)."
+      },
+      {
+        "name": "ssu64xl",
+        "value": 105,
+        "desc": "'Ssu64xl' (UXLEN=64 supported)."
+      },
+      {
+        "name": "svade",
+        "value": 106,
+        "desc": "'Svade' (Raise exceptions on improper A/D bits)."
+      },
+      {
+        "name": "svadu",
+        "value": 107,
+        "desc": "'Svadu' (Hardware A/D updates)."
+      },
+      {
+        "name": "svbare",
+        "value": 108,
+        "desc": "'Svbare' $(satp mode Bare supported)."
+      },
+      {
+        "name": "svinval",
+        "value": 109,
+        "desc": "'Svinval' (Fine-Grained Address-Translation Cache Invalidation)."
+      },
+      {
+        "name": "svnapot",
+        "value": 110,
+        "desc": "'Svnapot' (NAPOT Translation Contiguity)."
+      },
+      {
+        "name": "svpbmt",
+        "value": 111,
+        "desc": "'Svpbmt' (Page-Based Memory Types)."
+      },
+      {
+        "name": "tagged-globals",
+        "value": 112,
+        "desc": "Use an instruction sequence for taking the address of a global that allows a memory tag in the upper address bits."
+      },
+      {
+        "name": "unaligned-scalar-mem",
+        "value": 113,
+        "desc": "Has reasonably performant unaligned scalar loads and stores."
+      },
+      {
+        "name": "unaligned-vector-mem",
+        "value": 114,
+        "desc": "Has reasonably performant unaligned vector loads and stores."
+      },
+      {
+        "name": "use-postra-scheduler",
+        "value": 115,
+        "desc": "Schedule again after register allocation."
+      },
+      {
+        "name": "v",
+        "value": 116,
+        "desc": "'V' (Vector Extension for Application Processors)."
+      },
+      {
+        "name": "ventana-veyron",
+        "value": 117,
+        "desc": "Ventana Veyron-Series processors."
+      },
+      {
+        "name": "xcvalu",
+        "value": 118,
+        "desc": "'XCValu' (CORE-V ALU Operations)."
+      },
+      {
+        "name": "xcvbi",
+        "value": 119,
+        "desc": "'XCVbi' (CORE-V Immediate Branching)."
+      },
+      {
+        "name": "xcvbitmanip",
+        "value": 120,
+        "desc": "'XCVbitmanip' (CORE-V Bit Manipulation)."
+      },
+      {
+        "name": "xcvelw",
+        "value": 121,
+        "desc": "'XCVelw' (CORE-V Event Load Word)."
+      },
+      {
+        "name": "xcvmac",
+        "value": 122,
+        "desc": "'XCVmac' (CORE-V Multiply-Accumulate)."
+      },
+      {
+        "name": "xcvmem",
+        "value": 123,
+        "desc": "'XCVmem' (CORE-V Post-incrementing Load & Store)."
+      },
+      {
+        "name": "xcvsimd",
+        "value": 124,
+        "desc": "'XCVsimd' (CORE-V SIMD ALU)."
+      },
+      {
+        "name": "xsfcease",
+        "value": 125,
+        "desc": "'XSfcease' (SiFive sf.cease Instruction)."
+      },
+      {
+        "name": "xsfvcp",
+        "value": 126,
+        "desc": "'XSfvcp' (SiFive Custom Vector Coprocessor Interface Instructions)."
+      },
+      {
+        "name": "xsfvfnrclipxfqf",
+        "value": 127,
+        "desc": "'XSfvfnrclipxfqf' (SiFive FP32-to-int8 Ranged Clip Instructions)."
+      },
+      {
+        "name": "xsfvfwmaccqqq",
+        "value": 128,
+        "desc": "'XSfvfwmaccqqq' (SiFive Matrix Multiply Accumulate Instruction and 4-by-4))."
+      },
+      {
+        "name": "xsfvqmaccdod",
+        "value": 129,
+        "desc": "'XSfvqmaccdod' (SiFive Int8 Matrix Multiplication Instructions (2-by-8 and 8-by-2))."
+      },
+      {
+        "name": "xsfvqmaccqoq",
+        "value": 130,
+        "desc": "'XSfvqmaccqoq' (SiFive Int8 Matrix Multiplication Instructions (4-by-8 and 8-by-4))."
+      },
+      {
+        "name": "xsifivecdiscarddlone",
+        "value": 131,
+        "desc": "'XSiFivecdiscarddlone' (SiFive sf.cdiscard.d.l1 Instruction)."
+      },
+      {
+        "name": "xsifivecflushdlone",
+        "value": 132,
+        "desc": "'XSiFivecflushdlone' (SiFive sf.cflush.d.l1 Instruction)."
+      },
+      {
+        "name": "xtheadba",
+        "value": 133,
+        "desc": "'XTHeadBa' (T-Head address calculation instructions)."
+      },
+      {
+        "name": "xtheadbb",
+        "value": 134,
+        "desc": "'XTHeadBb' (T-Head basic bit-manipulation instructions)."
+      },
+      {
+        "name": "xtheadbs",
+        "value": 135,
+        "desc": "'XTHeadBs' (T-Head single-bit instructions)."
+      },
+      {
+        "name": "xtheadcmo",
+        "value": 136,
+        "desc": "'XTHeadCmo' (T-Head cache management instructions)."
+      },
+      {
+        "name": "xtheadcondmov",
+        "value": 137,
+        "desc": "'XTHeadCondMov' (T-Head conditional move instructions)."
+      },
+      {
+        "name": "xtheadfmemidx",
+        "value": 138,
+        "desc": "'XTHeadFMemIdx' (T-Head FP Indexed Memory Operations)."
+      },
+      {
+        "name": "xtheadmac",
+        "value": 139,
+        "desc": "'XTHeadMac' (T-Head Multiply-Accumulate Instructions)."
+      },
+      {
+        "name": "xtheadmemidx",
+        "value": 140,
+        "desc": "'XTHeadMemIdx' (T-Head Indexed Memory Operations)."
+      },
+      {
+        "name": "xtheadmempair",
+        "value": 141,
+        "desc": "'XTHeadMemPair' (T-Head two-GPR Memory Operations)."
+      },
+      {
+        "name": "xtheadsync",
+        "value": 142,
+        "desc": "'XTHeadSync' (T-Head multicore synchronization instructions)."
+      },
+      {
+        "name": "xtheadvdot",
+        "value": 143,
+        "desc": "'XTHeadVdot' (T-Head Vector Extensions for Dot)."
+      },
+      {
+        "name": "xventanacondops",
+        "value": 144,
+        "desc": "'XVentanaCondOps' (Ventana Conditional Ops)."
+      },
+      {
+        "name": "xwchc",
+        "value": 145,
+        "desc": "'Xwchc' (WCH/QingKe additional compressed opcodes)."
+      },
+      {
+        "name": "za128rs",
+        "value": 146,
+        "desc": "'Za128rs' (Reservation Set Size of at Most 128 Bytes)."
+      },
+      {
+        "name": "za64rs",
+        "value": 147,
+        "desc": "'Za64rs' (Reservation Set Size of at Most 64 Bytes)."
+      },
+      {
+        "name": "zaamo",
+        "value": 148,
+        "desc": "'Zaamo' (Atomic Memory Operations)."
+      },
+      {
+        "name": "zabha",
+        "value": 149,
+        "desc": "'Zabha' (Byte and Halfword Atomic Memory Operations)."
+      },
+      {
+        "name": "zalrsc",
+        "value": 150,
+        "desc": "'Zalrsc' (Load-Reserved/Store-Conditional)."
+      },
+      {
+        "name": "zama16b",
+        "value": 151,
+        "desc": "'Zama16b' (Atomic 16-byte misaligned loads, stores and AMOs)."
+      },
+      {
+        "name": "zawrs",
+        "value": 152,
+        "desc": "'Zawrs' (Wait on Reservation Set)."
+      },
+      {
+        "name": "zba",
+        "value": 153,
+        "desc": "'Zba' (Address Generation Instructions)."
+      },
+      {
+        "name": "zbb",
+        "value": 154,
+        "desc": "'Zbb' (Basic Bit-Manipulation)."
+      },
+      {
+        "name": "zbc",
+        "value": 155,
+        "desc": "'Zbc' (Carry-Less Multiplication)."
+      },
+      {
+        "name": "zbkb",
+        "value": 156,
+        "desc": "'Zbkb' (Bitmanip instructions for Cryptography)."
+      },
+      {
+        "name": "zbkc",
+        "value": 157,
+        "desc": "'Zbkc' (Carry-less multiply instructions for Cryptography)."
+      },
+      {
+        "name": "zbkx",
+        "value": 158,
+        "desc": "'Zbkx' (Crossbar permutation instructions)."
+      },
+      {
+        "name": "zbs",
+        "value": 159,
+        "desc": "'Zbs' (Single-Bit Instructions)."
+      },
+      {
+        "name": "zca",
+        "value": 160,
+        "desc": "'Zca' (part of the C extension, excluding compressed floating point loads/stores)."
+      },
+      {
+        "name": "zcb",
+        "value": 161,
+        "desc": "'Zcb' (Compressed basic bit manipulation instructions)."
+      },
+      {
+        "name": "zcd",
+        "value": 162,
+        "desc": "'Zcd' (Compressed Double-Precision Floating-Point Instructions)."
+      },
+      {
+        "name": "zce",
+        "value": 163,
+        "desc": "'Zce' (Compressed extensions for microcontrollers)."
+      },
+      {
+        "name": "zcf",
+        "value": 164,
+        "desc": "'Zcf' (Compressed Single-Precision Floating-Point Instructions)."
+      },
+      {
+        "name": "zcmop",
+        "value": 165,
+        "desc": "'Zcmop' (Compressed May-Be-Operations)."
+      },
+      {
+        "name": "zcmp",
+        "value": 166,
+        "desc": "'Zcmp' (sequenced instructions for code-size reduction)."
+      },
+      {
+        "name": "zcmt",
+        "value": 167,
+        "desc": "'Zcmt' (table jump instructions for code-size reduction)."
+      },
+      {
+        "name": "zdinx",
+        "value": 168,
+        "desc": "'Zdinx' (Double in Integer)."
+      },
+      {
+        "name": "zexth-fusion",
+        "value": 169,
+        "desc": "Enable SLLI+SRLI to be fused to zero extension of halfword."
+      },
+      {
+        "name": "zextw-fusion",
+        "value": 170,
+        "desc": "Enable SLLI+SRLI to be fused to zero extension of word."
+      },
+      {
+        "name": "zfa",
+        "value": 171,
+        "desc": "'Zfa' (Additional Floating-Point)."
+      },
+      {
+        "name": "zfbfmin",
+        "value": 172,
+        "desc": "'Zfbfmin' (Scalar BF16 Converts)."
+      },
+      {
+        "name": "zfh",
+        "value": 173,
+        "desc": "'Zfh' (Half-Precision Floating-Point)."
+      },
+      {
+        "name": "zfhmin",
+        "value": 174,
+        "desc": "'Zfhmin' (Half-Precision Floating-Point Minimal)."
+      },
+      {
+        "name": "zfinx",
+        "value": 175,
+        "desc": "'Zfinx' (Float in Integer)."
+      },
+      {
+        "name": "zhinx",
+        "value": 176,
+        "desc": "'Zhinx' (Half Float in Integer)."
+      },
+      {
+        "name": "zhinxmin",
+        "value": 177,
+        "desc": "'Zhinxmin' (Half Float in Integer Minimal)."
+      },
+      {
+        "name": "zic64b",
+        "value": 178,
+        "desc": "'Zic64b' (Cache Block Size Is 64 Bytes)."
+      },
+      {
+        "name": "zicbom",
+        "value": 179,
+        "desc": "'Zicbom' (Cache-Block Management Instructions)."
+      },
+      {
+        "name": "zicbop",
+        "value": 180,
+        "desc": "'Zicbop' (Cache-Block Prefetch Instructions)."
+      },
+      {
+        "name": "zicboz",
+        "value": 181,
+        "desc": "'Zicboz' (Cache-Block Zero Instructions)."
+      },
+      {
+        "name": "ziccamoa",
+        "value": 182,
+        "desc": "'Ziccamoa' (Main Memory Supports All Atomics in A)."
+      },
+      {
+        "name": "ziccif",
+        "value": 183,
+        "desc": "'Ziccif' (Main Memory Supports Instruction Fetch with Atomicity Requirement)."
+      },
+      {
+        "name": "zicclsm",
+        "value": 184,
+        "desc": "'Zicclsm' (Main Memory Supports Misaligned Loads/Stores)."
+      },
+      {
+        "name": "ziccrse",
+        "value": 185,
+        "desc": "'Ziccrse' (Main Memory Supports Forward Progress on LR/SC Sequences)."
+      },
+      {
+        "name": "zicntr",
+        "value": 186,
+        "desc": "'Zicntr' (Base Counters and Timers)."
+      },
+      {
+        "name": "zicond",
+        "value": 187,
+        "desc": "'Zicond' (Integer Conditional Operations)."
+      },
+      {
+        "name": "zicsr",
+        "value": 188,
+        "desc": "'zicsr' (CSRs)."
+      },
+      {
+        "name": "zifencei",
+        "value": 189,
+        "desc": "'Zifencei' (fence.i)."
+      },
+      {
+        "name": "zihintntl",
+        "value": 190,
+        "desc": "'Zihintntl' (Non-Temporal Locality Hints)."
+      },
+      {
+        "name": "zihintpause",
+        "value": 191,
+        "desc": "'Zihintpause' (Pause Hint)."
+      },
+      {
+        "name": "zihpm",
+        "value": 192,
+        "desc": "'Zihpm' (Hardware Performance Counters)."
+      },
+      {
+        "name": "zimop",
+        "value": 193,
+        "desc": "'Zimop' (May-Be-Operations)."
+      },
+      {
+        "name": "zk",
+        "value": 194,
+        "desc": "'Zk' (Standard scalar cryptography extension)."
+      },
+      {
+        "name": "zkn",
+        "value": 195,
+        "desc": "'Zkn' (NIST Algorithm Suite)."
+      },
+      {
+        "name": "zknd",
+        "value": 196,
+        "desc": "'Zknd' (NIST Suite: AES Decryption)."
+      },
+      {
+        "name": "zkne",
+        "value": 197,
+        "desc": "'Zkne' (NIST Suite: AES Encryption)."
+      },
+      {
+        "name": "zknh",
+        "value": 198,
+        "desc": "'Zknh' (NIST Suite: Hash Function Instructions)."
+      },
+      {
+        "name": "zkr",
+        "value": 199,
+        "desc": "'Zkr' (Entropy Source Extension)."
+      },
+      {
+        "name": "zks",
+        "value": 200,
+        "desc": "'Zks' (ShangMi Algorithm Suite)."
+      },
+      {
+        "name": "zksed",
+        "value": 201,
+        "desc": "'Zksed' (ShangMi Suite: SM4 Block Cipher Instructions)."
+      },
+      {
+        "name": "zksh",
+        "value": 202,
+        "desc": "'Zksh' (ShangMi Suite: SM3 Hash Function Instructions)."
+      },
+      {
+        "name": "zkt",
+        "value": 203,
+        "desc": "'Zkt' (Data Independent Execution Latency)."
+      },
+      {
+        "name": "zmmul",
+        "value": 204,
+        "desc": "'Zmmul' (Integer Multiplication)."
+      },
+      {
+        "name": "ztso",
+        "value": 205,
+        "desc": "'Ztso' (Memory Model"
+      },
+      {
+        "name": "zvbb",
+        "value": 206,
+        "desc": "'Zvbb' (Vector basic bit-manipulation instructions)."
+      },
+      {
+        "name": "zvbc",
+        "value": 207,
+        "desc": "'Zvbc' (Vector Carryless Multiplication)."
+      },
+      {
+        "name": "zve32f",
+        "value": 208,
+        "desc": "'Zve32f' (Vector Extensions for Embedded Processors with maximal 32 EEW and F extension)."
+      },
+      {
+        "name": "zve32x",
+        "value": 209,
+        "desc": "'Zve32x' (Vector Extensions for Embedded Processors with maximal 32 EEW)."
+      },
+      {
+        "name": "zve64d",
+        "value": 210,
+        "desc": "'Zve64d' (Vector Extensions for Embedded Processors with maximal 64 EEW, F and D extension)."
+      },
+      {
+        "name": "zve64f",
+        "value": 211,
+        "desc": "'Zve64f' (Vector Extensions for Embedded Processors with maximal 64 EEW and F extension)."
+      },
+      {
+        "name": "zve64x",
+        "value": 212,
+        "desc": "'Zve64x' (Vector Extensions for Embedded Processors with maximal 64 EEW)."
+      },
+      {
+        "name": "zvfbfmin",
+        "value": 213,
+        "desc": "'Zvbfmin' (Vector BF16 Converts)."
+      },
+      {
+        "name": "zvfbfwma",
+        "value": 214,
+        "desc": "'Zvfbfwma' (Vector BF16 widening mul-add)."
+      },
+      {
+        "name": "zvfh",
+        "value": 215,
+        "desc": "'Zvfh' (Vector Half-Precision Floating-Point)."
+      },
+      {
+        "name": "zvfhmin",
+        "value": 216,
+        "desc": "'Zvfhmin' (Vector Half-Precision Floating-Point Minimal)."
+      },
+      {
+        "name": "zvkb",
+        "value": 217,
+        "desc": "'Zvkb' (Vector Bit-manipulation used in Cryptography)."
+      },
+      {
+        "name": "zvkg",
+        "value": 218,
+        "desc": "'Zvkg' (Vector GCM instructions for Cryptography)."
+      },
+      {
+        "name": "zvkn",
+        "value": 219,
+        "desc": "'Zvkn' (shorthand for 'Zvkned', 'Zvknhb', 'Zvkb', and 'Zvkt')."
+      },
+      {
+        "name": "zvknc",
+        "value": 220,
+        "desc": "'Zvknc' (shorthand for 'Zvknc' and 'Zvbc')."
+      },
+      {
+        "name": "zvkned",
+        "value": 221,
+        "desc": "'Zvkned' (Vector AES Encryption & Decryption (Single Round))."
+      },
+      {
+        "name": "zvkng",
+        "value": 222,
+        "desc": "'zvkng' (shorthand for 'Zvkn' and 'Zvkg')."
+      },
+      {
+        "name": "zvknha",
+        "value": 223,
+        "desc": "'Zvknha' (Vector SHA-2 (SHA-256 only))."
+      },
+      {
+        "name": "zvknhb",
+        "value": 224,
+        "desc": "'Zvknhb' (Vector SHA-2 (SHA-256 and SHA-512))."
+      },
+      {
+        "name": "zvks",
+        "value": 225,
+        "desc": "'Zvks' (shorthand for 'Zvksed', 'Zvksh', 'Zvkb', and 'Zvkt')."
+      },
+      {
+        "name": "zvksc",
+        "value": 226,
+        "desc": "'Zvksc' (shorthand for 'Zvks' and 'Zvbc')."
+      },
+      {
+        "name": "zvksed",
+        "value": 227,
+        "desc": "'Zvksed' (SM4 Block Cipher Instructions)."
+      },
+      {
+        "name": "zvksg",
+        "value": 228,
+        "desc": "'Zvksg' (shorthand for 'Zvks' and 'Zvkg')."
+      },
+      {
+        "name": "zvksh",
+        "value": 229,
+        "desc": "'Zvksh' (SM3 Hash Function Instructions)."
+      },
+      {
+        "name": "zvkt",
+        "value": 230,
+        "desc": "'Zvkt' (Vector Data-Independent Execution Latency)."
+      },
+      {
+        "name": "zvl1024b",
+        "value": 231,
+        "desc": "'Zvl' (Minimum Vector Length) 1024."
+      },
+      {
+        "name": "zvl128b",
+        "value": 232,
+        "desc": "'Zvl' (Minimum Vector Length) 128."
+      },
+      {
+        "name": "zvl16384b",
+        "value": 233,
+        "desc": "'Zvl' (Minimum Vector Length) 16384."
+      },
+      {
+        "name": "zvl2048b",
+        "value": 234,
+        "desc": "'Zvl' (Minimum Vector Length) 2048."
+      },
+      {
+        "name": "zvl256b",
+        "value": 235,
+        "desc": "'Zvl' (Minimum Vector Length) 256."
+      },
+      {
+        "name": "zvl32768b",
+        "value": 236,
+        "desc": "'Zvl' (Minimum Vector Length) 32768."
+      },
+      {
+        "name": "zvl32b",
+        "value": 237,
+        "desc": "'Zvl' (Minimum Vector Length) 32."
+      },
+      {
+        "name": "zvl4096b",
+        "value": 238,
+        "desc": "'Zvl' (Minimum Vector Length) 4096."
+      },
+      {
+        "name": "zvl512b",
+        "value": 239,
+        "desc": "'Zvl' (Minimum Vector Length) 512."
+      },
+      {
+        "name": "zvl64b",
+        "value": 240,
+        "desc": "'Zvl' (Minimum Vector Length) 64."
+      },
+      {
+        "name": "zvl65536b",
+        "value": 241,
+        "desc": "'Zvl' (Minimum Vector Length) 65536."
+      },
+      {
+        "name": "zvl8192b",
+        "value": 242,
+        "desc": "'Zvl' (Minimum Vector Length) 8192."
+      }
     ]
   },
   "architecture_categories": [
