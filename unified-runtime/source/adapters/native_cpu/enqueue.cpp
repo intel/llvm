@@ -197,8 +197,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #else
   bool isLocalSizeOne =
       ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
-  if (isLocalSizeOne && ndr.GlobalSize[0] > numParallelThreads &&
-      !kernel->hasLocalArgs()) {
+  if (isLocalSizeOne && !kernel->hasLocalArgs()) {
     // If the local size is one, we make the assumption that we are running a
     // parallel_for over a sycl::range.
     // Todo: we could add more compiler checks and
@@ -212,10 +211,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     // divide the global range by the number of threads, set that as the local
     // size and peel everything else.
 
+    // The number of items per kernel invocation should ideally be at least a
+    // multiple of the applied vector width, which we currently assume to be 8.
+    // TODO: Encode this and other kernel capabilities in the binary so we can
+    // use actual values to efficiently enqueue kernels instead of relying on
+    // assumptions.
+    const size_t itemsPerKernelInvocation = 8;
+
     size_t new_num_work_groups_0 = numParallelThreads;
     size_t itemsPerThread = ndr.GlobalSize[0] / numParallelThreads;
+    if (itemsPerThread < itemsPerKernelInvocation) {
+      if (itemsPerKernelInvocation <= numWG0)
+        itemsPerThread = itemsPerKernelInvocation;
+      else if (itemsPerThread == 0)
+        itemsPerThread = numWG0;
+    } else if (itemsPerThread > itemsPerKernelInvocation) {
+      // Launch kernel with number of items that is the next multiple of the
+      // vector width.
+      const size_t nextMult = (itemsPerThread + itemsPerKernelInvocation - 1) /
+                              itemsPerKernelInvocation *
+                              itemsPerKernelInvocation;
+      if (nextMult < numWG0)
+        itemsPerThread = nextMult;
+    }
 
-    for (size_t t = 0; t < numParallelThreads;) {
+    size_t wg0_index = 0;
+    for (size_t t = 0; (wg0_index + itemsPerThread) <= numWG0;
+         wg0_index += itemsPerThread) {
       IndexT first = {t, 0, 0};
       IndexT last = {++t, numWG1, numWG2};
       futures.emplace_back(tp.schedule_task([ndr, itemsPerThread,
@@ -227,14 +249,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       }));
     }
 
-    size_t start_wg0_remainder = new_num_work_groups_0 * itemsPerThread;
-    if (start_wg0_remainder < numWG0) {
+    if (wg0_index < numWG0) {
       // Peel the remaining work items. Since the local size is 1, we iterate
       // over the work groups.
       futures.emplace_back(
-          tp.schedule_task([ndr, &kernel = *kernel, start_wg0_remainder, numWG0,
-                            numWG1, numWG2, InEvents](size_t) {
-            IndexT first = {start_wg0_remainder, 0, 0};
+          tp.schedule_task([ndr, &kernel = *kernel, wg0_index, numWG0, numWG1,
+                            numWG2, InEvents](size_t) {
+            IndexT first = {wg0_index, 0, 0};
             IndexT last = {numWG0, numWG1, numWG2};
             InEvents.wait();
             native_cpu::state state = getState(ndr);
