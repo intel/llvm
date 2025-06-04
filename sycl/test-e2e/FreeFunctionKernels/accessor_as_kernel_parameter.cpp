@@ -151,8 +151,7 @@ int main() {
         Queue, Context, sycl::nd_range{sycl::range{10}, sycl::range{2}},
         "ns::nsNdRangeFreeFunc with sycl::accessor<1>", 4);
     Failed += runNdRangeTest<ns::nsNdRangeFreeFunc<2>, 2>(
-        Queue, Context,
-        sycl::nd_range{sycl::range{16, 16}, sycl::range{4, 4}},
+        Queue, Context, sycl::nd_range{sycl::range{16, 16}, sycl::range{4, 4}},
         "ns::nsNdRangeFreeFunc with sycl::accessor<2>", 5);
     Failed += runNdRangeTest<ns::nsNdRangeFreeFunc<3>, 3>(
         Queue, Context,
@@ -173,7 +172,7 @@ int main() {
         runNdRangeTestMultipleParameters<ndRangeFreeFuncMultipleParameters<2>,
                                          2>(
             Queue, Context,
-            sycl::nd_range{sycl::range{10, 10}, sycl::range{4, 4}},
+            sycl::nd_range{sycl::range{16, 16}, sycl::range{4, 4}},
             "ndRangeFreeFuncMultipleParameters with multiple sycl::accessor<2>",
             sycl::range{222, 222, 444});
     Failed +=
