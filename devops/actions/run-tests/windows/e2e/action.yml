@@ -61,6 +61,12 @@ runs:
     run: |
       mkdir build-e2e
 
+  - name: DEBUG PRINTS
+    shell: bash
+    run: |
+      which sycl-ls
+      which clang++
+
   - name: Configure E2E tests
     shell: bash
     run: |
