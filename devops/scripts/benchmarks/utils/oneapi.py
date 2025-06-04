@@ -48,7 +48,7 @@ class OneAPI:
         if self.check_install(version):
             print(f"{name} version {version} already installed, skipping.")
             return
-        package_name = f"package_{name}.sh"
+        package_name = f"package_{name}_{version}.sh"
         package_path = os.path.join(self.oneapi_dir, f"{package_name}")
         if Path(package_path).exists():
             print(f"{package_path} exists, skipping download of oneAPI package...")
@@ -61,9 +61,9 @@ class OneAPI:
                 f"sh {package_path} -a -s --eula accept --install-dir {self.oneapi_dir} --instance {self.oneapi_instance_id}"
             )
         except:
-            print("oneAPI installation likely exists already")
+            print(f"OneAPI {name} version {version} installation likely exists already")
             return
-        print(f"{name} installation complete")
+        print(f"OneAPI {name} version {version} installation complete")
 
     def package_dir(self, package, dir):
         return os.path.join(self.oneapi_dir, package, "latest", dir)
