@@ -785,13 +785,6 @@ protected:
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
 
-    if (Handler.getType() == CGType::ExecCommandBuffer && MNoEventMode) {
-      // TODO: this shouldn't be needed but without this
-      // the legacy adapter doesn't synchronize the operations properly
-      // when non-immediate command lists are used.
-      Handler.depends_on(insertHelperBarrier(Handler));
-    }
-
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
 
