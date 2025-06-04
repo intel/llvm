@@ -137,7 +137,7 @@ InstallIGFX () {
     # Backup and install it from release igc as a temporarily workaround
     # while we working to resolve the issue.
     echo "Backup libopencl-clang"
-    cp -d /usr/local/lib/libopencl-clang2.so.14*  .
+    cp -d /usr/local/lib/libopencl-clang2.so.15*  .
     echo "Download IGC dev git hash $IGC_DEV_VER"
     get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
     echo "Install IGC dev git hash $IGC_DEV_VER"
@@ -146,12 +146,12 @@ InstallIGFX () {
     dpkg -i --force-all *.deb
     echo "Install libopencl-clang"
     # Workaround only, will download deb and install with dpkg once fixed.
-    cp -d libopencl-clang2.so.14*  /usr/local/lib/
+    cp -d libopencl-clang2.so.15*  /usr/local/lib/
     rm /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
        ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
        ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
     echo "Clean up"
-    rm *.deb libopencl-clang2.so.14*
+    rm *.deb libopencl-clang2.so.15*
     echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
   fi
 }
