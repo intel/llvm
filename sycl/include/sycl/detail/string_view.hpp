@@ -27,10 +27,10 @@ class string_view {
 #endif
 
 public:
-  string_view() noexcept = default;
-  string_view(const string_view &strn) noexcept = default;
-  string_view(string_view &&strn) noexcept = default;
-  string_view(std::string_view strn) noexcept
+  constexpr string_view() noexcept = default;
+  constexpr string_view(const string_view &strn) noexcept = default;
+  constexpr string_view(string_view &&strn) noexcept = default;
+  constexpr string_view(std::string_view strn) noexcept
       : str(strn.data())
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
         ,
@@ -47,10 +47,10 @@ public:
   {
   }
 
-  string_view &operator=(string_view &&strn) noexcept = default;
+  constexpr string_view &operator=(string_view &&strn) noexcept = default;
   string_view &operator=(const string_view &strn) noexcept = default;
 
-  string_view &operator=(std::string_view strn) noexcept {
+  constexpr string_view &operator=(std::string_view strn) noexcept {
     str = strn.data();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     len = strn.size();
@@ -66,9 +66,9 @@ public:
     return *this;
   }
 
-  const char *data() const noexcept { return str ? str : ""; }
+  constexpr const char *data() const noexcept { return str ? str : ""; }
 
-  explicit operator std::string_view() const noexcept {
+  constexpr explicit operator std::string_view() const noexcept {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return std::string_view(str, len);
 #else
@@ -77,31 +77,39 @@ public:
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
+  friend constexpr bool operator==(
+      string_view lhs, std::string_view rhs) noexcept {
     return rhs == std::string_view(lhs);
   }
-  friend bool operator==(std::string_view lhs, string_view rhs) noexcept {
+  friend constexpr bool operator==(
+      std::string_view lhs, string_view rhs) noexcept {
     return lhs == std::string_view(rhs);
   }
 
-  friend bool operator!=(string_view lhs, std::string_view rhs) noexcept {
+  friend constexpr bool operator!=(
+      string_view lhs, std::string_view rhs) noexcept {
     return rhs != std::string_view(lhs);
   }
-  friend bool operator!=(std::string_view lhs, string_view rhs) noexcept {
+  friend constexpr bool operator!=(
+      std::string_view lhs, string_view rhs) noexcept {
     return lhs != std::string_view(rhs);
   }
 #else
-  friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
+  friend constexpr bool operator==(
+      string_view lhs, std::string_view rhs) noexcept {
     return rhs == lhs.data();
   }
-  friend bool operator==(std::string_view lhs, string_view rhs) noexcept {
+  friend constexpr bool operator==(
+      std::string_view lhs, string_view rhs) noexcept {
     return lhs == rhs.data();
   }
 
-  friend bool operator!=(string_view lhs, std::string_view rhs) noexcept {
+  friend constexpr bool operator!=(
+      string_view lhs, std::string_view rhs) noexcept {
     return rhs != lhs.data();
   }
-  friend bool operator!=(std::string_view lhs, string_view rhs) noexcept {
+  friend constexpr bool operator!=(
+      std::string_view lhs, string_view rhs) noexcept {
     return lhs != rhs.data();
   }
 #endif
