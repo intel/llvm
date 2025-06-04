@@ -42,7 +42,7 @@ void globalndRangeFreeFuncWith2DimAccessor(sycl::accessor<int, 2> Accessor,
 }
 
 // TODO: Need to add checks for a static member functions of a class as free
-// function kerenl
+// function kernel.
 
 int main() {
 
