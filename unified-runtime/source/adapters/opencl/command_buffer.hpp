@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include <ur/ur.hpp>
 
 /// Handle to a kernel command.
@@ -53,8 +54,6 @@ struct ur_exp_command_buffer_handle_t_ : ur::opencl::handle_base {
   /// List of commands in the command-buffer.
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
       CommandHandles;
-  /// Object reference count
-  std::atomic_uint32_t RefCount;
   /// Track last submission of the command-buffer
   cl_event LastSubmission;
 
@@ -66,11 +65,12 @@ struct ur_exp_command_buffer_handle_t_ : ur::opencl::handle_base {
       : handle_base(), hInternalQueue(hQueue), hContext(hContext),
         hDevice(hDevice), CLCommandBuffer(CLCommandBuffer),
         IsUpdatable(IsUpdatable), IsInOrder(IsInOrder), IsFinalized(false),
-        RefCount(0), LastSubmission(nullptr) {}
+        LastSubmission(nullptr) {}
 
   ~ur_exp_command_buffer_handle_t_();
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

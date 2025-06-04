@@ -25,6 +25,8 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
+
 #include "device.hpp"
 
 extern "C" {
@@ -419,18 +421,6 @@ struct ur_queue_handle_t_ : ur_object {
   // list is needed for a command.
   active_barriers ActiveBarriers;
 
-  // Besides each PI object keeping a total reference count in
-  // ur_object::RefCount we keep special track of the queue *external*
-  // references. This way we are able to tell when the queue is being finished
-  // externally, and can wait for internal references to complete, and do proper
-  // cleanup of the queue.
-  // This counter doesn't track the lifetime of a queue object, it only tracks
-  // the number of external references. I.e. even if it reaches zero a queue
-  // object may not be destroyed and can be used internally in the plugin.
-  // That's why we intentionally don't use atomic type for this counter to
-  // enforce guarding with a mutex all the work involving this counter.
-  uint32_t RefCountExternal{1};
-
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
 
@@ -692,6 +682,24 @@ struct ur_queue_handle_t_ : ur_object {
 
   // Pointer to the unified handle.
   ur_queue_handle_t_ *UnifiedHandle;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+  UR_ReferenceCounter &getRefCounterExternal() noexcept { return RefCounterExternal; }
+
+private:
+  UR_ReferenceCounter RefCounter;
+
+  // Besides each PI object keeping a total reference count in
+  // ur_object::RefCount we keep special track of the queue *external*
+  // references. This way we are able to tell when the queue is being finished
+  // externally, and can wait for internal references to complete, and do proper
+  // cleanup of the queue.
+  // This counter doesn't track the lifetime of a queue object, it only tracks
+  // the number of external references. I.e. even if it reaches zero a queue
+  // object may not be destroyed and can be used internally in the plugin.
+  // That's why we intentionally don't use atomic type for this counter to
+  // enforce guarding with a mutex all the work involving this counter.
+  UR_ReferenceCounter RefCounterExternal;
 };
 
 // This helper function creates a ur_event_handle_t and associate a

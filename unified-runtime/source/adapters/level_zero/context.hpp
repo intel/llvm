@@ -23,6 +23,7 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "queue.hpp"
 #include "usm.hpp"
 
@@ -358,6 +359,8 @@ struct ur_context_handle_t_ : ur_object {
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
 private:
   enum EventFlags {
     EVENT_FLAG_HOST_VISIBLE = UR_BIT(0),
@@ -404,6 +407,8 @@ private:
 
     return &EventCaches[index];
   }
+
+  UR_ReferenceCounter RefCounter;
 };
 
 // Helper function to release the context, a caller must lock the platform-level

@@ -28,7 +28,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(hQueue->getDevice());
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(hQueue->getReferenceCount());
+    return ReturnValue(hQueue->getRefCounter().getCount());
   case UR_QUEUE_INFO_EMPTY:
     return ReturnValue(hQueue->isEmpty());
   default:
@@ -48,13 +48,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  hQueue->incrementReferenceCount();
+  hQueue->getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  decrementOrDelete(hQueue);
+  if (hQueue->getRefCounter().decrement() == 0) {
+    delete hQueue;
+  }
 
   return UR_RESULT_SUCCESS;
 }

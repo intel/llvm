@@ -46,13 +46,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemRetain(ur_physical_mem_handle_t hPhysicalMem) {
-  hPhysicalMem->incrementReferenceCount();
+  hPhysicalMem->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
-  if (hPhysicalMem->decrementReferenceCount() > 0)
+  if (hPhysicalMem->getRefCounter().decrement() > 0)
     return UR_RESULT_SUCCESS;
 
   try {
@@ -88,7 +88,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemGetInfo(
     return ReturnValue(hPhysicalMem->getProperties());
   }
   case UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hPhysicalMem->getReferenceCount());
+    return ReturnValue(hPhysicalMem->getRefCounter().getCount());
   }
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;

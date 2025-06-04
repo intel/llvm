@@ -95,7 +95,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   case UR_KERNEL_INFO_FUNCTION_NAME:
     return ReturnValue(hKernel->_name);
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hKernel->getReferenceCount()});
+    return ReturnValue(uint32_t{hKernel->getRefCounter().getCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
   case UR_KERNEL_INFO_SPILL_MEM_SIZE:
@@ -194,13 +194,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  hKernel->incrementReferenceCount();
+  hKernel->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  decrementOrDelete(hKernel);
+  if (hKernel->getRefCounter().decrement() == 0) {
+    delete hKernel;
+  }
 
   return UR_RESULT_SUCCESS;
 }

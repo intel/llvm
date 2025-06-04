@@ -8,12 +8,15 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
-#include "common.hpp"
-#include "event.hpp"
-#include "ur_api.h"
+
 #include <set>
 
-struct ur_queue_handle_t_ : RefCounted {
+#include "common.hpp"
+#include "common/ur_ref_counter.hpp"
+#include "event.hpp"
+#include "ur_api.h"
+
+struct ur_queue_handle_t_ {
   ur_queue_handle_t_(ur_device_handle_t device, ur_context_handle_t context,
                      const ur_queue_properties_t *pProps)
       : device(device), context(context),
@@ -64,6 +67,8 @@ struct ur_queue_handle_t_ : RefCounted {
     return events.size() == 0;
   }
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
 private:
   ur_device_handle_t device;
   ur_context_handle_t context;
@@ -71,4 +76,6 @@ private:
   const bool inOrder;
   const bool profilingEnabled;
   std::mutex mutex;
+
+  UR_ReferenceCounter RefCounter;
 };

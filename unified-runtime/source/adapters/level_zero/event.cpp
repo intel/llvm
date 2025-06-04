@@ -505,7 +505,7 @@ ur_result_t urEventGetInfo(
     return ReturnValue(Result);
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return ReturnValue(Event->RefCount.load());
+    return ReturnValue(Event->getRefCounter().getCount());
   }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
@@ -873,8 +873,8 @@ urEventWait(uint32_t NumEvents,
 ur_result_t
 /// [in] handle of the event object
 urEventRetain(/** [in] handle of the event object */ ur_event_handle_t Event) {
-  Event->RefCountExternal++;
-  Event->RefCount.increment();
+  Event->getRefCounterExternal().increment();
+  Event->getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -882,7 +882,7 @@ urEventRetain(/** [in] handle of the event object */ ur_event_handle_t Event) {
 ur_result_t
 
 urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
-  Event->RefCountExternal--;
+  Event->getRefCounterExternal().decrement();
   bool isEventsWaitCompleted =
       (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
        Event->CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER) &&
@@ -941,7 +941,7 @@ ur_result_t urExtEventCreate(
                       false /*CounterBasedEventEnabled*/,
                       false /*ForceDisableProfiling*/, false));
 
-  (*Event)->RefCountExternal++;
+  (*Event)->getRefCounterExternal().increment();
   if (!(*Event)->CounterBasedEventsEnabled)
     ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return UR_RESULT_SUCCESS;
@@ -963,7 +963,7 @@ ur_result_t urEventCreateWithNativeHandle(
                         false /*CounterBasedEventEnabled*/,
                         false /*ForceDisableProfiling*/, false));
 
-    (*Event)->RefCountExternal++;
+    (*Event)->getRefCounterExternal().increment();
     if (!(*Event)->CounterBasedEventsEnabled)
       ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
     return UR_RESULT_SUCCESS;
@@ -975,7 +975,7 @@ ur_result_t urEventCreateWithNativeHandle(
     UREvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
                                      Context, UR_EXT_COMMAND_TYPE_USER,
                                      Properties->isNativeHandleOwned);
-    UREvent->RefCountExternal++;
+    UREvent->getRefCounterExternal().increment();
 
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -1088,7 +1088,7 @@ ur_event_handle_t_::~ur_event_handle_t_() {
 
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
                                    bool *isEventDeleted) {
-  if (!Event->RefCount.decrementAndTest())
+  if (!Event->getRefCounter().decrement() == 0)
     return UR_RESULT_SUCCESS;
 
   if (Event->OriginAllocEvent) {
@@ -1428,8 +1428,8 @@ ur_result_t ur_event_handle_t_::reset() {
   CommandData = nullptr;
   CommandType = UR_EXT_COMMAND_TYPE_USER;
   WaitList = {};
-  RefCountExternal = 0;
-  RefCount.reset();
+  RefCounterExternal.reset();
+  RefCounter.reset();
   CommandList = std::nullopt;
   completionBatch = std::nullopt;
   OriginAllocEvent = nullptr;
@@ -1524,7 +1524,7 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
       std::shared_lock<ur_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
       this->ZeEventList[0] = CurQueue->LastCommandEvent->ZeEvent;
       this->UrEventList[0] = CurQueue->LastCommandEvent;
-      this->UrEventList[0]->RefCount.increment();
+      this->UrEventList[0]->getRefCounter().increment();
       TmpListLength = 1;
     } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
@@ -1660,7 +1660,7 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
               IsInternal, IsMultiDevice));
           MultiDeviceZeEvent = MultiDeviceEvent->ZeEvent;
           const auto &ZeCommandList = CommandList->first;
-          EventList[I]->RefCount.increment();
+          EventList[I]->getRefCounter().increment();
 
           // Append a Barrier to wait on the original event while signalling the
           // new multi device event.
@@ -1676,11 +1676,11 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
 
           this->ZeEventList[TmpListLength] = MultiDeviceZeEvent;
           this->UrEventList[TmpListLength] = MultiDeviceEvent;
-          this->UrEventList[TmpListLength]->RefCount.increment();
+          this->UrEventList[TmpListLength]->getRefCounter().increment();
         } else {
           this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
           this->UrEventList[TmpListLength] = EventList[I];
-          this->UrEventList[TmpListLength]->RefCount.increment();
+          this->UrEventList[TmpListLength]->getRefCounter().increment();
         }
 
         if (QueueLock.has_value()) {

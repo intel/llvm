@@ -43,7 +43,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
 
   switch (propName) {
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(hKernel->RefCount.load());
+    return ReturnValue(hKernel->getRefCounter().getCount());
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
@@ -52,13 +52,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  hKernel->RefCount++;
+  hKernel->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  if (--hKernel->RefCount == 0) {
+  if (hKernel->getRefCounter().decrement() == 0) {
     delete hKernel;
   }
   return UR_RESULT_SUCCESS;

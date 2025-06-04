@@ -221,7 +221,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(hProgram->RefCount.load());
+    return ReturnValue(hProgram->getRefCounter().getCount());
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
@@ -231,13 +231,13 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  hProgram->RefCount++;
+  hProgram->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  if (--hProgram->RefCount == 0) {
+  if (hProgram->getRefCounter().decrement() == 0) {
     auto Res = olDestroyProgram(hProgram->OffloadProgram);
     if (Res) {
       return offloadResultToUR(Res);

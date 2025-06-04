@@ -842,13 +842,13 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
 
 ur_result_t
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  CommandBuffer->RefCount.increment();
+  CommandBuffer->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  if (!CommandBuffer->RefCount.decrementAndTest())
+  if (!CommandBuffer->getRefCounter().decrement() == 0)
     return UR_RESULT_SUCCESS;
 
   UR_CALL(waitForOngoingExecution(CommandBuffer));
@@ -1644,7 +1644,7 @@ ur_result_t enqueueImmediateAppendPath(
   if (CommandBuffer->CurrentSubmissionEvent) {
     UR_CALL(urEventReleaseInternal(CommandBuffer->CurrentSubmissionEvent));
   }
-  (*Event)->RefCount.increment();
+  (*Event)->getRefCounter().increment();
   CommandBuffer->CurrentSubmissionEvent = *Event;
 
   UR_CALL(Queue->executeCommandList(CommandListHelper, false, false));
@@ -1727,7 +1727,7 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
   if (CommandBuffer->CurrentSubmissionEvent) {
     UR_CALL(urEventReleaseInternal(CommandBuffer->CurrentSubmissionEvent));
   }
-  (*Event)->RefCount.increment();
+  (*Event)->getRefCounter().increment();
   CommandBuffer->CurrentSubmissionEvent = *Event;
 
   UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
@@ -1851,7 +1851,7 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hCommandBuffer->RefCount.load()});
+    return ReturnValue(uint32_t{hCommandBuffer->getRefCounter().getCount()});
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;

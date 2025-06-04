@@ -11,6 +11,7 @@
 #ifndef UR_HIP_ADAPTER_HPP_INCLUDED
 #define UR_HIP_ADAPTER_HPP_INCLUDED
 
+#include "common/ur_ref_counter.hpp"
 #include "logger/ur_logger.hpp"
 #include "platform.hpp"
 
@@ -18,10 +19,14 @@
 #include <memory>
 
 struct ur_adapter_handle_t_ : ur::hip::handle_base {
-  std::atomic<uint32_t> RefCount = 0;
   logger::Logger &logger;
   std::unique_ptr<ur_platform_handle_t_> Platform;
   ur_adapter_handle_t_();
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 namespace ur::hip {

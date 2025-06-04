@@ -454,7 +454,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue((uint32_t)Device->SubDevices.size());
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Device->RefCount.load()});
+    return ReturnValue(uint32_t{Device->getRefCounter().getCount()});
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
@@ -1629,7 +1629,7 @@ ur_result_t urDeviceGetGlobalTimestamps(
 ur_result_t urDeviceRetain(ur_device_handle_t Device) {
   // The root-device ref-count remains unchanged (always 1).
   if (Device->isSubDevice()) {
-    Device->RefCount.increment();
+    Device->getRefCounter().increment();
   }
   return UR_RESULT_SUCCESS;
 }
@@ -1637,7 +1637,7 @@ ur_result_t urDeviceRetain(ur_device_handle_t Device) {
 ur_result_t urDeviceRelease(ur_device_handle_t Device) {
   // Root devices are destroyed during the piTearDown process.
   if (Device->isSubDevice()) {
-    if (Device->RefCount.decrementAndTest()) {
+    if (Device->getRefCounter().decrement() == 0) {
       delete Device;
     }
   }

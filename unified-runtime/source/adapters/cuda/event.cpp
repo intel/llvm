@@ -179,7 +179,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   case UR_EVENT_INFO_COMMAND_TYPE:
     return ReturnValue(hEvent->getCommandType());
   case UR_EVENT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hEvent->getReferenceCount());
+    return ReturnValue(hEvent->getRefCounter().getCount());
   case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS:
     return ReturnValue(hEvent->getExecutionStatus());
   case UR_EVENT_INFO_CONTEXT:
@@ -248,9 +248,7 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  const auto RefCount = hEvent->incrementReferenceCount();
-
-  if (RefCount == 0) {
+  if (hEvent->getRefCounter().increment() == 0) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
@@ -260,12 +258,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  if (hEvent->getReferenceCount() == 0) {
+  if (hEvent->getRefCounter().getCount() == 0) {
     return UR_RESULT_ERROR_INVALID_EVENT;
   }
 
   // decrement ref count. If it is 0, delete the event.
-  if (hEvent->decrementReferenceCount() == 0) {
+  if (hEvent->getRefCounter().decrement() == 0) {
     std::unique_ptr<ur_event_handle_t_> event_ptr{hEvent};
     ur_result_t Result = UR_RESULT_ERROR_INVALID_EVENT;
     try {

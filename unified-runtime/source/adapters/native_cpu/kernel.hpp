@@ -8,13 +8,15 @@
 
 #pragma once
 
+#include <cstring>
+#include <utility>
+
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "memory.hpp"
 #include "nativecpu_state.hpp"
 #include "program.hpp"
-#include <cstring>
 #include <ur_api.h>
-#include <utility>
 
 using nativecpu_kernel_t = void(void *const *, native_cpu::state *);
 using nativecpu_ptr_t = nativecpu_kernel_t *;
@@ -27,7 +29,7 @@ struct local_arg_info_t {
       : argIndex(argIndex), argSize(argSize) {}
 };
 
-struct ur_kernel_handle_t_ : RefCounted {
+struct ur_kernel_handle_t_ {
 
   ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
                       nativecpu_task_t subhandler)
@@ -193,14 +195,18 @@ struct ur_kernel_handle_t_ : RefCounted {
   void addPtrArg(void *Ptr, size_t Index) { Args.addPtrArg(Index, Ptr); }
 
   void addArgReference(ur_mem_handle_t Arg) {
-    Arg->incrementReferenceCount();
+    Arg->getRefCounter().increment();
     ReferencedArgs.push_back(Arg);
   }
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
 private:
   void removeArgReferences() {
     for (auto arg : ReferencedArgs)
-      decrementOrDelete(arg);
+      if (arg->getRefCounter().decrement() == 0) {
+        delete arg;
+      }
   }
   void takeArgReferences(const ur_kernel_handle_t_ &other) {
     for (auto arg : other.ReferencedArgs)
@@ -214,4 +220,6 @@ private:
   std::optional<native_cpu::WGSize_t> MaxWGSize = std::nullopt;
   std::optional<uint64_t> MaxLinearWGSize = std::nullopt;
   std::vector<ur_mem_handle_t> ReferencedArgs;
+
+  UR_ReferenceCounter RefCounter;
 };

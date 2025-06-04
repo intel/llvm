@@ -10,23 +10,27 @@
 
 #pragma once
 
-#include <atomic>
 #include <cstdint>
 #include <unordered_set>
 
 #include <OffloadAPI.h>
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "logger/ur_logger.hpp"
 #include "platform.hpp"
 
 struct ur_adapter_handle_t_ : ur::offload::handle_base {
-  std::atomic_uint32_t RefCount = 0;
   logger::Logger &Logger = logger::get_logger("offload");
   ol_device_handle_t HostDevice = nullptr;
   std::vector<std::unique_ptr<ur_platform_handle_t_>> Platforms;
 
   ur_result_t init();
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 extern ur_adapter_handle_t_ Adapter;

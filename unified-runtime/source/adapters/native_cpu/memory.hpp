@@ -10,14 +10,13 @@
 
 #pragma once
 
-#include <atomic>
 #include <cstdlib>
 #include <cstring>
 
 #include "common.hpp"
 #include "context.hpp"
 
-struct ur_mem_handle_t_ : ur_object {
+struct ur_mem_handle_t_ {
   ur_mem_handle_t_(size_t Size, bool _IsImage)
       : _mem{static_cast<char *>(malloc(Size))}, _ownsMem{true},
         IsImage{_IsImage} {}
@@ -44,8 +43,13 @@ struct ur_mem_handle_t_ : ur_object {
   char *_mem;
   bool _ownsMem;
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+  ur_shared_mutex &getMutex() noexcept { return Mutex; }
+
 private:
   const bool IsImage;
+  UR_ReferenceCounter RefCounter;
+  ur_shared_mutex Mutex;
 };
 
 struct ur_buffer final : ur_mem_handle_t_ {
