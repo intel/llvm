@@ -21,6 +21,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   LaunchQueries.cpp
   EventMode.cpp
   DeviceInfo.cpp
+  RootGroup.cpp
 )
 
 add_subdirectory(CommandGraph)

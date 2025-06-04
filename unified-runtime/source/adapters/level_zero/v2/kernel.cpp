@@ -675,7 +675,7 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
+ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
     const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
     uint32_t *pGroupCountRet) {

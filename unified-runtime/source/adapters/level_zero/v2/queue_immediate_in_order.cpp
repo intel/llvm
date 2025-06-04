@@ -191,9 +191,28 @@ ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
     ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueKernelLaunch");
+
+  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
+       propIndex++) {
+    if (launchPropList[propIndex].id ==
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE &&
+        launchPropList[propIndex].value.cooperative) {
+      return enqueueCooperativeKernelLaunchHelper(
+          hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+          numEventsInWaitList, phEventWaitList, phEvent);
+    }
+    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE &&
+        launchPropList[propIndex].id !=
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+      // We don't support any other properties.
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
 
   auto commandListLocked = commandListManager.lock();
   UR_CALL(commandListLocked->appendKernelLaunch(
@@ -892,14 +911,11 @@ ur_queue_immediate_in_order_t::bindlessImagesSignalExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
+ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchHelper(
     ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  TRACK_SCOPE_LATENCY(
-      "ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp");
-
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
@@ -1010,25 +1026,19 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
   ur_event_handle_t executionEvent =
       hCommandBuffer->getExecutionEventUnlocked();
 
+  if (executionEvent != nullptr) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (executionEvent->getZeEvent(), UINT64_MAX));
+  }
+
   UR_CALL(enqueueGenericCommandListsExp(
       1, &commandBufferCommandList, phEvent, numEventsInWaitList,
-      phEventWaitList, UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, executionEvent));
+      phEventWaitList, UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, nullptr));
   UR_CALL(hCommandBuffer->registerExecutionEventUnlocked(*phEvent));
   if (internalEvent != nullptr) {
     internalEvent->release();
   }
   return UR_RESULT_SUCCESS;
-}
-
-ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
-    ur_kernel_handle_t /*hKernel*/, uint32_t /*workDim*/,
-    const size_t * /*pGlobalWorkOffset*/, const size_t * /*pGlobalWorkSize*/,
-    const size_t * /*pLocalWorkSize*/, uint32_t /*numPropsInLaunchPropList*/,
-    const ur_exp_launch_property_t * /*launchPropList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
