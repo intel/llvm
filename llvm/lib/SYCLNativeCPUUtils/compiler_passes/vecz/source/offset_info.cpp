@@ -18,6 +18,7 @@
 
 #include <compiler/utils/builtin_info.h>
 #include <llvm/Analysis/ValueTracking.h>
+#include <llvm/Analysis/WithCache.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
@@ -177,8 +178,10 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
 
   // If we have a uniform value here we don't need to analyse any further.
   if (!SAR.UVR.isVarying(Ins)) {
-    const auto &KB =
-        computeKnownBits(Ins, SAR.F.getParent()->getDataLayout(), 0, &SAR.AC);
+    SimplifyQuery SQ(SAR.F.getParent()->getDataLayout());
+    SQ.AC = &SAR.AC;
+    const WithCache<Instruction *> InsWithCache(Ins);
+    const auto &KB = InsWithCache.getKnownBits(SQ);
     const auto bitWidth = OffsetTy->getIntegerBitWidth();
 
     // We are interested in the bits that are not known to be zero.
