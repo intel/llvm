@@ -84,10 +84,9 @@ TEST(RootGroupTests, ValidNumWorkGroupsQuery) {
   // Set up a mock callback to return a specific group count when queried
   constexpr std::size_t mock_group_count = 42;
   mock::getCallbacks().set_replace_callback(
-      "urKernelSuggestMaxCooperativeGroupCountExp", [](void *pParams) {
+      "urKernelSuggestMaxCooperativeGroupCount", [](void *pParams) {
         auto params = static_cast<
-            ur_kernel_suggest_max_cooperative_group_count_exp_params_t *>(
-            pParams);
+            ur_kernel_suggest_max_cooperative_group_count_params_t *>(pParams);
         **params->ppGroupCountRet = mock_group_count;
         return UR_RESULT_SUCCESS;
       });
