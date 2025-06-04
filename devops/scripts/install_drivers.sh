@@ -19,14 +19,6 @@ if [ -f "$1" ]; then
        IGC_DEV_VER=$(jq -r '.linux.igc_dev.version' $CONFIG_FILE_IGC_DEV)
        IGC_DEV_URL=$(jq -r '.linux.igc_dev.url' $CONFIG_FILE_IGC_DEV)
     fi
-elif [[ "$*" == *"--use-latest"* ]]; then
-    CR_TAG=latest
-    IGC_TAG=latest
-    CM_TAG=latest
-    L0_TAG=latest
-    TBB_TAG=latest
-    FPGA_TAG=latest
-    CPU_TAG=latest
 else
     CR_TAG=$compute_runtime_tag
     IGC_TAG=$igc_tag
@@ -43,11 +35,7 @@ fi
 function get_release() {
     REPO=$1
     TAG=$2
-    if [ "$TAG" == "latest" ]; then
-        URL="https://api.github.com/repos/${REPO}/releases/latest"
-    else
-        URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
-    fi
+    URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
     HEADER=""
     if [ "$GITHUB_TOKEN" != "" ]; then
         HEADER="Authorization: Bearer $GITHUB_TOKEN"
@@ -215,7 +203,6 @@ if [[ $# -eq 0 ]] ; then
   echo "--use-dev-igc     - Install development version of Intel Graphics drivers instead"
   echo "--cpu      - Install Intel CPU OpenCL runtime"
   echo "--fpga-emu - Install Intel FPGA Fast emulator"
-  echo "--use-latest      - Use latest for all tags"
   echo "Set INSTALL_LOCATION env variable to specify install location"
   exit 0
 fi
