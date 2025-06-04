@@ -40,6 +40,7 @@ struct FilterTerm {
       {"cuda", UR_BACKEND_CUDA},
       {"hip", UR_BACKEND_HIP},
       {"native_cpu", UR_BACKEND_NATIVE_CPU},
+      {"offload", UR_BACKEND_OFFLOAD},
   };
 
   bool matchesBackend(const ur_backend_t &match_backend) const {

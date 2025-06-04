@@ -292,6 +292,14 @@ urPrintDeviceThrottleReasonsFlags(enum ur_device_throttle_reasons_flag_t value,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintKernelLaunchPropertiesFlags(
+    enum ur_kernel_launch_properties_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintContextFlags(enum ur_context_flag_t value, char *buffer,
                                 const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -882,6 +890,24 @@ ur_result_t urPrintExecutionInfo(enum ur_execution_info_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintKernelLaunchPropertyId(enum ur_kernel_launch_property_id_t value,
+                              char *buffer, const size_t buff_size,
+                              size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintKernelLaunchProperty(const struct ur_kernel_launch_property_t params,
+                            char *buffer, const size_t buff_size,
+                            size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintMapFlags(enum ur_map_flag_t value, char *buffer,
                             const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -1100,23 +1126,6 @@ ur_result_t urPrintExpCommandBufferUpdateValueArgDesc(
 ur_result_t urPrintExpCommandBufferUpdateKernelLaunchDesc(
     const struct ur_exp_command_buffer_update_kernel_launch_desc_t params,
     char *buffer, const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintExpLaunchPropertyId(enum ur_exp_launch_property_id_t value,
-                                       char *buffer, const size_t buff_size,
-                                       size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t
-urPrintExpLaunchProperty(const struct ur_exp_launch_property_t params,
-                         char *buffer, const size_t buff_size,
-                         size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -1851,14 +1860,6 @@ ur_result_t urPrintEnqueueWriteHostPipeParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintEnqueueKernelLaunchCustomExpParams(
-    const struct ur_enqueue_kernel_launch_custom_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintEnqueueEventsWaitWithBarrierExtParams(
     const struct ur_enqueue_events_wait_with_barrier_ext_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -1902,14 +1903,6 @@ ur_result_t urPrintEnqueueUsmFreeExpParams(
 ur_result_t urPrintEnqueueCommandBufferExpParams(
     const struct ur_enqueue_command_buffer_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintEnqueueCooperativeKernelLaunchExpParams(
-    const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -2130,9 +2123,8 @@ ur_result_t urPrintKernelSetSpecializationConstantsParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintKernelSuggestMaxCooperativeGroupCountExpParams(
-    const struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t
-        *params,
+ur_result_t urPrintKernelSuggestMaxCooperativeGroupCountParams(
+    const struct ur_kernel_suggest_max_cooperative_group_count_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;

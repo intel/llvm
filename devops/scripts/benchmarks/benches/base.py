@@ -45,6 +45,17 @@ class Benchmark(ABC):
     def name(self) -> str:
         pass
 
+    def display_name(self) -> str:
+        """Returns a user-friendly name for display in charts.
+        By default returns the same as name(), but can be overridden.
+        """
+        return self.name()
+
+    def explicit_group(self) -> str:
+        """Returns the explicit group name for this benchmark, if any.
+        Can be modified."""
+        return ""
+
     @abstractmethod
     def setup(self):
         pass
@@ -145,18 +156,22 @@ class Benchmark(ABC):
     def range(self) -> tuple[float, float]:
         return None
 
-    def get_metadata(self) -> BenchmarkMetadata:
+    def get_metadata(self) -> dict[str, BenchmarkMetadata]:
         range = self.range()
 
-        return BenchmarkMetadata(
-            type="benchmark",
-            description=self.description(),
-            notes=self.notes(),
-            unstable=self.unstable(),
-            tags=self.get_tags(),
-            range_min=range[0] if range else None,
-            range_max=range[1] if range else None,
-        )
+        return {
+            self.name(): BenchmarkMetadata(
+                type="benchmark",
+                description=self.description(),
+                notes=self.notes(),
+                unstable=self.unstable(),
+                tags=self.get_tags(),
+                range_min=range[0] if range else None,
+                range_max=range[1] if range else None,
+                display_name=self.display_name(),
+                explicit_group=self.explicit_group(),
+            )
+        }
 
 
 class Suite(ABC):

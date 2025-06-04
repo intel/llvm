@@ -395,7 +395,10 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
         BM->getErrorLog().checkError(
-            BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64,
+            (BitWidth == 4 &&
+             BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4)) ||
+                BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
+                BitWidth == 64,
             SPIRVEC_InvalidBitWidth, std::to_string(BitWidth))) {
       return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));
     }
@@ -3130,10 +3133,12 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
           if (FMF.allowContract()) {
             M |= FPFastMathModeAllowContractFastINTELMask;
             BM->addCapability(CapabilityFPFastMathModeINTEL);
+            BM->addExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
           }
           if (FMF.allowReassoc()) {
             M |= FPFastMathModeAllowReassocINTELMask;
             BM->addCapability(CapabilityFPFastMathModeINTEL);
+            BM->addExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
           }
         }
       }
@@ -5550,7 +5555,7 @@ SPIRVValue *LLVMToSPIRVBase::transAsmINTEL(InlineAsm *IA) {
       BM->getOrAddAsmTargetINTEL(TripleStr.str()));
   auto *SIA = BM->addAsmINTEL(
       static_cast<SPIRVTypeFunction *>(transType(IA->getFunctionType())),
-      AsmTarget, IA->getAsmString(), IA->getConstraintString());
+      AsmTarget, IA->getAsmString().str(), IA->getConstraintString().str());
   if (IA->hasSideEffects())
     SIA->addDecorate(DecorationSideEffectsINTEL);
   return SIA;

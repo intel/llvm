@@ -853,7 +853,7 @@ private:
   extractXsFlags(const std::vector<sycl::detail::string_view> &BuildOptions) {
     std::stringstream SS;
     for (sycl::detail::string_view Option : BuildOptions) {
-      std::string_view OptionSV{Option.data()};
+      std::string_view OptionSV{Option};
       auto Where = OptionSV.find("-Xs");
       if (Where != std::string_view::npos) {
         Where += 3;

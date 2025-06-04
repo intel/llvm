@@ -322,8 +322,7 @@ class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
 // OpenCL v1.0/1.2/2.0 s6.1.1: Built-in Scalar Data Types.
 def Bool      : IntType<"bool",   QualType<"Context.BoolTy">, 1>;
 def TrueChar  : IntType<"_char",      QualType<"Context.CharTy", 0, 1>, 8>;
-def Char      : IntType<"char",      QualType<"Context.SignedCharTy", 0, 1>, 8>;
-def SChar     : IntType<"schar",     QualType<"Context.SignedCharTy", 0, 1>, 8>;
+def Char      : IntType<"char",      QualTypeFromFunction<"GetCharType", 0, 1>, 8>;
 def UChar     : UIntType<"uchar",     QualType<"Context.UnsignedCharTy">, 8>;
 def Short     : IntType<"short",     QualType<"Context.ShortTy", 0, 1>, 16>;
 def UShort    : UIntType<"ushort",    QualType<"Context.UnsignedShortTy">, 16>;
@@ -412,7 +411,7 @@ def IntLongFloatGenType1   : GenericType<"IntLongFloatGenType1", TLIntLongFloats
 
 // GenType definitions for every single base type (e.g. fp32 only).
 // Names are like: GenTypeFloatVecAndScalar.
-foreach Type = [Char, UChar, SChar, Short, UShort,
+foreach Type = [Char, UChar, Short, UShort,
                 Int, UInt, Long, ULong,
                 Float, Double, Half] in {
   foreach VecSizes = [VecAndScalar, VecNoScalar] in {
@@ -872,16 +871,16 @@ foreach name = ["Dot"] in {
 }
 
 foreach name = ["Any", "All"] in {
-  def : SPVBuiltin<name, [Bool, GenTypeSCharVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [Bool, GenTypeCharVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["IsNan", "IsInf", "IsFinite", "IsNormal", "SignBitSet"] in {
   def : SPVBuiltin<name, [Bool, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["LessOrGreater",
@@ -895,9 +894,9 @@ foreach name = ["LessOrGreater",
   def : SPVBuiltin<name, [Bool, Float, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half, Half], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["BitCount"] in {
