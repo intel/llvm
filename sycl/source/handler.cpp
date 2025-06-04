@@ -416,17 +416,11 @@ event handler::finalize() {
   MIsFinalized = true;
 
   const auto &type = getType();
-  const bool KernelFastPath =
-      (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-       !MQueue->hasCommandGraph() && !impl->CGData.MRequirements.size() &&
-       !MStreamStorage.size() &&
-       detail::Scheduler::areEventsSafeForSchedulerBypass(
-           impl->CGData.MEvents, MQueue->getContextImplPtr()));
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
   if (type == detail::CGType::Kernel && impl->MKernelFuncPtr &&
-      (!KernelFastPath || impl->MKernelHasSpecialCaptures)) {
+      (!impl->MKernelFastPath || impl->MKernelHasSpecialCaptures)) {
     clearArgs();
     extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
                                  impl->MKernelParamDescGetter,
@@ -528,7 +522,7 @@ event handler::finalize() {
       }
     }
 
-    if (KernelFastPath) {
+    if (impl->MKernelFastPath) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
