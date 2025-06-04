@@ -7202,6 +7202,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLDevice:
     S.SYCL().handleSYCLDeviceAttr(D, AL);
     break;
+  case ParsedAttr::AT_SYCLDeviceOnly:
+    handleSimpleAttribute<SYCLDeviceOnlyAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_SYCLScope:
     S.SYCL().handleSYCLScopeAttr(D, AL);
     break;
