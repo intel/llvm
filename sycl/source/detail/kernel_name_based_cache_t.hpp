@@ -74,6 +74,10 @@ struct FastKernelSubcacheT {
 struct KernelNameBasedCacheT {
   FastKernelSubcacheT FastKernelSubcache;
   std::optional<bool> UsesAssert;
+  // Implicit local argument position is represented by an optional int, this
+  // uses another optional on top of that to represent lazy initialization of
+  // the cached value.
+  std::optional<std::optional<int>> ImplicitLocalArgPos;
 };
 
 } // namespace detail

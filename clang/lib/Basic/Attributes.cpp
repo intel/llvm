@@ -184,6 +184,11 @@ std::string AttributeCommonInfo::getNormalizedFullName() const {
   return static_cast<std::string>(
       normalizeName(getAttrName(), getScopeName(), getSyntax()));
 }
+
+SourceRange AttributeCommonInfo::getNormalizedRange() const {
+  return hasScope() ? SourceRange(ScopeLoc, AttrRange.getEnd()) : AttrRange;
+}
+
 static AttributeCommonInfo::Scope
 getScopeFromNormalizedScopeName(StringRef ScopeName) {
   return llvm::StringSwitch<AttributeCommonInfo::Scope>(ScopeName)
