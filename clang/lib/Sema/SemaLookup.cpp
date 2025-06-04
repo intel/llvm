@@ -51,6 +51,7 @@
 #include <utility>
 #include <vector>
 
+static inline clang::QualType GetCharType(clang::ASTContext &Context);
 static inline clang::QualType GetFloat16Type(clang::ASTContext &Context);
 
 #include "OpenCLBuiltins.inc"
@@ -701,6 +702,10 @@ LLVM_DUMP_METHOD void LookupResult::dump() {
     D->dump();
 }
 
+static inline QualType GetCharType(clang::ASTContext &Context) {
+  return Context.getLangOpts().OpenCL ? Context.CharTy : Context.SignedCharTy;
+}
+
 static inline QualType GetFloat16Type(clang::ASTContext &Context) {
   return Context.getLangOpts().OpenCL ? Context.HalfTy : Context.Float16Ty;
 }
@@ -998,7 +1003,8 @@ bool Sema::LookupBuiltin(LookupResult &R) {
         }
       }
 
-      if (RISCV().DeclareRVVBuiltins || RISCV().DeclareSiFiveVectorBuiltins) {
+      if (RISCV().DeclareRVVBuiltins || RISCV().DeclareSiFiveVectorBuiltins ||
+          RISCV().DeclareAndesVectorBuiltins) {
         if (!RISCV().IntrinsicManager)
           RISCV().IntrinsicManager = CreateRISCVIntrinsicManager(*this);
 
