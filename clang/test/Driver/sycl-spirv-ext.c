@@ -43,7 +43,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_long_constant_composite
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_long_composites
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_cache_controls
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_buffer_location
@@ -63,6 +63,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-DEFAULT-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float16_add
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_fp_max_error
 
 // CHECK-CPU: llvm-spirv{{.*}}-spirv-ext=-all
 // CHECK-CPU-SAME:,+SPV_EXT_shader_atomic_float_add
@@ -81,7 +82,7 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
 // CHECK-CPU-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
 // CHECK-CPU-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
-// CHECK-CPU-SAME:,+SPV_INTEL_long_constant_composite
+// CHECK-CPU-SAME:,+SPV_INTEL_long_composites
 // CHECK-CPU-SAME:,+SPV_INTEL_arithmetic_fence
 // CHECK-CPU-SAME:,+SPV_INTEL_cache_controls
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_buffer_location

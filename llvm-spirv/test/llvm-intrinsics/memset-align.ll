@@ -33,6 +33,6 @@ entry:
 }
 
 ; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: write)
-declare void @llvm.memset.p4.i64(ptr addrspace(4) nocapture writeonly, i8, i64, i1 immarg) #0
+declare void @llvm.memset.p4.i64(ptr addrspace(4) captures(none) writeonly, i8, i64, i1 immarg) #0
 
 attributes #0 = { nocallback nofree nounwind willreturn memory(argmem: write) }

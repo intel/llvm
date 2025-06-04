@@ -39,7 +39,7 @@ void event_impl::initContextIfNeeded() {
 
   const device SyclDevice;
   this->setContextImpl(
-      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice)));
+      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice)));
 }
 
 event_impl::~event_impl() {
@@ -160,9 +160,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled},
-      MFallbackProfiling{MIsProfilingEnabled && Queue &&
-                         Queue->isProfilingFallback()} {
+    : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled} {
   if (Queue)
     this->setContextImpl(Queue->getContextImplPtr());
   else {
@@ -176,6 +174,16 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     return;
   }
   MState.store(HES_Complete);
+}
+
+void event_impl::setQueue(const QueueImplPtr &Queue) {
+  MQueue = Queue;
+  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
+
+  // TODO After setting the queue, the event is no longer default
+  // constructed. Consider a design change which would allow
+  // for such a change regardless of the construction method.
+  MIsDefaultConstructed = false;
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -337,19 +345,13 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   if (!MIsHostEvent) {
     auto Handle = getHandle();
     if (Handle) {
-      auto StartTime =
-          get_event_profiling_info<info::event_profiling::command_start>(
-              Handle, this->getAdapter());
-      if (!MFallbackProfiling) {
-        return StartTime;
-      } else {
-        auto DeviceBaseTime =
-            get_event_profiling_info<info::event_profiling::command_submit>(
-                Handle, this->getAdapter());
-        return MHostBaseTime - DeviceBaseTime + StartTime;
-      }
+      return get_event_profiling_info<info::event_profiling::command_start>(
+          Handle, this->getAdapter());
     }
-    return 0;
+    // If command is nop (for example, USM operations for 0 bytes) return
+    // recorded submission time. If event is created using default constructor,
+    // 0 will be returned.
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
@@ -365,19 +367,13 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   if (!MIsHostEvent) {
     auto Handle = this->getHandle();
     if (Handle) {
-      auto EndTime =
-          get_event_profiling_info<info::event_profiling::command_end>(
-              Handle, this->getAdapter());
-      if (!MFallbackProfiling) {
-        return EndTime;
-      } else {
-        auto DeviceBaseTime =
-            get_event_profiling_info<info::event_profiling::command_submit>(
-                Handle, this->getAdapter());
-        return MHostBaseTime - DeviceBaseTime + EndTime;
-      }
+      return get_event_profiling_info<info::event_profiling::command_end>(
+          Handle, this->getAdapter());
     }
-    return 0;
+    // If command is nop (for example, USM operations for 0 bytes) return
+    // recorded submission time. If event is created using default constructor,
+    // 0 will be returned.
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
@@ -418,6 +414,7 @@ event_impl::get_info<info::event::command_execution_status>() {
              : info::event_command_status::complete;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 event_impl::get_backend_info<info::platform::version>() const {
@@ -430,15 +427,17 @@ event_impl::get_backend_info<info::platform::version>() const {
                           "only be queried with an OpenCL backend");
   }
   if (QueueImplPtr Queue = MQueue.lock()) {
-    return Queue->getDeviceImplPtr()
-        ->get_platform()
+    return Queue->getDeviceImpl()
+        .get_platform()
         .get_info<info::platform::version>();
   }
   // If the queue has been released, no platform will be associated
   // so return empty string.
   return "";
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 event_impl::get_backend_info<info::device::version>() const {
@@ -451,12 +450,14 @@ event_impl::get_backend_info<info::device::version>() const {
                           "be queried with an OpenCL backend");
   }
   if (QueueImplPtr Queue = MQueue.lock()) {
-    return Queue->getDeviceImplPtr()->get_info<info::device::version>();
+    return Queue->getDeviceImpl().get_info<info::device::version>();
   }
   return ""; // If the queue has been released, no device will be associated so
              // return empty string
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 event_impl::get_backend_info<info::device::backend_version>() const {
@@ -473,6 +474,7 @@ event_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
@@ -494,19 +496,14 @@ ur_native_handle_t event_impl::getNative() {
     this->setHandle(UREvent);
     Handle = UREvent;
   }
-  if (MContext->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urEventRetain>(Handle);
   ur_native_handle_t OutHandle;
   Adapter->call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
+  if (MContext->getBackend() == backend::opencl)
+    __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(OutHandle));
   return OutHandle;
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
-  if (MState == HES_Discarded)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_wait_list() cannot be used for a discarded event.");
-
   std::lock_guard<std::mutex> Lock(MMutex);
 
   std::vector<EventImplPtr> Result;
@@ -553,8 +550,7 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
-void event_impl::cleanDepEventsThroughOneLevel() {
-  std::lock_guard<std::mutex> Lock(MMutex);
+void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
   for (auto &Event : MPreparedDepsEvents) {
     Event->cleanupDependencyEvents();
   }
@@ -563,41 +559,33 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   }
 }
 
+void event_impl::cleanDepEventsThroughOneLevel() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  cleanDepEventsThroughOneLevelUnlocked();
+}
+
 void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
-  if (!MFallbackProfiling) {
-    if (QueueImplPtr Queue = MQueue.lock()) {
-      try {
-        MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-      } catch (sycl::exception &e) {
-        if (e.code() == sycl::errc::feature_not_supported)
-          throw sycl::exception(
-              make_error_code(errc::profiling),
-              std::string("Unable to get command group submission time: ") +
-                  e.what());
-        std::rethrow_exception(std::current_exception());
-      }
-    } else {
-      // Returning host time
-      using namespace std::chrono;
-      MSubmitTime =
-          duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-              .count();
+
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    try {
+      MSubmitTime = Queue->getDeviceImpl().getCurrentDeviceTime();
+    } catch (sycl::exception &e) {
+      if (e.code() == sycl::errc::feature_not_supported)
+        throw sycl::exception(
+            make_error_code(errc::profiling),
+            std::string("Unable to get command group submission time: ") +
+                e.what());
+      std::rethrow_exception(std::current_exception());
     }
   } else {
-    // Capture the host timestamp for a return value of function call
-    // <info::event_profiling::command_submit>. See MFallbackProfiling
-    MSubmitTime = getTimestamp();
+    // Returning host time
+    using namespace std::chrono;
+    MSubmitTime = duration_cast<nanoseconds>(
+                      high_resolution_clock::now().time_since_epoch())
+                      .count();
   }
-}
-
-void event_impl::setHostEnqueueTime() {
-  if (!MIsProfilingEnabled || !MFallbackProfiling)
-    return;
-  // Capture a host timestamp to use normalize profiling time in
-  // <command_start> and <command_end>. See MFallbackProfiling
-  MHostBaseTime = getTimestamp();
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }

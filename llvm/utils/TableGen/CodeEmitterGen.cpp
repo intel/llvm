@@ -309,8 +309,7 @@ CodeEmitterGen::getInstructionCases(const Record *R,
               "      case " + itostr(DefaultMode) + ": InstBitsByHw = InstBits";
         } else {
           Case += "      case " + itostr(ModeId) +
-                  ": InstBitsByHw = InstBits_" +
-                  std::string(HWM.getMode(ModeId).Name);
+                  ": InstBitsByHw = InstBits_" + HWM.getMode(ModeId).Name.str();
         }
         Case += "; break;\n";
       }
@@ -338,11 +337,11 @@ CodeEmitterGen::getInstructionCases(const Record *R,
         Append("      }\n");
       }
       Append("      }\n");
-      return std::pair(std::move(Case), std::move(BitOffsetCase));
+      return {std::move(Case), std::move(BitOffsetCase)};
     }
   }
   addInstructionCasesForEncoding(R, R, Target, Case, BitOffsetCase);
-  return std::pair(std::move(Case), std::move(BitOffsetCase));
+  return {std::move(Case), std::move(BitOffsetCase)};
 }
 
 void CodeEmitterGen::addInstructionCasesForEncoding(
@@ -362,7 +361,7 @@ void CodeEmitterGen::addInstructionCasesForEncoding(
     if (RV.isNonconcreteOK() || RV.getValue()->isComplete())
       continue;
 
-    Success &= addCodeToMergeInOperand(R, BI, std::string(RV.getName()), Case,
+    Success &= addCodeToMergeInOperand(R, BI, RV.getName().str(), Case,
                                        BitOffsetCase, Target);
   }
   // Avoid empty switches.

@@ -5,13 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix, cpu
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 
-#include "../joint_matrix_bf16_rowmajorB_pair_load_store_impl.hpp"
+#include "joint_matrix_bf16_rowmajorB_pair_load_store_impl.hpp"

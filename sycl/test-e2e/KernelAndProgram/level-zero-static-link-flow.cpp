@@ -21,9 +21,9 @@
 //
 // CHECK: ---> urProgramCreate
 // CHECK: ---> urProgramCompile
-// CHECK-NOT: ZE ---> zeModuleCreate
+// CHECK-NOT: zeModuleCreate
 // CHECK: ---> urProgramLink
-// CHECK: ZE ---> zeModuleCreate
+// CHECK: zeModuleCreate
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

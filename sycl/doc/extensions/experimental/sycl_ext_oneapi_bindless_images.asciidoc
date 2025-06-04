@@ -30,7 +30,7 @@ permission by Khronos.
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -43,14 +43,12 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for GPU devices and
-only when using the CUDA backend.  Attempting to use this extension in
-kernels that run on other devices or backends will not work. 
-Be aware that the compiler may not be able to issue a diagnostic to
-warn you if this happens.
+This extension is currently implemented in {dpcpp} only for GPU devices. CUDA,
+HIP, and LevelZero backends are supported. Not all image and interoperability
+features may be supported on all backends. We provide device aspects which users
+can query to check support for specific features.
 
 == Overview
 
@@ -181,6 +179,7 @@ enum class image_type : /* unspecified */ {
   mipmap,
   array,
   cubemap,
+  gather,
 };
 
 struct image_descriptor {
@@ -257,6 +256,78 @@ a given level of a mipmap, with valid dimension values for that level, and the
 type of the returned `image_descriptor` will be `image_type::standard`.
 
 Only array image types support more than one array layer.
+
+==== Querying image support
+
+Not all devices support all combinations of image channel type, the number of 
+channels, the type of backing memory, and dimensionality. We provide functions
+to query device support for the allocation and creation of images for a given
+`image_descriptor` and the type of backing memory.
+
+===== Querying image memory support
+
+Before allocating memory for an image, the user may first query whether their
+desired image backing memory type is supported by the device.
+
+The following query returns a vector of supported `image_memory_handle_type`s
+based on the properties of a given `image_descriptor`.
+
+The `image_memory_handle_type::usm_pointer` relates to USM allocations, while
+the `image_memory_handle_type::opaque_handle` relates to memory allocations of
+the `image_mem_handle` type.
+
+If the returned vector is empty, this indicates that the device does not support
+allocating or creating images for the specified `image_descriptor`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+enum class image_memory_handle_type : /* unspecified */ {
+  usm_pointer,
+  opaque_handle
+};
+
+std::vector<image_memory_handle_type> 
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::device &syclDevice, 
+                         const sycl::context &syclContext);
+
+std::vector<image_memory_handle_type> 
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::queue &syclQueue);
+}
+```
+
+===== Querying image handle support
+
+In order to query what types of image handles are supported for a combination
+of a given `image_descriptor` and `image_memory_handle_type`, the user should
+use the `is_image_handle_supported` query.
+
+The template parameter passed to this query should be either 
+`unsampled_image_handle` or `sampled_image_handle`.
+
+The boolean value returned from the query indicates whether the device supports
+creating the given image handle type (sampled or unsampled) given the specified
+`image_descriptor` and `image_memory_handle_type`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+template <typename ImageHandleType>
+bool
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::device &syclDevice,
+                          const sycl::context &syclContext);
+
+template <typename ImageHandleType>
+bool
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::queue &syclQueue);
+}
+```
 
 === Allocating image memory
 
@@ -805,10 +876,11 @@ public:
   // Simple HtoD or DtoH copy with USM device memory
   void ext_oneapi_copy(const void *Src,
                        void *Dest,
-                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
                        size_t DeviceRowPitch);
 
-  // HtoD or DtoH copy with USM device memory, using offsets, extent
+  // Host to device or device to host copy with USM device memory with offsets
+  // and extent
   void ext_oneapi_copy(
     const void *Src,
     sycl::range<3> SrcOffset,
@@ -819,13 +891,15 @@ public:
     sycl::range<3> HostExtent,
     sycl::range<3> CopyExtent);
 
-  // Simple device to device copy
+  // Simple device to device opaque memory to opaque memory copy
   void ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc);
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
 
-  // Device to device copy with offsets and extent
+  // Device to device opaque memory to opaque memory copy with offsets and
+  // extent
   void ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
@@ -833,7 +907,62 @@ public:
     ext::oneapi::experimental::image_mem_handle Dest,
     sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent)
+    sycl::range<3> CopyExtent);
+
+  // Simple device to device opaque memory to USM copy
+  void ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch);
+
+  // Device to device opaque memory to USM copy with offsets and extent
+  void ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent);
+
+  // Simple device to device USM to opaque memory copy
+  void ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
+
+  // Device to device USM to opaque memory copy with offsets and extent
+  void ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+
+  // Simple device to device or host to host USM to USM copy
+  void ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch);
+
+  // Device to device or host to host USM to USM copy with offsets and extent
+  void ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent);
 };
 
 class queue {
@@ -882,16 +1011,16 @@ public:
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
-      const ext::oneapi::experimental::image_descriptor &Desc);
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc);
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
-      const ext::oneapi::experimental::image_descriptor &Desc,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       event DepEvent);
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
-      const ext::oneapi::experimental::image_descriptor &Desc,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       const std::vector<event> &DepEvents);
 
   // Device to host copy with offsets and extent
@@ -920,7 +1049,7 @@ public:
       range<3> DestExtent,
       range<3> CopyExtent, const std::vector<event> &DepEvents);
 
-  // Host to device OR device to host using USM device memory
+  // Simple host to device or device to host copy with USM device memory
   event ext_oneapi_copy(
       const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
@@ -936,8 +1065,8 @@ public:
       size_t DeviceRowPitch,
       const std::vector<event> &DepEvents);
 
-  // Host to device OR device to host using USM device memory, 
-  // with control over sub-region
+  // Host to device or device to host copy with USM device memory with offsets
+  // and extent
   event ext_oneapi_copy(
       const void *Src, sycl::range<3> SrcOffset,
       void *Dest, sycl::range<3> DestOffset,
@@ -960,63 +1089,227 @@ public:
       sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
   
-  // Simple device to device copy
+  // Simple device to device opaque memory to opaque memory copy
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc);
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       event DepEvent);
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       const std::vector<event> &DepEvents);
 
-  // Device to device copy with offsets and extent
-  void ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent)
-  void ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent
-    event DepEvent)
-  void ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent
-    const std::vector<event> &DepEvents)
+  // Device to device opaque memory to opaque memory copy with offsets and
+  // extent
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents);
+
+  // Simple device to device opaque memory to USM copy
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      const std::vector<event> &DepEvents);
+
+  // Device to device opaque memory to USM copy with offsets and extent
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents);
+
+
+  // Simple device to device USM to opaque memory copy
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const std::vector<event> &DepEvents);
+
+  // Device to device USM to opaque memory copy with offsets and extent
+  event ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+  event ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents);
+
+  // Simple device to device or host to host USM to USM copy
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch);
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      const std::vector<event> &DepEvents);
+
+  // Device to device or host to host USM to USM copy with offsets and extent
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent);
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent, event DepEvent);
+  event ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents);
 };
 }
 ```
 
-To enable the copying of images an `ext_oneapi_copy` function is proposed as a 
-method of the queue and handler. It can be used to copy image memory, whether 
-allocated through USM or using an `image_mem_handle`, from host to 
-device, or device to host. Device to device copies are currently supported only 
-through `image_mem_handle` allocations. 
-For the `ext_oneapi_copy` variants that do not take 
-offsets and extents, the image descriptor passed to the `ext_oneapi_copy` API 
-is used to determine the pixel size, dimensions, and extent in memory of the 
-image to copy. If performing sub-region copy, the size of the memory region is 
-also determined by the offsets and extent passed.
+To enable the copying of images an `ext_oneapi_copy` function is proposed as a
+method of the queue and handler. It can be used to copy image memory, whether
+allocated through USM or using an `image_mem_handle`, from host to device,
+device to host, device to device or host to host. For the `ext_oneapi_copy`
+variants that do not take offsets and extents, the image descriptor passed to
+the `ext_oneapi_copy` API is used to determine the pixel size, dimensions, and
+extent in memory of the image to copy. If performing sub-region copy, the size
+of the memory region is also determined by the offsets and extent passed.
 
 For images allocated using USM, existing SYCL functionality can be used to 
 copy their memory, but we also provide `ext_oneapi_copy` functions that take 
@@ -1105,9 +1398,14 @@ DataT fetch_image(const unsampled_image_handle &ImageHandle,
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image(const sampled_image_handle &ImageHandle,
                   const CoordT &Coords);
+
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT sample_image(const sampled_image_handle &ImageHandle, 
+DataT sample_image(const sampled_image_handle &ImageHandle,
                    const CoordT &Coords);
+
+template <typename DataT>
+DataT gather_image(const sampled_image_handle &ImageHandle,
+                   const sycl::float2 &Coords, const unsigned Component);
 
 template <typename DataT, typename CoordT>
 void write_image(unsampled_image_handle ImageHandle,
@@ -1118,9 +1416,10 @@ void write_image(unsampled_image_handle ImageHandle,
 Inside a kernel, it's possible to retrieve data from an image via `fetch_image` 
 or `sample_image`, passing the appropriate image handle. The `fetch_image` API 
 is applicable to sampled and unsampled images, and the data will be fetched 
-exactly as is in device memory. The `sample_image` API is only applicable to 
-sampled images, the image data will be sampled according to the 
-`bindless_image_sampler` that was passed to the image upon construction.
+exactly as is in device memory. The `sample_image` and `gather_image` APIs are
+only applicable to sampled images. For both APIs the image data will be sampled
+according to the `bindless_image_sampler` that was passed to the image upon
+construction.
 
 When fetching from a sampled image handle, data exactly as is in memory, no 
 sampling operations will be performed, and the `bindless_image_sampler` passed 
@@ -1182,6 +1481,58 @@ Attempting to sample a standard sampled image with `sample_mipmap` or any other
 defined sampling function will result in undefined behaviour.
 ====
 
+==== `gather_image`
+
+We provide the following device aspect to retrieve support information for
+`gather_image`.
+
+The device aspect descriptor for this query is:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_bindless_images_gather` | Indicates if the device supports
+`gather_image`.
+|======================
+
+`DataT` is a vector type with four components. DataT can only be `sycl::float4`
+, `sycl::int4`, or `sycl::uint4`. `ImageHandle` must be a two dimensional image
+instantiated using an `image_descriptor` with non-zero `width` and `height`
+members. The `image_descriptor::depth` member must be zero. If these conditions
+are not satisfied then a `sycl::exception` is thrown with error code
+`sycl::errc::invalid`. The return values, `DataT`, consist of the four texture,
+`T`, coordinates that would be used for linear filtering of `ImageHandle` at
+the coordinate specified by `Coords`, and for channel component `Component`.
+
+These coordinates are returned as follows:
+
+- `DataT.x = T[i, j + 1]`
+- `DataT.y = T[i + 1, j + 1]`
+- `DataT.z = T[i + 1, j]`
+- `DataT.w = T[i, j]`
+
+where `i` and `j` are calculated depending on the
+`sycl::coordinate_normalization_mode` used to constuct `ImageHandle` via a
+`bindless_image_sampler`. For
+`sycl::coordinate_normalization_mode::unnormalized` (in units of the image
+discretization) they are calculated as:
+
+- `i = floor(Coords.x - 0.5)`
+- `j = floor(Coords.y - 0.5)`
+
+[NOTE]
+=====
+In the CUDA backend there are different restrictions on the sizes of an image
+that can be created for a given device when `gather_image` is being used.
+=====
+
+For guaranteed correctness and portability across backends, it is necessary to
+construct `ImageHandle` using an `image_descriptor` with member
+`image_type::gather`. Calling `gather_image` on an `ImageHandle` constructed
+with `image_descriptor::num_channels < 4` will result in undefined behavior.
+
+====
+
 === Recognized standard types [[recognized_standard_types]]
 
 For the purposes of this extension, the following are classified as recognized 
@@ -1193,6 +1544,8 @@ standard types.
   `2`, or `3`
 
 Any other types are classified as user-defined types.
+
+===
 
 ==== User-defined types
 
@@ -1795,6 +2148,10 @@ the same way as memory allocated through `alloc_image_mem`,
 operations also work with imported memory mapped to `image_mem_handle` and 
 `void *` types.
 
+An `external_mem` handle can only be mapped to a single `image_mem_handle` or
+`void *` at any one time. Attempting to map a single `external_mem` handle to
+more than one `image_mem_handle` or `void *` is considered undefined behaviour.
+
 When calling `create_image` with an `image_mem_handle` or `void *` mapped from 
 an external memory object, the user must ensure that the image descriptor they 
 pass to `create_image` has members that match or map to those of the external 
@@ -1810,11 +2167,41 @@ the external API. The current supported importable image types are `standard`
 and `mipmap`. Attempting to import other image types will result in undefined 
 behaviour.
 
-Once a user has finished operating on imported memory, they must ensure that 
-they destroy the imported memory handle through `release_external_memory`.
+Once a user has finished operating on mapped memory, they must ensure that they
+unmap that memory.
 
-`release_external_memory` can only accept `external_mem` objects that were
-created through `import_external_memory`.
+Memory mapped using `map_external_image_memory` should be unmapped using
+`unmap_external_image_memory`. The `image_type` parameter passed to this
+function must reflect the `image_type` of the image descriptor used when the
+memory was originally mapped. Passing an `image_type` value different to that of
+the value used in the image descriptor when the memory was originally mapped
+will result in undefined behaviour.
+
+Memory mapped using `map_external_linear_memory` should be unmapped using
+`unmap_external_linear_memory`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                 image_type imageType,
+                                 const sycl::device &syclDevice,
+                                 const sycl::context &syclContext);
+void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                 image_type imageType,
+                                 const sycl::queue &syclQueue);
+
+void unmap_external_linear_memory(void *mappedLinearMem,
+                                 const sycl::device &syclDevice,
+                                 const sycl::context &syclContext);
+void unmap_external_linear_memory(void *mappedLinearMem,
+                                  const sycl::queue &syclQueue);
+}
+```
+
+Once all memory mapped from a given `external_mem` handle has been unmapped,
+and the user has finished operating on the external memory, they should then
+release the `externa_mem` handle using `release_external_memory`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -1826,9 +2213,6 @@ void release_external_memory(external_mem externalMem,
                              const sycl::queue &syclQueue);
 }
 ```
-
-Destroying or freeing any imported memory through `image_mem_free` or 
-`sycl::free` will result in undefined behavior.
 
 === Importing external semaphores [[importing_external_semaphores]]
 
@@ -1859,6 +2243,8 @@ enum class external_semaphore_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,
   win32_nt_dx12_fence = 2,
+  timeline_fd = 3,
+  timeline_win32_nt_handle = 4,
 };
 
 // Descriptor templated on specific resource type
@@ -1910,8 +2296,9 @@ The resulting `external_semaphore` can then be used in a SYCL command
 group, to either wait until the semaphore signalled, or signal the semaphore.
 
 If the type of semaphore imported supports setting the state of discrete 
-semaphore value (the semaphore type is `win32_nt_dx12_fence`), then the user 
-can specify which value the semaphore operation should wait on, or signal.
+semaphore value (the semaphore type is `win32_nt_dx12_fence`, `timeline_fd` or
+`timeline_win32_nt_handle`), then the user can specify which value the semaphore
+operation should wait on, or signal.
 
 We propose to extend the SYCL queue and handler classes with semaphore waiting 
 and signalling operations.
@@ -2002,17 +2389,19 @@ public:
 The behaviour of waiting on a semaphore will depend on the type of the 
 semaphore which was imported.
 
-If the semaphore does not support setting of a discrete state value (the 
-semaphore type is not `win32_nt_dx12_fence`), then any operations submitted to 
-the queue after a `ext_oneapi_wait_external_semaphore` call will not begin 
-until the imported semaphore is in a signalled state. After this, the semaphore 
-will be reset to a non-signalled state.
+If the semaphore does not support setting of a discrete state value (the
+semaphore type is not `win32_nt_dx12_fence`, `timeline_fd` or
+`timeline_win32_nt_handle`), then any operations submitted to the queue after a
+`ext_oneapi_wait_external_semaphore` call will not begin until the imported
+semaphore is in a signalled state. After this, the semaphore will be reset to a
+non-signalled state.
 
-If the semaphore does support setting of a discrete state value (the semaphore 
-type is `win32_nt_dx12_fence`), then any operations submitted to the queue 
-after a `ext_oneapi_wait_external_semaphore` call will not begin until the 
-imported semaphore is in a state greater than or equal to the `wait_value`. The 
-state of this type of semaphore will not be altered by the call to 
+If the semaphore does support setting of a discrete state value (the semaphore
+type is `win32_nt_dx12_fence`, `timeline_fd` or `timeline_win32_nt_handle`),
+then any operations submitted to the queue after a
+`ext_oneapi_wait_external_semaphore` call will not begin until the imported
+semaphore is in a state greater than or equal to the `wait_value`. The state of
+this type of semaphore will not be altered by the call to
 `ext_oneapi_wait_external_semaphore`.
 
 When `ext_oneapi_signal_external_semaphore` is called, the external semaphore 
@@ -2048,7 +2437,7 @@ void release_external_semaphore(external_semaphore semaphoreHandle,
 ```cpp
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_1_1D_read_write.cpp[lines=9..-1]
+include::../../../test-e2e/bindless_images/examples/example_1_1D_read_write.cpp[lines=12..-1]
 ```
 
 === Reading from a dynamically sized array of 2D images
@@ -2064,14 +2453,14 @@ include::../../../test-e2e/bindless_images/examples/example_2_2D_dynamic_read.cp
 ```cpp
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_3_1D_mipmap_anisotropic_filtering_and_levels.cpp[lines=9..-1]
+include::../../../test-e2e/bindless_images/examples/example_3_1D_mipmap_anisotropic_filtering_and_levels.cpp[lines=10..-1]
 ```
 
 === 1D image array read/write
 ```cpp
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_4_1D_array_read_write.cpp[lines=9..-1]
+include::../../../test-e2e/bindless_images/examples/example_4_1D_array_read_write.cpp[lines=14..-1]
 ```
 
 === Sampling a cubemap
@@ -2079,7 +2468,7 @@ include::../../../test-e2e/bindless_images/examples/example_4_1D_array_read_writ
 ```c++
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp[lines=9..-1]
+include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp[lines=10..-1]
 ```
 
 === Using imported memory and semaphore objects
@@ -2087,15 +2476,8 @@ include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp
 ```c++
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_6_import_memory_and_semaphores.cpp[lines=8..-1]
+include::../../../test-e2e/bindless_images/examples/example_6_import_memory_and_semaphores.cpp[lines=14..-1]
 ```
-
-== Implementation notes
-
-The current DPC++ prototype only implements the proposal for the CUDA backend,
-however we are actively exploring Level Zero with SPIR-V.
-We are looking at other backend as well in order to ensure the extension can 
-work across different backends.
 
 == Issues
 
@@ -2123,12 +2505,6 @@ There are dimension specific limitations:
 The ability to create an image with 3 channels depends on the backend.
 There is currently no way to query a backend whether it supports this feature.
 This query should be added in a later revision of the proposal.
-
-=== Not supported yet
-
-These features still need to be handled:
-
-* Level Zero and SPIR-V support
 
 == Revision History
 
@@ -2338,4 +2714,17 @@ These features still need to be handled:
                    spec using asciidoc include.
 |6.5|2024-10-22| - Allow 3-channel image formats on some backends.
 |6.6|2025-01-20| - Clarify support for the specific types of USM allocations.
-|======================
+|6.7|2025-01-27| - Update `image_mem_handle` to `image_mem_handle` copies to
+                   accept two image descriptors.
+                 - Add support for USM to `image_mem_handle` copies and 
+                   sub-copies.
+                 - Add support for `image_mem_handle` to USM copies and
+                   sub-copies.
+                 - Add support for USM to USM copies and sub-copies.
+                 - Add support for host to host copies and sub-copies.
+|6.8|2025-03-13| - Add support for importing timeline semaphores.
+|6.9|2025-03-18| - Add new `gather` image type and the accompanying
+                   `gather_image` function.
+|6.10|2025-05-09| - Add `unmap_external_image_memory` and 
+                    `unmap_external_linear_memory` APIs.
+                  - Clarify how and when external memory should be unmapped.

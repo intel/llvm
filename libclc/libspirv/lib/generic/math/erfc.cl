@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 /*
  * ====================================================
@@ -93,9 +93,9 @@
 #define sb7 -2.2440952301e+01f /* 0xc1b38712 */
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_erfc(float x) {
-  int hx = as_int(x);
+  int hx = __clc_as_int(x);
   int ix = hx & 0x7fffffff;
-  float absx = as_float(ix);
+  float absx = __clc_as_float(ix);
 
   // Argument for polys
   float x2 = absx * absx;
@@ -207,7 +207,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_erfc(float x) {
 
   float ret = 0.0f;
 
-  float z = as_float(ix & 0xfffff000);
+  float z = __clc_as_float(ix & 0xfffff000);
   float r = __spirv_ocl_exp(__spirv_ocl_mad(-z, z, -0.5625f)) *
             __spirv_ocl_exp(__spirv_ocl_mad(z - absx, z + absx, q));
   r = MATH_DIVIDE(r, absx);
@@ -403,9 +403,9 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_erfc, float);
 #define DV4 -3.96022827877536812320e-06
 
 _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_erfc(double x) {
-  long lx = as_long(x);
+  long lx = __clc_as_long(x);
   long ax = lx & 0x7fffffffffffffffL;
-  double absx = as_double(ax);
+  double absx = __clc_as_double(ax);
   int xneg = lx != ax;
 
   // Poly arg
@@ -521,7 +521,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_erfc(double x) {
   // Evaluate return value
 
   // |x| < 28
-  double z = as_double(ax & 0xffffffff00000000UL);
+  double z = __clc_as_double(ax & 0xffffffff00000000UL);
   double ret = __spirv_ocl_exp(-z * z - 0.5625) *
                __spirv_ocl_exp((z - absx) * (z + absx) + q) / absx;
   t = 2.0 - ret;
@@ -554,6 +554,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_erfc, double);
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_erfc, __builtin_erfc, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_erfc, __builtin_erfcf, half)
 
 #endif

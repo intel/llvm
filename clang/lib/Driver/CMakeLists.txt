@@ -58,6 +58,7 @@ add_clang_library(clangDriver
   ToolChains/CrossWindows.cpp
   ToolChains/CSKYToolChain.cpp
   ToolChains/Cuda.cpp
+  ToolChains/Cygwin.cpp
   ToolChains/Darwin.cpp
   ToolChains/DragonFly.cpp
   ToolChains/Flang.cpp
@@ -85,6 +86,7 @@ add_clang_library(clangDriver
   ToolChains/Solaris.cpp
   ToolChains/SPIRV.cpp
   ToolChains/SPIRVOpenMP.cpp
+  ToolChains/SYCL.cpp
   ToolChains/TCE.cpp
   ToolChains/UEFI.cpp
   ToolChains/VEToolchain.cpp
@@ -102,8 +104,7 @@ add_clang_library(clangDriver
   ClangDriverOptions
   DeviceConfigFile
   # These generated headers are included transitively.
-  ARMTargetParserTableGen
-  AArch64TargetParserTableGen
+  target_parser_gen
 
   LINK_LIBS
   clangBasic

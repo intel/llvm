@@ -371,7 +371,7 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
     assert(false);                                                             \
   }
 #else
-#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e) (void)e;
 #endif
 
 // Tag to help create CTAD definition to avoid ctad-maybe-unsupported warning

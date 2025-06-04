@@ -1,0 +1,6 @@
+[cfi-unrelated-cast]
+# std::_Sp_counted_ptr_inplace::_Sp_counted_ptr_inplace() (libstdc++).
+# This ctor is used by std::make_shared and needs to cast to uninitialized T*
+# in order to call std::allocator_traits<T>::construct.
+# See: https://github.com/llvm/llvm-project/blob/main/compiler-rt/lib/cfi/cfi_ignorelist.txt
+fun:_ZNSt23_Sp_counted_ptr_inplace*

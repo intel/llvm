@@ -11,7 +11,7 @@
 #include <libspirv/spirv_types.h>
 
 int __clc_nvvm_reflect_arch();
-_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
+_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(int, int);
 
 #define __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,   \
                                          ADDR_SPACE, ADDR_SPACE_NV, ORDER)     \
@@ -72,21 +72,14 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   }                                                                            \
   }
 
-// Type __spirv_AtomicCompareExchange(AS Type *P, __spv::Scope::Flag S,
-//                                    __spv::MemorySemanticsMask::Flag E,
-//                                    __spv::MemorySemanticsMask::Flag U,
+// Type __spirv_AtomicCompareExchange(AS Type *P, int S, int E, int U,
 //                                    Type V, Type C);
-#define __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_MANGLED, TYPE_NV,                \
-                                   TYPE_MANGLED_NV, OP, OP_MANGLED,            \
-                                   ADDR_SPACE, POINTER_AND_ADDR_SPACE_MANGLED, \
-                                   ADDR_SPACE_NV, SUBSTITUTION1, SUBSTITUTION2) \
-  __attribute__((always_inline)) _CLC_DECL TYPE _Z29__spirv_\
-Atomic##OP_MANGLED##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_MANGLED##N5\
-__spv5Scope4FlagENS##SUBSTITUTION1##_19Memory\
-SemanticsMask4FlagES##SUBSTITUTION2##_##TYPE_MANGLED##TYPE_MANGLED(            \
-      volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                     \
-      enum MemorySemanticsMask semantics1,                                     \
-      enum MemorySemanticsMask semantics2, TYPE cmp, TYPE value) {             \
+#define __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,         \
+                                   OP_MANGLED, ADDR_SPACE, ADDR_SPACE_NV)      \
+  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
+      __spirv_Atomic##OP_MANGLED(ADDR_SPACE TYPE *pointer, int scope,          \
+                                 int semantics1, int semantics2, TYPE cmp,     \
+                                 TYPE value) {                                 \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \
     unsigned int order = semantics1 & 0x1F;                                    \
@@ -135,21 +128,20 @@ Memory order is stored in the lowest 5 bits */                                 \
     __builtin_unreachable();                                                   \
   }
 
-#define __CLC_NVVM_ATOMIC_CAS(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV,    \
-                              OP, OP_MANGLED)                                  \
-  __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP, \
-                             OP_MANGLED, __global, PU3AS1, _global_, 1, 5)     \
-  __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP, \
-                             OP_MANGLED, __local, PU3AS3, _shared_, 1, 5)      \
-  __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP, \
-                             OP_MANGLED, , P, _gen_, 0, 4)
+#define __CLC_NVVM_ATOMIC_CAS(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, OP_MANGLED)  \
+  __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, OP_MANGLED,   \
+                             __global, _global_)                               \
+  __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, OP_MANGLED,   \
+                             __local, _shared_)                                \
+  __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, OP_MANGLED, , \
+                             _gen_)
 
-__CLC_NVVM_ATOMIC_CAS(int, i, int, i, cas, CompareExchange)
-__CLC_NVVM_ATOMIC_CAS(long, l, long, l, cas, CompareExchange)
-__CLC_NVVM_ATOMIC_CAS(unsigned int, j, int, i, cas, CompareExchange)
-__CLC_NVVM_ATOMIC_CAS(unsigned long, m, long, l, cas, CompareExchange)
-__CLC_NVVM_ATOMIC_CAS(float, f, float, f, cas, CompareExchange)
-__CLC_NVVM_ATOMIC_CAS(double, d, double, d, cas, CompareExchange)
+__CLC_NVVM_ATOMIC_CAS(int, int, i, cas, CompareExchange)
+__CLC_NVVM_ATOMIC_CAS(long, long, l, cas, CompareExchange)
+__CLC_NVVM_ATOMIC_CAS(unsigned int, int, i, cas, CompareExchange)
+__CLC_NVVM_ATOMIC_CAS(unsigned long, long, l, cas, CompareExchange)
+__CLC_NVVM_ATOMIC_CAS(float, float, f, cas, CompareExchange)
+__CLC_NVVM_ATOMIC_CAS(double, double, d, cas, CompareExchange)
 
 #undef __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER
 #undef __CLC_NVVM_ATOMIC_CAS

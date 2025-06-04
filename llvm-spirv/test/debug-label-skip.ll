@@ -1,4 +1,4 @@
-; RUN: llvm-as --preserve-input-debuginfo-format %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 
 source_filename = "debug-label-bitcode.c"
@@ -17,7 +17,7 @@ entry:
   br label %top
 
 top:                                              ; preds = %entry
-  call void @llvm.dbg.label(metadata !9), !dbg !10
+  #dbg_label(!9, !10)
   %0 = load i32, ptr %a.addr, align 4
   %1 = load i32, ptr %b.addr, align 4
   %add = add nsw i32 %0, %1
@@ -25,7 +25,7 @@ top:                                              ; preds = %entry
   br label %done
 
 done:                                             ; preds = %top
-  call void @llvm.dbg.label(metadata !11), !dbg !12
+  #dbg_label(!11, !12)
   %2 = load i32, ptr %sum, align 4
   ret i32 %2
 }

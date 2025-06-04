@@ -1,12 +1,9 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-//
-// XFAIL: cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16004
 
 // Tests updating a 3D ND-Range graph kernel node using index-based explicit
 // update
@@ -37,7 +34,6 @@ int main() {
 
   nd_range<3> NDRange{GlobalWorkSize, LocalWorkSize};
 
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id_A = exp_ext::get_kernel_id<ff_3>();
   kernel Kernel_A = Bundle.get_kernel(Kernel_id_A);
@@ -79,7 +75,6 @@ int main() {
     assert(HostDataA[i] == Ref);
     assert(HostDataB[i] == Ref);
   }
-#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
 

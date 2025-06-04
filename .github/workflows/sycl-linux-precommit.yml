@@ -7,12 +7,12 @@ on:
   pull_request:
     branches:
     - sycl
-    - sycl-devops-pr/**
     - sycl-rel-**
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
+    - 'sycl/cts_exclude_filter/**'
     - 'sycl/doc/**'
     - 'sycl/gdb/**'
     - 'clang/docs/**'
@@ -22,8 +22,14 @@ on:
     - '.github/workflows/sycl-macos-*.yml'
     - '.github/workflows/sycl-nightly.yml'
     - '.github/workflows/sycl-rel-nightly.yml'
+    - '.github/workflows/trivy.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
+    - 'unified-runtime/examples/**'
+    - 'unified-runtime/scripts/**'
+    - 'unified-runtime/test/**'
+    - 'unified-runtime/third_party/**'
+    - 'unified-runtime/tools/**'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
@@ -42,67 +48,85 @@ jobs:
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
-      merge_ref: ''
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
+      e2e_binaries_artifact: sycl_e2e_bin_default
 
-  determine_arc_tests:
-    name: Decide which Arc tests to run
-    needs: [build, detect_changes]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    runs-on: [Linux, aux-tasks]
-    timeout-minutes: 3
-    outputs:
-      arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
-    steps:
-      - name: Determine Arc tests
-        id: arc_tests
-        run: |
-          if [ "${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}" == "true" ]; then
-            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
-          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
-             echo 'arc_tests=""' >> "$GITHUB_OUTPUT"
-          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
-            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
-          else
-            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
-          fi
-
-  build_e2e_tests:
-    needs: [build]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
+  # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
+  # Ubuntu 22.04 container has CUDA 12.1 installed while Ubuntu 24.0 image
+  # has CUDA 12.6.1 installed.
+  # The idea is to ensure that the code works with both CUDA versions.
+  build_ubuntu2204:
+    needs: [detect_changes]
+    if: always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_cuda_adapter')
+    uses: ./.github/workflows/sycl-linux-build.yml
     with:
-      name: Build e2e tests
-      runner: '["Linux", "build"]'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps
-      image_options: -u 1001
-      ref: ${{ github.sha }}
-      merge_ref: ''
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      e2e_testing_mode: 'build-only'
+      build_ref: ${{ github.sha }}
+      build_cache_root: "/__w/"
+      build_artifact_suffix: "ubuntu22"
+      build_cache_suffix: "ubuntu22"
+      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+      changes: ${{ needs.detect_changes.outputs.filters }}
+
   run_prebuilt_e2e_tests:
-    needs: [build, build_e2e_tests]
+    needs: [build, detect_changes]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Intel
+          - name: GEN 12 Integrated
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+            extra_lit_opts: -j 1
+          - name: Intel Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
+            extra_lit_opts: --param matrix-xmx8=True
+          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+            extra_lit_opts: --param matrix-xmx8=True
+            use_igc_dev: true
+          - name: E2E tests on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+          - name: Dev IGC on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+            use_igc_dev: true
+          - name: Intel Battlemage Graphics
+            runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+          - name: SPIR-V Backend / Intel Battlemage Graphics
+            runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            extra_lit_opts: --param spirv-backend=True
+            e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -110,75 +134,13 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: --param fallback-to-build-if-requires-build-and-run=True ${{ matrix.extra_lit_opts }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      ref: ${{ github.sha }}
-      merge_ref: ''
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      e2e_binaries_artifact: sycl_e2e_bin_default
+      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'sycl_e2e_bin_default' }}
       e2e_testing_mode: 'run-only'
-
-  test:
-    needs: [build, detect_changes, determine_arc_tests]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            reset_intel_gpu: false
-          - name: E2E tests on Intel Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            reset_intel_gpu: true
-            extra_lit_opts: --param matrix-xmx8=True
-            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
-          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            reset_intel_gpu: true
-            extra_lit_opts: --param matrix-xmx8=True
-            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
-            use_igc_dev: true
-          - name: E2E tests on Intel Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            extra_lit_opts: -j 50
-          - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            use_igc_dev: true
-            extra_lit_opts: -j 50
-
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
-      image: ${{ matrix.image }}
-      image_options: ${{ matrix.image_options }}
-      target_devices: ${{ matrix.target_devices }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      env: ${{ matrix.env || '{}' }}
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
@@ -194,14 +156,6 @@ jobs:
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
 
-      ref: ${{ github.sha }}
-      merge_ref: ''
-
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-
-
   test-perf:
     needs: [build, detect_changes]
     if: |
@@ -215,36 +169,27 @@ jobs:
         include:
           - name: Intel GEN12 Graphics system
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_extra_opts: --device=/dev/dri
-            reset_intel_gpu: true
           - name: Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_extra_opts: --device=/dev/dri
-            reset_intel_gpu: true
           - name: AMD system
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
           - name: CUDA system
             runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_extra_opts: --gpus all
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Perf tests on ${{ matrix.name }}
       runner: ${{ matrix. runner }}
-      image: ${{ matrix.image }}
       image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
       target_devices: all
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
 
       env: '{"LIT_FILTER":"PerformanceTests/"}'
       extra_lit_opts: -a -j 1 --param enable-perf-tests=True
 
-      ref: ${{ github.sha }}
-      merge_ref: ''
+      repo_ref: ${{ github.sha }}
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}

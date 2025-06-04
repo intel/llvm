@@ -1,12 +1,9 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-//
-// XFAIL: cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16004
 
 // Tests that updating a graph is ordered with respect to previous executions of
 // the graph which may be in flight.
@@ -21,8 +18,9 @@ int main() {
   // Use a large N to try and make the kernel slow
   const size_t N = 1 << 16;
 
-  // Reduce amount of work compared to version of test without free functions
-  // due to CMPLRLLVM-64841
+  // Reduce amount of work compared to version of test with lambdas,
+  // as using explicit parameters in the free function signature results
+  // in slower IR than is created from constant folding in the lambda.
   const size_t NumKernelLoops = 1;
   const size_t NumSubmitLoops = 1;
 
@@ -39,7 +37,6 @@ int main() {
 
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_2>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
@@ -74,7 +71,6 @@ int main() {
     assert(HostDataA[i] == i * NumKernelLoops * NumSubmitLoops);
     assert(HostDataB[i] == i * NumKernelLoops * NumSubmitLoops);
   }
-#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
 

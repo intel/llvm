@@ -19,6 +19,7 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | 4     | Free device memory query is supported |
 | 5     | Device ID is supported |
 | 6     | Memory clock rate and bus width queries are supported |
+| 7     | Throttle reasons, fan speed and power limits queries are supported |
 
 
 
@@ -62,7 +63,7 @@ The device ID can be obtained using the standard get\_info() interface.
 
 A new device descriptor will be added which will provide the device Universal Unique ID (UUID).
 
-This new device descriptor is currently only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior would be to expose the UUIDs of all supported devices which enables detection of total number of unique devices.
+The DPC++ default behavior would be to expose the UUIDs of all supported devices which enables detection of total number of unique devices.
 
 
 ## Version ##
@@ -100,11 +101,6 @@ The UUID can be obtained using the standard get\_info() interface.
 
 A new device descriptor will be added which will provide the PCI address in BDF format.  BDF format contains the address as: `domain:bus:device.function`.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
-
-**Note:** The environment variable SYCL\_ENABLE\_PCI must be set to 1 to obtain the PCI address.
-
-
 ## Version ##
 
 All versions of the extension support this query.
@@ -139,8 +135,6 @@ The PCI address can be obtained using the standard get\_info() interface.
 # Intel GPU Execution Unit SIMD Width #
 
 A new device descriptor will be added which will provide the physical SIMD width of an execution unit on an Intel GPU.  This data will be used to calculate the computational capabilities of the device.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
@@ -179,8 +173,6 @@ The physical EU SIMD width can be obtained using the standard get\_info() interf
 A new device descriptor will be added which will provide the number of execution units on an Intel GPU.  If the device is a subdevice, then the number of EUs in the subdevice is returned.
 
 This new device descriptor will provide the same information as "max\_compute\_units" does today.  We would like to have an API which is specific for Intel GPUs.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
@@ -355,8 +347,6 @@ Then the number of hardware threads per EU can be obtained using the standard ge
 
 A new device descriptor will be added which will provide the maximum memory bandwidth.  If the device is a subdevice, then the maximum bandwidth of the subdevice is returned.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
-
 
 ## Version ##
 
@@ -397,8 +387,6 @@ Beware that when other processes or threads are using this device when this call
 is made, the value it returns may be stale even before it is returned to the
 caller.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
-
 
 ## Version ##
 
@@ -435,7 +423,6 @@ Then the free device memory  can be obtained using the standard get\_info() inte
 
 A new device descriptor is added which provides the maximum clock rate of device's global memory.
 
-This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 ## Version ##
 
@@ -472,7 +459,6 @@ Then the memory clock rate can be obtained using the standard get\_info() interf
 
 A new device descriptor is added which provides the maximum bus width between device and memory.
 
-This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 ## Version ##
 
@@ -503,6 +489,144 @@ Then the memory bus width can be obtained using the standard get\_info() interfa
     if (dev.has(aspect::ext_intel_memory_bus_width)) {
       auto MemoryBusWidth = dev.get_info<ext::intel::info::device::memory_bus_width>();
     }
+
+# Throttle reason #
+
+A new device descriptor is added which provides the current clock throttle reasons.
+A new enum is added with the list of possible throttle reasons.
+
+## Version ##
+
+The extension supports this query in version 7 and later.
+
+## Throttle reasons ##
+
+| Reason             | Description |
+| ------------------ | ----------- |
+| `power_cap` | The clock frequency is throttled due to hitting the power limit. |
+| `current_limit` | The clock frequency is throttled due to hitting the current limit. |
+| `thermal_limit` | The clock frequency is throttled due to hitting the thermal limit. |
+| `psu_alert` | The clock frequency is throttled due to power supply assertion. |
+| `sw_range` | The clock frequency is throttled due to software supplied frequency range. |
+| `hw_range` | The clock frequency is throttled because there is a sub block that has a lower frequency when it receives clocks. |
+| `other` | The clock frequency is throttled due to other reason. |
+
+
+```
+namespace sycl::ext::intel {
+
+  enum class throttle_reason {
+    power_cap,
+    current_limit,
+    thermal_limit,
+    psu_alert,
+    sw_range,
+    hw_range,
+    other
+  }
+
+}
+```
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| `ext::intel::info::device::current_clock_throttle_reasons` | `std::vector<ext::intel::throttle_reason>` | Returns the set of throttle reasons describing why the frequency is being limited by the hardware. Returns empty set if frequency is not throttled. |
+
+
+## Aspects ##
+
+A new aspect, `ext_intel_current_clock_throttle_reasons`, is added.
+
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_current_clock_throttle_reasons`.
+
+## Example Usage ##
+
+Then the current clock throttle reasons can be obtained using the standard `get_info()` interface.
+
+```
+if (dev.has(aspect::ext_intel_current_clock_throttle_reasons)) {
+  std::vector<ext::inte::info::throttle_reason> Reasons = dev.get_info<ext::intel::info::device::current_clock_throttle_reasons<>();
+}
+```
+
+
+# Fan speed #
+
+A new device descriptor is added which provides the fan speed for the device.
+
+## Version ##
+
+The extension supports this query in version 7 and later.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| `ext::intel::info::device::fan_speed` | `int32_t` | Returns the current speed of device's fan (as a percentage of the maximum speed of the fan). If fan speed can't be measured then returns -1. If there are multiple fans, then returns maximum value. |
+
+
+## Aspects ##
+
+A new aspect, `ext_intel_fan_speed`, is added.
+
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_fan_speed`.
+
+## Example Usage ##
+
+Then the fan speed can be obtained using the standard `get_info()` interface.
+
+```
+    if (dev.has(aspect::ext_intel_fan_speed)) {
+      auto FanSpeed = dev.get_info<ext::intel::info::device::fan_speed>();
+    }
+```
+
+# Power limits #
+
+New device descriptors are added which provide the maximum and minimum power limits for the device.
+
+## Version ##
+
+The extension supports this query in version 7 and later.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+|`ext::intel::info::device::min_power_limit` |`int32_t` | Returns the minimum power limit of the device in milliwatts. Returns -1 if the limit is not known. |
+|`ext::intel::info::device::max_power_limit` |`int32_t` | Returns the maximum power limit of the device in milliwatts. Returns -1 if the limit is not known. |
+
+
+## Aspects ##
+
+A new aspect, `ext_intel_power_limits`, is added.
+
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_power_limits`.
+
+## Example Usage ##
+
+Then the power limits can be obtained using the standard `get_info()` interface.
+
+```
+    if (dev.has(aspect::ext_intel_power_limits)) {
+      auto Min = dev.get_info<ext::intel::info::device::min_power_limit>();
+      auto Max = dev.get_info<ext::intel::info::device::max_power_limit>();
+    }
+```
+
+
+
 
 # Deprecated queries #
 

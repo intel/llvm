@@ -16,7 +16,6 @@
 #include <__config>
 #include <__memory/addressof.h>
 #include <__thread/poll_with_backoff.h>
-#include <__thread/support.h>
 #include <__type_traits/conjunction.h>
 #include <__type_traits/decay.h>
 #include <__type_traits/invoke.h>
@@ -59,6 +58,7 @@ struct __atomic_waitable< _Tp,
 #if _LIBCPP_STD_VER >= 20
 #  if _LIBCPP_HAS_THREADS
 
+_LIBCPP_BEGIN_EXPLICIT_ABI_ANNOTATIONS
 _LIBCPP_AVAILABILITY_SYNC _LIBCPP_EXPORTED_FROM_ABI void __cxx_atomic_notify_one(void const volatile*) _NOEXCEPT;
 _LIBCPP_AVAILABILITY_SYNC _LIBCPP_EXPORTED_FROM_ABI void __cxx_atomic_notify_all(void const volatile*) _NOEXCEPT;
 _LIBCPP_AVAILABILITY_SYNC _LIBCPP_EXPORTED_FROM_ABI __cxx_contention_t
@@ -74,6 +74,7 @@ _LIBCPP_AVAILABILITY_SYNC _LIBCPP_EXPORTED_FROM_ABI __cxx_contention_t
 __libcpp_atomic_monitor(__cxx_atomic_contention_t const volatile*) _NOEXCEPT;
 _LIBCPP_AVAILABILITY_SYNC _LIBCPP_EXPORTED_FROM_ABI void
 __libcpp_atomic_wait(__cxx_atomic_contention_t const volatile*, __cxx_contention_t) _NOEXCEPT;
+_LIBCPP_END_EXPLICIT_ABI_ANNOTATIONS
 
 template <class _AtomicWaitable, class _Poll>
 struct __atomic_wait_backoff_impl {
@@ -81,7 +82,7 @@ struct __atomic_wait_backoff_impl {
   _Poll __poll_;
   memory_order __order_;
 
-  using __waitable_traits = __atomic_waitable_traits<__decay_t<_AtomicWaitable> >;
+  using __waitable_traits _LIBCPP_NODEBUG = __atomic_waitable_traits<__decay_t<_AtomicWaitable> >;
 
   _LIBCPP_AVAILABILITY_SYNC
   _LIBCPP_HIDE_FROM_ABI bool
@@ -108,15 +109,13 @@ struct __atomic_wait_backoff_impl {
 
   _LIBCPP_AVAILABILITY_SYNC
   _LIBCPP_HIDE_FROM_ABI bool operator()(chrono::nanoseconds __elapsed) const {
-    if (__elapsed > chrono::microseconds(64)) {
+    if (__elapsed > chrono::microseconds(4)) {
       auto __contention_address = __waitable_traits::__atomic_contention_address(__a_);
       __cxx_contention_t __monitor_val;
       if (__update_monitor_val_and_poll(__contention_address, __monitor_val))
         return true;
       std::__libcpp_atomic_wait(__contention_address, __monitor_val);
-    } else if (__elapsed > chrono::microseconds(4))
-      __libcpp_thread_yield();
-    else {
+    } else {
     } // poll
     return false;
   }

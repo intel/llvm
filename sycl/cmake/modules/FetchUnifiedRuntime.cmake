@@ -23,18 +23,24 @@ option(SYCL_UR_USE_FETCH_CONTENT
 set(SYCL_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
-option(SYCL_UMF_DISABLE_HWLOC
-  "Disable hwloc support in UMF" ON)
+option(SYCL_UR_BUILD_TESTS "Build tests for UR" OFF)
+set(UR_BUILD_TESTS "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
+# UR tests require the examples to be built
+set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 
-# Here we override the defaults to disable building tests from unified-runtime
-set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
-set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
-set(UR_BUILD_XPTI_LIBS OFF)
+# Here we override the defaults to unified-runtime
+set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
-set(UR_ENABLE_TRACING ON)
+set(UR_ENABLE_TRACING ON CACHE BOOL "")
+
+set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE STRING
+  "List of external CMake targets for executables/libraries to depend on" FORCE)
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)
+endif()
+if("level_zero_v2" IN_LIST SYCL_ENABLE_BACKENDS)
+  set(UR_BUILD_ADAPTER_L0_V2 ON)
 endif()
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_CUDA ON)
@@ -70,7 +76,23 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
 endif()
 
-if(SYCL_UR_USE_FETCH_CONTENT)
+set(UR_INTREE_SOURCE_DIR "${LLVM_SOURCE_DIR}/../unified-runtime")
+cmake_path(NORMAL_PATH UR_INTREE_SOURCE_DIR OUTPUT_VARIABLE UR_INTREE_SOURCE_DIR)
+
+if(IS_DIRECTORY "${UR_INTREE_SOURCE_DIR}")
+  set(UR_INTREE_BINARY_DIR ${LLVM_BINARY_DIR}/unified-runtime)
+  set(UNIFIED_RUNTIME_SOURCE_DIR
+    "${UR_INTREE_SOURCE_DIR}" CACHE PATH
+    "Path to Unified Runtime Headers" FORCE)
+  set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
+  # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
+  # to link statically on windows
+  if(WIN32)
+    set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
+    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  endif()
+  add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
+elseif(SYCL_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   # The fetch_adapter_source function can be used to perform a separate content
@@ -125,8 +147,6 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   if(WIN32)
     set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
     set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
-  else()
-    set(UMF_DISABLE_HWLOC ${SYCL_UMF_DISABLE_HWLOC} CACHE INTERNAL "Disable hwloc for UMF")
   endif()
 
   fetch_adapter_source(level_zero
@@ -266,6 +286,10 @@ if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   # added to the new build system
 endif()
 
+if("level_zero_v2" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_sycl_ur_adapter(level_zero_v2)
+endif()
+
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(cuda)
 endif()
@@ -290,6 +314,113 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   else()
     message(WARNING "Compiling Native CPU adapter without OCK support.
     Some valid SYCL programs may not build or may have low performance.")
+  endif()
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+  # On Windows, also build/install debug libraries with the d suffix that are
+  # compiled with /MDd so users can link against these in debug builds.
+  include(ExternalProject)
+  set(URD_BINARY_DIR ${CMAKE_BINARY_DIR}/unified-runtimed)
+  set(URD_INSTALL_DIR ${URD_BINARY_DIR}/install)
+
+  # This creates a subbuild which can be used in dependencies with the
+  # unified-runtimed target. It invokes the install-unified-runtime-libraries
+  # target to install the UR runtime libraries.
+  ExternalProject_Add(unified-runtimed
+    SOURCE_DIR ${UNIFIED_RUNTIME_SOURCE_DIR}
+    BINARY_DIR ${URD_BINARY_DIR}
+    INSTALL_DIR ${URD_INSTALL_DIR}
+    INSTALL_COMMAND ${CMAKE_COMMAND}
+      --build <BINARY_DIR> --config Debug
+      --target install-unified-runtime-libraries
+    CMAKE_CACHE_ARGS
+      -DCMAKE_BUILD_TYPE:STRING=Debug
+      -DCMAKE_INSTALL_PREFIX:STRING=<INSTALL_DIR>
+      # Enable d suffix on libraries
+      -DUR_USE_DEBUG_POSTFIX:BOOL=ON
+      # Don't build unnecessary targets in subbuild.
+      -DUR_BUILD_EXAMPLES:BOOL=OFF
+      -DUR_BUILD_TESTS:BOOL=OFF
+      -DUR_BUILD_TOOLS:BOOL=OFF
+      # Sanitizer layer is not supported on Windows.
+      -DUR_ENABLE_SYMBOLIZER:BOOL=OFF
+      # Inherit settings from parent build.
+      -DUR_ENABLE_TRACING:BOOL=${UR_ENABLE_TRACING}
+      -DUR_ENABLE_COMGR:BOOL=${UR_ENABLE_COMGR}
+      -DUR_BUILD_ADAPTER_L0:BOOL=${UR_BUILD_ADAPTER_L0}
+      -DUR_BUILD_ADAPTER_L0_V2:BOOL=${UR_BUILD_ADAPTER_L0_V2}
+      -DUR_BUILD_ADAPTER_OPENCL:BOOL=${UR_BUILD_ADAPTER_OPENCL}
+      -DUR_BUILD_ADAPTER_CUDA:BOOL=${UR_BUILD_ADAPTER_CUDA}
+      -DUR_BUILD_ADAPTER_HIP:BOOL=${UR_BUILD_ADAPTER_HIP}
+      -DUR_BUILD_ADAPTER_NATIVE_CPU:BOOL=${UR_BUILD_ADAPTER_NATIVE_CPU}
+      -DUMF_BUILD_EXAMPLES:BOOL=${UMF_BUILD_EXAMPLES}
+      -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
+      -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
+      -DUMF_DISABLE_HWLOC:BOOL=${UMF_DISABLE_HWLOC}
+      # Enable d suffix in UMF
+      -DUMF_USE_DEBUG_POSTFIX:BOOL=ON
+  )
+
+  # Copy the debug UR runtime libraries to <build>/bin & <build>/lib for use in
+  # the parent build, e.g. integration testing.
+  set(URD_COPY_FILES)
+  macro(urd_copy_library_to_build library shared)
+    if(${shared})
+      list(APPEND URD_COPY_FILES
+        ${LLVM_BINARY_DIR}/bin/${library}.dll
+      )
+      add_custom_command(
+        OUTPUT
+          ${LLVM_BINARY_DIR}/bin/${library}.dll
+        COMMAND ${CMAKE_COMMAND} -E copy
+          ${URD_INSTALL_DIR}/bin/${library}.dll
+          ${LLVM_BINARY_DIR}/bin/${library}.dll
+      )
+    endif()
+
+    list(APPEND URD_COPY_FILES
+      ${LLVM_BINARY_DIR}/lib/${library}.lib
+    )
+    add_custom_command(
+      OUTPUT
+        ${LLVM_BINARY_DIR}/lib/${library}.lib
+      COMMAND ${CMAKE_COMMAND} -E copy
+        ${URD_INSTALL_DIR}/lib/${library}.lib
+        ${LLVM_BINARY_DIR}/lib/${library}.lib
+    )
+  endmacro()
+
+  urd_copy_library_to_build(ur_loaderd "NOT;${UR_STATIC_LOADER}")
+  foreach(adatper ${SYCL_ENABLE_BACKENDS})
+    if(adapter MATCHES "level_zero")
+      set(shared "NOT;${UR_STATIC_ADAPTER_L0}")
+    else()
+      set(shared TRUE)
+    endif()
+    urd_copy_library_to_build(ur_adapter_${adatper}d "${shared}")
+  endforeach()
+  # Also copy umfd.dll/umfd.lib
+  urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
+
+  add_custom_target(unified-runtimed-build ALL DEPENDS ${URD_COPY_FILES})
+  add_dependencies(unified-runtimed-build unified-runtimed)
+
+  # Add the debug UR runtime libraries to the parent install.
+  install(
+    FILES ${URD_INSTALL_DIR}/bin/ur_loaderd.dll
+    DESTINATION "bin" COMPONENT unified-runtime-loader)
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+    install(
+      FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
+      DESTINATION "bin" COMPONENT ur_adapter_${adapter})
+    add_dependencies(install-sycl-ur-adapter-${adapter} unified-runtimed)
+  endforeach()
+  if(UMF_BUILD_SHARED_LIBRARY)
+    # Also install umfd.dll
+    install(
+      FILES ${URD_INSTALL_DIR}/bin/umfd.dll
+      DESTINATION "bin" COMPONENT unified-memory-framework)
   endif()
 endif()
 

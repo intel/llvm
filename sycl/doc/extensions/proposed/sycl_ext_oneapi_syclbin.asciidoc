@@ -1,0 +1,244 @@
+= sycl_ext_oneapi_syclbin
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extension:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extensions adds APIs, built upon the existing SYCL 2020 `kernel_bundle`
+APIs, for loading precompiled "SYCLBIN" files. Using these, SYCL code can
+dynamically load kernel binaries produced by the associated compiler, the format
+and options for which are defined by the SYCL implementation.
+
+Conversely, a SYCL implementation supporting this extension allows users to
+create the binary contents in the SYCLBIN format from a `kernel_bundle` object,
+even if that object was not created from a SYCLBIN file originally. As such,
+despite the SYCL implementation defining the format of SYCLBIN files, the format
+is guaranteed to contain the corresponding kernel bundle state of the SYCLBIN
+contents, which must in turn match the state of any `kernel_bundle` object
+created from it.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_SYCLBIN` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+
+=== New kernel_bundle interfaces
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<bundle_state State, typename PropertyListT = empty_properties_t>
+kernel_bundle<State> get_kernel_bundle(const context& ctxt,
+                                       const std::vector<device>& devs,
+                                       const sycl::span<char>& bytes,
+                                       PropertyListT props = {});
+
+// Requires C++20
+template<bundle_state State, typename PropertyListT = empty_properties_t>
+kernel_bundle<State> get_kernel_bundle(const context& ctxt,
+                                       const std::vector<device>& devs,
+                                       const std::span<char>& bytes,
+                                       PropertyListT props = {});
+
+}
+----
+!====
+
+_Constraints:_ Available only when `State` is not `ext_oneapi_source`.
+
+_Effects:_ Creates a new kernel bundle containing the kernels from the SYCLBIN
+data contained in `bytes` that are compatible with at least one of the devices
+in `devs`. Any remaining kernels (those that are not compatible with any of the
+devices in `devs`) are not represented in the new kernel bundle.
+
+The bundle is associated with the context `ctxt`, and kernels from this bundle
+may only be submitted to a queue that shares the same context and whose device
+is in `devs`.
+
+_Returns:_ The newly created kernel bundle, which has `State` state.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if the contents of `bytes`
+  is not in the SYCLBIN format, as defined by the SYCL implementation.
+* An `exception` with the `errc::invalid` error code if the SYCLBIN read from
+  `bytes` is not in the `State` state.
+* An `exception` with the `errc::invalid` error code if the `devs` vector is
+  empty.
+* An `exception` with the `errc::invalid` error code if `State` is
+  `bundle_state::input` and any device in `ctxt.get_devices()` does not have
+  `aspect::online_compiler`.
+* An `exception` with the `errc::invalid` error code if `State` is
+  `bundle_state::object` and any device in `ctxt.get_devices()` does not have
+  `aspect::online_linker`.
+* An `exception` with the `errc::build` error code if `State` is
+  `bundle_state::object` or `bundle_state::executable`, if the implementation
+  needs to perform an online compile or link, and if the online compile or link
+  fails.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<bundle_state State, typename PropertyListT = empty_properties_t>      (1)
+kernel_bundle<State> get_kernel_bundle(const context& ctxt,
+                                       const std::vector<device>& devs,
+                                       const std::filesystem::path& filename,
+                                       PropertyListT props = {});
+
+template<bundle_state State, typename PropertyListT = empty_properties_t>      (2)
+kernel_bundle<State> get_kernel_bundle(const context& ctxt,
+                                       const std::filesystem::path& filename,
+                                       PropertyListT props = {});
+
+}
+----
+!====
+
+_Constraints:_ Available only when `State` is not `ext_oneapi_source`.
+
+_Effects (1):_ Creates a new kernel bundle containing the kernels inside the
+SYCLBIN file located at `filename`. This is equivalent to
+`get_kernel_bundle(ctxt, devs, data, props)` where `data` is the bytes read from
+the SYCLBIN file at `filename`.
+
+_Effects (2)_: Equivalent to `get_kernel_bundle(ctxt, ctxt.get_devices(), filename, props)`.
+
+_Returns:_ The newly created kernel bundle, which has `State` state.
+
+_Throws:_
+
+* A `std::ios_base::failure` exception if the function failed to access and read
+  the file specified by `filename`.
+* An `exception` with the `errc::invalid` error code if the contents of the file
+  specified by `filename` is not in the SYCLBIN format, as defined by the SYCL
+  implementation.
+* An `exception` with the `errc::invalid` error code if the SYCLBIN read from
+  the file specified by `filename` is not in the `State` state.
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` is not one of devices contained by the context `ctxt` or is not a
+  descendent device of some device in `ctxt`.
+* An `exception` with the `errc::invalid` error code if the `devs` vector is
+  empty.
+* An `exception` with the `errc::invalid` error code if `State` is
+  `bundle_state::input` and any device in `ctxt.get_devices()` does not have
+  `aspect::online_compiler`.
+* An `exception` with the `errc::invalid` error code if `State` is
+  `bundle_state::object` and any device in `ctxt.get_devices()` does not have
+  `aspect::online_linker`.
+* An `exception` with the `errc::build` error code if `State` is
+  `bundle_state::object` or `bundle_state::executable`, if the implementation
+  needs to perform an online compile or link, and if the online compile or link
+  fails.
+
+|====
+
+```
+namespace sycl {
+template <bundle_state State> class kernel_bundle {
+public:
+  ...
+
+  std::vector<char> ext_oneapi_get_content();
+
+};
+}
+```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+std::vector<char> ext_oneapi_get_content()
+----
+!====
+
+_Constraints:_ Available only when `State` is not `ext_oneapi_source`.
+
+_Returns:_ A vector of bytes containing the data of the kernel bundle in the
+SYCLBIN format for this implementation. The corresponding SYCLBIN format will
+be in `State` state.
+
+[_Note:_ If the `kernel_bundle` was created using the `get_kernel_bundle` from
+a SYCLBIN file, the contents returned by this member function are not guaranteed
+to be the same as the original SYCLBIN file.
+_{endnote}_]
+
+|====
+

@@ -35,7 +35,7 @@ SYCL_EXTERNAL void test(sycl::accessor<int, 1, sycl::access::mode::read_write,
 }
 
 // clang-format off
-// CHECK:  call spir_func void {{.*}}spirv_ControlBarrierjjj
+// CHECK:  call spir_func void {{.*}}spirv_ControlBarrieriii
 
 // load() for global address space
 // CHECK: call spir_func ptr addrspace(3) {{.*}}spirv_GenericCastToPtrExplicit_ToLocal{{.*}}(ptr addrspace(4)

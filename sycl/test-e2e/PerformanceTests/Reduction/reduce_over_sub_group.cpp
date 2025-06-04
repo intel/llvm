@@ -1,5 +1,6 @@
-// XFAIL: native_cpu
+// XFAIL: native_cpu, gpu-intel-gen12
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16415
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17872
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

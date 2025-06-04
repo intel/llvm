@@ -1,12 +1,9 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-//
-// XFAIL: cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16004
 
 // Tests creating multiple executable graphs from the same modifiable graph and
 // only updating one of them.
@@ -31,7 +28,6 @@ int main() {
 
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_1>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
@@ -69,7 +65,6 @@ int main() {
     assert(HostDataA[i] == i * 3);
     assert(HostDataB[i] == i);
   }
-#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
 

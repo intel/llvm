@@ -197,6 +197,10 @@ extern __DPCPP_SYCL_EXTERNAL RetT __spirv_SampledImageArrayFetch(ImageT,
                                                                  TempArgT, int);
 
 template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_SampledImageGather(ImageT, TempArgT,
+                                                             unsigned);
+
+template <class RetT, typename ImageT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageArrayRead(ImageT, TempArgT, int);
 
 template <typename ImageT, typename CoordT, typename ValT>
@@ -234,69 +238,53 @@ extern __DPCPP_SYCL_EXTERNAL
 
 // Atomic SPIR-V builtins
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(                        \
-      AS const Type *P, __spv::Scope::Flag S,                                  \
-      __spv::MemorySemanticsMask::Flag O);
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(AS Type *P, int S,      \
+                                                       int O) noexcept;
 #define __SPIRV_ATOMIC_STORE(AS, Type)                                         \
   extern __DPCPP_SYCL_EXTERNAL void __spirv_AtomicStore(                       \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_EXCHANGE(AS, Type)                                      \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicExchange(                    \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_CMP_EXCHANGE(AS, Type)                                  \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicCompareExchange(             \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag E,    \
-      __spv::MemorySemanticsMask::Flag U, Type V, Type C);
+      AS Type *P, int S, int E, int U, Type V, Type C) noexcept;
 #define __SPIRV_ATOMIC_IADD(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicIAdd(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_ISUB(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicISub(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_FADD(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFAddEXT(                     \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_SMIN(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMin(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_UMIN(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMin(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_FMIN(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMinEXT(                     \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_SMAX(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMax(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_UMAX(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMax(                        \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_FMAX(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMaxEXT(                     \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+      AS Type *P, int S, int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_AND(AS, Type)                                           \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicAnd(                         \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicAnd(AS Type *P, int S,       \
+                                                      int O, Type V) noexcept;
 #define __SPIRV_ATOMIC_OR(AS, Type)                                            \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicOr(                          \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicOr(AS Type *P, int S, int O, \
+                                                     Type V) noexcept;
 #define __SPIRV_ATOMIC_XOR(AS, Type)                                           \
-  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicXor(                         \
-      AS Type *P, __spv::Scope::Flag S, __spv::MemorySemanticsMask::Flag O,    \
-      Type V);
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicXor(AS Type *P, int S,       \
+                                                      int O, Type V) noexcept;
 
 #define __SPIRV_ATOMIC_FLOAT(AS, Type)                                         \
   __SPIRV_ATOMIC_FADD(AS, Type)                                                \
@@ -331,24 +319,21 @@ extern __DPCPP_SYCL_EXTERNAL
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && std::is_signed<T>::value, T>               \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics,                 \
+                         T Value) noexcept {                                   \
     return __spirv_AtomicS##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && !std::is_signed<T>::value, T>              \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics,                 \
+                         T Value) noexcept {                                   \
     return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if_t<std::is_floating_point<T>::value, T>               \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics,                 \
+                         T Value) noexcept {                                   \
     return __spirv_AtomicF##Op##EXT(Ptr, Memory, Semantics, Value);            \
   }
 
@@ -393,28 +378,8 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
-__spirv_SubgroupShuffleINTEL(dataT Data, uint32_t InvocationId) noexcept;
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
-__spirv_SubgroupShuffleDownINTEL(dataT Current, dataT Next,
-                                 uint32_t Delta) noexcept;
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
-__spirv_SubgroupShuffleUpINTEL(dataT Previous, dataT Current,
-                               uint32_t Delta) noexcept;
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
-__spirv_SubgroupShuffleXorINTEL(dataT Data, uint32_t Value) noexcept;
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint8_t *Ptr) noexcept;
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint8_t *Ptr,
-                                dataT Data) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
@@ -422,19 +387,9 @@ __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint16_t *Ptr) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint16_t *Ptr,
-                                dataT Data) noexcept;
-
-template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint32_t *Ptr) noexcept;
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint32_t *Ptr,
-                                dataT Data) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
@@ -442,9 +397,25 @@ __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint64_t *Ptr) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint64_t *Ptr,
-                                dataT Data) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint8_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint16_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint32_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint64_t *Ptr) noexcept;
+
 template <int W, int rW>
 extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<rW>
 __spirv_FixedSqrtINTEL(sycl::detail::ap_int<W> a, bool S, int32_t I, int32_t rI,
@@ -836,169 +807,6 @@ template <int N>
 extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<uint16_t, N>
     __spirv_ConvertFToBF16INTEL(__ocl_vec_t<float, N>) noexcept;
 
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
-    __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
-    __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
-
-// TODO: I'm not 100% sure that these NonUniform instructions should be
-// convergent Following precedent set for GroupNonUniformBallot above
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT uint32_t
-__spirv_GroupNonUniformBallotBitCount(__spv::Scope::Flag, int,
-                                      __ocl_vec_t<uint32_t, 4>) noexcept;
-
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT int
-    __spirv_GroupNonUniformBallotFindLSB(__spv::Scope::Flag,
-                                         __ocl_vec_t<uint32_t, 4>) noexcept;
-
-template <typename ValueT, typename IdT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-    __spirv_GroupNonUniformBroadcast(__spv::Scope::Flag, ValueT, IdT);
-
-template <typename ValueT, typename IdT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-    __spirv_GroupNonUniformShuffle(__spv::Scope::Flag, ValueT, IdT) noexcept;
-
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT bool
-__spirv_GroupNonUniformAll(__spv::Scope::Flag, bool);
-
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT bool
-__spirv_GroupNonUniformAny(__spv::Scope::Flag, bool);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformSMin(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformUMin(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformFMin(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformSMax(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformUMax(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformFMax(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformIAdd(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformFAdd(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformIMul(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformFMul(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformBitwiseOr(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformBitwiseXor(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformBitwiseAnd(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformLogicalOr(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformLogicalAnd(__spv::Scope::Flag, unsigned int, ValueT);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformSMin(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformUMin(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformFMin(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformSMax(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformUMax(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformFMax(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformIAdd(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformFAdd(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformIMul(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformFMul(__spv::Scope::Flag, unsigned int, ValueT,
-                            unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformBitwiseOr(__spv::Scope::Flag, unsigned int, ValueT,
-                                 unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformBitwiseXor(__spv::Scope::Flag, unsigned int, ValueT,
-                                  unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformBitwiseAnd(__spv::Scope::Flag, unsigned int, ValueT,
-                                  unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformLogicalOr(__spv::Scope::Flag, unsigned int, ValueT,
-                                 unsigned int);
-
-template <typename ValueT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
-__spirv_GroupNonUniformLogicalAnd(__spv::Scope::Flag, unsigned int, ValueT,
-                                  unsigned int);
-
 extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierInitialize(int64_t *state, int32_t expected_count) noexcept;
 
@@ -1163,9 +971,9 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t
-__SYCL_OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag, dataT *Dest,
-                                     const dataT *Src, size_t NumElements,
-                                     size_t Stride, __ocl_event_t) noexcept {
+__SYCL_OpGroupAsyncCopyGlobalToLocal(int32_t, dataT *Dest, const dataT *Src,
+                                     size_t NumElements, size_t Stride,
+                                     __ocl_event_t) noexcept {
   for (size_t i = 0; i < NumElements; i++) {
     Dest[i] = Src[i * Stride];
   }
@@ -1175,9 +983,9 @@ __SYCL_OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag, dataT *Dest,
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t
-__SYCL_OpGroupAsyncCopyLocalToGlobal(__spv::Scope::Flag, dataT *Dest,
-                                     const dataT *Src, size_t NumElements,
-                                     size_t Stride, __ocl_event_t) noexcept {
+__SYCL_OpGroupAsyncCopyLocalToGlobal(int32_t, dataT *Dest, const dataT *Src,
+                                     size_t NumElements, size_t Stride,
+                                     __ocl_event_t) noexcept {
   for (size_t i = 0; i < NumElements; i++) {
     Dest[i * Stride] = Src[i];
   }

@@ -1,0 +1,90 @@
+name: SYCL hardening check
+
+permissions: read-all
+
+on:
+  workflow_call:
+    inputs:
+      sycl_linux_artifact:
+        type: string
+      sycl_linux_archive:
+        type: string
+      sycl_linux_decompress_command:
+        type: string
+
+      sycl_windows_artifact:
+        type: string
+      sycl_windows_archive:
+        type: string
+
+jobs:
+  hardening_check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install hardening-check
+      run: |
+        sudo apt update
+        sudo apt install -y devscripts
+
+    - name: Download SYCL toolchain
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.sycl_linux_artifact }}
+
+    - name: Extract SYCL toolchain
+      run: |
+        mkdir toolchain
+        tar -I '${{ inputs.sycl_linux_decompress_command }}' -xf ${{ inputs.sycl_linux_archive }} -C toolchain
+
+    - name: Perform checks
+      run: |
+        for file in ./toolchain/bin/*; do
+            hardening-check "$file" | tee -a "./hardening-check.txt"
+        done
+
+        for file in $(find ./toolchain/lib/ -type f -name "*.so*"); do
+            hardening-check "$file" | tee -a "./hardening-check.txt"
+        done
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: hardening-check
+        path: hardening-check.txt
+
+  winchecksec:
+    runs-on: windows-latest
+
+    steps:
+    - name: Install winchecksec
+      run: |
+        curl -LO https://github.com/trailofbits/winchecksec/releases/download/v3.1.0/windows.x64.Release.zip
+        mkdir winchecksec
+        unzip "windows.x64.Release.zip" -d winchecksec
+
+    - name: Download SYCL toolchain
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.sycl_windows_artifact }}
+
+    - name: Extract SYCL toolchain
+      shell: bash
+      run: |
+        mkdir toolchain
+        tar -xf ${{ inputs.sycl_windows_archive }} -C toolchain
+
+    - name: Download and check Windows artifacts
+      shell: bash
+      run: |
+        for file in $(find ./toolchain/bin/ -type f -name "*.exe"); do
+            ./winchecksec/build/Release/winchecksec.exe "$file" | tee -a "./winchecksec.txt"
+        done
+
+        for file in $(find ./toolchain/bin/ -type f -name "*.dll"); do
+            ./winchecksec/build/Release/winchecksec.exe "$file" | tee -a "./winchecksec.txt"
+        done
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: winchecksec
+        path: winchecksec.txt

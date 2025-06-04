@@ -92,7 +92,7 @@ entry:
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) nocapture, ptr addrspace(1) nocapture readonly, i64, i1) #2
+declare void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) captures(none), ptr addrspace(1) captures(none) readonly, i64, i1) #2
 
 declare spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t), ptr addrspace(1)) #1
 

@@ -44,8 +44,11 @@
 /// PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                      \
   "SYCL/specialization constants default values"
+/// TODO: remove req mask when sycl devicelib online linking path is removed.
 /// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
+/// PropertySetRegistry::SYCL_DEVICELIB_METADATA defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_DEVICELIB_METADATA "SYCL/devicelib metadata"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
 /// PropertySetRegistry::SYCL_KERNEL_PROGRAM_METADATA defined in PropertySetIO.h
@@ -68,6 +71,8 @@
 #define __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS "SYCL/virtual functions"
 /// PropertySetRegistry::SYCL_IMPLICIT_LOCAL_ARG defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG "SYCL/implicit local arg"
+/// PropertySetRegistry::SYCL_REGISTERED_KERNELS defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS "SYCL/registered kernels"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -76,6 +81,32 @@
 
 #define __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
+// New entry type after
+// https://github.com/llvm/llvm-project/pull/124018
+// This is a replica of the EntryTy data structure in
+// llvm/include/llvm/Frontend/Offloading/Utility.h.
+struct _sycl_offload_entry_struct_new {
+  /// Reserved bytes used to detect an older version of the struct, always zero.
+  uint64_t Reserved;
+  /// The current version of the struct for runtime forward compatibility.
+  uint16_t Version;
+  /// The expected consumer of this entry, e.g. CUDA or OpenMP.
+  uint16_t Kind;
+  /// Flags associated with the global.
+  uint32_t Flags;
+  /// The address of the global to be registered by the runtime.
+  void *Address;
+  /// The name of the symbol in the device image.
+  char *SymbolName;
+  /// The number of bytes the symbol takes.
+  uint64_t Size;
+  /// Extra generic data used to register this entry.
+  uint64_t Data;
+  /// An extra pointer, usually null.
+  void *AuxAddr;
+};
+using sycl_offload_entry_new = _sycl_offload_entry_struct_new *;
+
 // Entry type, matches OpenMP for compatibility
 struct _sycl_offload_entry_struct {
   void *addr;
@@ -83,6 +114,38 @@ struct _sycl_offload_entry_struct {
   size_t size;
   int32_t flags;
   int32_t reserved;
+
+  inline bool IsNewOffloadEntryType() {
+    // Assume this is the new version of the struct.
+    auto newStruct = reinterpret_cast<sycl_offload_entry_new>(this);
+    // See llvm/include/llvm/Object/OffloadBinary.h
+    // #define OFK_SYCL  (1 << 3)
+    // Check if first 64 bits is equal to 0, next 16 bits is equal to 1, next 16
+    // bits is equal to 8 (OFK_SYCL), and check if Flags are zero. If all these
+    // conditions are met, then this is a newer version of the struct.
+    // We can not just rely on checking the first 64 bits, because even for the
+    // older version of the struct, the first 64 bits (void* addr) are zero.
+    return newStruct->Reserved == 0 && newStruct->Version == 1 &&
+           newStruct->Kind == 8 && newStruct->Flags == 0;
+  }
+
+  // Name is the only field that's used in SYCL.
+  inline char *GetName() {
+    if (IsNewOffloadEntryType())
+      return reinterpret_cast<sycl_offload_entry_new>(this)->SymbolName;
+
+    return name;
+  }
+
+  // Increment the pointer to the next entry. A mix of old and new offload entry
+  // types is not supported.
+  inline _sycl_offload_entry_struct *Increment() {
+    if (IsNewOffloadEntryType())
+      return reinterpret_cast<_sycl_offload_entry_struct *>(
+          reinterpret_cast<sycl_offload_entry_new>(this) + 1);
+
+    return this + 1;
+  }
 };
 using sycl_offload_entry = _sycl_offload_entry_struct *;
 

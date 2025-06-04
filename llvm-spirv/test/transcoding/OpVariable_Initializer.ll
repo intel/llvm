@@ -6,7 +6,7 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: @test_atomic_fn.L = internal addrspace(3) global [64 x i32] undef, align 4
+; CHECK-LLVM: @test_atomic_fn.L = internal addrspace(3) global [64 x i32] poison, align 4
 
 ; CHECK-SPIRV-NOT: undef
 ; CHECK-SPIRV: 4 TypePointer [[PtrT:[0-9]+]] 4

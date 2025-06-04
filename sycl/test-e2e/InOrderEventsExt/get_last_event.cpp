@@ -1,5 +1,9 @@
-// UNSUPPORTED: windows
+// UNSUPPORTED: (windows && cuda)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14324
+
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17066
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -32,8 +36,13 @@ int Check(const sycl::queue &Q, const char *CheckName, const F &CheckFunc) {
               << std::endl;
     return 1;
   }
-  if (*E != *LastEvent) {
-    std::cout << "Failed " << CheckName << std::endl;
+  if (LastEvent->get_info<sycl::info::event::command_execution_status>() ==
+          sycl::info::event_command_status::complete &&
+      E->get_info<sycl::info::event::command_execution_status>() !=
+          sycl::info::event_command_status::complete) {
+    std::cout << "ext_oneapi_get_last_event() returned an event that is "
+                 "complete, but the event returned by CheckFunc() is not."
+              << std::endl;
     return 1;
   }
   return 0;

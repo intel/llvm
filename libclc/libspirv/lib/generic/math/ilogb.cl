@@ -9,10 +9,10 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_ilogb(float x) {
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint ax = ux & EXSIGNBIT_SP32;
   int rs = -118 - (int)__spirv_ocl_clz(ux & MANTBITS_SP32);
   int r = (int)(ax >> EXPSHIFTBITS_SP32) - EXPBIAS_SP32;
@@ -28,7 +28,7 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_ilogb, float);
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_ilogb(double x) {
-  ulong ux = as_ulong(x);
+  ulong ux = __clc_as_ulong(x);
   ulong ax = ux & ~SIGNBIT_DP64;
   int r = (int)(ax >> EXPSHIFTBITS_DP64) - EXPBIAS_DP64;
   int rs = -1011 - (int)__spirv_ocl_clz(ax & MANTBITS_DP64);

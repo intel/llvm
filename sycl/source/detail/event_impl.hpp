@@ -68,6 +68,14 @@ public:
   event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
+  /// Sets a queue associated with the event
+  ///
+  /// Please note that this function changes the event state
+  /// as it was constructed with the queue based constructor.
+  ///
+  /// \param Queue is a queue to be associated with the event
+  void setQueue(const QueueImplPtr &Queue);
+
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
@@ -209,6 +217,9 @@ public:
   /// Cleans dependencies of this event's dependencies.
   void cleanDepEventsThroughOneLevel();
 
+  /// Cleans dependencies of this event's dependencies w/o locking MMutex.
+  void cleanDepEventsThroughOneLevelUnlocked();
+
   /// Checks if this event is discarded by SYCL implementation.
   ///
   /// \return true if this event is discarded.
@@ -243,10 +254,6 @@ public:
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
   void setSubmissionTime();
-
-  /// Calling this function to capture the host timestamp to use
-  /// profiling base time. See MFallbackProfiling
-  void setHostEnqueueTime();
 
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();
@@ -300,6 +307,8 @@ public:
     return MGraph.lock();
   }
 
+  bool hasCommandGraph() const { return !MGraph.expired(); }
+
   void setEventFromSubmittedExecCommandBuffer(bool value) {
     MEventFromSubmittedExecCommandBuffer = value;
   }
@@ -352,13 +361,11 @@ protected:
   std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
-  uint64_t MHostBaseTime = 0;
   ContextImplPtr MContext;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   bool MIsProfilingEnabled = false;
-  bool MFallbackProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;

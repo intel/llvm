@@ -8,6 +8,8 @@ foreach(flag_var
 string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
 endforeach()
 
+add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
   add_compile_options("-Wno-suggest-override")
@@ -22,6 +24,8 @@ endif()
 string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 
 include(AddSYCLUnitTest)
+
+add_subdirectory(mock_opencl)
 
 add_custom_target(check-sycl-unittests)
 
@@ -39,7 +43,6 @@ add_subdirectory(pipes)
 add_subdirectory(program_manager)
 add_subdirectory(assert)
 add_subdirectory(Extensions)
-add_subdirectory(windows)
 add_subdirectory(event)
 add_subdirectory(buffer)
 add_subdirectory(context_device)
@@ -54,7 +57,7 @@ if (LLVM_ENABLE_ZSTD)
 endif()
 
 # TODO Enable xpti tests for Windows
-if (NOT WIN32)
+if (SYCL_ENABLE_XPTI_TRACING AND NOT WIN32)
     add_subdirectory(xpti_trace)
 endif()
 add_subdirectory(sampler)

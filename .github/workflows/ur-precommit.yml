@@ -1,0 +1,139 @@
+name: Unified Runtime Pre Commit
+# Note: this is the very first version of UR workflow.
+# It was pretty much copy-pasted from UR repository.
+# Over time it will be most likely integrated more into existing workflows.
+
+# Note: the trigger is copy-pasted from sycl-linux-precommit.yml - probably to be fine-tuned.
+on:
+  # We rely on "Fork pull request workflows from outside collaborators" -
+  # "Require approval for all outside collaborators" at
+  # https://github.com/intel/llvm/settings/actions for security.
+  pull_request:
+    branches:
+    - sycl
+    - sycl-rel-**
+    # Do not run builds if changes are only in the following locations
+    paths-ignore:
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/CODEOWNERS'
+    - 'sycl/doc/**'
+    - 'sycl/gdb/**'
+    - 'clang/docs/**'
+    - '**.md'
+    - '**.rst'
+    - '.github/workflows/sycl-windows-*.yml'
+    - '.github/workflows/sycl-macos-*.yml'
+    - '.github/workflows/sycl-nightly.yml'
+    - '.github/workflows/sycl-rel-nightly.yml'
+    - 'devops/containers/**'
+    - 'devops/actions/build_container/**'
+
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+jobs:
+  detect_changes:
+    name: Detect Changes
+    uses: ./.github/workflows/sycl-detect-changes.yml
+
+  source_checks:
+    name: Source Checks
+    needs: [detect_changes]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    uses: ./.github/workflows/ur-source-checks.yml
+
+  adapters:
+    name: Adapters
+    needs: [detect_changes, source_checks]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    strategy:
+      matrix:
+      # Extra native CPU jobs are here to force the loader to be used.
+      # UR will not use the loader if there is only one target.
+        include:
+          - name: L0
+            runner: UR_L0
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0_V2
+            runner: UR_L0
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0
+            runner: UR_L0
+            static: ON
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0
+            runner: UR_L0
+            other_adapter: NATIVE_CPU
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: HIP
+            runner: UR_HIP
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --cap-add=SYS_ADMIN 
+          - name: CUDA
+            runner: UR_CUDA
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
+          - name: OPENCL
+            runner: UR_OPENCL
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
+          - name: OPENCL
+            runner: UR_OPENCL
+            other_adapter: NATIVE_CPU
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
+          - name: NATIVE_CPU
+            runner: UR_NATIVE_CPU
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+    uses: ./.github/workflows/ur-build-hw.yml
+    with:
+      adapter_name: ${{ matrix.name }}
+      runner_name: ${{ matrix.runner }}
+      static_loader: ${{ matrix.static || 'OFF' }}
+      static_adapter: ${{ matrix.static || 'OFF' }}
+      other_adapter_name: ${{ matrix.other_adapter || '' }}
+      docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      image_options: ${{ matrix.image_options || '' }}
+
+  macos:
+    name: MacOS build only
+    needs: [detect_changes, source_checks]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    strategy:
+      matrix:
+        os: ['macos-13']
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - name: Checkout LLVM
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.0.0
+      with:
+        python-version: "3.10"
+
+    - name: Install prerequisites
+      working-directory: ${{github.workspace}}/unified-runtime
+      run: |
+        python3 -m pip install -r third_party/requirements.txt
+        python3 -m pip install -r third_party/requirements_testing.txt
+
+    - name: Install hwloc
+      run: brew install hwloc
+
+    - name: Configure Unified Runtime project
+      working-directory: ${{github.workspace}}/unified-runtime
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DCMAKE_BUILD_TYPE=Release
+        -DUR_BUILD_TESTS=ON
+        -DUR_FORMAT_CPP_STYLE=ON
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -j $(sysctl -n hw.logicalcpu)

@@ -1,5 +1,4 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// UNSUPPORTED: hip || cuda
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 

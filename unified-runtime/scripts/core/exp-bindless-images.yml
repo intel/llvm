@@ -1,0 +1,1051 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Bindless Images Extension APIs"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of bindless image"
+class: $xBindlessImages
+name: "$x_exp_image_native_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of bindless image memory"
+class: $xBindlessImages
+name: "$x_exp_image_mem_native_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of external memory"
+class: $xBindlessImages
+name: "$x_exp_external_mem_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of external semaphore"
+class: $xBindlessImages
+name: "$x_exp_external_semaphore_handle_t"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support bindless images."
+name: $x_device_info_t
+etors:
+    - name: BINDLESS_IMAGES_SUPPORT_EXP
+      value: "0x2000"
+      desc: "[$x_bool_t] returns true if the device supports the creation of bindless images"
+    - name: BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP
+      value: "0x2001"
+      desc: "[$x_bool_t] returns true if the device supports the creation of bindless images backed by shared USM"
+    - name: BINDLESS_IMAGES_1D_USM_SUPPORT_EXP
+      value: "0x2002"
+      desc: "[$x_bool_t] returns true if the device supports the creation of 1D bindless images backed by USM"
+    - name: BINDLESS_IMAGES_2D_USM_SUPPORT_EXP
+      value: "0x2003"
+      desc: "[$x_bool_t] returns true if the device supports the creation of 2D bindless images backed by USM"
+    - name: IMAGE_PITCH_ALIGN_EXP
+      value: "0x2004"
+      desc: "[uint32_t] returns the required alignment of the pitch between two rows of an image in bytes"
+    - name: MAX_IMAGE_LINEAR_WIDTH_EXP
+      value: "0x2005"
+      desc: "[size_t] returns the maximum linear width allowed for images allocated using USM"
+    - name: MAX_IMAGE_LINEAR_HEIGHT_EXP
+      value: "0x2006"
+      desc: "[size_t] returns the maximum linear height allowed for images allocated using USM"
+    - name: MAX_IMAGE_LINEAR_PITCH_EXP
+      value: "0x2007"
+      desc: "[size_t] returns the maximum linear pitch allowed for images allocated using USM"
+    - name: MIPMAP_SUPPORT_EXP
+      value: "0x2008"
+      desc: "[$x_bool_t] returns true if the device supports allocating mipmap resources"
+    - name: MIPMAP_ANISOTROPY_SUPPORT_EXP
+      value: "0x2009"
+      desc: "[$x_bool_t] returns true if the device supports sampling mipmap images with anisotropic filtering"
+    - name: MIPMAP_MAX_ANISOTROPY_EXP
+      value: "0x200A"
+      desc: "[uint32_t] returns the maximum anisotropic ratio supported by the device"
+    - name: MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP
+      value: "0x200B"
+      desc: "[$x_bool_t] returns true if the device supports using images created from individual mipmap levels"
+    - name: EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP
+      value: "0x200C"
+      desc: "[$x_bool_t] returns true if the device supports importing external memory resources"
+    - name: EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP
+      value: "0x200E"
+      desc: "[$x_bool_t] returns true if the device supports importing external semaphore resources"
+    - name: CUBEMAP_SUPPORT_EXP
+      value: "0x2010"
+      desc: "[$x_bool_t] returns true if the device supports allocating and accessing cubemap resources"
+    - name: CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP
+      value: "0x2011"
+      desc: "[$x_bool_t] returns true if the device supports sampling cubemapped images across face boundaries"
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP
+      value: "0x2012"
+      desc: "[$x_bool_t] returns true if the device supports fetching USM backed 1D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP
+      value: "0x2013"
+      desc: "[$x_bool_t] returns true if the device supports fetching non-USM backed 1D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP
+      value: "0x2014"
+      desc: "[$x_bool_t] returns true if the device supports fetching USM backed 2D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP
+      value: "0x2015"
+      desc: "[$x_bool_t] returns true if the device supports fetching non-USM backed 2D sampled image data."
+    - name: BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP
+      value: "0x2017"
+      desc: "[$x_bool_t] returns true if the device supports fetching non-USM backed 3D sampled image data."
+    - name: IMAGE_ARRAY_SUPPORT_EXP
+      value: "0x2019"
+      desc: "[$x_bool_t] returns true if the device supports allocating and accessing image array resources."
+    - name: BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP
+      value: "0x201A"
+      desc: "[$x_bool_t] returns true if the device supports unique addressing per dimension."
+    - name: BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP
+      value: "0x201B"
+      desc: "[$x_bool_t] returns true if the device supports sampling USM backed 1D sampled image data."
+    - name: BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP
+      value: "0x201C"
+      desc: "[$x_bool_t] returns true if the device supports sampling USM backed 2D sampled image data."
+    - name: BINDLESS_IMAGES_GATHER_SUPPORT_EXP
+      value: "0x201D"
+      desc: "[$x_bool_t] returns true if the device supports sampled image gather."
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure Type experimental enumerations."
+name: $x_structure_type_t
+etors:
+    - name: EXP_SAMPLER_MIP_PROPERTIES
+      desc: $x_exp_sampler_mip_properties_t
+      value: "0x2000"
+    - name: EXP_EXTERNAL_MEM_DESC
+      desc: $x_exp_external_mem_desc_t
+      value: "0x2001"
+    - name: EXP_EXTERNAL_SEMAPHORE_DESC
+      desc: $x_exp_external_semaphore_desc_t
+      value: "0x2002"
+    - name: EXP_FILE_DESCRIPTOR
+      desc: $x_exp_file_descriptor_t
+      value: "0x2003"
+    - name: EXP_WIN32_HANDLE
+      desc: $x_exp_win32_handle_t
+      value: "0x2004"
+    - name: EXP_SAMPLER_ADDR_MODES
+      desc: $x_exp_sampler_addr_modes_t
+      value: "0x2005"
+    - name: EXP_SAMPLER_CUBEMAP_PROPERTIES
+      desc: $x_exp_sampler_cubemap_properties_t
+      value: "0x2006"
+    - name: EXP_IMAGE_COPY_REGION
+      desc: $x_exp_image_copy_region_t
+      value: "0x2007"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Command Type experimental enumerations."
+name: $x_command_t
+etors:
+    - name: EXTERNAL_SEMAPHORE_WAIT_EXP
+      value: "0x2000"
+      desc: Event created by $xBindlessImagesWaitExternalSemaphoreExp
+    - name: EXTERNAL_SEMAPHORE_SIGNAL_EXP
+      value: "0x2001"
+      desc: Event created by $xBindlessImagesSignalExternalSemaphoreExp
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Dictates the type of memory copy."
+class: $xBindlessImages
+name: $x_exp_image_copy_flags_t
+etors:
+  - name: HOST_TO_DEVICE
+    desc: "Host to device"
+  - name: DEVICE_TO_HOST
+    desc: "Device to host"
+  - name: DEVICE_TO_DEVICE
+    desc: "Device to device"
+  - name: HOST_TO_HOST
+    desc: "Host to host"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: True
+desc: "Memory types"
+name: $x_mem_type_t
+etors:
+    - name: IMAGE_CUBEMAP_EXP
+      value: "0x2000"
+      desc: "Experimental cubemap image object"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: True
+desc: "Memory types"
+name: $x_mem_type_t
+etors:
+    - name: IMAGE_GATHER_EXP
+      value: "0x2001"
+      desc: "Experimental gather image object"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Sampler cubemap seamless filtering mode."
+class: $xBindlessImages
+name: $x_exp_sampler_cubemap_filter_mode_t
+etors:
+  - name: DISJOINTED
+    desc: "Disable seamless filtering"
+  - name: SEAMLESS
+    desc: "Enable Seamless filtering"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Dictates the type of external memory handle."
+class: $xBindlessImages
+name: $x_exp_external_mem_type_t
+etors:
+  - name: OPAQUE_FD
+    desc: "Opaque file descriptor"
+  - name: WIN32_NT
+    desc: "Win32 NT handle"
+  - name: WIN32_NT_DX12_RESOURCE
+    desc: "Win32 NT DirectX 12 resource handle"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Dictates the type of external semaphore handle."
+class: $xBindlessImages
+name: $x_exp_external_semaphore_type_t
+etors:
+  - name: OPAQUE_FD
+    desc: "Binary semaphore opaque file descriptor"
+  - name: WIN32_NT
+    desc: "Binary semaphore Win32 NT handle"
+  - name: WIN32_NT_DX12_FENCE
+    desc: "Fence semaphore Win32 NT DirectX 12 handle"
+  - name: TIMELINE_FD
+    desc: "Timeline semaphore opaque file descriptor"
+  - name: TIMELINE_WIN32_NT
+    desc: "Timeline semaphore Win32 NT handle"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Indicates the type of image backing memory handle."
+class: $xBindlessImages
+name: $x_exp_image_mem_type_t
+etors:
+  - name: USM_POINTER
+    desc: "USM pointer to image memory"
+  - name: OPAQUE_HANDLE
+    desc: "Opaque handle to image memory"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "File descriptor"
+name: $x_exp_file_descriptor_t
+base: $x_base_desc_t
+members:
+    - type: int
+      name: fd
+      desc: "[in] A file descriptor used for Linux and & MacOS operating systems."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Windows specific file handle"
+name: $x_exp_win32_handle_t
+base: $x_base_desc_t
+members:
+    - type: void*
+      name: handle
+      desc: "[in] A win32 file handle."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes mipmap sampler properties"
+details:
+    - Specify these properties in $xSamplerCreate via $x_sampler_desc_t as part
+      of a `pNext` chain.
+class: $xBindlessImages
+name: $x_exp_sampler_mip_properties_t
+base: $x_base_properties_t
+members:
+    - type: float
+      name: minMipmapLevelClamp
+      desc: "[in] minimum mipmap level from which we can sample, minimum value being 0"
+    - type: float
+      name: maxMipmapLevelClamp
+      desc: "[in] maximum mipmap level from which we can sample, maximum value being the number of levels"
+    - type: float
+      name: maxAnisotropy
+      desc: "[in] anisotropic ratio used when samplling the mipmap with anisotropic filtering"
+    - type: $x_sampler_filter_mode_t
+      name: mipFilterMode
+      desc: "[in] mipmap filter mode used for filtering between mipmap levels"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes unique sampler addressing mode per dimension"
+details:
+    - Specify these properties in $xSamplerCreate via $x_sampler_desc_t as part
+      of a `pNext` chain.
+class: $xBindlessImages
+name: $x_exp_sampler_addr_modes_t
+base: $x_base_properties_t
+members:
+    - type: $x_sampler_addressing_mode_t[3]
+      name: addrModes
+      desc: "[in] Specify the address mode of the sampler per dimension"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes cubemap sampler properties"
+details:
+    - Specify these properties in $xSamplerCreate via $x_sampler_desc_t as part
+      of a `pNext` chain.
+class: $xBindlessImages
+name: $x_exp_sampler_cubemap_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_sampler_cubemap_filter_mode_t
+      name: cubemapFilterMode
+      desc: "[in] enables or disables seamless cubemap filtering between cubemap faces"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes an external memory resource descriptor"
+class: $xBindlessImages
+name: $x_exp_external_mem_desc_t
+base: $x_base_desc_t
+members: []
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes an external semaphore resource descriptor"
+class: $xBindlessImages
+name: $x_exp_external_semaphore_desc_t
+base: $x_base_desc_t
+members: []
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes the (sub-)regions and the extent to be copied"
+name: $x_exp_image_copy_region_t
+base: $x_base_desc_t
+members:
+    - type: ur_rect_offset_t
+      name: srcOffset
+      desc: "[in] the offset into the source image"
+    - type: ur_rect_offset_t
+      name: dstOffset
+      desc: "[in] the offset into the destination image"
+    - type: ur_rect_region_t
+      name: copyExtent
+      desc: "[in] the extent (region) of the image to copy"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "USM allocate pitched memory"
+class: $xUSM
+name: PitchedAllocExp
+ordinal: "0"
+analogue:
+    - "**cuMemAllocPitch**"
+details:
+  - "This function must support memory pooling."
+  - "If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation will be served from a specified memory pool."
+  - "Otherwise, the behavior is implementation-defined."
+  - "Allocations served from different memory pools must be isolated and must not reside on the same page."
+  - "Any flags/hints passed through pUSMDesc only affect the single allocation."
+  - "See also $x_usm_host_desc_t."
+  - "See also $x_usm_device_desc_t."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: const $x_usm_desc_t*
+      name: pUSMDesc
+      desc: "[in][optional] Pointer to USM memory allocation descriptor."
+    - type: $x_usm_pool_handle_t
+      name: pool
+      desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"
+    - type: "size_t"
+      name: widthInBytes
+      desc: "[in] width in bytes of the USM memory object to be allocated"
+    - type: "size_t"
+      name: height
+      desc: "[in] height of the USM memory object to be allocated"
+    - type: "size_t"
+      name: elementSizeBytes
+      desc: "[in] size in bytes of an element in the allocation"
+    - type: void**
+      name: ppMem
+      desc: "[out] pointer to USM shared memory object"
+    - type: size_t*
+      name: pResultPitch
+      desc: "[out] pitch of the allocation"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "`pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`" # alignment must be power of two
+      - "If `align` is greater that the size of the largest data type supported by `hDevice`."
+    - $X_RESULT_ERROR_INVALID_USM_SIZE:
+      - "`widthInBytes == 0`"
+      - "`size` is greater than $X_DEVICE_INFO_MAX_MEM_ALLOC_SIZE."
+    - $X_RESULT_ERROR_INVALID_OPERATION:
+      - "If `UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT` and `UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT` are both false."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Destroy bindless unsampled image handles"
+class: $xBindlessImages
+name: UnsampledImageHandleDestroyExp
+ordinal: "0"
+analogue:
+    - "**cuSurfObjectDestroy**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_image_native_handle_t
+      name: hImage
+      desc: "[in][release] pointer to handle of image object to destroy"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Destroy bindless sampled image handles"
+class: $xBindlessImages
+name: SampledImageHandleDestroyExp
+ordinal: "0"
+analogue:
+    - "**cuTexObjectDestroy**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_image_native_handle_t
+      name: hImage
+      desc: "[in][release] pointer to handle of image object to destroy"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Allocate memory for bindless images"
+class: $xBindlessImages
+name: ImageAllocateExp
+ordinal: "0"
+analogue:
+    - "**cuArray3DCreate**"
+    - "**cuMipmappedArrayCreate**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: $x_exp_image_mem_native_handle_t*
+      name: phImageMem
+      desc: "[out][alloc] pointer to handle of image memory allocated"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Free memory for bindless images"
+class: $xBindlessImages
+name: ImageFreeExp
+ordinal: "0"
+analogue:
+    - "**cuArrayDestroy**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_image_mem_native_handle_t
+      name: hImageMem
+      desc: "[in][release] handle of image memory to be freed"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a bindless unsampled image handle"
+class: $xBindlessImages
+name: UnsampledImageCreateExp
+ordinal: "0"
+analogue:
+    - "**cuSurfObjectCreate**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_image_mem_native_handle_t
+      name: hImageMem
+      desc: "[in] handle to memory from which to create the image"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: $x_exp_image_native_handle_t*
+      name: phImage
+      desc: "[out][alloc] pointer to handle of image object created"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_ADAPTER_SPECIFIC
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a bindless sampled image handle"
+class: $xBindlessImages
+name: SampledImageCreateExp
+ordinal: "0"
+analogue:
+    - "**cuTexObjectCreate**"
+    - "**hipTexObjectCreate**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_image_mem_native_handle_t
+      name: hImageMem
+      desc: "[in] handle to memory from which to create the image"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: const $x_sampler_desc_t*
+      name: pSamplerDesc
+      desc: "[in] pointer to sampler description to be used"
+    - type: $x_exp_image_native_handle_t*
+      name: phImage
+      desc: "[out][alloc] pointer to handle of image object created"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_SAMPLER
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_ADAPTER_SPECIFIC
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Copy image data Host to Device, Device to Host, or Device to Device"
+class: $xBindlessImages
+name: ImageCopyExp
+ordinal: "0"
+analogue:
+    - "**cuMemcpyHtoAAsync**"
+    - "**cuMemcpyAtoHAsync**"
+    - "**cuMemcpy2DAsync**"
+    - "**cuMemcpy3DAsync**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: const void*
+      name: pSrc
+      desc: "[in] location the data will be copied from"
+    - type: void*
+      name: pDst
+      desc: "[in] location the data will be copied to"
+    - type: "const $x_image_desc_t*"
+      name: pSrcImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_desc_t*"
+      name: pDstImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pSrcImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_format_t*"
+      name: pDstImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "$x_exp_image_copy_region_t*"
+      name: pCopyRegion
+      desc: "[in] Pointer to structure describing the (sub-)regions of source and destination images"
+    - type: $x_exp_image_copy_flags_t
+      name: imageCopyFlags
+      desc: "[in] flags describing copy direction e.g. H2D or D2H"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
+            must be complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pSrcImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pSrcImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query an image memory handle for specific properties"
+class: $xBindlessImages
+name: ImageGetInfoExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_exp_image_mem_native_handle_t
+      name: hImageMem
+      desc: "[in] handle to the image memory"
+    - type: $x_image_info_t
+      name: propName
+      desc: "[in] queried info name"
+    - type: void*
+      name: pPropValue
+      desc: "[out][optional] returned query value"
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: "[out][optional] returned query value size"
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for allocating a given image backing memory handle type with specific image properties"
+class: $xBindlessImages
+name: GetImageMemoryHandleTypeSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: $x_exp_image_mem_type_t
+      name: imageMemHandleType
+      desc: "[in] type of image backing memory handle to query support for"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for allocating the given image backing memory handle type"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for creating an unsampled image handle with specific image properties"
+class: $xBindlessImages
+name: GetImageUnsampledHandleSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: $x_exp_image_mem_type_t
+      name: imageMemHandleType
+      desc: "[in] type of image backing memory handle to query support for"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for creating unsampled image handles"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for creating an sampled image handle with specific image properties"
+class: $xBindlessImages
+name: GetImageSampledHandleSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: $x_exp_image_mem_type_t
+      name: imageMemHandleType
+      desc: "[in] type of image backing memory handle to query support for"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for creating sampled image handles"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieve individual image from mipmap"
+class: $xBindlessImages
+name: MipmapGetLevelExp
+ordinal: "0"
+analogue:
+    - "**cuMipmappedArrayGetLevel**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_image_mem_native_handle_t
+      name: hImageMem
+      desc: "[in] memory handle to the mipmap image"
+    - type: uint32_t
+      name: mipmapLevel
+      desc: "[in] requested level of the mipmap"
+    - type: "$x_exp_image_mem_native_handle_t*"
+      name: phImageMem
+      desc: "[out] returning memory handle to the individual image"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Free mipmap memory for bindless images"
+class: $xBindlessImages
+name: MipmapFreeExp
+ordinal: "0"
+analogue:
+    - "**cuMipmappedArrayDestroy**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_image_mem_native_handle_t
+      name: hMem
+      desc: "[in][release] handle of image memory to be freed"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Import external memory"
+class: $xBindlessImages
+name: ImportExternalMemoryExp
+ordinal: "0"
+analogue:
+    - "**cuImportExternalMemory**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: size_t
+      name: size
+      desc: "[in] size of the external memory"
+    - type: $x_exp_external_mem_type_t
+      name: memHandleType
+      desc: "[in] type of external memory handle"
+    - type: $x_exp_external_mem_desc_t*
+      name: pExternalMemDesc
+      desc: "[in] the external memory descriptor"
+    - type: $x_exp_external_mem_handle_t*
+      name: phExternalMem
+      desc: "[out][alloc] external memory handle to the external memory"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Map an external memory handle to an image memory handle"
+class: $xBindlessImages
+name: MapExternalArrayExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in] external memory handle to the external memory"
+    - type: $x_exp_image_mem_native_handle_t*
+      name: phImageMem
+      desc: "[out] image memory handle to the externally allocated memory"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Map an external memory handle to a device memory region described by void*"
+class: $xBindlessImages
+name: MapExternalLinearMemoryExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: uint64_t
+      name: offset
+      desc: "[in] offset into memory region to map"
+    - type: uint64_t
+      name: size
+      desc: "[in] size of memory region to map"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in] external memory handle to the external memory"
+    - type: void**
+      name: ppRetMem
+      desc: "[out] pointer of the externally allocated memory"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release external memory"
+class: $xBindlessImages
+name: ReleaseExternalMemoryExp
+ordinal: "0"
+analogue:
+    - "**cuDestroyExternalMemory**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in][release] handle of external memory to be destroyed"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Free a linear memory region mapped using MapExternalLinearMemoryExp"
+class: $xBindlessImages
+name: FreeMappedLinearMemoryExp
+ordinal: "0"
+analogue:
+    - "**cuMemFree**"
+    - "**zeMemFree**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: void *
+      name: pMem
+      desc: "[in][release] pointer to mapped linear memory region to be freed"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pMem == NULL`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Import an external semaphore"
+class: $xBindlessImages
+name: ImportExternalSemaphoreExp
+ordinal: "0"
+analogue:
+    - "**cuImportExternalSemaphore**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_external_semaphore_type_t
+      name: semHandleType
+      desc: "[in] type of external memory handle"
+    - type: $x_exp_external_semaphore_desc_t*
+      name: pExternalSemaphoreDesc
+      desc: "[in] the external semaphore descriptor"
+    - type: $x_exp_external_semaphore_handle_t*
+      name: phExternalSemaphore
+      desc: "[out][alloc] external semaphore handle to the external semaphore"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release the external semaphore"
+class: $xBindlessImages
+name: ReleaseExternalSemaphoreExp
+ordinal: "0"
+analogue:
+    - "**cuDestroyExternalSemaphore**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_external_semaphore_handle_t
+      name: hExternalSemaphore
+      desc: "[in][release] handle of external semaphore to be destroyed"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Instruct the queue with a non-blocking wait on an external semaphore"
+class: $xBindlessImages
+name: WaitExternalSemaphoreExp
+ordinal: "0"
+analogue:
+    - "**cuWaitExternalSemaphoresAsync**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_exp_external_semaphore_handle_t
+      name: hSemaphore
+      desc: "[in] external semaphore handle"
+    - type: bool
+      name: hasWaitValue
+      desc: |
+            [in] indicates whether the samephore is capable and should wait on a certain value.
+            Otherwise the semaphore is treated like a binary state, and `waitValue` is ignored.
+    - type: uint64_t
+      name: waitValue
+      desc: "[in] the value to be waited on"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
+            must be complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Instruct the queue to signal the external semaphore handle once all previous commands have completed execution"
+class: $xBindlessImages
+name: SignalExternalSemaphoreExp
+ordinal: "0"
+analogue:
+    - "**cuSignalExternalSemaphoresAsync**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_exp_external_semaphore_handle_t
+      name: hSemaphore
+      desc: "[in] external semaphore handle"
+    - type: bool
+      name: hasSignalValue
+      desc: |
+            [in] indicates whether the samephore is capable and should signal on a certain value.
+            Otherwise the semaphore is treated like a binary state, and `signalValue` is ignored.
+    - type: uint64_t
+      name: signalValue
+      desc: "[in] the value to be signalled"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
+            must be complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_VALUE

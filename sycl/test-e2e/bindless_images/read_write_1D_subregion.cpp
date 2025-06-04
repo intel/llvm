@@ -1,5 +1,12 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
+
+// Test flakily failing on Windows+ BMG
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17439
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
@@ -17,7 +24,6 @@ int main() {
 
   sycl::device dev;
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // declare image data
   constexpr size_t width = 512;
@@ -72,18 +78,20 @@ int main() {
     q.wait_and_throw();
 
     q.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<image_addition>(width, [=](sycl::id<1> id) {
-        float sum = 0;
-        // Extension: fetch image data from handle
-        float px1 = sycl::ext::oneapi::experimental::fetch_image<float>(
-            imgHandle1, int(id[0]));
-        float px2 = sycl::ext::oneapi::experimental::fetch_image<float>(
-            imgHandle2, int(id[0]));
+      cgh.parallel_for<image_addition>(
+          sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
+            size_t dim0 = it.get_local_id(0);
+            float sum = 0;
+            // Extension: fetch image data from handle
+            float px1 = sycl::ext::oneapi::experimental::fetch_image<float>(
+                imgHandle1, int(dim0));
+            float px2 = sycl::ext::oneapi::experimental::fetch_image<float>(
+                imgHandle2, int(dim0));
 
-        sum = px1 + px2;
-        sycl::ext::oneapi::experimental::write_image<float>(imgHandle3,
-                                                            int(id[0]), sum);
-      });
+            sum = px1 + px2;
+            sycl::ext::oneapi::experimental::write_image<float>(imgHandle3,
+                                                                int(dim0), sum);
+          });
     });
 
     q.wait_and_throw();

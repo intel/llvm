@@ -233,8 +233,8 @@ protected:
 
   virtual std::string buildCompilerRTBasename(const llvm::opt::ArgList &Args,
                                               StringRef Component,
-                                              FileType Type,
-                                              bool AddArch) const;
+                                              FileType Type, bool AddArch,
+                                              bool IsFortran = false) const;
 
   /// Find the target-specific subdirectory for the current target triple under
   /// \p BaseDir, doing fallback triple searches as necessary.
@@ -243,6 +243,9 @@ protected:
 
   /// \name Utilities for implementing subclasses.
   ///@{
+  static void addSystemFrameworkInclude(const llvm::opt::ArgList &DriverArgs,
+                                        llvm::opt::ArgStringList &CC1Args,
+                                        const Twine &Path);
   static void addSystemInclude(const llvm::opt::ArgList &DriverArgs,
                                llvm::opt::ArgStringList &CC1Args,
                                const Twine &Path);
@@ -253,6 +256,9 @@ protected:
       addExternCSystemIncludeIfExists(const llvm::opt::ArgList &DriverArgs,
                                       llvm::opt::ArgStringList &CC1Args,
                                       const Twine &Path);
+  static void addSystemFrameworkIncludes(const llvm::opt::ArgList &DriverArgs,
+                                         llvm::opt::ArgStringList &CC1Args,
+                                         ArrayRef<StringRef> Paths);
   static void addSystemIncludes(const llvm::opt::ArgList &DriverArgs,
                                 llvm::opt::ArgStringList &CC1Args,
                                 ArrayRef<StringRef> Paths);
@@ -528,15 +534,33 @@ public:
 
   virtual std::string getCompilerRT(const llvm::opt::ArgList &Args,
                                     StringRef Component,
-                                    FileType Type = ToolChain::FT_Static) const;
+                                    FileType Type = ToolChain::FT_Static,
+                                    bool IsFortran = false) const;
 
-  const char *
-  getCompilerRTArgString(const llvm::opt::ArgList &Args, StringRef Component,
-                         FileType Type = ToolChain::FT_Static) const;
+  /// Adds Fortran runtime libraries to \p CmdArgs.
+  virtual void addFortranRuntimeLibs(const llvm::opt::ArgList &Args,
+                                     llvm::opt::ArgStringList &CmdArgs) const;
+
+  /// Adds the path for the Fortran runtime libraries to \p CmdArgs.
+  virtual void
+  addFortranRuntimeLibraryPath(const llvm::opt::ArgList &Args,
+                               llvm::opt::ArgStringList &CmdArgs) const;
+
+  /// Add the path for libflang_rt.runtime.a
+  void addFlangRTLibPath(const llvm::opt::ArgList &Args,
+                         llvm::opt::ArgStringList &CmdArgs) const;
+
+  const char *getCompilerRTArgString(const llvm::opt::ArgList &Args,
+                                     StringRef Component,
+                                     FileType Type = ToolChain::FT_Static,
+                                     bool IsFortran = false) const;
 
   std::string getCompilerRTBasename(const llvm::opt::ArgList &Args,
                                     StringRef Component,
                                     FileType Type = ToolChain::FT_Static) const;
+
+  // Returns Triple without the OSs version.
+  llvm::Triple getTripleWithoutOSVersion() const;
 
   // Returns the target specific runtime path if it exists.
   std::optional<std::string> getRuntimePath() const;
@@ -705,6 +729,13 @@ public:
   /// Add warning options that need to be passed to cc1 for this target.
   virtual void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const;
 
+  // Get the list of extra macro defines requested by the multilib
+  // configuration.
+  virtual SmallVector<std::string>
+  getMultilibMacroDefinesStr(llvm::opt::ArgList &Args) const {
+    return {};
+  };
+
   // GetRuntimeLibType - Determine the runtime library type to use with the
   // given compilation arguments.
   virtual RuntimeLibType
@@ -782,7 +813,7 @@ public:
                                  llvm::opt::ArgStringList &CC1Args) const;
 
   /// Add arguments to use system-specific SYCL includes.
-  virtual void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+  virtual void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                                   llvm::opt::ArgStringList &CC1Args) const;
 
   /// Add arguments to use MCU GCC toolchain includes.
@@ -834,7 +865,7 @@ public:
         return llvm::Triple("nvptx-nvidia-cuda");
       if (TT.getArch() == llvm::Triple::nvptx64)
         return llvm::Triple("nvptx64-nvidia-cuda");
-      if (TT.getArch() == llvm::Triple::amdgcn)
+      if (TT.isAMDGCN())
         return llvm::Triple("amdgcn-amd-amdhsa");
     }
     return TT;

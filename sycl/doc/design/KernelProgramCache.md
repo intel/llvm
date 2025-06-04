@@ -115,7 +115,6 @@ The kernels map's key consists of two components:
 The third map, called Fast Kernel Cache, is used as an optimization to reduce the
 number of lookups in the kernels map. Its key consists of the following components:
 
-- specialization constants values,
 - the UR handle of the device this kernel is built for,
 - kernel name<sup>[3](#what-is-kname)</sup>.
 

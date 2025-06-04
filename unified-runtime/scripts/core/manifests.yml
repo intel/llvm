@@ -1,0 +1,70 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+# NOTE: device_types must be explictly listed. Refrain from using 
+#       $X_DEVICE_TYPE_ALL.
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime adapter manifests"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: manifest
+name: opencl
+backend: $X_BACKEND_OPENCL
+device_types:
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU
+    - $X_DEVICE_TYPE_FPGA
+    - $X_DEVICE_TYPE_MCA
+    - $X_DEVICE_TYPE_VPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: cuda
+backend: $X_BACKEND_CUDA
+device_types:
+    - $X_DEVICE_TYPE_GPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: hip
+backend: $X_BACKEND_HIP
+device_types:
+    - $X_DEVICE_TYPE_GPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: level_zero
+backend: $X_BACKEND_LEVEL_ZERO
+device_types:
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU
+    - $X_DEVICE_TYPE_FPGA
+    - $X_DEVICE_TYPE_MCA
+    - $X_DEVICE_TYPE_VPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: level_zero_v2
+backend: $X_BACKEND_LEVEL_ZERO
+device_types:
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU
+    - $X_DEVICE_TYPE_FPGA
+    - $X_DEVICE_TYPE_MCA
+    - $X_DEVICE_TYPE_VPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: native_cpu
+backend: $X_BACKEND_NATIVE_CPU
+device_types:
+    - $X_DEVICE_TYPE_CPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: offload
+backend: $X_BACKEND_OFFLOAD
+device_types:
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU

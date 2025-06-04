@@ -1,13 +1,12 @@
 // REQUIRES: gpu
-// REQUIRES: build-and-run-mode
 
 // TODO: Remove unsetting SYCL_DEVICE_FILTER when feature is dropped
-// RUN: env --unset=SYCL_DEVICE_FILTER  --unset=ONEAPI_DEVICE_SELECTOR sycl-ls --verbose >%t.default.out
-// RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out
+// RUN: %{run-unfiltered-devices} env --unset=SYCL_DEVICE_FILTER --unset=ONEAPI_DEVICE_SELECTOR sycl-ls --verbose | \
+// RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM
 
-// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}{{Level-Zero|CUDA|OpenCL}}
+// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}{{Level-Zero|CUDA|OpenCL|HIP}}
 // clang-format off
-// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}{{Level-Zero|CUDA|OpenCL}}
+// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}{{Level-Zero|CUDA|OpenCL|HIP}}
 // clang-format on
 
 //==--------------------- sycl-ls-gpu-default-any.cpp ----------------------==//
@@ -20,4 +19,3 @@
 
 // This test checks that a valid GPU is returned by sycl-ls by default if one
 // is present.
-// UNSUPPORTED: hip

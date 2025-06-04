@@ -1,16 +1,16 @@
 name: SYCL Post Commit
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
     - sycl
-    - sycl-devops-pr/**
     - sycl-rel-**
 
   pull_request:
     branches:
     - sycl
-    - sycl-devops-pr/**
     paths:
     - .github/workflows/sycl-post-commit.yml
     - .github/workflows/sycl-linux-build.yml
@@ -18,6 +18,8 @@ on:
     - .github/workflows/sycl-macos-build-and-test.yml
     - ./devops/actions/cleanup
     - ./devops/actions/cached_checkout
+    - ./devops/dependencies.json
+    - ./devops/dependencies-igc-dev.json
 
 concurrency:
   #  Cancel a currently running workflow from the same PR or commit hash.
@@ -27,6 +29,10 @@ concurrency:
 permissions: read-all
 
 jobs:
+  detect_changes:
+    if: ${{ github.event_name == 'pull_request' }}
+    uses: ./.github/workflows/sycl-detect-changes.yml
+
   build-lin:
     name: Linux (Self build + no-assertions)
     if: github.repository == 'intel/llvm'
@@ -35,11 +41,10 @@ jobs:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: default
       build_artifact_suffix: default
-      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
-      merge_ref: ''
+      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
 
   e2e-lin:
-    needs: [build-lin]
+    needs: [detect_changes, build-lin]
     if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -47,18 +52,10 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:fpga
-            reset_intel_gpu: true
+            target_devices: level_zero:gpu
           - name: Intel Arc A-Series Graphics with Level Zero
             runner: '["Linux", "arc"]'
             extra_lit_opts: --param matrix-xmx8=True
-            reset_intel_gpu: true
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            reset_intel_gpu: false
           # Performance tests below. Specifics:
           #  - only run performance tests (use LIT_FILTER env)
           #  - ask llvm-lit to show all the output, even for PASS (-a)
@@ -70,31 +67,33 @@ jobs:
             env: '{"LIT_FILTER":"PerformanceTests/"}'
             extra_lit_opts: -a -j 1 --param enable-perf-tests=True
             target_devices: all
-            reset_intel_gpu: true
           - name: Perf tests on Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
             env: '{"LIT_FILTER":"PerformanceTests/"}'
             extra_lit_opts: -a -j 1 --param enable-perf-tests=True
             target_devices: all
-            reset_intel_gpu: true
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
-      image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest' }}
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
 
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       env: ${{ matrix.env || '{}' }}
 
-      ref: ${{ github.sha }}
-      merge_ref: ''
+      repo_ref: ${{ github.sha }}
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build-lin.outputs.artifact_decompress_command }}
+
+      # Do not install drivers on AMD and CUDA runners.
+      install_igc_driver: >-
+        ${{ github.event_name == 'pull_request' }} &&
+        ${{ !contains(matrix.target_devices, 'cuda') &&
+        !contains(matrix.target_devices, 'hip') &&
+        contains(needs.detect_changes.outputs.filters, 'drivers') }}
 
   build-win:
     if: |
@@ -103,10 +102,10 @@ jobs:
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      compiler: icx
-      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" --cmake-opt=-DCMAKE_CXX_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" --cmake-opt="-DCMAKE_EXE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_MODULE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_SHARED_LINKER_FLAGS=/manifest:no" 
+      cxx: icx
+      build_configure_extra_args: -DCMAKE_C_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_CXX_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" -DCMAKE_EXE_LINKER_FLAGS=/manifest:no -DCMAKE_MODULE_LINKER_FLAGS=/manifest:no -DCMAKE_SHARED_LINKER_FLAGS=/manifest:no
       build_cache_suffix: icx
-      
+
   e2e-win:
     needs: build-win
     # Continue if build was successful.
@@ -118,8 +117,11 @@ jobs:
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
+      target_devices: "level_zero:gpu"
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
-      compiler: icx
+      cxx: icx
+      # https://github.com/intel/llvm/issues/18458
+      env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
 
   macos_default:
     name: macOS

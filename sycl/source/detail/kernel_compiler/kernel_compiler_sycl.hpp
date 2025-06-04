@@ -1,4 +1,4 @@
-//==-- kernel_compiler_sycl.hpp   SYCL kernel compilation support          -==//
+//==-- kernel_compiler_sycl.hpp --- SYCL kernel compilation support --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,11 +10,10 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp> // __SYCL_EXPORT
-#include <sycl/device.hpp>
+#include <sycl/detail/string_view.hpp>
 
 #include <detail/compiler.hpp> // sycl_device_binaries
 
-#include <numeric> // std::accumulate
 #include <string>
 #include <vector>
 
@@ -23,22 +22,22 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
-using spirv_vec_t = std::vector<uint8_t>;
 using include_pairs_t = std::vector<std::pair<std::string, std::string>>;
 
-spirv_vec_t
-SYCL_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
-              const std::vector<std::string> &UserArgs, std::string *LogPtr,
-              const std::vector<std::string> &RegisteredKernelNames);
+std::string
+userArgsAsString(const std::vector<sycl::detail::string_view> &UserArguments);
 
-bool SYCL_Compilation_Available();
-
-std::string userArgsAsString(const std::vector<std::string> &UserArguments);
-
+// Compile the given SYCL source string and virtual include files into the image
+// format understood by the program manager.
+//
+// Returns a pointer to the image (owned by the `jit_compiler` class), and the
+// bundle-specific prefix used for loading the kernels.
 std::pair<sycl_device_binaries, std::string>
-SYCL_JIT_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
-                  const std::vector<std::string> &UserArgs, std::string *LogPtr,
-                  const std::vector<std::string> &RegisteredKernelNames);
+SYCL_JIT_Compile(const std::string &Source, const include_pairs_t &IncludePairs,
+                 const std::vector<sycl::detail::string_view> &UserArgs,
+                 std::string *LogPtr);
+
+void SYCL_JIT_Destroy(sycl_device_binaries Binaries);
 
 bool SYCL_JIT_Compilation_Available();
 

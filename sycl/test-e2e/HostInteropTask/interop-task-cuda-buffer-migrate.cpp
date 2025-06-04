@@ -1,5 +1,4 @@
-// REQUIRES: cuda, cuda_dev_kit
-// REQUIRES: build-and-run-mode
+// REQUIRES: target-nvidia, cuda_dev_kit
 //
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
@@ -9,6 +8,9 @@
 //
 // Make sure that memory migration works for buffers across devices in a context
 // when using host tasks.
+//
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17026
 
 #include <cuda.h>
 #include <iostream>

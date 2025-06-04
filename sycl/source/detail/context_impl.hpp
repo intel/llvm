@@ -9,6 +9,7 @@
 #pragma once
 #include <detail/device_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
+#include <detail/memory_pool_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
@@ -28,21 +29,12 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 namespace detail {
-using PlatformImplPtr = std::shared_ptr<detail::platform_impl>;
-class context_impl {
-public:
-  /// Constructs a context_impl using a single SYCL devices.
-  ///
-  /// The constructed context_impl will use the AsyncHandler parameter to
-  /// handle exceptions.
-  /// PropList carries the properties of the constructed context_impl.
-  ///
-  /// \param Device is an instance of SYCL device.
-  /// \param AsyncHandler is an instance of async_handler.
-  /// \param PropList is an instance of property_list.
-  context_impl(const device &Device, async_handler AsyncHandler,
-               const property_list &PropList);
+class context_impl : std::enable_shared_from_this<context_impl> {
+  struct private_tag {
+    explicit private_tag() = default;
+  };
 
+public:
   /// Constructs a context_impl using a list of SYCL devices.
   ///
   /// Newly created instance will save each SYCL device in the list. This
@@ -56,7 +48,8 @@ public:
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
   context_impl(const std::vector<sycl::device> DeviceList,
-               async_handler AsyncHandler, const property_list &PropList);
+               async_handler AsyncHandler, const property_list &PropList,
+               private_tag);
 
   /// Construct a context_impl using plug-in interoperability handle.
   ///
@@ -70,8 +63,23 @@ public:
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
                const AdapterPtr &Adapter,
-               const std::vector<sycl::device> &DeviceList = {},
-               bool OwnedByRuntime = true);
+               const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
+               private_tag);
+
+  context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
+               const AdapterPtr &Adapter, private_tag tag)
+      : context_impl(UrContext, AsyncHandler, Adapter,
+                     std::vector<sycl::device>{},
+                     /*OwnedByRuntime*/ true, tag) {}
+
+  // Single variadic method works because all the ctors are expected to be
+  // "public" except the `private_tag` part restricting the creation to
+  // `std::shared_ptr` allocations.
+  template <typename... Ts>
+  static std::shared_ptr<context_impl> create(Ts &&...args) {
+    return std::make_shared<context_impl>(std::forward<Ts>(args)...,
+                                          private_tag{});
+  }
 
   ~context_impl();
 
@@ -89,7 +97,7 @@ public:
   const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
-  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+  platform_impl &getPlatformImpl() const { return *MPlatform; }
 
   /// Queries this context for information.
   ///
@@ -150,33 +158,35 @@ public:
   KernelProgramCache &getKernelProgramCache() const;
 
   /// Returns true if and only if context contains the given device.
-  bool hasDevice(std::shared_ptr<detail::device_impl> Device) const;
+  bool hasDevice(const detail::device_impl &Device) const;
 
   /// Returns true if and only if the device can be used within this context.
   /// For OpenCL this is currently equivalent to hasDevice, for other backends
   /// it returns true if the device is either a member of the context or a
   /// descendant of a member.
-  bool isDeviceValid(DeviceImplPtr Device) {
-    while (!hasDevice(Device)) {
-      if (Device->isRootDevice()) {
-        if (Device->has(aspect::ext_oneapi_is_component)) {
+  bool isDeviceValid(detail::device_impl &Device) {
+    detail::device_impl *CurrDevice = &Device;
+    while (!hasDevice(*CurrDevice)) {
+      if (CurrDevice->isRootDevice()) {
+        if (CurrDevice->has(aspect::ext_oneapi_is_component)) {
           // Component devices should be implicitly usable in context created
           // for a composite device they belong to.
-          auto CompositeDevice = Device->get_info<
+          auto CompositeDevice = CurrDevice->get_info<
               ext::oneapi::experimental::info::device::composite_device>();
-          return hasDevice(detail::getSyclObjImpl(CompositeDevice));
+          return hasDevice(*detail::getSyclObjImpl(CompositeDevice));
         }
 
         return false;
-      } else if (Device->getBackend() == backend::opencl) {
+      } else if (CurrDevice->getBackend() == backend::opencl) {
         // OpenCL does not support using descendants of context members within
         // that context yet. We make the exception in case it supports
         // component/composite devices.
         // TODO remove once this limitation is lifted
         return false;
       }
-      Device = detail::getSyclObjImpl(
-          Device->get_info<info::device::parent_device>());
+      CurrDevice = detail::getSyclObjImpl(
+                       CurrDevice->get_info<info::device::parent_device>())
+                       .get();
     }
 
     return true;
@@ -190,7 +200,7 @@ public:
 
   /// Given a UR device, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
-  DeviceImplPtr findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const;
+  device_impl *findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const;
 
   /// Gets the native handle of the SYCL context.
   ///
@@ -203,6 +213,9 @@ public:
   /// Adds an associated device global to the tracked associates.
   void addAssociatedDeviceGlobal(const void *DeviceGlobalPtr);
 
+  /// Removes an associated device global from the tracked associates.
+  void removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr);
+
   /// Adds a device global initializer.
   void addDeviceGlobalInitializer(ur_program_handle_t Program,
                                   const std::vector<device> &Devs,
@@ -213,16 +226,16 @@ public:
   initializeDeviceGlobals(ur_program_handle_t NativePrg,
                           const std::shared_ptr<queue_impl> &QueueImpl);
 
-  void memcpyToHostOnlyDeviceGlobal(
-      const std::shared_ptr<device_impl> &DeviceImpl,
-      const void *DeviceGlobalPtr, const void *Src, size_t DeviceGlobalTSize,
-      bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
+  void memcpyToHostOnlyDeviceGlobal(device_impl &DeviceImpl,
+                                    const void *DeviceGlobalPtr,
+                                    const void *Src, size_t DeviceGlobalTSize,
+                                    bool IsDeviceImageScoped, size_t NumBytes,
+                                    size_t Offset);
 
-  void
-  memcpyFromHostOnlyDeviceGlobal(const std::shared_ptr<device_impl> &DeviceImpl,
-                                 void *Dest, const void *DeviceGlobalPtr,
-                                 bool IsDeviceImageScoped, size_t NumBytes,
-                                 size_t Offset);
+  void memcpyFromHostOnlyDeviceGlobal(device_impl &DeviceImpl, void *Dest,
+                                      const void *DeviceGlobalPtr,
+                                      bool IsDeviceImageScoped, size_t NumBytes,
+                                      size_t Offset);
 
   /// Gets a program associated with a device global from the cache.
   std::optional<ur_program_handle_t>
@@ -244,17 +257,30 @@ public:
 
   const property_list &getPropList() const { return MPropList; }
 
+  std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
+  get_default_memory_pool(const context &Context, const device &Device,
+                          const usm::alloc &Kind);
+
 private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
   ur_context_handle_t MContext;
-  PlatformImplPtr MPlatform;
+  // TODO: Make it a reference instead, but that needs a bit more refactoring:
+  std::shared_ptr<platform_impl> MPlatform;
   property_list MPropList;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
+
+  // Device pools.
+  // Weak_ptr preventing circular dependency between memory_pool_impl and
+  // context_impl.
+  std::vector<std::pair<
+      device,
+      std::weak_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>>>
+      MMemPoolImplPtrs;
 
   std::set<const void *> MAssociatedDeviceGlobals;
   std::mutex MAssociatedDeviceGlobalsMutex;
@@ -291,10 +317,21 @@ private:
     std::vector<ur_event_handle_t> MDeviceGlobalInitEvents;
   };
 
-  std::map<std::pair<ur_program_handle_t, ur_device_handle_t>,
-           DeviceGlobalInitializer>
+  using HandleDevicePair = std::pair<ur_program_handle_t, ur_device_handle_t>;
+
+  struct HandleDevicePairHash {
+    std::size_t operator()(const HandleDevicePair &Key) const {
+      return std::hash<ur_program_handle_t>{}(Key.first) ^
+             std::hash<ur_device_handle_t>{}(Key.second);
+    }
+  };
+
+  std::unordered_map<HandleDevicePair, DeviceGlobalInitializer,
+                     HandleDevicePairHash>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
+  // The number of device globals that have not been initialized yet.
+  std::atomic<size_t> MDeviceGlobalNotInitializedCnt = 0;
 
   // For device_global variables that are not used in any kernel code we still
   // allow copy operations on them. MDeviceGlobalUnregisteredData stores the
@@ -325,5 +362,21 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 }
 
 } // namespace detail
+
+// We're under sycl/source and these won't be exported but it's way more
+// convenient to be able to reference them without extra `detail::`.
+inline auto get_ur_handles(const sycl::context &syclContext) {
+  sycl::detail::context_impl &Ctx = *sycl::detail::getSyclObjImpl(syclContext);
+  ur_context_handle_t urCtx = Ctx.getHandleRef();
+  const sycl::detail::Adapter *Adapter = Ctx.getAdapter().get();
+  return std::tuple{urCtx, Adapter};
+}
+inline auto get_ur_handles(const sycl::device &syclDevice,
+                           const sycl::context &syclContext) {
+  auto [urCtx, Adapter] = get_ur_handles(syclContext);
+  ur_device_handle_t urDevice =
+      sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
+  return std::tuple{urDevice, urCtx, Adapter};
+}
 } // namespace _V1
 } // namespace sycl

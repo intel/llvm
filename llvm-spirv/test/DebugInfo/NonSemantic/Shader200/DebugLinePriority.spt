@@ -1,14 +1,15 @@
 ; RUN: llvm-spirv -to-binary %s -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s -check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: %[[#Var:]] = load i32, ptr @_ZN5Outer5Inner6globalE, align 4, !dbg ![[#LineLoc:]]
+; CHECK-LLVM: %[[#Var:]] = load i32, ptr addrspace(1) @_ZN5Outer5Inner6globalE, align 4, !dbg ![[#LineLoc:]]
 ; CHECK-LLVM: %inc = add nsw i32 %[[#Var]], 1, !dbg ![[#DebugLineLoc:]]
 ; CHECK-LLVM: ![[#LineLoc]] = !DILocation(line: 357, column: 113, scope: ![[#Scope:]])
 ; CHECK-LLVM: ![[#DebugLineLoc]] = !DILocation(line: 8, column: 16, scope: ![[#Scope]])
 
-119734787 66560 393230 54 0 
+119734787 66560 393230 138 0 
 2 Capability Addresses 
 2 Capability Linkage 
 2 Capability Kernel 
@@ -49,11 +50,11 @@
 4 Constant 3 47 8 
 4 Constant 3 50 16 
 4 Constant 3 52 9 
-4 TypePointer 4 7 3 
+4 TypePointer 4 5 3 
 2 TypeVoid 7 
 3 TypeFunction 8 7 
 2 TypeBool 38 
-5 Variable 4 6 7 5 
+5 Variable 4 6 5 5 
 3 ConstantTrue 38 39 
 3 ConstantFalse 38 42 
 

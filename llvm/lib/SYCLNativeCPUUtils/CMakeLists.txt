@@ -3,7 +3,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  FixABIMuxBuiltinsSYCLNativeCPU.cpp
   FAtomicsNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -34,16 +33,16 @@ endif()
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
-    set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit d983db7aa87fc1a6f7cdb46e3ced63f6f145749e
-    # Merge: 1d3a925c 2c510ca2
+    set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
+    # commit 03e6497dfcc06b0ef6bdeeb8fefd7fdc24de4287
+    # Merge: df8de76a56 413b59ebe2
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Tue Oct 15 15:50:57 2024 +0100
+    # Date:   Sat May 17 20:52:27 2025 +0100
     # 
-    #     Merge pull request #566 from hvdijk/fix-clang-format
+    #     Merge pull request #822 from coldav/colin/remove_ca_enable_api
     #     
-    #     clang-format: fix output.
-    set(OCK_GIT_INTERNAL_TAG d983db7aa87fc1a6f7cdb46e3ced63f6f145749e)
+    #     Remove CA_ENABLE_API as a CMake option
+    set(OCK_GIT_INTERNAL_TAG 03e6497dfcc06b0ef6bdeeb8fefd7fdc24de4287)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

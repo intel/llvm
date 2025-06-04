@@ -1,4 +1,8 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_image_array
+
+// UNSUPPORTED: level_zero
+// UNSUPPORTED-INTENDED: Undetermined issue causing enqueue process to fail.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -17,7 +21,6 @@ int main() {
 
   sycl::device dev;
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // declare image data
   size_t width = 4;

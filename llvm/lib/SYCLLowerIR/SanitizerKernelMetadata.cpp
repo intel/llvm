@@ -33,6 +33,9 @@ PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
     KernelMetadata = M.getNamedGlobal("__MsanKernelMetadata");
 
   if (!KernelMetadata)
+    KernelMetadata = M.getNamedGlobal("__TsanKernelMetadata");
+
+  if (!KernelMetadata)
     return PreservedAnalyses::all();
 
   auto &DL = M.getDataLayout();

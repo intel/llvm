@@ -1245,6 +1245,21 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
   return NewI;
 }
 
+// Translates the following intrinsics:
+//   %res = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
+//   %res = call double @llvm.fmuladd.f64(double %a, double %b, double %c)
+// To
+//   %mul = fmul <type> %a, <type> %b
+//   %res = fadd <type> %mul, <type> %c
+// TODO: Remove when newer GPU driver is used in CI.
+void translateFmuladd(CallInst *CI) {
+  assert(CI->getIntrinsicID() == Intrinsic::fmuladd);
+  IRBuilder<> Bld(CI);
+  auto *Mul = Bld.CreateFMul(CI->getOperand(0), CI->getOperand(1));
+  auto *Res = Bld.CreateFAdd(Mul, CI->getOperand(2));
+  CI->replaceAllUsesWith(Res);
+}
+
 // Translates an LLVM intrinsic to a form, digestable by the BE.
 bool translateLLVMIntrinsic(CallInst *CI) {
   Function *F = CI->getCalledFunction();
@@ -1255,6 +1270,9 @@ bool translateLLVMIntrinsic(CallInst *CI) {
   case Intrinsic::assume:
     // no translation - it will be simply removed.
     // TODO: make use of 'assume' info in the BE
+    break;
+  case Intrinsic::fmuladd:
+    translateFmuladd(CI);
     break;
   default:
     return false; // "intrinsic wasn't translated, keep the original call"
@@ -1571,8 +1589,9 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
     IRBuilder<> Builder(&CI);
 
     NewInst = Builder.CreateStore(
-        NewCI, Builder.CreateBitCast(CastInstruction->getPointerOperand(),
-                                     NewCI->getType()->getPointerTo()));
+        NewCI, Builder.CreateBitCast(
+                   CastInstruction->getPointerOperand(),
+                   llvm::PointerType::getUnqual(NewCI->getContext())));
   } else {
     NewInst = addCastInstIfNeeded(&CI, NewCI);
   }

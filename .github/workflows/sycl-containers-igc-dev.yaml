@@ -7,12 +7,14 @@ on:
     paths:
       - 'devops/actions/build_container/**'
       - 'devops/scripts/**'
+      - '!devops/scripts/benchmarks/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
   pull_request:
     paths:
       - 'devops/actions/build_container/**'
       - 'devops/scripts/**'
+      - '!devops/scripts/benchmarks/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
 
@@ -22,7 +24,7 @@ jobs:
   build_and_push_images:
     if: github.repository == 'intel/llvm'
     name: Build and Push IGC Dev Docker Images
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       packages: write
     strategy:

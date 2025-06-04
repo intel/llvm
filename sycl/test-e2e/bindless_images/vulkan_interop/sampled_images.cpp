@@ -1,8 +1,8 @@
-// REQUIRES: cuda || (windows && level_zero && aspect-ext_oneapi_bindless_images)
+// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
-// REQUIRES: build-and-run-mode
 
-// RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DENABLE_LINEAR_TILING -DTEST_L0_SUPPORTED_VK_FORMAT %}
+// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes -DENABLE_LINEAR_TILING -DTEST_L0_SUPPORTED_VK_FORMAT %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 // Uncomment to print additional test information
@@ -91,12 +91,12 @@ handles_t create_test_handles(
 template <typename InteropHandleT, typename InteropSemHandleT, int NDims,
           typename DType, int NChannels, sycl::image_channel_type CType,
           typename KernelName>
-bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
+bool run_sycl(sycl::queue syclQueue, sycl::range<NDims> globalSize,
+              sycl::range<NDims> localSize,
               InteropHandleT inputInteropMemHandle,
               InteropSemHandleT sycl_wait_semaphore_handle) {
-  sycl::device dev;
-  sycl::queue q(dev);
-  auto ctxt = q.get_context();
+  auto dev = syclQueue.get_device();
+  auto ctxt = syclQueue.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
   syclexp::image_descriptor desc(globalSize, NChannels, CType);
@@ -135,13 +135,14 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
 
 #ifdef TEST_SEMAPHORE_IMPORT
   // Extension: wait for imported semaphore
-  q.ext_oneapi_wait_external_semaphore(handles.sycl_wait_external_semaphore);
+  syclQueue.ext_oneapi_wait_external_semaphore(
+      handles.sycl_wait_external_semaphore);
 #endif
 
   std::vector<VecType> out(numElems);
   try {
     sycl::buffer<VecType, NDims> buf((VecType *)out.data(), outBufferRange);
-    q.submit([&](sycl::handler &cgh) {
+    syclQueue.submit([&](sycl::handler &cgh) {
       auto outAcc = buf.template get_access<sycl::access_mode::write>(
           cgh, outBufferRange);
       cgh.parallel_for<KernelName>(
@@ -196,15 +197,15 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
             }
           });
     });
-    q.wait_and_throw();
+    syclQueue.wait_and_throw();
 
 #ifdef TEST_SEMAPHORE_IMPORT
     syclexp::release_external_semaphore(handles.sycl_wait_external_semaphore,
                                         dev, ctxt);
 #endif
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
-    syclexp::free_image_mem(handles.imgMem, syclexp::image_type::standard, dev,
-                            ctxt);
+    syclexp::unmap_external_image_memory(
+        handles.imgMem, syclexp::image_type::standard, dev, ctxt);
     syclexp::release_external_memory(handles.inputExternalMem, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
@@ -262,6 +263,27 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   uint32_t height = 1;
   uint32_t depth = 1;
 
+  sycl::queue syclQueue;
+
+  // Skip `sycl::half` tests if fp16 is unsupported.
+  if constexpr (std::is_same_v<DType, sycl::half>) {
+    if (!syclQueue.get_device().has(sycl::aspect::fp16)) {
+      return true;
+    }
+  }
+
+  // Verify SYCL device support for allocating/creating an image from the
+  // descriptor being tested.
+  // This test always maps to an `image_mem_handle` (opaque_handle).
+  syclexp::image_descriptor desc{dims, NChannels, CType};
+  if (!bindless_helpers::memoryAllocationSupported(
+          desc, syclexp::image_memory_handle_type::opaque_handle, syclQueue)) {
+    // The device does not support allocating/creating the image with the given
+    // properties. Skip the test.
+    std::cout << "Memory allocation unsupported. Skipping test.\n";
+    return true;
+  }
+
   size_t numElems = dims[0];
   VkImageType imgType = VK_IMAGE_TYPE_1D;
 
@@ -276,21 +298,18 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     imgType = VK_IMAGE_TYPE_3D;
   }
 
-  using VecType = sycl::vec<DType, NChannels>;
-
   VkFormat format = vkutil::to_vulkan_format(COrder, CType);
   const size_t imageSizeBytes = numElems * NChannels * sizeof(DType);
 
   printString("Creating input image\n");
   // Create input image memory
-  auto inputImage = vkutil::createImage(imgType, format, {width, height, depth},
-                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                            VK_IMAGE_USAGE_STORAGE_BIT,
-                                        1 /*mipLevels*/
+  auto inputImage = vkutil::createImage(
+      imgType, format, {width, height, depth},
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+      1 /*mipLevels*/
 #ifdef ENABLE_LINEAR_TILING
-                                        ,
-                                        true /*linearTiling*/
+      ,
+      true /*linearTiling*/
 #endif
   );
   VkMemoryRequirements memRequirements;
@@ -317,7 +336,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
   printString("Populating staging buffer\n");
   // Populate staging memory
-  VecType *inputStagingData = nullptr;
+  DType *inputStagingData = nullptr;
   VK_CHECK_CALL(vkMapMemory(vk_device, inputStagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
@@ -330,8 +349,9 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     return i;
   };
   for (int i = 0; i < numElems; ++i) {
-    inputStagingData[i] =
-        bindless_helpers::init_vector<DType, NChannels>(getInputValue(i));
+    DType v = getInputValue(i);
+    for (int j = 0; j < NChannels; ++j)
+      inputStagingData[i * NChannels + j] = v;
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 
@@ -415,7 +435,11 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
     VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
                                 &submission, VK_NULL_HANDLE /*fence*/));
+// Do not wait when using semaphores as they can handle the kernel execution
+// order.
+#ifndef TEST_SEMAPHORE_IMPORT
     VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+#endif
   }
 
   printString("Getting memory file descriptors\n");
@@ -447,7 +471,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   bool validated =
       run_sycl<decltype(input_mem_handle), decltype(sycl_wait_semaphore_handle),
                NDims, DType, NChannels, CType, KernelName>(
-          dims, localSize, input_mem_handle, sycl_wait_semaphore_handle);
+          syclQueue, dims, localSize, input_mem_handle,
+          sycl_wait_semaphore_handle);
 
   // Cleanup
   vkDestroyBuffer(vk_device, inputStagingBuffer, nullptr);
@@ -553,8 +578,7 @@ int main() {
 
   sycl::device dev;
 
-  if (vkutil::setupDevice(dev.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(dev) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

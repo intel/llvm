@@ -17,6 +17,7 @@
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/queue.hpp>
 
 typedef int HIPdevice;
@@ -25,6 +26,8 @@ typedef struct ihipStream_t *HIPstream;
 typedef struct ihipEvent_t *HIPevent;
 typedef struct ihipModule_t *HIPmodule;
 typedef void *HIPdeviceptr;
+typedef struct ihipGraph *HIPGraph;
+typedef struct hipGraphNode *HIPGraphNode;
 
 namespace sycl {
 inline namespace _V1 {
@@ -94,6 +97,12 @@ template <> struct BackendInput<backend::ext_oneapi_hip, queue> {
 
 template <> struct BackendReturn<backend::ext_oneapi_hip, queue> {
   using type = HIPstream;
+};
+
+using graph = ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>;
+template <> struct BackendReturn<backend::ext_oneapi_hip, graph> {
+  using type = HIPGraph;
 };
 
 template <> struct InteropFeatureSupportMap<backend::ext_oneapi_hip> {

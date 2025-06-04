@@ -1,8 +1,7 @@
-# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
-# Merge: 71a5eab0 128ea023
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 11:21:50 2025 +0000
-#     Merge pull request #2539 from RossBrunton/ross/specconst
-#
-#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
-set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
+# commit d03f19a88e42cb98be9604ff24b61190d1e48727
+# Merge: 3ce6fcc9 84454b0e
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Feb 13 11:43:34 2025 +0000
+#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
+#     Do not fetch cudart from gitlab for UMF
+set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)

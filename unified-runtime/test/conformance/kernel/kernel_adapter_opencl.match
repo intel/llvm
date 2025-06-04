@@ -1,0 +1,8 @@
+# Match tests that use fixed_wg_size.cpp as it fails to compile on some 
+# hardware.
+{{OPT}}urKernelGetGroupInfoMaxWorkGroupSizeTest.CompileMaxWorkGroupSize/*
+{{OPT}}urKernelGetGroupInfoMaxWorkGroupSizeTest.CompileMaxLinearWorkGroupSize/*
+
+# Match tests that use fixed_sg_size.cpp as it fails to compile on some 
+# hardware.
+{{OPT}}urKernelGetSubGroupInfoFixedSubGroupSizeTest.CompileNumSubGroups/*

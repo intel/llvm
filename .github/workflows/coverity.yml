@@ -1,0 +1,83 @@
+name: Coverity
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions: read-all
+
+jobs:
+  coverity:
+    if: github.repository == 'intel/llvm'
+    name: Coverity
+    runs-on: [Linux, build]
+    container:
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps
+      options: -u 1001:1001
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        sparse-checkout: |
+          devops/actions
+
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
+
+    - uses: ./devops/actions/cached_checkout
+      with:
+        path: src
+        ref: ${{ github.sha }}
+        cache_path: "/__w/repo_cache/"
+
+    - name: Get coverity tool
+      run: |
+        wget https://scan.coverity.com/download/linux64 --post-data "token=${{ secrets.COVERITY_TOKEN }}&project=intel%2Fllvm" -O coverity_tool.tgz
+        tar -xf coverity_tool.tgz
+
+    - name: Configure
+      env:
+        CC: gcc
+        CXX: g++
+        CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+          -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+          --ci-defaults --hip --cuda \
+          -DNATIVECPU_USE_OCK=Off \
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
+
+    - name: Build with coverity
+      run: $GITHUB_WORKSPACE/cov-analysis-linux64-*/bin/cov-build --dir cov-int cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
+
+    - name: Compress results
+      run: tar -I pigz -cf intel_llvm.tgz cov-int
+
+    - name: Submit build
+      run: |
+        # Initialize a build. Fetch a cloud upload url.
+        curl -X POST \
+        -d version="sycl: ${{ github.sha }}" \
+        -d description="Regular build" \
+        -d email=${{ secrets.COVERITY_EMAIL }} \
+        -d token=${{ secrets.COVERITY_TOKEN }} \
+        -d file_name="intel_llvm.tgz" \
+        https://scan.coverity.com/projects/31090/builds/init \
+        | tee response
+
+        # Store response data to use in later stages.
+        upload_url=$(jq -r '.url' response)
+        build_id=$(jq -r '.build_id' response)
+
+        # Upload the tarball to the Cloud.
+        curl -X PUT \
+        --header 'Content-Type: application/json' \
+        --upload-file $PWD/intel_llvm.tgz \
+        $upload_url
+
+        # Trigger the build on Scan.
+        curl -X PUT \
+        -d token=${{ secrets.COVERITY_TOKEN }} \
+        https://scan.coverity.com/projects/31090/builds/$build_id/enqueue

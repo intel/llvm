@@ -1,0 +1,1587 @@
+#
+# Copyright (C) 2021 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs"
+ordinal: "10"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Specifies a launch property id"
+name: $x_kernel_launch_property_id_t
+analogue:
+    - "**CUlaunchAttributeID**"
+etors:
+    - name: IGNORE
+      desc: "The property has no effect."
+    - name: COOPERATIVE
+      desc: "Whether to launch a cooperative kernel."
+    - name: CLUSTER_DIMENSION
+      desc: "work-group cluster dimensions."
+    - name: WORK_GROUP_MEMORY
+      desc: "Implicit work group memory allocation."
+    - name: OPPORTUNISTIC_QUEUE_SERIALIZE
+      desc: "Whether to opportunistically execute kernel launches serially on a native queue"
+--- #--------------------------------------------------------------------------
+type: union
+desc: "Specifies a launch property value"
+name: $x_kernel_launch_property_value_t
+tag: $x_kernel_launch_property_id_t
+analogue:
+    - "**CUlaunchAttributeValue**"
+members:
+    - type: uint32_t[3]
+      name: clusterDim
+      desc: "[in] dimensions of the cluster (units of work-group) (x, y, z). Each value must be a divisor of the corresponding global work-size dimension (in units of work-group)."
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION
+    - type: int
+      name: cooperative
+      desc: "[in] non-zero value indicates a cooperative kernel"
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE
+    - type: size_t
+      name: workgroup_mem_size
+      desc: "[in] non-zero value indicates the amount of work group memory to allocate in bytes"
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY
+    - type: int
+      name: opportunistic_queue_serialize
+      desc: "[in] non-zero value indicates an opportunistic native queue serialized kernel"
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Kernel launch property"
+name: $x_kernel_launch_property_t
+analogue:
+    - "**cuLaunchAttribute**"
+members:
+    - type: $x_kernel_launch_property_id_t
+      name: id
+      desc: "[in] launch property id"
+      init: $X_KERNEL_LAUNCH_PROPERTY_ID_IGNORE
+    - type: $x_kernel_launch_property_value_t
+      name: value
+      desc: "[in][tagged_by(id)] launch property value"
+      init: nullptr
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to execute a kernel"
+class: $xEnqueue
+name: KernelLaunch
+ordinal: "0"
+analogue:
+    - "**clEnqueueNDRangeKernel**"
+details:
+    - "Providing invalid kernel arguments is Undefined Behavior."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: uint32_t
+      name: workDim
+      desc: "[in] number of dimensions, from 1 to 3, to specify the global and work-group work-items"
+    - type: "const size_t*"
+      name: pGlobalWorkOffset
+      desc: "[in][optional] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
+    - type: "const size_t*"
+      name: pGlobalWorkSize
+      desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
+    - type: "const size_t*"
+      name: pLocalWorkSize
+      desc: |
+            [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
+            If nullptr, the runtime implementation will choose the work-group size.
+    - type: uint32_t
+      name: numPropsInLaunchPropList
+      desc: "[in] size of the launch prop list"
+    - type: const $x_kernel_launch_property_t*
+      name: launchPropList
+      desc: "[in][optional][range(0, numPropsInLaunchPropList)] pointer to a list of launch properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_KERNEL
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
+    - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any property in `launchPropList` isn't supported by the device."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`launchPropList == NULL && numPropsInLaunchPropList > 0`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command which waits a list of events to complete before it completes"
+class: $xEnqueue
+name: EventsWait
+ordinal: "0"
+details:
+    - "If the event list is empty, it waits for all previously enqueued commands to complete."
+    - "It returns an event which can be waited on."
+analogue:
+    - "**clEnqueueMarkerWithWaitList**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
+            must be complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a barrier command which waits a list of events to complete before it completes"
+class: $xEnqueue
+name: EventsWaitWithBarrier
+ordinal: "0"
+details:
+    - "If the event list is empty, it waits for all previously enqueued commands to complete."
+    - "It blocks command execution - any following commands enqueued after it do not execute until it completes."
+    - "It returns an event which can be waited on."
+analogue:
+    - "**clEnqueueBarrierWithWaitList**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
+            must be complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read from a buffer object to host memory"
+class: $xEnqueue
+name: MemBufferRead
+ordinal: "0"
+details:
+    - "Input parameter blockingRead indicates if the read is blocking or non-blocking."
+analogue:
+    - "**clEnqueueReadBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in][bounds(offset, size)] handle of the buffer object"
+    - type: bool
+      name: blockingRead
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: size_t
+      name: offset
+      desc: "[in] offset in bytes in the buffer object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of data being read"
+    - type: void*
+      name: pDst
+      desc: "[in] pointer to host memory where data is to be read into"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `offset + size` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write into a buffer object from host memory"
+class: $xEnqueue
+name: MemBufferWrite
+ordinal: "0"
+details:
+    - "Input parameter blockingWrite indicates if the write is blocking or non-blocking."
+analogue:
+    - "**clEnqueueWriteBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in][bounds(offset, size)] handle of the buffer object"
+    - type: bool
+      name: blockingWrite
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: size_t
+      name: offset
+      desc: "[in] offset in bytes in the buffer object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of data being written"
+    - type: "const void*"
+      name: pSrc
+      desc: "[in] pointer to host memory where data is to be written from"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `offset + size` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read a 2D or 3D rectangular region from a buffer object to host memory"
+class: $xEnqueue
+name: MemBufferReadRect
+ordinal: "0"
+details:
+    - "Input parameter blockingRead indicates if the read is blocking or non-blocking."
+    - "The buffer and host 2D or 3D rectangular regions can have different shapes."
+analogue:
+    - "**clEnqueueReadBufferRect**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in][bounds(bufferOrigin, region)] handle of the buffer object"
+    - type: bool
+      name: blockingRead
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_rect_offset_t
+      name: bufferOrigin
+      desc: "[in] 3D offset in the buffer"
+    - type: $x_rect_offset_t
+      name: hostOrigin
+      desc: "[in] 3D offset in the host region"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] 3D rectangular region descriptor: width, height, depth"
+    - type: size_t
+      name: bufferRowPitch
+      desc: "[in] length of each row in bytes in the buffer object"
+    - type: size_t
+      name: bufferSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the buffer object being read"
+    - type: size_t
+      name: hostRowPitch
+      desc: "[in] length of each row in bytes in the host memory region pointed by dst"
+    - type: size_t
+      name: hostSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the host memory region pointed by dst"
+    - type: void*
+      name: pDst
+      desc: "[in] pointer to host memory where data is to be read into"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
+        - "`bufferRowPitch != 0 && bufferRowPitch < region.width`"
+        - "`hostRowPitch != 0 && hostRowPitch < region.width`"
+        - "`bufferSlicePitch != 0 && bufferSlicePitch < region.height * (bufferRowPitch != 0 ? bufferRowPitch : region.width)`"
+        - "`bufferSlicePitch != 0 && bufferSlicePitch % (bufferRowPitch != 0 ? bufferRowPitch : region.width) != 0`"
+        - "`hostSlicePitch != 0 && hostSlicePitch < region.height * (hostRowPitch != 0 ? hostRowPitch : region.width)`"
+        - "`hostSlicePitch != 0 && hostSlicePitch % (hostRowPitch != 0 ? hostRowPitch : region.width) != 0`"
+        - "If the combination of `bufferOrigin`, `region`, `bufferRowPitch`, and `bufferSlicePitch` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write a 2D or 3D rectangular region in a buffer object from host memory"
+class: $xEnqueue
+name: MemBufferWriteRect
+ordinal: "0"
+details:
+    - "Input parameter blockingWrite indicates if the write is blocking or non-blocking."
+    - "The buffer and host 2D or 3D rectangular regions can have different shapes."
+analogue:
+    - "**clEnqueueWriteBufferRect**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in][bounds(bufferOrigin, region)] handle of the buffer object"
+    - type: bool
+      name: blockingWrite
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_rect_offset_t
+      name: bufferOrigin
+      desc: "[in] 3D offset in the buffer"
+    - type: $x_rect_offset_t
+      name: hostOrigin
+      desc: "[in] 3D offset in the host region"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] 3D rectangular region descriptor: width, height, depth"
+    - type: size_t
+      name: bufferRowPitch
+      desc: "[in] length of each row in bytes in the buffer object"
+    - type: size_t
+      name: bufferSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the buffer object being written"
+    - type: size_t
+      name: hostRowPitch
+      desc: "[in] length of each row in bytes in the host memory region pointed by src"
+    - type: size_t
+      name: hostSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the host memory region pointed by src"
+    - type: void*
+      name: pSrc
+      desc: "[in] pointer to host memory where data is to be written from"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] points to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
+        - "`bufferRowPitch != 0 && bufferRowPitch < region.width`"
+        - "`hostRowPitch != 0 && hostRowPitch < region.width`"
+        - "`bufferSlicePitch != 0 && bufferSlicePitch < region.height * (bufferRowPitch != 0 ? bufferRowPitch : region.width)`"
+        - "`bufferSlicePitch != 0 && bufferSlicePitch % (bufferRowPitch != 0 ? bufferRowPitch : region.width) != 0`"
+        - "`hostSlicePitch != 0 && hostSlicePitch < region.height * (hostRowPitch != 0 ? hostRowPitch : region.width)`"
+        - "`hostSlicePitch != 0 && hostSlicePitch % (hostRowPitch != 0 ? hostRowPitch : region.width) != 0`"
+        - "If the combination of `bufferOrigin`, `region`, `bufferRowPitch`, and `bufferSlicePitch` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy from a buffer object to another"
+class: $xEnqueue
+name: MemBufferCopy
+ordinal: "0"
+analogue:
+    - "**clEnqueueCopyBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBufferSrc
+      desc: "[in][bounds(srcOffset, size)] handle of the src buffer object"
+    - type: $x_mem_handle_t
+      name: hBufferDst
+      desc: "[in][bounds(dstOffset, size)] handle of the dest buffer object"
+    - type: size_t
+      name: srcOffset
+      desc: "[in] offset into hBufferSrc to begin copying from"
+    - type: size_t
+      name: dstOffset
+      desc: "[in] offset info hBufferDst to begin copying into"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of data being copied"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `srcOffset + size` results in an out-of-bounds access."
+        - "If `dstOffset + size` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy a 2D or 3D rectangular region from one buffer object to another"
+class: $xEnqueue
+name: MemBufferCopyRect
+ordinal: "0"
+analogue:
+    - "**clEnqueueCopyBufferRect**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBufferSrc
+      desc: "[in][bounds(srcOrigin, region)] handle of the source buffer object"
+    - type: $x_mem_handle_t
+      name: hBufferDst
+      desc: "[in][bounds(dstOrigin, region)] handle of the dest buffer object"
+    - type: $x_rect_offset_t
+      name: srcOrigin
+      desc: "[in] 3D offset in the source buffer"
+    - type: $x_rect_offset_t
+      name: dstOrigin
+      desc: "[in] 3D offset in the destination buffer"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] source 3D rectangular region descriptor: width, height, depth"
+    - type: size_t
+      name: srcRowPitch
+      desc: "[in] length of each row in bytes in the source buffer object"
+    - type: size_t
+      name: srcSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the source buffer object"
+    - type: size_t
+      name: dstRowPitch
+      desc: "[in] length of each row in bytes in the destination buffer object"
+    - type: size_t
+      name: dstSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the destination buffer object"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
+        - "`srcRowPitch != 0 && srcRowPitch < region.width`"
+        - "`dstRowPitch != 0 && dstRowPitch < region.width`"
+        - "`srcSlicePitch != 0 && srcSlicePitch < region.height * (srcRowPitch != 0 ? srcRowPitch : region.width)`"
+        - "`srcSlicePitch != 0 && srcSlicePitch % (srcRowPitch != 0 ? srcRowPitch : region.width) != 0`"
+        - "`dstSlicePitch != 0 && dstSlicePitch < region.height * (dstRowPitch != 0 ? dstRowPitch : region.width)`"
+        - "`dstSlicePitch != 0 && dstSlicePitch % (dstRowPitch != 0 ? dstRowPitch : region.width) != 0`"
+        - "If the combination of `srcOrigin`, `region`, `srcRowPitch`, and `srcSlicePitch` results in an out-of-bounds access."
+        - "If the combination of `dstOrigin`, `region`, `dstRowPitch`, and `dstSlicePitch` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to fill a buffer object with a pattern of a given size"
+class: $xEnqueue
+name: MemBufferFill
+ordinal: "0"
+analogue:
+    - "**clEnqueueFillBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in][bounds(offset, size)] handle of the buffer object"
+    - type: "const void*"
+      name: pPattern
+      desc: "[in] pointer to the fill pattern"
+    - type: size_t
+      name: patternSize
+      desc: "[in] size in bytes of the pattern"
+    - type: size_t
+      name: offset
+      desc: "[in] offset into the buffer"
+    - type: size_t
+      name: size
+      desc: "[in] fill size in bytes, must be a multiple of patternSize"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`patternSize == 0 || size == 0`"
+        - "`patternSize > size`"
+        - "`(patternSize & (patternSize - 1)) != 0`"
+        - "`size % patternSize != 0`"
+        - "`offset % patternSize != 0`"
+        - "If `offset + size` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read from an image or image array object to host memory"
+class: $xEnqueue
+name: MemImageRead
+ordinal: "0"
+details:
+    - "Input parameter blockingRead indicates if the read is blocking or non-blocking."
+analogue:
+    - "**clEnqueueReadImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImage
+      desc: "[in][bounds(origin, region)] handle of the image object"
+    - type: bool
+      name: blockingRead
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_rect_offset_t
+      name: origin
+      desc: "[in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
+    - type: size_t
+      name: rowPitch
+      desc: "[in] length of each row in bytes"
+    - type: size_t
+      name: slicePitch
+      desc: "[in] length of each 2D slice of the 3D image"
+    - type: void*
+      name: pDst
+      desc: "[in] pointer to host memory where image is to be read into"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write an image or image array object from host memory"
+class: $xEnqueue
+name: MemImageWrite
+ordinal: "0"
+details:
+    - "Input parameter blockingWrite indicates if the write is blocking or non-blocking."
+analogue:
+    - "**clEnqueueWriteImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImage
+      desc: "[in][bounds(origin, region)] handle of the image object"
+    - type: bool
+      name: blockingWrite
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_rect_offset_t
+      name: origin
+      desc: "[in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
+    - type: size_t
+      name: rowPitch
+      desc: "[in] length of each row in bytes"
+    - type: size_t
+      name: slicePitch
+      desc: "[in] length of each 2D slice of the 3D image"
+    - type: void*
+      name: pSrc
+      desc: "[in] pointer to host memory where image is to be read into"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy from an image object to another"
+class: $xEnqueue
+name: MemImageCopy
+ordinal: "0"
+analogue:
+    - "**clEnqueueCopyImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImageSrc
+      desc: "[in][bounds(srcOrigin, region)] handle of the src image object"
+    - type: $x_mem_handle_t
+      name: hImageDst
+      desc: "[in][bounds(dstOrigin, region)] handle of the dest image object"
+    - type: $x_rect_offset_t
+      name: srcOrigin
+      desc: "[in] defines the (x,y,z) offset in pixels in the source 1D, 2D, or 3D image"
+    - type: $x_rect_offset_t
+      name: dstOrigin
+      desc: "[in] defines the (x,y,z) offset in pixels in the destination 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to fill an image object with specified color"
+class: $xEnqueue
+name: MemImageFill
+ordinal: "0"
+# Will not be generated
+# https://github.com/oneapi-src/unified-runtime/issues/50
+version: "9999.0"
+details:
+    - "Currently not implemented in Level Zero"
+    - "TODO: add a driver function in Level Zero?"
+analogue:
+    - "**clEnqueueFillImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImage
+      desc: "[in] handle of the image object"
+    - type: "const void*"
+      name: pFillColor
+      desc: |
+            [in] the color used to fill the image: single floating point value if the channel order is DEPTH,
+            otherwise, a four components RGBA values of various types depending on the image channel data type.
+    - type: "const size_t*"
+      name: pOrigin
+      desc: "[in] TODO change the type to $x_rect_offset_t"
+    - type: "const size_t*"
+      name: pRegion
+      desc: "[in] TODO: change the type to $x_rect_region_t"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Map flags"
+class: $xDevice
+name: $x_map_flags_t
+etors:
+    - name: READ
+      desc: "Map for read access"
+      value: "$X_BIT(0)"
+    - name: WRITE
+      desc: "Map for write access"
+      value: "$X_BIT(1)"
+    - name: WRITE_INVALIDATE_REGION
+      desc: "Map for discard_write access"
+      value: "$X_BIT(2)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Map flags"
+class: $xDevice
+name: $x_usm_migration_flags_t
+etors:
+    - name: DEFAULT
+      desc: "Default migration TODO: Add more enums! "
+      value: "$X_BIT(0)"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to map a region of the buffer object into the host address space and return a pointer to the mapped region"
+class: $xEnqueue
+name: MemBufferMap
+ordinal: "0"
+details:
+    - "Currently, no direct support in Level Zero. Implemented as a shared allocation followed by copying on discrete GPU"
+    - "TODO: add a driver function in Level Zero?"
+analogue:
+    - "**clEnqueueMapBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in][bounds(offset, size)] handle of the buffer object"
+    - type: bool
+      name: blockingMap
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_map_flags_t
+      name: mapFlags
+      desc: "[in] flags for read, write, readwrite mapping"
+    - type: size_t
+      name: offset
+      desc: "[in] offset in bytes of the buffer region being mapped"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the buffer region being mapped"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+    - type: void**
+      name: ppRetMap
+      desc: "[out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If `offset + size` results in an out-of-bounds access."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to map a region of the image object into the host address space and return a pointer to the mapped region"
+class: $xEnqueue
+name: MemImageMap
+# Will not be generated
+# https://github.com/oneapi-src/unified-runtime/issues/50
+version: "9999.0"
+ordinal: "0"
+details:
+    - "Input parameter blockingMap indicates if the map is blocking or non-blocking."
+    - "TODO: Not implemented in PI and no direct support in Leverl Zero."
+    - "TODO: add a driver function in Level Zero?"
+analogue:
+    - "**clEnqueueMapImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImage
+      desc: "[in] handle of the image object"
+    - type: bool
+      name: blockingMap
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_map_flags_t
+      name: mapFlags
+      desc: "[in] flags for read, write, readwrite mapping"
+    - type: $x_rect_offset_t
+      name: origin
+      desc: "[in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
+    - type: size_t
+      name: imageRowPitch
+      desc: "[in] length of each row in bytes"
+    - type: size_t
+      name: imageSlicePitch
+      desc: "[in] length of each 2D slice of the 3D image"
+    - type: void**
+      name: ppRetMap
+      desc: "[in,out] return mapped pointer"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to unmap a previously mapped region of a memory object"
+class: $xEnqueue
+name: MemUnmap
+ordinal: "0"
+analogue:
+    - "**clEnqueueUnmapMemObject**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: "[in] handle of the memory (buffer or image) object"
+    - type: void*
+      name: pMappedPtr
+      desc: "[in] mapped host address"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to fill USM memory."
+class: $xEnqueue
+name: USMFill
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: void*
+      name: pMem
+      desc: "[in][bounds(0, size)] pointer to USM memory object"
+    - type: size_t
+      name: patternSize
+      desc: "[in] the size in bytes of the pattern. Must be a power of 2 and less than or equal to width."
+    - type: "const void*"
+      name: pPattern
+      desc: "[in] pointer with the bytes of the pattern to set."
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes to be set. Must be a multiple of patternSize."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`patternSize == 0 || size == 0`"
+        - "`patternSize > size`"
+        - "`size % patternSize != 0`"
+        - "If `size` is higher than the allocation size of `ptr`"
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy USM memory"
+class: $xEnqueue
+name: USMMemcpy
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: bool
+      name: blocking
+      desc: "[in] blocking or non-blocking copy"
+    - type: void*
+      name: pDst
+      desc: "[in][bounds(0, size)] pointer to the destination USM memory object"
+    - type: "const void*"
+      name: pSrc
+      desc: "[in][bounds(0, size)] pointer to the source USM memory object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes to be copied"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pSrc` or `pDst`"
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to prefetch USM memory"
+class: $xEnqueue
+name: USMPrefetch
+ordinal: "0"
+details:
+    - "Prefetching may not be supported for all devices or allocation types. If memory prefetching is not supported, the prefetch hint will be ignored."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: "const void*"
+      name: pMem
+      desc: "[in][bounds(0, size)] pointer to the USM memory object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes to be fetched"
+    - type: $x_usm_migration_flags_t
+      name: flags
+      desc: "[in] USM prefetch flags"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pMem`"
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to set USM memory advice"
+class: $xEnqueue
+name: USMAdvise
+ordinal: "0"
+details:
+    - "Not all memory advice hints may be supported for all devices or allocation types. If a memory advice hint is not supported, it will be ignored. Some adapters may return $X_RESULT_ERROR_ADAPTER_SPECIFIC, more information can be retrieved by using urAdapterGetLastError."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: "const void*"
+      name: pMem
+      desc: "[in][bounds(0, size)] pointer to the USM memory object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes to be advised"
+    - type: $x_usm_advice_flags_t
+      name: advice
+      desc: "[in] USM memory advice"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pMem`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to fill 2D USM memory."
+class: $xEnqueue
+name: USMFill2D
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: void*
+      name: pMem
+      desc: "[in][bounds(0, pitch * height)] pointer to memory to be filled."
+    - type: size_t
+      name: pitch
+      desc: "[in] the total width of the destination memory including padding."
+    - type: size_t
+      name: patternSize
+      desc: "[in] the size in bytes of the pattern. Must be a power of 2 and less than or equal to width."
+    - type: "const void*"
+      name: pPattern
+      desc: "[in] pointer with the bytes of the pattern to set."
+    - type: size_t
+      name: width
+      desc: "[in] the width in bytes of each row to fill. Must be a multiple of patternSize."
+    - type: size_t
+      name: height
+      desc: "[in] the height of the columns to fill."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+  - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`pitch == 0`"
+      - "`pitch < width`"
+      - "`patternSize == 0`"
+      - "`patternSize > width * height`"
+      - "`patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)`"
+      - "`width == 0`"
+      - "`height == 0`"
+      - "`width * height % patternSize != 0`"
+      - "If `pitch * height` is higher than the allocation size of `pMem`"
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+      - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+      - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+      - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+      - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+  - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+  - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+  - $X_RESULT_ERROR_OUT_OF_RESOURCES
+  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy 2D USM memory."
+class: $xEnqueue
+name: USMMemcpy2D
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: bool
+      name: blocking
+      desc: "[in] indicates if this operation should block the host."
+    - type: void*
+      name: pDst
+      desc: "[in][bounds(0, dstPitch * height)] pointer to memory where data will be copied."
+    - type: size_t
+      name: dstPitch
+      desc: "[in] the total width of the source memory including padding."
+    - type: "const void*"
+      name: pSrc
+      desc: "[in][bounds(0, srcPitch * height)] pointer to memory to be copied."
+    - type: size_t
+      name: srcPitch
+      desc: "[in] the total width of the source memory including padding."
+    - type: size_t
+      name: width
+      desc: "[in] the width in bytes of each row to be copied."
+    - type: size_t
+      name: height
+      desc: "[in] the height of columns to be copied."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+  - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`srcPitch == 0`"
+      - "`dstPitch == 0`"
+      - "`srcPitch < width`"
+      - "`dstPitch < width`"
+      - "`height == 0`"
+      - "If `srcPitch * height` is higher than the allocation size of `pSrc`"
+      - "If `dstPitch * height` is higher than the allocation size of `pDst`"
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+  - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+  - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+  - $X_RESULT_ERROR_OUT_OF_RESOURCES
+  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write data from the host to device global variable."
+class: $xEnqueue
+name: DeviceGlobalVariableWrite
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the program containing the device global variable."
+    - type: const char*
+      name: name
+      desc: "[in] the unique identifier for the device global variable."
+    - type: bool
+      name: blockingWrite
+      desc: "[in] indicates if this operation should block."
+    - type: size_t
+      name: count
+      desc: "[in] the number of bytes to copy."
+    - type: size_t
+      name: offset
+      desc: "[in] the byte offset into the device global variable to start copying."
+    - type: const void*
+      name: pSrc
+      desc: "[in] pointer to where the data must be copied from."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list."
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read data from a device global variable to the host."
+class: $xEnqueue
+name: DeviceGlobalVariableRead
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the program containing the device global variable."
+    - type: const char*
+      name: name
+      desc: "[in] the unique identifier for the device global variable."
+    - type: bool
+      name: blockingRead
+      desc: "[in] indicates if this operation should block."
+    - type: size_t
+      name: count
+      desc: "[in] the number of bytes to copy."
+    - type: size_t
+      name: offset
+      desc: "[in] the byte offset into the device global variable to start copying."
+    - type: void*
+      name: pDst
+      desc: "[in] pointer to where the data must be copied to."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list."
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read from a pipe to the host."
+class: $xEnqueue
+name: ReadHostPipe
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: |
+            [in] a valid host command-queue in which the read command
+            will be queued. hQueue and hProgram must be created with the same
+            UR context.
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] a program object with a successfully built executable."
+    - type: const char*
+      name: pipe_symbol
+      desc: "[in] the name of the program scope pipe global variable."
+    - type: bool
+      name: blocking
+      desc: "[in] indicate if the read operation is blocking or non-blocking."
+    - type: void*
+      name: pDst
+      desc: "[in] a pointer to buffer in host memory that will hold resulting data from pipe."
+    - type: size_t
+      name: size
+      desc: "[in] size of the memory region to read, in bytes."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] number of events in the wait list."
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the host pipe read.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] returns an event object that identifies this read command
+            and can be used to query or queue a wait for this command to complete. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write data from the host to a pipe."
+class: $xEnqueue
+name: WriteHostPipe
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: |
+            [in] a valid host command-queue in which the write command
+            will be queued. hQueue and hProgram must be created with the same
+            UR context.
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] a program object with a successfully built executable."
+    - type: const char*
+      name: pipe_symbol
+      desc: "[in] the name of the program scope pipe global variable."
+    - type: bool
+      name: blocking
+      desc: "[in] indicate if the read and write operations are blocking or non-blocking."
+    - type: void*
+      name: pSrc
+      desc: "[in] a pointer to buffer in host memory that holds data to be written to the host pipe."
+    - type: size_t
+      name: size
+      desc: "[in] size of the memory region to read or write, in bytes."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] number of events in the wait list."
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the host pipe write.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] returns an event object that identifies this write command
+            and can be used to query or queue a wait for this command to complete. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+  - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+    - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+    - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+    - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."

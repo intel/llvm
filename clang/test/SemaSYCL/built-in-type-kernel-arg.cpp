@@ -153,6 +153,6 @@ int main() {
 // CHECK: CXXConstructExpr {{.*}} 'Nested::TDS':'test_struct_simple' 'void (const test_struct_simple &) noexcept'
 // CHECK: ImplicitCastExpr {{.*}} 'const test_struct_simple' lvalue <NoOp>
 // CHECK: UnaryOperator {{.*}} 'Nested::TDS':'test_struct_simple' lvalue prefix '*' cannot overflow
-// CHECK: CXXReinterpretCastExpr {{.*}} 'Nested::TDS *' reinterpret_cast<struct Nested::TDS *> <BitCast>
+// CHECK: CXXReinterpretCastExpr {{.*}} 'Nested::TDS *' reinterpret_cast<Nested::TDS *> <BitCast>
 // CHECK: UnaryOperator {{.*}} '__generated_test_struct_simple *' prefix '&' cannot overflow
 // CHECK: DeclRefExpr {{.*}} '__generated_test_struct_simple' lvalue ParmVar {{.*}} '_arg_tds' '__generated_test_struct_simple'

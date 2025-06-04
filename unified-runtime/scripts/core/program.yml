@@ -1,0 +1,620 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Runtime APIs for Program"
+ordinal: "6"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Program metadata property type."
+name: $x_program_metadata_type_t
+etors:
+    - name: UINT32
+      desc: "type is a 32-bit integer."
+    - name: UINT64
+      desc: "type is a 64-bit integer."
+    - name: BYTE_ARRAY
+      desc: "type is a byte array."
+    - name: STRING
+      desc: "type is a null-terminated string."
+--- #--------------------------------------------------------------------------
+type: union
+desc: "Program metadata value union."
+class: $xProgram
+name: $x_program_metadata_value_t
+tag: $x_program_metadata_type_t
+members:
+    - type: uint32_t
+      name: data32
+      desc: "[in] inline storage for the 32-bit data, type $X_PROGRAM_METADATA_TYPE_UINT32."
+      tag: $X_PROGRAM_METADATA_TYPE_UINT32
+    - type: uint64_t
+      name: data64
+      desc: "[in] inline storage for the 64-bit data, type $X_PROGRAM_METADATA_TYPE_UINT64."
+      tag: $X_PROGRAM_METADATA_TYPE_UINT64
+    - type: char*
+      name: pString
+      desc: "[in] pointer to null-terminated string data, type $X_PROGRAM_METADATA_TYPE_STRING."
+      tag: $X_PROGRAM_METADATA_TYPE_STRING
+    - type: void*
+      name: pData
+      desc: "[in] pointer to binary data, type $X_PROGRAM_METADATA_TYPE_BYTE_ARRAY."
+      tag: $X_PROGRAM_METADATA_TYPE_BYTE_ARRAY
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Program metadata property."
+class: $xProgram
+name: $x_program_metadata_t
+members:
+    - type: const char*
+      name: pName
+      desc: "[in] null-terminated metadata name."
+    - type: $x_program_metadata_type_t
+      name: type
+      desc: "[in] the type of metadata value."
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the data pointed to by value.pData, or 0 when value size is less than 64-bits and is stored directly in value.data."
+    - type: $x_program_metadata_value_t
+      name: value
+      desc: "[in][tagged_by(type)] the metadata value storage."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Program creation properties."
+class: $xProgram
+name: $x_program_properties_t
+base: $x_base_properties_t
+members:
+    - type: uint32_t
+      name: count
+      desc: "[in] the number of entries in pMetadatas, if count is greater than zero then pMetadatas must not be null."
+    - type: const $x_program_metadata_t*
+      name: pMetadatas
+      desc: "[in][optional][range(0,count)] pointer to array of metadata entries."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a program object from input intermediate language."
+class: $xProgram
+name: CreateWithIL
+decl: static
+ordinal: "0"
+analogue:
+    - "**clCreateProgramWithIL**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The adapter may (but is not required to) perform validation of the provided module during this call."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance"
+    - type: const void*
+      name: pIL
+      desc: "[in] pointer to IL binary."
+    - type: size_t
+      name: length
+      desc: "[in] length of `pIL` in bytes."
+    - type: const $x_program_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to program creation properties."
+    - type: $x_program_handle_t*
+      name: phProgram
+      desc: "[out][alloc] pointer to handle of program object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`"
+    - $X_RESULT_ERROR_INVALID_BINARY:
+        - "If `pIL` is not a valid IL binary for devices in `hContext`."
+    - $X_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
+        - "If devices in `hContext` don't have the capability to compile an IL binary at runtime."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`length == 0`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a program object from native binaries for the specified devices."
+class: $xProgram
+name: CreateWithBinary
+decl: static
+ordinal: "1"
+analogue:
+    - "**clCreateProgramWithBinary**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point, `phProgram` will contain binaries of type $X_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or $X_PROGRAM_BINARY_TYPE_LIBRARY for the specified devices in `phDevices`."
+    - "The devices specified by `phDevices` must be associated with the context."
+    - "The adapter may (but is not required to) perform validation of the provided modules during this call."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance"
+    - type: uint32_t
+      name: numDevices
+      desc: "[in] number of devices"
+    - type: $x_device_handle_t*
+      name: phDevices
+      desc: "[in][range(0, numDevices)] a pointer to a list of device handles. The binaries are loaded for devices specified in this list."
+    - type: size_t*
+      name: pLengths
+      desc: "[in][range(0, numDevices)] array of sizes of program binaries specified by `pBinaries` (in bytes)."
+    - type: const uint8_t**
+      name: ppBinaries
+      desc: "[in][range(0, numDevices)] pointer to program binaries to be loaded for devices specified by `phDevices`."
+    - type: const $x_program_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to program creation properties."
+    - type: $x_program_handle_t*
+      name: phProgram
+      desc: "[out][alloc] pointer to handle of Program object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`"
+        - "`numDevices == 0`"
+    - $X_RESULT_ERROR_INVALID_NATIVE_BINARY:
+        - "If any binary in `ppBinaries` isn't a valid binary for the corresponding device in `phDevices.`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one program, negates need for the linking step."
+class: $xProgram
+name: Build
+decl: static
+ordinal: "2"
+analogue:
+    - "**clBuildProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point, the program passed will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `hContext`."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] Handle of the program to build."
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to build options null-terminated string."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If `hProgram` isn't a valid program object."
+    - $X_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+      - "If an error occurred when building `hProgram`."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one or more programs."
+class: $xProgram
+name: Compile
+decl: static
+ordinal: "3"
+analogue:
+    - "**clCompileProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point `hProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each device in `hContext`."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in][out] handle of the program to compile."
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to build options null-terminated string."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If `hProgram` isn't a valid program object."
+    - $X_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+      - "If an error occurred while compiling `hProgram`."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one or more programs."
+class: $xProgram
+name: Link
+decl: static
+ordinal: "4"
+analogue:
+    - "**clLinkProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point the program returned in `phProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `hContext`."
+    - "If a non-success code is returned and `phProgram` is not `nullptr`, it will contain an unspecified program or `nullptr`. Implementations may use the build log of this program (accessible via $xProgramGetBuildInfo) to provide an error log for the linking failure."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: uint32_t
+      name: count
+      desc: "[in] number of program handles in `phPrograms`."
+    - type: const $x_program_handle_t*
+      name: phPrograms
+      desc: "[in][range(0, count)] pointer to array of program handles."
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to linker options null-terminated string."
+    - type: $x_program_handle_t*
+      name: phProgram
+      desc: "[out][alloc] pointer to handle of program object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If one of the programs in `phPrograms` isn't a valid program object."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`count == 0`"
+    - $X_RESULT_ERROR_PROGRAM_LINK_FAILURE:
+      - "If an error occurred while linking `phPrograms`."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the Program object."
+class: $xProgram
+name: Retain
+decl: static
+ordinal: "5"
+analogue:
+    - "**clRetainProgram**"
+details:
+    - "Get a reference to the Program object handle. Increment its reference count"
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in][retain] handle for the Program to retain"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release Program."
+class: $xProgram
+name: Release
+decl: static
+ordinal: "6"
+analogue:
+    - "**clReleaseProgram**"
+details:
+    - "Decrement reference count and destroy the Program if reference count becomes zero."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in][release] handle for the Program to release"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves a device function pointer to a user-defined function."
+class: $xProgram
+name: GetFunctionPointer
+decl: static
+ordinal: "7"
+analogue:
+    - "**clGetDeviceFunctionPointerINTEL**"
+details:
+    - "Retrieves a pointer to the functions with the given name and defined in the given program."
+    - "$X_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE is returned if the function can not be obtained."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device to retrieve pointer for.
+      todo: "Should this parameter be a context instead of device?"
+    - type: "$x_program_handle_t"
+      name: hProgram
+      desc: |
+            [in] handle of the program to search for function in.
+            The program must already be built to the specified device, or otherwise $X_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE is returned.
+    - type: "const char*"
+      name: pFunctionName
+      desc: |
+            [in] A null-terminates string denoting the mangled function name.
+    - type: "void**"
+      name: ppFunctionPointer
+      desc: |
+            [out] Returns the pointer to the function if it is found in the program.
+returns:
+    - $X_RESULT_ERROR_INVALID_KERNEL_NAME:
+        - "If `pFunctionName` couldn't be found in `hProgram`."
+    - $X_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
+        - "If `pFunctionName` could be located, but its address couldn't be retrieved."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves a pointer to a device global variable."
+class: $xProgram
+name: GetGlobalVariablePointer
+decl: static
+ordinal: "7"
+analogue:
+    - "**clGetDeviceGlobalVariablePointerINTEL**"
+details:
+    - "Retrieves a pointer to a device global variable."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device to retrieve the pointer for.
+    - type: "$x_program_handle_t"
+      name: hProgram
+      desc: |
+            [in] handle of the program where the global variable is.
+    - type: "const char*"
+      name: pGlobalVariableName
+      desc: |
+            [in] mangled name of the global variable to retrieve the pointer for.
+    - type: "size_t*"
+      name: pGlobalVariableSizeRet
+      desc: |
+        [out][optional] Returns the size of the global variable if it is found in the program.
+    - type: "void**"
+      name: ppGlobalVariablePointerRet
+      desc: |
+            [out] Returns the pointer to the global variable if it is found in the program.
+returns:
+  - $X_RESULT_ERROR_INVALID_VALUE:
+      - "`name` is not a valid variable in the program."
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get Program object information"
+class: $xProgram
+name: $x_program_info_t
+typed_etors: True
+etors:
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the program object.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: CONTEXT
+      desc: "[$x_context_handle_t] Program context info."
+    - name: NUM_DEVICES
+      desc: "[uint32_t] Return number of devices associated with Program."
+    - name: DEVICES
+      desc: |
+          [$x_device_handle_t[]] Return list of devices associated with a program.
+          This is either the list of devices associated with the context or a subset of those devices when the program is created using $xProgramCreateWithBinary.
+    - name: IL
+      desc: "[char[]] Return program IL if the program was created with $xProgramCreateWithIL, otherwise return size will be set to 0 and nothing will be returned. This is not null-terminated."
+    - name: BINARY_SIZES
+      desc: "[size_t[]] Return program binary sizes for each device."
+    - name: BINARIES
+      desc: "[unsigned char[]] Return program binaries for all devices for this Program. These are not null-terminated."
+    - name: NUM_KERNELS
+      desc: "[size_t][optional-query] Number of kernels in Program, return type size_t."
+    - name: KERNEL_NAMES
+      desc: "[char[]][optional-query] Return a null-terminated, semi-colon separated list of kernel names in Program."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query information about a Program object"
+class: $xProgram
+name: GetInfo
+ordinal: "7"
+analogue:
+    - "**clGetProgramInfo**"
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the Program object"
+    - type: "$x_program_info_t"
+      name: propName
+      desc: "[in] name of the Program property to query"
+    - type: "size_t"
+      name: propSize
+      desc: |
+            [in] the size of the Program property.
+    - type: "void*"
+      name: pPropValue
+      desc: |
+            [in,out][optional][typename(propName, propSize)] array of bytes of holding the program info property.
+            If propSize is not equal to or greater than the real number of bytes needed to return
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
+    - type: "size_t*"
+      name: "pPropSizeRet"
+      desc: |
+            [out][optional] pointer to the actual size in bytes of the queried propName.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_PROGRAM
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Program object build status"
+class: $xProgram
+name: $x_program_build_status_t
+etors:
+    - name: NONE
+      desc: "Program build status none"
+    - name: ERROR
+      desc: "Program build error"
+    - name: SUCCESS
+      desc: "Program build success"
+    - name: IN_PROGRESS
+      desc: "Program build in progress"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Program object binary type"
+class: $xProgram
+name: $x_program_binary_type_t
+etors:
+    - name: NONE
+      desc: "No program binary is associated with device"
+    - name: COMPILED_OBJECT
+      desc: "Program binary is compiled object"
+    - name: LIBRARY
+      desc: "Program binary is library object"
+    - name: EXECUTABLE
+      desc: "Program binary is executable"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get Program object build information"
+class: $xProgram
+name: $x_program_build_info_t
+typed_etors: True
+etors:
+    - name: STATUS
+      desc: "[$x_program_build_status_t] Program build status."
+    - name: OPTIONS
+      desc: "[char[]] Null-terminated options string specified by last build, compile or link operation performed on the program."
+    - name: LOG
+      desc: "[char[]] Null-terminated program build log."
+    - name: BINARY_TYPE
+      desc: "[$x_program_binary_type_t] Program binary type."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query build information about a Program object for a Device"
+class: $xProgram
+name: GetBuildInfo
+ordinal: "7"
+analogue:
+    - "**clGetProgramBuildInfo**"
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the Program object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the Device object"
+    - type: $x_program_build_info_t
+      name: propName
+      desc: "[in] name of the Program build info to query"
+    - type: "size_t"
+      name: propSize
+      desc: |
+            [in] size of the Program build info property.
+    - type: "void*"
+      name: pPropValue
+      desc: |
+            [in,out][optional][typename(propName, propSize)] value of the Program build property.
+            If propSize is not equal to or greater than the real number of bytes
+            needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE
+            error is returned and pPropValue is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of data being queried by propName.
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Specialization constant information"
+class: $xProgram
+name: $x_specialization_constant_info_t
+members:
+    - type: uint32_t
+      name: id
+      desc: "[in] specialization constant Id"
+    - type: size_t
+      name: size
+      desc: "[in] size of the specialization constant value"
+    - type: const void*
+      name: pValue
+      desc: "[in] pointer to the specialization constant value bytes"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set an array of specialization constants on a Program."
+class: $xProgram
+name: SetSpecializationConstants
+details:
+    - "This entry point is optional, the application should query for support with device query $X_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS passed to $xDeviceGetInfo."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+    - "`hProgram` must have been created with the $xProgramCreateWithIL entry point."
+    - "Any spec constants set with this entry point will apply only to subsequent calls to $xProgramBuild or $xProgramCompile."
+ordinal: "7"
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the Program object"
+    - type: uint32_t
+      name: count
+      desc: "[in] the number of elements in the pSpecConstants array"
+    - type: const $x_specialization_constant_info_t*
+      name: pSpecConstants
+      desc: "[in][range(0, count)] array of specialization constant value descriptions"
+returns:
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`count == 0`"
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If $X_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS query is false"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "A pSpecConstant entry contains a size that does not match that of the specialization constant in the module."
+        - "A pSpecConstant entry contains a nullptr pValue."
+    - $X_RESULT_ERROR_INVALID_SPEC_ID:
+        - "Any id specified in a pSpecConstant entry is not a valid specialization constant identifier."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return program native program handle."
+class: $xProgram
+name: GetNativeHandle
+decl: static
+ordinal: "7"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability program extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_program_handle_t"
+      name: hProgram
+      desc: |
+            [in] handle of the program.
+    - type: $x_native_handle_t*
+      name: phNativeProgram
+      desc: |
+            [out] a pointer to the native handle of the program.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Native program creation properties"
+class: $xProgram
+name: $x_program_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime program object from native program handle."
+class: $xProgram
+name: CreateWithNativeHandle
+decl: static
+ordinal: "7"
+details:
+    - "Creates runtime program handle from native driver program handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_native_handle_t
+      name: hNativeProgram
+      desc: "[in][nocheck] the native handle of the program."
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance"
+    - type: const $x_program_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native program properties struct."
+    - type: "$x_program_handle_t*"
+      name: phProgram
+      desc: "[out][alloc] pointer to the handle of the program object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."

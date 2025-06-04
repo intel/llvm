@@ -43,14 +43,14 @@ entry:
   %4 = bitcast ptr %3 to ptr
 ; CHECK-LLVM: %[[#ANN_PTR1:]] = getelementptr inbounds %struct.__spirv_Something, ptr %[[#]], i32 0, i32 0
   %5 = call ptr @llvm.ptr.annotation.p0.p1(ptr %4, ptr addrspace(1) @.str.9, ptr addrspace(1) @.str.1, i32 5, ptr addrspace(1) null)
-; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#ANN_PTR1]], ptr @[[#ANN_STR1]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#ANN_PTR1]], ptr @[[#ANN_STR1]], ptr poison, i32 poison, ptr poison)
   %6 = load i32, ptr %5, align 8
   %7 = load ptr, ptr %1, align 8
   %8 = getelementptr inbounds %struct.__spirv_Something, ptr %7, i32 0, i32 1
   %9 = bitcast ptr %8 to ptr
 ; CHECK-LLVM: %[[#ANN_PTR2:]] = getelementptr inbounds %struct.__spirv_Something, ptr %[[#]], i32 0, i32 1
   %10 = call ptr @llvm.ptr.annotation.p0.p1(ptr %9, ptr addrspace(1) @.str.10, ptr addrspace(1) @.str.1, i32 5, ptr addrspace(1) null)
-; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#ANN_PTR2]], ptr @[[#ANN_STR2]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#ANN_PTR2]], ptr @[[#ANN_STR2]], ptr poison, i32 poison, ptr poison)
   %11 = load i32, ptr %10, align 8
   ret void
 }

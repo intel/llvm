@@ -53,8 +53,7 @@ FailureOr<Value> getStride(ConversionPatternRewriter &rewriter,
   unsigned bytes = width >> 3;
   int64_t offset;
   SmallVector<int64_t, 4> strides;
-  if (failed(getStridesAndOffset(mType, strides, offset)) ||
-      strides.back() != 1)
+  if (failed(mType.getStridesAndOffset(strides, offset)) || strides.back() != 1)
     return failure();
   if (strides[preLast] == ShapedType::kDynamic) {
     // Dynamic stride needs code to compute the stride at runtime.
@@ -106,8 +105,8 @@ struct TileLoadConversion : public ConvertOpToLLVMPattern<TileLoadOp> {
     if (failed(stride))
       return failure();
     // Replace operation with intrinsic.
-    Value ptr = getStridedElementPtr(op.getLoc(), mType, adaptor.getBase(),
-                                     adaptor.getIndices(), rewriter);
+    Value ptr = getStridedElementPtr(rewriter, op.getLoc(), mType,
+                                     adaptor.getBase(), adaptor.getIndices());
     Type resType = typeConverter->convertType(tType);
     rewriter.replaceOpWithNewOp<amx::x86_amx_tileloadd64>(
         op, resType, tsz.first, tsz.second, ptr, stride.value());
@@ -132,8 +131,8 @@ struct TileStoreConversion : public ConvertOpToLLVMPattern<TileStoreOp> {
     if (failed(stride))
       return failure();
     // Replace operation with intrinsic.
-    Value ptr = getStridedElementPtr(op.getLoc(), mType, adaptor.getBase(),
-                                     adaptor.getIndices(), rewriter);
+    Value ptr = getStridedElementPtr(rewriter, op.getLoc(), mType,
+                                     adaptor.getBase(), adaptor.getIndices());
     rewriter.replaceOpWithNewOp<amx::x86_amx_tilestored64>(
         op, tsz.first, tsz.second, ptr, stride.value(), adaptor.getVal());
     return success();

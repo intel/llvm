@@ -187,13 +187,17 @@ struct FunctionInfo {
   ///
   /// \param Addr The address to lookup.
   ///
+  /// \param MergedFuncsData A pointer to an optional DataExtractor that, if
+  /// non-null, will be set to the raw data of the MergedFunctionInfo, if
+  /// present.
+  ///
   /// \returns An LookupResult or an error describing the issue that was
   /// encountered during decoding. An error should only be returned if the
   /// address is not contained in the FunctionInfo or if the data is corrupted.
-  static llvm::Expected<LookupResult> lookup(DataExtractor &Data,
-                                             const GsymReader &GR,
-                                             uint64_t FuncAddr,
-                                             uint64_t Addr);
+  static llvm::Expected<LookupResult>
+  lookup(DataExtractor &Data, const GsymReader &GR, uint64_t FuncAddr,
+         uint64_t Addr,
+         std::optional<DataExtractor> *MergedFuncsData = nullptr);
 
   uint64_t startAddress() const { return Range.start(); }
   uint64_t endAddress() const { return Range.end(); }
@@ -230,11 +234,8 @@ inline bool operator!=(const FunctionInfo &LHS, const FunctionInfo &RHS) {
 /// the GSYM file.
 inline bool operator<(const FunctionInfo &LHS, const FunctionInfo &RHS) {
   // First sort by address range
-  if (LHS.Range != RHS.Range)
-    return LHS.Range < RHS.Range;
-  if (LHS.Inline == RHS.Inline)
-    return LHS.OptLineTable < RHS.OptLineTable;
-  return LHS.Inline < RHS.Inline;
+  return std::tie(LHS.Range, LHS.Inline, LHS.OptLineTable) <
+         std::tie(RHS.Range, RHS.Inline, RHS.OptLineTable);
 }
 
 raw_ostream &operator<<(raw_ostream &OS, const FunctionInfo &R);

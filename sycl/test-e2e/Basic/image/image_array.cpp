@@ -1,11 +1,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: gpu
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15398
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
@@ -18,6 +14,7 @@
 #include <sycl/accessor_image.hpp>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <iostream>
 #include <vector>
@@ -32,6 +29,7 @@ int main() {
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
 
   const sycl::range<2> ImgSize(4, 4);
+  const sycl::nd_range<2> NDImgSize{ImgSize, ImgSize};
 
   std::vector<sycl::float4> Img1HostData(ImgSize.size(), {1, 2, 3, 4});
 
@@ -119,12 +117,13 @@ int main() {
 
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
-      CGH.parallel_for<class Check2>(ImgSize, [=](sycl::item<2> Item) {
-        sycl::int2 CoordI{Item[0], Item[1]};
+      CGH.parallel_for<class Check2>(NDImgSize, [=](sycl::nd_item<2> Item) {
+        sycl::int2 CoordI{Item.get_global_id(0), Item.get_global_id(1)};
 
         // CHeck that data written using image array
         const sycl::float4 ValRef{CoordI.x(), 42, 42, CoordI.y()};
         ImgArrayAcc[CoordI.y()].write((int)CoordI.x(), ValRef);
+        sycl::group_barrier(Item.get_group());
         auto Val = ImgAcc.read(CoordI);
 
         ResAcc[WRITE1] |= sycl::any(sycl::isnotequal(Val, ValRef));
@@ -139,12 +138,13 @@ int main() {
 
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
-      CGH.parallel_for<class Check3>(ImgSize, [=](sycl::item<2> Item) {
-        sycl::int2 CoordI{Item[0], Item[1]};
+      CGH.parallel_for<class Check3>(NDImgSize, [=](sycl::nd_item<2> Item) {
+        sycl::int2 CoordI{Item.get_global_id(0), Item.get_global_id(1)};
 
         // CHeck that data read using image array
-        const sycl::float4 ValRef{CoordI.x(), 42, 42, CoordI.y()};
+        const sycl::float4 ValRef{CoordI.x(), 53, 55, CoordI.y()};
         ImgAcc.write(CoordI, ValRef);
+        sycl::group_barrier(Item.get_group());
         auto Val = ImgArrayAcc[CoordI.y()].read((int)CoordI.x());
 
         ResAcc[WRITE2] |= sycl::any(sycl::isnotequal(Val, ValRef));

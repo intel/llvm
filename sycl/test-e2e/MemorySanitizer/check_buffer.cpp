@@ -6,12 +6,9 @@
 // RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
-// XFAIL: spirv-backend
-// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
-
 #include <sycl/detail/core.hpp>
 
-__attribute__((noinline)) long long foo(int data1, long long data2) {
+__attribute__((noinline)) int foo(int data1, int data2) {
   return data1 + data2;
 }
 
@@ -19,12 +16,9 @@ int main() {
   sycl::queue q;
 
   sycl::buffer<int, 1> buf1(sycl::range<1>(1));
-  sycl::buffer<long long, 1> buf2(sycl::range<1>(1));
   q.submit([&](sycl::handler &h) {
      auto array1 = buf1.get_access<sycl::access::mode::read_write>(h);
-     auto array2 = buf2.get_access<sycl::access::mode::read_write>(h);
-     h.single_task<class MyKernel>(
-         [=]() { array1[0] = foo(array1[0], array2[0]); });
+     h.single_task<class MyKernel>([=]() { foo(array1[0], array1[0]); });
    }).wait();
   // CHECK: use-of-uninitialized-value
   // CHECK: kernel <{{.*MyKernel}}>

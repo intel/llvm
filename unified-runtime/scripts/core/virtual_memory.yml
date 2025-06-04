@@ -1,0 +1,354 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs"
+ordinal: "4"
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Virtual memory granularity info"
+class: $xVirtualMem
+name: $x_virtual_mem_granularity_info_t
+typed_etors: True
+etors:
+    - name: MINIMUM
+      value: "0x30100"
+      desc: "[size_t] size in bytes of the minimum virtual memory granularity."
+    - name: RECOMMENDED
+      value: "0x30101"
+      desc: "[size_t] size in bytes of the recommended virtual memory granularity."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get information about the minimum and recommended granularity of physical and virtual memory."
+class: $xVirtualMem
+name: GranularityGetInfo
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object."
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: >
+          [in][optional] is the device to get the granularity from, if the
+          device is null then the granularity is suitable for all devices in
+          context.
+    - type: $x_virtual_mem_granularity_info_t
+      name: propName
+      desc: "[in] type of the info to query."
+    - type: size_t
+      name: propSize
+      desc: "[in] size in bytes of the memory pointed to by pPropValue."
+    - type: void*
+      name: pPropValue
+      desc: >
+          [out][optional][typename(propName, propSize)] array of bytes holding
+          the info. If propSize is less than the real number of bytes needed to
+          return the info then the $X_RESULT_ERROR_INVALID_SIZE error is
+          returned and pPropValue is not used.
+    - type: size_t*
+      name: pPropSizeRet
+      desc: >
+          [out][optional] pointer to the actual size in bytes of the queried
+          propName."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Reserve a virtual memory range."
+class: $xVirtualMem
+name: Reserve
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object."
+    - type: const void*
+      name: pStart
+      desc: >
+          [in][optional] pointer to the start of the virtual memory region to
+          reserve, specifying a null value causes the implementation to select
+          a start address.
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the virtual address range to reserve."
+    - type: void**
+      name: ppStart
+      desc: >
+          [out] pointer to the returned address at the start of reserved
+          virtual memory range.
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Free a virtual memory range."
+class: $xVirtualMem
+name: Free
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object."
+    - type: const void*
+      name: pStart
+      desc: "[in] pointer to the start of the virtual memory range to free."
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the virtual memory range to free."
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Virtual memory access mode flags."
+class: $xVirtualMem
+name: $x_virtual_mem_access_flags_t
+etors:
+    - name: NONE
+      value: $X_BIT(0)
+      desc: "Virtual memory has no access."
+    - name: READ_WRITE
+      value: $X_BIT(1)
+      desc: "Virtual memory has both read and write access."
+    - name: READ_ONLY
+      value: $X_BIT(2)
+      desc: "Virtual memory has read only access."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Map a virtual memory range to a physical memory handle."
+class: $xVirtualMem
+name: Map
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle to the context object."
+    - type: const void*
+      name: pStart
+      desc: "[in] pointer to the start of the virtual memory range."
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the virtual memory range to map."
+    - type: $x_physical_mem_handle_t
+      name: hPhysicalMem
+      desc: "[in] handle of the physical memory to map pStart to."
+    - type: size_t
+      name: offset
+      desc: "[in] offset in bytes into the physical memory to map pStart to."
+    - type: $x_virtual_mem_access_flags_t
+      name: flags
+      desc: "[in] access flags for the physical memory mapping."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Unmap a virtual memory range previously mapped in a context."
+details:
+    - After a call to this function, the virtual memory range is left in a
+      state ready to be remapped.
+class: $xVirtualMem
+name: Unmap
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle to the context object."
+    - type: const void*
+      name: pStart
+      desc: "[in] pointer to the start of the mapped virtual memory range"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the virtual memory range."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set the access mode of a mapped virtual memory range."
+class: $xVirtualMem
+name: SetAccess
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle to the context object."
+    - type: const void*
+      name: pStart
+      desc: "[in] pointer to the start of the virtual memory range."
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the virtual memory range."
+    - type: $x_virtual_mem_access_flags_t
+      name: flags
+      desc: "[in] access flags to set for the mapped virtual memory range."
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Virtual memory range info queries."
+class: $xVirtualMem
+name: $x_virtual_mem_info_t
+typed_etors: True
+etors:
+    - name: ACCESS_MODE
+      desc: >
+          [$x_virtual_mem_access_flags_t] access flags of a mapped virtual
+          memory range.
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get information about a mapped virtual memory range."
+class: $xVirtualMem
+name: GetInfo
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle to the context object."
+    - type: const void*
+      name: pStart
+      desc: "[in] pointer to the start of the virtual memory range."
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the virtual memory range."
+    - type: $x_virtual_mem_info_t
+      name: propName
+      desc: "[in] type of the info to query."
+    - type: size_t
+      name: propSize
+      desc: "[in] size in bytes of the memory pointed to by pPropValue."
+    - type: void*
+      name: pPropValue
+      desc: >
+          [out][optional][typename(propName, propSize)] array of bytes holding
+          the info. If propSize is less than the real number of bytes needed to
+          return the info then the $X_RESULT_ERROR_INVALID_SIZE error is
+          returned and pPropValue is not used.
+    - type: size_t*
+      name: pPropSizeRet
+      desc: >
+          [out][optional] pointer to the actual size in bytes of the queried
+          propName."
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Physical memory creation properties."
+class: $xPhysicalMem
+name: $x_physical_mem_flags_t
+etors:
+    - name: TBD
+      desc: "reserved for future use."
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Physical memory creation properties."
+class: $xPhysicalMem
+name: $x_physical_mem_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_physical_mem_flags_t
+      name: flags
+      desc: "[in] physical memory creation flags"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a physical memory handle that virtual memory can be mapped to."
+class: $xPhysicalMem
+name: Create
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object."
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object."
+    - type: size_t
+      name: size
+      desc: >
+          [in] size in bytes of physical memory to allocate, must be a
+          multiple of $X_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
+    - type: const $x_physical_mem_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to physical memory creation properties."
+    - type: $x_physical_mem_handle_t*
+      name: phPhysicalMem
+      desc: "[out][alloc] pointer to handle of physical memory object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If size is not a multiple of $X_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retain a physical memory handle, increment its reference count."
+class: $xPhysicalMem
+name: Retain
+params:
+    - type: $x_physical_mem_handle_t
+      name: hPhysicalMem
+      desc: "[in][retain] handle of the physical memory object to retain."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release a physical memory handle, decrement its reference count."
+class: $xPhysicalMem
+name: Release
+params:
+    - type: $x_physical_mem_handle_t
+      name: hPhysicalMem
+      desc: "[in][release] handle of the physical memory object to release."
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Physical memory range info queries."
+class: $xPhysicalMem
+name: $x_physical_mem_info_t
+typed_etors: True
+etors:
+    - name: CONTEXT
+      desc: "[$x_context_handle_t] context in which the physical memory object was created."
+    - name: DEVICE
+      desc: "[$x_device_handle_t] device associated with this physical memory object."
+    - name: SIZE
+      desc: "[size_t] actual size of the physical memory object in bytes."
+    - name: PROPERTIES
+      desc: "[$x_physical_mem_properties_t] properties set when creating this physical memory object."
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the physical memory object.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get information about a physical memory object."
+class: $xPhysicalMem
+name: GetInfo
+params:
+    - type: $x_physical_mem_handle_t
+      name: hPhysicalMem
+      desc: "[in] handle of the physical memory object to query."
+    - type: $x_physical_mem_info_t
+      name: propName
+      desc: "[in] type of the info to query."
+    - type: size_t
+      name: propSize
+      desc: "[in] size in bytes of the memory pointed to by pPropValue."
+    - type: void*
+      name: pPropValue
+      desc: >
+          [out][optional][typename(propName, propSize)] array of bytes holding
+          the info. If propSize is less than the real number of bytes needed to
+          return the info then the $X_RESULT_ERROR_INVALID_SIZE error is
+          returned and pPropValue is not used.
+    - type: size_t*
+      name: pPropSizeRet
+      desc: >
+          [out][optional] pointer to the actual size in bytes of the queried
+          propName."

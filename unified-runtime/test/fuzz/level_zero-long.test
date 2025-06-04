@@ -1,0 +1,4 @@
+RUN: %fuzz-options %use-level_zero fuzztest-base -max_total_time=600 -seed=1 -verbosity=1 -detect_leaks=0
+
+REQUIRES: adapter-level_zero
+REQUIRES: fuzztesting

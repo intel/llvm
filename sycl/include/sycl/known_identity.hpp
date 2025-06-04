@@ -258,10 +258,24 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMinimumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
+
+#if defined(__FINITE_MATH_ONLY__) && (__FINITE_MATH_ONLY__ == 1)
+  // Finite math only (-ffast-math,  -fno-honor-infinities) improves
+  // performance, but does not affect ::has_infinity (which is correct behavior,
+  // if unexpected). Use ::max() instead of ::infinity().
+  // Note that if someone uses -fno-honor-infinities WITHOUT -fno-honor-nans
+  // they'll end up using ::infinity(). There is no reasonable case where one of
+  // the flags would be used without the other and therefore
+  // __FINITE_MATH_ONLY__ is sufficient for this problem ( and superior to the
+  // __FAST_MATH__ macro we were using before).
+  static constexpr AccumulatorT value =
+      (std::numeric_limits<AccumulatorT>::max)();
+#else
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(
       std::numeric_limits<AccumulatorT>::has_infinity
           ? std::numeric_limits<AccumulatorT>::infinity()
           : (std::numeric_limits<AccumulatorT>::max)());
+#endif
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -295,11 +309,17 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMaximumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
+// See comment above in known_identity_impl<IsMinimumIdentityOp>
+#if defined(__FINITE_MATH_ONLY__) && (__FINITE_MATH_ONLY__ == 1)
+  static constexpr AccumulatorT value =
+      (std::numeric_limits<AccumulatorT>::lowest)();
+#else
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(
       std::numeric_limits<AccumulatorT>::has_infinity
           ? static_cast<AccumulatorT>(
                 -std::numeric_limits<AccumulatorT>::infinity())
           : std::numeric_limits<AccumulatorT>::lowest());
+#endif
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)

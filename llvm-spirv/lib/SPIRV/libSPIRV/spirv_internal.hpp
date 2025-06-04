@@ -59,8 +59,6 @@ enum InternalLinkageType {
 
 enum InternalOp {
   IOpTypeTokenINTEL = 6113,
-  IOpConvertFToBF16INTEL = 6116,
-  IOpConvertBF16ToFINTEL = 6117,
   IOpTypeJointMatrixINTEL = 6119,
   IOpJointMatrixLoadINTEL = 6120,
   IOpJointMatrixStoreINTEL = 6121,
@@ -68,7 +66,6 @@ enum InternalOp {
   IOpJointMatrixSUMadINTEL = 6128,
   IOpJointMatrixUSMadINTEL = 6129,
   IOpJointMatrixUUMadINTEL = 6130,
-  IOpArithmeticFenceINTEL = 6145,
   IOpTaskSequenceCreateINTEL = 6163,
   IOpTaskSequenceAsyncINTEL = 6164,
   IOpTaskSequenceGetINTEL = 6165,
@@ -81,9 +78,6 @@ enum InternalOp {
   IOpCooperativeMatrixStoreOffsetINTEL = 6240,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpTypeTaskSequenceINTEL = 6199,
-  IOpComplexFMulINTEL = 6415,
-  IOpComplexFDivINTEL = 6416,
-  IOpRoundFToTF32INTEL = 6426,
   IOpMaskedGatherINTEL = 6428,
   IOpMaskedScatterINTEL = 6429,
   IOpJointMatrixGetElementCoordINTEL = 6440,
@@ -109,17 +103,13 @@ enum InternalCapability {
   ICapFastCompositeINTEL = 6093,
   ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112,
-  ICapBfloat16ConversionINTEL = 6115,
   ICapabilityJointMatrixINTEL = 6118,
   ICapabilityHWThreadQueryINTEL = 6134,
-  ICapFPArithmeticFenceINTEL = 6144,
   ICapGlobalVariableDecorationsINTEL = 6146,
   ICapabilityTaskSequenceINTEL = 6162,
   ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
   ICapabilityCooperativeMatrixOffsetInstructionsINTEL = 6238,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
-  ICapabilityComplexFloatMulDivINTEL = 6414,
-  ICapabilityTensorFloat32RoundingINTEL = 6425,
   ICapabilityMaskedGatherScatterINTEL = 6427,
   ICapabilityJointMatrixWIInstructionsINTEL = 6435,
   ICapabilityCooperativeMatrixInvocationInstructionsINTEL = 6435,
@@ -201,16 +191,9 @@ _SPIRV_OP(Capability, HWThreadQueryINTEL)
 _SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
 _SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
 
-_SPIRV_OP(Capability, ComplexFloatMulDivINTEL)
-_SPIRV_OP(Op, ComplexFMulINTEL)
-_SPIRV_OP(Op, ComplexFDivINTEL)
-
 _SPIRV_OP(Capability, MaskedGatherScatterINTEL)
 _SPIRV_OP(Op, MaskedGatherINTEL)
 _SPIRV_OP(Op, MaskedScatterINTEL)
-
-_SPIRV_OP(Capability, TensorFloat32RoundingINTEL)
-_SPIRV_OP(Op, RoundFToTF32INTEL)
 
 _SPIRV_OP(Capability, CacheControlsINTEL)
 
@@ -272,9 +255,6 @@ constexpr SourceLanguage SourceLanguageCPP20 =
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
 constexpr Op OpTypeTokenINTEL = static_cast<Op>(IOpTypeTokenINTEL);
-constexpr Op OpArithmeticFenceINTEL = static_cast<Op>(IOpArithmeticFenceINTEL);
-constexpr Op OpConvertFToBF16INTEL = static_cast<Op>(IOpConvertFToBF16INTEL);
-constexpr Op OpConvertBF16ToFINTEL = static_cast<Op>(IOpConvertBF16ToFINTEL);
 
 constexpr Decoration DecorationCallableFunctionINTEL =
     static_cast<Decoration>(IDecCallableFunctionINTEL);
@@ -295,10 +275,6 @@ constexpr Capability CapabilityOptNoneINTEL =
     static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityTokenTypeINTEL =
     static_cast<Capability>(ICapTokenTypeINTEL);
-constexpr Capability CapabilityFPArithmeticFenceINTEL =
-    static_cast<Capability>(ICapFPArithmeticFenceINTEL);
-constexpr Capability CapabilityBfloat16ConversionINTEL =
-    static_cast<Capability>(ICapBfloat16ConversionINTEL);
 constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
     static_cast<Capability>(ICapGlobalVariableDecorationsINTEL);
 

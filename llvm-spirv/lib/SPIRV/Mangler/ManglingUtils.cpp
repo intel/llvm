@@ -28,6 +28,7 @@ static const char *PrimitiveNames[PRIMITIVE_NUM] = {
     "half",
     "float",
     "double",
+    "__bf16",
     "void",
     "...",
     "image1d_ro_t",
@@ -105,6 +106,7 @@ const char *MangledTypes[PRIMITIVE_NUM] = {
     "Dh",                                // HALF
     "f",                                 // FLOAT
     "d",                                 // DOUBLE
+    "u6__bf16",                          // __BF16
     "v",                                 // VOID
     "z",                                 // VarArg
     "14ocl_image1d_ro",                  // PRIMITIVE_IMAGE1D_RO_T
@@ -197,6 +199,7 @@ static const SPIRversion PrimitiveSupportedVersions[PRIMITIVE_NUM] = {
     SPIR12, // HALF
     SPIR12, // FLOAT
     SPIR12, // DOUBLE
+    SPIR12, // __BF16
     SPIR12, // VOID
     SPIR12, // VarArg
     SPIR12, // PRIMITIVE_IMAGE1D_RO_T

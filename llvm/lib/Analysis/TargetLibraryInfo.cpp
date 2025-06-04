@@ -40,7 +40,7 @@ static cl::opt<TargetLibraryInfoImpl::VectorLibrary> ClVectorLibrary(
                           "Accelerate framework"),
                clEnumValN(TargetLibraryInfoImpl::DarwinLibSystemM,
                           "Darwin_libsystem_m", "Darwin libsystem_m"),
-               clEnumValN(TargetLibraryInfoImpl::LIBMVEC_X86, "LIBMVEC-X86",
+               clEnumValN(TargetLibraryInfoImpl::LIBMVEC, "LIBMVEC",
                           "GLIBC Vector Math library"),
                clEnumValN(TargetLibraryInfoImpl::MASSV, "MASSV",
                           "IBM MASS vector library"),
@@ -129,7 +129,7 @@ static bool hasBcmp(const Triple &TT) {
   return TT.isOSFreeBSD() || TT.isOSSolaris();
 }
 
-static bool isCallingConvCCompatible(CallingConv::ID CC, StringRef TT,
+static bool isCallingConvCCompatible(CallingConv::ID CC, const Triple &TT,
                                      FunctionType *FuncTy) {
   switch (CC) {
   default:
@@ -142,7 +142,7 @@ static bool isCallingConvCCompatible(CallingConv::ID CC, StringRef TT,
 
     // The iOS ABI diverges from the standard in some cases, so for now don't
     // try to simplify those calls.
-    if (Triple(TT).isiOS())
+    if (TT.isiOS())
       return false;
 
     if (!FuncTy->getReturnType()->isPointerTy() &&
@@ -213,6 +213,14 @@ static void initializeLibCalls(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.disableAllFunctions();
     TLI.setAvailable(llvm::LibFunc___kmpc_alloc_shared);
     TLI.setAvailable(llvm::LibFunc___kmpc_free_shared);
+    return;
+  }
+
+  // DXIL does not support libcalls, and disabling them here prevents a number
+  // of passes from introducing libcalls into DXIL which would otherwise
+  // complicate lowering/legalization
+  if (T.isDXIL()) {
+    TLI.disableAllFunctions();
     return;
   }
 
@@ -1334,7 +1342,7 @@ void TargetLibraryInfoImpl::addAltMathFunctionsFromLib(
 /// Select an alternate math library implementation that meets the criteria
 /// described by an FPBuiltinIntrinsic call.
 StringRef TargetLibraryInfoImpl::selectFPBuiltinImplementation(
-    FPBuiltinIntrinsic *Builtin) const {
+    const FPBuiltinIntrinsic *Builtin) const {
   // TODO: Handle the case of no specified accuracy.
   if (Builtin->getRequiredAccuracy() == std::nullopt)
     return StringRef();
@@ -1351,6 +1359,66 @@ StringRef TargetLibraryInfoImpl::selectFPBuiltinImplementation(
       I->Accuracy > Builtin->getRequiredAccuracy().value())
     return StringRef(); // TODO: Report fatal error?
   return I->FnImplName;
+}
+
+FPBuiltinReplacement TargetLibraryInfoImpl::selectFnForFPBuiltinCalls(
+    const FPBuiltinIntrinsic &BuiltinCall,
+    const TargetTransformInfo &TTI) const {
+  auto DefaultOpIsCorrectlyRounded = [](const FPBuiltinIntrinsic &BuiltinCall) {
+    switch (BuiltinCall.getIntrinsicID()) {
+    case Intrinsic::fpbuiltin_fadd:
+    case Intrinsic::fpbuiltin_fsub:
+    case Intrinsic::fpbuiltin_fmul:
+    case Intrinsic::fpbuiltin_fdiv:
+    case Intrinsic::fpbuiltin_frem:
+    case Intrinsic::fpbuiltin_sqrt:
+    case Intrinsic::fpbuiltin_ldexp:
+      return true;
+    default:
+      return false;
+    }
+  };
+  StringSet<> RecognizedAttrs = {FPBuiltinIntrinsic::FPBUILTIN_MAX_ERROR};
+  if (BuiltinCall.hasUnrecognizedFPAttrs(std::move(RecognizedAttrs)))
+    return FPBuiltinReplacement(FPBuiltinReplacement::UnrecognizedFPAttrs);
+  Triple T(BuiltinCall.getModule()->getTargetTriple());
+  const auto Accuracy = BuiltinCall.getRequiredAccuracy();
+  // For fpbuiltin.sqrt, it should always use the native operation for
+  // x86-based targets because the native instruction is faster (even faster
+  // than the low-accuracy SVML implementation).
+  if (T.isX86() && BuiltinCall.getIntrinsicID() == Intrinsic::fpbuiltin_sqrt &&
+      TTI.haveFastSqrt(BuiltinCall.getOperand(0)->getType()))
+    return FPBuiltinReplacement(FPBuiltinReplacement::ReplaceWithLLVMIR);
+  // Several functions for SYCL and CUDA requires "0.5" accuracy levels,
+  // which means correctly rounded results. For now x86 host and NVPTX
+  // AltMathLibrary doesn't have such ability. For such accuracy level,
+  // the fpbuiltins should be replaced by equivalent IR operation or
+  // llvmbuiltins.
+  if ((T.isX86() || T.isNVPTX()) && Accuracy == 0.5) {
+    if (DefaultOpIsCorrectlyRounded(BuiltinCall))
+      return FPBuiltinReplacement(FPBuiltinReplacement::ReplaceWithLLVMIR);
+    return FPBuiltinReplacement(FPBuiltinReplacement::Unexpected0dot5);
+  }
+  // AltMathLibrary don't have implementation for CUDA approximate precision
+  // builtins. Lets map them on NVPTX intrinsics. If no appropriate intrinsics
+  // are known - skip to emit an error.
+  if (T.isNVPTX() && Accuracy > 0.5) {
+    return FPBuiltinReplacement(
+        FPBuiltinReplacement::ReplaceWithApproxNVPTXCallsOrFallback);
+  }
+
+  /// Call TLI to select a function implementation to call
+  const StringRef OutAltMathFunctionImplName =
+      selectFPBuiltinImplementation(&BuiltinCall);
+  if (OutAltMathFunctionImplName.empty()) {
+    // Operations that require correct rounding by default can always be
+    // replaced with the LLVM IR equivalent representation.
+    if (DefaultOpIsCorrectlyRounded(BuiltinCall))
+      return FPBuiltinReplacement(FPBuiltinReplacement::ReplaceWithLLVMIR);
+    return FPBuiltinReplacement(FPBuiltinReplacement::NoSuitableReplacement);
+  }
+  return FPBuiltinReplacement(FPBuiltinReplacement::ReplaceWithAltMathFunction,
+                              OutAltMathFunctionImplName);
 }
 
 static bool compareByScalarFnName(const VecDesc &LHS, const VecDesc &RHS) {
@@ -1406,21 +1474,21 @@ static const VecDesc VecFuncs_SVML[] = {
 static const VecDesc VecFuncs_SLEEFGNUABI_VF2[] = {
 #define TLI_DEFINE_SLEEFGNUABI_VF2_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, VABI_PREFIX)                         \
-  {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX},
+  {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX, /* CC = */ std::nullopt},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_SLEEFGNUABI_VF2_VECFUNCS
 };
 static const VecDesc VecFuncs_SLEEFGNUABI_VF4[] = {
 #define TLI_DEFINE_SLEEFGNUABI_VF4_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, VABI_PREFIX)                         \
-  {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX},
+  {SCAL, VEC, VF, /* MASK = */ false, VABI_PREFIX, /* CC = */ std::nullopt},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_SLEEFGNUABI_VF4_VECFUNCS
 };
 static const VecDesc VecFuncs_SLEEFGNUABI_VFScalable[] = {
 #define TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX},
+  {SCAL, VEC, VF, MASK, VABI_PREFIX, /* CC = */ std::nullopt},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS
 };
@@ -1428,15 +1496,15 @@ static const VecDesc VecFuncs_SLEEFGNUABI_VFScalable[] = {
 static const VecDesc VecFuncs_SLEEFGNUABI_VFScalableRISCV[] = {
 #define TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS_RISCV
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX},
+  {SCAL, VEC, VF, MASK, VABI_PREFIX, /* CC = */ std::nullopt},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_SLEEFGNUABI_SCALABLE_VECFUNCS_RISCV
 };
 
 static const VecDesc VecFuncs_ArmPL[] = {
 #define TLI_DEFINE_ARMPL_VECFUNCS
-#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX},
+#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX, CC)               \
+  {SCAL, VEC, VF, MASK, VABI_PREFIX, CC},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_ARMPL_VECFUNCS
 };
@@ -1444,7 +1512,7 @@ static const VecDesc VecFuncs_ArmPL[] = {
 const VecDesc VecFuncs_AMDLIBM[] = {
 #define TLI_DEFINE_AMDLIBM_VECFUNCS
 #define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
-  {SCAL, VEC, VF, MASK, VABI_PREFIX},
+  {SCAL, VEC, VF, MASK, VABI_PREFIX, /* CC = */ std::nullopt},
 #include "llvm/Analysis/VecFuncs.def"
 #undef TLI_DEFINE_AMDLIBM_VECFUNCS
 };
@@ -1460,8 +1528,15 @@ void TargetLibraryInfoImpl::addVectorizableFunctionsFromVecLib(
     addVectorizableFunctions(VecFuncs_DarwinLibSystemM);
     break;
   }
-  case LIBMVEC_X86: {
-    addVectorizableFunctions(VecFuncs_LIBMVEC_X86);
+  case LIBMVEC: {
+    switch (TargetTriple.getArch()) {
+    default:
+      break;
+    case llvm::Triple::x86:
+    case llvm::Triple::x86_64:
+      addVectorizableFunctions(VecFuncs_LIBMVEC_X86);
+      break;
+    }
     break;
   }
   case MASSV: {
@@ -1546,8 +1621,7 @@ TargetLibraryInfoImpl::getVectorMappingInfo(StringRef F, const ElementCount &VF,
 TargetLibraryInfo TargetLibraryAnalysis::run(const Function &F,
                                              FunctionAnalysisManager &) {
   if (!BaselineInfoImpl)
-    BaselineInfoImpl =
-        TargetLibraryInfoImpl(Triple(F.getParent()->getTargetTriple()));
+    BaselineInfoImpl = TargetLibraryInfoImpl(F.getParent()->getTargetTriple());
   return TargetLibraryInfo(*BaselineInfoImpl, &F);
 }
 
@@ -1572,20 +1646,14 @@ unsigned TargetLibraryInfoImpl::getSizeTSize(const Module &M) const {
 }
 
 TargetLibraryInfoWrapperPass::TargetLibraryInfoWrapperPass()
-    : ImmutablePass(ID), TLA(TargetLibraryInfoImpl()) {
-  initializeTargetLibraryInfoWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+    : ImmutablePass(ID), TLA(TargetLibraryInfoImpl()) {}
 
 TargetLibraryInfoWrapperPass::TargetLibraryInfoWrapperPass(const Triple &T)
-    : ImmutablePass(ID), TLA(TargetLibraryInfoImpl(T)) {
-  initializeTargetLibraryInfoWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+    : ImmutablePass(ID), TLA(TargetLibraryInfoImpl(T)) {}
 
 TargetLibraryInfoWrapperPass::TargetLibraryInfoWrapperPass(
     const TargetLibraryInfoImpl &TLIImpl)
-    : ImmutablePass(ID), TLA(TLIImpl) {
-  initializeTargetLibraryInfoWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+    : ImmutablePass(ID), TLA(TLIImpl) {}
 
 TargetLibraryInfoWrapperPass::TargetLibraryInfoWrapperPass(
     const TargetLibraryInfo &TLIOther)

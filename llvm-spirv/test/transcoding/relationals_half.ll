@@ -109,7 +109,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: convergent mustprogress nofree norecurse nounwind willreturn writeonly
-define dso_local spir_func void @test_scalar(ptr addrspace(4) nocapture writeonly %out, half %h) local_unnamed_addr #0 {
+define dso_local spir_func void @test_scalar(ptr addrspace(4) captures(none) writeonly %out, half %h) local_unnamed_addr #0 {
 entry:
   %call = tail call spir_func i32 @_Z8isfiniteDh(half %h) #3
   %call1 = tail call spir_func i32 @_Z5isinfDh(half %h) #3
@@ -185,7 +185,7 @@ declare spir_func i32 @_Z9isorderedDhDh(half, half) local_unnamed_addr #1
 declare spir_func i32 @_Z11isunorderedDhDh(half, half) local_unnamed_addr #1
 
 ; Function Attrs: convergent mustprogress nofree norecurse nounwind willreturn writeonly
-define dso_local spir_func void @test_vector(ptr addrspace(4) nocapture writeonly %out, <2 x half> %h) local_unnamed_addr #2 {
+define dso_local spir_func void @test_vector(ptr addrspace(4) captures(none) writeonly %out, <2 x half> %h) local_unnamed_addr #2 {
 entry:
   %call = tail call spir_func <2 x i16> @_Z8isfiniteDv2_Dh(<2 x half> %h) #3
   %call1 = tail call spir_func <2 x i16> @_Z5isinfDv2_Dh(<2 x half> %h) #3

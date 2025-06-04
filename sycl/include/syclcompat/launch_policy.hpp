@@ -194,14 +194,17 @@ launch_policy(dim3, dim3, Ts...) -> launch_policy<
 namespace detail {
 // Custom std::apply helpers to enable inlining
 template <class F, class Tuple, size_t... Is>
-__syclcompat_inline__ constexpr void apply_expand(F f, Tuple t,
+__syclcompat_inline__ constexpr void apply_expand(F &&f, Tuple &&t,
                                                   std::index_sequence<Is...>) {
-  [[clang::always_inline]] f(get<Is>(t)...);
+  [[clang::always_inline]] std::forward<F>(f)(
+      get<Is>(std::forward<Tuple>(t))...);
 }
 
 template <class F, class Tuple>
-__syclcompat_inline__ constexpr void apply_helper(F f, Tuple t) {
-  apply_expand(f, t, std::make_index_sequence<std::tuple_size<Tuple>{}>{});
+__syclcompat_inline__ constexpr void apply_helper(F &&f, Tuple &&t) {
+  apply_expand(
+      std::forward<F>(f), std::forward<Tuple>(t),
+      std::make_index_sequence<std::tuple_size_v<std::decay_t<Tuple>>>{});
 }
 
 template <auto F, typename Range, typename KProps, bool HasLocalMem,
@@ -216,7 +219,7 @@ struct KernelFunctor {
       : _kernel_properties{kernel_props}, _local_acc{local_acc},
         _argument_tuple(std::make_tuple(args...)) {}
 
-  auto get(sycl_exp::properties_tag) { return _kernel_properties; }
+  auto get(sycl_exp::properties_tag) const { return _kernel_properties; }
 
   __syclcompat_inline__ void
   operator()(syclcompat::detail::range_to_item_t<Range>) const {

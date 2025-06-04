@@ -1,9 +1,10 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: windows
-// XFAIL: *
+
+// XFAIL: run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15851
 
-// RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
+// RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 
 #define TEST_SEMAPHORE_IMPORT

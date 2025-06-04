@@ -100,11 +100,10 @@ __esimd_abs_common_internal(simd<TArg, SZ> src0) {
   simd<TArg, SZ> Result;
   if constexpr (detail::is_generic_floating_point_v<TArg>) {
     using CppT = __ESIMD_DNS::element_type_traits<TArg>::EnclosingCppT;
-    Result =
-        __ESIMD_DNS::convert_vector<TArg, CppT, SZ>(__spirv_ocl_fabs<CppT, SZ>(
-            __ESIMD_DNS::convert_vector<CppT, TArg, SZ>(src0.data())));
+    Result = __ESIMD_DNS::convert_vector<TArg, CppT, SZ>(__esimd_abs<CppT, SZ>(
+        __ESIMD_DNS::convert_vector<CppT, TArg, SZ>(src0.data())));
   } else
-    Result = simd<TArg, SZ>(__spirv_ocl_s_abs<TArg, SZ>(src0.data()));
+    Result = simd<TArg, SZ>(__esimd_abs<TArg, SZ>(src0.data()));
   return convert<TRes>(Result);
 }
 
@@ -190,7 +189,7 @@ __ESIMD_API simd<T, SZ>(max)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   if constexpr (detail::is_generic_floating_point_v<T>) {
     using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
     auto Result =
-        __ESIMD_DNS::convert_vector<T, CppT, SZ>(__spirv_ocl_fmax<CppT, SZ>(
+        __ESIMD_DNS::convert_vector<T, CppT, SZ>(__esimd_fmax<CppT, SZ>(
             __ESIMD_DNS::convert_vector<CppT, T, SZ>(src0.data()),
             __ESIMD_DNS::convert_vector<CppT, T, SZ>(src1.data())));
     if constexpr (is_sat)
@@ -279,7 +278,7 @@ __ESIMD_API simd<T, SZ>(min)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   if constexpr (detail::is_generic_floating_point_v<T>) {
     using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
     auto Result =
-        __ESIMD_DNS::convert_vector<T, CppT, SZ>(__spirv_ocl_fmin<CppT, SZ>(
+        __ESIMD_DNS::convert_vector<T, CppT, SZ>(__esimd_fmin<CppT, SZ>(
             __ESIMD_DNS::convert_vector<CppT, T, SZ>(src0.data()),
             __ESIMD_DNS::convert_vector<CppT, T, SZ>(src1.data())));
     if constexpr (is_sat)
@@ -456,24 +455,20 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, cos, cos)
 template <class T, int N, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, simd<double, N>>
 rsqrt(simd<T, N> src, Sat sat = {}) {
-  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<double>, N> res =
-      __spirv_ocl_rsqrt<__ESIMD_DNS::__raw_t<double>, N>(src.data());
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return res;
+    return inv(sqrt(src));
   else
-    return esimd::saturate<double>(simd<double, N>(res));
+    return esimd::saturate<double>(inv(sqrt(src)));
 }
 
 /** Scalar version.                                                       */
 template <class T, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, double>
 rsqrt(T src, Sat sat = {}) {
-  __ESIMD_DNS::__raw_t<double> res =
-      __spirv_ocl_rsqrt<__ESIMD_DNS::__raw_t<double>>(src);
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return res;
+    return inv(sqrt(src));
   else
-    return esimd::saturate<double>(simd<double, 1>(res))[0];
+    return esimd::saturate<double>(inv(sqrt(src)));
 }
 
 #undef __ESIMD_UNARY_INTRINSIC_DEF

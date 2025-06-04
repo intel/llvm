@@ -12,13 +12,6 @@
 
 /// @cond ESIMD_DETAIL
 
-/// **************************** WARNING ************************************
-/// When declaring new SPIR-V intrinsics (functions starting with __spirv),
-/// it is imperitive to exactly follow the pattern of the existing SPIR-V
-/// intrinsics. If not followed, the declaration may conflict with
-/// the Clang-generated functions and cause compilation errors.
-/// **************************** WARNING ************************************
-
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
@@ -105,26 +98,10 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
                  __ESIMD_DNS::vector_type_t<uint16_t, N> src2)
         __ESIMD_INTRIN_END;
 
-template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_fma(T, T, T);
 template <typename T, int N>
-extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_fma(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
-                    __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
-
-template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_popcount(T);
-template <typename T, int N>
-extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_popcount(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
-
-template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_ctz(T);
-template <typename T, int N>
-extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_ctz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
-
-template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_clz(T);
-template <typename T, int N>
-extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_clz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __esimd_fmadd(__ESIMD_raw_vec_t(T, N) a, __ESIMD_raw_vec_t(T, N) b,
+                  __ESIMD_raw_vec_t(T, N) c) __ESIMD_INTRIN_END;
 
 template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_FRem(T);
 template <typename T, int N>

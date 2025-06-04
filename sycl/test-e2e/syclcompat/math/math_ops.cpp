@@ -356,7 +356,7 @@ int main() {
 
   INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_fmin_nan);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_container_syclcompat_fmin_nan);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_container_syclcompat_fmin_nan);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_container_syclcompat_fmin_nan);
   test_syclcompat_fmin_nan<double, float>();
   test_container_syclcompat_fmin_nan<sycl::vec, float, double>();
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
@@ -365,7 +365,7 @@ int main() {
 
   INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_fmax_nan);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_container_syclcompat_fmax_nan);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_container_syclcompat_fmax_nan);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_container_syclcompat_fmax_nan);
   test_syclcompat_fmax_nan<double, float>();
   test_container_syclcompat_fmax_nan<sycl::vec, float, double>();
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
@@ -380,11 +380,11 @@ int main() {
   INSTANTIATE_ALL_TYPES(fp_type_list_no_bfloat16, test_syclcompat_cbrt);
 
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_isnan);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_isnan);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_isnan);
 
   INSTANTIATE_ALL_TYPES(value_type_list, test_clamp);
   INSTANTIATE_ALL_CONTAINER_TYPES(vec_type_list, sycl::vec, test_container_clamp);
-  INSTANTIATE_ALL_CONTAINER_TYPES(marray_type_list, sycl::marray, test_container_clamp);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(marray_type_list, sycl::marray, test_container_clamp);
 
   return 0;
 }

@@ -83,7 +83,7 @@ inline ur_result_t mock_urDeviceGet(void *pParams) {
 inline ur_result_t mock_urDeviceRetain(void *) { return UR_RESULT_SUCCESS; }
 inline ur_result_t mock_urDeviceRelease(void *) { return UR_RESULT_SUCCESS; }
 
-template <ur_adapter_backend_t Backend>
+template <ur_backend_t Backend>
 inline ur_result_t mock_urAdapterGetInfo(void *pParams) {
   auto params = reinterpret_cast<ur_adapter_get_info_params_t *>(pParams);
 
@@ -100,7 +100,7 @@ inline ur_result_t mock_urAdapterGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-template <ur_platform_backend_t Backend>
+template <ur_backend_t Backend>
 inline ur_result_t mock_urPlatformGetInfo(void *pParams) {
   auto params = reinterpret_cast<ur_platform_get_info_params_t *>(pParams);
   constexpr char MockPlatformName[] = "Mock platform";
@@ -156,7 +156,7 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   auto params = reinterpret_cast<ur_device_get_info_params_t *>(pParams);
   constexpr char MockDeviceName[] = "Mock device";
   constexpr char MockSupportedExtensions[] =
-      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program ur_exp_command_buffer";
+      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program";
   switch (*params->ppropName) {
   case UR_DEVICE_INFO_TYPE: {
     // Act like any device is a GPU.
@@ -182,6 +182,17 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
       *static_cast<ur_device_handle_t *>(*params->ppPropValue) = nullptr;
     if (*params->ppPropSizeRet)
       **params->ppPropSizeRet = sizeof(ur_device_handle_t *);
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+    if (*params->ppPropValue) {
+      auto RealVal = reinterpret_cast<size_t *>(*params->ppPropValue);
+      RealVal[0] = 123;
+      RealVal[1] = 101;
+      RealVal[2] = 321;
+    }
+    if (*params->ppPropSizeRet)
+      **params->ppPropSizeRet = 3 * sizeof(size_t);
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
@@ -382,10 +393,9 @@ inline ur_result_t mock_urEventGetInfo(void *pParams) {
   }
 }
 
-inline ur_result_t
-mock_urKernelSuggestMaxCooperativeGroupCountExp(void *pParams) {
+inline ur_result_t mock_urKernelSuggestMaxCooperativeGroupCount(void *pParams) {
   auto params = reinterpret_cast<
-      ur_kernel_suggest_max_cooperative_group_count_exp_params_t *>(pParams);
+      ur_kernel_suggest_max_cooperative_group_count_params_t *>(pParams);
   **params->ppGroupCountRet = 1;
   return UR_RESULT_SUCCESS;
 }
@@ -437,6 +447,24 @@ inline ur_result_t mock_urVirtualMemReserve(void *pParams) {
                            ? const_cast<void *>(*params->ppStart)
                            : mock::createDummyHandle<void *>(*params->psize);
   return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t mock_urKernelGetSubGroupInfo(void *pParams) {
+  auto params =
+      reinterpret_cast<ur_kernel_get_sub_group_info_params_t *>(pParams);
+  switch (*params->ppropName) {
+  case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE:
+  case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
+    if (params->ppPropValue) {
+      auto RealVal = reinterpret_cast<uint32_t *>(*params->ppPropValue);
+      RealVal[0] = 123;
+    }
+    return UR_RESULT_SUCCESS;
+  }
+  default: {
+    return UR_RESULT_SUCCESS;
+  }
+  }
 }
 
 // Create dummy command buffer handle and store the provided descriptor as the
@@ -502,6 +530,9 @@ inline ur_result_t mock_urCommandBufferAppendKernelLaunchExp(void *pParams) {
 
 } // namespace MockAdapter
 
+// Will be linked from the mock OpenCL.dll/OpenCL.so
+void loadMockOpenCL();
+
 /// The UrMock<> class sets up UR for adapter mocking with the set of default
 /// overrides above, and ensures the appropriate parts of the sycl runtime and
 /// UR mocking code are reset/torn down in between tests.
@@ -515,19 +546,23 @@ public:
   /// This ensures UR is setup for adapter mocking and also injects our default
   /// entry-point overrides into the mock adapter.
   UrMock() {
+    if constexpr (Backend == backend::opencl) {
+      // Some tests use the interop handles, so we need to ensure the mock
+      // OpenCL library is loaded.
+      loadMockOpenCL();
+    }
+
 #define ADD_DEFAULT_OVERRIDE(func_name, func_override)                         \
   mock::getCallbacks().set_replace_callback(#func_name,                        \
                                             &MockAdapter::func_override);
-    ADD_DEFAULT_OVERRIDE(
-        urAdapterGetInfo,
-        mock_urAdapterGetInfo<convertToUrAdapterBackend(Backend)>)
+    ADD_DEFAULT_OVERRIDE(urAdapterGetInfo,
+                         mock_urAdapterGetInfo<convertToUrBackend(Backend)>)
     ADD_DEFAULT_OVERRIDE(urPlatformGet, mock_urPlatformGet)
     ADD_DEFAULT_OVERRIDE(urDeviceGet, mock_urDeviceGet)
     ADD_DEFAULT_OVERRIDE(urDeviceRetain, mock_urDeviceRetain)
     ADD_DEFAULT_OVERRIDE(urDeviceRelease, mock_urDeviceRelease)
-    ADD_DEFAULT_OVERRIDE(
-        urPlatformGetInfo,
-        mock_urPlatformGetInfo<convertToUrPlatformBackend(Backend)>)
+    ADD_DEFAULT_OVERRIDE(urPlatformGetInfo,
+                         mock_urPlatformGetInfo<convertToUrBackend(Backend)>)
     ADD_DEFAULT_OVERRIDE(urDeviceGetInfo, mock_urDeviceGetInfo)
     ADD_DEFAULT_OVERRIDE(urProgramGetInfo, mock_urProgramGetInfo)
     ADD_DEFAULT_OVERRIDE(urContextGetInfo, mock_urContextGetInfo)
@@ -535,8 +570,8 @@ public:
     ADD_DEFAULT_OVERRIDE(urProgramGetInfo, mock_urProgramGetInfo)
     ADD_DEFAULT_OVERRIDE(urKernelGetGroupInfo, mock_urKernelGetGroupInfo)
     ADD_DEFAULT_OVERRIDE(urEventGetInfo, mock_urEventGetInfo)
-    ADD_DEFAULT_OVERRIDE(urKernelSuggestMaxCooperativeGroupCountExp,
-                         mock_urKernelSuggestMaxCooperativeGroupCountExp)
+    ADD_DEFAULT_OVERRIDE(urKernelSuggestMaxCooperativeGroupCount,
+                         mock_urKernelSuggestMaxCooperativeGroupCount)
     ADD_DEFAULT_OVERRIDE(urDeviceSelectBinary, mock_urDeviceSelectBinary)
     ADD_DEFAULT_OVERRIDE(urPlatformGetBackendOption,
                          mock_urPlatformGetBackendOption)
@@ -551,6 +586,7 @@ public:
                          mock_urCommandBufferAppendKernelLaunchExp);
     ADD_DEFAULT_OVERRIDE(urCommandBufferGetInfoExp,
                          mock_urCommandBufferGetInfoExp);
+    ADD_DEFAULT_OVERRIDE(urKernelGetSubGroupInfo, mock_urKernelGetSubGroupInfo);
 #undef ADD_DEFAULT_OVERRIDE
 
     ur_loader_config_handle_t UrLoaderConfig = nullptr;
@@ -573,46 +609,32 @@ public:
     // clear platform cache in case subsequent tests want a different backend,
     // this forces platforms to be reconstructed (and thus queries about UR
     // backend info to be called again)
-    detail::GlobalHandler::instance().getPlatformCache().clear();
+    //
+    // This also erases each platform's devices (normally done in the library
+    // shutdown) so that platforms/devices' lifetimes could work in unittests
+    // scenario.
+    detail::GlobalHandler::instance().clearPlatforms();
     mock::getCallbacks().resetCallbacks();
   }
 
 private:
   // These two helpers are needed to enable arbitrary backend selection
   // at compile time.
-  static constexpr ur_platform_backend_t
-  convertToUrPlatformBackend(const sycl::backend SyclBackend) {
+  static constexpr ur_backend_t
+  convertToUrBackend(const sycl::backend SyclBackend) {
     switch (SyclBackend) {
     case sycl::backend::opencl:
-      return UR_PLATFORM_BACKEND_OPENCL;
+      return UR_BACKEND_OPENCL;
     case sycl::backend::ext_oneapi_level_zero:
-      return UR_PLATFORM_BACKEND_LEVEL_ZERO;
+      return UR_BACKEND_LEVEL_ZERO;
     case sycl::backend::ext_oneapi_cuda:
-      return UR_PLATFORM_BACKEND_CUDA;
+      return UR_BACKEND_CUDA;
     case sycl::backend::ext_oneapi_hip:
-      return UR_PLATFORM_BACKEND_HIP;
+      return UR_BACKEND_HIP;
     case sycl::backend::ext_oneapi_native_cpu:
-      return UR_PLATFORM_BACKEND_NATIVE_CPU;
+      return UR_BACKEND_NATIVE_CPU;
     default:
-      return UR_PLATFORM_BACKEND_UNKNOWN;
-    }
-  }
-
-  static constexpr ur_adapter_backend_t
-  convertToUrAdapterBackend(sycl::backend SyclBackend) {
-    switch (SyclBackend) {
-    case sycl::backend::opencl:
-      return UR_ADAPTER_BACKEND_OPENCL;
-    case sycl::backend::ext_oneapi_level_zero:
-      return UR_ADAPTER_BACKEND_LEVEL_ZERO;
-    case sycl::backend::ext_oneapi_cuda:
-      return UR_ADAPTER_BACKEND_CUDA;
-    case sycl::backend::ext_oneapi_hip:
-      return UR_ADAPTER_BACKEND_HIP;
-    case sycl::backend::ext_oneapi_native_cpu:
-      return UR_ADAPTER_BACKEND_NATIVE_CPU;
-    default:
-      return UR_ADAPTER_BACKEND_UNKNOWN;
+      return UR_BACKEND_UNKNOWN;
     }
   }
 };

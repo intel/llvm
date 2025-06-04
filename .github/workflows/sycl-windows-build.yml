@@ -10,6 +10,10 @@ on:
       build_configure_extra_args:
         type: string
         required: false
+      build_target:
+        type: string
+        required: false
+        default: sycl-toolchain
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -18,12 +22,6 @@ on:
       ref:
         type: string
         required: False
-      merge_ref:
-        description: |
-          Commit-ish to merge post-checkout if non-empty. Must be reachable from
-          the default_branch input paramter.
-        type: string
-        default: 'FETCH_HEAD'
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.gz
@@ -31,10 +29,16 @@ on:
         description: 'Artifacts retention period'
         type: string
         default: 3
-      compiler:
+      e2e_binaries_artifact:
+        type: string
+        required: false
+      cxx:
         type: string
         required: false
         default: "cl"
+      pack_release:
+        type: string
+        required: false
 
     outputs:
       build_conclusion:
@@ -49,6 +53,7 @@ on:
         type: choice
         options:
           - "[]"
+          - '[sycl]'
           - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
       build_cache_suffix:
         type: choice
@@ -57,6 +62,11 @@ on:
       build_configure_extra_args:
         type: string
         required: false
+      build_target:
+        type: choice
+        options:
+          - "sycl-toolchain"
+          - "all"
       artifact_archive_name:
         type: choice
         options:
@@ -66,11 +76,14 @@ on:
         type: choice
         options:
           - 3
-      compiler:
+      cxx:
         type: choice
         options:
           - cl
           - icx
+      pack_release:
+        type: string
+        required: false
           
 permissions: read-all
 
@@ -82,17 +95,25 @@ jobs:
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
     steps:
+    - name:  Detect hung tests
+      if: always()
+      shell: powershell
+      run: |
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
+        powershell.exe -File windows_detect_hung_tests.ps1
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode
     - uses: actions/checkout@v4
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.ref || github.sha }} 
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -100,13 +121,13 @@ jobs:
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         echo "CCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "CCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIT_OPTS='-j$env:NUMBER_OF_PROCESSORS $LIT_OPTS'" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - uses: ./devops/actions/cached_checkout
       with:
         path: src
         ref: ${{ inputs.ref || github.sha }}
-        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Configure
       shell: cmd
@@ -120,26 +141,23 @@ jobs:
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
           --ci-defaults %ARGS% ^
-          --cmake-opt="-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
-          --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache" ^
-          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=ccache" ^
-          --cmake-opt="-DLLVM_INSTALL_UTILS=ON" ^
-          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV" ^
-          --cmake-opt="-DSYCL_INSTALL_DEVICE_CONFIG_FILE=ON"
+          "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
+          "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
+          "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
+          -DLLVM_INSTALL_UTILS=ON ^
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV ^
+          -DSYCL_INSTALL_DEVICE_CONFIG_FILE=ON
     - name: Build
       id: build
       shell: bash
       run: |
-        cmake --build build --target sycl-toolchain
+        cmake --build build --target ${{ inputs.build_target }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       shell: bash
-      run: |
-        if [[ ${{inputs.compiler}} == 'icx' ]]; then
-          export LIT_FILTER="SYCL"
-        fi
+      run: |      
         cmake --build build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
@@ -148,10 +166,7 @@ jobs:
     - name: check-sycl
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       shell: bash
-      run: |
-         if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           export LIT_XFAIL="regression\host_tanpi_double_accuracy.cpp"
-         fi
+      run: |        
          cmake --build build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
@@ -169,12 +184,40 @@ jobs:
       if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build build --target check-libdevice
-    - name: Install
+    - name: Generate/diff new ABI symbols
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      shell: bash
+      run: |
+        LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
+        diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
+    - name: Upload new ABI symbols
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_abi_symbols
+        path: build/new_sycl_symbols_windows.dump
+        retention-days: ${{ inputs.retention-days }}
+    - name: Install sycl-toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: |
+        cmake --build build --target deploy-sycl-toolchain
+
+    - name: Pack toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      run: tar -czf ${{ inputs.artifact_archive_name }} -C install .
+    - name: Upload toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_release
+        path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build --target deploy-sycl-toolchain
         cmake --build build --target utils/FileCheck/install
         cmake --build build --target utils/count/install
         cmake --build build --target utils/not/install
@@ -196,3 +239,29 @@ jobs:
         name: sycl_windows_default
         path: ${{ inputs.artifact_archive_name }}
         retention-days: ${{ inputs.retention-days }}
+
+    - name: Setup SYCL toolchain
+      run: |
+        echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Build E2E tests
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/windows/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        extra_lit_opts: --param sycl_build_targets="spir"
+        cxx: ${{ inputs.cxx }}
+
+    - name:  Detect hung tests
+      if: always()
+      shell: powershell
+      run: |
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
+        powershell.exe -File windows_detect_hung_tests.ps1
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode

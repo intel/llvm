@@ -20,24 +20,24 @@ define dso_local spir_func void @wombat(ptr byval(%struct.widget) align 8 %arg) 
 ; CHECK-LABEL: @wombat(
 ; CHECK-NEXT:  bb:
 ; CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272)
 ; CHECK-NEXT:    [[CMPZ1:%.*]] = icmp eq i64 [[TMP0]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ1]], label [[LEADER:%.*]], label [[MERGE:%.*]]
 ; CHECK:       leader:
 ; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 16 @[[SHADOW]], ptr align 8 [[ARG:%.*]], i64 32, i1 false)
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #0
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #0
 ; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 8 [[ARG]], ptr addrspace(3) align 16 @[[SHADOW]], i64 32, i1 false)
 ; CHECK-NEXT:    [[TMP3:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272)
 ; CHECK-NEXT:    [[CMPZ:%.*]] = icmp eq i64 [[TMP3]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ]], label [[WG_LEADER:%.*]], label [[WG_CF:%.*]]
 ; CHECK:       wg_leader:
 ; CHECK-NEXT:    call void @zot(ptr [[ARG]])
 ; CHECK-NEXT:    br label [[WG_CF]]
 ; CHECK:       wg_cf:
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #0
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #0
 ; CHECK-NEXT:    ret void
 ;
 bb:

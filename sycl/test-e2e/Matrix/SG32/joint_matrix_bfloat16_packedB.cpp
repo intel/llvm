@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: target-spir
+
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
@@ -17,7 +19,7 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-4181
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
-#include "../joint_matrix_bfloat16_packedB_impl.hpp"
+#include "joint_matrix_bfloat16_packedB_impl.hpp"

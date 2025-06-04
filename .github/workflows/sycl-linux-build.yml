@@ -14,7 +14,7 @@ on:
       build_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2404_build:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
       build_ref:
         type: string
         required: false
@@ -32,6 +32,10 @@ on:
       build_artifact_suffix:
         type: string
         required: true
+      build_target:
+        type: string
+        required: false
+        default: sycl-toolchain
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.zst
@@ -40,16 +44,16 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
-      merge_ref:
-        description: |
-          Commit-ish to merge post-checkout if non-empty. Must be reachable from
-          the default_branch input paramter.
-        type: string
-        default: 'FETCH_HEAD'
       retention-days:
         description: 'Artifacts retention period'
         type: string
         default: 3
+      e2e_binaries_artifact:
+        type: string
+        required: false
+      pack_release:
+        type: string
+        required: false
 
     outputs:
       build_conclusion:
@@ -70,7 +74,7 @@ on:
       build_image:
         type: choice
         options:
-          - "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
+          - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
       cc:
         type: choice
         options:
@@ -102,6 +106,10 @@ on:
         type: choice
         options:
           - 3
+
+      pack_release:
+        type: string
+        required: false
 
 permissions: read-all
 
@@ -150,7 +158,6 @@ jobs:
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
-        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
     - name: Setup oneAPI env
       if: ${{ inputs.cc == 'icx' || inputs.cxx == 'icpx' }}
@@ -167,15 +174,16 @@ jobs:
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults ${{ inputs.build_configure_extra_args }} \
-          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
-          --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
-          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV" \
-          --cmake-opt="-DSYCL_INSTALL_DEVICE_CONFIG_FILE=ON"
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DLLVM_INSTALL_UTILS=ON \
+          -DNATIVECPU_USE_OCK=Off \
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV \
+          -DSYCL_INSTALL_DEVICE_CONFIG_FILE=ON
     - name: Compile
       id: build
-      run: cmake --build $GITHUB_WORKSPACE/build
+      # Emulate default value for manual dispatch as we've run out of available arguments.
+      run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
@@ -220,11 +228,26 @@ jobs:
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         LIT_OPTS="--allow-empty-runs" LIT_FILTER="e2e_test_requirements" cmake --build $GITHUB_WORKSPACE/build --target check-sycl
-    - name: Install
+    - name: Install sycl-toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
+
+    - name: Pack toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .
+    - name: Upload toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_linux_release
+        path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
         cmake --build $GITHUB_WORKSPACE/build --target utils/FileCheck/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/count/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/not/install
@@ -250,3 +273,53 @@ jobs:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
+
+    - name: Copy toolchain
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      # We must have the compiler in the same location as it will be in the E2E
+      # run-tests job.
+      run: cp -r $GITHUB_WORKSPACE/build/install $GITHUB_WORKSPACE/toolchain
+
+    - name: Source OneAPI TBB vars.sh
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      shell: bash
+      run: |
+        # https://github.com/actions/runner/issues/1964 prevents us from using
+        # the ENTRYPOINT in the image.
+        env | sort > env_before
+        if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
+          source /runtimes/oneapi-tbb/env/vars.sh;
+        elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
+          source /opt/runtimes/oneapi-tbb/env/vars.sh;
+        else
+          echo "no TBB vars in /opt/runtimes or /runtimes";
+        fi
+        env | sort > env_after
+        comm -13 env_before env_after >> $GITHUB_ENV
+        rm env_before env_after
+
+    - name: Build E2E tests
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
+
+    - name: Remove E2E tests before spirv-backend run
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: rm -rf build-e2e
+
+    - name: Build E2E tests with SPIR-V Backend
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_spirv_backend
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        extra_lit_opts: --param spirv-backend=True

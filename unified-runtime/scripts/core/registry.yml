@@ -1,0 +1,770 @@
+---
+type: header
+desc: "Intel $OneApi Unified Runtime function registry"
+ordinal: "-1"
+---
+name: $x_function_t
+type: enum
+desc: Defines unique stable identifiers for all functions
+etors:
+- name: CONTEXT_CREATE
+  desc: Enumerator for $xContextCreate
+  value: '1'
+- name: CONTEXT_RETAIN
+  desc: Enumerator for $xContextRetain
+  value: '2'
+- name: CONTEXT_RELEASE
+  desc: Enumerator for $xContextRelease
+  value: '3'
+- name: CONTEXT_GET_INFO
+  desc: Enumerator for $xContextGetInfo
+  value: '4'
+- name: CONTEXT_GET_NATIVE_HANDLE
+  desc: Enumerator for $xContextGetNativeHandle
+  value: '5'
+- name: CONTEXT_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xContextCreateWithNativeHandle
+  value: '6'
+- name: CONTEXT_SET_EXTENDED_DELETER
+  desc: Enumerator for $xContextSetExtendedDeleter
+  value: '7'
+- name: DEVICE_GET
+  desc: Enumerator for $xDeviceGet
+  value: '8'
+- name: DEVICE_GET_INFO
+  desc: Enumerator for $xDeviceGetInfo
+  value: '9'
+- name: DEVICE_RETAIN
+  desc: Enumerator for $xDeviceRetain
+  value: '10'
+- name: DEVICE_RELEASE
+  desc: Enumerator for $xDeviceRelease
+  value: '11'
+- name: DEVICE_PARTITION
+  desc: Enumerator for $xDevicePartition
+  value: '12'
+- name: DEVICE_SELECT_BINARY
+  desc: Enumerator for $xDeviceSelectBinary
+  value: '13'
+- name: DEVICE_GET_NATIVE_HANDLE
+  desc: Enumerator for $xDeviceGetNativeHandle
+  value: '14'
+- name: DEVICE_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xDeviceCreateWithNativeHandle
+  value: '15'
+- name: DEVICE_GET_GLOBAL_TIMESTAMPS
+  desc: Enumerator for $xDeviceGetGlobalTimestamps
+  value: '16'
+- name: ENQUEUE_KERNEL_LAUNCH
+  desc: Enumerator for $xEnqueueKernelLaunch
+  value: '17'
+- name: ENQUEUE_EVENTS_WAIT
+  desc: Enumerator for $xEnqueueEventsWait
+  value: '18'
+- name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER
+  desc: Enumerator for $xEnqueueEventsWaitWithBarrier
+  value: '19'
+- name: ENQUEUE_MEM_BUFFER_READ
+  desc: Enumerator for $xEnqueueMemBufferRead
+  value: '20'
+- name: ENQUEUE_MEM_BUFFER_WRITE
+  desc: Enumerator for $xEnqueueMemBufferWrite
+  value: '21'
+- name: ENQUEUE_MEM_BUFFER_READ_RECT
+  desc: Enumerator for $xEnqueueMemBufferReadRect
+  value: '22'
+- name: ENQUEUE_MEM_BUFFER_WRITE_RECT
+  desc: Enumerator for $xEnqueueMemBufferWriteRect
+  value: '23'
+- name: ENQUEUE_MEM_BUFFER_COPY
+  desc: Enumerator for $xEnqueueMemBufferCopy
+  value: '24'
+- name: ENQUEUE_MEM_BUFFER_COPY_RECT
+  desc: Enumerator for $xEnqueueMemBufferCopyRect
+  value: '25'
+- name: ENQUEUE_MEM_BUFFER_FILL
+  desc: Enumerator for $xEnqueueMemBufferFill
+  value: '26'
+- name: ENQUEUE_MEM_IMAGE_READ
+  desc: Enumerator for $xEnqueueMemImageRead
+  value: '27'
+- name: ENQUEUE_MEM_IMAGE_WRITE
+  desc: Enumerator for $xEnqueueMemImageWrite
+  value: '28'
+- name: ENQUEUE_MEM_IMAGE_COPY
+  desc: Enumerator for $xEnqueueMemImageCopy
+  value: '29'
+- name: ENQUEUE_MEM_BUFFER_MAP
+  desc: Enumerator for $xEnqueueMemBufferMap
+  value: '30'
+- name: ENQUEUE_MEM_UNMAP
+  desc: Enumerator for $xEnqueueMemUnmap
+  value: '31'
+- name: ENQUEUE_USM_FILL
+  desc: Enumerator for $xEnqueueUSMFill
+  value: '32'
+- name: ENQUEUE_USM_MEMCPY
+  desc: Enumerator for $xEnqueueUSMMemcpy
+  value: '33'
+- name: ENQUEUE_USM_PREFETCH
+  desc: Enumerator for $xEnqueueUSMPrefetch
+  value: '34'
+- name: ENQUEUE_USM_ADVISE
+  desc: Enumerator for $xEnqueueUSMAdvise
+  value: '35'
+- name: ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE
+  desc: Enumerator for $xEnqueueDeviceGlobalVariableWrite
+  value: '38'
+- name: ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ
+  desc: Enumerator for $xEnqueueDeviceGlobalVariableRead
+  value: '39'
+- name: EVENT_GET_INFO
+  desc: Enumerator for $xEventGetInfo
+  value: '40'
+- name: EVENT_GET_PROFILING_INFO
+  desc: Enumerator for $xEventGetProfilingInfo
+  value: '41'
+- name: EVENT_WAIT
+  desc: Enumerator for $xEventWait
+  value: '42'
+- name: EVENT_RETAIN
+  desc: Enumerator for $xEventRetain
+  value: '43'
+- name: EVENT_RELEASE
+  desc: Enumerator for $xEventRelease
+  value: '44'
+- name: EVENT_GET_NATIVE_HANDLE
+  desc: Enumerator for $xEventGetNativeHandle
+  value: '45'
+- name: EVENT_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xEventCreateWithNativeHandle
+  value: '46'
+- name: EVENT_SET_CALLBACK
+  desc: Enumerator for $xEventSetCallback
+  value: '47'
+- name: KERNEL_CREATE
+  desc: Enumerator for $xKernelCreate
+  value: '48'
+- name: KERNEL_SET_ARG_VALUE
+  desc: Enumerator for $xKernelSetArgValue
+  value: '49'
+- name: KERNEL_SET_ARG_LOCAL
+  desc: Enumerator for $xKernelSetArgLocal
+  value: '50'
+- name: KERNEL_GET_INFO
+  desc: Enumerator for $xKernelGetInfo
+  value: '51'
+- name: KERNEL_GET_GROUP_INFO
+  desc: Enumerator for $xKernelGetGroupInfo
+  value: '52'
+- name: KERNEL_GET_SUB_GROUP_INFO
+  desc: Enumerator for $xKernelGetSubGroupInfo
+  value: '53'
+- name: KERNEL_RETAIN
+  desc: Enumerator for $xKernelRetain
+  value: '54'
+- name: KERNEL_RELEASE
+  desc: Enumerator for $xKernelRelease
+  value: '55'
+- name: KERNEL_SET_ARG_POINTER
+  desc: Enumerator for $xKernelSetArgPointer
+  value: '56'
+- name: KERNEL_SET_EXEC_INFO
+  desc: Enumerator for $xKernelSetExecInfo
+  value: '57'
+- name: KERNEL_SET_ARG_SAMPLER
+  desc: Enumerator for $xKernelSetArgSampler
+  value: '58'
+- name: KERNEL_SET_ARG_MEM_OBJ
+  desc: Enumerator for $xKernelSetArgMemObj
+  value: '59'
+- name: KERNEL_SET_SPECIALIZATION_CONSTANTS
+  desc: Enumerator for $xKernelSetSpecializationConstants
+  value: '60'
+- name: KERNEL_GET_NATIVE_HANDLE
+  desc: Enumerator for $xKernelGetNativeHandle
+  value: '61'
+- name: KERNEL_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xKernelCreateWithNativeHandle
+  value: '62'
+- name: MEM_IMAGE_CREATE
+  desc: Enumerator for $xMemImageCreate
+  value: '63'
+- name: MEM_BUFFER_CREATE
+  desc: Enumerator for $xMemBufferCreate
+  value: '64'
+- name: MEM_RETAIN
+  desc: Enumerator for $xMemRetain
+  value: '65'
+- name: MEM_RELEASE
+  desc: Enumerator for $xMemRelease
+  value: '66'
+- name: MEM_BUFFER_PARTITION
+  desc: Enumerator for $xMemBufferPartition
+  value: '67'
+- name: MEM_GET_NATIVE_HANDLE
+  desc: Enumerator for $xMemGetNativeHandle
+  value: '68'
+- name: ENQUEUE_READ_HOST_PIPE
+  desc: Enumerator for $xEnqueueReadHostPipe
+  value: '69'
+- name: MEM_GET_INFO
+  desc: Enumerator for $xMemGetInfo
+  value: '70'
+- name: MEM_IMAGE_GET_INFO
+  desc: Enumerator for $xMemImageGetInfo
+  value: '71'
+- name: PLATFORM_GET
+  desc: Enumerator for $xPlatformGet
+  value: '72'
+- name: PLATFORM_GET_INFO
+  desc: Enumerator for $xPlatformGetInfo
+  value: '73'
+- name: PLATFORM_GET_API_VERSION
+  desc: Enumerator for $xPlatformGetApiVersion
+  value: '74'
+- name: PLATFORM_GET_NATIVE_HANDLE
+  desc: Enumerator for $xPlatformGetNativeHandle
+  value: '75'
+- name: PLATFORM_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xPlatformCreateWithNativeHandle
+  value: '76'
+- name: PROGRAM_CREATE_WITH_IL
+  desc: Enumerator for $xProgramCreateWithIL
+  value: '78'
+- name: PROGRAM_CREATE_WITH_BINARY
+  desc: Enumerator for $xProgramCreateWithBinary
+  value: '79'
+- name: PROGRAM_BUILD
+  desc: Enumerator for $xProgramBuild
+  value: '80'
+- name: PROGRAM_COMPILE
+  desc: Enumerator for $xProgramCompile
+  value: '81'
+- name: PROGRAM_LINK
+  desc: Enumerator for $xProgramLink
+  value: '82'
+- name: PROGRAM_RETAIN
+  desc: Enumerator for $xProgramRetain
+  value: '83'
+- name: PROGRAM_RELEASE
+  desc: Enumerator for $xProgramRelease
+  value: '84'
+- name: PROGRAM_GET_FUNCTION_POINTER
+  desc: Enumerator for $xProgramGetFunctionPointer
+  value: '85'
+- name: PROGRAM_GET_INFO
+  desc: Enumerator for $xProgramGetInfo
+  value: '86'
+- name: PROGRAM_GET_BUILD_INFO
+  desc: Enumerator for $xProgramGetBuildInfo
+  value: '87'
+- name: PROGRAM_SET_SPECIALIZATION_CONSTANTS
+  desc: Enumerator for $xProgramSetSpecializationConstants
+  value: '88'
+- name: PROGRAM_GET_NATIVE_HANDLE
+  desc: Enumerator for $xProgramGetNativeHandle
+  value: '89'
+- name: PROGRAM_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xProgramCreateWithNativeHandle
+  value: '90'
+- name: QUEUE_GET_INFO
+  desc: Enumerator for $xQueueGetInfo
+  value: '91'
+- name: QUEUE_CREATE
+  desc: Enumerator for $xQueueCreate
+  value: '92'
+- name: QUEUE_RETAIN
+  desc: Enumerator for $xQueueRetain
+  value: '93'
+- name: QUEUE_RELEASE
+  desc: Enumerator for $xQueueRelease
+  value: '94'
+- name: QUEUE_GET_NATIVE_HANDLE
+  desc: Enumerator for $xQueueGetNativeHandle
+  value: '95'
+- name: QUEUE_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xQueueCreateWithNativeHandle
+  value: '96'
+- name: QUEUE_FINISH
+  desc: Enumerator for $xQueueFinish
+  value: '97'
+- name: QUEUE_FLUSH
+  desc: Enumerator for $xQueueFlush
+  value: '98'
+- name: SAMPLER_CREATE
+  desc: Enumerator for $xSamplerCreate
+  value: '101'
+- name: SAMPLER_RETAIN
+  desc: Enumerator for $xSamplerRetain
+  value: '102'
+- name: SAMPLER_RELEASE
+  desc: Enumerator for $xSamplerRelease
+  value: '103'
+- name: SAMPLER_GET_INFO
+  desc: Enumerator for $xSamplerGetInfo
+  value: '104'
+- name: SAMPLER_GET_NATIVE_HANDLE
+  desc: Enumerator for $xSamplerGetNativeHandle
+  value: '105'
+- name: SAMPLER_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xSamplerCreateWithNativeHandle
+  value: '106'
+- name: USM_HOST_ALLOC
+  desc: Enumerator for $xUSMHostAlloc
+  value: '107'
+- name: USM_DEVICE_ALLOC
+  desc: Enumerator for $xUSMDeviceAlloc
+  value: '108'
+- name: USM_SHARED_ALLOC
+  desc: Enumerator for $xUSMSharedAlloc
+  value: '109'
+- name: USM_FREE
+  desc: Enumerator for $xUSMFree
+  value: '110'
+- name: USM_GET_MEM_ALLOC_INFO
+  desc: Enumerator for $xUSMGetMemAllocInfo
+  value: '111'
+- name: USM_POOL_CREATE
+  desc: Enumerator for $xUSMPoolCreate
+  value: '112'
+- name: COMMAND_BUFFER_CREATE_EXP
+  desc: Enumerator for $xCommandBufferCreateExp
+  value: '113'
+- name: PLATFORM_GET_BACKEND_OPTION
+  desc: Enumerator for $xPlatformGetBackendOption
+  value: '114'
+- name: MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xMemBufferCreateWithNativeHandle
+  value: '115'
+- name: MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE
+  desc: Enumerator for $xMemImageCreateWithNativeHandle
+  value: '116'
+- name: ENQUEUE_WRITE_HOST_PIPE
+  desc: Enumerator for $xEnqueueWriteHostPipe
+  value: '117'
+- name: USM_POOL_RETAIN
+  desc: Enumerator for $xUSMPoolRetain
+  value: '118'
+- name: USM_POOL_RELEASE
+  desc: Enumerator for $xUSMPoolRelease
+  value: '119'
+- name: USM_POOL_GET_INFO
+  desc: Enumerator for $xUSMPoolGetInfo
+  value: '120'
+- name: COMMAND_BUFFER_RETAIN_EXP
+  desc: Enumerator for $xCommandBufferRetainExp
+  value: '121'
+- name: COMMAND_BUFFER_RELEASE_EXP
+  desc: Enumerator for $xCommandBufferReleaseExp
+  value: '122'
+- name: COMMAND_BUFFER_FINALIZE_EXP
+  desc: Enumerator for $xCommandBufferFinalizeExp
+  value: '123'
+- name: COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP
+  desc: Enumerator for $xCommandBufferAppendKernelLaunchExp
+  value: '125'
+- name: USM_PITCHED_ALLOC_EXP
+  desc: Enumerator for $xUSMPitchedAllocExp
+  value: '132'
+- name: BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP
+  desc: Enumerator for $xBindlessImagesUnsampledImageHandleDestroyExp
+  value: '133'
+- name: BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP
+  desc: Enumerator for $xBindlessImagesSampledImageHandleDestroyExp
+  value: '134'
+- name: BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP
+  desc: Enumerator for $xBindlessImagesImageAllocateExp
+  value: '135'
+- name: BINDLESS_IMAGES_IMAGE_FREE_EXP
+  desc: Enumerator for $xBindlessImagesImageFreeExp
+  value: '136'
+- name: BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP
+  desc: Enumerator for $xBindlessImagesUnsampledImageCreateExp
+  value: '137'
+- name: BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP
+  desc: Enumerator for $xBindlessImagesSampledImageCreateExp
+  value: '138'
+- name: BINDLESS_IMAGES_IMAGE_COPY_EXP
+  desc: Enumerator for $xBindlessImagesImageCopyExp
+  value: '139'
+- name: BINDLESS_IMAGES_IMAGE_GET_INFO_EXP
+  desc: Enumerator for $xBindlessImagesImageGetInfoExp
+  value: '140'
+- name: BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP
+  desc: Enumerator for $xBindlessImagesMipmapGetLevelExp
+  value: '141'
+- name: BINDLESS_IMAGES_MIPMAP_FREE_EXP
+  desc: Enumerator for $xBindlessImagesMipmapFreeExp
+  value: '142'
+- name: BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
+  desc: Enumerator for $xBindlessImagesMapExternalArrayExp
+  value: '144'
+- name: BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesReleaseExternalSemaphoreExp
+  value: '147'
+- name: BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesWaitExternalSemaphoreExp
+  value: '148'
+- name: BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesSignalExternalSemaphoreExp
+  value: '149'
+- name: ENQUEUE_USM_FILL_2D
+  desc: Enumerator for $xEnqueueUSMFill2D
+  value: '151'
+- name: ENQUEUE_USM_MEMCPY_2D
+  desc: Enumerator for $xEnqueueUSMMemcpy2D
+  value: '152'
+- name: VIRTUAL_MEM_GRANULARITY_GET_INFO
+  desc: Enumerator for $xVirtualMemGranularityGetInfo
+  value: '153'
+- name: VIRTUAL_MEM_RESERVE
+  desc: Enumerator for $xVirtualMemReserve
+  value: '154'
+- name: VIRTUAL_MEM_FREE
+  desc: Enumerator for $xVirtualMemFree
+  value: '155'
+- name: VIRTUAL_MEM_MAP
+  desc: Enumerator for $xVirtualMemMap
+  value: '156'
+- name: VIRTUAL_MEM_UNMAP
+  desc: Enumerator for $xVirtualMemUnmap
+  value: '157'
+- name: VIRTUAL_MEM_SET_ACCESS
+  desc: Enumerator for $xVirtualMemSetAccess
+  value: '158'
+- name: VIRTUAL_MEM_GET_INFO
+  desc: Enumerator for $xVirtualMemGetInfo
+  value: '159'
+- name: PHYSICAL_MEM_CREATE
+  desc: Enumerator for $xPhysicalMemCreate
+  value: '160'
+- name: PHYSICAL_MEM_RETAIN
+  desc: Enumerator for $xPhysicalMemRetain
+  value: '161'
+- name: PHYSICAL_MEM_RELEASE
+  desc: Enumerator for $xPhysicalMemRelease
+  value: '162'
+- name: USM_IMPORT_EXP
+  desc: Enumerator for $xUSMImportExp
+  value: '163'
+- name: USM_RELEASE_EXP
+  desc: Enumerator for $xUSMReleaseExp
+  value: '164'
+- name: USM_P2P_ENABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PEnablePeerAccessExp
+  value: '165'
+- name: USM_P2P_DISABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PDisablePeerAccessExp
+  value: '166'
+- name: USM_P2P_PEER_ACCESS_GET_INFO_EXP
+  desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
+  value: '167'
+- name: LOADER_CONFIG_CREATE
+  desc: Enumerator for $xLoaderConfigCreate
+  value: '172'
+- name: LOADER_CONFIG_RELEASE
+  desc: Enumerator for $xLoaderConfigRelease
+  value: '173'
+- name: LOADER_CONFIG_RETAIN
+  desc: Enumerator for $xLoaderConfigRetain
+  value: '174'
+- name: LOADER_CONFIG_GET_INFO
+  desc: Enumerator for $xLoaderConfigGetInfo
+  value: '175'
+- name: LOADER_CONFIG_ENABLE_LAYER
+  desc: Enumerator for $xLoaderConfigEnableLayer
+  value: '176'
+- name: ADAPTER_RELEASE
+  desc: Enumerator for $xAdapterRelease
+  value: '177'
+- name: ADAPTER_GET
+  desc: Enumerator for $xAdapterGet
+  value: '178'
+- name: ADAPTER_RETAIN
+  desc: Enumerator for $xAdapterRetain
+  value: '179'
+- name: ADAPTER_GET_LAST_ERROR
+  desc: Enumerator for $xAdapterGetLastError
+  value: '180'
+- name: ADAPTER_GET_INFO
+  desc: Enumerator for $xAdapterGetInfo
+  value: '181'
+- name: PROGRAM_BUILD_EXP
+  desc: Enumerator for $xProgramBuildExp
+  value: '197'
+- name: PROGRAM_COMPILE_EXP
+  desc: Enumerator for $xProgramCompileExp
+  value: '198'
+- name: PROGRAM_LINK_EXP
+  desc: Enumerator for $xProgramLinkExp
+  value: '199'
+- name: LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK
+  desc: Enumerator for $xLoaderConfigSetCodeLocationCallback
+  value: '200'
+- name: LOADER_INIT
+  desc: Enumerator for $xLoaderInit
+  value: '201'
+- name: LOADER_TEAR_DOWN
+  desc: Enumerator for $xLoaderTearDown
+  value: '202'
+- name: PROGRAM_GET_GLOBAL_VARIABLE_POINTER
+  desc: Enumerator for $xProgramGetGlobalVariablePointer
+  value: '216'
+- name: DEVICE_GET_SELECTED
+  desc: Enumerator for $xDeviceGetSelected
+  value: '217'
+- name: COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP
+  desc: Enumerator for $xCommandBufferUpdateKernelLaunchExp
+  value: '220'
+- name: COMMAND_BUFFER_GET_INFO_EXP
+  desc: Enumerator for $xCommandBufferGetInfoExp
+  value: '221'
+- name: ENQUEUE_TIMESTAMP_RECORDING_EXP
+  desc: Enumerator for $xEnqueueTimestampRecordingExp
+  value: '223'
+- name: KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE
+  desc: Enumerator for $xKernelGetSuggestedLocalWorkSize
+  value: '225'
+- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesImportExternalMemoryExp
+  value: '226'
+- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesImportExternalSemaphoreExp
+  value: '227'
+- name: ENQUEUE_NATIVE_COMMAND_EXP
+  desc: Enumerator for $xEnqueueNativeCommandExp
+  value: '228'
+- name: LOADER_CONFIG_SET_MOCKING_ENABLED
+  desc: Enumerator for $xLoaderConfigSetMockingEnabled
+  value: '229'
+- name: BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesReleaseExternalMemoryExp
+  value: '230'
+- name: COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMMemcpyExp
+  value: '231'
+- name: COMMAND_BUFFER_APPEND_USM_FILL_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMFillExp
+  value: '232'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferCopyExp
+  value: '233'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferWriteExp
+  value: '234'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferReadExp
+  value: '235'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferCopyRectExp
+  value: '236'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferWriteRectExp
+  value: '237'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferReadRectExp
+  value: '238'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferFillExp
+  value: '239'
+- name: COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMPrefetchExp
+  value: '240'
+- name: COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMAdviseExp
+  value: '241'
+- name: ENQUEUE_COMMAND_BUFFER_EXP
+  desc: Enumerator for $xEnqueueCommandBufferExp
+  value: '242'
+- name: COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP
+  desc: Enumerator for $xCommandBufferUpdateSignalEventExp
+  value: '243'
+- name: COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP
+  desc: Enumerator for $xCommandBufferUpdateWaitEventsExp
+  value: '244'
+- name: BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesMapExternalLinearMemoryExp
+  value: '245'
+- name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
+  desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
+  value: '246'
+- name: PHYSICAL_MEM_GET_INFO
+  desc: Enumerator for $xPhysicalMemGetInfo
+  value: '249'
+- name: ENQUEUE_USM_DEVICE_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMDeviceAllocExp
+  value: '250'
+- name: ENQUEUE_USM_SHARED_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMSharedAllocExp
+  value: '251'
+- name: ENQUEUE_USM_HOST_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMHostAllocExp
+  value: '252'
+- name: ENQUEUE_USM_FREE_EXP
+  desc: Enumerator for $xEnqueueUSMFreeExp
+  value: '253'
+- name: USM_POOL_CREATE_EXP
+  desc: Enumerator for $xUSMPoolCreateExp
+  value: '254'
+- name: USM_POOL_DESTROY_EXP
+  desc: Enumerator for $xUSMPoolDestroyExp
+  value: '255'
+- name: USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP
+  desc: Enumerator for $xUSMPoolGetDefaultDevicePoolExp
+  value: '257'
+- name: USM_POOL_SET_DEVICE_POOL_EXP
+  desc: Enumerator for $xUSMPoolSetDevicePoolExp
+  value: '259'
+- name: USM_POOL_GET_DEVICE_POOL_EXP
+  desc: Enumerator for $xUSMPoolGetDevicePoolExp
+  value: '260'
+- name: USM_POOL_TRIM_TO_EXP
+  desc: Enumerator for $xUSMPoolTrimToExp
+  value: '261'
+- name: USM_POOL_GET_INFO_EXP
+  desc: Enumerator for $xUSMPoolGetInfoExp
+  value: '262'
+- name: COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP
+  desc: Enumerator for $xCommandBufferAppendNativeCommandExp
+  value: '263'
+- name: COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xCommandBufferGetNativeHandleExp
+  value: '264'
+- name: USM_POOL_SET_INFO_EXP
+  desc: Enumerator for $xUSMPoolSetInfoExp
+  value: '265'
+- name: ADAPTER_SET_LOGGER_CALLBACK
+  desc: Enumerator for $xAdapterSetLoggerCallback
+  value: '266'
+- name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
+  desc: Enumerator for $xAdapterSetLoggerCallbackLevel
+  value: '267'
+- name: BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageUnsampledHandleSupportExp
+  value: '268'
+- name: BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageSampledHandleSupportExp
+  value: '269'
+- name: BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageMemoryHandleTypeSupportExp
+  value: '270'
+- name: BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesFreeMappedLinearMemoryExp
+  value: '271'
+- name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT
+  desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCount
+  value: '272'
+---
+type: enum
+desc: Defines structure types
+name: $x_structure_type_t
+etors:
+- name: CONTEXT_PROPERTIES
+  desc: $x_context_properties_t
+  value: '0'
+- name: IMAGE_DESC
+  desc: $x_image_desc_t
+  value: '1'
+- name: BUFFER_PROPERTIES
+  desc: $x_buffer_properties_t
+  value: '2'
+- name: BUFFER_REGION
+  desc: $x_buffer_region_t
+  value: '3'
+- name: BUFFER_CHANNEL_PROPERTIES
+  desc: $x_buffer_channel_properties_t
+  value: '4'
+- name: BUFFER_ALLOC_LOCATION_PROPERTIES
+  desc: $x_buffer_alloc_location_properties_t
+  value: '5'
+- name: PROGRAM_PROPERTIES
+  desc: $x_program_properties_t
+  value: '6'
+- name: USM_DESC
+  desc: $x_usm_desc_t
+  value: '7'
+- name: USM_HOST_DESC
+  desc: $x_usm_host_desc_t
+  value: '8'
+- name: USM_DEVICE_DESC
+  desc: $x_usm_device_desc_t
+  value: '9'
+- name: USM_POOL_DESC
+  desc: $x_usm_pool_desc_t
+  value: '10'
+- name: USM_POOL_LIMITS_DESC
+  desc: $x_usm_pool_limits_desc_t
+  value: '11'
+- name: DEVICE_BINARY
+  desc: $x_device_binary_t
+  value: '12'
+- name: SAMPLER_DESC
+  desc: $x_sampler_desc_t
+  value: '13'
+- name: QUEUE_PROPERTIES
+  desc: $x_queue_properties_t
+  value: '14'
+- name: QUEUE_INDEX_PROPERTIES
+  desc: $x_queue_index_properties_t
+  value: '15'
+- name: CONTEXT_NATIVE_PROPERTIES
+  desc: $x_context_native_properties_t
+  value: '16'
+- name: KERNEL_NATIVE_PROPERTIES
+  desc: $x_kernel_native_properties_t
+  value: '17'
+- name: QUEUE_NATIVE_PROPERTIES
+  desc: $x_queue_native_properties_t
+  value: '18'
+- name: MEM_NATIVE_PROPERTIES
+  desc: $x_mem_native_properties_t
+  value: '19'
+- name: EVENT_NATIVE_PROPERTIES
+  desc: $x_event_native_properties_t
+  value: '20'
+- name: PLATFORM_NATIVE_PROPERTIES
+  desc: $x_platform_native_properties_t
+  value: '21'
+- name: DEVICE_NATIVE_PROPERTIES
+  desc: $x_device_native_properties_t
+  value: '22'
+- name: PROGRAM_NATIVE_PROPERTIES
+  desc: $x_program_native_properties_t
+  value: '23'
+- name: SAMPLER_NATIVE_PROPERTIES
+  desc: $x_sampler_native_properties_t
+  value: '24'
+- name: QUEUE_NATIVE_DESC
+  desc: $x_queue_native_desc_t
+  value: '25'
+- name: DEVICE_PARTITION_PROPERTIES
+  desc: $x_device_partition_properties_t
+  value: '26'
+- name: KERNEL_ARG_MEM_OBJ_PROPERTIES
+  desc: $x_kernel_arg_mem_obj_properties_t
+  value: '27'
+- name: PHYSICAL_MEM_PROPERTIES
+  desc: $x_physical_mem_properties_t
+  value: '28'
+- name: KERNEL_ARG_POINTER_PROPERTIES
+  desc: $x_kernel_arg_pointer_properties_t
+  value: '29'
+- name: KERNEL_ARG_SAMPLER_PROPERTIES
+  desc: $x_kernel_arg_sampler_properties_t
+  value: '30'
+- name: KERNEL_EXEC_INFO_PROPERTIES
+  desc: $x_kernel_exec_info_properties_t
+  value: '31'
+- name: KERNEL_ARG_VALUE_PROPERTIES
+  desc: $x_kernel_arg_value_properties_t
+  value: '32'
+- name: KERNEL_ARG_LOCAL_PROPERTIES
+  desc: $x_kernel_arg_local_properties_t
+  value: '33'
+- name: USM_ALLOC_LOCATION_DESC
+  desc: $x_usm_alloc_location_desc_t
+  value: '35'
+- name: USM_POOL_BUFFER_DESC
+  desc: $x_usm_pool_buffer_desc_t
+  value: '36'

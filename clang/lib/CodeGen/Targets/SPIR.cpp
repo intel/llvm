@@ -38,9 +38,23 @@ private:
 ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
   Ty = useFirstFieldIfTransparentUnion(Ty);
 
-  if (getContext().getLangOpts().SYCLIsDevice && isAggregateTypeForABI(Ty)) {
+  if (getContext().getLangOpts().SYCLIsDevice) {
+    if (const BuiltinType *BT = Ty->getAs<BuiltinType>()) {
+      switch (BT->getKind()) {
+      case BuiltinType::Bool:
+        // Bool / i1 isn't a legal kernel argument in SPIR-V.
+        // Coerce the type to follow the host representation of bool.
+        return ABIArgInfo::getDirect(CGT.ConvertTypeForMem(Ty));
+      default:
+        break;
+      }
+    }
     // Pass all aggregate types allowed by Sema by value.
-    return getNaturalAlignIndirect(Ty);
+    if (isAggregateTypeForABI(Ty))
+      return getNaturalAlignIndirect(Ty,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(Ty));
   }
 
   return DefaultABIInfo::classifyArgumentType(Ty);
@@ -118,7 +132,11 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallArgumentType(QualType Ty) const {
     // Records with non-trivial destructors/copy-constructors should not be
     // passed by value.
     if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
-      return getNaturalAlignIndirect(Ty, RAA == CGCXXABI::RAA_DirectInMemory);
+      return getNaturalAlignIndirect(Ty,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(Ty),
+                                     RAA == CGCXXABI::RAA_DirectInMemory);
 
     // Ignore empty structs/unions.
     if (isEmptyRecord(getContext(), Ty, true))
@@ -183,14 +201,17 @@ public:
         getABIInfo().getDataLayout().getAllocaAddrSpace());
   }
 
+  bool shouldEmitStaticExternCAliases() const override;
   unsigned getOpenCLKernelCallingConv() const override;
   llvm::Type *getOpenCLType(CodeGenModule &CGM, const Type *T) const override;
-
-  bool shouldEmitStaticExternCAliases() const override;
-  llvm::Type *getHLSLType(CodeGenModule &CGM, const Type *Ty) const override;
+  llvm::Type *
+  getHLSLType(CodeGenModule &CGM, const Type *Ty,
+              const SmallVector<int32_t> *Packoffsets = nullptr) const override;
   llvm::Type *getSPIRVImageTypeFromHLSLResource(
       const HLSLAttributedResourceType::Attributes &attributes,
       llvm::Type *ElementType, llvm::LLVMContext &Ctx) const;
+  void
+  setOCLKernelStubCallingConvention(const FunctionType *&FT) const override;
 };
 class SPIRVTargetCodeGenInfo : public CommonSPIRTargetCodeGenInfo {
 public:
@@ -199,6 +220,8 @@ public:
   void setCUDAKernelCallingConvention(const FunctionType *&FT) const override;
   LangAS getGlobalVarAddressSpace(CodeGenModule &CGM,
                                   const VarDecl *D) const override;
+  void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
+                           CodeGen::CodeGenModule &M) const override;
   llvm::SyncScope::ID getLLVMSyncScopeID(const LangOptions &LangOpts,
                                          SyncScope Scope,
                                          llvm::AtomicOrdering Ordering,
@@ -289,8 +312,10 @@ ABIArgInfo SPIRVABIInfo::classifyKernelArgumentType(QualType Ty) const {
       // copied to be valid on the device.
       // This behavior follows the CUDA spec
       // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#global-function-argument-processing,
-      // and matches the NVPTX implementation.
-      return getNaturalAlignIndirect(Ty, /* byval */ true);
+      // and matches the NVPTX implementation. TODO: hardcoding to 0 should be
+      // revisited if HIPSPV / byval starts making use of the AS of an indirect
+      // arg.
+      return getNaturalAlignIndirect(Ty, /*AddrSpace=*/0, /*byval=*/true);
     }
   }
   return classifyArgumentType(Ty);
@@ -305,7 +330,11 @@ ABIArgInfo SPIRVABIInfo::classifyArgumentType(QualType Ty) const {
   // Records with non-trivial destructors/copy-constructors should not be
   // passed by value.
   if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
-    return getNaturalAlignIndirect(Ty, RAA == CGCXXABI::RAA_DirectInMemory);
+    return getNaturalAlignIndirect(Ty,
+                                   getCodeGenOpts().UseAllocaASForSrets
+                                       ? getDataLayout().getAllocaAddrSpace()
+                                       : CGT.getTargetAddressSpace(Ty),
+                                   RAA == CGCXXABI::RAA_DirectInMemory);
 
   if (const RecordType *RT = Ty->getAs<RecordType>()) {
     const RecordDecl *RD = RT->getDecl();
@@ -362,6 +391,15 @@ void SPIRVTargetCodeGenInfo::setCUDAKernelCallingConvention(
   }
 }
 
+void CommonSPIRTargetCodeGenInfo::setOCLKernelStubCallingConvention(
+    const FunctionType *&FT) const {
+  // Disable kernel stub for sycl
+  if (getABIInfo().getContext().getLangOpts().isSYCL())
+     return;
+  FT = getABIInfo().getContext().adjustFunctionType(
+      FT, FT->getExtInfo().withCallingConv(CC_SpirFunction));
+}
+
 LangAS
 SPIRVTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
                                                  const VarDecl *D) const {
@@ -382,6 +420,41 @@ SPIRVTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
     return AddrSpace;
 
   return DefaultGlobalAS;
+}
+
+void SPIRVTargetCodeGenInfo::setTargetAttributes(
+    const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
+  if (!M.getLangOpts().HIP ||
+      M.getTarget().getTriple().getVendor() != llvm::Triple::AMD)
+    return;
+  if (GV->isDeclaration())
+    return;
+
+  auto F = dyn_cast<llvm::Function>(GV);
+  if (!F)
+    return;
+
+  auto FD = dyn_cast_or_null<FunctionDecl>(D);
+  if (!FD)
+    return;
+  if (!FD->hasAttr<CUDAGlobalAttr>())
+    return;
+
+  unsigned N = M.getLangOpts().GPUMaxThreadsPerBlock;
+  if (auto FlatWGS = FD->getAttr<AMDGPUFlatWorkGroupSizeAttr>())
+    N = FlatWGS->getMax()->EvaluateKnownConstInt(M.getContext()).getExtValue();
+
+  // We encode the maximum flat WG size in the first component of the 3D
+  // max_work_group_size attribute, which will get reverse translated into the
+  // original AMDGPU attribute when targeting AMDGPU.
+  auto Int32Ty = llvm::IntegerType::getInt32Ty(M.getLLVMContext());
+  llvm::Metadata *AttrMDArgs[] = {
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, N)),
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 1)),
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 1))};
+
+  F->setMetadata("max_work_group_size",
+                 llvm::MDNode::get(M.getLLVMContext(), AttrMDArgs));
 }
 
 llvm::SyncScope::ID
@@ -474,8 +547,9 @@ llvm::Type *CommonSPIRTargetCodeGenInfo::getOpenCLType(CodeGenModule &CGM,
   return nullptr;
 }
 
-llvm::Type *CommonSPIRTargetCodeGenInfo::getHLSLType(CodeGenModule &CGM,
-                                                     const Type *Ty) const {
+llvm::Type *CommonSPIRTargetCodeGenInfo::getHLSLType(
+    CodeGenModule &CGM, const Type *Ty,
+    const SmallVector<int32_t> *Packoffsets) const {
   auto *ResType = dyn_cast<HLSLAttributedResourceType>(Ty);
   if (!ResType)
     return nullptr;
@@ -490,14 +564,21 @@ llvm::Type *CommonSPIRTargetCodeGenInfo::getHLSLType(CodeGenModule &CGM,
     if (ContainedTy.isNull())
       return nullptr;
 
-    assert(!ResAttrs.RawBuffer &&
-           "Raw buffers handles are not implemented for SPIR-V yet");
     assert(!ResAttrs.IsROV &&
            "Rasterizer order views not implemented for SPIR-V yet");
 
-    // convert element type
     llvm::Type *ElemType = CGM.getTypes().ConvertType(ContainedTy);
-    return getSPIRVImageTypeFromHLSLResource(ResAttrs, ElemType, Ctx);
+    if (!ResAttrs.RawBuffer) {
+      // convert element type
+      return getSPIRVImageTypeFromHLSLResource(ResAttrs, ElemType, Ctx);
+    }
+
+    llvm::ArrayType *RuntimeArrayType = llvm::ArrayType::get(ElemType, 0);
+    uint32_t StorageClass = /* StorageBuffer storage class */ 12;
+    bool IsWritable = ResAttrs.ResourceClass == llvm::dxil::ResourceClass::UAV;
+    return llvm::TargetExtType::get(Ctx, "spirv.VulkanBuffer",
+                                    {RuntimeArrayType},
+                                    {StorageClass, IsWritable});
   }
   case llvm::dxil::ResourceClass::CBuffer:
     llvm_unreachable("CBuffer handles are not implemented for SPIR-V yet");

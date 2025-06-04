@@ -18,7 +18,7 @@
                ; the SPIR-V LLVM Translator and not rejected by spirv-val.
                OpDecorateString %temp UserSemantic "foo"
 ; CHECK: [[STR:@[0-9_.]+]] = {{.*}}foo
-; CHECK: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr undef, i32 undef, ptr undef)
+; CHECK: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr poison, i32 poison, ptr poison)
        %uint = OpTypeInt 32 0
        %void = OpTypeVoid
  %kernel_sig = OpTypeFunction %void %uint

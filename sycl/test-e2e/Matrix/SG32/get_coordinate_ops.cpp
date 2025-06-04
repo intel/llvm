@@ -7,20 +7,17 @@
 //===----------------------------------------------------------------------===//
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
+
+// REQUIRES: target-spir
+
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 30049, win: 101.4943
-
-// XFAIL: !igc-dev && run-mode
-// XFAIL-TRACKER: GSD-6376
-
-// XFAIL: arch-intel_gpu_pvc
-// XFAIL-TRACKER: GSD-10524
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 
-#include "../get_coordinate_ops_impl.hpp"
+#include "get_coordinate_ops_impl.hpp"

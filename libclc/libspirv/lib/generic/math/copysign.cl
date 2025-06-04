@@ -6,26 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_copysign.h>
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_copysign, __builtin_copysignf,
-                           float, float)
+#define FUNCTION __spirv_ocl_copysign
+#define __CLC_FUNCTION(x) __clc_copysign
+#define __CLC_BODY <clc/shared/binary_def.inc>
 
-#ifdef cl_khr_fp64
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_copysign, __builtin_copysign,
-                           double, double)
-
-#endif
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_copysign, __builtin_copysign, half,
-                           half)
-
-#endif
+#include <clc/math/gentype.inc>

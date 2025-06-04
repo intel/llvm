@@ -13,11 +13,12 @@
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Option/Option.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include <algorithm>
 #include <sstream>
 
@@ -151,6 +152,11 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
 
+SYCLInstallationDetector::SYCLInstallationDetector(
+    const Driver &D, const llvm::Triple &HostTriple,
+    const llvm::opt::ArgList &Args)
+    : D(D) {}
+
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
   for (const auto &IC : InstallationCandidates) {
@@ -162,8 +168,10 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
 
-void SYCLInstallationDetector::AddSYCLIncludeArgs(
+void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
+  if (DriverArgs.hasArg(clang::driver::options::OPT_nobuiltininc))
+    return;
   // Add the SYCL header search locations in the specified order.
   //   ../include/sycl/stl_wrappers
   //   ../include
@@ -189,17 +197,6 @@ void SYCLInstallationDetector::print(llvm::raw_ostream &OS) const {
   for (const auto &IC : InstallationCandidates) {
     OS << IC << "\n";
   }
-}
-
-static void addFPGATimingDiagnostic(std::unique_ptr<Command> &Cmd,
-                                    Compilation &C) {
-  const char *Msg = C.getArgs().MakeArgString(
-      "The FPGA image generated during this compile contains timing violations "
-      "and may produce functional errors if used. Refer to the Intel oneAPI "
-      "DPC++ FPGA Optimization Guide section on Timing Failures for more "
-      "information.");
-  Cmd->addDiagForErrorCode(/*ErrorCode*/ 42, Msg);
-  Cmd->addExitForErrorCode(/*ErrorCode*/ 42, false);
 }
 
 void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
@@ -284,10 +281,6 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
                                        Foreach, ForeachArgs, std::nullopt);
-  // FIXME: Add the FPGA specific timing diagnostic to the foreach call.
-  // The foreach call obscures the return codes from the tool it is calling
-  // to the compiler itself.
-  addFPGATimingDiagnostic(Cmd, C);
   C.addCommand(std::move(Cmd));
 }
 
@@ -299,6 +292,11 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 // Return whether to use native bfloat16 library.
 static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
                              bool &UseNative) {
+
+  static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
+      "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
+      "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
+      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -324,32 +322,74 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       }
     }
 
-    UseNative = false;
-
-    // Check for intel_gpu_pvc as the target
-    if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
-      if (SYCLTarget->getValues().size() == 1) {
-        StringRef SYCLTargetStr = SYCLTarget->getValue();
-        if (SYCLTargetStr == "intel_gpu_pvc")
-          UseNative = true;
-      }
-    }
-
-    auto checkBF = [](StringRef Device) {
-      return Device.starts_with("pvc") || Device.starts_with("ats");
-    };
+    // We need to select fallback/native bfloat16 devicelib in AOT compilation
+    // targetting for Intel GPU devices. Users have 2 ways to apply AOT,
+    // 1). clang++ -fsycl -fsycl-targets=spir64_gen -Xs "-device pvc,...,"
+    // 2). clang++ -fsycl -fsycl-targets=intel_gpu_pvc,...
+    // 3). clang++ -fsycl -fsycl-targets=spir64_gen,intel_gpu_pvc,...
+    // -Xsycl-target-backend=spir64_gen "-device dg2"
 
     std::string Params;
     for (const auto &Arg : TargArgs) {
       Params += " ";
       Params += Arg;
     }
+
+    auto checkBF = [](StringRef Device) {
+      return Device.starts_with("pvc") || Device.starts_with("ats") ||
+             Device.starts_with("dg2") || Device.starts_with("bmg") ||
+             Device.starts_with("lnl");
+    };
+
+    auto checkSpirvJIT = [](StringRef Target) {
+      return Target.starts_with("spir64-") || Target.starts_with("spirv64-") ||
+             (Target == "spir64") || (Target == "spirv64");
+    };
+
     size_t DevicesPos = Params.find("-device ");
-    if (!UseNative && DevicesPos != std::string::npos) {
+    // "-device xxx" is used to specify AOT target device, so user must apply
+    // -Xs "-device xxx" or -Xsycl-target-backend=spir64_gen "-device xxx"
+    if (DevicesPos != std::string::npos) {
       UseNative = true;
       std::istringstream Devices(Params.substr(DevicesPos + 8));
       for (std::string S; std::getline(Devices, S, ',');)
         UseNative &= checkBF(S);
+
+      // When "-device XXX" is applied to specify GPU type, user can still
+      // add -fsycl-targets=intel_gpu_pvc..., native bfloat16 devicelib can
+      // only be linked when all GPU types specified support.
+      // We need to filter CPU target here and only focus on GPU device.
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+        for (auto TargetsV : SYCLTarget->getValues()) {
+          if (!checkSpirvJIT(StringRef(TargetsV)) &&
+              !StringRef(TargetsV).starts_with("spir64_gen") &&
+              !StringRef(TargetsV).starts_with("spir64_x86_64") &&
+              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+            UseNative = false;
+            break;
+          }
+        }
+      }
+
+      return NeedLibs;
+
+    } else {
+      // -fsycl-targets=intel_gpu_xxx is used to specify AOT target device.
+      // Multiple Intel GPU devices can be specified, native bfloat16 devicelib
+      // can be involved only when all GPU deivces specified support native
+      // bfloat16 native conversion.
+      UseNative = true;
+
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+        for (auto TargetsV : SYCLTarget->getValues()) {
+          if (!checkSpirvJIT(StringRef(TargetsV)) &&
+              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+            UseNative = false;
+            break;
+          }
+        }
+      }
+      return NeedLibs;
     }
   }
   return NeedLibs;
@@ -505,7 +545,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    LibraryList.push_back(
+        Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
 
   if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
     LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
@@ -555,25 +596,31 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-asan-cpu", "internal"},
       {"libsycl-asan-dg2", "internal"},
       {"libsycl-asan-pvc", "internal"}};
-  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {{"libsycl-msan", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {
+      {"libsycl-msan", "internal"},
+      {"libsycl-msan-cpu", "internal"},
+      // Currently, we only provide aot msan libdevice for PVC and CPU.
+      // For DG2, we just use libsycl-msan as placeholder.
+      {"libsycl-msan", "internal"},
+      {"libsycl-msan-pvc", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceTsanLibs = {
+      {"libsycl-tsan", "internal"},
+      {"libsycl-tsan-cpu", "internal"},
+      // Currently, we only provide aot tsan libdevice for PVC and CPU.
+      // For DG2, we just use libsycl-tsan as placeholder.
+      // TODO: replace "libsycl-tsan" with "libsycl-tsan-dg2" when DG2
+      // AOT support is added.
+      {"libsycl-tsan", "internal"},
+      {"libsycl-tsan-pvc", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
       {"libsycl-nativecpu_utils", "internal"}};
 
-  const bool isNativeCPU =
-      (driver::isSYCLNativeCPU(Args) &&
-       driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
-                               TargetTriple));
-
   bool IsWindowsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isSPIR() &&
-      TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
-    // For FPGA, we are unbundling objects.
-    LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
   if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
     LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
@@ -696,8 +743,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    SyclFEEQArgVals.end());
     ArgVals.insert(ArgVals.end(), ArchDeviceVals.begin(), ArchDeviceVals.end());
 
-    // Driver will report error if address sanitizer and memory sanitizer are
-    // both enabled, so we only need to check first one here.
+    // Driver will report error if more than one of address sanitizer, memory
+    // sanitizer or thread sanitizer is enabled, so we only need to check first
+    // one here.
     for (const std::string &Arg : ArgVals) {
       if (Arg.find("-fsanitize=address") != std::string::npos) {
         SanitizeVal = "address";
@@ -707,16 +755,22 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
         SanitizeVal = "memory";
         break;
       }
+      if (Arg.find("-fsanitize=thread") != std::string::npos) {
+        SanitizeVal = "thread";
+        break;
+      }
     }
   }
 
   if (SanitizeVal == "address")
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "memory")
-    addLibraries(SYCLDeviceMsanLibs);
+    addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
+  else if (SanitizeVal == "thread")
+    addSingleLibrary(SYCLDeviceTsanLibs[sanitizer_lib_idx]);
 #endif
 
-  if (isNativeCPU)
+  if (isSYCLNativeCPU(TargetTriple))
     addLibraries(SYCLNativeCpuDeviceLibs);
 
   return LibraryList;
@@ -834,6 +888,11 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "asan-cpu",
     "asan-dg2",
     "msan",
+    "msan-pvc",
+    "msan-cpu",
+    "tsan",
+    "tsan-pvc",
+    "tsan-cpu",
 #endif
     "imf",
     "imf-fp64",
@@ -875,7 +934,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(this->getToolChain());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
@@ -889,16 +947,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
-      const bool IsFPGA = this->getToolChain().getTriple().isSPIR() &&
-                          this->getToolChain().getTriple().getSubArch() ==
-                              llvm::Triple::SPIRSubArch_fpga;
+      const bool IsSYCLNativeCPU =
+          isSYCLNativeCPU(this->getToolChain().getTriple());
       StringRef LibPostfix = ".bc";
-      if (IsFPGA) {
-        LibPostfix = ".o";
-        if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-            C.getDriver().IsCLMode())
-          LibPostfix = ".obj";
-      }
       StringRef NewLibPostfix = ".new.o";
       if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
           C.getDriver().IsCLMode())
@@ -1040,7 +1091,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert((getToolChain().getTriple().isSPIROrSPIRV() ||
           getToolChain().getTriple().isNVPTX() ||
-          getToolChain().getTriple().isAMDGCN() || isSYCLNativeCPU(Args)) &&
+          getToolChain().getTriple().isAMDGCN() ||
+          isSYCLNativeCPU(getToolChain().getTriple())) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -1082,223 +1134,6 @@ static const char *makeExeName(Compilation &C, StringRef Name) {
   if (HostTC->getTriple().isWindowsMSVCEnvironment())
     ExeName.append(".exe");
   return C.getArgs().MakeArgString(ExeName);
-}
-
-void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
-    Compilation &C, const JobAction &JA, const InputInfo &Output,
-    const InputInfoList &Inputs, const ArgList &Args) const {
-  // Construct opencl-aot command. This is used for FPGA AOT compilations
-  // when performing emulation.  Input file will be a SPIR-V binary which
-  // will be compiled to an aocx file.
-  InputInfoList ForeachInputs;
-  InputInfoList FPGADepFiles;
-  ArgStringList CmdArgs{"-device=fpga_fast_emu"};
-
-  for (const auto &II : Inputs) {
-    if (II.getType() == types::TY_TempAOCOfilelist ||
-        II.getType() == types::TY_FPGA_Dependencies ||
-        II.getType() == types::TY_FPGA_Dependencies_List)
-      continue;
-    if (II.getType() == types::TY_Tempfilelist)
-      ForeachInputs.push_back(II);
-    CmdArgs.push_back(
-        C.getArgs().MakeArgString("-spv=" + Twine(II.getFilename())));
-  }
-  CmdArgs.push_back(
-      C.getArgs().MakeArgString("-ir=" + Twine(Output.getFilename())));
-
-  StringRef ForeachExt = "aocx";
-  if (Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
-    if (A->getValue() == StringRef("early"))
-      ForeachExt = "aocr";
-
-  // Add any implied arguments before user defined arguments.
-  const toolchains::SYCLToolChain &TC =
-      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-  llvm::Triple CPUTriple("spir64_x86_64");
-  TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs, JA, *HostTC);
-  // Add the target args passed in
-  TC.TranslateBackendTargetArgs(CPUTriple, Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(CPUTriple, Args, CmdArgs);
-
-  SmallString<128> ExecPath(
-      getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
-  const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, std::nullopt);
-  if (!ForeachInputs.empty()) {
-    StringRef ParallelJobs =
-        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
-    constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, "", ForeachExt, ParallelJobs);
-  } else
-    C.addCommand(std::move(Cmd));
-}
-
-void SYCL::fpga::BackendCompiler::ConstructJob(
-    Compilation &C, const JobAction &JA, const InputInfo &Output,
-    const InputInfoList &Inputs, const ArgList &Args,
-    const char *LinkingOutput) const {
-  assert(getToolChain().getTriple().isSPIROrSPIRV() && "Unsupported target");
-
-  // Grab the -Xsycl-target* options.
-  const toolchains::SYCLToolChain &TC =
-      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-  ArgStringList TargetArgs;
-  TC.TranslateBackendTargetArgs(TC.getTriple(), Args, TargetArgs);
-
-  // When performing emulation compilations for FPGA AOT, we want to use
-  // opencl-aot instead of aoc.
-  if (C.getDriver().IsFPGAEmulationMode()) {
-    constructOpenCLAOTCommand(C, JA, Output, Inputs, Args);
-    return;
-  }
-
-  InputInfoList ForeachInputs;
-  InputInfoList FPGADepFiles;
-  StringRef CreatedReportName;
-  ArgStringList CmdArgs{"-o", Output.getFilename()};
-  for (const auto &II : Inputs) {
-    std::string Filename(II.getFilename());
-    if (II.getType() == types::TY_Tempfilelist)
-      ForeachInputs.push_back(II);
-    if (II.getType() == types::TY_TempAOCOfilelist)
-      // Add any FPGA library lists.  These come in as special tempfile lists.
-      CmdArgs.push_back(Args.MakeArgString(Twine("-library-list=") + Filename));
-    else if (II.getType() == types::TY_FPGA_Dependencies ||
-             II.getType() == types::TY_FPGA_Dependencies_List)
-      FPGADepFiles.push_back(II);
-    else
-      CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
-    // Check for any AOCR input, if found use that as the project report name
-    StringRef Ext(llvm::sys::path::extension(Filename));
-    if (Ext.empty())
-      continue;
-    if (getToolChain().LookupTypeForExtension(Ext.drop_front()) ==
-        types::TY_FPGA_AOCR) {
-      // Keep the base of the .aocr file name.  Input file is a temporary,
-      // so we are stripping off the additional naming information for a
-      // cleaner name.  The suffix being stripped from the name is the
-      // added temporary string and the extension.
-      StringRef SuffixFormat("-XXXXXX.aocr");
-      SmallString<128> NameBase(
-          Filename.substr(0, Filename.length() - SuffixFormat.size()));
-      NameBase.append(".prj");
-      CreatedReportName =
-          Args.MakeArgString(llvm::sys::path::filename(NameBase));
-    }
-  }
-  CmdArgs.push_back("-sycl");
-
-  StringRef ForeachExt = "aocx";
-  if (Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
-    if (A->getValue() == StringRef("early")) {
-      CmdArgs.push_back("-rtl");
-      ForeachExt = "aocr";
-    }
-
-  for (auto *A : Args) {
-    // Any input file is assumed to have a dependency file associated and
-    // the report folder can also be named based on the first input.
-    if (A->getOption().getKind() != Option::InputClass)
-      continue;
-    SmallString<128> ArgName(A->getSpelling());
-    StringRef Ext(llvm::sys::path::extension(ArgName));
-    if (Ext.empty())
-      continue;
-    types::ID Ty = getToolChain().LookupTypeForExtension(Ext.drop_front());
-    if (Ty == types::TY_INVALID)
-      continue;
-    if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
-      // The project report is created in CWD, so strip off any directory
-      // information if provided with the input file.
-      StringRef TrimmedArgName = llvm::sys::path::filename(ArgName);
-      if (types::isSrcFile(Ty)) {
-        SmallString<128> DepName(
-            C.getDriver().getFPGATempDepFile(std::string(TrimmedArgName)));
-        if (!DepName.empty())
-          FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
-                                           Args.MakeArgString(DepName),
-                                           Args.MakeArgString(DepName)));
-      }
-      if (CreatedReportName.empty()) {
-        // Project report should be saved into CWD, so strip off any
-        // directory information if provided with the input file.
-        llvm::sys::path::replace_extension(ArgName, "prj");
-        CreatedReportName = Args.MakeArgString(ArgName);
-      }
-    }
-  }
-
-  // Add any dependency files.
-  if (!FPGADepFiles.empty()) {
-    SmallString<128> DepOpt("-dep-files=");
-    for (unsigned I = 0; I < FPGADepFiles.size(); ++I) {
-      if (I)
-        DepOpt += ',';
-      if (FPGADepFiles[I].getType() == types::TY_FPGA_Dependencies_List)
-        DepOpt += "@";
-      DepOpt += FPGADepFiles[I].getFilename();
-    }
-    CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));
-  }
-
-  // Depending on output file designations, set the report folder
-  SmallString<128> ReportOptArg;
-  if (Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o,
-                                         options::OPT__SLASH_Fe)) {
-    SmallString<128> FN(FinalOutput->getValue());
-    // For "-o file.xxx" where the option value has an extension, if the
-    // extension is one of .a .o .out .lib .obj .exe, the output project
-    // directory name will be file.proj which omits the extension. Otherwise
-    // the output project directory name will be file.xxx.prj which keeps
-    // the original extension.
-    StringRef Ext = llvm::sys::path::extension(FN);
-    SmallVector<StringRef, 6> Exts = {".o",   ".a",   ".out",
-                                      ".obj", ".lib", ".exe"};
-    if (std::find(Exts.begin(), Exts.end(), Ext) != Exts.end())
-      llvm::sys::path::replace_extension(FN, "prj");
-    else
-      FN.append(".prj");
-    const char *FolderName = Args.MakeArgString(FN);
-    ReportOptArg += FolderName;
-  } else {
-    // Default output directory should match default output executable name
-    ReportOptArg += "a.prj";
-  }
-  if (!ReportOptArg.empty())
-    CmdArgs.push_back(C.getArgs().MakeArgString(
-        Twine("-output-report-folder=") + ReportOptArg));
-
-  // Add any implied arguments before user defined arguments.
-  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-  TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs, JA,
-                          *HostTC);
-
-  // Add -Xsycl-target* options.
-  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
-
-  // Look for -reuse-exe=XX option
-  if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
-    Args.ClaimAllArgs(options::OPT_reuse_exe_EQ);
-    CmdArgs.push_back(Args.MakeArgString(A->getAsString(Args)));
-  }
-
-  SmallString<128> ExecPath(
-      getToolChain().GetProgramPath(makeExeName(C, "aoc")));
-  const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, std::nullopt);
-  addFPGATimingDiagnostic(Cmd, C);
-  if (!ForeachInputs.empty()) {
-    StringRef ParallelJobs =
-        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
-    constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, ReportOptArg, ForeachExt, ParallelJobs);
-  } else
-    C.addCommand(std::move(Cmd));
 }
 
 // Determine if any of the given arguments contain any PVC based values for
@@ -1611,40 +1446,41 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
-// Unsupported options for device compilation
+// Unsupported options for SYCL device compilation.
 //  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
 //  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
-//  -fcs-profile-generate -forder-file-instrumentation, --coverage
-static std::vector<OptSpecifier> getUnsupportedOpts(void) {
-  std::vector<OptSpecifier> UnsupportedOpts = {
-      options::OPT_fsanitize_EQ,
-      options::OPT_fcf_protection_EQ,
+//  -fcs-profile-generate, --coverage
+static ArrayRef<options::ID> getUnsupportedOpts() {
+  static constexpr options::ID UnsupportedOpts[] = {
+      options::OPT_fsanitize_EQ,      // -fsanitize
+      options::OPT_fcf_protection_EQ, // -fcf-protection
       options::OPT_fprofile_generate,
       options::OPT_fprofile_generate_EQ,
-      options::OPT_fno_profile_generate,
+      options::OPT_fno_profile_generate, // -f[no-]profile-generate
       options::OPT_ftest_coverage,
-      options::OPT_fno_test_coverage,
+      options::OPT_fno_test_coverage, // -f[no-]test-coverage
       options::OPT_fcoverage_mapping,
-      options::OPT_fno_coverage_mapping,
-      options::OPT_coverage,
+      options::OPT_coverage,             // --coverage
+      options::OPT_fno_coverage_mapping, // -f[no-]coverage-mapping
       options::OPT_fprofile_instr_generate,
       options::OPT_fprofile_instr_generate_EQ,
       options::OPT_fprofile_arcs,
-      options::OPT_fno_profile_arcs,
-      options::OPT_fno_profile_instr_generate,
-      options::OPT_fcreate_profile,
+      options::OPT_fno_profile_arcs,           // -f[no-]profile-arcs
+      options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
+      options::OPT_fcreate_profile,            // -fcreate-profile
       options::OPT_fprofile_instr_use,
-      options::OPT_fprofile_instr_use_EQ,
-      options::OPT_forder_file_instrumentation,
-      options::OPT_fcs_profile_generate,
-      options::OPT_fcs_profile_generate_EQ};
+      options::OPT_fprofile_instr_use_EQ, // -fprofile-instr-use
+      options::OPT_fcs_profile_generate,  // -fcs-profile-generate
+      options::OPT_fcs_profile_generate_EQ,
+      options::OPT_gline_tables_only, // -gline-tables-only
+  };
   return UnsupportedOpts;
 }
 
 // Currently supported options by SYCL NativeCPU device compilation
-static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
+static inline bool SupportedByNativeCPU(const llvm::Triple &Triple,
                                         const OptSpecifier &Opt) {
-  if (!TC.IsSYCLNativeCPU)
+  if (!isSYCLNativeCPU(Triple))
     return false;
 
   switch (Opt.getID()) {
@@ -1661,27 +1497,28 @@ static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
-      IsSYCLNativeCPU(Triple == HostTC.getTriple()), SYCLInstallation(D) {
-  // Lookup binaries into the driver directory, this is used to
-  // discover the clang-offload-bundler executable.
+      SYCLInstallation(D, Triple, Args) {
+  // Lookup binaries into the driver directory, this is used to discover any
+  // dependent SYCL offload compilation tools.
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported options only once.
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
       // Native CPU can support options unsupported by other targets.
-      if (SupportedByNativeCPU(*this, Opt))
+      if (SupportedByNativeCPU(getTriple(), Opt))
         continue;
       // All sanitizer options are not currently supported, except
-      // AddressSanitizer and MemorySanitizer
+      // AddressSanitizer and MemorySanitizer and ThreadSanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
           A->getValues().size() == 1) {
         std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address" || SanitizeVal == "memory")
+        if (SanitizeVal == "address" || SanitizeVal == "memory" ||
+            SanitizeVal == "thread")
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
-          << A->getAsString(Args) << getTriple().str();
+          << A->getAsString(Args) << getTriple().str() << 1;
     }
   }
 }
@@ -1713,12 +1550,13 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
         // NativeCPU should allow most normal cpu options.
-        if (SupportedByNativeCPU(*this, Opt.getID()))
+        if (SupportedByNativeCPU(getTriple(), Opt.getID()))
           continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
-          if (SanitizeVal == "address" || SanitizeVal == "memory") {
+          if (SanitizeVal == "address" || SanitizeVal == "memory" ||
+              SanitizeVal == "thread") {
             if (IsNewDAL)
               DAL->append(A);
             continue;
@@ -1734,10 +1572,6 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     if (IsNewDAL)
       DAL->append(A);
   }
-  // Strip out -O0 for FPGA Hardware device compilation.
-  if (getDriver().IsFPGAHWMode() &&
-      getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
-    DAL->eraseArg(options::OPT_O0);
 
   const OptTable &Opts = getDriver().getOpts();
   if (!BoundArch.empty()) {
@@ -1804,6 +1638,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
     bool OptNoTriple;
     OptNoTriple = A->getOption().matches(Opt);
     if (A->getOption().matches(Opt_EQ)) {
+      const llvm::Triple OptTargetTriple =
+          getDriver().getSYCLDeviceTriple(A->getValue(), A);
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
       bool IsGenTriple = Triple.isSPIR() &&
@@ -1811,16 +1647,14 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       if (IsGenTriple) {
         if (Device != GenDevice && !Device.empty())
           continue;
-        if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple &&
-            GenDevice.empty())
+        if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
           continue;
-        if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple &&
-            !Device.empty())
+        if (OptTargetTriple == Triple && !Device.empty())
           // Triples match, but we are expecting a specific device to be set.
           continue;
-      } else if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple)
+      } else if (OptTargetTriple != Triple)
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
@@ -1857,7 +1691,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                                          StringRef Device) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
-  // FPGA:  -g -cl-opt-disable
   // Default device AOT: -g -cl-opt-disable
   // Default device JIT: -g (-O0 is handled by the runtime)
   // GEN:  -options "-g -O0"
@@ -1946,14 +1779,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                                             ":" + BackendOptName));
     }
   }
-  // only pass -vpfp-relaxed for aoc with -fintelfpga and -fp-model=fast
-  if (Args.hasArg(options::OPT_fintelfpga) && getDriver().IsFPGAHWMode() &&
-      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-    if (Arg *A = Args.getLastArg(options::OPT_ffp_model_EQ)) {
-      if (StringRef(A->getValue()) == "fast")
-        BeArgs.push_back("-vpfp-relaxed");
-    }
-  }
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
@@ -1997,9 +1822,18 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (Args.hasFlag(options::OPT_ftarget_export_symbols,
                      options::OPT_fno_target_export_symbols, false))
       BeArgs.push_back("-library-compilation");
-  } else if (IsJIT)
+    // -foffload-fp32-prec-[sqrt/div]
+    if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
+        Args.hasArg(options::OPT_foffload_fp32_prec_sqrt))
+      BeArgs.push_back("-ze-fp32-correctly-rounded-divide-sqrt");
+  } else if (IsJIT) {
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
+    // -foffload-fp32-prec-div JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_div);
+    // -foffload-fp32-prec-sqrt JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_sqrt);
+  }
   if (IsGen) {
     for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
       CmdArgs.push_back("-device_options");
@@ -2009,8 +1843,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   }
   if (BeArgs.empty())
     return;
-  if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
-      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch) {
     for (StringRef A : BeArgs)
       CmdArgs.push_back(Args.MakeArgString(A));
     return;
@@ -2089,8 +1922,6 @@ void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::Triple &Triple,
 }
 
 Tool *SYCLToolChain::buildBackendCompiler() const {
-  if (getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
-    return new tools::SYCL::fpga::BackendCompiler(*this);
   if (getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
     return new tools::SYCL::gen::BackendCompiler(*this);
   // fall through is CPU.
@@ -2098,7 +1929,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 }
 
 Tool *SYCLToolChain::buildLinker() const {
-  assert(getTriple().isSPIROrSPIRV() || IsSYCLNativeCPU);
+  assert(getTriple().isSPIROrSPIRV() || isSYCLNativeCPU(getTriple()));
   return new tools::SYCL::Linker(*this);
 }
 
@@ -2111,9 +1942,9 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
   return HostTC.GetCXXStdlibType(Args);
 }
 
-void SYCLToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+void SYCLToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
-  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+  SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
@@ -2127,5 +1958,5 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
-  return SanitizerKind::Address | SanitizerKind::Memory;
+  return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }

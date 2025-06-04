@@ -1,6 +1,7 @@
-// We can't safely release any resoureces on Windows, so the test is expected
-// to fail there. See comments in GlobalHandler::releaseDefaultContexts
 // UNSUPPORTED: windows
+// UNSUPPORTED-INTENDED: We can't safely release any resoureces on Windows, so
+// the test is expected to fail there. See comments in
+// GlobalHandler::releaseDefaultContexts.
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 

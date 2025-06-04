@@ -414,10 +414,6 @@ void DiagnoseUnused(Sema &S, const Expr *E, std::optional<unsigned> DiagID) {
 }
 } // namespace
 
-void Sema::DiagnoseDiscardedExprMarkedNodiscard(const Expr *E) {
-  DiagnoseUnused(*this, E, std::nullopt);
-}
-
 void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
   if (const LabelStmt *Label = dyn_cast_if_present<LabelStmt>(S))
     S = Label->getSubStmt();
@@ -526,12 +522,12 @@ Sema::ActOnCaseExpr(SourceLocation CaseLoc, ExprResult Val) {
       // constant expression of the promoted type of the switch condition.
       llvm::APSInt TempVal;
       return CheckConvertedConstantExpression(E, CondType, TempVal,
-                                              CCEK_CaseValue);
+                                              CCEKind::CaseValue);
     }
 
     ExprResult ER = E;
     if (!E->isValueDependent())
-      ER = VerifyIntegerConstantExpression(E, AllowFold);
+      ER = VerifyIntegerConstantExpression(E, AllowFoldKind::Allow);
     if (!ER.isInvalid())
       ER = DefaultLvalueConversion(ER.get());
     if (!ER.isInvalid())
@@ -626,6 +622,15 @@ Sema::ActOnLabelStmt(SourceLocation IdentLoc, LabelDecl *TheDecl,
   if (getCurScope()->isInOpenACCComputeConstructScope())
     setFunctionHasBranchProtectedScope();
 
+  // OpenACC3.3 2.14.4:
+  // The update directive is executable.  It must not appear in place of the
+  // statement following an 'if', 'while', 'do', 'switch', or 'label' in C or
+  // C++.
+  if (isa<OpenACCUpdateConstruct>(SubStmt)) {
+    Diag(SubStmt->getBeginLoc(), diag::err_acc_update_as_body) << /*Label*/ 4;
+    SubStmt = new (Context) NullStmt(SubStmt->getBeginLoc());
+  }
+
   // Otherwise, things are good.  Fill in the declaration and return it.
   LabelStmt *LS = new (Context) LabelStmt(IdentLoc, TheDecl, SubStmt);
   TheDecl->setStmt(LS);
@@ -713,6 +718,13 @@ bool Sema::checkMustTailAttr(const Stmt *St, const Attr &MTA) {
     return false;
   }
 
+  if (const FunctionDecl *CalleeDecl = CE->getDirectCallee();
+      CalleeDecl && CalleeDecl->hasAttr<NotTailCalledAttr>()) {
+    Diag(St->getBeginLoc(), diag::err_musttail_mismatch) << /*show-function-callee=*/true << CalleeDecl;
+    Diag(CalleeDecl->getLocation(), diag::note_musttail_disabled_by_not_tail_called);
+    return false;
+  }
+
   if (const auto *EWC = dyn_cast<ExprWithCleanups>(E)) {
     if (EWC->cleanupsHaveSideEffects()) {
       Diag(St->getBeginLoc(), diag::err_musttail_needs_trivial_args) << &MTA;
@@ -795,7 +807,8 @@ bool Sema::checkMustTailAttr(const Stmt *St, const Attr &MTA) {
     // Call is: obj->*method_ptr or obj.*method_ptr
     const auto *MPT =
         CalleeBinOp->getRHS()->getType()->castAs<MemberPointerType>();
-    CalleeType.This = QualType(MPT->getClass(), 0);
+    CalleeType.This =
+        Context.getTypeDeclType(MPT->getMostRecentCXXRecordDecl());
     CalleeType.Func = MPT->getPointeeType()->castAs<FunctionProtoType>();
     CalleeType.MemberType = FuncType::ft_pointer_to_member;
   } else if (isa<CXXPseudoDestructorExpr>(CalleeExpr)) {
@@ -1018,6 +1031,15 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
     }
     if (isUnevaluatedContext() || Immediate)
       Diags.Report(IfLoc, diag::warn_consteval_if_always_true) << Immediate;
+  }
+
+  // OpenACC3.3 2.14.4:
+  // The update directive is executable.  It must not appear in place of the
+  // statement following an 'if', 'while', 'do', 'switch', or 'label' in C or
+  // C++.
+  if (isa<OpenACCUpdateConstruct>(thenStmt)) {
+    Diag(thenStmt->getBeginLoc(), diag::err_acc_update_as_body) << /*if*/ 0;
+    thenStmt = new (Context) NullStmt(thenStmt->getBeginLoc());
   }
 
   return BuildIfStmt(IfLoc, StatementKind, LParenLoc, InitStmt, Cond, RParenLoc,
@@ -1298,6 +1320,16 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
   getCurFunction()->SwitchStack.pop_back();
 
   if (!BodyStmt) return StmtError();
+
+  // OpenACC3.3 2.14.4:
+  // The update directive is executable.  It must not appear in place of the
+  // statement following an 'if', 'while', 'do', 'switch', or 'label' in C or
+  // C++.
+  if (isa<OpenACCUpdateConstruct>(BodyStmt)) {
+    Diag(BodyStmt->getBeginLoc(), diag::err_acc_update_as_body) << /*switch*/ 3;
+    BodyStmt = new (Context) NullStmt(BodyStmt->getBeginLoc());
+  }
+
   SS->setBody(BodyStmt, SwitchLoc);
 
   Expr *CondExpr = SS->getCond();
@@ -1592,8 +1624,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
         EnumVals.push_back(std::make_pair(Val, EDI));
       }
       llvm::stable_sort(EnumVals, CmpEnumVals);
-      auto EI = EnumVals.begin(), EIEnd =
-        std::unique(EnumVals.begin(), EnumVals.end(), EqEnumVals);
+      auto EI = EnumVals.begin(), EIEnd = llvm::unique(EnumVals, EqEnumVals);
 
       // See which case values aren't in enum.
       for (CaseValsTy::const_iterator CI = CaseVals.begin();
@@ -1746,8 +1777,7 @@ Sema::DiagnoseAssignmentEnum(QualType DstType, QualType SrcType,
           if (EnumVals.empty())
             return;
           llvm::stable_sort(EnumVals, CmpEnumVals);
-          EnumValsTy::iterator EIend =
-              std::unique(EnumVals.begin(), EnumVals.end(), EqEnumVals);
+          EnumValsTy::iterator EIend = llvm::unique(EnumVals, EqEnumVals);
 
           // See which values aren't in the enum.
           EnumValsTy::const_iterator EI = EnumVals.begin();
@@ -1774,6 +1804,15 @@ StmtResult Sema::ActOnWhileStmt(SourceLocation WhileLoc,
   if (CondVal.second &&
       !Diags.isIgnored(diag::warn_comma_operator, CondVal.second->getExprLoc()))
     CommaVisitor(*this).Visit(CondVal.second);
+
+  // OpenACC3.3 2.14.4:
+  // The update directive is executable.  It must not appear in place of the
+  // statement following an 'if', 'while', 'do', 'switch', or 'label' in C or
+  // C++.
+  if (isa<OpenACCUpdateConstruct>(Body)) {
+    Diag(Body->getBeginLoc(), diag::err_acc_update_as_body) << /*while*/ 1;
+    Body = new (Context) NullStmt(Body->getBeginLoc());
+  }
 
   if (isa<NullStmt>(Body))
     getCurCompoundScope().setHasEmptyLoopBodies();
@@ -1803,6 +1842,15 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
   if (Cond && !getLangOpts().C99 && !getLangOpts().CPlusPlus &&
       !Diags.isIgnored(diag::warn_comma_operator, Cond->getExprLoc()))
     CommaVisitor(*this).Visit(Cond);
+
+  // OpenACC3.3 2.14.4:
+  // The update directive is executable.  It must not appear in place of the
+  // statement following an 'if', 'while', 'do', 'switch', or 'label' in C or
+  // C++.
+  if (isa<OpenACCUpdateConstruct>(Body)) {
+    Diag(Body->getBeginLoc(), diag::err_acc_update_as_body) << /*do*/ 2;
+    Body = new (Context) NullStmt(Body->getBeginLoc());
+  }
 
   return new (Context) DoStmt(Body, Cond, DoLoc, WhileLoc, CondRParen);
 }
@@ -2224,10 +2272,11 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
       for (auto *DI : DS->decls()) {
         if (VarDecl *VD = dyn_cast<VarDecl>(DI)) {
           VarDeclSeen = true;
-          if (VD->isLocalVarDecl() && !VD->hasLocalStorage()) {
-            Diag(DI->getLocation(), diag::err_non_local_variable_decl_in_for);
-            DI->setInvalidDecl();
-          }
+          if (VD->isLocalVarDecl() && !VD->hasLocalStorage())
+            Diag(DI->getLocation(),
+                 getLangOpts().C23
+                     ? diag::warn_c17_non_local_variable_decl_in_for
+                     : diag::ext_c23_non_local_variable_decl_in_for);
         } else if (!NonVarSeen) {
           // Keep track of the first non-variable declaration we saw so that
           // we can diagnose if we don't see any variable declarations. This
@@ -2239,7 +2288,9 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
       // Diagnose if we saw a non-variable declaration but no variable
       // declarations.
       if (NonVarSeen && !VarDeclSeen)
-        Diag(NonVarSeen->getLocation(), diag::err_non_variable_decl_in_for);
+        Diag(NonVarSeen->getLocation(),
+             getLangOpts().C23 ? diag::warn_c17_non_variable_decl_in_for
+                               : diag::ext_c23_non_variable_decl_in_for);
     }
   }
 
@@ -2671,8 +2722,10 @@ StmtResult Sema::BuildCXXForRangeStmt(
     // them in properly when we instantiate the loop.
     if (!LoopVar->isInvalidDecl() && Kind != BFRK_Check) {
       if (auto *DD = dyn_cast<DecompositionDecl>(LoopVar))
-        for (auto *Binding : DD->bindings())
-          Binding->setType(Context.DependentTy);
+        for (auto *Binding : DD->bindings()) {
+          if (!Binding->isParameterPack())
+            Binding->setType(Context.DependentTy);
+        }
       LoopVar->setType(SubstAutoTypeDependent(LoopVar->getType()));
     }
   } else if (!BeginDeclStmt.get()) {
@@ -3543,7 +3596,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
 
   if (auto *CurBlock = dyn_cast<BlockScopeInfo>(CurCap)) {
     if (CurBlock->FunctionType->castAs<FunctionType>()->getNoReturnAttr()) {
-      Diag(ReturnLoc, diag::err_noreturn_block_has_return_expr);
+      Diag(ReturnLoc, diag::err_noreturn_has_return_expr)
+          << diag::FalloffFunctionKind::Block;
       return StmtError();
     }
   } else if (auto *CurRegion = dyn_cast<CapturedRegionScopeInfo>(CurCap)) {
@@ -3554,7 +3608,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
     if (CurLambda->CallOperator->getType()
             ->castAs<FunctionType>()
             ->getNoReturnAttr()) {
-      Diag(ReturnLoc, diag::err_noreturn_lambda_has_return_expr);
+      Diag(ReturnLoc, diag::err_noreturn_has_return_expr)
+          << diag::FalloffFunctionKind::Lambda;
       return StmtError();
     }
   }
@@ -3804,7 +3859,8 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
         << FSI->getFirstCoroutineStmtKeyword();
   }
 
-  CheckInvalidBuiltinCountedByRef(RetVal.get(), ReturnArgKind);
+  CheckInvalidBuiltinCountedByRef(RetVal.get(),
+                                  BuiltinCountedByRefKind::ReturnArg);
 
   StmtResult R =
       BuildReturnStmt(ReturnLoc, RetVal.get(), /*AllowRecovery=*/true);
@@ -3863,7 +3919,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
     FnRetType = FD->getReturnType();
     if (FD->hasAttrs())
       Attrs = &FD->getAttrs();
-    if (FD->isNoReturn())
+    if (FD->isNoReturn() && !getCurFunction()->isCoroutine())
       Diag(ReturnLoc, diag::warn_noreturn_function_has_return_expr) << FD;
     if (FD->isMain() && RetValExp)
       if (isa<CXXBoolLiteralExpr>(RetValExp))
@@ -4000,9 +4056,9 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
           Diag(ReturnLoc, D) << CurDecl << isa<CXXDestructorDecl>(CurDecl)
                              << RetValExp->getSourceRange();
         }
-        // return (some void expression); is legal in C++.
+        // return (some void expression); is legal in C++ and C2y.
         else if (D != diag::ext_return_has_void_expr ||
-                 !getLangOpts().CPlusPlus) {
+                 (!getLangOpts().CPlusPlus && !getLangOpts().C2y)) {
           NamedDecl *CurDecl = getCurFunctionOrMethodDecl();
 
           int FunctionKind = 0;
@@ -4263,7 +4319,7 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
   // Exceptions aren't allowed in CUDA device code.
   if (getLangOpts().CUDA)
     CUDA().DiagIfDeviceCode(TryLoc, diag::err_cuda_device_exceptions)
-        << "try" << llvm::to_underlying(CUDA().CurrentTarget());
+        << "try" << CUDA().CurrentTarget();
 
   // Exceptions aren't allowed in SYCL device code.
   if (getLangOpts().SYCLIsDevice)
@@ -4537,9 +4593,27 @@ buildCapturedStmtCaptureList(Sema &S, CapturedRegionScopeInfo *RSI,
   return false;
 }
 
+static std::optional<int>
+isOpenMPCapturedRegionInArmSMEFunction(Sema const &S, CapturedRegionKind Kind) {
+  if (!S.getLangOpts().OpenMP || Kind != CR_OpenMP)
+    return {};
+  if (const FunctionDecl *FD = S.getCurFunctionDecl(/*AllowLambda=*/true)) {
+    if (IsArmStreamingFunction(FD, /*IncludeLocallyStreaming=*/true))
+      return /* in streaming functions */ 0;
+    if (hasArmZAState(FD))
+      return /* in functions with ZA state */ 1;
+    if (hasArmZT0State(FD))
+      return /* in fuctions with ZT0 state */ 2;
+  }
+  return {};
+}
+
 void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
                                     CapturedRegionKind Kind,
                                     unsigned NumParams) {
+  if (auto ErrorIndex = isOpenMPCapturedRegionInArmSMEFunction(*this, Kind))
+    Diag(Loc, diag::err_sme_openmp_captured_region) << *ErrorIndex;
+
   CapturedDecl *CD = nullptr;
   RecordDecl *RD = CreateCapturedStmtRecordDecl(CD, Loc, NumParams);
 
@@ -4571,6 +4645,9 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
                                     CapturedRegionKind Kind,
                                     ArrayRef<CapturedParamNameType> Params,
                                     unsigned OpenMPCaptureLevel) {
+  if (auto ErrorIndex = isOpenMPCapturedRegionInArmSMEFunction(*this, Kind))
+    Diag(Loc, diag::err_sme_openmp_captured_region) << *ErrorIndex;
+
   CapturedDecl *CD = nullptr;
   RecordDecl *RD = CreateCapturedStmtRecordDecl(CD, Loc, Params.size());
 

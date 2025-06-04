@@ -16,6 +16,12 @@ class type_info;
 typedef __typeof__(sizeof(int)) size_t;
 } // namespace std
 
+template<typename T>
+void Dep() {
+	enum Mode { N, E, O, EO };
+	Mode m = N;
+}
+
 //variadic functions from SYCL kernels emit a deferred diagnostic
 void variadic(int, ...) {}
 

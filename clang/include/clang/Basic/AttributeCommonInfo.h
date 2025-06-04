@@ -61,7 +61,7 @@ public:
   };
   enum Kind {
 #define PARSED_ATTR(NAME) AT_##NAME,
-#include "clang/Sema/AttrParsedAttrList.inc"
+#include "clang/Basic/AttrParsedAttrList.inc"
 #undef PARSED_ATTR
     NoSemaHandlerAttribute,
     IgnoredAttribute,
@@ -80,6 +80,11 @@ public:
     SYCL,
     CL,
     SYCL_DETAIL
+  };
+  enum class AttrArgsInfo {
+    None,
+    Optional,
+    Required,
   };
 
 private:
@@ -204,6 +209,7 @@ public:
   /// with surrounding underscores removed as appropriate (e.g.
   /// __gnu__::__attr__ will be normalized to gnu::attr).
   std::string getNormalizedFullName() const;
+  SourceRange getNormalizedRange() const;
 
   bool isDeclspecAttribute() const { return SyntaxUsed == AS_Declspec; }
   bool isMicrosoftAttribute() const { return SyntaxUsed == AS_Microsoft; }
@@ -253,6 +259,8 @@ public:
 
   static Kind getParsedKind(const IdentifierInfo *Name,
                             const IdentifierInfo *Scope, Syntax SyntaxUsed);
+
+  static AttrArgsInfo getCXX11AttrArgsInfo(const IdentifierInfo *Name);
 
 private:
   /// Get an index into the attribute spelling list

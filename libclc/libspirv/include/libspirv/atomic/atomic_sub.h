@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #define __SPIRV_FUNCTION_S __spirv_AtomicISub
-#define __SPIRV_FUNCTION_S_LEN 18
 #define __SPIRV_FUNCTION_U __spirv_AtomicISub
-#define __SPIRV_FUNCTION_U_LEN 18
 #define __SPIRV_INT64_BASE
 #include <libspirv/atomic/atomic_decl.inc>

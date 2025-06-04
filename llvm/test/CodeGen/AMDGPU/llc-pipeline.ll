@@ -27,7 +27,7 @@
 ; GCN-O0-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O0-NEXT:    FunctionPass Manager
 ; GCN-O0-NEXT:      Expand large div/rem
-; GCN-O0-NEXT:      Expand large fp convert
+; GCN-O0-NEXT:      Expand fp
 ; GCN-O0-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O0-NEXT:    AMDGPU Printf lowering
 ; GCN-O0-NEXT:    Lower ctors and dtors for AMDGPU
@@ -38,7 +38,7 @@
 ; GCN-O0-NEXT:        Dominator Tree Construction
 ; GCN-O0-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O0-NEXT:        Function Alias Analysis Results
-; GCN-O0-NEXT:    Lower OpenCL enqueued blocks
+; GCN-O0-NEXT:    Externalize enqueued block runtime handles
 ; GCN-O0-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O0-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O0-NEXT:    FunctionPass Manager
@@ -51,11 +51,7 @@
 ; GCN-O0-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O0-NEXT:    FunctionPass Manager
 ; GCN-O0-NEXT:      FPBuiltin Function Selection
-; GCN-O0-NEXT:    CallGraph Construction
-; GCN-O0-NEXT:    Call Graph SCC Pass Manager
-; GCN-O0-NEXT:      AMDGPU Annotate Kernel Features
-; GCN-O0-NEXT:      FunctionPass Manager
-; GCN-O0-NEXT:        AMDGPU Lower Kernel Arguments
+; GCN-O0-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O0-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O0-NEXT:    CallGraph Construction
 ; GCN-O0-NEXT:    Call Graph SCC Pass Manager
@@ -147,11 +143,13 @@
 ; GCN-O0-NEXT:        Insert required mode register values
 ; GCN-O0-NEXT:        SI Final Branch Preparation
 ; GCN-O0-NEXT:        Post RA hazard recognizer
+; GCN-O0-NEXT:        AMDGPU Insert waits for SGPR read hazards
 ; GCN-O0-NEXT:        Branch relaxation pass
 ; GCN-O0-NEXT:        Register Usage Information Collector Pass
 ; GCN-O0-NEXT:        Remove Loads Into Fake Uses
 ; GCN-O0-NEXT:        Live DEBUG_VALUE analysis
 ; GCN-O0-NEXT:        Machine Sanitizer Binary Metadata
+; GCN-O0-NEXT:        AMDGPU Preload Kernel Arguments Prolog
 ; GCN-O0-NEXT:        Lazy Machine Block Frequency Analysis
 ; GCN-O0-NEXT:        Machine Optimization Remark Emitter
 ; GCN-O0-NEXT:        Stack Frame Layout Analysis
@@ -179,7 +177,7 @@
 ; GCN-O1-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O1-NEXT:    FunctionPass Manager
 ; GCN-O1-NEXT:      Expand large div/rem
-; GCN-O1-NEXT:      Expand large fp convert
+; GCN-O1-NEXT:      Expand fp
 ; GCN-O1-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O1-NEXT:    AMDGPU Printf lowering
 ; GCN-O1-NEXT:    Lower ctors and dtors for AMDGPU
@@ -190,7 +188,7 @@
 ; GCN-O1-NEXT:        Dominator Tree Construction
 ; GCN-O1-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O1-NEXT:        Function Alias Analysis Results
-; GCN-O1-NEXT:    Lower OpenCL enqueued blocks
+; GCN-O1-NEXT:    Externalize enqueued block runtime handles
 ; GCN-O1-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O1-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O1-NEXT:    FunctionPass Manager
@@ -227,6 +225,9 @@
 ; GCN-O1-NEXT:      Block Frequency Analysis
 ; GCN-O1-NEXT:      Constant Hoisting
 ; GCN-O1-NEXT:      Replace intrinsics with calls to vector library
+; GCN-O1-NEXT:      Lazy Branch Probability Analysis
+; GCN-O1-NEXT:      Lazy Block Frequency Analysis
+; GCN-O1-NEXT:      Optimization Remark Emitter
 ; GCN-O1-NEXT:      Partially inline calls to library functions
 ; GCN-O1-NEXT:      Instrument function entry/exit with calls to e.g. mcount() (post inlining)
 ; GCN-O1-NEXT:      Scalarize Masked Memory Intrinsics
@@ -235,11 +236,9 @@
 ; GCN-O1-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O1-NEXT:    FunctionPass Manager
 ; GCN-O1-NEXT:      FPBuiltin Function Selection
-; GCN-O1-NEXT:    CallGraph Construction
-; GCN-O1-NEXT:    Call Graph SCC Pass Manager
-; GCN-O1-NEXT:      AMDGPU Annotate Kernel Features
-; GCN-O1-NEXT:      FunctionPass Manager
-; GCN-O1-NEXT:        AMDGPU Lower Kernel Arguments
+; GCN-O1-NEXT:    AMDGPU Preload Kernel Arguments
+; GCN-O1-NEXT:    FunctionPass Manager
+; GCN-O1-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O1-NEXT:    CallGraph Construction
 ; GCN-O1-NEXT:    Call Graph SCC Pass Manager
@@ -430,12 +429,14 @@
 ; GCN-O1-NEXT:        SI Final Branch Preparation
 ; GCN-O1-NEXT:        SI peephole optimizations
 ; GCN-O1-NEXT:        Post RA hazard recognizer
+; GCN-O1-NEXT:        AMDGPU Insert waits for SGPR read hazards
 ; GCN-O1-NEXT:        AMDGPU Insert Delay ALU
 ; GCN-O1-NEXT:        Branch relaxation pass
 ; GCN-O1-NEXT:        Register Usage Information Collector Pass
 ; GCN-O1-NEXT:        Remove Loads Into Fake Uses
 ; GCN-O1-NEXT:        Live DEBUG_VALUE analysis
 ; GCN-O1-NEXT:        Machine Sanitizer Binary Metadata
+; GCN-O1-NEXT:        AMDGPU Preload Kernel Arguments Prolog
 ; GCN-O1-NEXT:        Lazy Machine Block Frequency Analysis
 ; GCN-O1-NEXT:        Machine Optimization Remark Emitter
 ; GCN-O1-NEXT:        Stack Frame Layout Analysis
@@ -463,7 +464,7 @@
 ; GCN-O1-OPTS-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
 ; GCN-O1-OPTS-NEXT:      Expand large div/rem
-; GCN-O1-OPTS-NEXT:      Expand large fp convert
+; GCN-O1-OPTS-NEXT:      Expand fp
 ; GCN-O1-OPTS-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O1-OPTS-NEXT:    AMDGPU Printf lowering
 ; GCN-O1-OPTS-NEXT:    Lower ctors and dtors for AMDGPU
@@ -474,7 +475,7 @@
 ; GCN-O1-OPTS-NEXT:        Dominator Tree Construction
 ; GCN-O1-OPTS-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O1-OPTS-NEXT:        Function Alias Analysis Results
-; GCN-O1-OPTS-NEXT:    Lower OpenCL enqueued blocks
+; GCN-O1-OPTS-NEXT:    Externalize enqueued block runtime handles
 ; GCN-O1-OPTS-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O1-OPTS-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
@@ -524,6 +525,9 @@
 ; GCN-O1-OPTS-NEXT:      Block Frequency Analysis
 ; GCN-O1-OPTS-NEXT:      Constant Hoisting
 ; GCN-O1-OPTS-NEXT:      Replace intrinsics with calls to vector library
+; GCN-O1-OPTS-NEXT:      Lazy Branch Probability Analysis
+; GCN-O1-OPTS-NEXT:      Lazy Block Frequency Analysis
+; GCN-O1-OPTS-NEXT:      Optimization Remark Emitter
 ; GCN-O1-OPTS-NEXT:      Partially inline calls to library functions
 ; GCN-O1-OPTS-NEXT:      Instrument function entry/exit with calls to e.g. mcount() (post inlining)
 ; GCN-O1-OPTS-NEXT:      Scalarize Masked Memory Intrinsics
@@ -533,11 +537,9 @@
 ; GCN-O1-OPTS-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
 ; GCN-O1-OPTS-NEXT:      FPBuiltin Function Selection
-; GCN-O1-OPTS-NEXT:    CallGraph Construction
-; GCN-O1-OPTS-NEXT:    Call Graph SCC Pass Manager
-; GCN-O1-OPTS-NEXT:      AMDGPU Annotate Kernel Features
-; GCN-O1-OPTS-NEXT:      FunctionPass Manager
-; GCN-O1-OPTS-NEXT:        AMDGPU Lower Kernel Arguments
+; GCN-O1-OPTS-NEXT:    AMDGPU Preload Kernel Arguments
+; GCN-O1-OPTS-NEXT:    FunctionPass Manager
+; GCN-O1-OPTS-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-OPTS-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O1-OPTS-NEXT:    CallGraph Construction
 ; GCN-O1-OPTS-NEXT:    Call Graph SCC Pass Manager
@@ -742,12 +744,14 @@
 ; GCN-O1-OPTS-NEXT:        SI Final Branch Preparation
 ; GCN-O1-OPTS-NEXT:        SI peephole optimizations
 ; GCN-O1-OPTS-NEXT:        Post RA hazard recognizer
+; GCN-O1-OPTS-NEXT:        AMDGPU Insert waits for SGPR read hazards
 ; GCN-O1-OPTS-NEXT:        AMDGPU Insert Delay ALU
 ; GCN-O1-OPTS-NEXT:        Branch relaxation pass
 ; GCN-O1-OPTS-NEXT:        Register Usage Information Collector Pass
 ; GCN-O1-OPTS-NEXT:        Remove Loads Into Fake Uses
 ; GCN-O1-OPTS-NEXT:        Live DEBUG_VALUE analysis
 ; GCN-O1-OPTS-NEXT:        Machine Sanitizer Binary Metadata
+; GCN-O1-OPTS-NEXT:        AMDGPU Preload Kernel Arguments Prolog
 ; GCN-O1-OPTS-NEXT:        Lazy Machine Block Frequency Analysis
 ; GCN-O1-OPTS-NEXT:        Machine Optimization Remark Emitter
 ; GCN-O1-OPTS-NEXT:        Stack Frame Layout Analysis
@@ -775,7 +779,7 @@
 ; GCN-O2-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O2-NEXT:    FunctionPass Manager
 ; GCN-O2-NEXT:      Expand large div/rem
-; GCN-O2-NEXT:      Expand large fp convert
+; GCN-O2-NEXT:      Expand fp
 ; GCN-O2-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O2-NEXT:    AMDGPU Printf lowering
 ; GCN-O2-NEXT:    Lower ctors and dtors for AMDGPU
@@ -788,7 +792,7 @@
 ; GCN-O2-NEXT:        Dominator Tree Construction
 ; GCN-O2-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O2-NEXT:        Function Alias Analysis Results
-; GCN-O2-NEXT:    Lower OpenCL enqueued blocks
+; GCN-O2-NEXT:    Externalize enqueued block runtime handles
 ; GCN-O2-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O2-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O2-NEXT:    FunctionPass Manager
@@ -840,6 +844,9 @@
 ; GCN-O2-NEXT:      Block Frequency Analysis
 ; GCN-O2-NEXT:      Constant Hoisting
 ; GCN-O2-NEXT:      Replace intrinsics with calls to vector library
+; GCN-O2-NEXT:      Lazy Branch Probability Analysis
+; GCN-O2-NEXT:      Lazy Block Frequency Analysis
+; GCN-O2-NEXT:      Optimization Remark Emitter
 ; GCN-O2-NEXT:      Partially inline calls to library functions
 ; GCN-O2-NEXT:      Instrument function entry/exit with calls to e.g. mcount() (post inlining)
 ; GCN-O2-NEXT:      Scalarize Masked Memory Intrinsics
@@ -849,11 +856,9 @@
 ; GCN-O2-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O2-NEXT:    FunctionPass Manager
 ; GCN-O2-NEXT:      FPBuiltin Function Selection
-; GCN-O2-NEXT:    CallGraph Construction
-; GCN-O2-NEXT:    Call Graph SCC Pass Manager
-; GCN-O2-NEXT:      AMDGPU Annotate Kernel Features
-; GCN-O2-NEXT:      FunctionPass Manager
-; GCN-O2-NEXT:        AMDGPU Lower Kernel Arguments
+; GCN-O2-NEXT:    AMDGPU Preload Kernel Arguments
+; GCN-O2-NEXT:    FunctionPass Manager
+; GCN-O2-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O2-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O2-NEXT:    CallGraph Construction
 ; GCN-O2-NEXT:    Call Graph SCC Pass Manager
@@ -1060,12 +1065,14 @@
 ; GCN-O2-NEXT:        SI Final Branch Preparation
 ; GCN-O2-NEXT:        SI peephole optimizations
 ; GCN-O2-NEXT:        Post RA hazard recognizer
+; GCN-O2-NEXT:        AMDGPU Insert waits for SGPR read hazards
 ; GCN-O2-NEXT:        AMDGPU Insert Delay ALU
 ; GCN-O2-NEXT:        Branch relaxation pass
 ; GCN-O2-NEXT:        Register Usage Information Collector Pass
 ; GCN-O2-NEXT:        Remove Loads Into Fake Uses
 ; GCN-O2-NEXT:        Live DEBUG_VALUE analysis
 ; GCN-O2-NEXT:        Machine Sanitizer Binary Metadata
+; GCN-O2-NEXT:        AMDGPU Preload Kernel Arguments Prolog
 ; GCN-O2-NEXT:        Lazy Machine Block Frequency Analysis
 ; GCN-O2-NEXT:        Machine Optimization Remark Emitter
 ; GCN-O2-NEXT:        Stack Frame Layout Analysis
@@ -1093,7 +1100,7 @@
 ; GCN-O3-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O3-NEXT:    FunctionPass Manager
 ; GCN-O3-NEXT:      Expand large div/rem
-; GCN-O3-NEXT:      Expand large fp convert
+; GCN-O3-NEXT:      Expand fp
 ; GCN-O3-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O3-NEXT:    AMDGPU Printf lowering
 ; GCN-O3-NEXT:    Lower ctors and dtors for AMDGPU
@@ -1106,7 +1113,7 @@
 ; GCN-O3-NEXT:        Dominator Tree Construction
 ; GCN-O3-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O3-NEXT:        Function Alias Analysis Results
-; GCN-O3-NEXT:    Lower OpenCL enqueued blocks
+; GCN-O3-NEXT:    Externalize enqueued block runtime handles
 ; GCN-O3-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O3-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O3-NEXT:    FunctionPass Manager
@@ -1164,6 +1171,9 @@
 ; GCN-O3-NEXT:      Block Frequency Analysis
 ; GCN-O3-NEXT:      Constant Hoisting
 ; GCN-O3-NEXT:      Replace intrinsics with calls to vector library
+; GCN-O3-NEXT:      Lazy Branch Probability Analysis
+; GCN-O3-NEXT:      Lazy Block Frequency Analysis
+; GCN-O3-NEXT:      Optimization Remark Emitter
 ; GCN-O3-NEXT:      Partially inline calls to library functions
 ; GCN-O3-NEXT:      Instrument function entry/exit with calls to e.g. mcount() (post inlining)
 ; GCN-O3-NEXT:      Scalarize Masked Memory Intrinsics
@@ -1180,11 +1190,9 @@
 ; GCN-O3-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O3-NEXT:    FunctionPass Manager
 ; GCN-O3-NEXT:      FPBuiltin Function Selection
-; GCN-O3-NEXT:    CallGraph Construction
-; GCN-O3-NEXT:    Call Graph SCC Pass Manager
-; GCN-O3-NEXT:      AMDGPU Annotate Kernel Features
-; GCN-O3-NEXT:      FunctionPass Manager
-; GCN-O3-NEXT:        AMDGPU Lower Kernel Arguments
+; GCN-O3-NEXT:    AMDGPU Preload Kernel Arguments
+; GCN-O3-NEXT:    FunctionPass Manager
+; GCN-O3-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O3-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O3-NEXT:    CallGraph Construction
 ; GCN-O3-NEXT:    Call Graph SCC Pass Manager
@@ -1391,12 +1399,14 @@
 ; GCN-O3-NEXT:        SI Final Branch Preparation
 ; GCN-O3-NEXT:        SI peephole optimizations
 ; GCN-O3-NEXT:        Post RA hazard recognizer
+; GCN-O3-NEXT:        AMDGPU Insert waits for SGPR read hazards
 ; GCN-O3-NEXT:        AMDGPU Insert Delay ALU
 ; GCN-O3-NEXT:        Branch relaxation pass
 ; GCN-O3-NEXT:        Register Usage Information Collector Pass
 ; GCN-O3-NEXT:        Remove Loads Into Fake Uses
 ; GCN-O3-NEXT:        Live DEBUG_VALUE analysis
 ; GCN-O3-NEXT:        Machine Sanitizer Binary Metadata
+; GCN-O3-NEXT:        AMDGPU Preload Kernel Arguments Prolog
 ; GCN-O3-NEXT:        Lazy Machine Block Frequency Analysis
 ; GCN-O3-NEXT:        Machine Optimization Remark Emitter
 ; GCN-O3-NEXT:        Stack Frame Layout Analysis

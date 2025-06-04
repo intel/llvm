@@ -65,54 +65,12 @@ static std::string FindVisualStudioExecutable(const ToolChain &TC,
   return std::string(canExecute(TC.getVFS(), FilePath) ? FilePath.str() : Exe);
 }
 
-// Add a call to lib.exe to create an archive.  This is used to embed host
-// objects into the bundled fat FPGA device binary.
-void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
-                                                   const JobAction &JA,
-                                                   const InputInfo &Output,
-                                                   const InputInfoList &Input,
-                                                   const ArgList &Args) const {
-  ArgStringList CmdArgs;
-  for (const auto &II : Input) {
-    if (II.getType() == types::TY_Tempfilelist) {
-      // Take the list file and pass it in with '@'.
-      std::string FileName(II.getFilename());
-      const char *ArgFile = Args.MakeArgString("@" + FileName);
-      CmdArgs.push_back(ArgFile);
-      continue;
-    }
-    CmdArgs.push_back(II.getFilename());
-  }
-  if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
-      Args.hasArg(options::OPT_fintelfpga))
-    CmdArgs.push_back("/IGNORE:4221");
-
-  // Suppress multiple section warning LNK4078
-  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
-    CmdArgs.push_back("/IGNORE:4078");
-
-  CmdArgs.push_back(
-      C.getArgs().MakeArgString(Twine("-OUT:") + Output.getFilename()));
-
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("lib.exe"));
-  const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF16(), Exec, CmdArgs, std::nullopt));
-}
-
 void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                         const InputInfo &Output,
                                         const InputInfoList &Inputs,
                                         const ArgList &Args,
                                         const char *LinkingOutput) const {
   ArgStringList CmdArgs;
-
-  // Create a library with -fsycl-link
-  if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
-      JA.getType() == types::TY_Archive) {
-    constructMSVCLibCommand(C, JA, Output, Inputs, Args);
-    return;
-  }
 
   auto &TC = static_cast<const toolchains::MSVCToolChain &>(getToolChain());
 
@@ -211,8 +169,8 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (C.getDriver().IsFlangMode() &&
       !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
-    addFortranRuntimeLibraryPath(TC, Args, CmdArgs);
-    addFortranRuntimeLibs(TC, Args, CmdArgs);
+    TC.addFortranRuntimeLibraryPath(Args, CmdArgs);
+    TC.addFortranRuntimeLibs(Args, CmdArgs);
 
     // Inform the MSVC linker that we're generating a console application, i.e.
     // one with `main` as the "user-defined" entry point. The `main` function is
@@ -276,7 +234,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(TC.getCompilerRTArgString(Args, "asan_dynamic"));
     auto defines = Args.getAllArgValues(options::OPT_D);
     if (Args.hasArg(options::OPT__SLASH_MD, options::OPT__SLASH_MDd) ||
-        find(begin(defines), end(defines), "_DLL") != end(defines)) {
+        llvm::is_contained(defines, "_DLL")) {
       // Make sure the dynamic runtime thunk is not optimized out at link time
       // to ensure proper SEH handling.
       CmdArgs.push_back(Args.MakeArgString(
@@ -297,6 +255,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  if (C.getDriver().isUsingLTO()) {
+    if (Arg *A = tools::getLastProfileSampleUseArg(Args))
+      CmdArgs.push_back(Args.MakeArgString(std::string("-lto-sample-profile:") +
+                                           A->getValue()));
+  }
   Args.AddAllArgValues(CmdArgs, options::OPT__SLASH_link);
 
   // A user can add the -out: option to the /link sequence on the command line
@@ -510,7 +473,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ArgList &Args)
     : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args),
-      RocmInstallation(D, Triple, Args), SYCLInstallation(D) {
+      RocmInstallation(D, Triple, Args), SYCLInstallation(D, Triple, Args) {
   getProgramPaths().push_back(getDriver().Dir);
 
   std::optional<llvm::StringRef> VCToolsDir, VCToolsVersion;
@@ -589,9 +552,9 @@ void MSVCToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
   RocmInstallation->AddHIPIncludeArgs(DriverArgs, CC1Args);
 }
 
-void MSVCToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+void MSVCToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
-  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+  SYCLInstallation->addSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
 void MSVCToolChain::AddHIPRuntimeLibArgs(const ArgList &Args,

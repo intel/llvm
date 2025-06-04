@@ -1,0 +1,49 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi USM Import/Release Extension APIs"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Import memory into USM"
+class: $xUSM
+name: ImportExp
+details:
+    - "Import memory into USM"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: "void*"
+      name: pMem
+      desc: "[in] pointer to host memory object"
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes of the host memory object to be imported"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_SIZE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release memory from USM"
+class: $xUSM
+name: ReleaseExp
+details:
+    - "Release memory from USM"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: "void*"
+      name: pMem
+      desc: "[in] pointer to host memory object"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT

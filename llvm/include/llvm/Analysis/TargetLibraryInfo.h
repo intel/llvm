@@ -10,6 +10,7 @@
 #define LLVM_ANALYSIS_TARGETLIBRARYINFO_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -55,20 +56,23 @@ class VecDesc {
   ElementCount VectorizationFactor;
   bool Masked;
   StringRef VABIPrefix;
+  std::optional<CallingConv::ID> CC;
 
 public:
   VecDesc() = delete;
   VecDesc(StringRef ScalarFnName, StringRef VectorFnName,
-          ElementCount VectorizationFactor, bool Masked, StringRef VABIPrefix)
+          ElementCount VectorizationFactor, bool Masked, StringRef VABIPrefix,
+          std::optional<CallingConv::ID> Conv)
       : ScalarFnName(ScalarFnName), VectorFnName(VectorFnName),
         VectorizationFactor(VectorizationFactor), Masked(Masked),
-        VABIPrefix(VABIPrefix) {}
+        VABIPrefix(VABIPrefix), CC(Conv) {}
 
   StringRef getScalarFnName() const { return ScalarFnName; }
   StringRef getVectorFnName() const { return VectorFnName; }
   ElementCount getVectorizationFactor() const { return VectorizationFactor; }
   bool isMasked() const { return Masked; }
   StringRef getVABIPrefix() const { return VABIPrefix; }
+  std::optional<CallingConv::ID> getCallingConv() const { return CC; }
 
   /// Returns a vector function ABI variant string on the form:
   ///    _ZGV<isa><mask><vlen><vparams>_<scalarname>(<vectorname>)
@@ -81,6 +85,47 @@ public:
 
     NumLibFuncs,
     NotLibFunc
+  };
+
+  /// Contains all possible FPBuiltin replacement choices by
+  /// selectFnForFPBuiltinCalls function.
+  struct FPBuiltinReplacement {
+    enum Kind {
+      Unexpected0dot5,
+      UnrecognizedFPAttrs,
+      NoSuitableReplacement,
+      ReplaceWithLLVMIR,
+      ReplaceWithAltMathFunction,
+      ReplaceWithApproxNVPTXCallsOrFallback
+    };
+
+    FPBuiltinReplacement(Kind K, const StringRef &ImplName = StringRef())
+        : RepKind(K), AltMathFunctionImplName(ImplName) {
+      // Check that ImplName is non-empty only if K is
+      // ReplaceWithAltMathFunction.
+      assert((K != Kind::ReplaceWithAltMathFunction || !ImplName.empty()) &&
+             "Expected non-empty function name");
+    }
+    FPBuiltinReplacement(const FPBuiltinReplacement &O)
+        : RepKind(O()), AltMathFunctionImplName(O.altMathFunctionImplName()) {}
+    FPBuiltinReplacement &operator=(const FPBuiltinReplacement &O) {
+      this->RepKind = O();
+      this->AltMathFunctionImplName = O.altMathFunctionImplName();
+      return *this;
+    }
+    ~FPBuiltinReplacement() {}
+    Kind operator()() const { return RepKind; }
+    bool isReplaceble() const { return RepKind > Kind::NoSuitableReplacement; }
+    const StringRef &altMathFunctionImplName() const {
+      return AltMathFunctionImplName;
+    }
+
+  private:
+    /// In case of RepKind = Kind::ReplaceWithAltMathFunction
+    /// AltMathFunctionImplName also contains the name of the alternate math
+    /// function implementation.
+    Kind RepKind;
+    StringRef AltMathFunctionImplName;
   };
 
 /// Implementation of the target library information.
@@ -138,7 +183,7 @@ public:
     NoLibrary,        // Don't use any vector library.
     Accelerate,       // Use Accelerate framework.
     DarwinLibSystemM, // Use Darwin's libsystem_m.
-    LIBMVEC_X86,      // GLIBC Vector Math library.
+    LIBMVEC,          // GLIBC Vector Math library.
     MASSV,            // IBM MASS vector library.
     SVML,             // Intel short vector math library.
     SLEEFGNUABI, // SLEEF - SIMD Library for Evaluating Elementary Functions.
@@ -223,6 +268,16 @@ public:
   /// Calls addAltMathFunctions with a known preset of functions for the
   /// given alternate math library.
   void addAltMathFunctionsFromLib(enum AltMathLibrary AltLib);
+
+  // Select an alternate math library implementation that meets the criteria
+  // described by an FPBuiltinIntrinsic call.
+  StringRef
+  selectFPBuiltinImplementation(const FPBuiltinIntrinsic *Builtin) const;
+
+  /// Returns the replacement choice for the given FPBuiltinIntrinsic call.
+  FPBuiltinReplacement
+  selectFnForFPBuiltinCalls(const FPBuiltinIntrinsic &BuiltinCall,
+                            const TargetTransformInfo &TTI) const;
 
   /// Select an alternate math library implementation that meets the criteria
   /// described by an FPBuiltinIntrinsic call.
@@ -648,6 +703,13 @@ public:
   /// Check if the function "F" is listed in a library known to LLVM.
   bool isKnownVectorFunctionInLibrary(StringRef F) const {
     return this->isFunctionVectorizable(F);
+  }
+
+  /// Returns the replacement choice for the given FPBuiltinIntrinsic call.
+  FPBuiltinReplacement
+  selectFnForFPBuiltinCalls(const FPBuiltinIntrinsic &BuiltinCall,
+                            const TargetTransformInfo &TTI) const {
+    return Impl->selectFnForFPBuiltinCalls(BuiltinCall, TTI);
   }
 };
 

@@ -1,16 +1,15 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 int main() {
-  // Set up device, queue, and context
+  // Set up queue
   sycl::device dev;
   sycl::queue q(dev);
-  sycl::context ctxt = q.get_context();
 
   // declare image data
   size_t numImages = 5;

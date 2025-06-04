@@ -130,9 +130,11 @@ def err_attribute_not_type_attr : Error<
   "%0%select{ attribute|}1 cannot be applied to types">;
 def err_enum_template : Error<"enumeration cannot be a template">;
 
-def warn_cxx20_compat_consteval : Warning<
-  "'consteval' specifier is incompatible with C++ standards before C++20">,
-  InGroup<CXX20Compat>, DefaultIgnore;
+def warn_cxx20_compat_consteval
+    : Warning<"'consteval' specifier is incompatible with C++ standards before "
+              "C++20">,
+      InGroup<CXXPre20Compat>,
+      DefaultIgnore;
 def warn_missing_type_specifier : Warning<
   "type specifier missing, defaults to 'int'">,
   InGroup<ImplicitInt>, DefaultIgnore;
@@ -374,6 +376,11 @@ def err_ppc_impossible_musttail: Error<
 def err_aix_musttail_unsupported: Error<
   "'musttail' attribute is not supported on AIX">;
 
+def warn_acuracy_conflicts_with_explicit_offload_fp32_prec_option : Warning<
+  "floating point accuracy control '%0' conflicts with explicit target "
+  "precision option '%1'">,
+  InGroup<DiagGroup<"accuracy-conflicts-with-explicit-offload-fp32-prec-option">>;
+
 // Source manager
 def err_cannot_open_file : Error<"cannot open file '%0': %1">, DefaultFatal;
 def err_file_modified : Error<
@@ -404,16 +411,6 @@ def note_file_misc_sloc_usage : Note<
 // Modules
 def err_module_format_unhandled : Error<
   "no handler registered for module format '%0'">, DefaultFatal;
-
-// TransformActions
-// TODO: Use a custom category name to distinguish rewriter errors.
-def err_mt_message : Error<"[rewriter] %0">, SuppressInSystemHeader;
-def warn_mt_message : Warning<"[rewriter] %0">;
-def note_mt_message : Note<"[rewriter] %0">;
-
-// ARCMigrate
-def warn_arcmt_nsalloc_realloc : Warning<"[rewriter] call returns pointer to GC managed memory; it will become unmanaged in ARC">;
-def err_arcmt_nsinvocation_ownership : Error<"NSInvocation's %0 is not safe to be used with an object with ownership other than __unsafe_unretained">;
 
 // API notes
 def err_apinotes_message : Error<"%0">;

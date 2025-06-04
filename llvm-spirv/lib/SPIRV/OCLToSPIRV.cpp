@@ -800,9 +800,6 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
       OC = OpFConvert;
   }
 
-  if (!Rounding.empty() && (isa<IntegerType>(SrcTy) && IsTargetInt))
-    return;
-
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   mutateCallInst(
       CI, getSPIRVFuncName(OC, "_R" + DestTy + VecSize + Sat + Rounding));
@@ -961,7 +958,7 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
           if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy()) {
             return Builder.CreateIntCast(NewCI, OldRetTy, false);
           }
-          return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
+          return Builder.CreateAddrSpaceCast(NewCI, OldRetTy);
         });
   }
 }
@@ -1065,7 +1062,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
           } else if (Desc.Dim == Dim2D && Desc.Arrayed) {
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1)};
             Constant *Mask = ConstantVector::get(Index);
-            return new ShuffleVectorInst(NCI, UndefValue::get(NCI->getType()),
+            return new ShuffleVectorInst(NCI, PoisonValue::get(NCI->getType()),
                                          Mask, NCI->getName(),
                                          CI->getIterator());
           }
@@ -1410,9 +1407,9 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
   for (auto I : ScalarPos)
     Mutator.mapArg(I, [&](Value *V) {
       Instruction *Inst = InsertElementInst::Create(
-          UndefValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
+          PoisonValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
       return new ShuffleVectorInst(
-          Inst, UndefValue::get(VecTy),
+          Inst, PoisonValue::get(VecTy),
           ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
           CI->getIterator());
     });
@@ -1491,8 +1488,8 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // If no event arguments in original call, add dummy ones
   if (!HasEvents) {
     Args.push_back(getInt32(M, 0)); // dummy num events
-    Value *Null = Constant::getNullValue(PointerType::get(
-        getSPIRVType(OpTypeDeviceEvent, true), SPIRAS_Generic));
+    Value *Null = Constant::getNullValue(
+        PointerType::get(CI->getContext(), SPIRAS_Generic));
     Args.push_back(Null); // dummy wait events
     Args.push_back(Null); // dummy ret event
   }
@@ -1504,14 +1501,54 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // Param: Pointer to block literal
   Value *BlockLiteral = CI->getArgOperand(BlockFIdx + 1);
   Args.push_back(BlockLiteral);
+  BlockLiteral = BlockLiteral->stripPointerCasts();
+  if (auto *GV = dyn_cast<GlobalVariable>(BlockLiteral)) {
+    assert(GV->hasInitializer() && "Block literal should have an initializer");
+    Constant *Init = GV->getInitializer();
+    if (auto *Struct = dyn_cast<ConstantStruct>(Init)) {
+      Constant *SizeConst = Struct->getOperand(0);
+      Constant *AlignConst = Struct->getOperand(1);
+      auto *SizeVal = dyn_cast<ConstantInt>(SizeConst);
+      auto *AlignVal = dyn_cast<ConstantInt>(AlignConst);
+      Args.push_back(SizeVal);
+      Args.push_back(AlignVal);
+    }
+  } else {
 
-  // Param Size: Size of block literal structure
-  // Param Aligment: Aligment of block literal structure
-  // TODO: these numbers should be obtained from block literal structure
-  Type *ParamType = getBlockStructType(BlockLiteral);
-  Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
-  Args.push_back(getInt32(M, DL.getPrefTypeAlign(ParamType).value()));
+    Value *Base = getUnderlyingObject(BlockLiteral);
+    Value *ParamSizeVal = nullptr;
+    Value *ParamAlignVal = nullptr;
 
+    for (User *U : Base->users()) {
+      if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+        if (GEP->getNumIndices() < 2)
+          continue;
+        auto *CI1 = dyn_cast<ConstantInt>(GEP->getOperand(2));
+        if (!CI1)
+          continue;
+        uint64_t FieldIndex = CI1->getZExtValue();
+        for (User *GEPUser : GEP->users()) {
+          if (auto *Store = dyn_cast<StoreInst>(GEPUser)) {
+            if (FieldIndex == 0)
+              ParamSizeVal = dyn_cast<ConstantInt>(Store->getValueOperand());
+            else if (FieldIndex == 1)
+              ParamAlignVal = dyn_cast<ConstantInt>(Store->getValueOperand());
+          }
+        }
+      }
+      if (ParamSizeVal && ParamAlignVal)
+        break;
+    }
+    Type *ParamType = getBlockStructType(BlockLiteral);
+    // Fallback to default if not found
+    if (!ParamSizeVal)
+      ParamSizeVal = getInt32(M, DL.getTypeStoreSize(ParamType));
+    if (!ParamAlignVal)
+      ParamAlignVal = getInt32(M, DL.getPrefTypeAlign(ParamType).value());
+
+    Args.push_back(ParamSizeVal);
+    Args.push_back(ParamAlignVal);
+  }
   // Local sizes arguments: Sizes of block invoke arguments
   // Clang 6.0 and higher generates local size operands as an array,
   // so we need to unpack them
@@ -1893,7 +1930,7 @@ void OCLToSPIRVBase::visitCallConvertBFloat16AsUshort(CallInst *CI,
     }
   }
 
-  mutateCallInst(CI, internal::OpConvertFToBF16INTEL);
+  mutateCallInst(CI, OpConvertFToBF16INTEL);
 }
 
 void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
@@ -1936,7 +1973,7 @@ void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
     }
   }
 
-  mutateCallInst(CI, internal::OpConvertBF16ToFINTEL);
+  mutateCallInst(CI, OpConvertBF16ToFINTEL);
 }
 } // namespace SPIRV
 

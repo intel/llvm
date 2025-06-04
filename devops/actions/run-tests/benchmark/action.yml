@@ -1,0 +1,228 @@
+name: 'Run benchmarks'
+
+# This action assumes the following prerequisites:
+#
+# - SYCL is placed in ./toolchain -- TODO change this
+# - /devops has been checked out in ./devops.
+# - env.GITHUB_TOKEN was properly set, because according to Github, that's
+#   apparently the recommended way to pass a secret into a github action:
+
+#   https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#accessing-your-secrets
+#
+# - env.RUNNER_TAG set to the runner tag used to run this workflow: Currently,
+#   only specific runners are fully supported.
+
+inputs:
+  target_devices:
+    type: string
+    required: True
+  upload_results:
+    type: string
+    required: True
+  save_name:
+    type: string
+    required: True
+  preset:
+    type: string
+    required: True
+
+runs:
+  using: "composite"
+  steps:
+  - name: Check specified runner type / target backend
+    shell: bash
+    env:
+      TARGET_DEVICE: ${{ inputs.target_devices }}
+      PRESET: ${{ inputs.preset }}
+    run: |
+      case "$RUNNER_TAG" in
+        '["PVC_PERF"]' ) ;;
+        '["BMG_PERF"]' ) ;;
+        *)
+          echo "#"
+          echo "# WARNING: Only specific tuned runners are fully supported."
+          echo "# This workflow is not guaranteed to work with other runners."
+          echo "#" ;;
+      esac
+
+      # Ensure runner name has nothing injected
+      # TODO: in terms of security, is this overkill?
+      if [ -z "$(printf '%s' "$RUNNER_NAME" | grep -oE '^[a-zA-Z0-9_-]+$')" ]; then
+          echo "Bad runner name, please ensure runner name is [a-zA-Z0-9_-]."
+          exit 1
+      fi
+
+      # input.target_devices is not directly used, as this allows code injection
+      case "$TARGET_DEVICE" in
+        level_zero:*) ;;
+        level_zero_v2:*) ;;
+        *)
+          echo "#"
+          echo "# WARNING: Only level_zero backend is fully supported."
+          echo "# This workflow is not guaranteed to work with other backends."
+          echo "#" ;;
+      esac
+      echo "ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE" >> $GITHUB_ENV 
+
+      # Make sure specified preset is a known value and is not malicious
+      python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
+      [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
+      echo "PRESET=$PRESET" >> $GITHUB_ENV
+  - name: Compute CPU core range to run benchmarks on
+    shell: bash
+    run: |
+      # Compute the core range for the first NUMA node; second node is used by
+      # UMF. Skip the first 4 cores as the kernel is likely to schedule more
+      # work on these.
+      CORES="$(lscpu | awk '
+        /NUMA node0 CPU|On-line CPU/ {line=$0}
+        END {
+          split(line, a, " ")
+          split(a[4], b, ",")
+          sub(/^0/, "4", b[1])
+          print b[1]
+        }')"
+      echo "CPU core range to use: $CORES"
+      echo "CORES=$CORES" >> $GITHUB_ENV
+
+      ZE_AFFINITY_MASK=0
+      echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
+  - name: Checkout results repo
+    shell: bash
+    run: |
+      git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
+  - name: Run compute-benchmarks
+    env:
+      # Need to append "_<device>_<backend>" to save name in order to follow
+      # conventions:
+      SAVE_PREFIX: ${{ inputs.save_name }}
+    shell: bash
+    run: |
+      # TODO generate summary + display helpful message here
+      export CMPLR_ROOT=./toolchain
+      echo "-----"
+      # Using --break-system-packages because:
+      # - venv is not installed
+      # - unable to install anything via pip, as python packages in the docker
+      #   container are managed by apt
+      # - apt is unable to install anything due to unresolved dpkg dependencies,
+      #   as a result of how the sycl nightly images are created
+      pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
+      echo "-----"
+
+      # By default, the benchmark scripts forceload level_zero
+      FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
+      echo "Adapter: $FORCELOAD_ADAPTER"
+
+      case "$ONEAPI_DEVICE_SELECTOR" in
+        level_zero:*) SAVE_SUFFIX="L0" ;;
+        level_zero_v2:*)
+          SAVE_SUFFIX="L0v2"
+          export ONEAPI_DEVICE_SELECTOR="level_zero:gpu"  # "level_zero_v2:gpu" not supported anymore
+          export SYCL_UR_USE_LEVEL_ZERO_V2=1
+          ;;
+        opencl:*) SAVE_SUFFIX="OCL" ;;
+        *) SAVE_SUFFIX="${ONEAPI_DEVICE_SELECTOR%%:*}";;
+      esac
+      case "$RUNNER_TAG" in
+        '["PVC_PERF"]') MACHINE_TYPE="PVC" ;;
+        '["BMG_PERF"]') MACHINE_TYPE="BMG" ;;
+        # Best effort at matching
+        *)
+          MACHINE_TYPE="${RUNNER_TAG#[\"}"
+          MACHINE_TYPE="${MACHINE_TYPE%_PERF=\"]}"
+          ;;
+      esac
+      SAVE_NAME="${SAVE_PREFIX}_${MACHINE_TYPE}_${SAVE_SUFFIX}"
+      echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
+      SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
+ 
+      # Cache the compute_runtime version from dependencies.json, but perform a
+      # check with L0 version before using it: This value is not guaranteed to
+      # accurately reflect the current compute_runtime version used, as the
+      # docker images are built nightly. 
+      export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
+
+      sycl-ls
+      echo "-----"
+
+      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
+        "$(realpath ./llvm_test_workdir)" \
+        --sycl "$(realpath ./toolchain)" \
+        --adapter "$FORCELOAD_ADAPTER" \
+        --save "$SAVE_NAME" \
+        --output-html remote \
+        --results-dir "./llvm-ci-perf-results/" \
+        --output-dir "./llvm-ci-perf-results/" \
+        --preset "$PRESET" \
+        --timestamp-override "$SAVE_TIMESTAMP" \
+        --detect-version sycl,compute_runtime
+      echo "-----"
+      python3 ./devops/scripts/benchmarks/compare.py to_hist \
+        --name "$SAVE_NAME" \
+        --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
+        --results-dir "./llvm-ci-perf-results/results/"
+      echo "-----"
+
+  - name: Cache changes to benchmark folder for archival purposes
+    if: always()
+    shell: bash
+    run: | 
+      cd "./llvm-ci-perf-results"
+      git add .
+      for diff in $(git diff HEAD --name-only); do
+        mkdir -p "../cached_changes/$(dirname $diff)"
+        cp "$diff" "../cached_changes/$diff"
+      done
+  - name: Push benchmarks results
+    if: inputs.upload_results == 'true' && always()
+    shell: bash
+    run: |
+      cd "./llvm-ci-perf-results"
+      git config user.name "SYCL Benchmarking Bot"
+      git config user.email "sys_sycl_benchmarks@intel.com"
+      results_branch="unify-ci"
+
+      if git diff --quiet && git diff --cached --quiet; then
+        echo "No new results added, skipping push."
+        exit 0
+      fi
+
+      for attempt in 1 2 3; do
+        echo "Attempt $attempt to push new results"
+        git add .
+        git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
+        results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
+
+        if git push "https://$GITHUB_TOKEN@github.com/intel/llvm-ci-perf-results.git" "$results_branch"; then
+          echo "Push succeeded"
+          break
+        fi
+
+        echo "Push failed, retrying..."
+        if [ -n "$results_file" ]; then
+          cached_result="$(mktemp -d)/$(basename $results_file)"
+          mv "$results_file" "$cached_result"
+
+          git reset --hard "origin/$results_branch"
+          git pull origin "$results_branch"
+
+          mv "$cached_result" "$results_file"
+        fi
+
+        echo "Regenerating data.json..."
+        cd ../
+        ./devops/scripts/benchmarks/main.py \
+          "$(realpath ./llvm_test_workdir)" \
+          --output-html remote \
+          --results-dir "./llvm-ci-perf-results/" \
+          --output-dir "./llvm-ci-perf-results/" \
+          --dry-run
+        cd -
+      done
+  - name: Archive benchmark results
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: Benchmark run ${{ github.run_id }} (${{ env.SAVE_NAME }})
+      path: ./cached_changes

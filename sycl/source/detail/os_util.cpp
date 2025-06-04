@@ -291,6 +291,39 @@ size_t getDirectorySize(const std::string &Path, bool ignoreErrors) {
   return DirSizeVar;
 }
 
+// Look up a function name that was dynamically linked
+// This is used by the runtime where it needs to manipulate native handles (e.g.
+// retaining OpenCL handles). On Windows, the symbol name is looked up in
+// `WinName`. In Linux, it uses `LinName`.
+//
+// The library must already have been loaded (perhaps by UR), otherwise this
+// function throws a SYCL runtime exception.
+void *dynLookup([[maybe_unused]] const char *WinName,
+                [[maybe_unused]] const char *LinName, const char *FunName) {
+#ifdef __SYCL_RT_OS_WINDOWS
+  auto handle = GetModuleHandleA(WinName);
+  if (!handle) {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          std::string(WinName) + " library is not loaded");
+  }
+  auto *retVal = GetProcAddress(handle, FunName);
+#else
+  auto handle = dlopen(LinName, RTLD_LAZY | RTLD_NOLOAD);
+  if (!handle) {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          std::string(LinName) + " library is not loaded");
+  }
+  auto *retVal = dlsym(handle, FunName);
+  dlclose(handle);
+#endif
+  if (!retVal) {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "Symbol " + std::string(FunName) +
+                              " could not be found");
+  }
+  return reinterpret_cast<void *>(retVal);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

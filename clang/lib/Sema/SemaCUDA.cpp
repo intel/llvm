@@ -18,6 +18,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Overload.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Template.h"
@@ -222,10 +223,19 @@ SemaCUDA::CUDAVariableTarget SemaCUDA::IdentifyTarget(const VarDecl *Var) {
 // | hd | hd | HD  | HD  | (b) |
 //
 // In combined SYCL - CUDA mode
-// Sh - SYCL is host
-// Sd - SYCL is device
+// Sh - SYCL is host (SYCLIsDevice == false and SYCLIsHost == true)
+// Sd - SYCL is device (SYCLIsDevice == true and SYCLIsHost == false)
 //
 // Priority order: N, SS, HD, WS, --
+//
+// Note: we deviate from the actual meaning for
+//  N, SS, HD, WS, --.
+// Wrong side (WS) and -- (Never) are still used to raise error (delayed and
+// immediate respectively). Native (N), SameSide (SS) and HostDevice (HD) are
+// used to rank preference as 1st, 2nd or 3rd choice (N > SS > HD) to determine
+// the best viable function.
+//
+// Extra (x) specifies an alternative handling location from the one in H.
 //
 // |    |    |  host    |  cuda-dev  |  sycl-dev |     |
 // | F  | T  | Ph - Sh  |  Pd - Sh   |  Ph - Sd  |  H  |
@@ -238,14 +248,14 @@ SemaCUDA::CUDAVariableTarget SemaCUDA::IdentifyTarget(const VarDecl *Var) {
 // | g  | g  |    --    |     --     |     --    | (a) |
 // | g  | h  |    --    |     --     |     --    | (e) |
 // | g  | hd |    HD    |     HD     |     HD    | (c) |
-// | h  | d  |    HD(y) |     WS(v)  |     N(x)  | ( ) |
+// | h  | d  |    HD(y1)|     WS(z)  |     N (x1)| ( ) |
 // | h  | g  |    N     |     N      |     N     | (c) |
-// | h  | h  |    N     |     N      |     SS(p) | ( ) |
-// | h  | hd |    HD    |     HD     |     HD    | ( ) |
-// | hd | d  |    HD(y) |     SS     |     N(x)  | ( ) |
-// | hd | g  |    SS    |     --     |    --(z)  |(d/a)|
-// | hd | h  |    SS    |     WS     |     SS    | (d) |
-// | hd | hd |    HD    |     HD     |     HD    | (b) |
+// | h  | h  |    N     |     N      |     SS(x2)| (c) |
+// | h  | hd |    SS(y5)|     HD     |     HD    | (b) |
+// | hd | d  |    HD(y3)|     SS     |     N (x1)| (d) |
+// | hd | g  |    N (y2)|     --     |     --(x3)|(d/a)|
+// | hd | h  |    N (y2)|     WS     |     HD(x4)| (d) |
+// | hd | hd |    SS(y4)|     HD     |     SS(x5)| (b) |
 
 SemaCUDA::CUDAFunctionPreference
 SemaCUDA::IdentifyPreference(const FunctionDecl *Caller,
@@ -266,7 +276,7 @@ SemaCUDA::IdentifyPreference(const FunctionDecl *Caller,
   // Pd - Sh -> CUDA device compilation for SYCL+CUDA
   if (getLangOpts().SYCLIsHost && getLangOpts().CUDA &&
       getLangOpts().CUDAIsDevice) {
-    // (v) allows a __host__ function to call a __device__ one. This is allowed
+    // (z) allows a __host__ function to call a __device__ one. This is allowed
     // for sycl-device compilation, since a regular function (implicitly
     // __host__) called by a SYCL kernel could end up calling a __device__ one.
     // In any case, __host__ functions are not emitted by the cuda-dev
@@ -280,36 +290,59 @@ SemaCUDA::IdentifyPreference(const FunctionDecl *Caller,
   if (getLangOpts().SYCLIsDevice && getLangOpts().CUDA &&
       !getLangOpts().CUDAIsDevice) {
     // (x), and (p) prefer __device__ function in SYCL-device compilation.
-    // (x) allows to pick a __device__ function.
+    // (x1) allows to pick a __device__ function.
     if ((CallerTarget == CUDAFunctionTarget::Host ||
          CallerTarget == CUDAFunctionTarget::HostDevice) &&
         CalleeTarget == CUDAFunctionTarget::Device)
       return CFP_Native;
-    // (p) lowers the preference of __host__ functions for favoring __device__
+    // (x2) lowers the preference of __host__ functions for favoring __device__
     // ones.
     if (CallerTarget == CUDAFunctionTarget::Host &&
         CalleeTarget == CUDAFunctionTarget::Host)
       return CFP_SameSide;
 
-    // (z)
+    // (x3)
     if (CallerTarget == CUDAFunctionTarget::HostDevice &&
         CalleeTarget == CUDAFunctionTarget::Global)
       return CFP_Never;
+    // (x4)
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        CalleeTarget == CUDAFunctionTarget::Host)
+      return CFP_HostDevice;
+    // (x5)
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        CalleeTarget == CUDAFunctionTarget::HostDevice)
+      return CFP_SameSide;
   }
 
-  // Ph - Sh -> host compilation for SYCL+CUDA
+  // (y) Ph - Sh -> host compilation for SYCL+CUDA
   if (getLangOpts().SYCLIsHost && getLangOpts().CUDA &&
       !getLangOpts().CUDAIsDevice) {
-    // (y) allows __host__ and __host__ __device__ functions to call a
-    // __device__ one. This could happen, if a __device__ function is defined
-    // without having a corresponding __host__. In this case, a dummy __host__
-    // function is generated. This dummy function is required since the lambda
-    // that forms the SYCL kernel (having host device attr.) needs to be
-    // compiled also for the host. (CallerTarget == CUDAFunctionTarget::Host) is added in case a
-    // regular function (implicitly __host__) is called by a SYCL kernel lambda.
-    if ((CallerTarget == CUDAFunctionTarget::Host || CallerTarget == CUDAFunctionTarget::HostDevice) &&
+    // In host mode, allows __host__ and __host__ __device__ functions
+    // to call a __device__ one, but we shouldn't emit the call as __device__
+    // functions are replaced with a trap. __host__ -> __device__ is normally
+    // CFP_Never, but we need to make it a defer diagnostic.
+    // (y1) h -> d
+    if (CallerTarget == CUDAFunctionTarget::Host &&
         CalleeTarget == CUDAFunctionTarget::Device)
       return CFP_HostDevice;
+    // (y2) hd -> h or hd ->g
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        (CalleeTarget == CUDAFunctionTarget::Host ||
+         CalleeTarget == CUDAFunctionTarget::Global))
+      return CFP_Native;
+    // (y3) hd -> d
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        CalleeTarget == CUDAFunctionTarget::Device)
+      return CFP_HostDevice;
+    // (y4) hd -> hd
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        CalleeTarget == CUDAFunctionTarget::HostDevice)
+      return CFP_SameSide;
+    // (y5) h -> hd
+    if (CallerTarget == CUDAFunctionTarget::Host &&
+        CalleeTarget == CUDAFunctionTarget::HostDevice)
+      return CFP_SameSide;
   }
 
   // If one of the targets is invalid, the check always fails, no matter what
@@ -404,9 +437,10 @@ void SemaCUDA::EraseUnwantedMatches(
   };
 
   // Find the best call preference among the functions in Matches.
-  CUDAFunctionPreference BestCFP = GetCFP(*std::max_element(
-      Matches.begin(), Matches.end(),
-      [&](const Pair &M1, const Pair &M2) { return GetCFP(M1) < GetCFP(M2); }));
+  CUDAFunctionPreference BestCFP =
+      GetCFP(*llvm::max_element(Matches, [&](const Pair &M1, const Pair &M2) {
+        return GetCFP(M1) < GetCFP(M2);
+      }));
 
   // Erase all functions with lower priority.
   llvm::erase_if(Matches,
@@ -447,6 +481,21 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
                                                    CXXMethodDecl *MemberDecl,
                                                    bool ConstRHS,
                                                    bool Diagnose) {
+  // If MemberDecl is virtual destructor of an explicit template class
+  // instantiation, it must be emitted, therefore it needs to be inferred
+  // conservatively by ignoring implicit host/device attrs of member and parent
+  // dtors called by it. Also, it needs to be checed by deferred diag visitor.
+  bool IsExpVDtor = false;
+  if (isa<CXXDestructorDecl>(MemberDecl) && MemberDecl->isVirtual()) {
+    if (auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(ClassDecl)) {
+      TemplateSpecializationKind TSK = Spec->getTemplateSpecializationKind();
+      IsExpVDtor = TSK == TSK_ExplicitInstantiationDeclaration ||
+                   TSK == TSK_ExplicitInstantiationDefinition;
+    }
+  }
+  if (IsExpVDtor)
+    SemaRef.DeclsToCheckForDeferredDiags.insert(MemberDecl);
+
   // If the defaulted special member is defined lexically outside of its
   // owning class, or the special member already has explicit device or host
   // attributes, do not infer.
@@ -497,7 +546,9 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
     if (!SMOR.getMethod())
       continue;
 
-    CUDAFunctionTarget BaseMethodTarget = IdentifyTarget(SMOR.getMethod());
+    CUDAFunctionTarget BaseMethodTarget =
+        IdentifyTarget(SMOR.getMethod(), IsExpVDtor);
+
     if (!InferredTarget) {
       InferredTarget = BaseMethodTarget;
     } else {
@@ -507,8 +558,7 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
         if (Diagnose) {
           Diag(ClassDecl->getLocation(),
                diag::note_implicit_member_target_infer_collision)
-              << (unsigned)CSM << llvm::to_underlying(*InferredTarget)
-              << llvm::to_underlying(BaseMethodTarget);
+              << (unsigned)CSM << *InferredTarget << BaseMethodTarget;
         }
         MemberDecl->addAttr(
             CUDAInvalidTargetAttr::CreateImplicit(getASTContext()));
@@ -541,7 +591,9 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
     if (!SMOR.getMethod())
       continue;
 
-    CUDAFunctionTarget FieldMethodTarget = IdentifyTarget(SMOR.getMethod());
+    CUDAFunctionTarget FieldMethodTarget =
+        IdentifyTarget(SMOR.getMethod(), IsExpVDtor);
+
     if (!InferredTarget) {
       InferredTarget = FieldMethodTarget;
     } else {
@@ -551,8 +603,7 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
         if (Diagnose) {
           Diag(ClassDecl->getLocation(),
                diag::note_implicit_member_target_infer_collision)
-              << (unsigned)CSM << llvm::to_underlying(*InferredTarget)
-              << llvm::to_underlying(FieldMethodTarget);
+              << (unsigned)CSM << *InferredTarget << FieldMethodTarget;
         }
         MemberDecl->addAttr(
             CUDAInvalidTargetAttr::CreateImplicit(getASTContext()));
@@ -768,7 +819,7 @@ void SemaCUDA::checkAllowedInitializer(VarDecl *VD) {
       if (InitFnTarget != CUDAFunctionTarget::Host &&
           InitFnTarget != CUDAFunctionTarget::HostDevice) {
         Diag(VD->getLocation(), diag::err_ref_bad_target_global_initializer)
-            << llvm::to_underlying(InitFnTarget) << InitFn;
+            << InitFnTarget << InitFn;
         Diag(InitFn->getLocation(), diag::note_previous_decl) << InitFn;
         VD->setInvalidDecl();
       }
@@ -908,7 +959,7 @@ SemaBase::SemaDiagnosticBuilder SemaCUDA::DiagIfDeviceCode(SourceLocation Loc,
       if (!getLangOpts().CUDAIsDevice)
         return SemaDiagnosticBuilder::K_Nop;
       if (SemaRef.IsLastErrorImmediate &&
-          getDiagnostics().getDiagnosticIDs()->isBuiltinNote(DiagID))
+          getDiagnostics().getDiagnosticIDs()->isNote(DiagID))
         return SemaDiagnosticBuilder::K_Immediate;
       return (SemaRef.getEmissionStatus(CurFunContext) ==
               Sema::FunctionEmissionStatus::Emitted)
@@ -940,7 +991,7 @@ Sema::SemaDiagnosticBuilder SemaCUDA::DiagIfHostCode(SourceLocation Loc,
       if (getLangOpts().CUDAIsDevice)
         return SemaDiagnosticBuilder::K_Nop;
       if (SemaRef.IsLastErrorImmediate &&
-          getDiagnostics().getDiagnosticIDs()->isBuiltinNote(DiagID))
+          getDiagnostics().getDiagnosticIDs()->isNote(DiagID))
         return SemaDiagnosticBuilder::K_Immediate;
       return (SemaRef.getEmissionStatus(CurFunContext) ==
               Sema::FunctionEmissionStatus::Emitted)
@@ -1009,8 +1060,8 @@ bool SemaCUDA::CheckCall(SourceLocation Loc, FunctionDecl *Callee) {
 
   SemaDiagnosticBuilder(DiagKind, Loc, diag::err_ref_bad_target, Caller,
 		        SemaRef, DeviceDiagnosticReason::CudaAll)
-      << llvm::to_underlying(IdentifyTarget(Callee)) << /*function*/ 0
-      << Callee << llvm::to_underlying(IdentifyTarget(Caller));
+      << IdentifyTarget(Callee) << /*function*/ 0
+      << Callee << IdentifyTarget(Caller);
   if (!Callee->getBuiltinID())
     SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
                           diag::note_previous_decl, Caller, SemaRef,
@@ -1108,8 +1159,7 @@ void SemaCUDA::checkTargetOverload(FunctionDecl *NewFD,
           (NewTarget == CUDAFunctionTarget::Global) ||
           (OldTarget == CUDAFunctionTarget::Global)) {
         Diag(NewFD->getLocation(), diag::err_cuda_ovl_target)
-            << llvm::to_underlying(NewTarget) << NewFD->getDeclName()
-            << llvm::to_underlying(OldTarget) << OldFD;
+            << NewTarget << NewFD->getDeclName() << OldTarget << OldFD;
         Diag(OldFD->getLocation(), diag::note_previous_declaration);
         NewFD->setInvalidDecl();
         break;
@@ -1119,7 +1169,7 @@ void SemaCUDA::checkTargetOverload(FunctionDecl *NewFD,
           (NewTarget == CUDAFunctionTarget::Device &&
            OldTarget == CUDAFunctionTarget::Host)) {
         Diag(NewFD->getLocation(), diag::warn_offload_incompatible_redeclare)
-            << llvm::to_underlying(NewTarget) << llvm::to_underlying(OldTarget);
+            << NewTarget << OldTarget;
         Diag(OldFD->getLocation(), diag::note_previous_declaration);
       }
     }
@@ -1159,4 +1209,50 @@ std::string SemaCUDA::getConfigureFuncName() const {
 
   // Legacy CUDA kernel configuration call
   return "cudaConfigureCall";
+}
+
+// Record any local constexpr variables that are passed one way on the host
+// and another on the device.
+void SemaCUDA::recordPotentialODRUsedVariable(
+    MultiExprArg Arguments, OverloadCandidateSet &Candidates) {
+  sema::LambdaScopeInfo *LambdaInfo = SemaRef.getCurLambda();
+  if (!LambdaInfo)
+    return;
+
+  for (unsigned I = 0; I < Arguments.size(); ++I) {
+    auto *DeclRef = dyn_cast<DeclRefExpr>(Arguments[I]);
+    if (!DeclRef)
+      continue;
+    auto *Variable = dyn_cast<VarDecl>(DeclRef->getDecl());
+    if (!Variable || !Variable->isLocalVarDecl() || !Variable->isConstexpr())
+      continue;
+
+    bool HostByValue = false, HostByRef = false;
+    bool DeviceByValue = false, DeviceByRef = false;
+
+    for (OverloadCandidate &Candidate : Candidates) {
+      FunctionDecl *Callee = Candidate.Function;
+      if (!Callee || I >= Callee->getNumParams())
+        continue;
+
+      CUDAFunctionTarget Target = IdentifyTarget(Callee);
+      if (Target == CUDAFunctionTarget::InvalidTarget ||
+          Target == CUDAFunctionTarget::Global)
+        continue;
+
+      bool CoversHost = (Target == CUDAFunctionTarget::Host ||
+                         Target == CUDAFunctionTarget::HostDevice);
+      bool CoversDevice = (Target == CUDAFunctionTarget::Device ||
+                           Target == CUDAFunctionTarget::HostDevice);
+
+      bool IsRef = Callee->getParamDecl(I)->getType()->isReferenceType();
+      HostByValue |= CoversHost && !IsRef;
+      HostByRef |= CoversHost && IsRef;
+      DeviceByValue |= CoversDevice && !IsRef;
+      DeviceByRef |= CoversDevice && IsRef;
+    }
+
+    if ((HostByValue && DeviceByRef) || (HostByRef && DeviceByValue))
+      LambdaInfo->CUDAPotentialODRUsedVars.insert(Variable);
+  }
 }

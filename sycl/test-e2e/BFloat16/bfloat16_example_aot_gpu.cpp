@@ -5,6 +5,9 @@
 
 // REQUIRES: opencl-aot, ocloc, gpu-intel-gen12, any-device-is-gpu
 
+// UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17305
+
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen12lp" %s -o %t.out
 // RUN: %if gpu %{%{run} %t.out %}
 

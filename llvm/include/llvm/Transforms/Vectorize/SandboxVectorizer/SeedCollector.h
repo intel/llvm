@@ -95,8 +95,8 @@ public:
   /// with a total size <= \p MaxVecRegBits, or an empty slice if the
   /// requirements cannot be met . If \p ForcePowOf2 is true, then the returned
   /// slice will have a total number of bits that is a power of 2.
-  MutableArrayRef<Instruction *>
-  getSlice(unsigned StartIdx, unsigned MaxVecRegBits, bool ForcePowOf2);
+  ArrayRef<Instruction *> getSlice(unsigned StartIdx, unsigned MaxVecRegBits,
+                                   bool ForcePowOf2);
 
   /// \Returns the number of seed elements in the bundle.
   std::size_t size() const { return Seeds.size(); }
@@ -160,7 +160,7 @@ public:
                                    cast<LoadOrStoreT>(I1), SE);
     };
     // Find the first element after I in mem. Then insert I before it.
-    insertAt(std::upper_bound(begin(), end(), I, Cmp), I);
+    insertAt(llvm::upper_bound(*this, I, Cmp), I);
   }
 };
 

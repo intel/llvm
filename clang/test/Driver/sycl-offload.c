@@ -39,7 +39,7 @@
 // RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: '-fsycl-targets' must be used in conjunction with '-fsycl' to enable offloading
-// RUN:   not %clang -### -fsycl-link  %s 2>&1 \
+// RUN: not %clang -### -fsycl-link  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK %s
 // CHK-NO-FSYCL-LINK: error: '-fsycl-link' must be used in conjunction with '-fsycl' to enable offloading
 

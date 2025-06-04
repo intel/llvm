@@ -1,3 +1,5 @@
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17813
 // REQUIRES: aspect-fp64
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}

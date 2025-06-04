@@ -51,6 +51,8 @@ Value *InstCombinerImpl::EvaluateInDifferentType(Value *V, Type *Ty,
     Value *LHS = EvaluateInDifferentType(I->getOperand(0), Ty, isSigned);
     Value *RHS = EvaluateInDifferentType(I->getOperand(1), Ty, isSigned);
     Res = BinaryOperator::Create((Instruction::BinaryOps)Opc, LHS, RHS);
+    if (Opc == Instruction::LShr || Opc == Instruction::AShr)
+      Res->setIsExact(I->isExact());
     break;
   }
   case Instruction::Trunc:
@@ -319,13 +321,21 @@ static bool canEvaluateTruncated(Value *V, Type *Ty, InstCombinerImpl &IC,
     //       zero - use AmtKnownBits.getMaxValue().
     uint32_t OrigBitWidth = OrigTy->getScalarSizeInBits();
     uint32_t BitWidth = Ty->getScalarSizeInBits();
-    KnownBits AmtKnownBits =
-        llvm::computeKnownBits(I->getOperand(1), IC.getDataLayout());
+    KnownBits AmtKnownBits = IC.computeKnownBits(I->getOperand(1), 0, CxtI);
+    APInt MaxShiftAmt = AmtKnownBits.getMaxValue();
     APInt ShiftedBits = APInt::getBitsSetFrom(OrigBitWidth, BitWidth);
-    if (AmtKnownBits.getMaxValue().ult(BitWidth) &&
-        IC.MaskedValueIsZero(I->getOperand(0), ShiftedBits, 0, CxtI)) {
-      return canEvaluateTruncated(I->getOperand(0), Ty, IC, CxtI) &&
-             canEvaluateTruncated(I->getOperand(1), Ty, IC, CxtI);
+    if (MaxShiftAmt.ult(BitWidth)) {
+      // If the only user is a trunc then we can narrow the shift if any new
+      // MSBs are not going to be used.
+      if (auto *Trunc = dyn_cast<TruncInst>(V->user_back())) {
+        auto DemandedBits = Trunc->getType()->getScalarSizeInBits();
+        if ((MaxShiftAmt + DemandedBits).ule(BitWidth))
+          return canEvaluateTruncated(I->getOperand(0), Ty, IC, CxtI) &&
+                 canEvaluateTruncated(I->getOperand(1), Ty, IC, CxtI);
+      }
+      if (IC.MaskedValueIsZero(I->getOperand(0), ShiftedBits, 0, CxtI))
+        return canEvaluateTruncated(I->getOperand(0), Ty, IC, CxtI) &&
+               canEvaluateTruncated(I->getOperand(1), Ty, IC, CxtI);
     }
     break;
   }
@@ -916,7 +926,7 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
   //   //   extractelement <8 x i32> (bitcast <4 x i64> %X to <8 x i32>), i32 0
   // ```
   // can't be lowered by SPIR-V translator to "standard" format.
-  if (StringRef(Trunc.getModule()->getTargetTriple()).starts_with("spir"))
+  if (StringRef(Trunc.getModule()->getTargetTriple().str()).starts_with("spir"))
     return nullptr;
 
   if (Instruction *I = foldVecExtTruncToExtElt(Trunc, *this))
@@ -1698,12 +1708,12 @@ static Type *getMinimumFPType(Value *V, bool PreferBFloat) {
     if (Type *T = shrinkFPConstant(CFP, PreferBFloat))
       return T;
 
-  // We can only correctly find a minimum type for a scalable vector when it is
-  // a splat. For splats of constant values the fpext is wrapped up as a
-  // ConstantExpr.
-  if (auto *FPCExt = dyn_cast<ConstantExpr>(V))
-    if (FPCExt->getOpcode() == Instruction::FPExt)
-      return FPCExt->getOperand(0)->getType();
+  // Try to shrink scalable and fixed splat vectors.
+  if (auto *FPC = dyn_cast<Constant>(V))
+    if (isa<VectorType>(V->getType()))
+      if (auto *Splat = dyn_cast_or_null<ConstantFP>(FPC->getSplatValue()))
+        if (Type *T = shrinkFPConstant(Splat, PreferBFloat))
+          return T;
 
   // Try to shrink a vector of FP constants. This returns nullptr on scalable
   // vectors
@@ -1866,15 +1876,13 @@ Instruction *InstCombinerImpl::visitFPTrunc(FPTruncInst &FPT) {
   Value *X;
   Instruction *Op = dyn_cast<Instruction>(FPT.getOperand(0));
   if (Op && Op->hasOneUse()) {
-    IRBuilder<>::FastMathFlagGuard FMFG(Builder);
     FastMathFlags FMF = FPT.getFastMathFlags();
     if (auto *FPMO = dyn_cast<FPMathOperator>(Op))
       FMF &= FPMO->getFastMathFlags();
-    Builder.setFastMathFlags(FMF);
 
     if (match(Op, m_FNeg(m_Value(X)))) {
-      Value *InnerTrunc = Builder.CreateFPTrunc(X, Ty);
-      Value *Neg = Builder.CreateFNeg(InnerTrunc);
+      Value *InnerTrunc = Builder.CreateFPTruncFMF(X, Ty, FMF);
+      Value *Neg = Builder.CreateFNegFMF(InnerTrunc, FMF);
       return replaceInstUsesWith(FPT, Neg);
     }
 
@@ -1884,15 +1892,17 @@ Instruction *InstCombinerImpl::visitFPTrunc(FPTruncInst &FPT) {
     if (match(Op, m_Select(m_Value(Cond), m_FPExt(m_Value(X)), m_Value(Y))) &&
         X->getType() == Ty) {
       // fptrunc (select Cond, (fpext X), Y --> select Cond, X, (fptrunc Y)
-      Value *NarrowY = Builder.CreateFPTrunc(Y, Ty);
-      Value *Sel = Builder.CreateSelect(Cond, X, NarrowY, "narrow.sel", Op);
+      Value *NarrowY = Builder.CreateFPTruncFMF(Y, Ty, FMF);
+      Value *Sel =
+          Builder.CreateSelectFMF(Cond, X, NarrowY, FMF, "narrow.sel", Op);
       return replaceInstUsesWith(FPT, Sel);
     }
     if (match(Op, m_Select(m_Value(Cond), m_Value(Y), m_FPExt(m_Value(X)))) &&
         X->getType() == Ty) {
       // fptrunc (select Cond, Y, (fpext X) --> select Cond, (fptrunc Y), X
-      Value *NarrowY = Builder.CreateFPTrunc(Y, Ty);
-      Value *Sel = Builder.CreateSelect(Cond, NarrowY, X, "narrow.sel", Op);
+      Value *NarrowY = Builder.CreateFPTruncFMF(Y, Ty, FMF);
+      Value *Sel =
+          Builder.CreateSelectFMF(Cond, NarrowY, X, FMF, "narrow.sel", Op);
       return replaceInstUsesWith(FPT, Sel);
     }
   }
@@ -2081,6 +2091,42 @@ Instruction *InstCombinerImpl::visitIntToPtr(IntToPtrInst &CI) {
   return nullptr;
 }
 
+Value *InstCombinerImpl::foldPtrToIntOfGEP(Type *IntTy, Value *Ptr) {
+  // Look through chain of one-use GEPs.
+  Type *PtrTy = Ptr->getType();
+  SmallVector<GEPOperator *> GEPs;
+  while (true) {
+    auto *GEP = dyn_cast<GEPOperator>(Ptr);
+    if (!GEP || !GEP->hasOneUse())
+      break;
+    GEPs.push_back(GEP);
+    Ptr = GEP->getPointerOperand();
+  }
+
+  // Don't handle case where GEP converts from pointer to vector.
+  if (GEPs.empty() || PtrTy != Ptr->getType())
+    return nullptr;
+
+  // Check whether we know the integer value of the base pointer.
+  Value *Res;
+  Type *IdxTy = DL.getIndexType(PtrTy);
+  if (match(Ptr, m_OneUse(m_IntToPtr(m_Value(Res)))) &&
+      Res->getType() == IntTy && IntTy == IdxTy) {
+    // pass
+  } else if (isa<ConstantPointerNull>(Ptr)) {
+    Res = Constant::getNullValue(IdxTy);
+  } else {
+    return nullptr;
+  }
+
+  // Perform the entire operation on integers instead.
+  for (GEPOperator *GEP : reverse(GEPs)) {
+    Value *Offset = EmitGEPOffset(GEP);
+    Res = Builder.CreateAdd(Res, Offset, "", GEP->hasNoUnsignedWrap());
+  }
+  return Builder.CreateZExtOrTrunc(Res, IntTy);
+}
+
 Instruction *InstCombinerImpl::visitPtrToInt(PtrToIntInst &CI) {
   // If the destination integer type is not the intptr_t type for this target,
   // do a ptrtoint to intptr_t then do a trunc or zext.  This allows the cast
@@ -2107,29 +2153,8 @@ Instruction *InstCombinerImpl::visitPtrToInt(PtrToIntInst &CI) {
       Mask->getType() == Ty)
     return BinaryOperator::CreateAnd(Builder.CreatePtrToInt(Ptr, Ty), Mask);
 
-  if (auto *GEP = dyn_cast<GEPOperator>(SrcOp)) {
-    // Fold ptrtoint(gep null, x) to multiply + constant if the GEP has one use.
-    // While this can increase the number of instructions it doesn't actually
-    // increase the overall complexity since the arithmetic is just part of
-    // the GEP otherwise.
-    if (GEP->hasOneUse() &&
-        isa<ConstantPointerNull>(GEP->getPointerOperand())) {
-      return replaceInstUsesWith(CI,
-                                 Builder.CreateIntCast(EmitGEPOffset(GEP), Ty,
-                                                       /*isSigned=*/false));
-    }
-
-    // (ptrtoint (gep (inttoptr Base), ...)) -> Base + Offset
-    Value *Base;
-    if (GEP->hasOneUse() &&
-        match(GEP->getPointerOperand(), m_OneUse(m_IntToPtr(m_Value(Base)))) &&
-        Base->getType() == Ty) {
-      Value *Offset = EmitGEPOffset(GEP);
-      auto *NewOp = BinaryOperator::CreateAdd(Base, Offset);
-      NewOp->setHasNoUnsignedWrap(GEP->hasNoUnsignedWrap());
-      return NewOp;
-    }
-  }
+  if (Value *V = foldPtrToIntOfGEP(Ty, SrcOp))
+    return replaceInstUsesWith(CI, V);
 
   Value *Vec, *Scalar, *Index;
   if (match(SrcOp, m_OneUse(m_InsertElt(m_IntToPtr(m_Value(Vec)),

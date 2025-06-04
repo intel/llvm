@@ -322,8 +322,7 @@ class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
 // OpenCL v1.0/1.2/2.0 s6.1.1: Built-in Scalar Data Types.
 def Bool      : IntType<"bool",   QualType<"Context.BoolTy">, 1>;
 def TrueChar  : IntType<"_char",      QualType<"Context.CharTy", 0, 1>, 8>;
-def Char      : IntType<"char",      QualType<"Context.SignedCharTy", 0, 1>, 8>;
-def SChar     : IntType<"schar",     QualType<"Context.SignedCharTy", 0, 1>, 8>;
+def Char      : IntType<"char",      QualTypeFromFunction<"GetCharType", 0, 1>, 8>;
 def UChar     : UIntType<"uchar",     QualType<"Context.UnsignedCharTy">, 8>;
 def Short     : IntType<"short",     QualType<"Context.ShortTy", 0, 1>, 16>;
 def UShort    : UIntType<"ushort",    QualType<"Context.UnsignedShortTy">, 16>;
@@ -358,6 +357,8 @@ def Vec1234     : IntList<"Vec1234", [1, 2, 3, 4]>;
 // Type lists.
 def TLAll           : TypeList<[Char,  UChar, Short,  UShort, Int,  UInt, Long,  ULong, Float, Double, Half]>;
 def TLAllUnsigned   : TypeList<[UChar, UChar, UShort, UShort, UInt, UInt, ULong, ULong, UInt,  ULong,  UShort]>;
+def TLAllWithBool : TypeList<[Bool, Char, UChar, Short, UShort, Int, UInt, Long,
+                              ULong, Float, Double, Half]>;
 def TLFloat         : TypeList<[Float, Double, Half]>;
 // FIXME: handle properly char (signed or unsigned depending on host)
 def TLSignedInts    : TypeList<[Char, Short, Int, Long]>;
@@ -383,6 +384,10 @@ def TLAllInts       : TypeList<[Char, UChar, Short, UShort, Int, UInt, Long, ULo
 def AGenType1              : GenericType<"AGenType1", TLAll, Vec1>;
 def AGenTypeN              : GenericType<"AGenTypeN", TLAll, VecAndScalar>;
 def AGenTypeNNoScalar      : GenericType<"AGenTypeNNoScalar", TLAll, VecNoScalar>;
+def AGenTypeNWithBool
+    : GenericType<"AGenTypeNWithBool", TLAllWithBool, VecAndScalar>;
+// Bool
+def BoolGenTypeN : GenericType<"BoolGenTypeN", TypeList<[Bool]>, VecAndScalar>;
 // All integer
 def AIGenType1             : GenericType<"AIGenType1", TLAllInts, Vec1>;
 def AIGenTypeN             : GenericType<"AIGenTypeN", TLAllInts, VecAndScalar>;
@@ -392,17 +397,21 @@ def AIGenTypeNNoScalar     : GenericType<"AIGenTypeNNoScalar", TLAllInts, VecNoS
 // All integer to unsigned
 def AI2UGenTypeN           : GenericType<"AI2UGenTypeN", TLAllUIntsTwice, VecAndScalar>;
 // Signed integer
+def SGenType1 : GenericType<"SGenType1", TLSignedInts, Vec1>;
 def SGenTypeN              : GenericType<"SGenTypeN", TLSignedInts, VecAndScalar>;
 // Unsigned integer
+def UGenType1 : GenericType<"UGenType1", TLUnsignedInts, Vec1>;
 def UGenTypeN              : GenericType<"UGenTypeN", TLUnsignedInts, VecAndScalar>;
+def UInt4 : GenericType<"UInt4", TypeList<[UInt]>, Vec4>;
 // Float
+def FGenType1 : GenericType<"FGenType1", TLFloat, Vec1>;
 def FGenTypeN              : GenericType<"FGenTypeN", TLFloat, VecAndScalar>;
 // (u)int, (u)long, and all floats
 def IntLongFloatGenType1   : GenericType<"IntLongFloatGenType1", TLIntLongFloats, Vec1>;
 
 // GenType definitions for every single base type (e.g. fp32 only).
 // Names are like: GenTypeFloatVecAndScalar.
-foreach Type = [Char, UChar, SChar, Short, UShort,
+foreach Type = [Char, UChar, Short, UShort,
                 Int, UInt, Long, ULong,
                 Float, Double, Half] in {
   foreach VecSizes = [VecAndScalar, VecNoScalar] in {
@@ -840,7 +849,7 @@ foreach AS = [GlobalAS, LocalAS, PrivateAS] in {
   def : SPVBuiltin<"GenericCastToPtrExplicit", [PointerType<Char, AS>, PointerType<Char, GenericAS>], Attr.Const>;
 }
 
-foreach Ty = [Void, ConstType<Void>, VolatileType<Void>, VolatileType<ConstType<Void>>] in {
+foreach Ty = [Void, ConstType<Void>] in {
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToGlobal", [PointerType<Ty, GlobalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToLocal", [PointerType<Ty, LocalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToPrivate", [PointerType<Ty, PrivateAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
@@ -862,16 +871,16 @@ foreach name = ["Dot"] in {
 }
 
 foreach name = ["Any", "All"] in {
-  def : SPVBuiltin<name, [Bool, GenTypeSCharVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [Bool, GenTypeCharVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["IsNan", "IsInf", "IsFinite", "IsNormal", "SignBitSet"] in {
   def : SPVBuiltin<name, [Bool, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["LessOrGreater",
@@ -885,9 +894,9 @@ foreach name = ["LessOrGreater",
   def : SPVBuiltin<name, [Bool, Float, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half, Half], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["BitCount"] in {
@@ -897,66 +906,271 @@ foreach name = ["BitCount"] in {
 // 3.32.20. Barrier Instructions
 
 foreach name = ["ControlBarrier"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Void, UInt, UInt, UInt], Attr.Convergent>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name, [Void, Int, Int, Int], Attr.Convergent>;
 }
 
 foreach name = ["MemoryBarrier"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Void, UInt, UInt]>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name, [Void, Int, Int]>;
 }
 
 // 3.32.21. Group and Subgroup Instructions
 
 foreach name = ["GroupAsyncCopy"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Event, UInt, PointerType<AGenTypeN, LocalAS>, PointerType<ConstType<AGenTypeN>, GlobalAS>, Size, Size, Event], Attr.Convergent>;
-  def : SPVBuiltin<name, [Event, UInt, PointerType<AGenTypeN, GlobalAS>, PointerType<ConstType<AGenTypeN>, LocalAS>, Size, Size, Event], Attr.Convergent>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name,
+                   [Event, Int, PointerType<AGenTypeN, LocalAS>,
+                    PointerType<ConstType<AGenTypeN>, GlobalAS>, Size, Size,
+                    Event],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name,
+                   [Event, Int, PointerType<AGenTypeN, GlobalAS>,
+                    PointerType<ConstType<AGenTypeN>, LocalAS>, Size, Size,
+                    Event],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupWaitEvents"] in {
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, DefaultAS>], Attr.Convergent>;
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, PrivateAS>], Attr.Convergent>;
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, GenericAS>], Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, DefaultAS>],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, PrivateAS>],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, GenericAS>],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupAll", "GroupAny"] in {
-  def : SPVBuiltin<name, [Bool, UInt, Bool], Attr.Convergent>;
+  def : SPVBuiltin<name, [Bool, Int, Bool], Attr.Convergent>;
 }
 
 foreach name = ["GroupBroadcast"] in {
   foreach IDType = TLAllInts.List in {
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, IDType], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 2>], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 3>], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, IDType], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 2>], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 3>], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, IDType],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, VectorType<IDType, 2>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, VectorType<IDType, 3>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, IDType], Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, VectorType<IDType, 2>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, VectorType<IDType, 3>],
+                     Attr.Convergent>;
   }
 }
 
 foreach name = ["GroupIAdd", "GroupIMulKHR", "GroupBitwiseOrKHR",
                 "GroupBitwiseXorKHR", "GroupBitwiseAndKHR"] in {
-  def : SPVBuiltin<name, [AIGenTypeN, UInt, UInt, AIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupFAdd", "GroupFMin", "GroupFMax",
                 "GroupFMulKHR"] in {
-  def : SPVBuiltin<name, [FGenTypeN, UInt, UInt, FGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupUMin", "GroupUMax"] in {
-  def : SPVBuiltin<name, [AUIGenTypeN, UInt, UInt, AUIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AUIGenTypeN, Int, Int, AUIGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupSMin", "GroupSMax"] in {
-  def : SPVBuiltin<name, [ASIGenTypeN, UInt, UInt, ASIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [ASIGenTypeN, Int, Int, ASIGenTypeN], Attr.Convergent>;
 }
 
 // TODO: These builtins need to support vectors of bool.
 foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
-  def : SPVBuiltin<name, [Bool, UInt, UInt, Bool], Attr.Convergent>;
+  def : SPVBuiltin<name, [Bool, Int, Int, Bool], Attr.Convergent>;
+}
+
+def SubgroupShuffleINTELVecType
+    : GenericType<"SubgroupShuffleINTELVecType",
+                  TypeList<[Char, UChar, Short, UShort, Int, UInt, Float]>,
+                  VecNoScalar>;
+
+foreach name = ["SubgroupShuffleINTEL", "SubgroupShuffleXorINTEL"] in {
+  def : SPVBuiltin<name, [AGenType1, AGenType1, UInt]>;
+  def : SPVBuiltin<name, [SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType, UInt]>;
+}
+
+foreach name = ["SubgroupShuffleUpINTEL", "SubgroupShuffleDownINTEL"] in {
+  def : SPVBuiltin<name, [AGenType1, AGenType1, AGenType1, UInt]>;
+  def : SPVBuiltin<name, [SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType, UInt]>;
+}
+
+foreach name = ["SubgroupBlockWriteINTEL"] in {
+  foreach AS = [GlobalAS, LocalAS] in {
+    foreach Ty = TLUnsignedInts.List in {
+      def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, Ty]>;
+    }
+    foreach Ty = [UChar, UShort] in {
+      foreach v = [2, 4, 8, 16] in {
+        def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, VectorType<Ty, v>]>;
+      }
+    }
+    foreach Ty = [UInt, ULong] in {
+      foreach v = [2, 4, 8] in {
+        def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, VectorType<Ty, v>]>;
+      }
+    }
+  }
+}
+
+// 3.56.18. Atomic Instructions
+
+foreach AS = [GlobalAS, LocalAS, PrivateAS, GenericAS] in {
+  def : SPVBuiltin<
+            "AtomicLoad", [AGenType1, PointerType<AGenType1, AS>, Int, Int],
+            Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicStore",
+                   [Void, PointerType<AGenType1, AS>, Int, Int, AGenType1],
+                   Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicExchange",
+                   [AGenType1, PointerType<AGenType1, AS>, Int, Int, AGenType1],
+                   Attr.Convergent>;
+
+  foreach name = ["AtomicCompareExchange", "AtomicCompareExchangeWeak"] in {
+    def : SPVBuiltin<name,
+                     [AIGenType1, PointerType<AIGenType1, AS>, Int, Int, Int,
+                      AIGenType1, AIGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicIIncrement", "AtomicIDecrement"] in {
+    def : SPVBuiltin<name, [AIGenType1, PointerType<AIGenType1, AS>, Int, Int],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicSMin", "AtomicSMax"] in {
+    def : SPVBuiltin<name,
+                     [SGenType1, PointerType<SGenType1, AS>, Int, Int,
+                      SGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicUMin", "AtomicUMax"] in {
+    def : SPVBuiltin<name,
+                     [UGenType1, PointerType<UGenType1, AS>, Int, Int,
+                      UGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicIAdd", "AtomicISub", "AtomicAnd", "AtomicOr",
+                  "AtomicXor"] in {
+    def : SPVBuiltin<name,
+                     [AIGenType1, PointerType<AIGenType1, AS>, Int, Int,
+                      AIGenType1],
+                     Attr.Convergent>;
+  }
+
+  def : SPVBuiltin<
+            "AtomicFlagTestAndSet", [Bool, PointerType<Int, AS>, Int, Int],
+            Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicFlagClear", [Void, PointerType<Int, AS>, Int, Int],
+                   Attr.Convergent>;
+
+  foreach name = ["AtomicFMaxEXT", "AtomicFMinEXT", "AtomicFAddEXT"] in {
+    def : SPVBuiltin<name,
+                     [FGenType1, PointerType<FGenType1, AS>, Int, Int,
+                      FGenType1],
+                     Attr.Convergent>;
+  }
+}
+
+// 3.56.24. Non-Uniform Instructions
+
+foreach name = ["GroupNonUniformElect"] in {
+  def : SPVBuiltin<name, [Bool, Int], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformAll", "GroupNonUniformAny"] in {
+  def : SPVBuiltin<name, [Bool, Int, Bool], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformAllEqual"] in {
+  def : SPVBuiltin<name, [Bool, Int, AGenTypeNWithBool], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBroadcast"] in {
+  foreach IDType = [UInt, ULong] in {
+    def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool, IDType],
+                     Attr.Convergent>;
+  }
+}
+
+foreach name = ["GroupNonUniformBroadcastFirst"] in {
+  def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBallot"] in {
+  def : SPVBuiltin<name, [UInt4, Int, Bool], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformInverseBallot"] in {
+  def : SPVBuiltin<name, [Bool, Int, UInt4], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBallotBitExtract"] in {
+  def : SPVBuiltin<name, [Bool, Int, UInt4, UInt], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBallotBitCount", "GroupNonUniformBallotFindLSB",
+                "GroupNonUniformBallotFindMSB"] in {
+  def : SPVBuiltin<name, [UInt, Int, Int, UInt4], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformShuffle", "GroupNonUniformShuffleXor",
+                "GroupNonUniformShuffleUp", "GroupNonUniformShuffleDown"] in {
+  def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformIAdd", "GroupNonUniformIMul"] in {
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformSMin", "GroupNonUniformSMax"] in {
+  def : SPVBuiltin<name, [SGenTypeN, Int, Int, SGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [SGenTypeN, Int, Int, SGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformUMin", "GroupNonUniformUMax"] in {
+  def : SPVBuiltin<name, [UGenTypeN, Int, Int, UGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [UGenTypeN, Int, Int, UGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformFAdd", "GroupNonUniformFMul",
+                "GroupNonUniformFMin", "GroupNonUniformFMax"] in {
+  def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBitwiseAnd", "GroupNonUniformBitwiseOr",
+                "GroupNonUniformBitwiseXor"] in {
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformLogicalAnd", "GroupNonUniformLogicalOr",
+                "GroupNonUniformLogicalXor"] in {
+  def : SPVBuiltin<name, [BoolGenTypeN, Int, Int, BoolGenTypeN],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name, [BoolGenTypeN, Int, Int, BoolGenTypeN, UInt],
+                   Attr.Convergent>;
 }

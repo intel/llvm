@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_tgamma(float x) {
   const float pi = 3.1415926535897932384626433832795f;
@@ -21,8 +21,8 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_tgamma(float x) {
     float z = __spirv_ocl_sinpi(x);
     g = g * ax * z;
     g = pi / g;
-    g = g == 0 ? as_float(PINFBITPATT_SP32) : g;
-    g = z == 0 ? as_float(QNANBITPATT_SP32) : g;
+    g = g == 0 ? __clc_as_float(PINFBITPATT_SP32) : g;
+    g = z == 0 ? __clc_as_float(QNANBITPATT_SP32) : g;
   }
 
   return g;
@@ -44,8 +44,8 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_tgamma(double x) {
     double z = __spirv_ocl_sinpi(x);
     g = g * ax * z;
     g = pi / g;
-    g = g == 0 ? as_double(PINFBITPATT_DP64) : g;
-    g = z == 0 ? as_double(QNANBITPATT_DP64) : g;
+    g = g == 0 ? __clc_as_double(PINFBITPATT_DP64) : g;
+    g = z == 0 ? __clc_as_double(QNANBITPATT_DP64) : g;
   }
 
   return g;

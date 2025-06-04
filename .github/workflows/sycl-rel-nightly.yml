@@ -2,6 +2,12 @@ name: SYCL Release Branch Nightly
 
 on:
   workflow_dispatch:
+    inputs:
+      testing_branch:
+        description: |
+          Branch to test, e.g. sycl-rel-6_0_0.
+          If nothing is specified, the last release branch is used.
+
   schedule:
     - cron: '0 3 * * *'
 
@@ -12,6 +18,7 @@ jobs:
   # since the last run. More precisely, it checks if the last commit is older
   # than 24h. That means the previous Nightly already tested this commit.
   check_for_new_commits:
+    if: github.repository == 'intel/llvm'
     runs-on: ubuntu-latest
     name: Check for new commits
     outputs:
@@ -19,7 +26,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: sycl-rel-6_0_0
+        ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
     - run: git show --quiet | tee -a $GITHUB_STEP_SUMMARY
 
     - id: is_new_commit
@@ -37,10 +44,10 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda'
+      build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-      merge_ref: ''
-      build_ref: sycl-rel-6_0_0
+      build_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      pack_release: 'true'
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
@@ -55,61 +62,40 @@ jobs:
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
-            tests_selector: e2e
 
-          - name: Intel L0 GPU
+          - name: Intel L0 Gen12 GPU
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
-            tests_selector: e2e
             extra_lit_opts: --param gpu-intel-gen12=True
 
-          - name: Intel OCL GPU
+          - name: Intel L0 Battlemage GPU
+            runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+
+          - name: Intel OCL Gen12 GPU
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: opencl:gpu
-            reset_intel_gpu: true
-            tests_selector: e2e
             extra_lit_opts: --param gpu-intel-gen12=True
 
           - name: Intel OCL CPU
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN
             target_devices: opencl:cpu
-            tests_selector: e2e
-
-          - name: SYCL-CTS on OCL CPU
-            runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: opencl:cpu
-            tests_selector: cts
-
-          - name: SYCL-CTS on L0 gen12
-            runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu
-            tests_selector: cts
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      tests_selector: ${{ matrix.tests_selector }}
+      tests_selector: e2e
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      ref: sycl-rel-6_0_0
-      merge_ref: ''
+      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      devops_ref: sycl
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
@@ -119,8 +105,9 @@ jobs:
     if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      ref: sycl-rel-6_0_0
-      merge_ref: ''
+      ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize'
+      pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
@@ -133,14 +120,25 @@ jobs:
       always()
       && !cancelled()
       && needs.build-win.outputs.build_conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel GEN12 Graphics with Level Zero
+            runner: '["Windows","gen12"]'
+            # 6_1_0 doesn't support the auto-detection, keep it until 6_2_0.
+            extra_lit_opts: --param gpu-intel-gen12=True
+          - name: Intel Battlemage Graphics with Level Zero
+            runner: '["Windows","bmg"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
-      name: Intel GEN12 Graphics with Level Zero
-      runner: '["Windows","gen12"]'
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      target_devices: level_zero:gpu
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
-      extra_lit_opts: --param gpu-intel-gen12=True
-      ref: sycl-rel-6_0_0
-      merge_ref: ''
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      devops_ref: sycl
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -149,7 +147,7 @@ jobs:
     secrets: inherit
     with:
       mode: start
-      ref: sycl-rel-6_0_0
+      ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
 
   cuda-run-tests:
     needs: [ubuntu2204_build, cuda-aws-start]
@@ -161,8 +159,8 @@ jobs:
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
-      ref: sycl-rel-6_0_0
-      merge_ref: ''
+      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      devops_ref: sycl
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
@@ -170,9 +168,74 @@ jobs:
 
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
-    if: always()
+    if: always() && ${{ needs.cuda-aws-start.result != 'skipped' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
       mode: stop
-      ref: sycl-rel-6_0_0
+      ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+
+  build-sycl-cts:
+    needs: ubuntu2204_build
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: Build SYCL-CTS
+      runner: '["Linux", "build"]'
+      cts_testing_mode: 'build-only'
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+      tests_selector: cts
+      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      devops_ref: sycl
+      tests_ref: 87f8677c4b67cfe56ad6f09246036f10c306c977
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      sycl_cts_artifact: sycl_cts_bin_linux
+
+  run-sycl-cts:
+    needs: [ubuntu2204_build, build-sycl-cts]
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SYCL-CTS on OCL CPU
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
+
+          - name: SYCL-CTS on L0 gen12
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      cts_testing_mode: 'run-only'
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: cts
+      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      devops_ref: sycl
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      sycl_cts_artifact: sycl_cts_bin_linux
+
+  hardening-check:
+    needs: [ubuntu2204_build, build-win]
+    if: |
+      always()
+      && !cancelled()
+      && needs.ubuntu2204_build.outputs.build_conclusion == 'success'
+      && needs.build-win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-hardening-check.yml
+    with:
+      sycl_linux_artifact: sycl_linux_release
+      sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+      sycl_windows_artifact: sycl_windows_release
+      sycl_windows_archive: ${{ needs.build-win.outputs.artifact_archive_name }}

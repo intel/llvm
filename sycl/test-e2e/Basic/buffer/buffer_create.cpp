@@ -42,4 +42,4 @@ int main() {
 }
 
 // CHECK: {{Integrated|Discrete}} GPU should use [[API:zeMemAllocHost|zeMemAllocDevice]]
-// CHECK: ZE ---> [[API]](
+// CHECK: [[API]](

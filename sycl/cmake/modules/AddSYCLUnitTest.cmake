@@ -7,6 +7,8 @@ macro(add_sycl_unittest test_dirname link_variant)
   set(LLVM_REQUIRES_EH ON)
   set(LLVM_REQUIRES_RTTI ON)
 
+  get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
+
   string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
   if (MSVC AND build_type_lower MATCHES "debug")
     set(sycl_obj_target "sycld_object")
@@ -59,7 +61,7 @@ macro(add_sycl_unittest test_dirname link_variant)
         SYCL_CONFIG_FILE_NAME=null.cfg
         SYCL_DEVICELIB_NO_FALLBACK=1
         SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-        "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/lib:$ENV{LD_LIBRARY_PATH}"
+        "LD_LIBRARY_PATH=${SYCL_BINARY_DIR}/unittests/lib:${CMAKE_BINARY_DIR}/lib:$ENV{LD_LIBRARY_PATH}"
         ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
         DEPENDS
         ${test_dirname}
@@ -68,15 +70,28 @@ macro(add_sycl_unittest test_dirname link_variant)
 
   add_dependencies(check-sycl-unittests check-sycl-${test_dirname})
 
+  if(WIN32)
+    # Windows doesn't support LD_LIBRARY_PATH, so instead we copy the mock OpenCL binary next to the test and ensure
+    # that the test itself links to OpenCL (rather than through ur_adapter_opencl.dll)
+    set(mock_ocl ${CMAKE_CURRENT_BINARY_DIR}/OpenCL.dll)
+    add_custom_command(TARGET ${test_dirname} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:mockOpenCL> ${mock_ocl}
+      DEPENDS mockOpenCL
+      BYPRODUCTS ${mock_ocl}
+      COMMAND_EXPAND_LISTS
+      )
+  endif()
+
   target_link_libraries(${test_dirname}
     PRIVATE
+      mockOpenCL
       LLVMTestingSupport
       OpenCL-Headers
       unified-runtime::mock
       ${SYCL_LINK_LIBS}
     )
 
-  add_dependencies(${test_dirname} ur_adapter_mock)
+  add_dependencies(${test_dirname} ur_adapter_mock mockOpenCL)
 
   if(SYCL_ENABLE_EXTENSION_JIT)
     target_link_libraries(${test_dirname} PRIVATE sycl-jit)

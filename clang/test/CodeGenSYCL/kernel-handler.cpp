@@ -22,7 +22,7 @@ void test(int val) {
   });
 }
 
-// ALL: define dso_local{{ spir_kernel | }}void @{{.*}}test_kernel_handler{{[^(]*}}
+// ALL: define dso_local{{ spir_kernel | ptx_kernel | }}void @{{.*}}test_kernel_handler{{[^(]*}}
 // NONATIVESUPPORT-SAME: (ptr noundef byval(%class.anon) align 4 %_arg__sycl_functor, ptr addrspace(1) noundef align 1 %_arg__specialization_constants_buffer)
 // NATIVESUPPORT-SAME: (i32 noundef %_arg_a, ptr addrspace(1) noundef align 1 %_arg__specialization_constants_buffer)
 // ALL: %kh = alloca %"class.sycl::_V1::kernel_handler", align 1
@@ -35,5 +35,5 @@ void test(int val) {
 // NATIVESUPPORT-NOT: addrspacecast ptr addrspace(1) %{{[0-9]+}} to ptr
 // NATIVESUPPORT-NOT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(ptr noundef align 4 nonnull align 1 dereferenceable(1) %kh, ptr noundef align 4 %{{[0-9]+}})
 
-// ALL: call{{ spir_func | }}void @{{[a-zA-Z0-9_$]+}}kernel_handler{{[a-zA-Z0-9_$]+}}
+// ALL: call{{ spir_func | ptx_kernel | }}void @{{[a-zA-Z0-9_$]+}}kernel_handler{{[a-zA-Z0-9_$]+}}
 // ALL-SAME: noundef byval(%"class.sycl::_V1::kernel_handler")

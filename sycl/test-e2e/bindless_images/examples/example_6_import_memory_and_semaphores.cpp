@@ -1,15 +1,21 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_external_memory_import
+// REQUIRES: aspect-ext_oneapi_external_semaphore_import
 
 // RUN: %{build} -o %t.out
+// This test is not being executed via the {run} command due to using invalid
+// external input and output file descriptors for the external resource that is
+// being imported. The purpose of this test is to showcase the interop APIs and
+// in order to properly obtain those descriptors we would need a lot of Vulkan
+// context and texture setup as a prerequisite to the example and complicate it.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 int main() {
-  // Set up device, queue, and context
+  // Set up queue
   sycl::device dev;
   sycl::queue q(dev);
-  sycl::context ctxt = q.get_context();
 
   size_t width = 123 /* passed from external API */;
   size_t height = 123 /* passed from external API */;

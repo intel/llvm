@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
 #include <clc/common/clc_degrees.h>
 #include <libspirv/spirv.h>
 
 #define FUNCTION __spirv_ocl_degrees
 #define __CLC_FUNCTION(x) __clc_degrees
-#define __CLC_BODY <clc/common/unary_def.inc>
+#define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

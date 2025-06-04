@@ -28,12 +28,13 @@ entry:
   %gid = alloca i64, align 8
   %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2, !dbg !10
 ; CHECK: [[I0:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 0) #1, !dbg [[DBG:![0-9]+]]
-; CHECK-NEXT: [[I1:%[0-9]]] = insertelement <3 x i64> undef, i64 [[I0]], i32 0, !dbg [[DBG]]
+; CHECK-NEXT: [[I1:%[0-9]]] = insertelement <3 x i64> poison, i64 [[I0]], i32 0, !dbg [[DBG]]
 ; CHECK-NEXT: [[I2:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 1) #1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I3:%[0-9]]] = insertelement <3 x i64> [[I1]], i64 [[I2]], i32 1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I4:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 2) #1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I5:%[0-9]]] = insertelement <3 x i64> [[I3]], i64 [[I4]], i32 2, !dbg [[DBG]]
-; CHECK-NEXT: %call = extractelement <3 x i64> [[I5]], i32 0, !dbg [[DBG]]
+; CHECK-NEXT: [[I6:%[0-9]]] = extractelement <3 x i64> [[I5]], i32 0, !dbg [[DBG]]
+; CHECK-NEXT: %call = select i1 true, i64 [[I6]], i64 0, !dbg [[DBG]]
   store i64 %call, ptr %gid, align 8, !dbg !11
   ret void, !dbg !12
 }

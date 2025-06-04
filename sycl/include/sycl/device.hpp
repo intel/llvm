@@ -222,13 +222,20 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
             ,
             int = detail::emit_get_backend_info_error<device, Param>()
 #endif
+#endif
             >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   /// Check SYCL extension support by device
   ///
@@ -292,14 +299,27 @@ public:
 
   /// kernel_compiler extension
 
+  /// Indicates if the device can build a kernel for the given language.
+  ///
+  /// \param Language is one of the values from the
+  /// kernel_bundle::source_language enumeration described in the
+  /// sycl_ext_oneapi_kernel_compiler specification
+  ///
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::build function on kernel bundles written in
+  /// the source language \p Language.
+  bool
+  ext_oneapi_can_build(ext::oneapi::experimental::source_language Language);
+
   /// Indicates if the device can compile a kernel for the given language.
   ///
   /// \param Language is one of the values from the
   /// kernel_bundle::source_language enumeration described in the
   /// sycl_ext_oneapi_kernel_compiler specification
   ///
-  /// \return true only if the device supports kernel bundles written in the
-  /// source language `lang`.
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::compile function on kernel bundles written in
+  /// the source language \p Language.
   bool
   ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
 
@@ -355,7 +375,7 @@ public:
 
 private:
   std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
+  device(std::shared_ptr<detail::device_impl> Impl) : impl(std::move(Impl)) {}
 
   ur_native_handle_t getNative() const;
 
@@ -364,7 +384,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

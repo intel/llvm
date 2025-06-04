@@ -16,7 +16,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: nofree nounwind writeonly
-define dso_local spir_func void @_Z4foo8hhPh(i8 zeroext %a, i8 zeroext %b, ptr nocapture %c) local_unnamed_addr #0 {
+define dso_local spir_func void @_Z4foo8hhPh(i8 zeroext %a, i8 zeroext %b, ptr captures(none) %c) local_unnamed_addr #0 {
 entry:
   ; CHECK-LLVM: call { i8, i1 } @llvm.umul.with.overflow.i8
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_8]]
@@ -39,7 +39,7 @@ entry:
 ; CHECK-SPIRV: ReturnValue [[INSERT_RES_1]]
 
 ; Function Attrs: nofree nounwind writeonly
-define dso_local spir_func void @_Z5foo32jjPj(i32 %a, i32 %b, ptr nocapture %c) local_unnamed_addr #0 {
+define dso_local spir_func void @_Z5foo32jjPj(i32 %a, i32 %b, ptr captures(none) %c) local_unnamed_addr #0 {
 entry:
   ; CHECK-LLVM: call { i32, i1 } @llvm.umul.with.overflow.i32
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_32]]

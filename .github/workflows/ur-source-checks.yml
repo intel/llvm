@@ -1,0 +1,63 @@
+name: UR - Check generated sources
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  source_checks:
+    strategy:
+      matrix:
+        os: ['ubuntu-22.04', 'windows-2022']
+
+    runs-on: ${{matrix.os}}
+
+    steps:
+    # TODO:
+    # - split into separate jobs for each OS
+    #
+    - name: Checkout LLVM
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.0.0
+      with:
+        python-version: 3.9
+
+    - name: Install UR python dependencies
+      working-directory: ${{github.workspace}}/unified-runtime
+      run: pip install -r third_party/requirements.txt
+
+    - name: "[Lin] Install doxygen"
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen libhwloc-dev
+
+    - name: "[Win] Install doxygen"
+      if: matrix.os == 'windows-2022'
+      run: |
+        $WorkingDir = $PWD.Path
+        Invoke-WebRequest -Uri https://github.com/doxygen/doxygen/releases/download/Release_1_9_8/doxygen-1.9.8.windows.x64.bin.zip -OutFile "$WorkingDir\doxygen.zip"
+        Expand-Archive -Path "$WorkingDir\doxygen.zip"
+        Add-Content $env:GITHUB_PATH "$WorkingDir\doxygen"
+
+    - name: Configure Unified Runtime project
+      working-directory: ${{github.workspace}}/unified-runtime
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DCMAKE_PREFIX_PATH="${{env.VCPKG_PATH}}"
+        -DUR_ENABLE_TRACING=OFF
+        -DCMAKE_BUILD_TYPE=Debug
+        -DUR_BUILD_TESTS=OFF
+        -DUR_FORMAT_CPP_STYLE=ON
+
+    # Verifying license should be enough on a single OS
+    - name: Verify that each source file contains a license
+      if: matrix.os == 'ubuntu-22.04'
+      run: cmake --build ${{github.workspace}}/build --target verify-licenses
+
+    - name: Generate source from spec, check for uncommitted diff
+      run: cmake --build ${{github.workspace}}/build --target check-generated

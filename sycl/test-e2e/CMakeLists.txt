@@ -14,6 +14,27 @@ if(SYCL_TEST_E2E_STANDALONE)
   if( NOT OpenCL_LIBRARY )
     find_package(OpenCL)
   endif()
+  if(NOT DEFINED LEVEL_ZERO_INCLUDE)
+    find_path(LEVEL_ZERO_PATH level_zero/ze_api.h PATH_SUFFIXES include)
+    if(LEVEL_ZERO_PATH)
+      set(LEVEL_ZERO_INCLUDE "${LEVEL_ZERO_PATH}")
+    endif()
+  endif()
+  if(NOT DEFINED LEVEL_ZERO_LIBS_DIR)
+    find_library(LEVEL_ZERO_LIBS_PATH ze_loader)
+    if(LEVEL_ZERO_LIBS_PATH)
+      # We have the path of the lib, get the containing directory
+      # so we can include it.
+      cmake_path(GET LEVEL_ZERO_LIBS_PATH PARENT_PATH LEVEL_ZERO_LIBS_PATH)
+      set(LEVEL_ZERO_LIBS_DIR "${LEVEL_ZERO_LIBS_PATH}")
+    endif()
+  endif()
+else()
+  if( NOT OpenCL_LIBRARY )
+    set(OpenCL_LIBRARY "${LLVM_BINARY_DIR}/lib")
+  endif()
+  set(LEVEL_ZERO_INCLUDE "${LLVM_BINARY_DIR}/_deps/level-zero-loader-src/include")
+  set(LEVEL_ZERO_LIBS_DIR "${LLVM_BINARY_DIR}/lib")
 endif() # Standalone.
 
 if(SYCL_TEST_E2E_STANDALONE)
@@ -62,6 +83,21 @@ else()
 endif()
 
 set(SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS} -Werror")
+
+if(NOT DEFINED CUDA_LIBS_DIR AND NOT DEFINED CUDA_INCLUDE)
+  find_package(CUDAToolkit)
+
+  if(CUDAToolkit_FOUND)
+    set(CUDA_LIBS_DIR "${CUDAToolkit_LIBRARY_DIR}")
+    set(CUDA_INCLUDE "${CUDAToolkit_INCLUDE_DIRS}")
+  endif()
+endif()
+
+find_package(hip HINTS ENV ROCM_PATH "/opt/rocm")
+if(hip_FOUND)
+  set(HIP_LIBS_DIR "${hip_LIB_INSTALL_DIR}")
+  set(HIP_INCLUDE "${hip_INCLUDE_DIRS}")
+endif()
 
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"

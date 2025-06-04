@@ -352,3 +352,64 @@
 // SYCL_DEVICE_MSAN_MACRO: "-cc1"
 // SYCL_DEVICE_MSAN_MACRO-SAME: "USE_SYCL_DEVICE_MSAN"
 // SYCL_DEVICE_MSAN_MACRO: libsycl-msan.new.o
+
+/// test behavior of msan libdevice linking when -fsanitize=memory is available for AOT targets
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// SYCL_DEVICE_LIB_MSAN_PVC: clang-linker-wrapper{{.*}} "-sycl-device-libraries
+// SYCL_DEVICE_LIB_MSAN_PVC-SAME: {{.*}}libsycl-msan-pvc.new.o
+
+/// test behavior of msan libdevice linking when -fsanitize=memory is available for AOT targets
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_CPU
+// SYCL_DEVICE_LIB_MSAN_CPU: clang-linker-wrapper{{.*}} "-sycl-device-libraries
+// SYCL_DEVICE_LIB_MSAN_CPU-SAME: {{.*}}libsycl-msan-cpu.new.o
+
+/// ###########################################################################
+/// test behavior of libsycl-tsan.o linking when -fsanitize=thread is available
+// RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -fsanitize=thread -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
+// RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend -fsanitize=thread -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
+// RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend=spir64 -fsanitize=thread -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
+// RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=thread -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
+// RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
+// RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_TSAN_MACRO
+// SYCL_DEVICE_LIB_TSAN: clang-linker-wrapper{{.*}} "-sycl-device-libraries
+// SYCL_DEVICE_LIB_TSAN: {{.*}}libsycl-crt.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-complex.
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-complex-fp64.
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-cmath.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf-fp64.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf-bf16.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cassert.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cstring.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-complex.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cmath.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-tsan.new.o
+// SYCL_DEVICE_TSAN_MACRO: "-cc1"
+// SYCL_DEVICE_TSAN_MACRO-SAME: "USE_SYCL_DEVICE_TSAN"
+// SYCL_DEVICE_TSAN_MACRO: libsycl-tsan.new.o
+
+/// test behavior of tsan libdevice linking when -fsanitize=thread is available for AOT targets
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// SYCL_DEVICE_LIB_TSAN_PVC: clang-linker-wrapper{{.*}} "-sycl-device-libraries
+// SYCL_DEVICE_LIB_TSAN_PVC-SAME: {{.*}}libsycl-tsan-pvc.new.o
+
+/// test behavior of tsan libdevice linking when -fsanitize=thread is available for AOT targets
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_CPU
+// SYCL_DEVICE_LIB_TSAN_CPU: clang-linker-wrapper{{.*}} "-sycl-device-libraries
+// SYCL_DEVICE_LIB_TSAN_CPU-SAME: {{.*}}libsycl-tsan-cpu.new.o

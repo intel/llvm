@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 /*
  * ====================================================
@@ -93,9 +93,9 @@
 #define sb7 -2.2440952301e+01f /* 0xc1b38712 */
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_erf(float x) {
-  int hx = as_uint(x);
+  int hx = __clc_as_uint(x);
   int ix = hx & 0x7fffffff;
-  float absx = as_float(ix);
+  float absx = __clc_as_float(ix);
 
   float x2 = absx * absx;
   float t = 1.0f / x2;
@@ -206,7 +206,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_erf(float x) {
   float ret = 1.0f;
 
   // |x| < 6
-  float z = as_float(ix & 0xfffff000);
+  float z = __clc_as_float(ix & 0xfffff000);
   float r = __spirv_ocl_exp(__spirv_ocl_mad(-z, z, -0.5625f)) *
             __spirv_ocl_exp(__spirv_ocl_mad(z - absx, z + absx, q));
   r = 1.0f - MATH_DIVIDE(r, absx);
@@ -215,7 +215,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_erf(float x) {
   r = erx + q;
   ret = absx < 1.25f ? r : ret;
 
-  ret = as_float((hx & 0x80000000) | as_int(ret));
+  ret = __clc_as_float((hx & 0x80000000) | __clc_as_int(ret));
 
   r = __spirv_ocl_mad(x, q, x);
   ret = absx < 0.84375f ? r : ret;
@@ -517,7 +517,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_erf(double y) {
   double q = u / v;
 
   // Compute results
-  double z = as_double(as_long(x) & 0xffffffff00000000L);
+  double z = __clc_as_double(__clc_as_long(x) & 0xffffffff00000000L);
   double r =
       __spirv_ocl_exp(-z * z - 0.5625) * __spirv_ocl_exp((z - x) * (z + x) + q);
   r = 1.0 - r / x;
@@ -545,6 +545,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_erf, double);
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_erf, __builtin_erf, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_erf, __builtin_erff, half)
 
 #endif

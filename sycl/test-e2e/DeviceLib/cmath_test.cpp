@@ -1,3 +1,5 @@
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17813
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // RUN: %{build} -fno-builtin %{mathflags} -o %t1.out
@@ -7,7 +9,7 @@
 // RUN: %if !gpu %{ %{run} %t2.out %}
 //
 // // Check that --fast-math works with cmath funcs for CUDA
-// RUN: %if any-device-is-cuda %{ %{build} -Wno-nan-infinity-disabled -fno-builtin %{mathflags} -o %t3.out -ffast-math -DSYCL_E2E_FASTMATH %}
+// RUN: %if target-nvidia %{ %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s -Wno-nan-infinity-disabled -fno-builtin %{mathflags} -o %t3.out -ffast-math -DSYCL_E2E_FASTMATH %}
 // RUN: %if cuda %{ %{run} %t3.out %}
 
 #include "math_utils.hpp"

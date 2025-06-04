@@ -48,19 +48,19 @@ static const AdapterPtr &getAdapter(backend Backend) {
   }
 }
 
-backend convertUrBackend(ur_platform_backend_t UrBackend) {
+backend convertUrBackend(ur_backend_t UrBackend) {
   switch (UrBackend) {
-  case UR_PLATFORM_BACKEND_UNKNOWN:
+  case UR_BACKEND_UNKNOWN:
     return backend::all; // No specific backend
-  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+  case UR_BACKEND_LEVEL_ZERO:
     return backend::ext_oneapi_level_zero;
-  case UR_PLATFORM_BACKEND_OPENCL:
+  case UR_BACKEND_OPENCL:
     return backend::opencl;
-  case UR_PLATFORM_BACKEND_CUDA:
+  case UR_BACKEND_CUDA:
     return backend::ext_oneapi_cuda;
-  case UR_PLATFORM_BACKEND_HIP:
+  case UR_BACKEND_HIP:
     return backend::ext_oneapi_hip;
-  case UR_PLATFORM_BACKEND_NATIVE_CPU:
+  case UR_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
   default:
     throw exception(make_error_code(errc::runtime),
@@ -87,9 +87,11 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
   ur_device_handle_t UrDevice = nullptr;
   Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
       NativeHandle, Adapter->getUrAdapter(), nullptr, &UrDevice);
+
   // Construct the SYCL device from UR device.
   return detail::createSyclObjFromImpl<device>(
-      std::make_shared<device_impl>(UrDevice, Adapter));
+      platform_impl::getPlatformFromUrDevice(UrDevice, Adapter)
+          .getOrMakeDeviceImpl(UrDevice));
 }
 
 __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
@@ -110,7 +112,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
       NativeHandle, Adapter->getUrAdapter(), DeviceHandles.size(),
       DeviceHandles.data(), &Properties, &UrContext);
   // Construct the SYCL context from UR context.
-  return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
+  return detail::createSyclObjFromImpl<context>(context_impl::create(
       UrContext, Handler, Adapter, DeviceList, !KeepOwnership));
 }
 
@@ -156,7 +158,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
       &UrQueue);
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<queue>(
-      std::make_shared<queue_impl>(UrQueue, ContextImpl, Handler, PropList));
+      queue_impl::create(UrQueue, ContextImpl, Handler, PropList));
 }
 
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
@@ -181,7 +183,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
       std::make_shared<event_impl>(UrEvent, Context));
 
   if (Backend == backend::opencl)
-    Adapter->call<UrApiKind::urEventRetain>(UrEvent);
+    __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(NativeHandle));
   return Event;
 }
 
@@ -205,7 +207,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
         "urProgramCreateWithNativeHandle resulted in a null program handle.");
 
   if (ContextImpl->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urProgramRetain>(UrProgram);
+    __SYCL_OCL_CALL(clRetainProgram, ur::cast<cl_program>(NativeHandle));
 
   std::vector<ur_device_handle_t> ProgramDevices;
   uint32_t NumDevices = 0;
@@ -286,10 +288,9 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   std::transform(
       ProgramDevices.begin(), ProgramDevices.end(), std::back_inserter(Devices),
       [&Adapter](const auto &Dev) {
-        auto Platform =
-            detail::platform_impl::getPlatformFromUrDevice(Dev, Adapter);
-        auto DeviceImpl = Platform->getOrMakeDeviceImpl(Dev, Platform);
-        return createSyclObjFromImpl<device>(DeviceImpl);
+        return createSyclObjFromImpl<device>(
+            detail::platform_impl::getPlatformFromUrDevice(Dev, Adapter)
+                .getOrMakeDeviceImpl(Dev));
       });
 
   // Unlike SYCL, other backends, like OpenCL or Level Zero, may not support
@@ -299,7 +300,8 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
   auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
   auto DevImgImpl = std::make_shared<device_image_impl>(
-      nullptr, TargetContext, Devices, State, KernelIDs, UrProgram);
+      nullptr, TargetContext, Devices, State, KernelIDs, UrProgram,
+      ImageOriginInterop);
   device_image_plain DevImg{DevImgImpl};
 
   return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
@@ -319,7 +321,7 @@ kernel make_kernel(const context &TargetContext,
                    backend Backend) {
   const auto &Adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  const auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
+  const auto &KernelBundleImpl = getSyclObjImpl(KernelBundle);
 
   // For Level-Zero expect exactly one device image in the bundle. This is
   // natural for interop kernel to get created out of a single native
@@ -352,7 +354,7 @@ kernel make_kernel(const context &TargetContext,
       &UrKernel);
 
   if (Backend == backend::opencl)
-    Adapter->call<UrApiKind::urKernelRetain>(UrKernel);
+    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeHandle));
 
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(

@@ -2,6 +2,7 @@
 
 import sys
 import platform
+import subprocess
 
 import site
 
@@ -9,9 +10,16 @@ site.addsitedir("@CMAKE_CURRENT_SOURCE_DIR@")
 
 config.dpcpp_compiler = lit_config.params.get("dpcpp_compiler", "@SYCL_CXX_COMPILER@")
 config.dpcpp_root_dir= os.path.dirname(os.path.dirname(config.dpcpp_compiler))
+config.dpcpp_bin_dir = os.path.join(config.dpcpp_root_dir, 'bin')
+
+def get_dpcpp_tool_path(name):
+    try:
+        return subprocess.check_output([config.dpcpp_compiler, "-print-prog-name=" + name], text=True)
+    except subprocess.CalledProcessError:
+        return os.path.join(config.dpcpp_bin_dir, name)
 
 config.llvm_main_include_dir = "@LLVM_MAIN_INCLUDE_DIR@"
-config.llvm_tools_dir = os.path.join(config.dpcpp_root_dir, 'bin')
+config.llvm_tools_dir = os.path.dirname(get_dpcpp_tool_path("llvm-config"))
 config.lit_tools_dir = os.path.dirname("@TEST_SUITE_LIT@")
 config.dump_ir_supported = lit_config.params.get("dump_ir", ("@DUMP_IR_SUPPORTED@" if "@DUMP_IR_SUPPORTED@" else False))
 config.sycl_tools_dir = config.llvm_tools_dir
@@ -24,6 +32,8 @@ config.level_zero_libs_dir = "@LEVEL_ZERO_LIBS_DIR@"
 config.level_zero_include = "@LEVEL_ZERO_INCLUDE@"
 config.cuda_libs_dir = "@CUDA_LIBS_DIR@"
 config.cuda_include = "@CUDA_INCLUDE@"
+config.hip_libs_dir = "@HIP_LIBS_DIR@"
+config.hip_include = "@HIP_INCLUDE@"
 
 config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
 
@@ -31,9 +41,13 @@ config.igc_tag_file = os.path.join("/usr/local/lib/igc/", 'IGCTAG.txt')
 
 config.sycl_devices = lit_config.params.get("sycl_devices", "@SYCL_TEST_E2E_TARGETS@").split(';')
 
+config.sycl_build_targets = set("target-" + t for t in lit_config.params.get(
+    "sycl_build_targets", "all").split(';'))
+
 config.amd_arch = lit_config.params.get("amd_arch", "@AMD_ARCH@")
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
+config.extra_system_environment = lit_config.params.get("extra_system_environment", "@LIT_EXTRA_SYSTEM_ENVIRONMENT@")
 config.cxx_flags = lit_config.params.get("cxx_flags", "@SYCL_E2E_CLANG_CXX_FLAGS@")
 config.c_flags = "@CMAKE_C_FLAGS@"
 config.external_tests = "@SYCL_EXTERNAL_TESTS@"

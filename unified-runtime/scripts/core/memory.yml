@@ -1,0 +1,632 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs"
+ordinal: "4"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Memory flags"
+class: $xMem
+name: $x_mem_flags_t
+etors:
+    - name: READ_WRITE
+      value: "$X_BIT(0)"
+      desc: "The memory object will be read and written by a kernel. This is the default"
+    - name: WRITE_ONLY
+      value: "$X_BIT(1)"
+      desc: "The memory object will be written but not read by a kernel"
+    - name: READ_ONLY
+      value: "$X_BIT(2)"
+      desc: "The memory object is a read-only inside a kernel"
+    - name: USE_HOST_POINTER
+      value: "$X_BIT(3)"
+      desc: "Use memory pointed by a host pointer parameter as the storage bits for the memory object"
+    - name: ALLOC_HOST_POINTER
+      value: "$X_BIT(4)"
+      desc: "Allocate memory object from host accessible memory"
+    - name: ALLOC_COPY_HOST_POINTER
+      value: "$X_BIT(5)"
+      desc: "Allocate memory and copy the data from host pointer pointed memory"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Memory types"
+class: $xMem
+name: $x_mem_type_t
+etors:
+    - name: IMAGE2D
+      desc: "2D image object"
+    - name: IMAGE3D
+      desc: "3D image object"
+    - name: IMAGE2D_ARRAY
+      desc: "2D image array object"
+    - name: IMAGE1D
+      desc: "1D image object"
+    - name: IMAGE1D_ARRAY
+      desc: "1D image array object"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Memory Information type"
+class: $xMem
+name: $x_mem_info_t
+typed_etors: True
+etors:
+    - name: SIZE
+      desc: "[size_t] actual size of the memory object in bytes"
+    - name: CONTEXT
+      desc: "[$x_context_handle_t] context in which the memory object was created"
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the memory object.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Image channel order info: number of channels and the channel layout"
+class: $xMem
+name: $x_image_channel_order_t
+etors:
+    - name: A
+      desc: "channel order A"
+    - name: R
+      desc: "channel order R"
+    - name: RG
+      desc: "channel order RG"
+    - name: RA
+      desc: "channel order RA"
+    - name: RGB
+      desc: "channel order RGB"
+    - name: RGBA
+      desc: "channel order RGBA"
+    - name: BGRA
+      desc: "channel order BGRA"
+    - name: ARGB
+      desc: "channel order ARGB"
+    - name: ABGR
+      desc: "channel order ABGR"
+    - name: INTENSITY
+      desc: "channel order intensity"
+    - name: LUMINANCE
+      desc: "channel order luminance"
+    - name: RX
+      desc: "channel order Rx"
+    - name: RGX
+      desc: "channel order RGx"
+    - name: RGBX
+      desc: "channel order RGBx"
+    - name: SRGBA
+      desc: "channel order sRGBA"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Image channel type info: describe the size of the channel data type"
+class: $xMem
+name: $x_image_channel_type_t
+etors:
+    - name: SNORM_INT8
+      desc: "channel type snorm int8"
+    - name: SNORM_INT16
+      desc: "channel type snorm int16"
+    - name: UNORM_INT8
+      desc: "channel type unorm int8"
+    - name: UNORM_INT16
+      desc: "channel type unorm int16"
+    - name: UNORM_SHORT_565
+      desc: "channel type unorm short 565"
+    - name: UNORM_SHORT_555
+      desc: "channel type unorm short 555"
+    - name: INT_101010
+      desc: "channel type int 101010"
+    - name: SIGNED_INT8
+      desc: "channel type signed int8"
+    - name: SIGNED_INT16
+      desc: "channel type signed int16"
+    - name: SIGNED_INT32
+      desc: "channel type signed int32"
+    - name: UNSIGNED_INT8
+      desc: "channel type unsigned int8"
+    - name: UNSIGNED_INT16
+      desc: "channel type unsigned int16"
+    - name: UNSIGNED_INT32
+      desc: "channel type unsigned int32"
+    - name: HALF_FLOAT
+      desc: "channel type half float"
+    - name: FLOAT
+      desc: "channel type float"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Image information types"
+class: $xMem
+name: $x_image_info_t
+typed_etors: True
+etors:
+  - name: FORMAT
+    desc: "[$x_image_format_t] image format"
+  - name: ELEMENT_SIZE
+    desc: "[size_t] element size"
+  - name: ROW_PITCH
+    desc: "[size_t] row pitch"
+  - name: SLICE_PITCH
+    desc: "[size_t] slice pitch"
+  - name: WIDTH
+    desc: "[size_t] image width"
+  - name: HEIGHT
+    desc: "[size_t] image height"
+  - name: DEPTH
+    desc: "[size_t] image depth"
+  - name: ARRAY_SIZE
+    desc: "[size_t] array size"
+  - name: NUM_MIP_LEVELS
+    desc: "[uint32_t] number of MIP levels"
+  - name: NUM_SAMPLES
+    desc: "[uint32_t] number of samples"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Image format including channel layout and data type"
+class: $xMem
+name: $x_image_format_t
+members:
+    - type: $x_image_channel_order_t
+      name: channelOrder
+      desc: "[in] image channel order"
+    - type: $x_image_channel_type_t
+      name: channelType
+      desc: "[in] image channel type"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Image descriptor type."
+class: $xMem
+name: $x_image_desc_t
+base: $x_base_desc_t
+members:
+    - type: $x_mem_type_t
+      name: type
+      desc: "[in][nocheck] memory object type"
+    - type: size_t
+      name: width
+      desc: "[in] image width"
+    - type: size_t
+      name: height
+      desc: "[in] image height"
+    - type: size_t
+      name: depth
+      desc: "[in] image depth"
+    - type: size_t
+      name: arraySize
+      desc: "[in] image array size"
+    - type: size_t
+      name: rowPitch
+      desc: "[in] image row pitch"
+    - type: size_t
+      name: slicePitch
+      desc: "[in] image slice pitch"
+    - type: uint32_t
+      name: numMipLevel
+      desc: "[in] number of MIP levels, must be `0`"
+    - type: uint32_t
+      name: numSamples
+      desc: "[in] number of samples, must be `0`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create an image object"
+class: $xMem
+name: ImageCreate
+ordinal: "0"
+analogue:
+    - "**clCreateImage**"
+details:
+    - |
+      The primary $x_image_format_t that must be supported by all the adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8},
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8},
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32},
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16},
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT},
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_FLOAT}.
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_mem_flags_t
+      name: flags
+      desc: "[in] allocation and usage information flags"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "void*"
+      name: pHost
+      desc: "[in][optional] pointer to the buffer data"
+    - type: $x_mem_handle_t*
+      name: phMem
+      desc: "[out][alloc] pointer to handle of image object created"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pImageDesc && UR_STRUCTURE_TYPE_IMAGE_DESC != pImageDesc->stype`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
+      - "`pImageDesc && pImageDesc->numMipLevel != 0`"
+      - "`pImageDesc && pImageDesc->numSamples != 0`"
+      - "`pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`"
+      - "`pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_INVALID_HOST_PTR:
+      - "`pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
+      - "`pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`"
+    - $X_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Buffer creation properties"
+class: $xMem
+name: $x_buffer_properties_t
+base: $x_base_properties_t
+members:
+    - type: void*
+      name: pHost
+      desc: >
+          [in][optional] pointer to the buffer data
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Buffer memory channel creation properties"
+details:
+    - Specify these properties in $xMemBufferCreate via $x_buffer_properties_t
+      as part of a `pNext` chain.
+analogue:
+    - "cl_intel_mem_channel_property"
+class: $xMem
+name: $x_buffer_channel_properties_t
+base: $x_base_properties_t
+members:
+    - type: uint32_t
+      name: channel
+      desc: >
+          [in] Identifies the channel/region to which the buffer should be
+          mapped.
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Buffer allocation location creation properties"
+details:
+    - Specify these properties in $xMemBufferCreate via $x_buffer_properties_t
+      as part of a `pNext` chain.
+analogue:
+    - "cl_intel_mem_alloc_buffer_location"
+class: $xMem
+name: $x_buffer_alloc_location_properties_t
+base: $x_base_properties_t
+members:
+    - type: uint32_t
+      name: location
+      desc: >
+          [in] Identifies the ID of global memory partition to which the memory
+          should be allocated.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a memory buffer"
+class: $xMem
+name: BufferCreate
+details:
+    - See also $x_buffer_channel_properties_t.
+    - See also $x_buffer_alloc_location_properties_t.
+ordinal: "0"
+analogue:
+    - "**clCreateBuffer**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_mem_flags_t
+      name: flags
+      desc: "[in] allocation and usage information flags"
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes of the memory object to be allocated"
+    - type: const $x_buffer_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to buffer creation properties"
+    - type: $x_mem_handle_t*
+      name: phBuffer
+      desc: "[out][alloc] pointer to handle of the memory buffer created"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_BUFFER_SIZE:
+      - "`size == 0`"
+    - $X_RESULT_ERROR_INVALID_HOST_PTR:
+      - "`pProperties == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
+      - "`pProperties != NULL && pProperties->pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
+      - "`pProperties != NULL && pProperties->pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference the memory object. Increment the memory object's reference count"
+class: $xMem
+name: Retain
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainMemoryObject**"
+details:
+    - "Useful in library function to retain access to the memory object after the caller released the object"
+params:
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: "[in][retain] handle of the memory object to get access"
+returns:
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the memory object's reference count and delete the object if the reference count becomes zero."
+class: $xMem
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseMemoryObject**"
+params:
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: "[in][release] handle of the memory object to release"
+returns:
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Buffer region type, used to describe a sub buffer"
+class: $xMem
+name: $x_buffer_region_t
+base: $x_base_desc_t
+members:
+    - type: size_t
+      name: origin
+      desc: "[in] buffer origin offset"
+    - type: size_t
+      name: size
+      desc: "[in] size of the buffer region"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Buffer creation type"
+class: $xMem
+name: $x_buffer_create_type_t
+etors:
+    - name: REGION
+      value: "0"
+      desc: "buffer create type is region"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a sub buffer representing a region in an existing buffer"
+class: $xMem
+name: BufferPartition
+ordinal: "0"
+analogue:
+    - "**clCreateSubBuffer**"
+params:
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object to allocate from"
+    - type: $x_mem_flags_t
+      name: flags
+      desc: "[in] allocation and usage information flags"
+    - type: $x_buffer_create_type_t
+      name: bufferCreateType
+      desc: "[in] buffer creation type"
+    - type: const $x_buffer_region_t*
+      name: pRegion
+      desc: "[in] pointer to buffer create region information"
+    - type: $x_mem_handle_t*
+      name: phMem
+      desc: "[out] pointer to the handle of sub buffer created"
+returns:
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_BUFFER_SIZE:
+      - "`pRegion && pRegion->size == 0`"
+      - "hBuffer allocation size < (pRegion->origin + pRegion->size)"
+    - $X_RESULT_ERROR_INVALID_HOST_PTR
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native mem handle."
+class: $xMem
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+    - "The implementation may require a valid device handle to return the native mem handle"
+params:
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: |
+            [in] handle of the mem.
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: |
+            [in][optional] handle of the device that the native handle will be resident on.
+    - type: $x_native_handle_t*
+      name: phNativeMem
+      desc: |
+            [out] a pointer to the native handle of the mem.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+        - "If `hDevice == NULL` and the implementation requires a valid device."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Native memory object creation properties"
+class: $xMem
+name: $x_mem_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime buffer memory object from native memory handle."
+class: $xMem
+name: BufferCreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - The application may call this function from simultaneous threads for the
+      same context.
+    - The implementation of this function should be thread-safe.
+params:
+    - type: $x_native_handle_t
+      name: hNativeMem
+      desc: "[in][nocheck] the native handle to the memory."
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object."
+    - type: const $x_mem_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native memory creation properties."
+    - type: $x_mem_handle_t*
+      name: phMem
+      desc: "[out][alloc] pointer to handle of buffer memory object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime image memory object from native memory handle."
+class: $xMem
+name: ImageCreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - The application may call this function from simultaneous threads for the
+      same context.
+    - The implementation of this function should be thread-safe.
+params:
+    - type: $x_native_handle_t
+      name: hNativeMem
+      desc: "[in][nocheck] the native handle to the memory."
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object."
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification."
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description."
+    - type: const $x_mem_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native memory creation properties."
+    - type: $x_mem_handle_t*
+      name: phMem
+      desc: "[out][alloc pointer to handle of image memory object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieve information about a memory object."
+class: $xMem
+name: GetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetMemObjectInfo**"
+details:
+    - "Query information that is common to all memory objects."
+params:
+    - type: $x_mem_handle_t
+      name: hMemory
+      desc: "[in] handle to the memory object being queried."
+    - type: $x_mem_info_t
+      name: propName
+      desc: "[in] type of the info to retrieve."
+    - type: "size_t"
+      name: propSize
+      desc: "[in] the number of bytes of memory pointed to by pPropValue."
+    - type: "void*"
+      name: pPropValue
+      desc: |
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
+            If propSize is less than the real number of bytes needed to return
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of the queried propName.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieve information about an image object."
+class: $xMem
+name: ImageGetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetImageInfo**"
+details:
+    - "Query information specific to an image object."
+params:
+    - type: $x_mem_handle_t
+      name: hMemory
+      desc: "[in] handle to the image object being queried."
+    - type: $x_image_info_t
+      name: propName
+      desc: "[in] type of image info to retrieve."
+    - type: "size_t"
+      name: propSize
+      desc: "[in] the number of bytes of memory pointer to by pPropValue."
+    - type: "void*"
+      name: pPropValue
+      desc: |
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
+            If propSize is less than the real number of bytes needed to return
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of the queried propName.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

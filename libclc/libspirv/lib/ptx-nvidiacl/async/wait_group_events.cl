@@ -11,7 +11,7 @@
 
 int __clc_nvvm_reflect_arch();
 
-_CLC_OVERLOAD _CLC_DEF void __spirv_GroupWaitEvents(unsigned int scope,
+_CLC_OVERLOAD _CLC_DEF void __spirv_GroupWaitEvents(int scope,
                                                     int num_events,
                                                     event_t *event_list) {
   if (__clc_nvvm_reflect_arch() >= 800) {

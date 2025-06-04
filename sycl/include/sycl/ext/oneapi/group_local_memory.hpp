@@ -21,6 +21,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
 template <typename T, typename Group>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::add_ir_attributes_function("sycl-forceinline", true)]]
+#endif
 std::enable_if_t<
     std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
@@ -44,6 +47,9 @@ std::enable_if_t<
 }
 
 template <typename T, typename Group, typename... Args>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::add_ir_attributes_function("sycl-forceinline", true)]]
+#endif
 std::enable_if_t<
     std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>

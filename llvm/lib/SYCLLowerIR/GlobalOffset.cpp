@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/GlobalOffset.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
@@ -15,9 +15,9 @@
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
-#include "llvm/Target/TargetIntrinsicInfo.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include <deque>
 
 using namespace llvm;
 
@@ -91,6 +91,72 @@ static void validateKernels(Module &M, TargetHelpers::KernelCache &KCache) {
   }
 }
 
+void GlobalOffsetPass::createClonesAndPopulateVMap(
+    const TargetHelpers::KernelCache &KCache,
+    Function *ImplicitOffsetIntrinsic) {
+  std::deque<User *> WorkList;
+  for (auto *U : ImplicitOffsetIntrinsic->users())
+    WorkList.emplace_back(U);
+
+  while (!WorkList.empty()) {
+    auto *WI = WorkList.front();
+    WorkList.pop_front();
+    auto *Call = dyn_cast<CallInst>(WI);
+    if (!Call)
+      continue; // Not interesting.
+
+    auto *Func = Call->getFunction();
+    if (0 != GlobalVMap.count(Func))
+      continue; // Already processed.
+
+    const bool IsKernel = KCache.isKernel(*Func);
+    FunctionType *FuncTy = Func->getFunctionType();
+    Type *ImplicitArgumentType =
+        IsKernel ? KernelImplicitArgumentType->getPointerTo()
+                 : ImplicitOffsetPtrType;
+
+    // Construct an argument list containing all of the previous arguments.
+    SmallVector<Type *, 8> Arguments;
+    for (const auto &A : Func->args())
+      Arguments.push_back(A.getType());
+
+    // Add the offset argument. Must be the same type as returned by
+    // `llvm.{amdgcn|nvvm}.implicit.offset`.
+    Arguments.push_back(ImplicitArgumentType);
+
+    // Build the new function.
+    if (FuncTy->isVarArg())
+      llvm_unreachable("Variadic arguments prohibited in SYCL");
+    FunctionType *NewFuncTy = FunctionType::get(FuncTy->getReturnType(),
+                                                Arguments, FuncTy->isVarArg());
+    Function *NewFunc = Function::Create(NewFuncTy, Func->getLinkage(),
+                                         Func->getAddressSpace());
+    NewFunc->setName(Func->getName() + "_with_offset");
+    // Remove the subprogram, if exists, as it will be pointing to an incorrect
+    // data.
+    if (Func->getSubprogram())
+      NewFunc->setSubprogram(nullptr);
+
+    // Keep original function ordering, clone goes right after the original.
+    Func->getParent()->getFunctionList().insertAfter(Func->getIterator(),
+                                                     NewFunc);
+
+    // Populate the global value to value map with function arguments as well
+    // as the cloned function itself.
+    for (Function::arg_iterator FuncArg = Func->arg_begin(),
+                                FuncEnd = Func->arg_end(),
+                                NewFuncArg = NewFunc->arg_begin();
+         FuncArg != FuncEnd; ++FuncArg, ++NewFuncArg) {
+      GlobalVMap[FuncArg] = NewFuncArg;
+    }
+    GlobalVMap[Func] = NewFunc;
+
+    // Extend the work list with the users of the function.
+    for (auto *U : Func->users())
+      WorkList.emplace_back(U);
+  }
+}
+
 // New PM implementation.
 PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   // Only run this pass on SYCL device code
@@ -118,7 +184,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     KernelImplicitArgumentType =
         ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
     ImplicitOffsetPtrType =
-        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
+        PointerType::get(Type::getInt32Ty(M.getContext()), TargetAS);
     assert(
         (ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
         "Implicit offset intrinsic does not return the expected type");
@@ -127,6 +193,8 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     KCache.populateKernels(M);
     // Validate kernels
     validateKernels(M, KCache);
+
+    createClonesAndPopulateVMap(KCache, ImplicitOffsetIntrinsic);
 
     // Add implicit parameters to all direct and indirect users of the offset
     addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr, KCache);
@@ -163,6 +231,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   assert(ImplicitOffsetIntrinsic->use_empty() &&
          "Not all uses of intrinsic removed");
   ImplicitOffsetIntrinsic->eraseFromParent();
+
   return PreservedAnalyses::none();
 }
 
@@ -179,7 +248,7 @@ void GlobalOffsetPass::processKernelEntryPoint(
   // Add the new argument to all other kernel entry points, despite not
   // using the global offset.
   auto *NewFunc = addOffsetArgumentToFunction(
-                      M, Func, KernelImplicitArgumentType->getPointerTo(),
+                      M, Func, PointerType::getUnqual(Func->getContext()),
                       /*KeepOriginal=*/true,
                       /*IsKernel=*/true)
                       .first;
@@ -226,10 +295,10 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     if (AlreadyProcessed) {
       NewFunc = Caller;
     } else {
-      std::tie(NewFunc, ImplicitOffset) =
-          addOffsetArgumentToFunction(M, Caller,
-                                      /*KernelImplicitArgumentType*/ nullptr,
-                                      /*KeepOriginal=*/true);
+      std::tie(NewFunc, ImplicitOffset) = addOffsetArgumentToFunction(
+          M, Caller,
+          /*KernelImplicitArgumentType*/ nullptr,
+          /*KeepOriginal=*/true, /*IsKernel=*/false);
     }
     CallToOld = cast<CallInst>(GlobalVMap[CallToOld]);
     if (!CalleeWithImplicitParam) {
@@ -296,32 +365,17 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
   AttributeList NAttrs =
       AttributeList::get(Func->getContext(), FuncAttrs.getFnAttrs(),
                          FuncAttrs.getRetAttrs(), ArgumentAttributes);
-  assert(!FuncTy->isVarArg() && "Variadic arguments prohibited in SYCL");
-  FunctionType *NewFuncTy =
-      FunctionType::get(FuncTy->getReturnType(), Arguments, FuncTy->isVarArg());
-
-  Function *NewFunc =
-      Function::Create(NewFuncTy, Func->getLinkage(), Func->getAddressSpace());
-
-  // Keep original function ordering.
-  M.getFunctionList().insertAfter(Func->getIterator(), NewFunc);
+  assert(GlobalVMap.count(Func) != 0 &&
+         "All relevant functions must be prepared ahead of time.");
+  Function *NewFunc = dyn_cast<Function>(GlobalVMap[Func]);
 
   Value *ImplicitOffset = nullptr;
   bool ImplicitOffsetAllocaInserted = false;
   if (KeepOriginal) {
-    // TODO: Are there better naming alternatives that allow for unmangling?
-    NewFunc->setName(Func->getName() + "_with_offset");
-
-    for (Function::arg_iterator FuncArg = Func->arg_begin(),
-                                FuncEnd = Func->arg_end(),
-                                NewFuncArg = NewFunc->arg_begin();
-         FuncArg != FuncEnd; ++FuncArg, ++NewFuncArg) {
-      GlobalVMap[FuncArg] = NewFuncArg;
-    }
-
     SmallVector<ReturnInst *, 8> Returns;
     CloneFunctionInto(NewFunc, Func, GlobalVMap,
                       CloneFunctionChangeType::GlobalChanges, Returns);
+
     // In order to keep the signatures of functions called by the kernel
     // unified, the pass has to copy global offset to an array allocated in
     // addrspace(3). This is done as kernels can't allocate and fill the
@@ -343,7 +397,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
       // addrspace(4), cast implicit offset arg to constant memory so the
       // memcpy is issued into a correct address space.
       auto *OrigImplicitOffsetAS4 = Builder.CreateAddrSpaceCast(
-          OrigImplicitOffset, Type::getInt8Ty(M.getContext())->getPointerTo(4));
+          OrigImplicitOffset, llvm::PointerType::get(M.getContext(), 4));
       Builder.CreateMemCpy(
           ImplicitOffsetAlloca, ImplicitOffsetAlloca->getAlign(),
           OrigImplicitOffsetAS4, OrigImplicitOffsetAS4->getPointerAlignment(DL),
@@ -390,8 +444,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
             : EntryBlock->getFirstInsertionPt();
     IRBuilder<> Builder(EntryBlock, InsertionPt);
     ImplicitOffset = Builder.CreateBitCast(
-        ImplicitOffset,
-        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS));
+        ImplicitOffset, llvm::PointerType::get(M.getContext(), TargetAS));
   }
 
   ProcessedFunctions[Func] = ImplicitOffset;

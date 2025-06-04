@@ -210,10 +210,24 @@ static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
 }
 
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
-  // Todo: we should probably cache the state thread local load here
-  // to avoid re-emitting it for each builtin
   if (StateTLS) {
-    IRBuilder<> BB(&*F->getEntryBlock().getFirstInsertionPt());
+    // Find previous read from thread_local, if any
+    const auto IP = F->getEntryBlock().getFirstInsertionPt();
+    if (IP.isValid()) {
+      if (const CallInst *I = dyn_cast<CallInst>(&*IP)) {
+        if (I->getIntrinsicID() == Intrinsic::threadlocal_address &&
+            I->getOperand(0) == StateTLS) {
+          const auto Next = std::next(IP);
+          if (Next.isValid()) {
+            if (LoadInst *LI = dyn_cast<LoadInst>(&*Next)) {
+              if (LI->getPointerOperand() == I)
+                return LI;
+            }
+          }
+        }
+      }
+    }
+    IRBuilder<> BB(&*IP);
     llvm::Value *V = BB.CreateThreadLocalAddress(StateTLS);
     return BB.CreateLoad(StateTLS->getType(), V);
   }
@@ -287,20 +301,12 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   llvm::Constant *CurrentStatePointerTLS = nullptr;
 
-  // check if any of the kernels is called by some other function.
-  // This can happen e.g. with OCK, where wrapper functions are
-  // created around the original kernel.
-  bool KernelIsCalled = false;
-  for (auto &K : OldKernels) {
-    for (auto &U : K->uses()) {
-      if (isa<CallBase>(U.getUser())) {
-        KernelIsCalled = true;
-      }
-    }
-  }
+  // Contains the used builtins and kernels that need to be processed to
+  // receive a pointer to the state struct.
+  llvm::SmallVector<std::pair<llvm::Function *, StringRef>>
+      UsedBuiltinsAndKernels;
 
   // Then we iterate over all the supported builtins, find the used ones
-  llvm::SmallVector<std::pair<llvm::Function *, StringRef>> UsedBuiltins;
   for (const auto &Entry : BuiltinNamesMap) {
     auto *Glob = M.getFunction(Entry.first);
     if (!Glob)
@@ -308,8 +314,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (CurrentStatePointerTLS == nullptr) {
       for (const auto &Use : Glob->uses()) {
         auto *I = cast<CallBase>(Use.getUser());
-        if (KernelIsCalled ||
-            IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
+        if (IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
           // only use the threadlocal if we have kernels calling builtins
           // indirectly, or if the kernel is called by some other func.
           CurrentStatePointerTLS = M.getOrInsertGlobal(
@@ -330,13 +335,12 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         }
       }
     }
-    UsedBuiltins.push_back({Glob, Entry.second});
+    UsedBuiltinsAndKernels.push_back({Glob, Entry.second});
   }
 
 #ifdef NATIVECPU_USE_OCK
   {
     SmallSet<Function *, 5> RemovableFuncs;
-    SmallVector<Function *, 5> WrapperFuncs;
 
     for (auto &OldF : OldKernels) {
       // If vectorization occurred, at this point we have a wrapper function
@@ -352,6 +356,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
           OldF->takeName(OrigF);
           if (OrigF->use_empty()) {
             RemovableFuncs.insert(OrigF);
+          } else {
+            OrigF->setComdat(nullptr);
+            OrigF->setName(Name + ".orig");
           }
         } else {
           OldF->setName(Name);
@@ -392,6 +399,11 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     OldF->replaceAllUsesWith(NewF);
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
+    if (!CurrentStatePointerTLS && NewF->getNumUses() > 0)
+      // If a thread_local is not used we need to keep track of the called
+      // kernel so we can update its call sites with the pointer to the state
+      // struct like we do for the called builtins.
+      UsedBuiltinsAndKernels.push_back({NewF, ""});
     ModuleChanged = true;
   }
 
@@ -404,13 +416,25 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   // Then we iterate over all used builtins and
   // replace them with calls to our Native CPU functions.
-  for (const auto &Entry : UsedBuiltins) {
+  // For the used kernels we need to replace calls to them
+  // with calls receiving the state pointer argument.
+  for (const auto &Entry : UsedBuiltinsAndKernels) {
     SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
     SmallVector<Function *> ToRemove2;
     Function *const Glob = Entry.first;
     Function *ReplaceFunc = nullptr;
     for (const auto &Use : Glob->uses()) {
       auto I = cast<CallBase>(Use.getUser());
+      if (Entry.second == "") {
+        if (const Function *CF = I->getCalledFunction()) {
+          unsigned numParams = CF->getFunctionType()->getNumParams();
+          auto numArgs = I->arg_size();
+          if (numArgs == numParams)
+            continue;
+          assert(numArgs + 1 == numParams);
+        }
+        ReplaceFunc = Entry.first;
+      }
       Function *const C = I->getFunction();
       if (IsUnusedBuiltinOrPrivateDef(*C)) {
         ToRemove2.push_back(C);
@@ -448,6 +472,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     }
     for (auto Temp : ToRemove2)
       Temp->eraseFromParent();
+
+    // Don't erase if it's not a builtin
+    if (Entry.second == "")
+      continue;
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();

@@ -404,14 +404,6 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
   case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
     return handleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
 
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    throw detail::set_ur_error(
-        sycl::exception(
-            make_error_code(errc::kernel_argument),
-            "The kernel argument values have not been specified OR a kernel "
-            "argument declared to be a pointer to a type."),
-        UR_RESULT_ERROR_INVALID_KERNEL_ARGS);
-
   case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
     return handleInvalidWorkItemSize(DeviceImpl, NDRDesc);
 
@@ -466,7 +458,9 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
 
   default:
     throw detail::set_ur_error(
-        exception(make_error_code(errc::runtime), "UR error"), Error);
+        exception(make_error_code(errc::runtime),
+                  "UR error: " + sycl::detail::codeToString(Error)),
+        Error);
   }
 }
 
