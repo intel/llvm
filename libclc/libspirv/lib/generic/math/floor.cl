@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
 #include <clc/math/clc_floor.h>
 
 #undef __CLC_FUNCTION
