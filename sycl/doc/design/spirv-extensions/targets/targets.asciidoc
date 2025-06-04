@@ -423,4 +423,4382 @@ avx512f
 | 4
 | 12
 | Enable AVX512 instructions
+
+4+^|*Target: riscv32 (5)*
+
+a|
+[source]
+----
+32bit
+----
+| 5
+| 0
+| Implements RV32.
+
+a|
+[source]
+----
+64bit
+----
+| 5
+| 1
+| Implements RV64.
+
+a|
+[source]
+----
+a
+----
+| 5
+| 2
+| 'A' (Atomic Instructions).
+
+a|
+[source]
+----
+auipc-addi-fusion
+----
+| 5
+| 3
+| Enable AUIPC+ADDI macrofusion.
+
+a|
+[source]
+----
+b
+----
+| 5
+| 4
+| 'B' (the collection of the Zba, Zbb, Zbs extensions).
+
+a|
+[source]
+----
+c
+----
+| 5
+| 5
+| 'C' (Compressed Instructions).
+
+a|
+[source]
+----
+conditional-cmv-fusion
+----
+| 5
+| 6
+| Enable branch+c.mv fusion.
+
+a|
+[source]
+----
+d
+----
+| 5
+| 7
+| 'D' (Double-Precision Floating-Point).
+
+a|
+[source]
+----
+dlen-factor-2
+----
+| 5
+| 8
+| Vector unit DLEN(data path width) is half of VLEN.
+
+a|
+[source]
+----
+e
+----
+| 5
+| 9
+| Implements RV{32,64}E (provides 16 rather than 32 GPRs).
+
+a|
+[source]
+----
+experimental
+----
+| 5
+| 10
+| Experimental intrinsics.
+
+a|
+[source]
+----
+experimental-rva23s64
+----
+| 5
+| 11
+| RISC-V experimental-rva23s64 profile.
+
+a|
+[source]
+----
+experimental-rva23u64
+----
+| 5
+| 12
+| RISC-V experimental-rva23u64 profile.
+
+a|
+[source]
+----
+experimental-rvb23s64
+----
+| 5
+| 13
+| RISC-V experimental-rvb23s64 profile.
+
+a|
+[source]
+----
+experimental-rvb23u64
+----
+| 5
+| 14
+| RISC-V experimental-rvb23u64 profile.
+
+a|
+[source]
+----
+experimental-rvm23u32
+----
+| 5
+| 15
+| RISC-V experimental-rvm23u32 profile.
+
+a|
+[source]
+----
+experimental-smmpm
+----
+| 5
+| 16
+| 'Smmpm' (Machine-level Pointer Masking for M-mode).
+
+a|
+[source]
+----
+experimental-smnpm
+----
+| 5
+| 17
+| 'Smnpm' (Machine-level Pointer Masking for next lower privilege mode).
+
+a|
+[source]
+----
+experimental-ssnpm
+----
+| 5
+| 18
+| 'Ssnpm' (Supervisor-level Pointer Masking for next lower privilege mode).
+
+a|
+[source]
+----
+experimental-sspm
+----
+| 5
+| 19
+| 'Sspm' (Indicates Supervisor-mode Pointer Masking).
+
+a|
+[source]
+----
+experimental-ssqosid
+----
+| 5
+| 20
+| 'Ssqosid' (Quality-of-Service (QoS) Identifiers).
+
+a|
+[source]
+----
+experimental-supm
+----
+| 5
+| 21
+| 'Supm' (Indicates User-mode Pointer Masking).
+
+a|
+[source]
+----
+experimental-zacas
+----
+| 5
+| 22
+| 'Zacas' (Atomic Compare-And-Swap Instructions).
+
+a|
+[source]
+----
+experimental-zalasr
+----
+| 5
+| 23
+| 'Zalasr' (Load-Acquire and Store-Release Instructions).
+
+a|
+[source]
+----
+experimental-zicfilp
+----
+| 5
+| 24
+| 'Zicfilp' (Landing pad).
+
+a|
+[source]
+----
+experimental-zicfiss
+----
+| 5
+| 25
+| 'Zicfiss' (Shadow stack).
+
+a|
+[source]
+----
+f
+----
+| 5
+| 26
+| 'F' (Single-Precision Floating-Point).
+
+a|
+[source]
+----
+forced-atomics
+----
+| 5
+| 27
+| Assume that lock-free native-width atomics are available.
+
+a|
+[source]
+----
+forced-sw-shadow-stack
+----
+| 5
+| 28
+| Implement shadow stack with software..
+
+a|
+[source]
+----
+h
+----
+| 5
+| 29
+| 'H' (Hypervisor).
+
+a|
+[source]
+----
+i
+----
+| 5
+| 30
+| 'I' (Base Integer Instruction Set).
+
+a|
+[source]
+----
+ld-add-fusion
+----
+| 5
+| 31
+| Enable LD+ADD macrofusion.
+
+a|
+[source]
+----
+lui-addi-fusion
+----
+| 5
+| 32
+| Enable LUI+ADDI macro fusion.
+
+a|
+[source]
+----
+m
+----
+| 5
+| 33
+| 'M' (Integer Multiplication and Division).
+
+a|
+[source]
+----
+no-default-unroll
+----
+| 5
+| 34
+| Disable default unroll preference..
+
+a|
+[source]
+----
+no-rvc-hints
+----
+| 5
+| 35
+| Disable RVC Hint Instructions..
+
+a|
+[source]
+----
+no-sink-splat-operands
+----
+| 5
+| 36
+| Disable sink splat operands to enable .vx, .vf,.wx, and .wf instructions.
+
+a|
+[source]
+----
+no-trailing-seq-cst-fence
+----
+| 5
+| 37
+| Disable trailing fence for seq-cst store..
+
+a|
+[source]
+----
+optimized-zero-stride-load
+----
+| 5
+| 38
+| Optimized (perform fewer memory operations)zero-stride vector load.
+
+a|
+[source]
+----
+predictable-select-expensive
+----
+| 5
+| 39
+| Prefer likely predicted branches over selects.
+
+a|
+[source]
+----
+prefer-w-inst
+----
+| 5
+| 40
+| Prefer instructions with W suffix.
+
+a|
+[source]
+----
+relax
+----
+| 5
+| 41
+| Enable Linker relaxation..
+
+a|
+[source]
+----
+reserve-x1
+----
+| 5
+| 42
+| Reserve X1.
+
+a|
+[source]
+----
+reserve-x10
+----
+| 5
+| 43
+| Reserve X10.
+
+a|
+[source]
+----
+reserve-x11
+----
+| 5
+| 44
+| Reserve X11.
+
+a|
+[source]
+----
+reserve-x12
+----
+| 5
+| 45
+| Reserve X12.
+
+a|
+[source]
+----
+reserve-x13
+----
+| 5
+| 46
+| Reserve X13.
+
+a|
+[source]
+----
+reserve-x14
+----
+| 5
+| 47
+| Reserve X14.
+
+a|
+[source]
+----
+reserve-x15
+----
+| 5
+| 48
+| Reserve X15.
+
+a|
+[source]
+----
+reserve-x16
+----
+| 5
+| 49
+| Reserve X16.
+
+a|
+[source]
+----
+reserve-x17
+----
+| 5
+| 50
+| Reserve X17.
+
+a|
+[source]
+----
+reserve-x18
+----
+| 5
+| 51
+| Reserve X18.
+
+a|
+[source]
+----
+reserve-x19
+----
+| 5
+| 52
+| Reserve X19.
+
+a|
+[source]
+----
+reserve-x2
+----
+| 5
+| 53
+| Reserve X2.
+
+a|
+[source]
+----
+reserve-x20
+----
+| 5
+| 54
+| Reserve X20.
+
+a|
+[source]
+----
+reserve-x21
+----
+| 5
+| 55
+| Reserve X21.
+
+a|
+[source]
+----
+reserve-x22
+----
+| 5
+| 56
+| Reserve X22.
+
+a|
+[source]
+----
+reserve-x23
+----
+| 5
+| 57
+| Reserve X23.
+
+a|
+[source]
+----
+reserve-x24
+----
+| 5
+| 58
+| Reserve X24.
+
+a|
+[source]
+----
+reserve-x25
+----
+| 5
+| 59
+| Reserve X25.
+
+a|
+[source]
+----
+reserve-x26
+----
+| 5
+| 60
+| Reserve X26.
+
+a|
+[source]
+----
+reserve-x27
+----
+| 5
+| 61
+| Reserve X27.
+
+a|
+[source]
+----
+reserve-x28
+----
+| 5
+| 62
+| Reserve X28.
+
+a|
+[source]
+----
+reserve-x29
+----
+| 5
+| 63
+| Reserve X29.
+
+a|
+[source]
+----
+reserve-x3
+----
+| 5
+| 64
+| Reserve X3.
+
+a|
+[source]
+----
+reserve-x30
+----
+| 5
+| 65
+| Reserve X30.
+
+a|
+[source]
+----
+reserve-x31
+----
+| 5
+| 66
+| Reserve X31.
+
+a|
+[source]
+----
+reserve-x4
+----
+| 5
+| 67
+| Reserve X4.
+
+a|
+[source]
+----
+reserve-x5
+----
+| 5
+| 68
+| Reserve X5.
+
+a|
+[source]
+----
+reserve-x6
+----
+| 5
+| 69
+| Reserve X6.
+
+a|
+[source]
+----
+reserve-x7
+----
+| 5
+| 70
+| Reserve X7.
+
+a|
+[source]
+----
+reserve-x8
+----
+| 5
+| 71
+| Reserve X8.
+
+a|
+[source]
+----
+reserve-x9
+----
+| 5
+| 72
+| Reserve X9.
+
+a|
+[source]
+----
+rva20s64
+----
+| 5
+| 73
+| RISC-V rva20s64 profile.
+
+a|
+[source]
+----
+rva20u64
+----
+| 5
+| 74
+| RISC-V rva20u64 profile.
+
+a|
+[source]
+----
+rva22s64
+----
+| 5
+| 75
+| RISC-V rva22s64 profile.
+
+a|
+[source]
+----
+rva22u64
+----
+| 5
+| 76
+| RISC-V rva22u64 profile.
+
+a|
+[source]
+----
+rvi20u32
+----
+| 5
+| 77
+| RISC-V rvi20u32 profile.
+
+a|
+[source]
+----
+rvi20u64
+----
+| 5
+| 78
+| RISC-V rvi20u64 profile.
+
+a|
+[source]
+----
+save-restore
+----
+| 5
+| 79
+| Enable save/restore..
+
+a|
+[source]
+----
+shcounterenw
+----
+| 5
+| 80
+| 'Shcounterenw' (Support writeable hcounteren enable bit for any hpmcounter that is not read-only zero).
+
+a|
+[source]
+----
+shgatpa
+----
+| 5
+| 81
+| 'Sgatpa' (SvNNx4 mode supported for all modes supported by satp, as well as Bare).
+
+a|
+[source]
+----
+shifted-zextw-fusion
+----
+| 5
+| 82
+| Enable SLLI+SRLI to be fused when computing (shifted) word zero extension.
+
+a|
+[source]
+----
+short-forward-branch-opt
+----
+| 5
+| 83
+| Enable short forward branch optimization.
+
+a|
+[source]
+----
+shtvala
+----
+| 5
+| 84
+| 'Shtvala' (htval provides all needed values).
+
+a|
+[source]
+----
+shvsatpa
+----
+| 5
+| 85
+| 'Svsatpa' (vsatp supports all modes supported by satp).
+
+a|
+[source]
+----
+shvstvala
+----
+| 5
+| 86
+| 'Shvstvala' (vstval provides all needed values).
+
+a|
+[source]
+----
+shvstvecd
+----
+| 5
+| 87
+| 'Shvstvecd' (vstvec supports Direct mode).
+
+a|
+[source]
+----
+sifive7
+----
+| 5
+| 88
+| SiFive 7-Series processors.
+
+a|
+[source]
+----
+smaia
+----
+| 5
+| 89
+| 'Smaia' (Advanced Interrupt Architecture Machine Level).
+
+a|
+[source]
+----
+smcdeleg
+----
+| 5
+| 90
+| 'Smcdeleg' (Counter Delegation Machine Level).
+
+a|
+[source]
+----
+smcsrind
+----
+| 5
+| 91
+| 'Smcsrind' (Indirect CSR Access Machine Level).
+
+a|
+[source]
+----
+smepmp
+----
+| 5
+| 92
+| 'Smepmp' (Enhanced Physical Memory Protection).
+
+a|
+[source]
+----
+smstateen
+----
+| 5
+| 93
+| 'Smstateen' (Machine-mode view of the state-enable extension).
+
+a|
+[source]
+----
+ssaia
+----
+| 5
+| 94
+| 'Ssaia' (Advanced Interrupt Architecture Supervisor Level).
+
+a|
+[source]
+----
+ssccfg
+----
+| 5
+| 95
+| 'Ssccfg' (Counter Configuration Supervisor Level).
+
+a|
+[source]
+----
+ssccptr
+----
+| 5
+| 96
+| 'Ssccptr' (Main memory supports page table reads).
+
+a|
+[source]
+----
+sscofpmf
+----
+| 5
+| 97
+| 'Sscofpmf' (Count Overflow and Mode-Based Filtering).
+
+a|
+[source]
+----
+sscounterenw
+----
+| 5
+| 98
+| 'Sscounterenw' (Support writeable scounteren enable bit for any hpmcounter that is not read-only zero).
+
+a|
+[source]
+----
+sscsrind
+----
+| 5
+| 99
+| 'Sscsrind' (Indirect CSR Access Supervisor Level).
+
+a|
+[source]
+----
+ssstateen
+----
+| 5
+| 100
+| 'Ssstateen' (Supervisor-mode view of the state-enable extension).
+
+a|
+[source]
+----
+ssstrict
+----
+| 5
+| 101
+| 'Ssstrict' (No non-conforming extensions are present).
+
+a|
+[source]
+----
+sstc
+----
+| 5
+| 102
+| 'Sstc' (Supervisor-mode timer interrupts).
+
+a|
+[source]
+----
+sstvala
+----
+| 5
+| 103
+| 'Sstvala' (stval provides all needed values).
+
+a|
+[source]
+----
+sstvecd
+----
+| 5
+| 104
+| 'Sstvecd' (stvec supports Direct mode).
+
+a|
+[source]
+----
+ssu64xl
+----
+| 5
+| 105
+| 'Ssu64xl' (UXLEN=64 supported).
+
+a|
+[source]
+----
+svade
+----
+| 5
+| 106
+| 'Svade' (Raise exceptions on improper A/D bits).
+
+a|
+[source]
+----
+svadu
+----
+| 5
+| 107
+| 'Svadu' (Hardware A/D updates).
+
+a|
+[source]
+----
+svbare
+----
+| 5
+| 108
+| 'Svbare' $(satp mode Bare supported).
+
+a|
+[source]
+----
+svinval
+----
+| 5
+| 109
+| 'Svinval' (Fine-Grained Address-Translation Cache Invalidation).
+
+a|
+[source]
+----
+svnapot
+----
+| 5
+| 110
+| 'Svnapot' (NAPOT Translation Contiguity).
+
+a|
+[source]
+----
+svpbmt
+----
+| 5
+| 111
+| 'Svpbmt' (Page-Based Memory Types).
+
+a|
+[source]
+----
+tagged-globals
+----
+| 5
+| 112
+| Use an instruction sequence for taking the address of a global that allows a memory tag in the upper address bits.
+
+a|
+[source]
+----
+unaligned-scalar-mem
+----
+| 5
+| 113
+| Has reasonably performant unaligned scalar loads and stores.
+
+a|
+[source]
+----
+unaligned-vector-mem
+----
+| 5
+| 114
+| Has reasonably performant unaligned vector loads and stores.
+
+a|
+[source]
+----
+use-postra-scheduler
+----
+| 5
+| 115
+| Schedule again after register allocation.
+
+a|
+[source]
+----
+v
+----
+| 5
+| 116
+| 'V' (Vector Extension for Application Processors).
+
+a|
+[source]
+----
+ventana-veyron
+----
+| 5
+| 117
+| Ventana Veyron-Series processors.
+
+a|
+[source]
+----
+xcvalu
+----
+| 5
+| 118
+| 'XCValu' (CORE-V ALU Operations).
+
+a|
+[source]
+----
+xcvbi
+----
+| 5
+| 119
+| 'XCVbi' (CORE-V Immediate Branching).
+
+a|
+[source]
+----
+xcvbitmanip
+----
+| 5
+| 120
+| 'XCVbitmanip' (CORE-V Bit Manipulation).
+
+a|
+[source]
+----
+xcvelw
+----
+| 5
+| 121
+| 'XCVelw' (CORE-V Event Load Word).
+
+a|
+[source]
+----
+xcvmac
+----
+| 5
+| 122
+| 'XCVmac' (CORE-V Multiply-Accumulate).
+
+a|
+[source]
+----
+xcvmem
+----
+| 5
+| 123
+| 'XCVmem' (CORE-V Post-incrementing Load & Store).
+
+a|
+[source]
+----
+xcvsimd
+----
+| 5
+| 124
+| 'XCVsimd' (CORE-V SIMD ALU).
+
+a|
+[source]
+----
+xsfcease
+----
+| 5
+| 125
+| 'XSfcease' (SiFive sf.cease Instruction).
+
+a|
+[source]
+----
+xsfvcp
+----
+| 5
+| 126
+| 'XSfvcp' (SiFive Custom Vector Coprocessor Interface Instructions).
+
+a|
+[source]
+----
+xsfvfnrclipxfqf
+----
+| 5
+| 127
+| 'XSfvfnrclipxfqf' (SiFive FP32-to-int8 Ranged Clip Instructions).
+
+a|
+[source]
+----
+xsfvfwmaccqqq
+----
+| 5
+| 128
+| 'XSfvfwmaccqqq' (SiFive Matrix Multiply Accumulate Instruction and 4-by-4)).
+
+a|
+[source]
+----
+xsfvqmaccdod
+----
+| 5
+| 129
+| 'XSfvqmaccdod' (SiFive Int8 Matrix Multiplication Instructions (2-by-8 and 8-by-2)).
+
+a|
+[source]
+----
+xsfvqmaccqoq
+----
+| 5
+| 130
+| 'XSfvqmaccqoq' (SiFive Int8 Matrix Multiplication Instructions (4-by-8 and 8-by-4)).
+
+a|
+[source]
+----
+xsifivecdiscarddlone
+----
+| 5
+| 131
+| 'XSiFivecdiscarddlone' (SiFive sf.cdiscard.d.l1 Instruction).
+
+a|
+[source]
+----
+xsifivecflushdlone
+----
+| 5
+| 132
+| 'XSiFivecflushdlone' (SiFive sf.cflush.d.l1 Instruction).
+
+a|
+[source]
+----
+xtheadba
+----
+| 5
+| 133
+| 'XTHeadBa' (T-Head address calculation instructions).
+
+a|
+[source]
+----
+xtheadbb
+----
+| 5
+| 134
+| 'XTHeadBb' (T-Head basic bit-manipulation instructions).
+
+a|
+[source]
+----
+xtheadbs
+----
+| 5
+| 135
+| 'XTHeadBs' (T-Head single-bit instructions).
+
+a|
+[source]
+----
+xtheadcmo
+----
+| 5
+| 136
+| 'XTHeadCmo' (T-Head cache management instructions).
+
+a|
+[source]
+----
+xtheadcondmov
+----
+| 5
+| 137
+| 'XTHeadCondMov' (T-Head conditional move instructions).
+
+a|
+[source]
+----
+xtheadfmemidx
+----
+| 5
+| 138
+| 'XTHeadFMemIdx' (T-Head FP Indexed Memory Operations).
+
+a|
+[source]
+----
+xtheadmac
+----
+| 5
+| 139
+| 'XTHeadMac' (T-Head Multiply-Accumulate Instructions).
+
+a|
+[source]
+----
+xtheadmemidx
+----
+| 5
+| 140
+| 'XTHeadMemIdx' (T-Head Indexed Memory Operations).
+
+a|
+[source]
+----
+xtheadmempair
+----
+| 5
+| 141
+| 'XTHeadMemPair' (T-Head two-GPR Memory Operations).
+
+a|
+[source]
+----
+xtheadsync
+----
+| 5
+| 142
+| 'XTHeadSync' (T-Head multicore synchronization instructions).
+
+a|
+[source]
+----
+xtheadvdot
+----
+| 5
+| 143
+| 'XTHeadVdot' (T-Head Vector Extensions for Dot).
+
+a|
+[source]
+----
+xventanacondops
+----
+| 5
+| 144
+| 'XVentanaCondOps' (Ventana Conditional Ops).
+
+a|
+[source]
+----
+xwchc
+----
+| 5
+| 145
+| 'Xwchc' (WCH/QingKe additional compressed opcodes).
+
+a|
+[source]
+----
+za128rs
+----
+| 5
+| 146
+| 'Za128rs' (Reservation Set Size of at Most 128 Bytes).
+
+a|
+[source]
+----
+za64rs
+----
+| 5
+| 147
+| 'Za64rs' (Reservation Set Size of at Most 64 Bytes).
+
+a|
+[source]
+----
+zaamo
+----
+| 5
+| 148
+| 'Zaamo' (Atomic Memory Operations).
+
+a|
+[source]
+----
+zabha
+----
+| 5
+| 149
+| 'Zabha' (Byte and Halfword Atomic Memory Operations).
+
+a|
+[source]
+----
+zalrsc
+----
+| 5
+| 150
+| 'Zalrsc' (Load-Reserved/Store-Conditional).
+
+a|
+[source]
+----
+zama16b
+----
+| 5
+| 151
+| 'Zama16b' (Atomic 16-byte misaligned loads, stores and AMOs).
+
+a|
+[source]
+----
+zawrs
+----
+| 5
+| 152
+| 'Zawrs' (Wait on Reservation Set).
+
+a|
+[source]
+----
+zba
+----
+| 5
+| 153
+| 'Zba' (Address Generation Instructions).
+
+a|
+[source]
+----
+zbb
+----
+| 5
+| 154
+| 'Zbb' (Basic Bit-Manipulation).
+
+a|
+[source]
+----
+zbc
+----
+| 5
+| 155
+| 'Zbc' (Carry-Less Multiplication).
+
+a|
+[source]
+----
+zbkb
+----
+| 5
+| 156
+| 'Zbkb' (Bitmanip instructions for Cryptography).
+
+a|
+[source]
+----
+zbkc
+----
+| 5
+| 157
+| 'Zbkc' (Carry-less multiply instructions for Cryptography).
+
+a|
+[source]
+----
+zbkx
+----
+| 5
+| 158
+| 'Zbkx' (Crossbar permutation instructions).
+
+a|
+[source]
+----
+zbs
+----
+| 5
+| 159
+| 'Zbs' (Single-Bit Instructions).
+
+a|
+[source]
+----
+zca
+----
+| 5
+| 160
+| 'Zca' (part of the C extension, excluding compressed floating point loads/stores).
+
+a|
+[source]
+----
+zcb
+----
+| 5
+| 161
+| 'Zcb' (Compressed basic bit manipulation instructions).
+
+a|
+[source]
+----
+zcd
+----
+| 5
+| 162
+| 'Zcd' (Compressed Double-Precision Floating-Point Instructions).
+
+a|
+[source]
+----
+zce
+----
+| 5
+| 163
+| 'Zce' (Compressed extensions for microcontrollers).
+
+a|
+[source]
+----
+zcf
+----
+| 5
+| 164
+| 'Zcf' (Compressed Single-Precision Floating-Point Instructions).
+
+a|
+[source]
+----
+zcmop
+----
+| 5
+| 165
+| 'Zcmop' (Compressed May-Be-Operations).
+
+a|
+[source]
+----
+zcmp
+----
+| 5
+| 166
+| 'Zcmp' (sequenced instructions for code-size reduction).
+
+a|
+[source]
+----
+zcmt
+----
+| 5
+| 167
+| 'Zcmt' (table jump instructions for code-size reduction).
+
+a|
+[source]
+----
+zdinx
+----
+| 5
+| 168
+| 'Zdinx' (Double in Integer).
+
+a|
+[source]
+----
+zexth-fusion
+----
+| 5
+| 169
+| Enable SLLI+SRLI to be fused to zero extension of halfword.
+
+a|
+[source]
+----
+zextw-fusion
+----
+| 5
+| 170
+| Enable SLLI+SRLI to be fused to zero extension of word.
+
+a|
+[source]
+----
+zfa
+----
+| 5
+| 171
+| 'Zfa' (Additional Floating-Point).
+
+a|
+[source]
+----
+zfbfmin
+----
+| 5
+| 172
+| 'Zfbfmin' (Scalar BF16 Converts).
+
+a|
+[source]
+----
+zfh
+----
+| 5
+| 173
+| 'Zfh' (Half-Precision Floating-Point).
+
+a|
+[source]
+----
+zfhmin
+----
+| 5
+| 174
+| 'Zfhmin' (Half-Precision Floating-Point Minimal).
+
+a|
+[source]
+----
+zfinx
+----
+| 5
+| 175
+| 'Zfinx' (Float in Integer).
+
+a|
+[source]
+----
+zhinx
+----
+| 5
+| 176
+| 'Zhinx' (Half Float in Integer).
+
+a|
+[source]
+----
+zhinxmin
+----
+| 5
+| 177
+| 'Zhinxmin' (Half Float in Integer Minimal).
+
+a|
+[source]
+----
+zic64b
+----
+| 5
+| 178
+| 'Zic64b' (Cache Block Size Is 64 Bytes).
+
+a|
+[source]
+----
+zicbom
+----
+| 5
+| 179
+| 'Zicbom' (Cache-Block Management Instructions).
+
+a|
+[source]
+----
+zicbop
+----
+| 5
+| 180
+| 'Zicbop' (Cache-Block Prefetch Instructions).
+
+a|
+[source]
+----
+zicboz
+----
+| 5
+| 181
+| 'Zicboz' (Cache-Block Zero Instructions).
+
+a|
+[source]
+----
+ziccamoa
+----
+| 5
+| 182
+| 'Ziccamoa' (Main Memory Supports All Atomics in A).
+
+a|
+[source]
+----
+ziccif
+----
+| 5
+| 183
+| 'Ziccif' (Main Memory Supports Instruction Fetch with Atomicity Requirement).
+
+a|
+[source]
+----
+zicclsm
+----
+| 5
+| 184
+| 'Zicclsm' (Main Memory Supports Misaligned Loads/Stores).
+
+a|
+[source]
+----
+ziccrse
+----
+| 5
+| 185
+| 'Ziccrse' (Main Memory Supports Forward Progress on LR/SC Sequences).
+
+a|
+[source]
+----
+zicntr
+----
+| 5
+| 186
+| 'Zicntr' (Base Counters and Timers).
+
+a|
+[source]
+----
+zicond
+----
+| 5
+| 187
+| 'Zicond' (Integer Conditional Operations).
+
+a|
+[source]
+----
+zicsr
+----
+| 5
+| 188
+| 'zicsr' (CSRs).
+
+a|
+[source]
+----
+zifencei
+----
+| 5
+| 189
+| 'Zifencei' (fence.i).
+
+a|
+[source]
+----
+zihintntl
+----
+| 5
+| 190
+| 'Zihintntl' (Non-Temporal Locality Hints).
+
+a|
+[source]
+----
+zihintpause
+----
+| 5
+| 191
+| 'Zihintpause' (Pause Hint).
+
+a|
+[source]
+----
+zihpm
+----
+| 5
+| 192
+| 'Zihpm' (Hardware Performance Counters).
+
+a|
+[source]
+----
+zimop
+----
+| 5
+| 193
+| 'Zimop' (May-Be-Operations).
+
+a|
+[source]
+----
+zk
+----
+| 5
+| 194
+| 'Zk' (Standard scalar cryptography extension).
+
+a|
+[source]
+----
+zkn
+----
+| 5
+| 195
+| 'Zkn' (NIST Algorithm Suite).
+
+a|
+[source]
+----
+zknd
+----
+| 5
+| 196
+| 'Zknd' (NIST Suite: AES Decryption).
+
+a|
+[source]
+----
+zkne
+----
+| 5
+| 197
+| 'Zkne' (NIST Suite: AES Encryption).
+
+a|
+[source]
+----
+zknh
+----
+| 5
+| 198
+| 'Zknh' (NIST Suite: Hash Function Instructions).
+
+a|
+[source]
+----
+zkr
+----
+| 5
+| 199
+| 'Zkr' (Entropy Source Extension).
+
+a|
+[source]
+----
+zks
+----
+| 5
+| 200
+| 'Zks' (ShangMi Algorithm Suite).
+
+a|
+[source]
+----
+zksed
+----
+| 5
+| 201
+| 'Zksed' (ShangMi Suite: SM4 Block Cipher Instructions).
+
+a|
+[source]
+----
+zksh
+----
+| 5
+| 202
+| 'Zksh' (ShangMi Suite: SM3 Hash Function Instructions).
+
+a|
+[source]
+----
+zkt
+----
+| 5
+| 203
+| 'Zkt' (Data Independent Execution Latency).
+
+a|
+[source]
+----
+zmmul
+----
+| 5
+| 204
+| 'Zmmul' (Integer Multiplication).
+
+a|
+[source]
+----
+ztso
+----
+| 5
+| 205
+| 'Ztso' (Memory Model
+
+a|
+[source]
+----
+zvbb
+----
+| 5
+| 206
+| 'Zvbb' (Vector basic bit-manipulation instructions).
+
+a|
+[source]
+----
+zvbc
+----
+| 5
+| 207
+| 'Zvbc' (Vector Carryless Multiplication).
+
+a|
+[source]
+----
+zve32f
+----
+| 5
+| 208
+| 'Zve32f' (Vector Extensions for Embedded Processors with maximal 32 EEW and F extension).
+
+a|
+[source]
+----
+zve32x
+----
+| 5
+| 209
+| 'Zve32x' (Vector Extensions for Embedded Processors with maximal 32 EEW).
+
+a|
+[source]
+----
+zve64d
+----
+| 5
+| 210
+| 'Zve64d' (Vector Extensions for Embedded Processors with maximal 64 EEW, F and D extension).
+
+a|
+[source]
+----
+zve64f
+----
+| 5
+| 211
+| 'Zve64f' (Vector Extensions for Embedded Processors with maximal 64 EEW and F extension).
+
+a|
+[source]
+----
+zve64x
+----
+| 5
+| 212
+| 'Zve64x' (Vector Extensions for Embedded Processors with maximal 64 EEW).
+
+a|
+[source]
+----
+zvfbfmin
+----
+| 5
+| 213
+| 'Zvbfmin' (Vector BF16 Converts).
+
+a|
+[source]
+----
+zvfbfwma
+----
+| 5
+| 214
+| 'Zvfbfwma' (Vector BF16 widening mul-add).
+
+a|
+[source]
+----
+zvfh
+----
+| 5
+| 215
+| 'Zvfh' (Vector Half-Precision Floating-Point).
+
+a|
+[source]
+----
+zvfhmin
+----
+| 5
+| 216
+| 'Zvfhmin' (Vector Half-Precision Floating-Point Minimal).
+
+a|
+[source]
+----
+zvkb
+----
+| 5
+| 217
+| 'Zvkb' (Vector Bit-manipulation used in Cryptography).
+
+a|
+[source]
+----
+zvkg
+----
+| 5
+| 218
+| 'Zvkg' (Vector GCM instructions for Cryptography).
+
+a|
+[source]
+----
+zvkn
+----
+| 5
+| 219
+| 'Zvkn' (shorthand for 'Zvkned', 'Zvknhb', 'Zvkb', and 'Zvkt').
+
+a|
+[source]
+----
+zvknc
+----
+| 5
+| 220
+| 'Zvknc' (shorthand for 'Zvknc' and 'Zvbc').
+
+a|
+[source]
+----
+zvkned
+----
+| 5
+| 221
+| 'Zvkned' (Vector AES Encryption & Decryption (Single Round)).
+
+a|
+[source]
+----
+zvkng
+----
+| 5
+| 222
+| 'zvkng' (shorthand for 'Zvkn' and 'Zvkg').
+
+a|
+[source]
+----
+zvknha
+----
+| 5
+| 223
+| 'Zvknha' (Vector SHA-2 (SHA-256 only)).
+
+a|
+[source]
+----
+zvknhb
+----
+| 5
+| 224
+| 'Zvknhb' (Vector SHA-2 (SHA-256 and SHA-512)).
+
+a|
+[source]
+----
+zvks
+----
+| 5
+| 225
+| 'Zvks' (shorthand for 'Zvksed', 'Zvksh', 'Zvkb', and 'Zvkt').
+
+a|
+[source]
+----
+zvksc
+----
+| 5
+| 226
+| 'Zvksc' (shorthand for 'Zvks' and 'Zvbc').
+
+a|
+[source]
+----
+zvksed
+----
+| 5
+| 227
+| 'Zvksed' (SM4 Block Cipher Instructions).
+
+a|
+[source]
+----
+zvksg
+----
+| 5
+| 228
+| 'Zvksg' (shorthand for 'Zvks' and 'Zvkg').
+
+a|
+[source]
+----
+zvksh
+----
+| 5
+| 229
+| 'Zvksh' (SM3 Hash Function Instructions).
+
+a|
+[source]
+----
+zvkt
+----
+| 5
+| 230
+| 'Zvkt' (Vector Data-Independent Execution Latency).
+
+a|
+[source]
+----
+zvl1024b
+----
+| 5
+| 231
+| 'Zvl' (Minimum Vector Length) 1024.
+
+a|
+[source]
+----
+zvl128b
+----
+| 5
+| 232
+| 'Zvl' (Minimum Vector Length) 128.
+
+a|
+[source]
+----
+zvl16384b
+----
+| 5
+| 233
+| 'Zvl' (Minimum Vector Length) 16384.
+
+a|
+[source]
+----
+zvl2048b
+----
+| 5
+| 234
+| 'Zvl' (Minimum Vector Length) 2048.
+
+a|
+[source]
+----
+zvl256b
+----
+| 5
+| 235
+| 'Zvl' (Minimum Vector Length) 256.
+
+a|
+[source]
+----
+zvl32768b
+----
+| 5
+| 236
+| 'Zvl' (Minimum Vector Length) 32768.
+
+a|
+[source]
+----
+zvl32b
+----
+| 5
+| 237
+| 'Zvl' (Minimum Vector Length) 32.
+
+a|
+[source]
+----
+zvl4096b
+----
+| 5
+| 238
+| 'Zvl' (Minimum Vector Length) 4096.
+
+a|
+[source]
+----
+zvl512b
+----
+| 5
+| 239
+| 'Zvl' (Minimum Vector Length) 512.
+
+a|
+[source]
+----
+zvl64b
+----
+| 5
+| 240
+| 'Zvl' (Minimum Vector Length) 64.
+
+a|
+[source]
+----
+zvl65536b
+----
+| 5
+| 241
+| 'Zvl' (Minimum Vector Length) 65536.
+
+a|
+[source]
+----
+zvl8192b
+----
+| 5
+| 242
+| 'Zvl' (Minimum Vector Length) 8192.
+
+4+^|*Target: riscv64 (6)*
+
+a|
+[source]
+----
+32bit
+----
+| 6
+| 0
+| Implements RV32.
+
+a|
+[source]
+----
+64bit
+----
+| 6
+| 1
+| Implements RV64.
+
+a|
+[source]
+----
+a
+----
+| 6
+| 2
+| 'A' (Atomic Instructions).
+
+a|
+[source]
+----
+auipc-addi-fusion
+----
+| 6
+| 3
+| Enable AUIPC+ADDI macrofusion.
+
+a|
+[source]
+----
+b
+----
+| 6
+| 4
+| 'B' (the collection of the Zba, Zbb, Zbs extensions).
+
+a|
+[source]
+----
+c
+----
+| 6
+| 5
+| 'C' (Compressed Instructions).
+
+a|
+[source]
+----
+conditional-cmv-fusion
+----
+| 6
+| 6
+| Enable branch+c.mv fusion.
+
+a|
+[source]
+----
+d
+----
+| 6
+| 7
+| 'D' (Double-Precision Floating-Point).
+
+a|
+[source]
+----
+dlen-factor-2
+----
+| 6
+| 8
+| Vector unit DLEN(data path width) is half of VLEN.
+
+a|
+[source]
+----
+e
+----
+| 6
+| 9
+| Implements RV{32,64}E (provides 16 rather than 32 GPRs).
+
+a|
+[source]
+----
+experimental
+----
+| 6
+| 10
+| Experimental intrinsics.
+
+a|
+[source]
+----
+experimental-rva23s64
+----
+| 6
+| 11
+| RISC-V experimental-rva23s64 profile.
+
+a|
+[source]
+----
+experimental-rva23u64
+----
+| 6
+| 12
+| RISC-V experimental-rva23u64 profile.
+
+a|
+[source]
+----
+experimental-rvb23s64
+----
+| 6
+| 13
+| RISC-V experimental-rvb23s64 profile.
+
+a|
+[source]
+----
+experimental-rvb23u64
+----
+| 6
+| 14
+| RISC-V experimental-rvb23u64 profile.
+
+a|
+[source]
+----
+experimental-rvm23u32
+----
+| 6
+| 15
+| RISC-V experimental-rvm23u32 profile.
+
+a|
+[source]
+----
+experimental-smmpm
+----
+| 6
+| 16
+| 'Smmpm' (Machine-level Pointer Masking for M-mode).
+
+a|
+[source]
+----
+experimental-smnpm
+----
+| 6
+| 17
+| 'Smnpm' (Machine-level Pointer Masking for next lower privilege mode).
+
+a|
+[source]
+----
+experimental-ssnpm
+----
+| 6
+| 18
+| 'Ssnpm' (Supervisor-level Pointer Masking for next lower privilege mode).
+
+a|
+[source]
+----
+experimental-sspm
+----
+| 6
+| 19
+| 'Sspm' (Indicates Supervisor-mode Pointer Masking).
+
+a|
+[source]
+----
+experimental-ssqosid
+----
+| 6
+| 20
+| 'Ssqosid' (Quality-of-Service (QoS) Identifiers).
+
+a|
+[source]
+----
+experimental-supm
+----
+| 6
+| 21
+| 'Supm' (Indicates User-mode Pointer Masking).
+
+a|
+[source]
+----
+experimental-zacas
+----
+| 6
+| 22
+| 'Zacas' (Atomic Compare-And-Swap Instructions).
+
+a|
+[source]
+----
+experimental-zalasr
+----
+| 6
+| 23
+| 'Zalasr' (Load-Acquire and Store-Release Instructions).
+
+a|
+[source]
+----
+experimental-zicfilp
+----
+| 6
+| 24
+| 'Zicfilp' (Landing pad).
+
+a|
+[source]
+----
+experimental-zicfiss
+----
+| 6
+| 25
+| 'Zicfiss' (Shadow stack).
+
+a|
+[source]
+----
+f
+----
+| 6
+| 26
+| 'F' (Single-Precision Floating-Point).
+
+a|
+[source]
+----
+forced-atomics
+----
+| 6
+| 27
+| Assume that lock-free native-width atomics are available.
+
+a|
+[source]
+----
+forced-sw-shadow-stack
+----
+| 6
+| 28
+| Implement shadow stack with software..
+
+a|
+[source]
+----
+h
+----
+| 6
+| 29
+| 'H' (Hypervisor).
+
+a|
+[source]
+----
+i
+----
+| 6
+| 30
+| 'I' (Base Integer Instruction Set).
+
+a|
+[source]
+----
+ld-add-fusion
+----
+| 6
+| 31
+| Enable LD+ADD macrofusion.
+
+a|
+[source]
+----
+lui-addi-fusion
+----
+| 6
+| 32
+| Enable LUI+ADDI macro fusion.
+
+a|
+[source]
+----
+m
+----
+| 6
+| 33
+| 'M' (Integer Multiplication and Division).
+
+a|
+[source]
+----
+no-default-unroll
+----
+| 6
+| 34
+| Disable default unroll preference..
+
+a|
+[source]
+----
+no-rvc-hints
+----
+| 6
+| 35
+| Disable RVC Hint Instructions..
+
+a|
+[source]
+----
+no-sink-splat-operands
+----
+| 6
+| 36
+| Disable sink splat operands to enable .vx, .vf,.wx, and .wf instructions.
+
+a|
+[source]
+----
+no-trailing-seq-cst-fence
+----
+| 6
+| 37
+| Disable trailing fence for seq-cst store..
+
+a|
+[source]
+----
+optimized-zero-stride-load
+----
+| 6
+| 38
+| Optimized (perform fewer memory operations)zero-stride vector load.
+
+a|
+[source]
+----
+predictable-select-expensive
+----
+| 6
+| 39
+| Prefer likely predicted branches over selects.
+
+a|
+[source]
+----
+prefer-w-inst
+----
+| 6
+| 40
+| Prefer instructions with W suffix.
+
+a|
+[source]
+----
+relax
+----
+| 6
+| 41
+| Enable Linker relaxation..
+
+a|
+[source]
+----
+reserve-x1
+----
+| 6
+| 42
+| Reserve X1.
+
+a|
+[source]
+----
+reserve-x10
+----
+| 6
+| 43
+| Reserve X10.
+
+a|
+[source]
+----
+reserve-x11
+----
+| 6
+| 44
+| Reserve X11.
+
+a|
+[source]
+----
+reserve-x12
+----
+| 6
+| 45
+| Reserve X12.
+
+a|
+[source]
+----
+reserve-x13
+----
+| 6
+| 46
+| Reserve X13.
+
+a|
+[source]
+----
+reserve-x14
+----
+| 6
+| 47
+| Reserve X14.
+
+a|
+[source]
+----
+reserve-x15
+----
+| 6
+| 48
+| Reserve X15.
+
+a|
+[source]
+----
+reserve-x16
+----
+| 6
+| 49
+| Reserve X16.
+
+a|
+[source]
+----
+reserve-x17
+----
+| 6
+| 50
+| Reserve X17.
+
+a|
+[source]
+----
+reserve-x18
+----
+| 6
+| 51
+| Reserve X18.
+
+a|
+[source]
+----
+reserve-x19
+----
+| 6
+| 52
+| Reserve X19.
+
+a|
+[source]
+----
+reserve-x2
+----
+| 6
+| 53
+| Reserve X2.
+
+a|
+[source]
+----
+reserve-x20
+----
+| 6
+| 54
+| Reserve X20.
+
+a|
+[source]
+----
+reserve-x21
+----
+| 6
+| 55
+| Reserve X21.
+
+a|
+[source]
+----
+reserve-x22
+----
+| 6
+| 56
+| Reserve X22.
+
+a|
+[source]
+----
+reserve-x23
+----
+| 6
+| 57
+| Reserve X23.
+
+a|
+[source]
+----
+reserve-x24
+----
+| 6
+| 58
+| Reserve X24.
+
+a|
+[source]
+----
+reserve-x25
+----
+| 6
+| 59
+| Reserve X25.
+
+a|
+[source]
+----
+reserve-x26
+----
+| 6
+| 60
+| Reserve X26.
+
+a|
+[source]
+----
+reserve-x27
+----
+| 6
+| 61
+| Reserve X27.
+
+a|
+[source]
+----
+reserve-x28
+----
+| 6
+| 62
+| Reserve X28.
+
+a|
+[source]
+----
+reserve-x29
+----
+| 6
+| 63
+| Reserve X29.
+
+a|
+[source]
+----
+reserve-x3
+----
+| 6
+| 64
+| Reserve X3.
+
+a|
+[source]
+----
+reserve-x30
+----
+| 6
+| 65
+| Reserve X30.
+
+a|
+[source]
+----
+reserve-x31
+----
+| 6
+| 66
+| Reserve X31.
+
+a|
+[source]
+----
+reserve-x4
+----
+| 6
+| 67
+| Reserve X4.
+
+a|
+[source]
+----
+reserve-x5
+----
+| 6
+| 68
+| Reserve X5.
+
+a|
+[source]
+----
+reserve-x6
+----
+| 6
+| 69
+| Reserve X6.
+
+a|
+[source]
+----
+reserve-x7
+----
+| 6
+| 70
+| Reserve X7.
+
+a|
+[source]
+----
+reserve-x8
+----
+| 6
+| 71
+| Reserve X8.
+
+a|
+[source]
+----
+reserve-x9
+----
+| 6
+| 72
+| Reserve X9.
+
+a|
+[source]
+----
+rva20s64
+----
+| 6
+| 73
+| RISC-V rva20s64 profile.
+
+a|
+[source]
+----
+rva20u64
+----
+| 6
+| 74
+| RISC-V rva20u64 profile.
+
+a|
+[source]
+----
+rva22s64
+----
+| 6
+| 75
+| RISC-V rva22s64 profile.
+
+a|
+[source]
+----
+rva22u64
+----
+| 6
+| 76
+| RISC-V rva22u64 profile.
+
+a|
+[source]
+----
+rvi20u32
+----
+| 6
+| 77
+| RISC-V rvi20u32 profile.
+
+a|
+[source]
+----
+rvi20u64
+----
+| 6
+| 78
+| RISC-V rvi20u64 profile.
+
+a|
+[source]
+----
+save-restore
+----
+| 6
+| 79
+| Enable save/restore..
+
+a|
+[source]
+----
+shcounterenw
+----
+| 6
+| 80
+| 'Shcounterenw' (Support writeable hcounteren enable bit for any hpmcounter that is not read-only zero).
+
+a|
+[source]
+----
+shgatpa
+----
+| 6
+| 81
+| 'Sgatpa' (SvNNx4 mode supported for all modes supported by satp, as well as Bare).
+
+a|
+[source]
+----
+shifted-zextw-fusion
+----
+| 6
+| 82
+| Enable SLLI+SRLI to be fused when computing (shifted) word zero extension.
+
+a|
+[source]
+----
+short-forward-branch-opt
+----
+| 6
+| 83
+| Enable short forward branch optimization.
+
+a|
+[source]
+----
+shtvala
+----
+| 6
+| 84
+| 'Shtvala' (htval provides all needed values).
+
+a|
+[source]
+----
+shvsatpa
+----
+| 6
+| 85
+| 'Svsatpa' (vsatp supports all modes supported by satp).
+
+a|
+[source]
+----
+shvstvala
+----
+| 6
+| 86
+| 'Shvstvala' (vstval provides all needed values).
+
+a|
+[source]
+----
+shvstvecd
+----
+| 6
+| 87
+| 'Shvstvecd' (vstvec supports Direct mode).
+
+a|
+[source]
+----
+sifive7
+----
+| 6
+| 88
+| SiFive 7-Series processors.
+
+a|
+[source]
+----
+smaia
+----
+| 6
+| 89
+| 'Smaia' (Advanced Interrupt Architecture Machine Level).
+
+a|
+[source]
+----
+smcdeleg
+----
+| 6
+| 90
+| 'Smcdeleg' (Counter Delegation Machine Level).
+
+a|
+[source]
+----
+smcsrind
+----
+| 6
+| 91
+| 'Smcsrind' (Indirect CSR Access Machine Level).
+
+a|
+[source]
+----
+smepmp
+----
+| 6
+| 92
+| 'Smepmp' (Enhanced Physical Memory Protection).
+
+a|
+[source]
+----
+smstateen
+----
+| 6
+| 93
+| 'Smstateen' (Machine-mode view of the state-enable extension).
+
+a|
+[source]
+----
+ssaia
+----
+| 6
+| 94
+| 'Ssaia' (Advanced Interrupt Architecture Supervisor Level).
+
+a|
+[source]
+----
+ssccfg
+----
+| 6
+| 95
+| 'Ssccfg' (Counter Configuration Supervisor Level).
+
+a|
+[source]
+----
+ssccptr
+----
+| 6
+| 96
+| 'Ssccptr' (Main memory supports page table reads).
+
+a|
+[source]
+----
+sscofpmf
+----
+| 6
+| 97
+| 'Sscofpmf' (Count Overflow and Mode-Based Filtering).
+
+a|
+[source]
+----
+sscounterenw
+----
+| 6
+| 98
+| 'Sscounterenw' (Support writeable scounteren enable bit for any hpmcounter that is not read-only zero).
+
+a|
+[source]
+----
+sscsrind
+----
+| 6
+| 99
+| 'Sscsrind' (Indirect CSR Access Supervisor Level).
+
+a|
+[source]
+----
+ssstateen
+----
+| 6
+| 100
+| 'Ssstateen' (Supervisor-mode view of the state-enable extension).
+
+a|
+[source]
+----
+ssstrict
+----
+| 6
+| 101
+| 'Ssstrict' (No non-conforming extensions are present).
+
+a|
+[source]
+----
+sstc
+----
+| 6
+| 102
+| 'Sstc' (Supervisor-mode timer interrupts).
+
+a|
+[source]
+----
+sstvala
+----
+| 6
+| 103
+| 'Sstvala' (stval provides all needed values).
+
+a|
+[source]
+----
+sstvecd
+----
+| 6
+| 104
+| 'Sstvecd' (stvec supports Direct mode).
+
+a|
+[source]
+----
+ssu64xl
+----
+| 6
+| 105
+| 'Ssu64xl' (UXLEN=64 supported).
+
+a|
+[source]
+----
+svade
+----
+| 6
+| 106
+| 'Svade' (Raise exceptions on improper A/D bits).
+
+a|
+[source]
+----
+svadu
+----
+| 6
+| 107
+| 'Svadu' (Hardware A/D updates).
+
+a|
+[source]
+----
+svbare
+----
+| 6
+| 108
+| 'Svbare' $(satp mode Bare supported).
+
+a|
+[source]
+----
+svinval
+----
+| 6
+| 109
+| 'Svinval' (Fine-Grained Address-Translation Cache Invalidation).
+
+a|
+[source]
+----
+svnapot
+----
+| 6
+| 110
+| 'Svnapot' (NAPOT Translation Contiguity).
+
+a|
+[source]
+----
+svpbmt
+----
+| 6
+| 111
+| 'Svpbmt' (Page-Based Memory Types).
+
+a|
+[source]
+----
+tagged-globals
+----
+| 6
+| 112
+| Use an instruction sequence for taking the address of a global that allows a memory tag in the upper address bits.
+
+a|
+[source]
+----
+unaligned-scalar-mem
+----
+| 6
+| 113
+| Has reasonably performant unaligned scalar loads and stores.
+
+a|
+[source]
+----
+unaligned-vector-mem
+----
+| 6
+| 114
+| Has reasonably performant unaligned vector loads and stores.
+
+a|
+[source]
+----
+use-postra-scheduler
+----
+| 6
+| 115
+| Schedule again after register allocation.
+
+a|
+[source]
+----
+v
+----
+| 6
+| 116
+| 'V' (Vector Extension for Application Processors).
+
+a|
+[source]
+----
+ventana-veyron
+----
+| 6
+| 117
+| Ventana Veyron-Series processors.
+
+a|
+[source]
+----
+xcvalu
+----
+| 6
+| 118
+| 'XCValu' (CORE-V ALU Operations).
+
+a|
+[source]
+----
+xcvbi
+----
+| 6
+| 119
+| 'XCVbi' (CORE-V Immediate Branching).
+
+a|
+[source]
+----
+xcvbitmanip
+----
+| 6
+| 120
+| 'XCVbitmanip' (CORE-V Bit Manipulation).
+
+a|
+[source]
+----
+xcvelw
+----
+| 6
+| 121
+| 'XCVelw' (CORE-V Event Load Word).
+
+a|
+[source]
+----
+xcvmac
+----
+| 6
+| 122
+| 'XCVmac' (CORE-V Multiply-Accumulate).
+
+a|
+[source]
+----
+xcvmem
+----
+| 6
+| 123
+| 'XCVmem' (CORE-V Post-incrementing Load & Store).
+
+a|
+[source]
+----
+xcvsimd
+----
+| 6
+| 124
+| 'XCVsimd' (CORE-V SIMD ALU).
+
+a|
+[source]
+----
+xsfcease
+----
+| 6
+| 125
+| 'XSfcease' (SiFive sf.cease Instruction).
+
+a|
+[source]
+----
+xsfvcp
+----
+| 6
+| 126
+| 'XSfvcp' (SiFive Custom Vector Coprocessor Interface Instructions).
+
+a|
+[source]
+----
+xsfvfnrclipxfqf
+----
+| 6
+| 127
+| 'XSfvfnrclipxfqf' (SiFive FP32-to-int8 Ranged Clip Instructions).
+
+a|
+[source]
+----
+xsfvfwmaccqqq
+----
+| 6
+| 128
+| 'XSfvfwmaccqqq' (SiFive Matrix Multiply Accumulate Instruction and 4-by-4)).
+
+a|
+[source]
+----
+xsfvqmaccdod
+----
+| 6
+| 129
+| 'XSfvqmaccdod' (SiFive Int8 Matrix Multiplication Instructions (2-by-8 and 8-by-2)).
+
+a|
+[source]
+----
+xsfvqmaccqoq
+----
+| 6
+| 130
+| 'XSfvqmaccqoq' (SiFive Int8 Matrix Multiplication Instructions (4-by-8 and 8-by-4)).
+
+a|
+[source]
+----
+xsifivecdiscarddlone
+----
+| 6
+| 131
+| 'XSiFivecdiscarddlone' (SiFive sf.cdiscard.d.l1 Instruction).
+
+a|
+[source]
+----
+xsifivecflushdlone
+----
+| 6
+| 132
+| 'XSiFivecflushdlone' (SiFive sf.cflush.d.l1 Instruction).
+
+a|
+[source]
+----
+xtheadba
+----
+| 6
+| 133
+| 'XTHeadBa' (T-Head address calculation instructions).
+
+a|
+[source]
+----
+xtheadbb
+----
+| 6
+| 134
+| 'XTHeadBb' (T-Head basic bit-manipulation instructions).
+
+a|
+[source]
+----
+xtheadbs
+----
+| 6
+| 135
+| 'XTHeadBs' (T-Head single-bit instructions).
+
+a|
+[source]
+----
+xtheadcmo
+----
+| 6
+| 136
+| 'XTHeadCmo' (T-Head cache management instructions).
+
+a|
+[source]
+----
+xtheadcondmov
+----
+| 6
+| 137
+| 'XTHeadCondMov' (T-Head conditional move instructions).
+
+a|
+[source]
+----
+xtheadfmemidx
+----
+| 6
+| 138
+| 'XTHeadFMemIdx' (T-Head FP Indexed Memory Operations).
+
+a|
+[source]
+----
+xtheadmac
+----
+| 6
+| 139
+| 'XTHeadMac' (T-Head Multiply-Accumulate Instructions).
+
+a|
+[source]
+----
+xtheadmemidx
+----
+| 6
+| 140
+| 'XTHeadMemIdx' (T-Head Indexed Memory Operations).
+
+a|
+[source]
+----
+xtheadmempair
+----
+| 6
+| 141
+| 'XTHeadMemPair' (T-Head two-GPR Memory Operations).
+
+a|
+[source]
+----
+xtheadsync
+----
+| 6
+| 142
+| 'XTHeadSync' (T-Head multicore synchronization instructions).
+
+a|
+[source]
+----
+xtheadvdot
+----
+| 6
+| 143
+| 'XTHeadVdot' (T-Head Vector Extensions for Dot).
+
+a|
+[source]
+----
+xventanacondops
+----
+| 6
+| 144
+| 'XVentanaCondOps' (Ventana Conditional Ops).
+
+a|
+[source]
+----
+xwchc
+----
+| 6
+| 145
+| 'Xwchc' (WCH/QingKe additional compressed opcodes).
+
+a|
+[source]
+----
+za128rs
+----
+| 6
+| 146
+| 'Za128rs' (Reservation Set Size of at Most 128 Bytes).
+
+a|
+[source]
+----
+za64rs
+----
+| 6
+| 147
+| 'Za64rs' (Reservation Set Size of at Most 64 Bytes).
+
+a|
+[source]
+----
+zaamo
+----
+| 6
+| 148
+| 'Zaamo' (Atomic Memory Operations).
+
+a|
+[source]
+----
+zabha
+----
+| 6
+| 149
+| 'Zabha' (Byte and Halfword Atomic Memory Operations).
+
+a|
+[source]
+----
+zalrsc
+----
+| 6
+| 150
+| 'Zalrsc' (Load-Reserved/Store-Conditional).
+
+a|
+[source]
+----
+zama16b
+----
+| 6
+| 151
+| 'Zama16b' (Atomic 16-byte misaligned loads, stores and AMOs).
+
+a|
+[source]
+----
+zawrs
+----
+| 6
+| 152
+| 'Zawrs' (Wait on Reservation Set).
+
+a|
+[source]
+----
+zba
+----
+| 6
+| 153
+| 'Zba' (Address Generation Instructions).
+
+a|
+[source]
+----
+zbb
+----
+| 6
+| 154
+| 'Zbb' (Basic Bit-Manipulation).
+
+a|
+[source]
+----
+zbc
+----
+| 6
+| 155
+| 'Zbc' (Carry-Less Multiplication).
+
+a|
+[source]
+----
+zbkb
+----
+| 6
+| 156
+| 'Zbkb' (Bitmanip instructions for Cryptography).
+
+a|
+[source]
+----
+zbkc
+----
+| 6
+| 157
+| 'Zbkc' (Carry-less multiply instructions for Cryptography).
+
+a|
+[source]
+----
+zbkx
+----
+| 6
+| 158
+| 'Zbkx' (Crossbar permutation instructions).
+
+a|
+[source]
+----
+zbs
+----
+| 6
+| 159
+| 'Zbs' (Single-Bit Instructions).
+
+a|
+[source]
+----
+zca
+----
+| 6
+| 160
+| 'Zca' (part of the C extension, excluding compressed floating point loads/stores).
+
+a|
+[source]
+----
+zcb
+----
+| 6
+| 161
+| 'Zcb' (Compressed basic bit manipulation instructions).
+
+a|
+[source]
+----
+zcd
+----
+| 6
+| 162
+| 'Zcd' (Compressed Double-Precision Floating-Point Instructions).
+
+a|
+[source]
+----
+zce
+----
+| 6
+| 163
+| 'Zce' (Compressed extensions for microcontrollers).
+
+a|
+[source]
+----
+zcf
+----
+| 6
+| 164
+| 'Zcf' (Compressed Single-Precision Floating-Point Instructions).
+
+a|
+[source]
+----
+zcmop
+----
+| 6
+| 165
+| 'Zcmop' (Compressed May-Be-Operations).
+
+a|
+[source]
+----
+zcmp
+----
+| 6
+| 166
+| 'Zcmp' (sequenced instructions for code-size reduction).
+
+a|
+[source]
+----
+zcmt
+----
+| 6
+| 167
+| 'Zcmt' (table jump instructions for code-size reduction).
+
+a|
+[source]
+----
+zdinx
+----
+| 6
+| 168
+| 'Zdinx' (Double in Integer).
+
+a|
+[source]
+----
+zexth-fusion
+----
+| 6
+| 169
+| Enable SLLI+SRLI to be fused to zero extension of halfword.
+
+a|
+[source]
+----
+zextw-fusion
+----
+| 6
+| 170
+| Enable SLLI+SRLI to be fused to zero extension of word.
+
+a|
+[source]
+----
+zfa
+----
+| 6
+| 171
+| 'Zfa' (Additional Floating-Point).
+
+a|
+[source]
+----
+zfbfmin
+----
+| 6
+| 172
+| 'Zfbfmin' (Scalar BF16 Converts).
+
+a|
+[source]
+----
+zfh
+----
+| 6
+| 173
+| 'Zfh' (Half-Precision Floating-Point).
+
+a|
+[source]
+----
+zfhmin
+----
+| 6
+| 174
+| 'Zfhmin' (Half-Precision Floating-Point Minimal).
+
+a|
+[source]
+----
+zfinx
+----
+| 6
+| 175
+| 'Zfinx' (Float in Integer).
+
+a|
+[source]
+----
+zhinx
+----
+| 6
+| 176
+| 'Zhinx' (Half Float in Integer).
+
+a|
+[source]
+----
+zhinxmin
+----
+| 6
+| 177
+| 'Zhinxmin' (Half Float in Integer Minimal).
+
+a|
+[source]
+----
+zic64b
+----
+| 6
+| 178
+| 'Zic64b' (Cache Block Size Is 64 Bytes).
+
+a|
+[source]
+----
+zicbom
+----
+| 6
+| 179
+| 'Zicbom' (Cache-Block Management Instructions).
+
+a|
+[source]
+----
+zicbop
+----
+| 6
+| 180
+| 'Zicbop' (Cache-Block Prefetch Instructions).
+
+a|
+[source]
+----
+zicboz
+----
+| 6
+| 181
+| 'Zicboz' (Cache-Block Zero Instructions).
+
+a|
+[source]
+----
+ziccamoa
+----
+| 6
+| 182
+| 'Ziccamoa' (Main Memory Supports All Atomics in A).
+
+a|
+[source]
+----
+ziccif
+----
+| 6
+| 183
+| 'Ziccif' (Main Memory Supports Instruction Fetch with Atomicity Requirement).
+
+a|
+[source]
+----
+zicclsm
+----
+| 6
+| 184
+| 'Zicclsm' (Main Memory Supports Misaligned Loads/Stores).
+
+a|
+[source]
+----
+ziccrse
+----
+| 6
+| 185
+| 'Ziccrse' (Main Memory Supports Forward Progress on LR/SC Sequences).
+
+a|
+[source]
+----
+zicntr
+----
+| 6
+| 186
+| 'Zicntr' (Base Counters and Timers).
+
+a|
+[source]
+----
+zicond
+----
+| 6
+| 187
+| 'Zicond' (Integer Conditional Operations).
+
+a|
+[source]
+----
+zicsr
+----
+| 6
+| 188
+| 'zicsr' (CSRs).
+
+a|
+[source]
+----
+zifencei
+----
+| 6
+| 189
+| 'Zifencei' (fence.i).
+
+a|
+[source]
+----
+zihintntl
+----
+| 6
+| 190
+| 'Zihintntl' (Non-Temporal Locality Hints).
+
+a|
+[source]
+----
+zihintpause
+----
+| 6
+| 191
+| 'Zihintpause' (Pause Hint).
+
+a|
+[source]
+----
+zihpm
+----
+| 6
+| 192
+| 'Zihpm' (Hardware Performance Counters).
+
+a|
+[source]
+----
+zimop
+----
+| 6
+| 193
+| 'Zimop' (May-Be-Operations).
+
+a|
+[source]
+----
+zk
+----
+| 6
+| 194
+| 'Zk' (Standard scalar cryptography extension).
+
+a|
+[source]
+----
+zkn
+----
+| 6
+| 195
+| 'Zkn' (NIST Algorithm Suite).
+
+a|
+[source]
+----
+zknd
+----
+| 6
+| 196
+| 'Zknd' (NIST Suite: AES Decryption).
+
+a|
+[source]
+----
+zkne
+----
+| 6
+| 197
+| 'Zkne' (NIST Suite: AES Encryption).
+
+a|
+[source]
+----
+zknh
+----
+| 6
+| 198
+| 'Zknh' (NIST Suite: Hash Function Instructions).
+
+a|
+[source]
+----
+zkr
+----
+| 6
+| 199
+| 'Zkr' (Entropy Source Extension).
+
+a|
+[source]
+----
+zks
+----
+| 6
+| 200
+| 'Zks' (ShangMi Algorithm Suite).
+
+a|
+[source]
+----
+zksed
+----
+| 6
+| 201
+| 'Zksed' (ShangMi Suite: SM4 Block Cipher Instructions).
+
+a|
+[source]
+----
+zksh
+----
+| 6
+| 202
+| 'Zksh' (ShangMi Suite: SM3 Hash Function Instructions).
+
+a|
+[source]
+----
+zkt
+----
+| 6
+| 203
+| 'Zkt' (Data Independent Execution Latency).
+
+a|
+[source]
+----
+zmmul
+----
+| 6
+| 204
+| 'Zmmul' (Integer Multiplication).
+
+a|
+[source]
+----
+ztso
+----
+| 6
+| 205
+| 'Ztso' (Memory Model
+
+a|
+[source]
+----
+zvbb
+----
+| 6
+| 206
+| 'Zvbb' (Vector basic bit-manipulation instructions).
+
+a|
+[source]
+----
+zvbc
+----
+| 6
+| 207
+| 'Zvbc' (Vector Carryless Multiplication).
+
+a|
+[source]
+----
+zve32f
+----
+| 6
+| 208
+| 'Zve32f' (Vector Extensions for Embedded Processors with maximal 32 EEW and F extension).
+
+a|
+[source]
+----
+zve32x
+----
+| 6
+| 209
+| 'Zve32x' (Vector Extensions for Embedded Processors with maximal 32 EEW).
+
+a|
+[source]
+----
+zve64d
+----
+| 6
+| 210
+| 'Zve64d' (Vector Extensions for Embedded Processors with maximal 64 EEW, F and D extension).
+
+a|
+[source]
+----
+zve64f
+----
+| 6
+| 211
+| 'Zve64f' (Vector Extensions for Embedded Processors with maximal 64 EEW and F extension).
+
+a|
+[source]
+----
+zve64x
+----
+| 6
+| 212
+| 'Zve64x' (Vector Extensions for Embedded Processors with maximal 64 EEW).
+
+a|
+[source]
+----
+zvfbfmin
+----
+| 6
+| 213
+| 'Zvbfmin' (Vector BF16 Converts).
+
+a|
+[source]
+----
+zvfbfwma
+----
+| 6
+| 214
+| 'Zvfbfwma' (Vector BF16 widening mul-add).
+
+a|
+[source]
+----
+zvfh
+----
+| 6
+| 215
+| 'Zvfh' (Vector Half-Precision Floating-Point).
+
+a|
+[source]
+----
+zvfhmin
+----
+| 6
+| 216
+| 'Zvfhmin' (Vector Half-Precision Floating-Point Minimal).
+
+a|
+[source]
+----
+zvkb
+----
+| 6
+| 217
+| 'Zvkb' (Vector Bit-manipulation used in Cryptography).
+
+a|
+[source]
+----
+zvkg
+----
+| 6
+| 218
+| 'Zvkg' (Vector GCM instructions for Cryptography).
+
+a|
+[source]
+----
+zvkn
+----
+| 6
+| 219
+| 'Zvkn' (shorthand for 'Zvkned', 'Zvknhb', 'Zvkb', and 'Zvkt').
+
+a|
+[source]
+----
+zvknc
+----
+| 6
+| 220
+| 'Zvknc' (shorthand for 'Zvknc' and 'Zvbc').
+
+a|
+[source]
+----
+zvkned
+----
+| 6
+| 221
+| 'Zvkned' (Vector AES Encryption & Decryption (Single Round)).
+
+a|
+[source]
+----
+zvkng
+----
+| 6
+| 222
+| 'zvkng' (shorthand for 'Zvkn' and 'Zvkg').
+
+a|
+[source]
+----
+zvknha
+----
+| 6
+| 223
+| 'Zvknha' (Vector SHA-2 (SHA-256 only)).
+
+a|
+[source]
+----
+zvknhb
+----
+| 6
+| 224
+| 'Zvknhb' (Vector SHA-2 (SHA-256 and SHA-512)).
+
+a|
+[source]
+----
+zvks
+----
+| 6
+| 225
+| 'Zvks' (shorthand for 'Zvksed', 'Zvksh', 'Zvkb', and 'Zvkt').
+
+a|
+[source]
+----
+zvksc
+----
+| 6
+| 226
+| 'Zvksc' (shorthand for 'Zvks' and 'Zvbc').
+
+a|
+[source]
+----
+zvksed
+----
+| 6
+| 227
+| 'Zvksed' (SM4 Block Cipher Instructions).
+
+a|
+[source]
+----
+zvksg
+----
+| 6
+| 228
+| 'Zvksg' (shorthand for 'Zvks' and 'Zvkg').
+
+a|
+[source]
+----
+zvksh
+----
+| 6
+| 229
+| 'Zvksh' (SM3 Hash Function Instructions).
+
+a|
+[source]
+----
+zvkt
+----
+| 6
+| 230
+| 'Zvkt' (Vector Data-Independent Execution Latency).
+
+a|
+[source]
+----
+zvl1024b
+----
+| 6
+| 231
+| 'Zvl' (Minimum Vector Length) 1024.
+
+a|
+[source]
+----
+zvl128b
+----
+| 6
+| 232
+| 'Zvl' (Minimum Vector Length) 128.
+
+a|
+[source]
+----
+zvl16384b
+----
+| 6
+| 233
+| 'Zvl' (Minimum Vector Length) 16384.
+
+a|
+[source]
+----
+zvl2048b
+----
+| 6
+| 234
+| 'Zvl' (Minimum Vector Length) 2048.
+
+a|
+[source]
+----
+zvl256b
+----
+| 6
+| 235
+| 'Zvl' (Minimum Vector Length) 256.
+
+a|
+[source]
+----
+zvl32768b
+----
+| 6
+| 236
+| 'Zvl' (Minimum Vector Length) 32768.
+
+a|
+[source]
+----
+zvl32b
+----
+| 6
+| 237
+| 'Zvl' (Minimum Vector Length) 32.
+
+a|
+[source]
+----
+zvl4096b
+----
+| 6
+| 238
+| 'Zvl' (Minimum Vector Length) 4096.
+
+a|
+[source]
+----
+zvl512b
+----
+| 6
+| 239
+| 'Zvl' (Minimum Vector Length) 512.
+
+a|
+[source]
+----
+zvl64b
+----
+| 6
+| 240
+| 'Zvl' (Minimum Vector Length) 64.
+
+a|
+[source]
+----
+zvl65536b
+----
+| 6
+| 241
+| 'Zvl' (Minimum Vector Length) 65536.
+
+a|
+[source]
+----
+zvl8192b
+----
+| 6
+| 242
+| 'Zvl' (Minimum Vector Length) 8192.
 |===
