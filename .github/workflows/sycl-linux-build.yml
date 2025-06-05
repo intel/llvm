@@ -178,8 +178,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_INSTALL_UTILS=ON \
           -DNATIVECPU_USE_OCK=Off \
-          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV \
-          -DSYCL_INSTALL_DEVICE_CONFIG_FILE=ON
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
     - name: Compile
       id: build
       # Emulate default value for manual dispatch as we've run out of available arguments.

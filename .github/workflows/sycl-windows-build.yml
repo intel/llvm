@@ -147,8 +147,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
           -DLLVM_INSTALL_UTILS=ON ^
-          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV ^
-          -DSYCL_INSTALL_DEVICE_CONFIG_FILE=ON
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
     - name: Build
       id: build
       shell: bash

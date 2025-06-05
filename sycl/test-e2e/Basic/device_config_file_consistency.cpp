@@ -5,9 +5,6 @@
 // aspects that are supported by the device but not declared in the device
 // config file.
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: Accelerator is not supported by
-// sycl_ext_oneapi_device_architecture.
 // REQUIRES: device-config-file
 // RUN: %{build} -o %t.out %device_config_file_include_flag
 // RUN: %{run} %t.out
@@ -62,7 +59,7 @@ aspect getAspectByName(std::string_view Name) {
 }
 
 int main() {
-  // Get the device arch
+  // Get the device arch.
   queue Q;
   auto Dev = Q.get_device();
   auto DeviceName = getArchName(Dev);
@@ -73,10 +70,8 @@ int main() {
     return 1;
   }
 
-  // Check aspects consistency
+  // Check aspects consistency.
   int NAspectInconsistencies = 0;
-  std::cout << "Checking consistency of aspects for device " << DeviceName
-            << "...\n";
 
   auto SupportedAspects = Dev.get_info<info::device::aspects>();
   auto DeviceConfigAspectNames = TargetInfo->second.aspects;
@@ -98,17 +93,17 @@ int main() {
       std::cout << "note: the device " << DeviceName << " supports aspect "
                 << getAspectName(Asp)
                 << " but it is not declared in the device config file\n";
-      // Not necessarily an error, so we won't increment n_fail
+      // Not necessarily an error, so we won't increment n_fail.
     }
   }
 
-  if (NAspectInconsistencies == 0)
-    std::cout << "All aspects are consistent\n";
+  if (NAspectInconsistencies != 0) {
+    std::cout << "Aspects are inconsistent\n";
+    return 1;
+  }
 
-  // Check sub-group sizes consistency
+  // Check sub-group sizes consistency.
   int NSubGroupSizeInconsistencies = 0;
-  std::cout << "Checking consistency of sub-group sizes for device "
-            << DeviceName << "...\n";
 
   auto SupportedSubGroupSizes = Dev.get_info<info::device::sub_group_sizes>();
   auto DeviceConfigSubGroupSizes = TargetInfo->second.subGroupSizes;
@@ -126,14 +121,16 @@ int main() {
       std::cout << "note: the device " << DeviceName
                 << " supports sub-group size " << Size
                 << " but it is not declared in the device config file\n";
-      // Not necessarily an error, so we won't increment n_fail
+      // Not necessarily an error, so we won't increment n_fail.
     }
   }
 
-  if (NSubGroupSizeInconsistencies == 0)
-    std::cout << "All sub-group sizes are consistent\n";
+  if (NSubGroupSizeInconsistencies != 0) {
+    std::cout << "Sub-group sizes are inconsistent\n";
+    return 1;
+  }
 
-  return NAspectInconsistencies + NSubGroupSizeInconsistencies;
+  return 0;
 }
 
 #undef __SYCL_ASPECT_DEPRECATED_ALIAS
