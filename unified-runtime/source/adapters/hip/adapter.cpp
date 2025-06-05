@@ -69,7 +69,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  if (--ur::hip::adapter->getRefCounter().decrement() == 0) {
+  if (ur::hip::adapter->getRefCounter().decrement() == 0) {
     delete ur::hip::adapter;
   }
 

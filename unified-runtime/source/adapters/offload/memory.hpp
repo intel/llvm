@@ -13,6 +13,7 @@
 #include "ur_api.h"
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 
 struct BufferMem {
   enum class AllocMode {
@@ -40,7 +41,7 @@ struct BufferMem {
   size_t getSize() const noexcept { return Size; }
 };
 
-struct ur_mem_handle_t_ : RefCounted {
+struct ur_mem_handle_t_ {
   ur_context_handle_t Context;
 
   enum class Type { Buffer } MemType;
@@ -61,4 +62,9 @@ struct ur_mem_handle_t_ : RefCounted {
   ~ur_mem_handle_t_() { urContextRelease(Context); }
 
   ur_context_handle_t getContext() const noexcept { return Context; }
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

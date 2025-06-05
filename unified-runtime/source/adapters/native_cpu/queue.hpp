@@ -46,12 +46,14 @@ struct ur_queue_handle_t_ {
       auto ev = *events.begin();
       // ur_event_handle_t_::wait removes itself from the events set in the
       // queue.
-      ev->incrementReferenceCount();
+      ev->getRefCounter().increment();
       // Unlocking mutex for removeEvent and for event callbacks that may need
       // to acquire it.
       lock.unlock();
       ev->wait();
-      decrementOrDelete(ev);
+      if (ev->getRefCounter().decrement() == 0) {
+        delete ev;
+      }
       lock.lock();
     }
   }

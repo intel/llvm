@@ -16,7 +16,7 @@
 #include "common.hpp"
 #include "common/ur_ref_counter.hpp"
 
-struct ur_queue_handle_t_ : RefCounted {
+struct ur_queue_handle_t_ {
   ol_queue_handle_t OffloadQueue;
   ol_device_handle_t OffloadDevice;
 

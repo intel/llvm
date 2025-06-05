@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "common/ur_ref_counter.hpp"
 #include "msan_allocator.hpp"
 #include "msan_buffer.hpp"
 #include "msan_libdevice.hpp"
@@ -20,7 +21,6 @@
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_options.hpp"
 #include "ur_sanitizer_layer.hpp"
-#include "common/ur_ref_counter.hpp"
 
 #include <memory>
 #include <optional>
