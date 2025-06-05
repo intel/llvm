@@ -19,28 +19,12 @@ void foo() {
 // CHECK: %class.anon = type { i32, float }
 
 // Check the sycl kernel arguments - one int and one float parameter
-// CHECK: define {{.*}} spir_kernel void @{{.*}}foov{{.*}}(i32 {{.*}} %_arg_x, float {{.*}} %_arg_f2)
+// CHECK: define {{.*}} spir_kernel void @{{.*}}foov{{.*}}(ptr noundef byval(%class.anon) align 4 %_arg__sycl_functor)
 // CHECK: entry:
-
-// Check alloca of the captured types
-// CHECK: %_arg_x.addr = alloca i32, align 4
-// CHECK: %_arg_f2.addr = alloca float, align 4
-// CHECK: %__SYCLKernel = alloca %class.anon, align 4
-
-// Copy the parameters into the alloca-ed addresses
-// CHECK: store i32 %_arg_x, ptr addrspace(4) %_arg_x.addr
-// CHECK: store float %_arg_f2, ptr addrspace(4) %_arg_f2.addr
-
-// Store the int and the float into the struct created
-// CHECK: %x = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %__SYCLKernel{{.*}}, i32 0, i32 0
-// CHECK: %0 = load i32, ptr addrspace(4) %_arg_x.addr
-// CHECK: store i32 %0, ptr addrspace(4) %x
-// CHECK: %f2 = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %__SYCLKernel{{.*}}, i32 0, i32 1
-// CHECK: %1 = load float, ptr addrspace(4) %_arg_f2.addr
-// CHECK: store float %1, ptr addrspace(4) %f2
+// CHECK: %_arg__sycl_functor.ascast = addrspacecast ptr %_arg__sycl_functor to ptr addrspace(4)
 
 // Call the lambda
-// CHECK: call spir_func void @{{.*}}foo{{.*}}(ptr addrspace(4) {{.*}} %__SYCLKernel{{.*}})
+// CHECK: call spir_func void @{{.*}}foo{{.*}}(ptr addrspace(4) {{.*}} %_arg__sycl_functor.ascast)
 // CHECK:   ret void
 
 // Check the lambda call

@@ -129,14 +129,13 @@ int main() {
 
 // Check kernel_C parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_C
-// CHECK-SAME: i32 noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]]
+// CHECK-SAME: ptr noundef byval(%class.anon.3) align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-NOT: kernel_arg_runtime_aligned
 // CHECK-NOT: kernel_arg_exclusive_ptr
 
 // Check usm_ptr parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}usm_ptr
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
+// CHECK-SAME: ptr noundef byval(%class.anon.4) align 8 [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-NOT: kernel_arg_runtime_aligned
 // CHECK-NOT: kernel_arg_exclusive_ptr
 
