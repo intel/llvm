@@ -1,9 +1,11 @@
 # Fetch third party headers
 include(FetchContent)
 
-# The sycl target should download or find emhash.
+# The sycl target should download or find emhash but may not
+# for standalone builds.
 if (NOT SYCL_EMHASH_DIR)
-  message(FATAL_ERROR "emhash headers not found")
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../sycl/cmake/modules")
+  include(FetchEmhash)
 endif()
 
 set(PARALLEL_HASHMAP_REPO https://github.com/greg7mdp/parallel-hashmap.git)
