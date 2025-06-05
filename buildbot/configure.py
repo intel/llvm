@@ -161,9 +161,6 @@ def do_configure(args, passthrough_args):
             libclc_gen_remangled_variants = "ON"
             spirv_enable_dis = "ON"
 
-        # Build compiler with zstd in CI.
-        llvm_enable_zstd = "FORCE_ON"
-
     if args.enable_backends:
         sycl_enabled_backends += args.enable_backends
 
