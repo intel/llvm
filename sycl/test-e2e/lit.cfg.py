@@ -932,6 +932,18 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
+
+if config.llvm_main_include_dir:
+    lit_config.note("Using device config file built from LLVM")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(
+        ("%device_config_file_include_flag", f"-I {config.llvm_main_include_dir}")
+    )
+elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hpp"):
+    lit_config.note("Using installed device config file")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(("%device_config_file_include_flag", ""))
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
