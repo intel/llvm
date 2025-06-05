@@ -29,20 +29,12 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 namespace detail {
-class context_impl {
-public:
-  /// Constructs a context_impl using a single SYCL devices.
-  ///
-  /// The constructed context_impl will use the AsyncHandler parameter to
-  /// handle exceptions.
-  /// PropList carries the properties of the constructed context_impl.
-  ///
-  /// \param Device is an instance of SYCL device.
-  /// \param AsyncHandler is an instance of async_handler.
-  /// \param PropList is an instance of property_list.
-  context_impl(const device &Device, async_handler AsyncHandler,
-               const property_list &PropList);
+class context_impl : std::enable_shared_from_this<context_impl> {
+  struct private_tag {
+    explicit private_tag() = default;
+  };
 
+public:
   /// Constructs a context_impl using a list of SYCL devices.
   ///
   /// Newly created instance will save each SYCL device in the list. This
@@ -56,7 +48,8 @@ public:
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
   context_impl(const std::vector<sycl::device> DeviceList,
-               async_handler AsyncHandler, const property_list &PropList);
+               async_handler AsyncHandler, const property_list &PropList,
+               private_tag);
 
   /// Construct a context_impl using plug-in interoperability handle.
   ///
@@ -70,8 +63,23 @@ public:
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
                const AdapterPtr &Adapter,
-               const std::vector<sycl::device> &DeviceList = {},
-               bool OwnedByRuntime = true);
+               const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
+               private_tag);
+
+  context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
+               const AdapterPtr &Adapter, private_tag tag)
+      : context_impl(UrContext, AsyncHandler, Adapter,
+                     std::vector<sycl::device>{},
+                     /*OwnedByRuntime*/ true, tag) {}
+
+  // Single variadic method works because all the ctors are expected to be
+  // "public" except the `private_tag` part restricting the creation to
+  // `std::shared_ptr` allocations.
+  template <typename... Ts>
+  static std::shared_ptr<context_impl> create(Ts &&...args) {
+    return std::make_shared<context_impl>(std::forward<Ts>(args)...,
+                                          private_tag{});
+  }
 
   ~context_impl();
 

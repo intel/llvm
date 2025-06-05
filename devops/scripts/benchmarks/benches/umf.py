@@ -167,7 +167,6 @@ class GBench(Benchmark):
                         env=env_vars,
                         stdout=result,
                         unit=self.get_unit_time_or_overhead(explicit_group),
-                        explicit_group=explicit_group,
                     )
                 )
 
