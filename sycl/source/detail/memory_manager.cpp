@@ -891,6 +891,16 @@ void MemoryManager::copy_usm(const void *SrcMem, queue_impl &SrcQueue,
                                                DepEvents.data(), OutEvent);
 }
 
+void MemoryManager::context_copy_usm(const void *SrcMem, ContextImplPtr Context,
+                                     size_t Len, void *DstMem) {
+  if (!SrcMem || !DstMem)
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
+  const AdapterPtr &Adapter = Context->getAdapter();
+  Adapter->call<UrApiKind::urUSMContextMemcpyExp>(Context->getHandleRef(),
+                                                  DstMem, SrcMem, Len);
+}
+
 void MemoryManager::fill_usm(void *Mem, queue_impl &Queue, size_t Length,
                              const std::vector<unsigned char> &Pattern,
                              std::vector<ur_event_handle_t> DepEvents,
