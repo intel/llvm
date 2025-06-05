@@ -25,6 +25,7 @@ enum class backend : char {
   // ext_intel_esimd_emulator  = 5,
   ext_oneapi_hip = 6,
   ext_oneapi_native_cpu = 7,
+  ext_oneapi_offload = 8,
 };
 
 template <backend Backend> class backend_traits;
@@ -56,6 +57,9 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::ext_oneapi_native_cpu:
     Out << "ext_oneapi_native_cpu";
     break;
+  case backend::ext_oneapi_offload:
+    Out << "ext_oneapi_offload";
+    break;
   case backend::all:
     Out << "all";
   }
@@ -77,6 +81,8 @@ inline std::string_view get_backend_name_no_vendor(backend Backend) {
     return "hip";
   case backend::ext_oneapi_native_cpu:
     return "native_cpu";
+  case backend::ext_oneapi_offload:
+    return "offload";
   case backend::all:
     return "all";
   }
