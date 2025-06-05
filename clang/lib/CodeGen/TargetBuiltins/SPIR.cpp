@@ -83,6 +83,12 @@ Value *CodeGenFunction::EmitSPIRVBuiltinExpr(unsigned BuiltinID,
         /*ReturnType=*/N->getType(), Intrinsic::spv_faceforward,
         ArrayRef<Value *>{N, I, Ng}, /*FMFSource=*/nullptr, "spv.faceforward");
   }
+  case SPIRV::BI__builtin_spirv_global_invocation_id:
+    return Builder.CreateIntrinsic(
+        /*ReturnType=*/getTypes().ConvertType(E->getType()),
+        Intrinsic::spv_thread_id,
+        ArrayRef<Value *>{EmitScalarExpr(E->getArg(0))}, nullptr,
+        "spv.thread.id");
   }
   return nullptr;
 }

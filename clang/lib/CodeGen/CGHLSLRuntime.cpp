@@ -368,16 +368,17 @@ llvm::Value *CGHLSLRuntime::emitInputSemantic(IRBuilder<> &B,
   }
   if (D.hasAttr<HLSLSV_DispatchThreadIDAttr>()) {
     llvm::Function *ThreadIDIntrinsic =
-        CGM.getIntrinsic(getThreadIdIntrinsic());
+        CGM.getIntrinsic(getThreadIdIntrinsic(), CGM.Int32Ty);
     return buildVectorInput(B, ThreadIDIntrinsic, Ty);
   }
   if (D.hasAttr<HLSLSV_GroupThreadIDAttr>()) {
     llvm::Function *GroupThreadIDIntrinsic =
-        CGM.getIntrinsic(getGroupThreadIdIntrinsic());
+        CGM.getIntrinsic(getGroupThreadIdIntrinsic(), CGM.Int32Ty);
     return buildVectorInput(B, GroupThreadIDIntrinsic, Ty);
   }
   if (D.hasAttr<HLSLSV_GroupIDAttr>()) {
-    llvm::Function *GroupIDIntrinsic = CGM.getIntrinsic(getGroupIdIntrinsic());
+    llvm::Function *GroupIDIntrinsic =
+        CGM.getIntrinsic(getGroupIdIntrinsic(), CGM.Int32Ty);
     return buildVectorInput(B, GroupIDIntrinsic, Ty);
   }
   assert(false && "Unhandled parameter attribute");
