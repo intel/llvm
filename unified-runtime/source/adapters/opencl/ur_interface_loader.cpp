@@ -33,6 +33,23 @@ ur_result_t validateProcInputs(ur_api_version_t Version, void *pDdiTable) {
 extern "C" {
 #endif
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnGet = urAdapterGet;
+  pDdiTable->pfnRelease = urAdapterRelease;
+  pDdiTable->pfnRetain = urAdapterRetain;
+  pDdiTable->pfnGetLastError = urAdapterGetLastError;
+  pDdiTable->pfnGetInfo = urAdapterGetInfo;
+  pDdiTable->pfnSetLoggerCallback = urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel = urAdapterSetLoggerCallbackLevel;
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_api_version_t Version, ur_platform_dditable_t *pDdiTable) {
   auto Result = validateProcInputs(Version, pDdiTable);
@@ -127,6 +144,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
   pDdiTable->pfnGetSuggestedLocalWorkSize = urKernelGetSuggestedLocalWorkSize;
+  pDdiTable->pfnSuggestMaxCooperativeGroupCount =
+      urKernelSuggestMaxCooperativeGroupCount;
   return UR_RESULT_SUCCESS;
 }
 
@@ -201,20 +220,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    ur_api_version_t Version, ur_global_dditable_t *pDdiTable) {
-  auto Result = validateProcInputs(Version, pDdiTable);
-  if (UR_RESULT_SUCCESS != Result) {
-    return Result;
-  }
-  pDdiTable->pfnAdapterGet = urAdapterGet;
-  pDdiTable->pfnAdapterRelease = urAdapterRelease;
-  pDdiTable->pfnAdapterRetain = urAdapterRetain;
-  pDdiTable->pfnAdapterGetLastError = urAdapterGetLastError;
-  pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
-  return UR_RESULT_SUCCESS;
-}
-
 UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_api_version_t Version, ur_queue_dditable_t *pDdiTable) {
   auto Result = validateProcInputs(Version, pDdiTable);
@@ -259,6 +264,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   pDdiTable->pfnImportExp = urUSMImportExp;
   pDdiTable->pfnReleaseExp = urUSMReleaseExp;
+  pDdiTable->pfnContextMemcpyExp = urUSMContextMemcpyExp;
   return UR_RESULT_SUCCESS;
 }
 
@@ -414,24 +420,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCooperativeKernelLaunchExp =
-      urEnqueueCooperativeKernelLaunchExp;
   pDdiTable->pfnTimestampRecordingExp = urEnqueueTimestampRecordingExp;
   pDdiTable->pfnNativeCommandExp = urEnqueueNativeCommandExp;
   pDdiTable->pfnCommandBufferExp = urEnqueueCommandBufferExp;
-
-  return UR_RESULT_SUCCESS;
-}
-
-UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    ur_api_version_t version, ur_kernel_exp_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-
-  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
-      urKernelSuggestMaxCooperativeGroupCountExp;
 
   return UR_RESULT_SUCCESS;
 }
@@ -450,21 +441,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
-    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-  pDdiTable->pfnSetLoggerCallback = urAdapterSetLoggerCallback;
-  pDdiTable->pfnSetLoggerCallbackLevel = urAdapterSetLoggerCallbackLevel;
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
                                                    ur_dditable_t *pDdiTable) {
-  urGetGlobalProcAddrTable(version, &pDdiTable->Global);
+  urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
   urGetBindlessImagesExpProcAddrTable(version, &pDdiTable->BindlessImagesExp);
   urGetCommandBufferExpProcAddrTable(version, &pDdiTable->CommandBufferExp);
   urGetContextProcAddrTable(version, &pDdiTable->Context);
@@ -472,7 +451,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetEnqueueExpProcAddrTable(version, &pDdiTable->EnqueueExp);
   urGetEventProcAddrTable(version, &pDdiTable->Event);
   urGetKernelProcAddrTable(version, &pDdiTable->Kernel);
-  urGetKernelExpProcAddrTable(version, &pDdiTable->KernelExp);
   urGetMemProcAddrTable(version, &pDdiTable->Mem);
   urGetPhysicalMemProcAddrTable(version, &pDdiTable->PhysicalMem);
   urGetPlatformProcAddrTable(version, &pDdiTable->Platform);
@@ -485,7 +463,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetUsmP2PExpProcAddrTable(version, &pDdiTable->UsmP2PExp);
   urGetVirtualMemProcAddrTable(version, &pDdiTable->VirtualMem);
   urGetDeviceProcAddrTable(version, &pDdiTable->Device);
-  urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
 
   return UR_RESULT_SUCCESS;
 }

@@ -27,19 +27,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-context_impl::context_impl(const device &Device, async_handler AsyncHandler,
-                           const property_list &PropList)
-    : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(1, Device),
-      MContext(nullptr),
-      MPlatform(detail::getSyclObjImpl(Device.get_platform())),
-      MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
-  verifyProps(PropList);
-  MKernelProgramCache.setContextPtr(this);
-}
-
 context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
-                           const property_list &PropList)
+                           const property_list &PropList, private_tag)
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
       MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(MDevices[0].get_platform())),
@@ -72,7 +62,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
                            async_handler AsyncHandler,
                            const AdapterPtr &Adapter,
                            const std::vector<sycl::device> &DeviceList,
-                           bool OwnedByRuntime)
+                           bool OwnedByRuntime, private_tag)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
       MDevices(DeviceList), MContext(UrContext), MPlatform(),
       MSupportBufferLocationByDevices(NotChecked) {
@@ -427,7 +417,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =
-          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl);
+          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(*QueueImpl);
 
       // If the device global still has a initialization event it should be
       // added to the initialization events list. Since initialization events
@@ -530,7 +520,7 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
 
       auto KeyMappingsIt = KeyMap.find(OuterKey);
       assert(KeyMappingsIt != KeyMap.end());
-      auto CachedProgIt = Cache.find(KeyMappingsIt->second);
+      auto CachedProgIt = Cache.find((*KeyMappingsIt).second);
       assert(CachedProgIt != Cache.end());
       BuildRes = CachedProgIt->second;
     }

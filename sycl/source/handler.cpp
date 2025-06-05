@@ -316,8 +316,8 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(),
-                                                        CallerNeedsEvent)),
+    : MImplOwner(
+          std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
 handler::handler(detail::handler_impl *HandlerImpl,
@@ -404,7 +404,11 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   setHandlerKernelBundle(KernelBundleImpl);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+detail::EventImplPtr handler::finalize() {
+#else
 event handler::finalize() {
+#endif
   // This block of code is needed only for reduction implementation.
   // It is harmless (does nothing) for everything else.
   if (MIsFinalized)
@@ -476,13 +480,13 @@ event handler::finalize() {
           !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
-          !KernelBundleImpPtr->tryGetKernel(MKernelName.data(),
+          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName),
                                             KernelBundleImpPtr)) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                MKernelName.data());
+                toKernelNameStrT(MKernelName));
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -531,8 +535,13 @@ event handler::finalize() {
       // creation.
       std::vector<ur_event_handle_t> RawEvents =
           detail::Command::getUrEvents(impl->CGData.MEvents, MQueue, false);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      detail::EventImplPtr &LastEventImpl = MLastEvent;
+#else
       const detail::EventImplPtr &LastEventImpl =
           detail::getSyclObjImpl(MLastEvent);
+#endif
 
       bool DiscardEvent =
           !impl->MEventNeeded && MQueue->supportsDiscardingPiEvents();
@@ -541,9 +550,15 @@ event handler::finalize() {
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                MKernelName.data());
+                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
         DiscardEvent = !KernelUsesAssert;
       }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      if (!DiscardEvent) {
+        LastEventImpl = std::make_shared<detail::event_impl>();
+      }
+#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
       const bool xptiEnabled = xptiTraceEnabled();
@@ -566,14 +581,15 @@ event handler::finalize() {
 #endif
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(MQueue, MKernelName.data());
+          std::tie(BinImage, std::ignore) = detail::retrieveKernelBinary(
+              *MQueue, toKernelNameStrT(MKernelName));
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
             MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
-            MKernel.get(), MKernelName.data(), impl->MKernelNameBasedCachePtr,
-            RawEvents, DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
+            MKernel.get(), toKernelNameStrT(MKernelName),
+            impl->MKernelNameBasedCachePtr, RawEvents,
+            DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
             impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
@@ -595,7 +611,9 @@ event handler::finalize() {
 
       if (DiscardEvent) {
         EnqueueKernel();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         LastEventImpl->setStateDiscarded();
+#endif
       } else {
         LastEventImpl->setQueue(MQueue);
         LastEventImpl->setWorkerQueue(MQueue);
@@ -621,13 +639,15 @@ event handler::finalize() {
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
   case detail::CGType::Kernel: {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions
+#endif
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), MKernelName.data(),
+        std::move(impl->MArgs), toKernelNameStrT(MKernelName),
         impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
@@ -757,7 +777,12 @@ event handler::finalize() {
     } else {
       event GraphCompletionEvent =
           impl->MExecGraph->enqueue(MQueue, std::move(impl->CGData));
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      MLastEvent = getSyclObjImpl(GraphCompletionEvent);
+#else
       MLastEvent = GraphCompletionEvent;
+#endif
       return MLastEvent;
     }
   } break;
@@ -805,8 +830,12 @@ event handler::finalize() {
   // so it can be retrieved by the graph later.
   if (impl->MGraph) {
     impl->MGraphNodeCG = std::move(CommandGroup);
-    return detail::createSyclObjFromImpl<event>(
-        std::make_shared<detail::event_impl>());
+    auto EventImpl = std::make_shared<detail::event_impl>();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return EventImpl;
+#else
+    return detail::createSyclObjFromImpl<event>(EventImpl);
+#endif
   }
 
   // If the queue has an associated graph then we need to take the CG and pass
@@ -861,13 +890,21 @@ event handler::finalize() {
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(EventImpl, std::move(NodeImpl));
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return EventImpl;
+#else
     return detail::createSyclObjFromImpl<event>(EventImpl);
+#endif
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue), impl->MEventNeeded);
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  MLastEvent = Event;
+#else
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+#endif
   return MLastEvent;
 }
 
@@ -2059,7 +2096,7 @@ backend handler::getDeviceBackend() const {
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;
@@ -2069,7 +2106,7 @@ void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
 
 void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                         size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;
@@ -2350,6 +2387,12 @@ void handler::setKernelInfo(
   impl->MKernelParamDescGetter = KernelParamDescGetter;
   impl->MKernelIsESIMD = KernelIsESIMD;
   impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
+}
+
+void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {
+  // Passing the pointer to the runtime is enough to prevent optimization.
+  // We don't need to use the pointer for anything.
+  (void)InstantiateKernelOnHostPtr;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {

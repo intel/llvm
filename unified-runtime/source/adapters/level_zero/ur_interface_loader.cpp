@@ -33,22 +33,6 @@ namespace ur::level_zero {
 extern "C" {
 #endif
 
-UR_APIEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    ur_api_version_t version, ur_global_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-
-  pDdiTable->pfnAdapterGet = ur::level_zero::urAdapterGet;
-  pDdiTable->pfnAdapterRelease = ur::level_zero::urAdapterRelease;
-  pDdiTable->pfnAdapterRetain = ur::level_zero::urAdapterRetain;
-  pDdiTable->pfnAdapterGetLastError = ur::level_zero::urAdapterGetLastError;
-  pDdiTable->pfnAdapterGetInfo = ur::level_zero::urAdapterGetInfo;
-
-  return result;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -56,6 +40,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnGet = ur::level_zero::urAdapterGet;
+  pDdiTable->pfnRelease = ur::level_zero::urAdapterRelease;
+  pDdiTable->pfnRetain = ur::level_zero::urAdapterRetain;
+  pDdiTable->pfnGetLastError = ur::level_zero::urAdapterGetLastError;
+  pDdiTable->pfnGetInfo = ur::level_zero::urAdapterGetInfo;
   pDdiTable->pfnSetLoggerCallback = ur::level_zero::urAdapterSetLoggerCallback;
   pDdiTable->pfnSetLoggerCallbackLevel =
       ur::level_zero::urAdapterSetLoggerCallbackLevel;
@@ -234,15 +223,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnKernelLaunchCustomExp =
-      ur::level_zero::urEnqueueKernelLaunchCustomExp;
   pDdiTable->pfnUSMDeviceAllocExp = ur::level_zero::urEnqueueUSMDeviceAllocExp;
   pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
   pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
   pDdiTable->pfnUSMFreeExp = ur::level_zero::urEnqueueUSMFreeExp;
   pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
-  pDdiTable->pfnCooperativeKernelLaunchExp =
-      ur::level_zero::urEnqueueCooperativeKernelLaunchExp;
   pDdiTable->pfnTimestampRecordingExp =
       ur::level_zero::urEnqueueTimestampRecordingExp;
   pDdiTable->pfnNativeCommandExp = ur::level_zero::urEnqueueNativeCommandExp;
@@ -296,19 +281,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgMemObj = ur::level_zero::urKernelSetArgMemObj;
   pDdiTable->pfnSetSpecializationConstants =
       ur::level_zero::urKernelSetSpecializationConstants;
-
-  return result;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    ur_api_version_t version, ur_kernel_exp_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-
-  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
-      ur::level_zero::urKernelSuggestMaxCooperativeGroupCountExp;
+  pDdiTable->pfnSuggestMaxCooperativeGroupCount =
+      ur::level_zero::urKernelSuggestMaxCooperativeGroupCount;
 
   return result;
 }
@@ -489,6 +463,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       ur::level_zero::urUSMPoolGetDevicePoolExp;
   pDdiTable->pfnPoolTrimToExp = ur::level_zero::urUSMPoolTrimToExp;
   pDdiTable->pfnPitchedAllocExp = ur::level_zero::urUSMPitchedAllocExp;
+  pDdiTable->pfnContextMemcpyExp = ur::level_zero::urUSMContextMemcpyExp;
   pDdiTable->pfnImportExp = ur::level_zero::urUSMImportExp;
   pDdiTable->pfnReleaseExp = ur::level_zero::urUSMReleaseExp;
 
@@ -573,10 +548,6 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
 #define NAMESPACE_
 #endif
 
-  result = NAMESPACE_::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
-                                                &ddi->Global);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
   result = NAMESPACE_::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,
                                                  &ddi->Adapter);
   if (result != UR_RESULT_SUCCESS)
@@ -607,10 +578,6 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return result;
   result = NAMESPACE_::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
                                                 &ddi->Kernel);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = NAMESPACE_::urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                   &ddi->KernelExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Mem);

@@ -14,7 +14,7 @@ bool checkBarrierEvent(sycl::backend backend, sycl::event LastEvent,
                        sycl::event BarrierEvent, bool noEventMode) {
   // In noEventMode or when using opencl backend,
   // barrier will always return last event
-  if (backend == sycl::backend::opencl || !noEventMode) {
+  if (!noEventMode) {
     return BarrierEvent == LastEvent;
   } else {
     return BarrierEvent != LastEvent;
