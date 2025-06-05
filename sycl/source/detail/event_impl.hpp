@@ -241,11 +241,7 @@ public:
   /// Sets original queue used for submission.
   ///
   /// @return
-  void setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
-    MSubmittedQueue = SubmittedQueue;
-    if (MHostProfilingInfo)
-      MHostProfilingInfo->setSubmitQueue(SubmittedQueue);
-  };
+  void setSubmittedQueue(const QueueImplPtr &SubmittedQueue);
 
   /// Indicates if this event is not associated with any command and doesn't
   /// have native handle.
