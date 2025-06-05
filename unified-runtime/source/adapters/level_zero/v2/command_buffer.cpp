@@ -71,7 +71,10 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       commandListManager(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList)),
-      context(context), device(device) {}
+      context(context), device(device),
+      eventPool(context->getEventPoolCache(PoolCacheType::Regular)
+                    .borrow(device->Id.value(),
+                            isInOrder ? v2::EVENT_FLAGS_COUNTER : 0)) {}
 
 ur_exp_command_buffer_sync_point_t
 ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
@@ -153,7 +156,6 @@ ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
   }
   if (nextExecutionEvent) {
     currentExecution = nextExecutionEvent;
-    UR_CALL(nextExecutionEvent->retain());
   }
   return UR_RESULT_SUCCESS;
 }
@@ -200,6 +202,21 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
 
   return UR_RESULT_SUCCESS;
 }
+
+ur_event_handle_t ur_exp_command_buffer_handle_t_::createEventIfRequested(
+    ur_exp_command_buffer_sync_point_t *retSyncPoint) {
+  if (retSyncPoint == nullptr) {
+    return nullptr;
+  }
+
+  auto event = eventPool->allocate();
+  event->setQueue(nullptr);
+
+  *retSyncPoint = getSyncPoint(event);
+
+  return event;
+}
+
 namespace ur::level_zero {
 
 ur_result_t
@@ -290,18 +307,11 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   }
   auto eventsWaitList = commandBuffer->getWaitListFromSyncPoints(
       syncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (retSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
+
   UR_CALL(commandListLocked->enqueueKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
-      nullptr, numSyncPointsInWaitList, eventsWaitList, event));
-
-  if (retSyncPoint != nullptr) {
-    *retSyncPoint = commandBuffer->getSyncPoint(signalEvent);
-  }
+      nullptr, numSyncPointsInWaitList, eventsWaitList,
+      commandBuffer->createEventIfRequested(retSyncPoint)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -322,17 +332,11 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
-  UR_CALL(commandListLocked->enqueueUSMMemcpy(
-      false, pDst, pSrc, size, numSyncPointsInWaitList, eventsWaitList, event));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
+  UR_CALL(commandListLocked->enqueueUSMMemcpy(
+      false, pDst, pSrc, size, numSyncPointsInWaitList, eventsWaitList,
+      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -355,18 +359,11 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
+
   UR_CALL(commandListLocked->enqueueMemBufferCopy(
       hSrcMem, hDstMem, srcOffset, dstOffset, size, numSyncPointsInWaitList,
-      eventsWaitList, event));
+      eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -389,18 +386,11 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
+
   UR_CALL(commandListLocked->enqueueMemBufferWrite(
       hBuffer, false, offset, size, pSrc, numSyncPointsInWaitList,
-      eventsWaitList, event));
+      eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -421,18 +411,11 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
-  UR_CALL(commandListLocked->enqueueMemBufferRead(hBuffer, false, offset, size,
-                                                  pDst, numSyncPointsInWaitList,
-                                                  eventsWaitList, event));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
+  UR_CALL(commandListLocked->enqueueMemBufferRead(
+      hBuffer, false, offset, size, pDst, numSyncPointsInWaitList,
+      eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
+
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -457,19 +440,12 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
+
   UR_CALL(commandListLocked->enqueueMemBufferCopyRect(
       hSrcMem, hDstMem, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, numSyncPointsInWaitList,
-      eventsWaitList, event));
+      eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -494,19 +470,13 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
+
   UR_CALL(commandListLocked->enqueueMemBufferWriteRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
-      numSyncPointsInWaitList, eventsWaitList, event));
+      numSyncPointsInWaitList, eventsWaitList,
+      hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -531,19 +501,13 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
+
   UR_CALL(commandListLocked->enqueueMemBufferReadRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
-      numSyncPointsInWaitList, eventsWaitList, event));
+      numSyncPointsInWaitList, eventsWaitList,
+      hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -563,17 +527,10 @@ ur_result_t urCommandBufferAppendUSMFillExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
-  UR_CALL(commandListLocked->enqueueUSMFill(pMemory, patternSize, pPattern,
-                                            size, numSyncPointsInWaitList,
-                                            eventsWaitList, event));
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
+
+  UR_CALL(commandListLocked->enqueueUSMFill(
+      pMemory, patternSize, pPattern, size, numSyncPointsInWaitList,
+      eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -594,17 +551,11 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
+
   UR_CALL(commandListLocked->enqueueMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, numSyncPointsInWaitList,
-      eventsWaitList, event));
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
+      eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
+
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -626,17 +577,11 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
-  UR_CALL(commandListLocked->enqueueUSMPrefetch(
-      pMemory, size, flags, numSyncPointsInWaitList, eventsWaitList, event));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
+  UR_CALL(commandListLocked->enqueueUSMPrefetch(
+      pMemory, size, flags, numSyncPointsInWaitList, eventsWaitList,
+      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -656,17 +601,11 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
-  UR_CALL(commandListLocked->enqueueUSMAdvise(
-      pMemory, size, advice, numSyncPointsInWaitList, eventsWaitList, event));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
+  UR_CALL(commandListLocked->enqueueUSMAdvise(
+      pMemory, size, advice, numSyncPointsInWaitList, eventsWaitList,
+      hCommandBuffer->createEventIfRequested(pSyncPoint)));
+
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -712,11 +651,7 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
-  ur_event_handle_t *event = nullptr;
-  ur_event_handle_t signalEvent = nullptr;
-  if (pSyncPoint != nullptr) {
-    event = &signalEvent;
-  }
+
   UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(
       numSyncPointsInWaitList, eventsWaitList, nullptr));
 
@@ -724,11 +659,9 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   pfnNativeCommand(pData);
 
   // Barrier on all commands after user defined commands.
-  UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(0, nullptr, event));
+  UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(
+      0, nullptr, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
-  if (pSyncPoint != nullptr) {
-    *pSyncPoint = hCommandBuffer->getSyncPoint(signalEvent);
-  }
   return UR_RESULT_SUCCESS;
 }
 

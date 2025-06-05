@@ -33,14 +33,30 @@ private:
   ur_queue_flags_t flags;
   v2::raii::cache_borrowed_event_pool eventPool;
 
-  ur_event_handle_t *createEventIfRequested(ur_event_handle_t *phEvent) {
+  // Only create an event when requested by the user.
+  ur_event_handle_t createEventIfRequested(ur_event_handle_t *phEvent) {
     if (phEvent == nullptr) {
       return nullptr;
     }
 
     (*phEvent) = eventPool->allocate();
     (*phEvent)->setQueue(this);
-    return phEvent;
+    return (*phEvent);
+  }
+
+  // Always creates an event (used in functions that need to store the event
+  // internally). If event was requested by the user, also increase ref count of
+  // that event to avoid pre-mature release.
+  ur_event_handle_t createEventAndRetain(ur_event_handle_t *phEvent) {
+    auto hEvent = eventPool->allocate();
+    hEvent->setQueue(this);
+
+    if (phEvent) {
+      (*phEvent) = hEvent;
+      hEvent->retain();
+    }
+
+    return hEvent;
   }
 
 public:
@@ -367,7 +383,7 @@ public:
                                 ur_event_handle_t *phEvent) override {
     return commandListManager.lock()->appendUSMFreeExp(
         this, pPool, pMem, numEventsInWaitList, phEventWaitList,
-        createEventIfRequested(phEvent));
+        createEventAndRetain(phEvent));
   }
 
   ur_result_t bindlessImagesImageCopyExp(
@@ -421,7 +437,7 @@ public:
                           ur_event_handle_t *phEvent) override {
     return commandListManager.lock()->enqueueCommandBufferExp(
         hCommandBuffer, numEventsInWaitList, phEventWaitList,
-        createEventIfRequested(phEvent));
+        createEventAndRetain(phEvent));
   }
 
   ur_result_t enqueueNativeCommandExp(

@@ -103,9 +103,10 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
 
   ZE2UR_CALL(zeCommandListHostSynchronize,
              (lockedCommandListManager->getZeCommandList(), UINT64_MAX));
-  UR_CALL(lockedCommandListManager->releaseSubmittedKernels());
 
   hContext->getAsyncPool()->cleanupPoolsForQueue(this);
+
+  UR_CALL(lockedCommandListManager->releaseSubmittedKernels());
 
   return UR_RESULT_SUCCESS;
 }
@@ -135,9 +136,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   // zeCommandListAppendWaitOnEvents
   if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
     return commandListManager.lock()->enqueueEventsWaitWithBarrier(
-        numEventsInWaitList, phEventWaitList, phEvent);
+        numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
   } else {
-    return enqueueEventsWait(numEventsInWaitList, phEventWaitList, phEvent);
+    return commandListManager.lock()->enqueueEventsWait(
+        numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
   }
 }
 
