@@ -5835,6 +5835,15 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
     return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
   }
 
+  if (const auto *MD = llvm::dyn_cast<CXXMethodDecl>(FD)) {
+    if (MD->isStatic()) // Temporary workaround for static methods.
+      return S.Diag(FD->getLocation(),
+                    diag::err_free_function_static_class_method)
+             << MD->getSourceRange();
+    return S.Diag(FD->getLocation(), diag::err_kern_is_nonstatic_method)
+           << FD << MD->getSourceRange();
+  }
+
   for (ParmVarDecl *Param : FD->parameters()) {
     if (Param->hasDefaultArg()) {
       return S.Diag(Param->getLocation(),
