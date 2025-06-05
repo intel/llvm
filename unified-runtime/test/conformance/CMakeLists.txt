@@ -69,6 +69,7 @@ add_subdirectory(event)
 add_subdirectory(queue)
 add_subdirectory(sampler)
 add_subdirectory(virtual_memory)
+add_subdirectory(exp_usm_context_memcpy)
 
 set(TEST_SUBDIRECTORIES_DPCXX
     "device_code"
