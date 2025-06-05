@@ -66,7 +66,7 @@ int runNdRangeKernel(sycl::queue &Queue, sycl::context &Context,
       .wait();
 
   int Failed = performResultCheck(NumberOfElements, DataPtr,
-                                  ExpectedResultValue, TestName);
+                                  TestName,ExpectedResultValue);
   sycl::free(DataPtr, Queue);
   return Failed;
 }
@@ -88,11 +88,11 @@ int runSingleTaskKernel(sycl::queue &Queue, sycl::context &Context,
         Handler.single_task(UsedKernel);
       })
       .wait();
-  int Failed = performResultCheck<NumOfElements>(DataPtr, ExpectedResultValues,
-                                                 TestName);
+  int Failed = performResultCheck<NumOfElements>(DataPtr, TestName, ExpectedResultValues);
   sycl::free(DataPtr, Queue);
   return Failed;
 }
+
 int main() {
   int Failed = 0;
   constexpr size_t N = 256;
@@ -102,8 +102,7 @@ int main() {
     std::fill(Numbers.begin(), Numbers.end(), 0);
     setValues<int, 1>(Numbers.data(), Numbers.size(), ExpectedResultValue);
     Failed += performResultCheck(
-        N, Numbers.data(), ExpectedResultValue,
-        "setValues() free function kernel used as normal host function");
+        N, Numbers.data(), "setValues() free function kernel used as normal host function",ExpectedResultValue);
   }
 
   {
@@ -114,8 +113,7 @@ int main() {
     std::reverse(ExpectedResultValues.begin(), ExpectedResultValues.end());
     performReverse(Numbers.data(), Numbers.size());
     Failed += performResultCheck<N>(
-        Numbers.data(), ExpectedResultValues,
-        "performReverse() free function kernel used as normal host function");
+        Numbers.data(),"performReverse() free function kernel used as normal host function" ,ExpectedResultValues);
   }
   sycl::queue Queue;
   sycl::context Context = Queue.get_context();
