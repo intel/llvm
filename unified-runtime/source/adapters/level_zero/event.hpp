@@ -250,7 +250,9 @@ struct ur_event_handle_t_ : ur_object {
   ur_event_handle_t OriginAllocEvent = nullptr;
 
   UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
-  UR_ReferenceCounter &getRefCounterExternal() noexcept { return RefCounterExternal; }
+  UR_ReferenceCounter &getRefCounterExternal() noexcept {
+    return RefCounterExternal;
+  }
 
 private:
   UR_ReferenceCounter RefCounter;

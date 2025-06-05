@@ -684,7 +684,9 @@ struct ur_queue_handle_t_ : ur_object {
   ur_queue_handle_t_ *UnifiedHandle;
 
   UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
-  UR_ReferenceCounter &getRefCounterExternal() noexcept { return RefCounterExternal; }
+  UR_ReferenceCounter &getRefCounterExternal() noexcept {
+    return RefCounterExternal;
+  }
 
 private:
   UR_ReferenceCounter RefCounter;
