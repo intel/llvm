@@ -206,7 +206,7 @@ void event_impl::setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
     device_impl &Device = SubmittedQueue->getDeviceImpl();
     MHostProfilingInfo->setDevice(&Device);
   }
-};
+}
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                         uint64_t &IId) const {
