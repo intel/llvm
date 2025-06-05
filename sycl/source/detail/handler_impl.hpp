@@ -10,6 +10,7 @@
 
 #include "sycl/handler.hpp"
 #include <detail/cg.hpp>
+#include <detail/graph_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -31,15 +32,13 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
-  handler_impl(queue_impl *SubmissionSecondaryQueue, bool EventNeeded)
+  handler_impl(queue_impl &Queue, queue_impl *SubmissionSecondaryQueue,
+               bool EventNeeded)
       : MSubmissionSecondaryQueue(SubmissionSecondaryQueue),
-        MEventNeeded(EventNeeded) {};
+        MEventNeeded(EventNeeded), MQueueOrGraph{Queue} {};
 
-  handler_impl(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-      : MGraph{Graph} {}
-
-  handler_impl() = default;
+  handler_impl(ext::oneapi::experimental::detail::graph_impl &Graph)
+      : MQueueOrGraph{Graph} {}
 
   void setStateExplicitKernelBundle() {
     if (MSubmissionState == HandlerSubmissionState::SPEC_CONST_SET_STATE)
@@ -165,8 +164,46 @@ public:
   /// manipulations with version are required
   detail::CGType MCGType = detail::CGType::None;
 
-  /// The graph that is associated with this handler.
-  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+  // This handler is associated with either a queue or a graph.
+  using graph_impl = ext::oneapi::experimental::detail::graph_impl;
+  const std::variant<std::reference_wrapper<queue_impl>,
+                     std::reference_wrapper<graph_impl>>
+      MQueueOrGraph;
+
+  queue_impl *get_queue_or_null() {
+    auto *Queue =
+        std::get_if<std::reference_wrapper<queue_impl>>(&MQueueOrGraph);
+    return Queue ? &Queue->get() : nullptr;
+  }
+  queue_impl &get_queue() {
+    return std::get<std::reference_wrapper<queue_impl>>(MQueueOrGraph).get();
+  }
+  graph_impl *get_graph_or_null() {
+    auto *Graph =
+        std::get_if<std::reference_wrapper<graph_impl>>(&MQueueOrGraph);
+    return Graph ? &Graph->get() : nullptr;
+  }
+  graph_impl &get_graph() {
+    return std::get<std::reference_wrapper<graph_impl>>(MQueueOrGraph).get();
+  }
+
+  // Make the following methods templates to avoid circular dependencies for the
+  // includes.
+  template <typename Self = handler_impl> detail::device_impl &get_device() {
+    Self *self = this;
+    if (auto *queue = self->get_queue_or_null())
+      return queue->getDeviceImpl();
+    else
+      return self->get_graph().getDeviceImpl();
+  }
+  template <typename Self = handler_impl> context_impl &get_context() {
+    Self *self = this;
+    if (auto *queue = self->get_queue_or_null())
+      return *queue->getContextImplPtr();
+    else
+      return *self->get_graph().getContextImplPtr();
+  }
+
   /// If we are submitting a graph using ext_oneapi_graph this will be the graph
   /// to be executed.
   std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
