@@ -15,7 +15,7 @@
 #include <mutex>
 #include <vector>
 
-#include "common/ur_ref_count.hpp"
+#include "common/ur_ref_counter.hpp"
 
 using ur_stream_guard = std::unique_lock<std::mutex>;
 
