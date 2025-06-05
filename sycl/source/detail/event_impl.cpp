@@ -113,11 +113,10 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-static uint64_t inline getTimestamp(
-    const std::weak_ptr<queue_impl> &QueueWeakPtr) {
-  if (QueueImplPtr Queue = QueueWeakPtr.lock()) {
+static uint64_t inline getTimestamp(device_impl *Device) {
+  if (Device) {
     try {
-      return Queue->getDeviceImpl().getCurrentDeviceTime();
+      return Device->getCurrentDeviceTime();
     } catch (sycl::exception &e) {
       if (e.code() == sycl::errc::feature_not_supported)
         throw sycl::exception(
@@ -200,6 +199,14 @@ void event_impl::setQueue(const QueueImplPtr &Queue) {
   // for such a change regardless of the construction method.
   MIsDefaultConstructed = false;
 }
+
+void event_impl::setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
+  MSubmittedQueue = SubmittedQueue;
+  if (MHostProfilingInfo && SubmittedQueue) {
+    device_impl &Device = SubmittedQueue->getDeviceImpl();
+    MHostProfilingInfo->setDevice(&Device);
+  }
+};
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                         uint64_t &IId) const {
@@ -491,9 +498,9 @@ event_impl::get_backend_info<info::device::backend_version>() const {
 }
 #endif
 
-void HostProfilingInfo::start() { StartTime = getTimestamp(SubmitQueue); }
+void HostProfilingInfo::start() { StartTime = getTimestamp(Device); }
 
-void HostProfilingInfo::end() { EndTime = getTimestamp(SubmitQueue); }
+void HostProfilingInfo::end() { EndTime = getTimestamp(Device); }
 
 ur_native_handle_t event_impl::getNative() {
   if (isHost())
@@ -583,10 +590,11 @@ void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
 
-  if (isHost())
-    MSubmitTime = getTimestamp(MSubmittedQueue);
-  else
-    MSubmitTime = getTimestamp(MQueue);
+  std::weak_ptr<queue_impl> Queue = isHost() ? MSubmittedQueue : MQueue;
+  if (QueueImplPtr QueuePtr = Queue.lock()) {
+    device_impl &Device = QueuePtr->getDeviceImpl();
+    MSubmitTime = getTimestamp(&Device);
+  }
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }

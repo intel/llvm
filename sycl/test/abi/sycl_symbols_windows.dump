@@ -295,8 +295,6 @@
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHH_K_NAEBVproperty_list@23@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHH_N_K4AEBVproperty_list@23@@Z
-??0HostProfilingInfo@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
-??0HostProfilingInfo@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0HostProfilingInfo@detail@_V1@sycl@@QEAA@XZ
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@VLocalAccessorImplHost@detail@_V1@sycl@@@std@@@Z
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
@@ -501,7 +499,6 @@
 ??0tls_code_loc_t@detail@_V1@sycl@@QEAA@AEBUcode_location@123@@Z
 ??0tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??1AccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
-??1HostProfilingInfo@detail@_V1@sycl@@QEAA@XZ
 ??1LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
 ??1SYCLCategory@detail@_V1@sycl@@UEAA@XZ
 ??1SampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
@@ -4378,6 +4375,7 @@
 ?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVwork_group_memory_impl@detail@23@@Z
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setArgsToAssociatedAccessors@handler@_V1@sycl@@AEAAXXZ
+?setDevice@HostProfilingInfo@detail@_V1@sycl@@QEAAXPEAVdevice_impl@234@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z
@@ -4393,7 +4391,6 @@
 ?setNDRangeUsed@handler@_V1@sycl@@AEAAX_N@Z
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ
 ?setStateSpecConstSet@handler@_V1@sycl@@AEAAXXZ
-?setSubmitQueue@HostProfilingInfo@detail@_V1@sycl@@QEAAXAEBV?$weak_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?setType@handler@_V1@sycl@@AEAAXW4CGType@detail@23@@Z
 ?setUserFacingNodeType@handler@_V1@sycl@@AEAAXW4node_type@experimental@oneapi@ext@23@@Z
 ?set_access_mode@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KW4address_access_mode@12345@AEBVcontext@45@@Z
