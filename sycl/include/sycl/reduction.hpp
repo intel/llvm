@@ -1238,15 +1238,12 @@ template <>
 struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH,
-                  const std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
                   "Identityless reductions are not supported by the "
                   "local_atomic_and_atomic_cross_wg strategy.");
 
-    std::ignore = Queue;
     using Name = __sycl_reduction_kernel<
         reduction::MainKrn, KernelName,
         reduction::strategy::local_atomic_and_atomic_cross_wg>;
@@ -1290,15 +1287,12 @@ struct NDRangeReduction<
     reduction::strategy::group_reduce_and_last_wg_detection> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH,
-                  const std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
                   "Identityless reductions are not supported by the "
                   "group_reduce_and_last_wg_detection strategy.");
 
-    std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
     size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1490,9 +1484,7 @@ void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH,
-                  const std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     using reducer_type = typename Reduction::reducer_type;
     using element_type = typename ReducerTraits<reducer_type>::element_type;
@@ -1504,7 +1496,6 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
     constexpr bool UsePartialSumForOutput =
         !Reduction::is_usm && Reduction::has_identity;
 
-    std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
     size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1602,15 +1593,12 @@ template <>
 struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH,
-                  const std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
                   "Identityless reductions are not supported by the "
                   "group_reduce_and_atomic_cross_wg strategy.");
 
-    std::ignore = Queue;
     using Name = __sycl_reduction_kernel<
         reduction::MainKrn, KernelName,
         reduction::strategy::group_reduce_and_atomic_cross_wg>;
@@ -1639,14 +1627,11 @@ struct NDRangeReduction<
     reduction::strategy::local_mem_tree_and_atomic_cross_wg> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH,
-                  const std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     using reducer_type = typename Reduction::reducer_type;
     using element_type = typename ReducerTraits<reducer_type>::element_type;
 
-    std::ignore = Queue;
     using Name = __sycl_reduction_kernel<
         reduction::MainKrn, KernelName,
         reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
@@ -1701,8 +1686,7 @@ struct NDRangeReduction<
     reduction::strategy::group_reduce_and_multiple_kernels> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
                   "Identityless reductions are not supported by the "
@@ -1839,8 +1823,7 @@ struct NDRangeReduction<
 template <> struct NDRangeReduction<reduction::strategy::basic> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     using element_type = typename Reduction::reducer_element_type;
 
@@ -2614,8 +2597,7 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 template <> struct NDRangeReduction<reduction::strategy::multi> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
@@ -2658,13 +2640,10 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
 
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH,
-                  const std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     auto Delegate = [&](auto Impl) {
-      Impl.template run<KernelName>(CGH, Queue, NDRange, Properties, Redu,
-                                    KernelFunc);
+      Impl.template run<KernelName>(CGH, NDRange, Properties, Redu, KernelFunc);
     };
 
     if constexpr (Reduction::has_float64_atomics) {
@@ -2706,10 +2685,9 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
   }
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  static void
-  run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
-      nd_range<Dims> NDRange, PropertiesT &Properties, RestT... Rest) {
-    return Impl<Strat::multi>::run<KernelName>(CGH, Queue, NDRange, Properties,
+  static void run(handler &CGH, nd_range<Dims> NDRange, PropertiesT &Properties,
+                  RestT... Rest) {
+    return Impl<Strat::multi>::run<KernelName>(CGH, NDRange, Properties,
                                                Rest...);
   }
 };
@@ -2718,8 +2696,8 @@ template <typename KernelName, reduction::strategy Strategy, int Dims,
           typename PropertiesT, typename... RestT>
 void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                             PropertiesT Properties, RestT... Rest) {
-  NDRangeReduction<Strategy>::template run<KernelName>(CGH, CGH.MQueue, NDRange,
-                                                       Properties, Rest...);
+  NDRangeReduction<Strategy>::template run<KernelName>(CGH, NDRange, Properties,
+                                                       Rest...);
 }
 
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh);
