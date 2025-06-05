@@ -72,6 +72,7 @@ int runSingleTaskTest(sycl::queue &Queue, sycl::context &Context,
   return performResultCheck(NumOfElementsPerDim.size(), ResultData.data(),
                             ErrorMessage, ExpectedResultValue);
 }
+
 template <auto Func, size_t Dims>
 int runNdRangeTest(sycl::queue &Queue, sycl::context &Context,
                    sycl::nd_range<Dims> NdRange, std::string_view ErrorMessage,
@@ -125,6 +126,7 @@ int runNdRangeTestMultipleParameters(sycl::queue &Queue, sycl::context &Context,
   return performResultCheck(NdRange.get_global_range().size(),
                             ResultData.data(), ErrorMessage, Values[2]);
 }
+
 int main() {
 
   int Failed = 0;
