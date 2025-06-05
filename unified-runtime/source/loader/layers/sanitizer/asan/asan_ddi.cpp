@@ -301,7 +301,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 
   auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
   if (ProgramInfo != nullptr) {
-    ProgramInfo->RefCount++;
+    ProgramInfo->getRefCounter().increment();
   }
 
   return UR_RESULT_SUCCESS;
@@ -454,7 +454,7 @@ ur_result_t UR_APICALL urProgramRelease(
   UR_CALL(pfnProgramRelease(hProgram));
 
   auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
-  if (ProgramInfo != nullptr && --ProgramInfo->RefCount == 0) {
+  if (ProgramInfo != nullptr && ProgramInfo->getRefCounter().decrement() == 0) {
     UR_CALL(getAsanInterceptor()->unregisterProgram(hProgram));
     UR_CALL(getAsanInterceptor()->eraseProgram(hProgram));
   }
@@ -608,7 +608,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 
   auto ContextInfo = getAsanInterceptor()->getContextInfo(hContext);
   UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-  ContextInfo->RefCount++;
+  ContextInfo->getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -630,7 +630,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
 
   auto ContextInfo = getAsanInterceptor()->getContextInfo(hContext);
   UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-  if (--ContextInfo->RefCount == 0) {
+  if (ContextInfo->getRefCounter().decrement() == 0) {
     UR_CALL(getAsanInterceptor()->eraseContext(hContext));
   }
 
@@ -750,7 +750,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRetain");
 
   if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hMem)) {
-    MemBuffer->RefCount++;
+    MemBuffer->getRefCounter().increment();
   } else {
     UR_CALL(pfnRetain(hMem));
   }
@@ -772,7 +772,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRelease");
 
   if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hMem)) {
-    if (--MemBuffer->RefCount != 0) {
+    if (MemBuffer->getRefCounter().decrement() != 0) {
       return UR_RESULT_SUCCESS;
     }
     UR_CALL(MemBuffer->free());
@@ -1425,7 +1425,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
   UR_CALL(pfnRetain(hKernel));
 
   auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-  KernelInfo.RefCount++;
+  KernelInfo.getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -1444,7 +1444,7 @@ __urdlllocal ur_result_t urKernelRelease(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRelease");
 
   auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-  if (--KernelInfo.RefCount == 0) {
+  if (KernelInfo.getRefCounter().decrement() == 0) {
     UR_CALL(getAsanInterceptor()->eraseKernelInfo(hKernel));
   }
   UR_CALL(pfnRelease(hKernel));

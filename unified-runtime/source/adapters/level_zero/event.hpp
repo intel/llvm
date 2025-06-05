@@ -257,11 +257,11 @@ struct ur_event_handle_t_ : ur_object {
 private:
   UR_ReferenceCounter RefCounter;
 
-  // Besides each PI object keeping a total reference count in
-  // ur_object::RefCount we keep special track of the event *external*
+  // Besides each UR object keeping a total reference count in
+  // RefCounter we keep special track of the event *external*
   // references. This way we are able to tell when the event is not referenced
   // externally anymore, i.e. it can't be passed as a dependency event to
-  // piEnqueue* functions and explicitly waited meaning that we can do some
+  // urEnqueue* functions and explicitly waited meaning that we can do some
   // optimizations:
   // 1. For in-order queues we can reset and reuse event even if it was not yet
   // completed by submitting a reset command to the queue (since there are no

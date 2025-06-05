@@ -691,8 +691,8 @@ struct ur_queue_handle_t_ : ur_object {
 private:
   UR_ReferenceCounter RefCounter;
 
-  // Besides each PI object keeping a total reference count in
-  // ur_object::RefCount we keep special track of the queue *external*
+  // Besides each UR object keeping a total reference count in
+  // RefCounter we keep special track of the queue *external*
   // references. This way we are able to tell when the queue is being finished
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
