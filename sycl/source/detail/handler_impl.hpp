@@ -208,6 +208,7 @@ public:
   detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
   bool MKernelIsESIMD = false;
   bool MKernelHasSpecialCaptures = true;
+  bool MKernelFastPath = false; // if true, bypasses the scheduler
 
   // A pointer to a kernel name based cache retrieved on the application side.
   KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;

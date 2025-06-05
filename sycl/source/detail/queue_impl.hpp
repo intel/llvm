@@ -715,7 +715,7 @@ protected:
 #endif
 
   bool trySwitchingToNoEventsMode() {
-    if (MNoLastEventMode.load(std::memory_order_relaxed))
+    if (MNoLastEventMode.load(std::memory_order_acquire))
       return true;
 
     if (!MGraph.expired() || !isInOrder())
@@ -726,20 +726,25 @@ protected:
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
 
-    MNoLastEventMode.store(true, std::memory_order_relaxed);
+    MNoLastEventMode.store(true, std::memory_order_release);
     MDefaultGraphDeps.LastEventPtr = nullptr;
     return true;
+  }
+
+  bool isKernelFastPath(const handler &Handler) {
+    return !Handler.impl->CGData.MRequirements.size() &&
+           !Handler.MStreamStorage.size() &&
+           detail::Scheduler::areEventsSafeForSchedulerBypass(
+               Handler.impl->CGData.MEvents, MContext) &&
+           MNoLastEventMode.load(std::memory_order_acquire);
   }
 
   template <typename HandlerType = handler>
   detail::EventImplPtr
   finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(MGraph.expired());
-    assert(MDefaultGraphDeps.LastEventPtr == nullptr);
-    assert(MNoLastEventMode);
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     synchronizeWithExternalEvent(Handler);
 
@@ -826,7 +831,7 @@ protected:
     const CGType Type = getSyclObjImpl(Handler)->MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     // The following code supports barrier synchronization if host task is
     // involved in the scenario. Native barriers cannot handle host task
@@ -1048,7 +1053,7 @@ protected:
   std::atomic<bool> MNoLastEventMode = false;
 
   // Used exclusively in getLastEvent and queue_empty() implementations
-  bool MEmpty = true;
+  std::atomic<bool> MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
   std::mutex MStreamsServiceEventsMutex;

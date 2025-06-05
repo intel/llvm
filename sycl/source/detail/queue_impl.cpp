@@ -332,55 +332,39 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     CGF(Handler);
   }
 
+  const CGType Type = HandlerImpl->MCGType;
+  auto isHostTask = Type == CGType::CodeplayHostTask;
+  auto isKernel = Type == CGType::Kernel;
+  auto requiresPostProcess =
+      SubmitInfo.PostProcessorFunc() || Handler.MStreamStorage.size();
+  auto isFastPath = isKernel && isKernelFastPath(Handler);
+
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
   std::vector<StreamImplPtr> Streams;
-  if (Type == CGType::Kernel)
+  if (isKernel)
     Streams = std::move(Handler.MStreamStorage);
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
+  HandlerImpl->MKernelFastPath = isFastPath;
 
-  auto isHostTask = Type == CGType::CodeplayHostTask;
-
-  // TODO: this shouldn't be needed but without this
-  // the legacy adapter doesn't synchronize the operations properly
-  // when non-immediate command lists are used.
-  auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
-
-  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
-  auto noLastEventPath = !isHostTask && !isGraphSubmission &&
-                         MNoLastEventMode.load(std::memory_order_relaxed) &&
-                         !requiresPostProcess;
-
-  if (noLastEventPath) {
-    std::unique_lock<std::mutex> Lock(MMutex);
-
-    // Check if we are still in no last event mode. There could
-    // have been a concurrent submit.
-    if (MNoLastEventMode.load(std::memory_order_relaxed)) {
-      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
-    }
+  if (isFastPath && !requiresPostProcess) {
+    return finalizeHandlerInOrderNoEventsUnlocked(Handler);
   }
 
   detail::EventImplPtr EventImpl;
   if (!isInOrder()) {
     EventImpl = finalizeHandlerOutOfOrder(Handler);
     addEvent(EventImpl);
+  } else if (isHostTask) {
+    std::unique_lock<std::mutex> Lock(MMutex);
+    EventImpl = finalizeHandlerInOrderHostTaskUnlocked(Handler);
   } else {
-    if (isHostTask) {
-      std::unique_lock<std::mutex> Lock(MMutex);
-      EventImpl = finalizeHandlerInOrderHostTaskUnlocked(Handler);
-    } else {
-      std::unique_lock<std::mutex> Lock(MMutex);
+    std::unique_lock<std::mutex> Lock(MMutex);
+    EventImpl = finalizeHandlerInOrderWithDepsUnlocked(Handler);
 
-      if (!isGraphSubmission && trySwitchingToNoEventsMode()) {
-        EventImpl = finalizeHandlerInOrderNoEventsUnlocked(Handler);
-      } else {
-        EventImpl = finalizeHandlerInOrderWithDepsUnlocked(Handler);
-      }
-    }
+    trySwitchingToNoEventsMode();
   }
 
   if (SubmitInfo.PostProcessorFunc()) {
