@@ -140,6 +140,9 @@ public:
                        void *DstMem, std::vector<ur_event_handle_t> DepEvents,
                        ur_event_handle_t *OutEvent);
 
+  static void context_copy_usm(const void *SrcMem, ContextImplPtr Context,
+                               size_t Len, void *DstMem);
+
   static void fill_usm(void *DstMem, queue_impl &Queue, size_t Len,
                        const std::vector<unsigned char> &Pattern,
                        std::vector<ur_event_handle_t> DepEvents,

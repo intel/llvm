@@ -82,6 +82,7 @@ if(MSVC)
   endif()
 endif()
 
+include(FetchEmhash)
 include(FetchUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
@@ -213,9 +214,6 @@ install(FILES
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 
-include(AddBoostMp11Headers)
-include(FetchBoostUnorderedHeaders)
-
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
 # TODO: detect and process remove header/directory case
@@ -250,7 +248,7 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
           ${OUT_UR_HEADERS}
           sycl-device-aspect-macros-header
-          boost_mp11-headers)
+          )
 
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
@@ -275,7 +273,6 @@ add_custom_command(
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
@@ -458,7 +455,6 @@ get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONEN
 # Listed here are component names contributing the package
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
-     boost_mp11-headers
      clang
      clang-offload-wrapper
      clang-offload-bundler

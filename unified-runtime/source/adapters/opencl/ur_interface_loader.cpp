@@ -264,6 +264,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   pDdiTable->pfnImportExp = urUSMImportExp;
   pDdiTable->pfnReleaseExp = urUSMReleaseExp;
+  pDdiTable->pfnContextMemcpyExp = urUSMContextMemcpyExp;
   return UR_RESULT_SUCCESS;
 }
 
