@@ -2408,5 +2408,6 @@ void handler::copyCodeLoc(const handler &other) {
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
 
+queue handler::getQueue() { return createSyclObjFromImpl<queue>(MQueue); }
 } // namespace _V1
 } // namespace sycl

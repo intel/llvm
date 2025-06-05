@@ -4103,6 +4103,7 @@
 ?getPtr@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getPtr@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEAAPEAXXZ
 ?getPtr@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
+?getQueue@handler@_V1@sycl@@AEAA?AVqueue@23@XZ
 ?getRowPitch@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?getSampler@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AUimage_sampler@34@XZ
 ?getSampler@image_plain@detail@_V1@sycl@@IEBA?AUimage_sampler@34@XZ
