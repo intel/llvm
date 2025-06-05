@@ -1,4 +1,7 @@
 # Finds or fetches emhash.
+if(DEFINED SYCL_EMHASH_DIR OR DEFINED EMHASH_SYS_LOC)
+  return()
+endif()
 find_file(EMHASH_SYS_LOC "hash_table8.hpp" PATH_SUFFIXES "emhash")
 if(NOT EMHASH_SYS_LOC)
   set(EMHASH_REPO https://github.com/ktprime/emhash)
