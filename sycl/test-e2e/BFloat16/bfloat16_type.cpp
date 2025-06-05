@@ -13,14 +13,12 @@
 
 #include "bfloat16_type.hpp"
 
-#include <sycl/platform.hpp>
-
 int main() {
 
 #ifdef USE_CUDA_SM80
   // Special build for SM80 CUDA.
   sycl::device Dev{default_selector_v};
-  if (Dev.get_platform().get_backend() != backend::ext_oneapi_cuda) {
+  if (Dev.get_backend() != backend::ext_oneapi_cuda) {
     std::cout << "Test skipped; CUDA run was not run with CUDA device."
               << std::endl;
     return 0;
