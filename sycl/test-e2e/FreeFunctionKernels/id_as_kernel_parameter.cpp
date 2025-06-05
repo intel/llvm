@@ -66,7 +66,7 @@ int main() {
         .wait();
 
     Failed += performResultCheck(
-        NumOfElements, Data, "ns::nsSingleFreeFuncKernel", ExpectedResultValue);
+        NumOfElements, Data, ExpectedResultValue, "ns::nsSingleFreeFuncKernel");
   }
 
   {
@@ -84,8 +84,8 @@ int main() {
         .wait();
 
     Failed +=
-        performResultCheck(NumOfElements, Data, "ns::nsNdRangeFreeFuncKernel",
-                           ExpectedResultValue);
+        performResultCheck(NumOfElements, Data,
+                           ExpectedResultValue,"ns::nsNdRangeFreeFuncKernel");
   }
 
   {
@@ -104,8 +104,7 @@ int main() {
         .wait();
 
     Failed += performResultCheck(NumOfElements, Data,
-                                 "globalScopeSingleFreeFuncKernel",
-                                 ExpectedResultValue);
+                                 ExpectedResultValue,"globalScopeSingleFreeFuncKernel");
   }
 
   {
@@ -123,8 +122,7 @@ int main() {
         .wait();
 
     Failed += performResultCheck(NumOfElements, Data,
-                                 "globalScopeNdRangeFreeFuncKernel",
-                                 ExpectedResultValue);
+                                 ExpectedResultValue,"globalScopeNdRangeFreeFuncKernel");
   }
 
   sycl::free(Data, Queue);

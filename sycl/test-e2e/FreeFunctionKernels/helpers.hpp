@@ -7,9 +7,8 @@ namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 template <typename T, typename S>
-static int performResultCheck(size_t NumberOfElements, const T *ResultPtr,
-                              S ExpectedResultValue,
-                              std::string_view TestName) {
+static int performResultCheck(size_t NumberOfElements, const T *ResultPtr,std::string_view TestName,
+                              S ExpectedResultValue) {
   int Failed{0};
   for (size_t i = 0; i < NumberOfElements; i++) {
     if (ResultPtr[i] != ExpectedResultValue) {
@@ -22,9 +21,8 @@ static int performResultCheck(size_t NumberOfElements, const T *ResultPtr,
 }
 
 template <size_t NumOfElements, typename T, typename S>
-static int performResultCheck(const T *ResultPtr,
-                              std::array<S, NumOfElements> ExpectedResultValue,
-                              std::string_view TestName) {
+static int performResultCheck(const T *ResultPtr,std::string_view TestName,
+                              std::array<S, NumOfElements> ExpectedResultValue) {
   int Failed{0};
   for (size_t i = 0; i < NumOfElements; i++) {
     if (ResultPtr[i] != ExpectedResultValue[i]) {
