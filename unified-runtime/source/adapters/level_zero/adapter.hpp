@@ -9,13 +9,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "logger/ur_logger.hpp"
-#include "ur_interface_loader.hpp"
-#include <atomic>
-#include <loader/ur_loader.hpp>
-#include <loader/ze_loader.h>
 #include <mutex>
 #include <optional>
+
+#include "common/ur_ref_counter.hpp"
+#include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
+#include <loader/ur_loader.hpp>
+#include <loader/ze_loader.h>
 #include <ur/ur.hpp>
 #include <ze_api.h>
 #include <ze_ddi.h>
@@ -27,7 +28,6 @@ class ur_legacy_sink;
 
 struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   ur_adapter_handle_t_();
-  std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
 
   zes_pfnDriverGetDeviceByUuidExp_t getDeviceByUUIdFunctionPtr = nullptr;
@@ -47,6 +47,11 @@ struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   ZeCache<Result<PlatformVec>> PlatformCache;
   logger::Logger &logger;
   HMODULE processHandle = nullptr;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 extern ur_adapter_handle_t_ *GlobalAdapter;

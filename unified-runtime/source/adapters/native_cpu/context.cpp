@@ -30,13 +30,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  hContext->incrementReferenceCount();
+  hContext->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  decrementOrDelete(hContext);
+  if (hContext->getRefCounter().decrement() == 0) {
+    delete hContext;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -51,7 +53,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_DEVICES:
     return returnValue(hContext->_device);
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return returnValue(uint32_t{hContext->getReferenceCount()});
+    return returnValue(uint32_t{hContext->getRefCounter().getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     return returnValue(true);
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:

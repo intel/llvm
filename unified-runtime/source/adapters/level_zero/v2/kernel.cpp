@@ -97,7 +97,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
 }
 
 ur_result_t ur_kernel_handle_t_::release() {
-  if (!RefCount.decrementAndTest())
+  if (!RefCounter.decrement() == 0)
     return UR_RESULT_SUCCESS;
 
   // manually release kernels to allow errors to be propagated
@@ -370,7 +370,7 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t hKernel) try {
-  hKernel->RefCount.increment();
+  hKernel->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -634,7 +634,7 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
                        spills.size());
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hKernel->RefCount.load()});
+    return ReturnValue(uint32_t{hKernel->getRefCounter().getCount()});
   case UR_KERNEL_INFO_ATTRIBUTES: {
     auto attributes = hKernel->getSourceAttributes();
     return ReturnValue(static_cast<const char *>(attributes.data()));

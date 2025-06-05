@@ -15,6 +15,7 @@
 #include <ur_api.h>
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "device.hpp"
 #include "ur/ur.hpp"
 
@@ -83,7 +84,7 @@ static usm_alloc_info get_alloc_info(void *ptr) {
 
 } // namespace native_cpu
 
-struct ur_context_handle_t_ : RefCounted {
+struct ur_context_handle_t_ {
   ur_context_handle_t_(ur_device_handle_t_ *phDevices) : _device{phDevices} {}
 
   ur_device_handle_t _device;
@@ -135,7 +136,11 @@ struct ur_context_handle_t_ : RefCounted {
     return ptr;
   }
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
 private:
   std::mutex alloc_mutex;
   std::set<const void *> allocations;
+
+  UR_ReferenceCounter RefCounter;
 };

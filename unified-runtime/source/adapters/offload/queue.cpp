@@ -46,7 +46,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 
   switch (propName) {
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(hQueue->RefCount.load());
+    return ReturnValue(hQueue->getRefCounter().getCount());
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
@@ -55,12 +55,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  hQueue->RefCount++;
+  hQueue->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  if (--hQueue->RefCount == 0) {
+  if (hQueue->getRefCounter().decrement() == 0) {
     auto Res = olDestroyQueue(hQueue->OffloadQueue);
     if (Res) {
       return offloadResultToUR(Res);

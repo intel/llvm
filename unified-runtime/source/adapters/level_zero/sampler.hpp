@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 
 struct ur_sampler_handle_t_ : ur_object {
   ur_sampler_handle_t_(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
@@ -18,6 +19,11 @@ struct ur_sampler_handle_t_ : ur_object {
   ze_sampler_handle_t ZeSampler;
 
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 // Construct ZE sampler desc from UR sampler desc.

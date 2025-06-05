@@ -19,6 +19,7 @@
 #include "../image_common.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "lockable.hpp"
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
@@ -280,15 +281,9 @@ struct ur_mem_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
         mem);
   }
 
-  ur_object *getObject() {
-    return std::visit(
-        [](auto &&arg) -> ur_object * {
-          return static_cast<ur_object *>(&arg);
-        },
-        mem);
-  }
-
   bool isImage() const { return std::holds_alternative<ur_mem_image_t>(mem); }
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
 private:
   template <typename T, typename... Args>
@@ -300,4 +295,6 @@ private:
                ur_discrete_buffer_handle_t, ur_shared_buffer_handle_t,
                ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
+
+  UR_ReferenceCounter RefCounter;
 };

@@ -8,14 +8,17 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
-#include "common.hpp"
-#include "ur_api.h"
+
 #include <cstdint>
 #include <future>
 #include <mutex>
 #include <vector>
 
-struct ur_event_handle_t_ : RefCounted {
+#include "common.hpp"
+#include "common/ur_ref_counter.hpp"
+#include "ur_api.h"
+
+struct ur_event_handle_t_ {
 
   ur_event_handle_t_(ur_queue_handle_t queue, ur_command_t command_type);
 
@@ -55,6 +58,8 @@ struct ur_event_handle_t_ : RefCounted {
 
   uint64_t get_end_timestamp() const { return timestamp_end; }
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
 private:
   ur_queue_handle_t queue;
   ur_context_handle_t context;
@@ -65,4 +70,6 @@ private:
   std::packaged_task<void()> callback;
   uint64_t timestamp_start = 0;
   uint64_t timestamp_end = 0;
+
+  UR_ReferenceCounter RefCounter;
 };

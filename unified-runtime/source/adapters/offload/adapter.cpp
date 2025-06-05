@@ -65,7 +65,7 @@ ur_result_t ur_adapter_handle_t_::init() {
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     uint32_t, ur_adapter_handle_t *phAdapters, uint32_t *pNumAdapters) {
   if (phAdapters) {
-    if (++Adapter.RefCount == 1) {
+    if (Adapter.getRefCounter().increment() == 1) {
       Adapter.init();
     }
     *phAdapters = &Adapter;
@@ -77,7 +77,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  if (--Adapter.RefCount == 0) {
+  if (Adapter.getRefCounter().decrement() == 0) {
     // This can crash when tracing is enabled.
     // olShutDown();
   };
@@ -85,7 +85,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  Adapter.RefCount++;
+  Adapter.getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
@@ -100,7 +100,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_OFFLOAD);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(Adapter.RefCount.load());
+    return ReturnValue(Adapter.getRefCounter().getCount());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(1);
   default:

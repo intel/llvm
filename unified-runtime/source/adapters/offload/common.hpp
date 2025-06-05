@@ -19,7 +19,3 @@ struct ddi_getter {
 };
 using handle_base = ur::handle_base<ur::offload::ddi_getter>;
 } // namespace ur::offload
-
-struct RefCounted : ur::offload::handle_base {
-  std::atomic_uint32_t RefCount = 1;
-};

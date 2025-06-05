@@ -11,25 +11,29 @@
 #ifndef UR_CUDA_ADAPTER_HPP_INCLUDED
 #define UR_CUDA_ADAPTER_HPP_INCLUDED
 
+#include "common/ur_ref_counter.hpp"
 #include "logger/ur_logger.hpp"
 #include "platform.hpp"
 #include "tracing.hpp"
 #include <ur_api.h>
 
-#include <atomic>
 #include <memory>
 
 struct ur_adapter_handle_t_ : ur::cuda::handle_base {
-  std::atomic<uint32_t> RefCount = 0;
   struct cuda_tracing_context_t_ *TracingCtx = nullptr;
   logger::Logger &logger;
   std::unique_ptr<ur_platform_handle_t_> Platform;
   ur_adapter_handle_t_();
   ~ur_adapter_handle_t_();
   ur_adapter_handle_t_(const ur_adapter_handle_t_ &) = delete;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
-// Keep the global namespace'd
+// Keep the global namespace
 namespace ur::cuda {
 extern ur_adapter_handle_t adapter;
 } // namespace ur::cuda

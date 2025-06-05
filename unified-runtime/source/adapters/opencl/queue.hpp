@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "context.hpp"
 #include "device.hpp"
 
@@ -22,7 +23,6 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
   ur_device_handle_t Device;
   // Used to keep a handle to the default queue alive if it is different
   std::optional<ur_queue_handle_t> DeviceDefault = std::nullopt;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
   // Used to implement UR_QUEUE_INFO_EMPTY query
   bool IsInOrder;
@@ -32,7 +32,7 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
                      ur_device_handle_t Dev, bool InOrder)
       : handle_base(), CLQueue(Queue), Context(Ctx), Device(Dev),
         IsInOrder(InOrder) {
-    RefCount = 1;
+
     urDeviceRetain(Device);
     urContextRetain(Context);
   }
@@ -53,11 +53,7 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
     }
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   // Stores last event for in-order queues. Has no effect if queue is Out Of
   // Order. The last event is used to implement UR_QUEUE_INFO_EMPTY query.
@@ -74,4 +70,7 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
     }
     return UR_RESULT_SUCCESS;
   }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

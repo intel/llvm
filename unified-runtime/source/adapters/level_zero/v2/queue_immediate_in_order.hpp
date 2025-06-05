@@ -11,6 +11,7 @@
 
 #include "../common.hpp"
 #include "../device.hpp"
+#include "common/ur_ref_counter.hpp"
 
 #include "context.hpp"
 #include "event.hpp"
@@ -284,6 +285,11 @@ public:
                           const ur_exp_enqueue_native_command_properties_t *,
                           uint32_t, const ur_event_handle_t *,
                           ur_event_handle_t *) override;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 } // namespace v2

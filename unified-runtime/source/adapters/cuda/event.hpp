@@ -13,6 +13,7 @@
 #include <ur/ur.hpp>
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "queue.hpp"
 
 /// UR Event mapping to CUevent
@@ -59,16 +60,12 @@ struct ur_event_handle_t_ : ur::cuda::handle_base {
   ur_command_t getCommandType() const noexcept { return CommandType; }
   ur_context_handle_t getContext() const noexcept { return Context; };
   uint32_t getEventID() const noexcept { return EventID; }
-
-  // Reference counting.
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
-  uint32_t incrementReferenceCount() { return ++RefCount; }
-  uint32_t decrementReferenceCount() { return --RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
 private:
   ur_command_t CommandType; // The type of command associated with event.
 
-  std::atomic_uint32_t RefCount{1}; // Event reference count.
+  UR_ReferenceCounter RefCounter;
 
   bool HasOwnership{true};  // Signifies if event owns the native type.
   bool HasProfiling{false}; // Signifies if event has profiling information.

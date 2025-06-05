@@ -12,6 +12,7 @@
  */
 
 #include "msan_ddi.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "msan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -248,7 +249,7 @@ urProgramRetain(ur_program_handle_t
 
   auto ProgramInfo = getMsanInterceptor()->getProgramInfo(hProgram);
   UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-  ProgramInfo->RefCount++;
+  ProgramInfo->getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -381,7 +382,7 @@ ur_result_t urProgramRelease(
 
   auto ProgramInfo = getMsanInterceptor()->getProgramInfo(hProgram);
   UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-  if (--ProgramInfo->RefCount == 0) {
+  if (ProgramInfo->getRefCounter().decrement() == 0) {
     UR_CALL(getMsanInterceptor()->unregisterProgram(hProgram));
     UR_CALL(getMsanInterceptor()->eraseProgram(hProgram));
   }
@@ -518,7 +519,7 @@ ur_result_t urContextRetain(
 
   auto ContextInfo = getMsanInterceptor()->getContextInfo(hContext);
   UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-  ContextInfo->RefCount++;
+  ContextInfo->getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -536,7 +537,7 @@ ur_result_t urContextRelease(
 
   auto ContextInfo = getMsanInterceptor()->getContextInfo(hContext);
   UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-  if (--ContextInfo->RefCount == 0) {
+  if (ContextInfo->getRefCounter().decrement() == 0) {
     UR_CALL(getMsanInterceptor()->eraseContext(hContext));
   }
 
@@ -648,7 +649,7 @@ ur_result_t urMemRetain(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRetain");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hMem)) {
-    MemBuffer->RefCount++;
+    MemBuffer->getRefCounter().increment();
   } else {
     UR_CALL(pfnRetain(hMem));
   }
@@ -666,7 +667,7 @@ ur_result_t urMemRelease(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRelease");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hMem)) {
-    if (--MemBuffer->RefCount != 0) {
+    if (MemBuffer->getRefCounter().decrement() != 0) {
       return UR_RESULT_SUCCESS;
     }
     UR_CALL(MemBuffer->free());
@@ -1337,7 +1338,7 @@ ur_result_t urKernelRetain(
   UR_CALL(pfnRetain(hKernel));
 
   auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
-  KernelInfo.RefCount++;
+  KernelInfo.getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -1352,7 +1353,7 @@ ur_result_t urKernelRelease(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRelease");
 
   auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
-  if (--KernelInfo.RefCount == 0) {
+  if (KernelInfo.getRefCounter().decrement() == 0) {
     UR_CALL(getMsanInterceptor()->eraseKernelInfo(hKernel));
   }
   UR_CALL(pfnRelease(hKernel));

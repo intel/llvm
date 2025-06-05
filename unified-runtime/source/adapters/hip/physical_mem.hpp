@@ -10,6 +10,8 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
+
 #include "device.hpp"
 #include "platform.hpp"
 
@@ -18,13 +20,10 @@
 /// TODO: Implement.
 ///
 struct ur_physical_mem_handle_t_ : ur::hip::handle_base {
-  std::atomic_uint32_t RefCount;
+  ur_physical_mem_handle_t_() : handle_base() {}
 
-  ur_physical_mem_handle_t_() : handle_base(), RefCount(1) {}
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+private:
+  UR_ReferenceCounter RefCounter;
 };

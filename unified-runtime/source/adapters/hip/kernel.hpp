@@ -12,10 +12,10 @@
 #include <ur_api.h>
 
 #include <array>
-#include <atomic>
 #include <cassert>
 #include <numeric>
 
+#include "common/ur_ref_counter.hpp"
 #include "program.hpp"
 
 /// Implementation of a UR Kernel for HIP
@@ -41,7 +41,6 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
   std::string Name;
   ur_context_handle_t Context;
   ur_program_handle_t Program;
-  std::atomic_uint32_t RefCount;
 
   static constexpr uint32_t ReqdThreadsPerBlockDimensions = 3u;
   size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
@@ -238,7 +237,7 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
                       ur_context_handle_t Ctxt)
       : handle_base(), Function{Func},
         FunctionWithOffsetParam{FuncWithOffsetParam}, Name{Name}, Context{Ctxt},
-        Program{Program}, RefCount{1} {
+        Program{Program} {
     urProgramRetain(Program);
     urContextRetain(Context);
 
@@ -267,11 +266,7 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
 
   ur_program_handle_t getProgram() const noexcept { return Program; }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   native_type get() const noexcept { return Function; };
 
@@ -310,4 +305,7 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
   }
 
   uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

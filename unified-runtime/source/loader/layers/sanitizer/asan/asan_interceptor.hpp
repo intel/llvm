@@ -18,6 +18,7 @@
 #include "asan_libdevice.hpp"
 #include "asan_shadow.hpp"
 #include "asan_statistics.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_options.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -82,7 +83,6 @@ struct QueueInfo {
 
 struct KernelInfo {
   ur_kernel_handle_t Handle;
-  std::atomic<int32_t> RefCount = 1;
 
   // sanitized kernel
   bool IsInstrumented = false;
@@ -107,11 +107,15 @@ struct KernelInfo {
         getContext()->urDdiTable.Kernel.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
   }
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 struct ProgramInfo {
   ur_program_handle_t Handle;
-  std::atomic<int32_t> RefCount = 1;
 
   // Program is built only once, so we don't need to lock it
   std::unordered_set<std::shared_ptr<AllocInfo>> AllocInfoForGlobals;
@@ -130,6 +134,11 @@ struct ProgramInfo {
   }
 
   bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 struct ContextInfo {
@@ -137,8 +146,6 @@ struct ContextInfo {
 
   ur_usm_pool_handle_t USMPool{};
   std::once_flag PoolInit;
-
-  std::atomic<int32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
   std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
@@ -163,6 +170,11 @@ struct ContextInfo {
   }
 
   ur_usm_pool_handle_t getUSMPool();
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 struct AsanRuntimeDataWrapper {

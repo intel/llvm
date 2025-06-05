@@ -113,7 +113,7 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(hDevice);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{RefCount.load()});
+    return ReturnValue(uint32_t{RefCounter.getCount()});
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(flags);
   case UR_QUEUE_INFO_SIZE:
@@ -173,7 +173,7 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
 void ur_queue_immediate_in_order_t::recordSubmittedKernel(
     ur_kernel_handle_t hKernel) {
   submittedKernels.push_back(hKernel);
-  hKernel->RefCount.increment();
+  hKernel->getRefCounter().increment();
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueFlush() {
@@ -852,7 +852,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFreeExp(
   if (internalEvent == nullptr) {
     // When the output event is used instead of an internal event, we need to
     // increment the refcount.
-    (*phEvent)->RefCount.increment();
+    (*phEvent)->getRefCounter().increment();
   }
 
   if (numWaitEvents > 0) {

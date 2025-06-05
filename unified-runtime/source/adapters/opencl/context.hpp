@@ -11,6 +11,7 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "device.hpp"
 
 #include <vector>
@@ -20,7 +21,6 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
   native_type CLContext;
   std::vector<ur_device_handle_t> Devices;
   uint32_t DeviceCount;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
 
   ur_context_handle_t_(native_type Ctx, uint32_t DevCount,
@@ -33,14 +33,9 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
     // The context retains a reference to the adapter so it can clear the
     // function ptr cache on destruction
     urAdapterRetain(ur::cl::getAdapter());
-    RefCount = 1;
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   static ur_result_t makeWithNative(native_type Ctx, uint32_t DevCount,
                                     const ur_device_handle_t *phDevices,
@@ -60,4 +55,7 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
       clReleaseContext(CLContext);
     }
   }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

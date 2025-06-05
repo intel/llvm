@@ -13,6 +13,7 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 
@@ -88,10 +89,8 @@ struct ur_context_handle_t_ : ur::hip::handle_base {
 
   std::vector<ur_device_handle_t> Devices;
 
-  std::atomic_uint32_t RefCount;
-
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : handle_base(), Devices{Devs, Devs + NumDevices}, RefCount{1} {
+      : handle_base(), Devices{Devs, Devs + NumDevices} {
     UR_CHECK_ERROR(urAdapterRetain(ur::hip::adapter));
   };
 
@@ -125,11 +124,7 @@ struct ur_context_handle_t_ : ur::hip::handle_base {
     return std::distance(Devices.begin(), It);
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   void addPool(ur_usm_pool_handle_t Pool);
 
@@ -141,4 +136,5 @@ private:
   std::mutex Mutex;
   std::vector<deleter_data> ExtendedDeleters;
   std::set<ur_usm_pool_handle_t> PoolHandles;
+  UR_ReferenceCounter RefCounter;
 };

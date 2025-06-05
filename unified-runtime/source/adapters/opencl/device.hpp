@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 
@@ -19,13 +20,11 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
   ur_platform_handle_t Platform;
   cl_device_type Type = 0;
   ur_device_handle_t ParentDevice = nullptr;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
 
   ur_device_handle_t_(native_type Dev, ur_platform_handle_t Plat,
                       ur_device_handle_t Parent)
       : handle_base(), CLDevice(Dev), Platform(Plat), ParentDevice(Parent) {
-    RefCount = 1;
     if (Parent) {
       Type = Parent->Type;
       [[maybe_unused]] auto Res = clRetainDevice(CLDevice);
@@ -51,11 +50,7 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
     }
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   ur_result_t getDeviceVersion(oclv::OpenCLVersion &Version) {
     size_t DevVerSize = 0;
@@ -114,4 +109,7 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
 
     return UR_RESULT_SUCCESS;
   }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

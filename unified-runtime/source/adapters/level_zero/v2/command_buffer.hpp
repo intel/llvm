@@ -12,6 +12,7 @@
 #include "../helpers/mutable_helpers.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
 #include "lockable.hpp"
@@ -59,6 +60,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
       const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
       uint32_t numSyncPointsInWaitList);
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
 private:
   // Stores all sync points that are created by the command buffer.
   std::vector<ur_event_handle_t> syncPoints;
@@ -77,4 +80,6 @@ private:
   bool isFinalized = false;
 
   ur_event_handle_t currentExecution = nullptr;
+
+  UR_ReferenceCounter RefCounter;
 };
