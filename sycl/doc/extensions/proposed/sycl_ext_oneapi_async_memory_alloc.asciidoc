@@ -340,8 +340,8 @@ A memory pool has a number of attributes which dictate it's behavior:
 * A memory pool has a *reserve threshold* (in bytes) which dictates an amount of
   reserved memory the runtime should aim to maintain in the pool, even when not
   allocated out to a USM pointer. The reserve threshold is a hint, and so an
-  implementation is not required to do maintain this. The default reserve
-  threshold is `0`.
+  implementation is not required to maintain this. The default reserve threshold
+  is `0`.
 * A memory pool has a *reserved size* (in bytes) which tracks the total memory
   which is reserved by the pool from the memory provider.
 * A memory pool has a *used size* (in bytes) which tracks the total memory which
@@ -432,8 +432,9 @@ memory_pool(const context &ctx, const device &dev, usm::alloc kind,
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context `ctx`
-and device `dev`, which allocates either device or shared USM memory depending
-on the allocation kind `kind`, and applying any properties in `props`.
+and device `dev`, which allocates memory depending on the allocation kind
+`kind` (currently only `usm::alloc::device` is supported), and applying any
+properties in `props`.
 
 _Throws_: A synchronous exception with the `errc::feature_not_supported` error
 code if `dev` does not support the `aspect::ext_oneapi_async_memory_alloc`
@@ -447,9 +448,9 @@ memory_pool(const queue &que, usm::alloc kind, Properties props = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context and
-device from the queue `que`, which allocates either device or shared USM memory
-depending on the allocation kind `kind`, and applying any properties in `props`.
-This is equivalent to calling
+device from the queue `que`, which allocates memory depending on the allocation
+kind `kind` (currently only `usm::alloc::device` is supported), and applying any
+properties in `props`. This is equivalent to calling
 `memory_pool(queue.get_context(), queue.get_device(), props)`.
 
 _Throws_: A synchronous exception with the `errc::feature_not_supported` error
