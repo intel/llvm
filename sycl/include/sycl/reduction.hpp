@@ -140,17 +140,10 @@ template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
   return sycl::detail::make_tuple(Elements...);
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT size_t reduGetMaxWGSize(const std::shared_ptr<queue_impl> &Queue,
+__SYCL_EXPORT size_t reduGetMaxWGSize(handler &cgh,
                                       size_t LocalMemBytesPerWorkItem);
-__SYCL_EXPORT size_t reduGetPreferredWGSize(
-    const std::shared_ptr<queue_impl> &Queue, size_t LocalMemBytesPerWorkItem);
-#else
-__SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
-                                      size_t LocalMemBytesPerWorkItem);
-__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+__SYCL_EXPORT size_t reduGetPreferredWGSize(handler &cgh,
                                             size_t LocalMemBytesPerWorkItem);
-#endif
 __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                        size_t &NWorkGroups);
 
@@ -1708,8 +1701,7 @@ struct NDRangeReduction<
     reduction::strategy::group_reduce_and_multiple_kernels> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH,
-                  const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
@@ -1729,7 +1721,7 @@ struct NDRangeReduction<
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it may be safer to use queries to the kernel compiled
     // for the device.
-    size_t MaxWGSize = reduGetMaxWGSize(Queue, OneElemSize);
+    size_t MaxWGSize = reduGetMaxWGSize(CGH, OneElemSize);
     if (NDRange.get_local_range().size() > MaxWGSize)
       throw sycl::exception(make_error_code(errc::nd_range),
                             "The implementation handling parallel_for with"
@@ -1847,8 +1839,7 @@ struct NDRangeReduction<
 template <> struct NDRangeReduction<reduction::strategy::basic> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH,
-                  const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     using element_type = typename Reduction::reducer_element_type;
@@ -1858,7 +1849,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it may be safer to use queries to the kernel
     // compiled for the device.
-    size_t MaxWGSize = reduGetMaxWGSize(Queue, OneElemSize);
+    size_t MaxWGSize = reduGetMaxWGSize(CGH, OneElemSize);
     if (NDRange.get_local_range().size() > MaxWGSize)
       throw sycl::exception(make_error_code(errc::nd_range),
                             "The implementation handling parallel_for with"
@@ -2623,9 +2614,9 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 template <> struct NDRangeReduction<reduction::strategy::multi> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  static void
-  run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
-      nd_range<Dims> NDRange, PropertiesT &Properties, RestT... Rest) {
+  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &,
+                  nd_range<Dims> NDRange, PropertiesT &Properties,
+                  RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
     auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
@@ -2636,7 +2627,7 @@ template <> struct NDRangeReduction<reduction::strategy::multi> {
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel compiled
     // for the device.
-    size_t MaxWGSize = reduGetMaxWGSize(Queue, LocalMemPerWorkItem);
+    size_t MaxWGSize = reduGetMaxWGSize(CGH, LocalMemPerWorkItem);
     if (NDRange.get_local_range().size() > MaxWGSize)
       throw sycl::exception(make_error_code(errc::nd_range),
                             "The implementation handling parallel_for with"
@@ -2731,8 +2722,7 @@ void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                                                        Properties, Rest...);
 }
 
-__SYCL_EXPORT uint32_t
-reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
+__SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh);
 
 template <typename KernelName, reduction::strategy Strategy, int Dims,
           typename PropertiesT, typename... RestT>
@@ -2763,13 +2753,13 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
 #ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
       __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
 #else
-      reduGetMaxNumConcurrentWorkGroups(CGH.MQueue);
+      reduGetMaxNumConcurrentWorkGroups(CGH);
 #endif
 
   // TODO: currently the preferred work group size is determined for the given
   // queue/device, while it is safer to use queries to the kernel pre-compiled
   // for the device.
-  size_t PrefWGSize = reduGetPreferredWGSize(CGH.MQueue, OneElemSize);
+  size_t PrefWGSize = reduGetPreferredWGSize(CGH, OneElemSize);
 
   size_t NWorkItems = Range.size();
   size_t WGSize = std::min(NWorkItems, PrefWGSize);
