@@ -837,6 +837,7 @@ protected:
     /// \param EnqueueResult is set to specific status if enqueue failed.
     /// \param ToCleanUp container for commands that can be cleaned up.
     /// \param RootCommand top level command enqueueCommand is called for.
+    /// \param TrackBlockedUser whether to track Cmd as a blocked user of its host task dependencies.
     /// \return true if the command is successfully enqueued.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
@@ -845,7 +846,8 @@ protected:
                                EnqueueResultT &EnqueueResult,
                                std::vector<Command *> &ToCleanUp,
                                Command *RootCommand,
-                               BlockingT Blocking = NON_BLOCKING);
+                               BlockingT Blocking = NON_BLOCKING,
+                               bool TrackBlockedUser = true);
 
     /// Check if successfully enqueued command is expected to be blocking for
     /// the dependent commands before its completion.
@@ -858,9 +860,11 @@ protected:
     /// no dependencies to be blocked yet.
     /// \param Blocking mode for enqueue, we do not report command as blocking
     /// if it is true and allow to wait for command completion in enqueueImp.
+    /// \param TrackBlockedUser whether to track Cmd as a blocked user of blocking RootCommand.
     /// \return true if we should continue enqueue process.
     static bool handleBlockingCmd(Command *Cmd, EnqueueResultT &EnqueueResult,
-                                  Command *RootCommand, BlockingT Blocking);
+                                  Command *RootCommand, BlockingT Blocking,
+                                  bool TrackBlockedUser = true);
   };
 
   /// This function waits on all of the graph leaves which somehow use the
