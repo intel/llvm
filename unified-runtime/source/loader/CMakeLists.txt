@@ -36,7 +36,10 @@ if (MSVC)
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
     set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.def)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.def.in ${LOADER_VERSION_SCRIPT} @ONLY)
+    configure_linker_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/loader.def.in
+        ${LOADER_VERSION_SCRIPT} @ONLY
+    )
     set_target_properties(ur_loader PROPERTIES
         LINK_OPTIONS "LINKER:/DEF:${LOADER_VERSION_SCRIPT}"
     )
@@ -45,8 +48,13 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
     set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.map)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.map.in ${LOADER_VERSION_SCRIPT} @ONLY)
-    target_link_options(ur_loader PRIVATE "-Wl,--version-script=${LOADER_VERSION_SCRIPT}")
+    configure_linker_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/loader.map.in
+        ${LOADER_VERSION_SCRIPT} @ONLY
+    )
+    target_link_options(ur_loader PRIVATE
+        "-Wl,--version-script=${LOADER_VERSION_SCRIPT}"
+    )
 endif()
 
 add_library(${PROJECT_NAME}::loader ALIAS ur_loader)

@@ -145,6 +145,9 @@ class Compare:
 
                 def reset_aggregate() -> dict:
                     return {
+                        # TODO compare determine which command args have an
+                        # impact on perf results, and do not compare arg results
+                        # are incomparable
                         "command_args": set(test_run.command[1:]),
                         "aggregate": aggregator(starting_elements=[test_run.value]),
                     }
@@ -153,27 +156,7 @@ class Compare:
                 if test_run.name not in average_aggregate:
                     average_aggregate[test_run.name] = reset_aggregate()
                 else:
-                    # Check that we are comparing runs with the same cmd args:
-                    if (
-                        set(test_run.command[1:])
-                        == average_aggregate[test_run.name]["command_args"]
-                    ):
-                        average_aggregate[test_run.name]["aggregate"].add(
-                            test_run.value
-                        )
-                    else:
-                        # If the command args used between runs are different,
-                        # discard old run data and prefer new command args
-                        #
-                        # This relies on the fact that paths from get_result_paths()
-                        # is sorted from older to newer
-                        print(
-                            f"Warning: Command args for {test_run.name} from {result_path} is different from prior runs."
-                        )
-                        print(
-                            "DISCARDING older data and OVERRIDING with data using new arg."
-                        )
-                        average_aggregate[test_run.name] = reset_aggregate()
+                    average_aggregate[test_run.name]["aggregate"].add(test_run.value)
 
         return {
             name: BenchmarkHistoricAverage(
@@ -217,9 +200,9 @@ class Compare:
         for test in target.results:
             if test.name not in hist_avg:
                 continue
-            if hist_avg[test.name].command_args != set(test.command[1:]):
-                print(f"Warning: skipped {test.name} due to command args mismatch.")
-                continue
+            # TODO compare command args which have an impact on performance
+            # (i.e. ignore --save-name): if command results are incomparable,
+            # skip the result.
 
             delta = 1 - (
                 test.value / hist_avg[test.name].value

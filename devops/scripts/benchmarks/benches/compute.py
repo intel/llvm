@@ -6,6 +6,7 @@
 import os
 import csv
 import io
+import copy
 from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite
 from utils.result import BenchmarkMetadata, Result
@@ -49,7 +50,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "49a8c6314875c57fee9b59aea16e721572e3021d"
+        return "ffd199db86a904451f0697cb25a0e7a6b9f2006f"
 
     def setup(self):
         if options.sycl is None:
@@ -148,15 +149,17 @@ class ComputeBench(Suite):
             for in_order_queue in [0, 1]:
                 for measure_completion in [0, 1]:
                     for use_events in [0, 1]:
-                        benches.append(
-                            SubmitKernel(
-                                self,
-                                runtime,
-                                in_order_queue,
-                                measure_completion,
-                                use_events,
+                        for kernel_exec_time in [1, 20]:
+                            benches.append(
+                                SubmitKernel(
+                                    self,
+                                    runtime,
+                                    in_order_queue,
+                                    measure_completion,
+                                    use_events,
+                                    kernel_exec_time,
+                                )
                             )
-                        )
 
         # Add SinKernelGraph benchmarks
         for runtime in self.enabled_runtimes():
@@ -200,11 +203,12 @@ class ComputeBench(Suite):
         # Add UR-specific benchmarks
         if options.ur is not None:
             benches += [
-                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1, 1),
-                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1, 1),
-                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 1),
-                MemcpyExecute(self, 100, 4, 102400, 10, 1, 1, 0, 0),
-                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0, 1),
+                MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
+                MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
                 UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
                 UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
@@ -215,6 +219,20 @@ class ComputeBench(Suite):
                     self, RUNTIMES.UR, "Device", 128, 128 * 1024, "Both"
                 ),
             ]
+        benches += [
+            MemcpyExecute(
+                self, RUNTIMES.SYCL_PREVIEW, 4096, 1, 1024, 40, 1, 1, 0, 1, 0
+            ),
+            MemcpyExecute(
+                self, RUNTIMES.SYCL_PREVIEW, 4096, 1, 1024, 40, 1, 1, 0, 1, 1
+            ),
+            MemcpyExecute(
+                self, RUNTIMES.SYCL_PREVIEW, 4096, 4, 1024, 10, 1, 1, 0, 1, 0
+            ),
+            MemcpyExecute(
+                self, RUNTIMES.SYCL_PREVIEW, 4096, 4, 1024, 10, 1, 1, 0, 1, 1
+            ),
+        ]
 
         return benches
 
@@ -267,15 +285,9 @@ class ComputeBenchmark(Benchmark):
         ret = []
         for label, median, stddev, unit in parsed_results:
             extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
-            explicit_group = (
-                self.explicit_group() + extra_label
-                if self.explicit_group() != ""
-                else ""
-            )
             ret.append(
                 Result(
                     label=self.name() + extra_label,
-                    explicit_group=explicit_group,
                     value=median,
                     stddev=stddev,
                     command=command,
@@ -316,11 +328,21 @@ class ComputeBenchmark(Benchmark):
 
 
 class SubmitKernel(ComputeBenchmark):
-    def __init__(self, bench, runtime: RUNTIMES, ioq, MeasureCompletion=0, UseEvents=0):
+    def __init__(
+        self,
+        bench,
+        runtime: RUNTIMES,
+        ioq,
+        MeasureCompletion=0,
+        UseEvents=0,
+        KernelExecTime=1,
+    ):
         self.ioq = ioq
         self.runtime = runtime
         self.MeasureCompletion = MeasureCompletion
         self.UseEvents = UseEvents
+        self.KernelExecTime = KernelExecTime
+        self.NumKernels = 10
         super().__init__(
             bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel"
         )
@@ -336,29 +358,44 @@ class SubmitKernel(ComputeBenchmark):
         # to match the existing already stored results
         events_str = " not using events" if not self.UseEvents else ""
 
-        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{events_str}"
+        kernel_exec_time_str = (
+            f" KernelExecTime={self.KernelExecTime}" if self.KernelExecTime != 1 else ""
+        )
+
+        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}"
+
+    def display_name(self) -> str:
+        order = "in order" if self.ioq else "out of order"
+        info = []
+        if self.MeasureCompletion:
+            info.append("with measure completion")
+        if self.UseEvents:
+            info.append("using events")
+        if self.KernelExecTime != 1:
+            info.append(f"KernelExecTime={self.KernelExecTime}")
+        additional_info = f" {' '.join(info)}" if info else ""
+        return f"{self.runtime.value.upper()} SubmitKernel {order}{additional_info}, NumKernels {self.NumKernels}"
 
     def explicit_group(self):
-        order = "In Order" if self.ioq else "Out Of Order"
-        completion_str = " With Completion" if self.MeasureCompletion else ""
+        order = "in order" if self.ioq else "out of order"
+        completion_str = " with completion" if self.MeasureCompletion else ""
+        events_str = " using events" if self.UseEvents else ""
 
-        # this needs to be inversed (i.e., using events is empty string)
-        # to match the existing already stored results
-        events_str = " not using events" if not self.UseEvents else ""
+        kernel_exec_time_str = (
+            f" KernelExecTime={self.KernelExecTime}" if self.KernelExecTime != 1 else ""
+        )
 
-        return f"SubmitKernel {order}{completion_str}{events_str}"
+        return f"SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
         runtime_name = runtime_to_name(self.runtime)
-
-        completion_desc = completion_desc = (
-            f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
-        )
+        completion_desc = f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
 
         return (
             f"Measures CPU time overhead of submitting {order} kernels through {runtime_name} API{completion_desc}. "
-            f"Runs 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time."
+            f"Runs {self.NumKernels} simple kernels with minimal execution time to isolate API overhead from kernel execution time."
+            f"Each kernel executes for approximately {self.KernelExecTime} micro seconds."
         )
 
     def range(self) -> tuple[float, float]:
@@ -370,10 +407,26 @@ class SubmitKernel(ComputeBenchmark):
             f"--MeasureCompletion={self.MeasureCompletion}",
             "--iterations=100000",
             "--Profiling=0",
-            "--NumKernels=10",
-            "--KernelExecTime=1",
+            f"--NumKernels={self.NumKernels}",
+            f"--KernelExecTime={self.KernelExecTime}",
             f"--UseEvents={self.UseEvents}",
         ]
+
+    def get_metadata(self) -> dict[str, BenchmarkMetadata]:
+        metadata_dict = super().get_metadata()
+
+        # Create CPU count variant with modified display name and explicit_group
+        cpu_count_name = self.name() + " CPU count"
+        cpu_count_metadata = copy.deepcopy(metadata_dict[self.name()])
+        cpu_count_display_name = self.display_name() + ", CPU count"
+        cpu_count_explicit_group = (
+            self.explicit_group() + ", CPU count" if self.explicit_group() else ""
+        )
+        cpu_count_metadata.display_name = cpu_count_display_name
+        cpu_count_metadata.explicit_group = cpu_count_explicit_group
+        metadata_dict[cpu_count_name] = cpu_count_metadata
+
+        return metadata_dict
 
 
 class ExecImmediateCopyQueue(ComputeBenchmark):
@@ -388,6 +441,10 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
     def name(self):
         order = "in order" if self.ioq else "out of order"
         return f"api_overhead_benchmark_sycl ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}"
+
+    def display_name(self) -> str:
+        order = "in order" if self.ioq else "out of order"
+        return f"SYCL ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
@@ -423,6 +480,9 @@ class QueueInOrderMemcpy(ComputeBenchmark):
     def name(self):
         return f"memory_benchmark_sycl QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}"
 
+    def display_name(self) -> str:
+        return f"SYCL QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}"
+
     def description(self) -> str:
         operation = "copy-only" if self.isCopyOnly else "copy and command submission"
         return (
@@ -454,6 +514,9 @@ class QueueMemcpy(ComputeBenchmark):
     def name(self):
         return f"memory_benchmark_sycl QueueMemcpy from {self.source} to {self.destination}, size {self.size}"
 
+    def display_name(self) -> str:
+        return f"SYCL QueueMemcpy from {self.source} to {self.destination}, size {self.size}"
+
     def description(self) -> str:
         return (
             f"Measures general SYCL queue memory copy performance from {self.source} to "
@@ -481,6 +544,9 @@ class StreamMemory(ComputeBenchmark):
 
     def name(self):
         return f"memory_benchmark_sycl StreamMemory, placement {self.placement}, type {self.type}, size {self.size}"
+
+    def display_name(self) -> str:
+        return f"SYCL StreamMemory, placement {self.placement}, type {self.type}, size {self.size}"
 
     def description(self) -> str:
         return (
@@ -515,6 +581,9 @@ class VectorSum(ComputeBenchmark):
     def name(self):
         return f"miscellaneous_benchmark_sycl VectorSum"
 
+    def display_name(self) -> str:
+        return f"SYCL VectorSum"
+
     def description(self) -> str:
         return (
             "Measures performance of vector addition across 3D grid (512x256x256 elements) "
@@ -537,6 +606,7 @@ class MemcpyExecute(ComputeBenchmark):
     def __init__(
         self,
         bench,
+        runtime: RUNTIMES,
         numOpsPerThread,
         numThreads,
         allocSize,
@@ -545,7 +615,9 @@ class MemcpyExecute(ComputeBenchmark):
         dstUSM,
         useEvent,
         useCopyOffload,
+        useBarrier,
     ):
+        self.runtime = runtime
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
         self.allocSize = allocSize
@@ -554,7 +626,10 @@ class MemcpyExecute(ComputeBenchmark):
         self.dstUSM = dstUSM
         self.useEvents = useEvent
         self.useCopyOffload = useCopyOffload
-        super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
+        self.useBarrier = useBarrier
+        super().__init__(
+            bench, f"multithread_benchmark_{self.runtime.value}", "MemcpyExecute"
+        )
 
     def extra_env_vars(self) -> dict:
         if not self.useCopyOffload:
@@ -564,17 +639,33 @@ class MemcpyExecute(ComputeBenchmark):
 
     def name(self):
         return (
-            f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
+            f"multithread_benchmark_{self.runtime.value} MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
             + (" without events" if not self.useEvents else "")
             + (" without copy offload" if not self.useCopyOffload else "")
+            + (" with barrier" if self.useBarrier else "")
+        )
+
+    def display_name(self) -> str:
+        info = []
+        if not self.useEvents:
+            info.append("without events")
+        if not self.useCopyOffload:
+            info.append("without copy offload")
+        additional_info = f", {' '.join(info)}" if info else ""
+        return (
+            f"UR MemcpyExecute, opsPerThread {self.numOpsPerThread}, "
+            f"numThreads {self.numThreads}, allocSize {self.allocSize}, srcUSM {self.srcUSM}, "
+            f"dstUSM {self.dstUSM}{additional_info}"
         )
 
     def explicit_group(self):
         return (
-            "MemcpyExecute opsPerThread: "
+            "MemcpyExecute, opsPerThread: "
             + str(self.numOpsPerThread)
-            + " numThreads: "
+            + ", numThreads: "
             + str(self.numThreads)
+            + ", allocSize: "
+            + str(self.allocSize)
         )
 
     def description(self) -> str:
@@ -582,14 +673,16 @@ class MemcpyExecute(ComputeBenchmark):
         dst_type = "device" if self.dstUSM == 1 else "host"
         events = "with" if self.useEvents else "without"
         copy_offload = "with" if self.useCopyOffload else "without"
+        with_barrier = "with" if self.useBarrier else "without"
         return (
             f"Measures multithreaded memory copy performance with {self.numThreads} threads "
             f"each performing {self.numOpsPerThread} operations on {self.allocSize} bytes "
-            f"from {src_type} to {dst_type} memory {events} events {copy_offload} driver copy offload."
+            f"from {src_type} to {dst_type} memory {events} events {copy_offload} driver copy offload "
+            f"{with_barrier} barrier. "
         )
 
     def get_tags(self):
-        return ["memory", "latency", "UR", "micro"]
+        return ["memory", "latency", runtime_to_tag_name(self.runtime), "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -603,6 +696,7 @@ class MemcpyExecute(ComputeBenchmark):
             f"--iterations={self.iterations}",
             f"--SrcUSM={self.srcUSM}",
             f"--DstUSM={self.dstUSM}",
+            f"--UseBarrier={self.useBarrier}",
         ]
 
 
@@ -616,7 +710,7 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
         )
 
     def explicit_group(self):
-        return f"SinKernelGraph {self.numKernels}"
+        return f"SinKernelGraph, numKernels: {self.numKernels}"
 
     def description(self) -> str:
         execution = "using graphs" if self.withGraphs else "without graphs"
@@ -627,6 +721,9 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
 
     def name(self):
         return f"graph_api_benchmark_{self.runtime.value} SinKernelGraph graphs:{self.withGraphs}, numKernels:{self.numKernels}"
+
+    def display_name(self) -> str:
+        return f"{self.runtime.value.upper()} SinKernelGraph, graphs {self.withGraphs}, numKernels {self.numKernels}"
 
     def unstable(self) -> str:
         return "This benchmark combines both eager and graph execution, and may not be representative of real use cases."
@@ -665,7 +762,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         super().__init__(bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph")
 
     def explicit_group(self):
-        return f"SubmitGraph {self.numKernels}"
+        return f"SubmitGraph, numKernels: {self.numKernels}"
 
     def description(self) -> str:
         return (
@@ -675,6 +772,9 @@ class GraphApiSubmitGraph(ComputeBenchmark):
 
     def name(self):
         return f"graph_api_benchmark_{self.runtime.value} SubmitGraph numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
+
+    def display_name(self) -> str:
+        return f"{self.runtime.value.upper()} SubmitGraph, numKernels {self.numKernels}, ioq {self.inOrderQueue}, measureCompletion {self.measureCompletionTime}"
 
     def get_tags(self):
         return [
@@ -706,13 +806,18 @@ class UllsEmptyKernel(ComputeBenchmark):
         super().__init__(bench, f"ulls_benchmark_{runtime.value}", "EmptyKernel")
 
     def explicit_group(self):
-        return f"EmptyKernel {self.wgc} {self.wgs}"
+        return f"EmptyKernel, wgc: {self.wgc}, wgs: {self.wgs}"
 
     def description(self) -> str:
         return ""
 
     def name(self):
         return f"ulls_benchmark_{self.runtime.value} EmptyKernel wgc:{self.wgc}, wgs:{self.wgs}"
+
+    def display_name(self) -> str:
+        return (
+            f"{self.runtime.value.upper()} EmptyKernel, wgc {self.wgc}, wgs {self.wgs}"
+        )
 
     def get_tags(self):
         return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
@@ -721,7 +826,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         return [
             "--iterations=10000",
             f"--wgs={self.wgs}",
-            f"--wgc={self.wgs}",
+            f"--wgc={self.wgc}",
         ]
 
 
@@ -747,13 +852,16 @@ class UllsKernelSwitch(ComputeBenchmark):
         super().__init__(bench, f"ulls_benchmark_{runtime.value}", "KernelSwitch")
 
     def explicit_group(self):
-        return f"KernelSwitch {self.count} {self.kernelTime}"
+        return f"KernelSwitch, count: {self.count}, kernelTime: {self.kernelTime}"
 
     def description(self) -> str:
         return ""
 
     def name(self):
         return f"ulls_benchmark_{self.runtime.value} KernelSwitch count {self.count} kernelTime {self.kernelTime}"
+
+    def display_name(self) -> str:
+        return f"{self.runtime.value.upper()} KernelSwitch, count {self.count}, kernelTime {self.kernelTime}"
 
     def get_tags(self):
         return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
@@ -789,6 +897,12 @@ class UsmMemoryAllocation(ComputeBenchmark):
         return (
             f"api_overhead_benchmark_{self.runtime.value} UsmMemoryAllocation "
             f"usmMemoryPlacement:{self.usm_memory_placement} size:{self.size} measureMode:{self.measure_mode}"
+        )
+
+    def display_name(self) -> str:
+        return (
+            f"{self.runtime.value.upper()} UsmMemoryAllocation, "
+            f"usmMemoryPlacement {self.usm_memory_placement}, size {self.size}, measureMode {self.measure_mode}"
         )
 
     def explicit_group(self):
@@ -841,6 +955,12 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
         return (
             f"api_overhead_benchmark_{self.runtime.value} UsmBatchMemoryAllocation "
             f"usmMemoryPlacement:{self.usm_memory_placement} allocationCount:{self.allocation_count} size:{self.size} measureMode:{self.measure_mode}"
+        )
+
+    def display_name(self) -> str:
+        return (
+            f"{self.runtime.value.upper()} UsmBatchMemoryAllocation, "
+            f"usmMemoryPlacement {self.usm_memory_placement}, allocationCount {self.allocation_count}, size {self.size}, measureMode {self.measure_mode}"
         )
 
     def explicit_group(self):

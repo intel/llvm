@@ -16,6 +16,7 @@
 #include "ToolChains/Clang.h"
 #include "ToolChains/CrossWindows.h"
 #include "ToolChains/Cuda.h"
+#include "ToolChains/Cygwin.h"
 #include "ToolChains/Darwin.h"
 #include "ToolChains/DragonFly.h"
 #include "ToolChains/FreeBSD.h"
@@ -1230,7 +1231,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   bool IsSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                          options::OPT_fno_sycl, false) ||
                 C.getInputArgs().hasArgNoClaim(options::OPT_fsycl_device_only,
-                                               options::OPT_fsyclbin);
+                                               options::OPT_fsyclbin_EQ);
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!IsSYCL)
@@ -3470,7 +3471,8 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   Arg *InputTypeArg = nullptr;
   bool IsSYCL =
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
-      Args.hasArgNoClaim(options::OPT_fsycl_device_only, options::OPT_fsyclbin);
+      Args.hasArgNoClaim(options::OPT_fsycl_device_only,
+                         options::OPT_fsyclbin_EQ);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,
@@ -7958,7 +7960,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
     DDep.add(*FatbinAction, *C.getSingleOffloadToolChain<Action::OFK_HIP>(),
              nullptr, Action::OFK_HIP);
   } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
-             Args.hasArg(options::OPT_fsyclbin)) {
+             Args.hasArg(options::OPT_fsyclbin_EQ)) {
     // With '-fsyclbin', package all the offloading actions into a single output
     // that is sent to the clang-linker-wrapper.
     Action *PackagerAction =
@@ -8603,19 +8605,20 @@ class ToolSelector final {
     if (!BJ || !CJ)
       return nullptr;
 
+    auto HasBitcodeInput = [](const JobActionInfo &AI) {
+      for (auto &Input : AI.JA->getInputs())
+        if (!types::isLLVMIR(Input->getType()))
+          return false;
+      return true;
+    };
+
     // Check if the initial input (to the compile job or its predessor if one
     // exists) is LLVM bitcode. In that case, no preprocessor step is required
     // and we can still collapse the compile and backend jobs when we have
     // -save-temps. I.e. there is no need for a separate compile job just to
     // emit unoptimized bitcode.
-    bool InputIsBitcode = true;
-    for (size_t i = 1; i < ActionInfo.size(); i++)
-      if (ActionInfo[i].JA->getType() != types::TY_LLVM_BC &&
-          ActionInfo[i].JA->getType() != types::TY_LTO_BC) {
-        InputIsBitcode = false;
-        break;
-      }
-    if (!InputIsBitcode && !canCollapsePreprocessorAction())
+    bool InputIsBitcode = all_of(ActionInfo, HasBitcodeInput);
+    if (SaveTemps && !InputIsBitcode)
       return nullptr;
 
     // Get compiler tool.
@@ -8629,7 +8632,7 @@ class ToolSelector final {
     if (!T->hasIntegratedBackend() && !(OutputIsLLVM && T->canEmitIR()))
       return nullptr;
 
-    if (T->canEmitIR() && ((SaveTemps && !InputIsBitcode) || EmbedBitcode))
+    if (T->canEmitIR() && EmbedBitcode)
       return nullptr;
 
     Inputs = CJ->getInputs();
@@ -9368,8 +9371,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (is_style_windows(llvm::sys::path::Style::native)) {
     // BoundArch may contain ':' or '*', which is invalid in file names on
     // Windows, therefore replace it with '@'.
-    std::replace(BoundArch.begin(), BoundArch.end(), ':', '@');
-    std::replace(BoundArch.begin(), BoundArch.end(), '*', '@');
+    llvm::replace(BoundArch, ':', '@');
+    llvm::replace(BoundArch, '*', '@');
   }
   // BoundArch may contain ',', which may create strings that interfere with
   // the StringMap for the clang-offload-packager input values.
@@ -9382,7 +9385,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       return C.addResultFile(FinalOutput->getValue(), &JA);
     // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
     if ((offloadDeviceOnly() ||
-         C.getArgs().hasArgNoClaim(options::OPT_fsyclbin)) &&
+         C.getArgs().hasArgNoClaim(options::OPT_fsyclbin_EQ)) &&
         JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
@@ -9556,7 +9559,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   // resulting image.  A '.syclbin' extension is used to represent the resulting
   // output file.
   if (JA.getOffloadingDeviceKind() == Action::OFK_SYCL &&
-      C.getArgs().hasArgNoClaim(options::OPT_fsyclbin) &&
+      C.getArgs().hasArgNoClaim(options::OPT_fsyclbin_EQ) &&
       JA.getType() == types::TY_Image) {
     SmallString<128> SYCLBinOutput(getDefaultImageName());
     if (IsCLMode())
@@ -10125,6 +10128,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         break;
       case llvm::Triple::GNU:
         TC = std::make_unique<toolchains::MinGW>(*this, Target, Args);
+        break;
+      case llvm::Triple::Cygnus:
+        TC = std::make_unique<toolchains::Cygwin>(*this, Target, Args);
         break;
       case llvm::Triple::Itanium:
         TC = std::make_unique<toolchains::CrossWindowsToolChain>(*this, Target,

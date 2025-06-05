@@ -642,7 +642,9 @@ if config.dump_ir_supported:
 
 lit_config.note("Targeted devices: {}".format(", ".join(config.sycl_devices)))
 
-sycl_ls = FindTool("sycl-ls").resolve(llvm_config, config.llvm_tools_dir)
+sycl_ls = FindTool("sycl-ls").resolve(
+    llvm_config, os.pathsep.join([config.dpcpp_bin_dir, config.llvm_tools_dir])
+)
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
@@ -823,12 +825,14 @@ tools = [
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="ignore"),
 ] + feature_tools
 
-# Try and find each of these tools in the llvm tools directory or the PATH, in
-# that order. If found, they will be added as substitutions with the full path
+# Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
+# or the PATH, in that order. If found, they will be added as substitutions with the full path
 # to the tool. This allows us to support both in-tree builds and standalone
 # builds, where the tools may be externally defined.
+# The DPC++ bin directory is different from the LLVM bin directory when using
+# the Intel Compiler (icx), which puts tools into $dpcpp_root_dir/bin/compiler
 llvm_config.add_tool_substitutions(
-    tools, [config.llvm_tools_dir, os.environ.get("PATH", "")]
+    tools, [config.dpcpp_bin_dir, config.llvm_tools_dir, os.environ.get("PATH", "")]
 )
 for tool in feature_tools:
     if tool.was_resolved:
@@ -1111,6 +1115,12 @@ else:
         clangxx += "-fpreview-breaking-changes "
     clangxx += config.cxx_flags
     config.substitutions.append(("%clangxx", clangxx))
+
+# Check that no runtime features are available when in build-only
+from E2EExpr import E2EExpr
+
+if config.test_mode == "build-only":
+    E2EExpr.check_build_features(config.available_features)
 
 if lit_config.params.get("print_features", False):
     lit_config.note(

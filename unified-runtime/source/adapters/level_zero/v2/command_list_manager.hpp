@@ -13,9 +13,10 @@
 #include "common.hpp"
 #include "context.hpp"
 #include "event_pool_cache.hpp"
-#include "memory.hpp"
 #include "queue_api.hpp"
 #include <ze_api.h>
+
+struct ur_mem_buffer_t;
 
 struct wait_list_view {
   ze_event_handle_t *handles;

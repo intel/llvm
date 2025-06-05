@@ -238,6 +238,6 @@ def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-
   HelpText<"Allow dependencies between device code images">;
 
 // Options to force the output to be of the SYCLBIN format.
-def syclbin : Flag<["--", "-"], "syclbin">,
+def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
   Flags<[WrapperOnlyOption]>,
-  HelpText<"Output in the SYCLBIN binary format">;
+  HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable)">;

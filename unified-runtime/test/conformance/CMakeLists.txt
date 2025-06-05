@@ -79,7 +79,6 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "exp_command_buffer"
     "exp_enqueue_native"
     "exp_usm_p2p"
-    "exp_launch_properties"
     "memory-migrate"
     "usm"
 )
@@ -92,13 +91,13 @@ if(UR_FOUND_DPCXX)
     file(MAKE_DIRECTORY ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
 
     if("${UR_CONFORMANCE_TARGET_TRIPLES}" STREQUAL "")
-        if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
+        if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OFFLOAD OR UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
             list(APPEND TARGET_TRIPLES "spir64")
         endif()
-        if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
+        if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_OFFLOAD OR UR_BUILD_ADAPTER_ALL)
             list(APPEND TARGET_TRIPLES "nvptx64-nvidia-cuda")
         endif()
-        if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
+        if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_OFFLOAD OR UR_BUILD_ADAPTER_ALL)
             list(APPEND TARGET_TRIPLES "amdgcn-amd-amdhsa")
         endif()
     else()
