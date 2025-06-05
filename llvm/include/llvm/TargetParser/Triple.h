@@ -1088,7 +1088,7 @@ public:
     return getArch() == Triple::csky;
   }
 
-  // Tests whether the target is NativeCPU.
+  /// Tests whether the target is Native CPU.
   bool isNativeCPU() const { return getArch() == Triple::native_cpu; }
 
   /// Tests whether the target is the Apple "arm64e" AArch64 subarch.

@@ -1687,7 +1687,6 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-  case Triple::native_cpu:
     return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:
@@ -1719,6 +1718,11 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   }
   case Triple::loongarch64:
     return generic::clang(InputFiles, Args, IsSYCLKind);
+  case Triple::native_cpu:
+    if (IsSYCLKind)
+      return generic::clang(InputFiles, Args);
+    return createStringError(Triple.getArchName() +
+                             " linking is not supported other than for SYCL");
   default:
     return createStringError(Triple.getArchName() +
                              " linking is not supported");
