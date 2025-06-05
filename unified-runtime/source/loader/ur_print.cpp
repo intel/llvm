@@ -2788,6 +2788,14 @@ ur_result_t urPrintUsmPitchedAllocExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintUsmContextMemcpyExpParams(
+    const struct ur_usm_context_memcpy_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintUsmImportExpParams(const struct ur_usm_import_exp_params_t *params,
                           char *buffer, const size_t buff_size,

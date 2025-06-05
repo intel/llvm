@@ -182,3 +182,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
                                                        size_t) {
   DIE_NO_IMPLEMENTATION;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
+                                                          void *, const void *,
+                                                          size_t) {
+  DIE_NO_IMPLEMENTATION;
+}

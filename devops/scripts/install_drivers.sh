@@ -20,14 +20,6 @@ if [ -f "$1" ]; then
        IGC_DEV_VER=$(jq -r '.linux.igc_dev.version' $CONFIG_FILE_IGC_DEV)
        IGC_DEV_URL=$(jq -r '.linux.igc_dev.url' $CONFIG_FILE_IGC_DEV)
     fi
-elif [[ "$*" == *"--use-latest"* ]]; then
-    CR_TAG=latest
-    IGC_TAG=latest
-    CM_TAG=latest
-    L0_TAG=latest
-    TBB_TAG=latest
-    FPGA_TAG=latest
-    CPU_TAG=latest
 else
     CR_TAG=$compute_runtime_tag
     IGC_TAG=$igc_tag
@@ -44,11 +36,7 @@ fi
 function get_release() {
     REPO=$1
     TAG=$2
-    if [ "$TAG" == "latest" ]; then
-        URL="https://api.github.com/repos/${REPO}/releases/latest"
-    else
-        URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
-    fi
+    URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
     HEADER=""
     if [ "$GITHUB_TOKEN" != "" ]; then
         HEADER="Authorization: Bearer $GITHUB_TOKEN"
@@ -150,7 +138,7 @@ InstallIGFX () {
     # Backup and install it from release igc as a temporarily workaround
     # while we working to resolve the issue.
     echo "Backup libopencl-clang"
-    cp -d /usr/local/lib/libopencl-clang2.so.14*  .
+    cp -d /usr/local/lib/libopencl-clang2.so.15*  .
     echo "Download IGC dev git hash $IGC_DEV_VER"
     get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
     echo "Install IGC dev git hash $IGC_DEV_VER"
@@ -159,12 +147,12 @@ InstallIGFX () {
     dpkg -i --force-all *.deb
     echo "Install libopencl-clang"
     # Workaround only, will download deb and install with dpkg once fixed.
-    cp -d libopencl-clang2.so.14*  /usr/local/lib/
+    cp -d libopencl-clang2.so.15*  /usr/local/lib/
     rm /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
        ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
        ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
     echo "Clean up"
-    rm *.deb libopencl-clang2.so.14*
+    rm *.deb libopencl-clang2.so.15*
     echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
   fi
 }
@@ -216,7 +204,6 @@ if [[ $# -eq 0 ]] ; then
   echo "--use-dev-igc     - Install development version of Intel Graphics drivers instead"
   echo "--cpu      - Install Intel CPU OpenCL runtime"
   echo "--fpga-emu - Install Intel FPGA Fast emulator"
-  echo "--use-latest      - Use latest for all tags"
   echo "Set INSTALL_LOCATION env variable to specify install location"
   exit 0
 fi

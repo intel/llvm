@@ -833,7 +833,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -8796,6 +8796,39 @@ ur_result_t UR_APICALL urProgramLinkExp(
     const char *pOptions,
     /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Perform a synchronous, blocking memcpy operation between USM
+///        allocations.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
+ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
