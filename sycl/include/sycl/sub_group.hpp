@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>              // for address_space, decorated
+#include <sycl/access/access.hpp> // for address_space, decorated
+#include <sycl/detail/address_space_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for select_cl_scalar_inte...
 #include <sycl/detail/type_traits.hpp>         // for is_scalar_arithmetic
