@@ -28,7 +28,8 @@ constexpr unsigned kSpirOffloadGenericAS = 4;
 TargetExtType *getTargetExtType(Type *Ty);
 bool isJointMatrixAccess(Value *V);
 
-SmallString<128> computeKernelMetadataUniqueId(StringRef Prefix,
+SmallString<128>
+computeKernelMetadataUniqueId(StringRef Prefix,
                               SmallVectorImpl<uint8_t> &KernelNamesBytes);
 } // namespace llvm
 

@@ -544,8 +544,8 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   TsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   TsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
   TsanSpirKernelMetadata->addAttribute(
-      "sycl-unique-id", computeKernelMetadataUniqueId("__TsanKernelMetadata",
-                                                      KernelNamesBytes));
+      "sycl-unique-id",
+      computeKernelMetadataUniqueId("__TsanKernelMetadata", KernelNamesBytes));
   TsanSpirKernelMetadata->setDSOLocal(true);
 }
 
