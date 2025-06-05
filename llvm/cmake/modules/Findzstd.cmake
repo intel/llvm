@@ -61,8 +61,6 @@ find_package_handle_standard_args(
 if (zstd_FOUND AND zstd_INCLUDE_DIR)
   get_zstd_version_string("${zstd_INCLUDE_DIR}" zstd_VERSION_STRING)
   message(STATUS "Found zstd version ${zstd_VERSION_STRING}.")
-else()
-  set(zstd_VERSION_STRING "unknown")
 endif()
 
 if(zstd_FOUND)
