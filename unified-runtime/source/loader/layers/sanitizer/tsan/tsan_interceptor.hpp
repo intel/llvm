@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "common/ur_ref_counter.hpp"
 #include "sanitizer_common/sanitizer_allocator.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "tsan_buffer.hpp"
@@ -47,8 +48,6 @@ struct DeviceInfo {
 struct ContextInfo {
   ur_context_handle_t Handle;
 
-  std::atomic<uint32_t> RefCount = 1;
-
   std::vector<ur_device_handle_t> DeviceList;
 
   ur_shared_mutex AllocInfosMapMutex;
@@ -72,6 +71,11 @@ struct ContextInfo {
   ContextInfo &operator=(const ContextInfo &) = delete;
 
   void insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI);
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 struct DeviceGlobalInfo {
@@ -81,7 +85,6 @@ struct DeviceGlobalInfo {
 
 struct KernelInfo {
   ur_kernel_handle_t Handle = nullptr;
-  std::atomic<int32_t> RefCount = 1;
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
@@ -107,6 +110,11 @@ struct KernelInfo {
   KernelInfo(const KernelInfo &) = delete;
 
   KernelInfo &operator=(const KernelInfo &) = delete;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 struct TsanRuntimeDataWrapper {

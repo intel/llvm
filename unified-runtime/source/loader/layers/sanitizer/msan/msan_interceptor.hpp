@@ -20,6 +20,7 @@
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_options.hpp"
 #include "ur_sanitizer_layer.hpp"
+#include "common/ur_ref_counter.hpp"
 
 #include <memory>
 #include <optional>
@@ -75,7 +76,6 @@ struct QueueInfo {
 
 struct KernelInfo {
   ur_kernel_handle_t Handle;
-  std::atomic<int32_t> RefCount = 1;
 
   // sanitized kernel
   bool IsInstrumented = false;
@@ -102,11 +102,15 @@ struct KernelInfo {
         getContext()->urDdiTable.Kernel.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
   }
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 struct ProgramInfo {
   ur_program_handle_t Handle;
-  std::atomic<int32_t> RefCount = 1;
 
   struct KernelMetada {
     bool CheckLocals;
@@ -130,12 +134,16 @@ struct ProgramInfo {
 
   bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
   const KernelMetada &getKernelMetadata(ur_kernel_handle_t Kernel) const;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 struct ContextInfo {
   ur_context_handle_t Handle;
   size_t CleanShadowSize = 1024;
-  std::atomic<int32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
 
@@ -146,6 +154,11 @@ struct ContextInfo {
   }
 
   ~ContextInfo();
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 struct MsanRuntimeDataWrapper {

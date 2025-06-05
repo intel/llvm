@@ -237,7 +237,7 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
                       ur_context_handle_t Ctxt)
       : handle_base(), Function{Func},
         FunctionWithOffsetParam{FuncWithOffsetParam}, Name{Name}, Context{Ctxt},
-        Program{Program}, RefCount{1} {
+        Program{Program} {
     urProgramRetain(Program);
     urContextRetain(Context);
 

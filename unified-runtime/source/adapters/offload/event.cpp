@@ -23,7 +23,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hKernel,
 
   switch (propName) {
   case UR_EVENT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hKernel->RefCount.load());
+    return ReturnValue(hKernel->getRefCounter().getCount());
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
@@ -51,13 +51,13 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  hEvent->RefCount++;
+  hEvent->getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
-  if (--hEvent->RefCount == 0) {
+  if (hEvent->getRefCounter().decrement() == 0) {
     // There's a small bug in olDestroyEvent that will crash. Leak the event
     // in the meantime.
     // auto Res = olDestroyEvent(hEvent->OffloadEvent);

@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 
+#include "common/ur_ref_counter.hpp"
 #include "ur/ur.hpp"
 
 namespace ur_sanitizer_layer {
@@ -69,9 +70,12 @@ struct MemBuffer {
 
   std::optional<SubBuffer_t> SubBuffer;
 
-  std::atomic<int32_t> RefCount = 1;
-
   ur_shared_mutex Mutex;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 ur_result_t EnqueueMemCopyRectHelper(
