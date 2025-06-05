@@ -60,6 +60,15 @@ bool isJointMatrixAccess(Value *V) {
   return false;
 }
 
+void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions) {
+  if (Instruction *Inst = dyn_cast<Instruction>(User)) {
+    Functions.push_back(Inst->getFunction());
+  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(User)) {
+    for (auto *U : CE->users())
+      getFunctionsOfUser(U, Functions);
+  }
+}
+
 SmallString<128>
 computeKernelMetadataUniqueId(StringRef Prefix,
                               SmallVectorImpl<uint8_t> &KernelNamesBytes) {
