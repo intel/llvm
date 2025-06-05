@@ -10,8 +10,8 @@
 #pragma once
 
 #include "common.hpp"
-#include "queue.hpp"
 #include "common/ur_ref_counter.hpp"
+#include "queue.hpp"
 
 /// UR Event mapping to hipEvent_t
 struct ur_event_handle_t_ : ur::hip::handle_base {

@@ -11,8 +11,8 @@
 #ifndef UR_REF_COUNTER_HPP
 #define UR_REF_COUNTER_HPP 1
 
-#include <cstdint>
 #include <atomic>
+#include <cstdint>
 
 class UR_ReferenceCounter {
 public:
