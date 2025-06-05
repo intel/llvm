@@ -12,6 +12,7 @@
 #ifndef LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H
 #define LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
@@ -26,6 +27,9 @@ constexpr unsigned kSpirOffloadGenericAS = 4;
 
 TargetExtType *getTargetExtType(Type *Ty);
 bool isJointMatrixAccess(Value *V);
+
+SmallString<128> computeKernelMetadataUniqueId(StringRef Prefix,
+                              SmallVectorImpl<uint8_t> &KernelNamesBytes);
 } // namespace llvm
 
 #endif // LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H

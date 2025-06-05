@@ -37,6 +37,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/IR/Type.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/CommandLine.h"
@@ -505,6 +506,7 @@ void ThreadSanitizerOnSpirv::instrumentGlobalVariables() {
 
 void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
+  SmallVector<uint8_t, 256> KernelNamesBytes;
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
   // following structure:
@@ -518,6 +520,7 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
 
     if (isSupportedSPIRKernel(F)) {
       auto KernelName = F.getName();
+      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
       auto *KernelNameGV = GetOrCreateGlobalString("__tsan_kernel", KernelName,
                                                    kSpirOffloadConstantAS);
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
@@ -540,8 +543,9 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   TsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   TsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
-  TsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                       "_Z20__TsanKernelMetadata");
+  TsanSpirKernelMetadata->addAttribute(
+      "sycl-unique-id", computeKernelMetadataUniqueId("__TsanKernelMetadata",
+                                                      KernelNamesBytes));
   TsanSpirKernelMetadata->setDSOLocal(true);
 }
 
