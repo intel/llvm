@@ -11,3 +11,8 @@
 // RUN: | FileCheck %s --check-prefix=CHECK_REPLACE -DOPTION=-fno-sycl-use-bitcode -DOPTION_REPLACE=-fsycl-device-obj=spirv
 // RUN: %clangxx -fsycl -fsycl-fp32-prec-sqrt %s -### 2>&1 | FileCheck %s --check-prefix=CHECK_REPLACE -DOPTION=-fsycl-fp32-prec-sqrt -DOPTION_REPLACE=-foffload-fp32-prec-sqrt
 // CHECK_REPLACE: option '[[OPTION]]' is deprecated and will be removed in a future release, use '[[OPTION_REPLACE]]' instead
+
+// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fsycl-device-lib-jit-link
+// RUN: %clangxx -fsycl -fno-sycl-device-lib-jit-link %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fno-sycl-device-lib-jit-link

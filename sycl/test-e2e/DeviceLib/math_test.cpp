@@ -5,9 +5,6 @@
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-device-lib-jit-link %{mathflags} -o %t2.out
-// RUN: %if !gpu %{ %{run} %t2.out %}
-
 #include "math_utils.hpp"
 #include <cstdint>
 #include <iostream>
