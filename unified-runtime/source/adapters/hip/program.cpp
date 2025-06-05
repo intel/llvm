@@ -385,7 +385,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(hProgram-- > getRefCounter().getCount());
+    return ReturnValue(hProgram->getRefCounter().getCount());
   case UR_PROGRAM_INFO_CONTEXT:
     return ReturnValue(hProgram->Context);
   case UR_PROGRAM_INFO_NUM_DEVICES:

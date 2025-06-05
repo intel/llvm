@@ -13,6 +13,7 @@
 #include "../program.hpp"
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "memory.hpp"
 
 struct ur_single_device_kernel_t {
@@ -91,6 +92,8 @@ public:
                                    ze_command_list_handle_t cmdList,
                                    wait_list_view &waitListView);
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
 private:
   // Keep the program of the kernel.
   const ur_program_handle_t hProgram;
@@ -116,4 +119,6 @@ private:
 
   // pointer to any non-null kernel in deviceKernels
   ur_single_device_kernel_t *nonEmptyKernel;
+
+  UR_ReferenceCounter RefCounter;
 };
