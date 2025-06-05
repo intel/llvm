@@ -298,7 +298,7 @@ jobs:
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - run: which clang++ sycl-ls
-    - run: sycl-ls --verbose
+    - run: SYCL_UR_TRACE=-1 UR_L0_DEBUG=-1 sycl-ls --verbose
     - run: SYCL_UR_TRACE=1 sycl-ls
     - run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
