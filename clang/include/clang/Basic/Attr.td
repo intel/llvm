@@ -4076,6 +4076,11 @@ def NoDeref : TypeAttr {
   let Documentation = [NoDerefDocs];
 }
 
+def CFIUncheckedCallee : TypeAttr {
+  let Spellings = [Clang<"cfi_unchecked_callee">];
+  let Documentation = [CFIUncheckedCalleeDocs];
+}
+
 // Default arguments can only be used with the sycl::reqd_work_group_size
 // spelling.
 def ReqdWorkGroupSize : InheritableAttr, LanguageOptionsSpecificAttr {
