@@ -155,6 +155,14 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     SPIRVCapVec CV;
     switch (BitWidth) {
+    case 4: {
+      if (Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4)) {
+        CV.push_back(CapabilityInt4TypeINTEL);
+        return CV;
+      }
+      CV.push_back(CapabilityArbitraryPrecisionIntegersINTEL);
+      return CV;
+    }
     case 8:
       CV.push_back(CapabilityInt8);
       break;
@@ -175,6 +183,11 @@ public:
   }
   std::optional<ExtensionID> getRequiredExtension() const override {
     switch (BitWidth) {
+    case 4: {
+      if (Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4))
+        return ExtensionID::SPV_INTEL_int4;
+      return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+    }
     case 8:
     case 16:
     case 32:
@@ -189,7 +202,9 @@ protected:
   _SPIRV_DEF_ENCDEC3(Id, BitWidth, IsSigned)
   void validate() const override {
     SPIRVEntry::validate();
-    assert((BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
+    assert(((BitWidth == 4 &&
+             Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4)) ||
+            BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
             BitWidth == 64 ||
             Module->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_arbitrary_precision_integers)) &&
@@ -322,6 +337,9 @@ public:
   }
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     return std::vector<SPIRVEntry *>(1, getEntry(ElemTypeId));
+  }
+  static bool classof(const SPIRVEntry *E) {
+    return E->getOpCode() == OpTypePointer;
   }
 
 protected:
@@ -1219,12 +1237,18 @@ public:
   SPIRVTypeCooperativeMatrixKHR();
   _SPIRV_DCL_ENCDEC
   std::optional<ExtensionID> getRequiredExtension() const override {
+    SPIRVType *Ty = this->getCompType();
+    if (Ty->isTypeInt() && static_cast<SPIRVTypeInt *>(Ty)->getBitWidth() == 4)
+      this->getModule()->addExtension(ExtensionID::SPV_INTEL_int4);
     return ExtensionID::SPV_KHR_cooperative_matrix;
   }
   SPIRVCapVec getRequiredCapability() const override {
     auto CV = getVec(CapabilityCooperativeMatrixKHR);
     if (CompType->isTypeFloat(16, FPEncodingBFloat16KHR))
       CV.push_back(CapabilityBFloat16CooperativeMatrixKHR);
+    else if (CompType->isTypeInt() &&
+             static_cast<SPIRVTypeInt *>(CompType)->getBitWidth() == 4)
+      CV.push_back(CapabilityInt4CooperativeMatrixINTEL);
     return CV;
   }
 

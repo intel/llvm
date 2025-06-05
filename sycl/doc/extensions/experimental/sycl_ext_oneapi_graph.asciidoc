@@ -1,4 +1,5 @@
 = sycl_ext_oneapi_graph
+
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -10,8 +11,7 @@
 :lang: en
 :sectnums:
 :dpcpp: pass:[DPC++]
-
-:blank: pass:[ +]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -20,11 +20,11 @@
 
 == Notice
 
-Copyright (c) 2022-2023 Intel Corporation.  All rights reserved.
+Copyright (c) 2022-2025 Intel Corporation.  All rights reserved.
 
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
 
 == Contact
@@ -62,7 +62,7 @@ Konrad Kusiak, Codeplay +
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 10 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -75,7 +75,31 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-== Introduction
+== Backend support status
+
+Due to the experimental nature of the extension, support is not available across
+all devices.
+
+Table {counter: tableNumber}. Device Support Aspect.
+[%header]
+|===
+| Device Descriptor | Description
+
+|`aspect::ext_oneapi_graph`
+| Indicates that the device supports all the APIs described in this extension.
+|`aspect::ext_oneapi_limited_graph`
+| Indicates that the device supports all the APIs described in this extension
+except for those described in the <<executable-graph-update, Executable Graph
+Update>> section. This is a temporary aspect that we intend to remove once
+devices with full graph support are more prevalent.
+
+|===
+
+A device which reports `aspect::ext_oneapi_graph` must also report
+`aspect::ext_oneapi_limited_graph`, as `aspect::ext_oneapi_graph` is a
+superset of the limited aspect.
+
+== Overview
 
 With command groups SYCL is already able to create an implicit dependency
 graph (in the form of a directed acyclic graph) of kernel execution at runtime,
@@ -193,9 +217,8 @@ graph.end_recording();
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros".  Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_GRAPH` to one of the values defined in the table below.
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_GRAPH` to one of the values defined in the table below.
 Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's APIs the implementation supports.
@@ -301,30 +324,6 @@ Adding an executable graph as a sub-graph does not affect its existing node
 dependencies, such that it could be submitted in future without any side
 effects of prior uses as a sub-graph.
 
-=== Querying Device Support
-
-Due to the experimental nature of the extension, support is not available across
-all devices.
-
-Table {counter: tableNumber}. Device Support Aspect.
-[%header]
-|===
-| Device Descriptor | Description
-
-|`aspect::ext_oneapi_graph`
-| Indicates that the device supports all the APIs described in this extension.
-|`aspect::ext_oneapi_limited_graph`
-| Indicates that the device supports all the APIs described in this extension
-except for those described in the <<executable-graph-update, Executable Graph
-Update>> section. This is a temporary aspect that we intend to remove once
-devices with full graph support are more prevalent.
-
-|===
-
-A device which reports `aspect::ext_oneapi_graph` must also report
-`aspect::ext_oneapi_limited_graph`, as `aspect::ext_oneapi_graph` is a
-superset of the limited aspect.
-
 === Node
 
 [source, c++]
@@ -376,102 +375,84 @@ The `node` class provides the {crs}[common reference semantics].
 
 ==== Node Member Functions
 
-Table {counter: tableNumber}. Member functions of the `node` class.
-[cols="2a,a"]
-|===
-|Member Function|Description
-
-|
-[source,c++]
+[source, c++]
 ----
 node_type get_type() const;
 ----
-|Returns a value representing the type of command this node represents.
 
-|
-[source,c++]
+_Returns:_ A value representing the type of command this node represents.
+
+[source, c++]
 ----
 std::vector<node> get_predecessors() const;
 ----
-|Returns a list of the predecessor nodes which this node directly depends on.
 
-|
-[source,c++]
+_Returns:_ A list of the predecessor nodes which this node directly depends on.
+
+[source, c++]
 ----
 std::vector<node> get_successors() const;
 ----
-|Returns a list of the successor nodes which directly depend on this node.
 
-|
-[source,c++]
+_Returns:_ A list of the successor nodes which directly depend on this node.
+
+[source, c++]
 ----
 static node get_node_from_event(event nodeEvent);
 ----
-|Finds the node associated with an event created from a submission to a queue
- in the recording state.
 
-Parameters:
+_Effects:_ Finds the node associated with an event `nodeEvent` created from
+a submission to a queue in the recording state.
 
-* `nodeEvent` - Event returned from a submission to a queue in the recording
-  state.
-
-Returns: Graph node that was created when the command that returned
+_Returns:_ Graph node that was created when the command that returned
 `nodeEvent` was submitted.
 
-Exceptions:
+_Throws:_ An `exception` with error code `invalid` if `nodeEvent` is not
+associated with a graph node.
 
-* Throws with error code `invalid` if `nodeEvent` is not associated with a
-  graph node.
-
-|
-[source,c++]
+[source, c++]
 ----
 template <int Dimensions>
 void update_nd_range(nd_range<Dimensions> executionRange);
 ----
-| Updates the ND-range for this node with a new value. This new value will not
-affect any executable graphs this node is part of until it is passed to the
-executable graph's update function.
+
+_Effects:_ Updates the ND-range for this node with a new value
+`executionRange`. This new value will not affect any executable graphs this
+node is part of until it is passed to the executable graph's update function.
 See <<executable-graph-update, Executable Graph Update>> for more information
 about updating kernel nodes.
 
-Parameters:
+_Constraints_: Available only when `Dimensions` is 1, 2, or 3.
 
-* `executionRange` - The new value for the ND-range.
+_Throws:_
 
-Exceptions:
+* An `exception` with error code `invalid` if `Dimensions` does not match the
+  dimensions of the existing kernel execution range.
 
-* Throws with error code `invalid` if `Dimensions` does not match the dimensions
-  of the existing kernel execution range.
+* An `exception` with error code `invalid` if the type of the node is not a
+  kernel execution.
 
-* Throws with error code `invalid` if the type of the node is not a kernel
-  execution.
-
-|
-[source,c++]
+[source, c++]
 ----
 template <int Dimensions>
 void update_range(range<Dimensions> executionRange);
 ----
-| Updates the execution range for this node with a new value. This new value
-will not affect any executable graphs this node is part of until it is
-passed to the executable graph's update function.
+
+_Effects:_ Updates the execution range for this node with a new value
+`executionRange`. This new value will not affect any executable graphs this
+node is part of until it is passed to the executable graph's update function.
 See <<executable-graph-update, Executable Graph Update>> for more information
 about updating kernel nodes.
 
-Parameters:
+_Constraints_: Available only when `Dimensions` is 1, 2, or 3.
 
-* `executionRange` - The new value for the range.
+_Throws:_
 
-Exceptions:
+* An `exception` with error code `invalid` if `Dimensions` does not match the
+  dimensions of the existing kernel execution range.
 
-* Throws with error code `invalid` if `Dimensions` does not match the dimensions
-  of the existing kernel execution range.
-
-* Throws with error code `invalid` if the type of the node is not a kernel
-  execution.
-
-|===
+* An `exception` with error code `invalid` if the type of the node is not a
+  kernel execution.
 
 ==== Dynamic Parameters
 
@@ -513,32 +494,27 @@ about updating node parameters.
 
 The `dynamic_parameter` class provides the {crs}[common reference semantics].
 
-Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
-[cols="2a,a"]
-|===
-|Member Function|Description
+===== Member functions of the `dynamic_parameter` class
 
-|
 [source,c++]
 ----
 dynamic_parameter(command_graph<graph_state::modifiable> graph,
                   const ValueT &initialValue);
 ----
-|Constructs a dynamic parameter object that can be registered with command graph
-nodes with an initial value.
 
-Parameters:
+_Effects:_ Constructs a dynamic parameter object that can be registered with
+command graph nodes from `graph` with an initial value `initialValue`.
 
-* `graph` - Graph containing the nodes which will have dynamic parameters.
-* `initialValue` - Initial value of this parameter.
+[Note: This constructor which takes a graph has been deprecated and will be
+replaced in the next ABI breaking window. The new constructor will not
+associate a dynamic parameter with any specific graph. -- end note]
 
-|
 [source,c++]
 ----
 void update(const ValueT& newValue);
 ----
 
-|Updates parameters in all nodes registered with this dynamic parameter to
+_Effects:_ Updates parameters in all nodes registered with this dynamic parameter to
 `newValue`. This new value will be reflected immediately in the modifiable graph
 which contains the registered nodes. The new value will not be reflected in any
 executable graphs created from that modifiable graph until
@@ -547,12 +523,6 @@ executable graph is finalized from the modifiable graph.
 
 It is not an error if `newValue` is set to the current parameter value in any
 registered nodes.
-
-Parameters:
-
-* `newValue` - Value to update the registered node parameters to.
-
-|===
 
 ==== Dynamic Command Groups [[dynamic-command-groups]]
 
@@ -603,12 +573,8 @@ any calls to `handler.depends_on()` must be identical for all the command-group 
 in a dynamic command-group. The dependencies created by buffer accessors must also create
 identical node dependencies across all of the command-group functions.
 
-Table {counter: tableNumber}. Member functions of the `dynamic_command_group` class.
-[cols="2a,a"]
-|===
-|Member Function|Description
+===== Member functions of the `dynamic_command_group` class
 
-|
 [source,c++]
 ----
 dynamic_command_group(
@@ -616,64 +582,54 @@ command_graph<graph_state::modifiable> &graph,
 const std::vector<std::function<void(handler &)>>& cgfList);
 ----
 
-|Constructs a dynamic command-group object that can be added as a node to a `command_graph`.
+_Effects:_ Constructs a dynamic command-group object that can be added as a
+node to `graph`.
+`cgfList` is the list of command-group functions that can be activated for this dynamic command-group.
+The command-group function at index 0 will be active by default.
 
-Parameters:
+_Throws:_
 
-* `graph` - Graph to be associated with this `dynamic_command_group`.
-* `cgfList` - The list of command-group functions that can be activated for this dynamic command-group.
-              The command-group function at index 0 will be active by default.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if the graph wasn't created with
+* Synchronously `exception` with error code `invalid` if the graph wasn't created with
   the `property::graph::assume_buffer_outlives_graph` property and the `dynamic_command_group`
   is created with any command-group function that uses buffers. See the
   <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
   property for more information.
 
-* Throws with error code `invalid` if the `dynamic_command_group` is created with
-  command-group functions that are not kernel executions or host-tasks.
+* An `exception` with error code `invalid` if the `dynamic_command_group`
+  is created with command-group functions that are not kernel executions
+  or host-tasks.
 
-* Throws with error code `invalid` if `cgfList` is empty.
+* An `exception` with error code `invalid` if `cgfList` is empty.
 
-* Throws with error code `invalid` if the types of all command-groups in
+* An `exception` with error code `invalid` if the types of all command-groups in
   `cgfList` do not match.
 
-|
 [source,c++]
 ----
 size_t get_active_index() const;
 ----
-|Returns the index of the currently active command-group function in this
+
+_Returns:_ the index of the currently active command-group function in this
 `dynamic_command_group`.
 
-|
 [source,c++]
 ----
 void set_active_index(size_t cgfIndex);
 ----
-| Sets the command-group function with index `cgfIndex` as active. The index of the
-command-group function in a `dynamic_command_group` is identical to its index in the
-`cgfList` vector when it was passed to the `dynamic_command_group` constructor.
 
+_Effects:_ Sets the command-group function with index `cgfIndex` as active.
+The index of the command-group function in a `dynamic_command_group` is
+identical to its index in the `cgfList` vector when it was passed to the
+`dynamic_command_group` constructor.
 This change will be reflected immediately in the modifiable graph which contains this
 `dynamic_command_group`. The new value will not be reflected in any executable graphs
 created from that modifiable graph until `command_graph::update()` is called, passing
 the modified nodes, or a new executable graph is finalized from the modifiable graph.
-
 Setting `cgfIndex` to the index of the currently active command-group function is
 a no-op.
 
-Parameters:
-
-* `cgfIndex` - The index of the command-group function that should be set as active.
-
-Exceptions:
-
-* Throw with error code `invalid` if `cgfIndex` is not a valid index.
-
-|===
+_Throws:_ An `exception` with error code `invalid` if `cgfIndex` is not a
+valid index.
 
 ==== Depends-On Property
 
@@ -1005,7 +961,7 @@ conditions:
    APIs.
 
 Attempting to use whole-graph update with source or target graphs which do not
-satisfy the conditions of topological identity results in undefined behaviour,
+satisfy the conditions of topological identity results in undefined behavior,
 as it may prevent the runtime from pairing nodes in the source and target
 graphs.
 
@@ -1096,120 +1052,84 @@ event from a graph submission that was created without this property.
 
 ==== Graph Member Functions
 
-Table {counter: tableNumber}. Constructor of the `command_graph` class.
-[cols="2a,a"]
-|===
-|Constructor|Description
+===== Constructor of the `command_graph` class
 
-|
 [source,c++]
 ----
 command_graph(const context& syclContext,
               const device& syclDevice,
               const property_list& propList = {});
 ----
-|Creates a SYCL `command_graph` object in the modifiable state for context
+
+_Effects:_ Creates a SYCL `command_graph` object in the modifiable state for context
 `syclContext` and device `syclDevice`. Zero or more properties can be provided
 to the constructed SYCL `command_graph` via an instance of `property_list`.
+`syclContext` is an immutable characteristic of the graph.
 
-Constraints:
+_Constraints:_ This constructor is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
-* This constructor is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Preconditions:_ Valid `command_graph` constructor properties are listed in
+Section <<graph-properties, Graph Properties>>.
 
-Parameters:
+_Throws:_
 
-* `syclContext` - Context which will be associated with this graph and all
-  nodes within it. This is an immutable characteristic of the graph.
-
-* `syclDevice` - Device that all nodes added to the graph will target,
-  an immutable characteristic of the graph. Must be associated with
-  `syclContext`.
-
-* `propList` - Optional parameter for passing properties. Valid `command_graph`
-  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if `syclDevice` is not
+* Synchronously `exception` with error code `invalid` if `syclDevice` is not
 associated with `syclContext`.
 
-* Throws synchronously with error code `invalid` if `syclDevice`
+* Synchronously `exception` with error code `invalid` if `syclDevice`
   <<device-info-query, reports this extension as unsupported>>.
 
-|
 [source,c++]
 ----
 command_graph(const queue& syclQueue,
               const property_list& propList = {});
 ----
-|Simplified constructor form where `syclQueue` provides the device and context.
+
+_Effects:_ Simplified constructor form where `syclQueue` provides only
+the device and context which become immutable characteristics of the graph.
 Zero or more properties can be provided to the constructed SYCL `command_graph`
-via an instance of `property_list`.
+via an instance of `property_list`. All other properties of the queue are
+ignored for the purposes of graph creation. See the
+<<Queue Properties, Queue Properties>> section for more general information
+about how queue properties interact with command_graph objects.
 
-Constraints:
+_Constraints:_ This constructor is only available when the `command_graph` state is
+`graph_state::modifiable`.
 
-* This constructor is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Preconditions:_ Valid `command_graph` constructor properties are listed in
+Section <<graph-properties, Graph Properties>>.
 
-Parameters:
+_Throws:_ Synchronously `exception` with error code `invalid` if the device
+associated with
+`syclQueue` <<device-info-query, reports this extension as unsupported>>.
 
-* `syclQueue` - Queue which provides the SYCL device and context for the graph,
-  which are immutable characteristics of the graph. All other properties of the
-  queue are ignored for the purposes of graph creation. See the
-  <<Queue Properties, Queue Properties>> section for more general information
-  about how queue properties interact with command_graph objects.
+===== Member functions of the `command_graph` class
 
-* `propList` - Optional parameter for passing properties. Valid `command_graph`
-  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if the device associated with
- `syclQueue` <<device-info-query, reports this extension as unsupported>>.
-
-|===
-
-Table {counter: tableNumber}. Member functions of the `command_graph` class.
-[cols="2a,a"]
-|===
-|Member function|Description
-
-|
 [source,c++]
 ----
 node add(const property_list& propList = {});
 ----
-|This creates an empty node which contains no command. Its intended use is
+
+_Effects:_ This creates an empty node which contains no command. Its intended use is
 to make a connection point inside a graph between groups of nodes, and can
 significantly reduce the number of edges ( O(n) vs. O(n^2^) ).
 
-Constraints:
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Returns:_ The empty node which has been added to the graph.
 
-Parameters:
+_Throws:_ Synchronously `exception` with error code `invalid` if a queue is
+recording commands to the graph.
 
-* `propList` - Zero or more properties can be provided to the constructed node
-  via an instance of `property_list`. The `property::node::depends_on` property
-  can be passed here with a list of nodes to create dependency edges on.
-
-
-Returns: The empty node which has been added to the graph.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if a queue is recording
-  commands to the graph.
-
-|
 [source,c++]
 ----
 template<typename T>
 node add(T cgf, const property_list& propList = {});
 ----
-|The `cgf` command group function behaves in much the same way as the command
+
+_Effects:_ The `cgf` command group function behaves in much the same way as the command
 group function passed to `queue::submit` unless explicitly stated otherwise in
 <<extension-interaction, Interaction With Other Extensions>>. Code in the
 function is executed synchronously, before the function returns back to
@@ -1219,43 +1139,31 @@ into the graph and executed asynchronously when the graph is submitted to a
 queue. The requisites of `cgf` will be used to identify any dependent nodes in
 the graph to form edges with.
 
-Constraints:
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Returns:_ The command-group function object node which has been added to the graph.
 
-Parameters:
+_Throws:_
 
-* `cgf` - Command group function object to be added as a node.
-
-* `propList` - Zero or more properties can be provided to the constructed node
-  via an instance of `property_list`. The `property::node::depends_on` property
-  can be passed here with a list of nodes to create dependency edges on.
-
-Returns: The command-group function object node which has been added to the graph.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if a queue is recording
+* Synchronously `exception` with error code `invalid` if a queue is recording
   commands to the graph.
-* Throws synchronously with error code `invalid` if the graph wasn't created with
-  the `property::graph::assume_buffer_outlives_graph` property and this command
-  uses a buffer. See the
+* Synchronously `exception` with error code `invalid` if the graph wasn't
+  created with the `property::graph::assume_buffer_outlives_graph` property
+  and this command uses a buffer. See the
   <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
   property for more information.
-* Throws with error code `invalid` if the type of the command-group is not a
-  kernel execution and a `dynamic_parameter` was registered inside `cgf`.
+* An `exception` with error code `invalid` if the type of the command-group is
+  not a kernel execution and a `dynamic_parameter` was registered inside `cgf`.
 
-|
 [source,c++]
 ----
 node add(dynamic_command_group& dynamicCG, const property_list& propList = {});
 ----
 
-| Adds the dynamic command-group `dynamicCG` as a node to the graph and sets the
+_Effects:_ Adds the dynamic command-group `dynamicCG` as a node to the graph and sets the
 current active command-group function in `dynamicCG` as the executable for future
 executions of this graph node.
-
 The current active command-group function in `dynamicCG` will be executed asynchronously
 when the graph is submitted to a queue. The requisites of this command-group
 function will be used to identify any dependent nodes in the graph
@@ -1263,281 +1171,200 @@ to form edges with. The other command-group functions in `dynamicCG` will be cap
 into the graph but will not be executed in a graph submission unless they are
 set to active.
 
-Constraints:
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Returns:_ The dynamic command-group object node which has been added to the graph.
 
-Parameters:
+_Throws:_
 
-* `dynamicCG` - Dynamic command-group object to be added as a node.
-
-* `propList` - Zero or more properties can be provided to the constructed node
-  via an instance of `property_list`. The `property::node::depends_on` property
-  can be passed here with a list of nodes to create dependency edges on.
-
-Returns: The dynamic command-group object node which has been added to the graph.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if a queue is recording
+* Synchronously `exception` with error code `invalid` if a queue is recording
   commands to the graph.
 
-* Throws synchronously with error code `invalid` if the graph does not match
+* Synchronously `exception` with error code `invalid` if the graph does not match
   the graph used on construction of `dynamicCG`.
 
-* Throws with error code `invalid` if the command-group functions in `cgfList` have
-  event or accessor dependencies that are incompatible with each other and
-  would result in different graph topologies when set to active.
+* An `exception` with error code `invalid` if the command-group functions in
+  `cgfList` have event or accessor dependencies that are incompatible with
+  each other and would result in different graph topologies when set to active.
 
-|
 [source,c++]
 ----
 void make_edge(node& src, node& dest);
 ----
 
-|Creates a dependency between two nodes representing a happens-before relationship.
+_Effects:_ Creates a dependency between two nodes representing a happens-before
+relationship. Node `dest` will be dependent on `src`.
 
-Constraints:
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Throws:_
 
-Parameters:
-
-* `src` - Node which will be a dependency of `dest`.
-
-* `dest` - Node which will be dependent on `src`.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if a queue is recording
+* Synchronously `exception` with error code `invalid` if a queue is recording
   commands to the graph object.
 
-* Throws synchronously with error code `invalid` if `src` or `dest`
+* Synchronously `exception` with error code `invalid` if `src` or `dest`
   are not valid nodes assigned to the graph object.
 
-* Throws synchronously with error code `invalid` if `src` and `dest`
+* Synchronously `exception` with error code `invalid` if `src` and `dest`
   are the same node.
 
-* Throws synchronously with error code `invalid` if the resulting dependency would
-  lead to a cycle. This error is omitted when `property::graph::no_cycle_check` is set.
+* Synchronously `exception` with error code `invalid` if the resulting
+  dependency would lead to a cycle. This error is omitted when
+  `property::graph::no_cycle_check` is set.
 
-|
 [source,c++]
 ----
 command_graph<graph_state::executable>
 finalize(const property_list& propList = {}) const;
 ----
 
-|Synchronous operation that creates a new graph in the executable state with a
+_Effects:_ Synchronous operation that creates a new graph in the executable state with a
 fixed topology that can be submitted for execution on any queue sharing the
 context associated with the graph. It is valid to call this method multiple times
 to create subsequent executable graphs. It is also valid to continue to add new
 nodes to the modifiable graph instance after calling this function. It is valid
 to finalize an empty graph instance with no recorded commands.
 
-Constraints:
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
+_Returns:_ A new executable graph object which can be submitted to a queue.
 
-Parameters:
+_Throws:_ Synchronously `exception` with error code `feature_not_supported` if
+the graph contains a command that is not supported by the device.
 
-* `propList` - Optional parameter for passing properties. Two properties
-  are valid to pass here. One is `property::graph::updatable` to enable the
-  returned executable graph to be <<executable-graph-update, updated>>.
-  The other is <<enable-profiling, `property::graph::enable_profiling`>>
-  to enable profiling events returned from submissions of the executable graph.
-
-Exceptions:
-
-* Throws synchronously with error code `feature_not_supported` if the graph
-  contains a command that is not supported by the device.
-
-Returns: A new executable graph object which can be submitted to a queue.
-
-|
 [source,c++]
 ----
 void
 print_graph(std::string path, bool verbose = false) const;
 ----
 
-|Synchronous operation that writes a DOT formatted description of the graph to the
-provided path. By default, this includes the graph topology, node types, node id,
+_Effects:_ Synchronous operation that writes a DOT formatted description of the graph to the
+provided `path`. By default, this includes the graph topology, node types, node id,
 and kernel names.
-Verbose can be set to true to write more detailed information about each node type
+`verbose` can be set to true to write more detailed information about each node type
 such as kernel arguments, copy source, and destination addresses.
 At the moment DOT format is the only supported format. The name of the output file
 must therefore match this extension, i.e. "<filename>.dot".
 
-Parameters:
+_Throws:_ Synchronously `exception` with error code `invalid` if the path is
+invalid or the file extension is not supported or if the write operation failed.
 
-* `path` - The path to write the DOT file to.
-* `verbose` - If true, print additional information about the nodes such as kernel args
-or memory access where applicable.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if the path is invalid or
-the file extension is not supported or if the write operation failed.
-
-|
 [source,c++]
 ----
 std::vector<node> get_nodes() const;
 ----
-|Returns a list of all the nodes present in the graph in the order that they
+
+_Returns:_ A list of all the nodes present in the graph in the order that they
 were added.
 
-|
 [source,c++]
 ----
 std::vector<node> get_root_nodes() const;
 ----
-|Returns a list of all nodes in the graph which have no dependencies.
 
-|===
+_Returns:_ A list of all nodes in the graph which have no dependencies.
 
-Table {counter: tableNumber}. Member functions of the `command_graph` class for
-graph update.
-[cols="2a,a"]
-|===
-|Member function|Description
+=====  Member functions of the `command_graph` class for graph update
 
-|
 [source,c++]
 ----
 void update(node& node);
 ----
 
-| Updates an executable graph node that corresponds to `node`. `node` must be a
-kernel execution node. The command-group function of the node will be updated,
-inside the executable graph, to reflect the current values in `node`. This
-includes the kernel function, the kernel nd-range and the kernel parameters.
-
-Updating these values will not change the structure of the graph.
-
+_Effects:_ Updates an executable graph node that corresponds to `node`.
+`node` must be a kernel execution node. The command-group function of the node
+will be updated, inside the executable graph, to reflect the current values
+in `node`. This includes the kernel function, the kernel nd-range and
+the kernel parameters. Updating these values will not change the structure of
+the graph.
 The implementation may perform a blocking wait during this call on any
 in-flight executions of that same graph if required by the backend.
 
-Constraints:
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::executable`.
 
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
+_Throws:_
 
-Parameters:
-
-* `node` - The node with which the equivalent node in this graph will be
-updated.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if
+* Synchronously `exception` with error code `invalid` if
   `property::graph::updatable` was not set when the executable graph was
   created.
-* Throws with error code `invalid` if `node` is not part of the
+* An `exception` with error code `invalid` if `node` is not part of the
   graph.
-* If any other exception is thrown the state of the graph node is undefined.
+* If any other `exception` is thrown the state of the graph node is undefined.
 
-|
 [source,c++]
 ----
 void update(const std::vector<node>& nodes);
 ----
 
-| Updates all executable graph nodes that corresponds to the nodes contained in
+_Effects:_ Updates all executable graph nodes that corresponds to the nodes contained in
 `nodes`. All nodes must be kernel nodes. The command-group function of each node
 will be updated, inside the executable graph, to reflect the current values in
 `nodes`. This includes the kernel function, the kernel nd-range and the kernel
 parameters".
-
 Updating these values will not change the structure of the graph.
-
 The implementation may perform a blocking wait during this call on any
 in-flight executions of that same graph if required by the backend.
 
-Constraints:
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::executable`.
 
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
+_Throws:_
 
-Parameters:
-
-* `nodes` - The nodes with which the equivalent nodes in this graph will be
-updated.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if
+* Synchronously `exception` with error code `invalid` if
   `property::graph::updatable` was not set when the executable graph was created.
-* Throws with error code `invalid` if any node in `nodes` is not part of the
+* An `exception` with error code `invalid` if any node in `nodes` is not part of the
   graph.
-* If any other exception is thrown the state of the graph nodes is undefined.
+* If any other `exception` is thrown the state of the graph nodes is undefined.
 
-|
 [source, c++]
 ----
 void
 update(const command_graph<graph_state::modifiable>& source);
 ----
 
-|Updates all of the nodes in the target graph with parameters from a
-topologically identical source graph in the modifiable state. The full
+_Effects:_ Updates all of the nodes in the target graph with parameters from a
+topologically identical graph `source` in the modifiable state. The full
 definition of what constitutes a topologically identical graph can be found in
 the <<whole-graph-update, Whole-Graph Update>> section. Violating any of these
-topology requirements results in undefined behaviour.
-
+topology requirements results in undefined behavior.
 The characteristics in the executable graph which will be updated are detailed
 in the section on <<executable-graph-update, Executable Graph Update>>.
-
 It is not an error to update an executable graph such that all parameters of
 nodes in `source` are identical to the arguments of the executable graph prior to
 the update.
-
 The implementation may perform a blocking wait during this call on
 any in-flight executions of that same graph if required by the backend.
-
 This function may only be called if the graph was created with the `updatable`
 property.
 
-Constraints:
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::executable`.
 
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
+_Throws:_
 
-Parameters:
-
-* `source` - Modifiable graph object used as the source for updating this graph.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if `source` contains any node
-  which is not one of the following types:
+* Synchronously `exception` with error code `invalid` if `source` contains any
+  node which is not one of the following types:
 
 ** `node_type::empty`
 ** `node_type::ext_oneapi_barrier`
 ** `node_type::kernel`
 
-* Throws synchronously with error code `invalid` if the context or device
+* Synchronously `exception` with error code `invalid` if the context or device
   associated with `source` does not match that of the `command_graph` being
   updated.
 
-* Throws synchronously with error code `invalid` if
+* Synchronously `exception` with error code `invalid` if
   `property::graph::updatable` was not set when the executable graph was
   created.
 
-* If any other exception is thrown the state of the graph nodes is undefined.
-|===
+* If any other `exception` is thrown the state of the graph nodes is undefined.
 
-Table {counter: tableNumber}. Member functions of the `command_graph` class for
-queue recording.
-[cols="2a,a"]
-|===
-|Member function|Description
+===== Member functions of the `command_graph` class for queue recording
 
-|
 [source, c++]
 ----
 void
@@ -1545,29 +1372,24 @@ begin_recording(queue& recordingQueue,
                 const property_list& propList = {})
 ----
 
-|Synchronously changes the state of `recordingQueue` to the
+_Effects:_ Synchronously changes the state of `recordingQueue` to the
 `queue_state::recording` state. This operation is an error if `recordingQueue`
 is already in the `queue_state::recording` state.
 
-Parameters:
+_Preconditions:_ 
+`propList` is an optional parameter for passing properties.
+Properties for the `command_graph` class are defined in
+<<graph-properties, Graph Properties>>.
 
-* `recordingQueue` - A `sycl::queue` object to change to the
-  `queue_state::recording` state and start recording commands to the graph
-  instance.
+_Throws:_
 
-* `propList` - Optional parameter for passing properties. Properties for
-  the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if `recordingQueue` is
+* Synchronously `exception` with error code `invalid` if `recordingQueue` is
   already recording to a graph.
 
-* Throws synchronously with error code `invalid` if `recordingQueue` is
+* Synchronously `exception` with error code `invalid` if `recordingQueue` is
   associated with a device or context that is different from the device
   and context used on creation of the graph.
 
-|
 [source, c++]
 ----
 void
@@ -1575,79 +1397,58 @@ begin_recording(const std::vector<queue>& recordingQueues,
                 const property_list& propList = {})
 ----
 
-|Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::recording` state. This operation is an error for any queue in
-`recordingQueues` that is already in the `queue_state::recording` state.
+_Effects:_ Synchronously changes the state of each queue in `recordingQueues`
+to the `queue_state::recording` state and start recording commands to the graph
+instance. This operation is an error for any queue in `recordingQueues` that
+is already in the `queue_state::recording` state.
 
-Parameters:
+_Preconditions:_ 
+`propList` is an optional parameter for passing properties.
+Properties for the `command_graph` class are defined in
+<<graph-properties, Graph Properties>>.
 
-* `recordingQueues` - List of `sycl::queue` objects to change to the
-  `queue_state::recording` state and start recording commands to the graph
-  instance.
+_Throws:_
 
-* `propList` - Optional parameter for passing properties. Properties for
-  the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if any queue in
+* Synchronously `exception` with error code `invalid` if any queue in
   `recordingQueues` is already recording to a graph.
 
-* Throws synchronously with error code `invalid` if any of `recordingQueues`
+* Synchronously `exception` with error code `invalid` if any of `recordingQueues`
   is associated with a device or context that is different from the device
   and context used on creation of the graph.
 
-|
 [source, c++]
 ----
 void end_recording()
 ----
 
-|Synchronously finishes recording on all queues that are recording to the
-graph and sets their state to `queue_state::executing`. This operation is
-a no-op for any queue in the graph that is already in the
+_Effects:_ Synchronously finishes recording on all queues that are recording
+to the graph and sets their state to `queue_state::executing`. This operation
+is a no-op for any queue in the graph that is already in the
 `queue_state::executing` state.
 
-|
 [source, c++]
 ----
 void end_recording(queue& recordingQueue)
 ----
 
-|Synchronously changes the state of `recordingQueue` to the
+_Effects:_ Synchronously changes the state of `recordingQueue` to the
 `queue_state::executing` state. This operation is a no-op if `recordingQueue`
 is already in the `queue_state::executing` state.
 
-Parameters:
+_Throws:_ Synchronously `exception` with error code `invalid` if
+`recordingQueue` is recording to a different graph.
 
-* `recordingQueue` - A `sycl::queue` object to change to the executing state.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if `recordingQueue` is
-  recording to a different graph.
-
-|
 [source, c++]
 ----
 void end_recording(const std::vector<queue>& recordingQueues)
 ----
 
-|Synchronously changes the state of each queue in `recordingQueues` to the
+_Effects:_ Synchronously changes the state of each queue in `recordingQueues` to the
 `queue_state::executing` state. This operation is a no-op for any queue in
 `recordingQueues` that is already in the `queue_state::executing` state.
 
-Parameters:
-
-* `recordingQueues` - List of `sycl::queue` objects to change to the executing
-  state.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if any queue in
-  `recordingQueues` is recording to a different graph.
-
-|===
+_Throws:_ Synchronously `exception` with error code `invalid` if any queue in
+`recordingQueues` is recording to a different graph.
 
 === Queue Class Modifications
 
@@ -1790,58 +1591,52 @@ ways:
 
 ==== New Queue Member Functions
 
-Table {counter: tableNumber}. Additional member functions of the `sycl::queue` class.
-[cols="2a,a"]
-|===
-|Member function|Description
+===== Additional member functions of the `sycl::queue` class
 
-|
 [source,c++]
 ----
 queue_state
 queue::ext_oneapi_get_state() const;
 ----
 
-| Query the <<queue-state, recording state>> of the queue.
+_Effects:_ Query the <<queue-state, recording state>> of the queue.
 
-Returns: If the queue is in the default state where commands are scheduled
+_Returns:_ If the queue is in the default state where commands are scheduled
 immediately for execution, `queue_state::executing` is returned. Otherwise,
 `queue_state::recording` is returned where commands are redirected to a `command_graph`
 object.
-|
+
 [source,c++]
 ----
 command_graph<graph_state::modifiable>
 queue::ext_oneapi_get_graph() const;
 ----
 
-| Query the underlying command graph of a queue when recording.
+_Effects:_ Query the underlying command graph of a queue when recording.
 
-Returns: The graph object that the queue is recording commands into.
+_Returns:_ The graph object that the queue is recording commands into.
 
-Exceptions:
+_Throws:_ Synchronously `exception` with error code `invalid` if the queue is
+not in `queue_state::recording` state.
 
-* Throws synchronously with error code `invalid` if the queue is not in `queue_state::recording`
-state.
-
-|
 [source,c++]
 ----
 event
 queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
-|Queue shortcut function that is equivalent to submitting a command-group
+_Effects:_ Queue shortcut function that is equivalent to submitting a command-group
 containing `handler::ext_oneapi_graph(graph)`.
-
 The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
 
-The queue should be associated with a device and context that are the same
+_Preconditions:_ The queue should be associated with a device and context that are the same
 as the device and context used on creation of the graph.
-|
+
+_Returns:_ An event which represents the command which is submitted to the queue.
+
 [source,c++]
 ----
 event
@@ -1849,18 +1644,19 @@ queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                         event depEvent);
 ----
 
-|Queue shortcut function that is equivalent to submitting a command-group
+_Effects:_ Queue shortcut function that is equivalent to submitting a command-group
 containing `handler::depends_on(depEvent)` and
 `handler::ext_oneapi_graph(graph)`.
-
 The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
 
-The queue should be associated with a device and context that are the same
-as the device and context used on creation of the graph.
-|
+_Preconditions:_ The queue should be associated with a device and context that
+are the same as the device and context used on creation of the graph.
+
+_Returns:_ An event which represents the command which is submitted to the queue.
+
 [source,c++]
 ----
 event
@@ -1868,49 +1664,38 @@ queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                         const std::vector<event>& depEvents);
 ----
 
-|Queue shortcut function that is equivalent to submitting a command-group
+_Effects:_ Queue shortcut function that is equivalent to submitting a command-group
 containing `handler::depends_on(depEvents)` and
 `handler::ext_oneapi_graph(graph)`.
-
 The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
 
-The queue should be associated with a device and context that are the same
-as the device and context used on creation of the graph.
-|===
+_Preconditions:_ The queue should be associated with a device and context that
+are the same as the device and context used on creation of the graph.
+
+_Returns:_ An event which represents the command which is submitted to the queue.
 
 ==== New Handler Member Functions
 
-Table {counter: tableNumber}. Additional member functions of the `sycl::handler` class.
-[cols="2a,a"]
-|===
-|Member function|Description
+===== Additional member functions of the `sycl::handler` class
 
-|
 [source,c++]
 ----
 void
 handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
-|Invokes the execution of a graph. Only one instance of `graph` will
+_Effects:_ Invokes the execution of a graph. Only one instance of `graph` will
 execute at any time. If `graph` is submitted multiple times, dependencies
 are automatically added by the runtime to prevent concurrent executions of 
 an identical graph.
 
-Parameters:
+_Throws:_ Synchronously `exception` with error code `invalid` if the handler
+is submitted to a queue which is associated with a device or context that is
+different from the device and context used on creation of the graph.
 
-* `graph` - Graph object to execute.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if the handler is submitted
-  to a queue which is associated with a device or context that is different
-  from the device and context used on creation of the graph.
-
-|
 [source,c++]
 ----
 template <typename DataT, int Dims, access::mode AccMode, access::target
@@ -1920,27 +1705,17 @@ handler::require(ext::oneapi::experimental::dynamic_parameter<
                   dynamicParamAcc)
 ----
 
-|Requires access to a memory object associated with an accessor contained in a
-dynamic parameter.
+_Effects:_ Requires access to a memory object associated with an accessor contained in a
+dynamic parameter `dynamicParamAcc`.
 
-Parameters:
+_Throws:_
 
-* `dynamicParamAcc` - The dynamic parameter which contains the accessor that is
-required.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if this function is called from
+* Synchronously `exception` with error code `invalid` if this function is called from
 a command-group submitted to a queue with is currently recording to a graph.
 
-* Throws synchronously with error code `invalid` if this function is called from
+* Synchronously `exception` with error code `invalid` if this function is called from
 a normal SYCL command-group submission.
 
-* Throws synchronously with error code `invalid` if the graph which will be
-associated with the graph node resulting from this command-group submission is
-different from the one with which `dynamicParameterAcc` was created.
-
-|
 [source,c++]
 ----
 template <typename T>
@@ -1948,29 +1723,17 @@ void handler::set_arg(int argIndex,
               ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam);
 ----
 
-|Sets an argument to a kernel based on the value inside a dynamic parameter, and
-registers that dynamic parameter with the graph node encapsulating the
+_Effects:_ Sets an argument with index `argIndex` to a kernel based on the value inside a dynamic parameter, and
+registers that dynamic parameter `dynamicParam` with the graph node encapsulating the
 submission of the command-group that calls this function.
 
-Parameters:
+_Throws:_
 
-* `argIndex` - The index of the kernel argument.
-
-* `dynamicParam` - The dynamic parameter which contains the argument.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if this function is called from
+* Synchronously `exception` with error code `invalid` if this function is called from
 a command-group submitted to a queue with is currently recording to a graph.
 
-* Throws synchronously with error code `invalid` if this function is called from
+* Synchronously `exception` with error code `invalid` if this function is called from
 a normal SYCL command-group submission.
-
-* Throws synchronously with error code `invalid` if the graph which will be
-associated with the graph node resulting from this command-group submission is
-different from the one with which the dynamic_parameter was created.
-
-|===
 
 === Thread Safety
 
@@ -2480,9 +2243,6 @@ if used in application code.
 
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Synchronization between multiple executions of the same command-buffer
-  must be handled in the host for level-zero backend, which may involve
-  extra latency for subsequent submissions.
 
 == Revision History
 

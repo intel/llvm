@@ -869,6 +869,9 @@ public:
       }
       CGM.setAtomicOpts(AO);
     }
+
+    CGAtomicOptionsRAII(const CGAtomicOptionsRAII &) = delete;
+    CGAtomicOptionsRAII &operator=(const CGAtomicOptionsRAII &) = delete;
     ~CGAtomicOptionsRAII() { CGM.setAtomicOpts(SavedAtomicOpts); }
 
   private:
@@ -2271,6 +2274,8 @@ public:
   void pushLifetimeExtendedDestroy(CleanupKind kind, Address addr,
                                    QualType type, Destroyer *destroyer,
                                    bool useEHCleanupForArray);
+  void pushLifetimeExtendedDestroy(QualType::DestructionKind dtorKind,
+                                   Address addr, QualType type);
   void pushCallObjectDeleteCleanup(const FunctionDecl *OperatorDelete,
                                    llvm::Value *CompletePtr,
                                    QualType ElementType);
@@ -2822,6 +2827,17 @@ private:
   };
   AllocaTracker *Allocas = nullptr;
 
+  /// CGDecl helper.
+  void emitStoresForConstant(const VarDecl &D, Address Loc, bool isVolatile,
+                             llvm::Constant *constant, bool IsAutoInit);
+  /// CGDecl helper.
+  void emitStoresForZeroInit(const VarDecl &D, Address Loc, bool isVolatile);
+  /// CGDecl helper.
+  void emitStoresForPatternInit(const VarDecl &D, Address Loc, bool isVolatile);
+  /// CGDecl helper.
+  void emitStoresForInitAfterBZero(llvm::Constant *Init, Address Loc,
+                                   bool isVolatile, bool IsAutoInit);
+
 public:
   // Captures all the allocas created during the scope of its RAII object.
   struct AllocaTrackerRAII {
@@ -2867,10 +2883,28 @@ public:
   /// more efficient if the caller knows that the address will not be exposed.
   llvm::AllocaInst *CreateTempAlloca(llvm::Type *Ty, const Twine &Name = "tmp",
                                      llvm::Value *ArraySize = nullptr);
+
+  /// CreateTempAlloca - This creates a alloca and inserts it into the entry
+  /// block. The alloca is casted to the address space of \p UseAddrSpace if
+  /// necessary.
+  RawAddress CreateTempAlloca(llvm::Type *Ty, LangAS UseAddrSpace,
+                              CharUnits align, const Twine &Name = "tmp",
+                              llvm::Value *ArraySize = nullptr,
+                              RawAddress *Alloca = nullptr);
+
+  /// CreateTempAlloca - This creates a alloca and inserts it into the entry
+  /// block. The alloca is casted to default address space if necessary.
+  ///
+  /// FIXME: This version should be removed, and context should provide the
+  /// context use address space used instead of default.
   RawAddress CreateTempAlloca(llvm::Type *Ty, CharUnits align,
                               const Twine &Name = "tmp",
                               llvm::Value *ArraySize = nullptr,
-                              RawAddress *Alloca = nullptr);
+                              RawAddress *Alloca = nullptr) {
+    return CreateTempAlloca(Ty, LangAS::Default, align, Name, ArraySize,
+                            Alloca);
+  }
+
   RawAddress CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits align,
                                          const Twine &Name = "tmp",
                                          llvm::Value *ArraySize = nullptr);
@@ -3350,12 +3384,24 @@ public:
                            llvm::Value *Index, QualType IndexType,
                            QualType IndexedType, bool Accessed);
 
+  /// Returns debug info, with additional annotation if enabled by
+  /// CGM.getCodeGenOpts().SanitizeAnnotateDebugInfo[CheckKindOrdinal].
+  llvm::DILocation *
+  SanitizerAnnotateDebugInfo(SanitizerKind::SanitizerOrdinal CheckKindOrdinal);
+
   llvm::Value *GetCountedByFieldExprGEP(const Expr *Base, const FieldDecl *FD,
                                         const FieldDecl *CountDecl);
 
   /// Build an expression accessing the "counted_by" field.
   llvm::Value *EmitLoadOfCountedByField(const Expr *Base, const FieldDecl *FD,
                                         const FieldDecl *CountDecl);
+
+  // Emit bounds checking for flexible array and pointer members with the
+  // counted_by attribute.
+  void EmitCountedByBoundsChecking(const Expr *E, llvm::Value *Idx,
+                                   Address Addr, QualType IdxTy,
+                                   QualType ArrayTy, bool Accessed,
+                                   bool FlexibleArray);
 
   llvm::Value *EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
                                        bool isInc, bool isPre);
@@ -4441,10 +4487,10 @@ public:
     }
 
     bool isReference() const { return ValueAndIsReference.getInt(); }
-    LValue getReferenceLValue(CodeGenFunction &CGF, Expr *refExpr) const {
+    LValue getReferenceLValue(CodeGenFunction &CGF, const Expr *RefExpr) const {
       assert(isReference());
       return CGF.MakeNaturalAlignAddrLValue(ValueAndIsReference.getPointer(),
-                                            refExpr->getType());
+                                            RefExpr->getType());
     }
 
     llvm::Constant *getValue() const {
@@ -4453,7 +4499,7 @@ public:
     }
   };
 
-  ConstantEmission tryEmitAsConstant(DeclRefExpr *refExpr);
+  ConstantEmission tryEmitAsConstant(const DeclRefExpr *RefExpr);
   ConstantEmission tryEmitAsConstant(const MemberExpr *ME);
   llvm::Value *emitScalarConstant(const ConstantEmission &Constant, Expr *E);
 
@@ -4470,7 +4516,8 @@ public:
                               const ObjCIvarDecl *Ivar);
   llvm::Value *EmitIvarOffsetAsPointerDiff(const ObjCInterfaceDecl *Interface,
                                            const ObjCIvarDecl *Ivar);
-  LValue EmitLValueForField(LValue Base, const FieldDecl *Field);
+  LValue EmitLValueForField(LValue Base, const FieldDecl *Field,
+                            bool IsInBounds = true);
   LValue EmitLValueForLambdaField(const FieldDecl *Field);
   LValue EmitLValueForLambdaField(const FieldDecl *Field,
                                   llvm::Value *ThisValue);
@@ -4567,6 +4614,8 @@ public:
                                                const CXXRecordDecl *RD);
 
   bool isPointerKnownNonNull(const Expr *E);
+  /// Check whether the underlying base pointer is a constant null.
+  bool isUnderlyingBasePointerConstantNull(const Expr *E);
 
   /// Create the discriminator from the storage address and the entity hash.
   llvm::Value *EmitPointerAuthBlendDiscriminator(llvm::Value *StorageAddress,
@@ -4593,6 +4642,26 @@ public:
   void EmitPointerAuthOperandBundle(
       const CGPointerAuthInfo &Info,
       SmallVectorImpl<llvm::OperandBundleDef> &Bundles);
+
+  CGPointerAuthInfo EmitPointerAuthInfo(PointerAuthQualifier Qualifier,
+                                        Address StorageAddress);
+  llvm::Value *EmitPointerAuthQualify(PointerAuthQualifier Qualifier,
+                                      llvm::Value *Pointer, QualType ValueType,
+                                      Address StorageAddress,
+                                      bool IsKnownNonNull);
+  llvm::Value *EmitPointerAuthQualify(PointerAuthQualifier Qualifier,
+                                      const Expr *PointerExpr,
+                                      Address StorageAddress);
+  llvm::Value *EmitPointerAuthUnqualify(PointerAuthQualifier Qualifier,
+                                        llvm::Value *Pointer,
+                                        QualType PointerType,
+                                        Address StorageAddress,
+                                        bool IsKnownNonNull);
+  void EmitPointerAuthCopy(PointerAuthQualifier Qualifier, QualType Type,
+                           Address DestField, Address SrcField);
+
+  std::pair<llvm::Value *, CGPointerAuthInfo>
+  EmitOrigPointerRValue(const Expr *E);
 
   llvm::Value *authPointerToPointerCast(llvm::Value *ResultPtr,
                                         QualType SourceType, QualType DestType);
@@ -4648,7 +4717,7 @@ public:
   // Compute the object pointer.
   Address EmitCXXMemberDataPointerAddress(
       const Expr *E, Address base, llvm::Value *memberPtr,
-      const MemberPointerType *memberPtrType,
+      const MemberPointerType *memberPtrType, bool IsInBounds,
       LValueBaseInfo *BaseInfo = nullptr, TBAAAccessInfo *TBAAInfo = nullptr);
   RValue EmitCXXMemberPointerCallExpr(const CXXMemberCallExpr *E,
                                       ReturnValueSlot ReturnValue,
@@ -5358,6 +5427,9 @@ public:
                                      unsigned NumElementsDst,
                                      const llvm::Twine &Name = "");
 
+  void maybeAttachRangeForLoad(llvm::LoadInst *Load, QualType Ty,
+                               SourceLocation Loc);
+
 private:
   // Emits a convergence_loop instruction for the given |BB|, with |ParentToken|
   // as it's parent convergence instr.
@@ -5427,9 +5499,20 @@ private:
                                      llvm::IntegerType *ResType,
                                      llvm::Value *EmittedE, bool IsDynamic);
 
-  llvm::Value *emitCountedByMemberSize(const Expr *E, llvm::Value *EmittedE,
+  llvm::Value *emitCountedBySize(const Expr *E, llvm::Value *EmittedE,
+                                 unsigned Type, llvm::IntegerType *ResType);
+
+  llvm::Value *emitCountedByMemberSize(const MemberExpr *E, const Expr *Idx,
+                                       llvm::Value *EmittedE,
+                                       QualType CastedArrayElementTy,
                                        unsigned Type,
                                        llvm::IntegerType *ResType);
+
+  llvm::Value *emitCountedByPointerSize(const ImplicitCastExpr *E,
+                                        const Expr *Idx, llvm::Value *EmittedE,
+                                        QualType CastedArrayElementTy,
+                                        unsigned Type,
+                                        llvm::IntegerType *ResType);
 
   void emitZeroOrPatternForAutoVarInit(QualType type, const VarDecl &D,
                                        Address Loc);

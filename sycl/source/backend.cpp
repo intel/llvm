@@ -48,19 +48,19 @@ static const AdapterPtr &getAdapter(backend Backend) {
   }
 }
 
-backend convertUrBackend(ur_platform_backend_t UrBackend) {
+backend convertUrBackend(ur_backend_t UrBackend) {
   switch (UrBackend) {
-  case UR_PLATFORM_BACKEND_UNKNOWN:
+  case UR_BACKEND_UNKNOWN:
     return backend::all; // No specific backend
-  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+  case UR_BACKEND_LEVEL_ZERO:
     return backend::ext_oneapi_level_zero;
-  case UR_PLATFORM_BACKEND_OPENCL:
+  case UR_BACKEND_OPENCL:
     return backend::opencl;
-  case UR_PLATFORM_BACKEND_CUDA:
+  case UR_BACKEND_CUDA:
     return backend::ext_oneapi_cuda;
-  case UR_PLATFORM_BACKEND_HIP:
+  case UR_BACKEND_HIP:
     return backend::ext_oneapi_hip;
-  case UR_PLATFORM_BACKEND_NATIVE_CPU:
+  case UR_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
   default:
     throw exception(make_error_code(errc::runtime),
@@ -112,7 +112,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
       NativeHandle, Adapter->getUrAdapter(), DeviceHandles.size(),
       DeviceHandles.data(), &Properties, &UrContext);
   // Construct the SYCL context from UR context.
-  return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
+  return detail::createSyclObjFromImpl<context>(context_impl::create(
       UrContext, Handler, Adapter, DeviceList, !KeepOwnership));
 }
 
@@ -158,7 +158,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
       &UrQueue);
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<queue>(
-      std::make_shared<queue_impl>(UrQueue, ContextImpl, Handler, PropList));
+      queue_impl::create(UrQueue, ContextImpl, Handler, PropList));
 }
 
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,

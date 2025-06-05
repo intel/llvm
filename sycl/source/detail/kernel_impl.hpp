@@ -115,6 +115,9 @@ public:
   typename Param::return_type get_info(const device &Device,
                                        const range<3> &WGSize) const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // This function is unused and should be removed in the next ABI breaking.
+
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue.
   ///
@@ -122,6 +125,7 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(queue Queue) const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue and values.
@@ -231,7 +235,7 @@ public:
   ur_program_handle_t getProgramRef() const { return MProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
-  std::mutex &getNoncacheableEnqueueMutex() {
+  std::mutex &getNoncacheableEnqueueMutex() const {
     return MNoncacheableEnqueueMutex;
   }
 
@@ -247,7 +251,7 @@ private:
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
-  std::mutex MNoncacheableEnqueueMutex;
+  mutable std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
@@ -371,7 +375,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
 
   uint32_t GroupCount{0};
   if (auto Result = Adapter->call_nocheck<
-                    UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
+                    UrApiKind::urKernelSuggestMaxCooperativeGroupCount>(
           Handle, DeviceHandleRef, Dimensions, WG, DynamicLocalMemorySize,
           &GroupCount);
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE &&
@@ -440,6 +444,9 @@ inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
       getAdapter());
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// These functions are unused and should be removed in the next ABI breaking.
+
 template <>
 inline typename syclex::info::kernel_queue_specific::max_work_group_size::
     return_type
@@ -490,6 +497,8 @@ ADD_TEMPLATE_METHOD_SPEC(2)
 ADD_TEMPLATE_METHOD_SPEC(3)
 
 #undef ADD_TEMPLATE_METHOD_SPEC
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #define ADD_TEMPLATE_METHOD_SPEC(QueueSpec, Num, Kind, Reg)                    \
   template <>                                                                  \

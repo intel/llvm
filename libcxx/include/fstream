@@ -220,13 +220,14 @@ _LIBCPP_PUSH_MACROS
 #    include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
+_LIBCPP_BEGIN_EXPLICIT_ABI_ANNOTATIONS
 
 #    if _LIBCPP_STD_VER >= 26 && defined(_LIBCPP_WIN32API)
 _LIBCPP_EXPORTED_FROM_ABI void* __filebuf_windows_native_handle(FILE* __file) noexcept;
 #    endif
 
 template <class _CharT, class _Traits>
-class _LIBCPP_TEMPLATE_VIS basic_filebuf : public basic_streambuf<_CharT, _Traits> {
+class basic_filebuf : public basic_streambuf<_CharT, _Traits> {
 public:
   typedef _CharT char_type;
   typedef _Traits traits_type;
@@ -1096,7 +1097,7 @@ void basic_filebuf<_CharT, _Traits>::__write_mode() {
 // basic_ifstream
 
 template <class _CharT, class _Traits>
-class _LIBCPP_TEMPLATE_VIS basic_ifstream : public basic_istream<_CharT, _Traits> {
+class basic_ifstream : public basic_istream<_CharT, _Traits> {
 public:
   typedef _CharT char_type;
   typedef _Traits traits_type;
@@ -1252,7 +1253,7 @@ inline void basic_ifstream<_CharT, _Traits>::close() {
 // basic_ofstream
 
 template <class _CharT, class _Traits>
-class _LIBCPP_TEMPLATE_VIS basic_ofstream : public basic_ostream<_CharT, _Traits> {
+class basic_ofstream : public basic_ostream<_CharT, _Traits> {
 public:
   typedef _CharT char_type;
   typedef _Traits traits_type;
@@ -1411,7 +1412,7 @@ inline void basic_ofstream<_CharT, _Traits>::close() {
 // basic_fstream
 
 template <class _CharT, class _Traits>
-class _LIBCPP_TEMPLATE_VIS basic_fstream : public basic_iostream<_CharT, _Traits> {
+class basic_fstream : public basic_iostream<_CharT, _Traits> {
 public:
   typedef _CharT char_type;
   typedef _Traits traits_type;
@@ -1569,6 +1570,7 @@ extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ofstream<char>;
 extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_filebuf<char>;
 #    endif
 
+_LIBCPP_END_EXPLICIT_ABI_ANNOTATIONS
 _LIBCPP_END_NAMESPACE_STD
 
 _LIBCPP_POP_MACROS

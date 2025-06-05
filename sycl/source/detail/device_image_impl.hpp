@@ -19,6 +19,7 @@
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/split_string.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
@@ -852,7 +853,7 @@ private:
   extractXsFlags(const std::vector<sycl::detail::string_view> &BuildOptions) {
     std::stringstream SS;
     for (sycl::detail::string_view Option : BuildOptions) {
-      std::string_view OptionSV{Option.data()};
+      std::string_view OptionSV{Option};
       auto Where = OptionSV.find("-Xs");
       if (Where != std::string_view::npos) {
         Where += 3;

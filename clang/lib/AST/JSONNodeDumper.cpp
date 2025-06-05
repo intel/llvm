@@ -1727,6 +1727,8 @@ void JSONNodeDumper::VisitTemplateExpansionTemplateArgument(
 void JSONNodeDumper::VisitExpressionTemplateArgument(
     const TemplateArgument &TA) {
   JOS.attribute("isExpr", true);
+  if (TA.isCanonicalExpr())
+    JOS.attribute("isCanonical", true);
 }
 void JSONNodeDumper::VisitPackTemplateArgument(const TemplateArgument &TA) {
   JOS.attribute("isPack", true);
@@ -1865,7 +1867,7 @@ void JSONNodeDumper::visitVerbatimLineComment(
 
 llvm::json::Object JSONNodeDumper::createFPOptions(FPOptionsOverride FPO) {
   llvm::json::Object Ret;
-#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+#define FP_OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                 \
   if (FPO.has##NAME##Override())                                               \
     Ret.try_emplace(#NAME, static_cast<unsigned>(FPO.get##NAME##Override()));
 #include "clang/Basic/FPOptions.def"

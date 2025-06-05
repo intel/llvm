@@ -18,8 +18,6 @@ import sys
 
 from os.path import dirname, join, abspath
 
-sys.path.insert(0, abspath(join(dirname(__file__), "..", "..", "..", "generic")))
-
 from gen_convert_common import (
     types,
     int_types,
@@ -44,9 +42,6 @@ from gen_convert_common import (
     clc_core_fn_name,
 )
 
-types.remove("char")
-int_types.remove("char")
-signed_types.remove("char")
 rounding_modes = [""] + rounding_modes
 
 print(
@@ -76,7 +71,7 @@ print(
 
 #include <clc/clcfunc.h>
 #include <clc/clctypes.h>
-#include <core/convert.h>
+#include <clc/clc_convert.h>
 #include <libspirv/spirv.h>
 
 #ifdef cl_khr_fp16
@@ -114,9 +109,6 @@ def spirv_fn_name(src, dst, size="", mode="", sat="", force_sat_decoration=False
     is_dst_unsigned = dst in unsigned_types
     is_dst_signed = dst in signed_types
     use_sat_insn = sat != "" and not force_sat_decoration
-
-    if dst == "schar":
-        dst = "char"
 
     if is_src_unsigned and is_dst_signed and use_sat_insn:
         return "__spirv_SatConvertUToS_R{DST}{N}".format(DST=dst, N=size)

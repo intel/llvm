@@ -17,7 +17,7 @@
 #include "context.hpp"
 
 /// Implementation of UR Program on HIP Module object
-struct ur_program_handle_t_ {
+struct ur_program_handle_t_ : ur::hip::handle_base {
   using native_type = hipModule_t;
   native_type Module;
   const char *Binary;
@@ -48,10 +48,14 @@ struct ur_program_handle_t_ {
   ur_program_build_status_t BuildStatus = UR_PROGRAM_BUILD_STATUS_NONE;
 
   ur_program_handle_t_(ur_context_handle_t Ctxt, ur_device_handle_t Device)
-      : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-        Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
+      : handle_base(), Module{nullptr}, Binary{}, BinarySizeInBytes{0},
+        RefCount{1}, Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
         KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
+
+    // When the log is queried we use strnlen(InfoLog), so it needs to be
+    // initialized like this when it's empty to correctly return 0.
+    InfoLog[0] = '\0';
   }
 
   ~ur_program_handle_t_() { urContextRelease(Context); }

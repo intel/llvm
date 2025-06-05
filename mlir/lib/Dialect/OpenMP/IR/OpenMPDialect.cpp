@@ -662,8 +662,9 @@ static ParseResult parseClauseWithRegionArgs(
                 parser.parseInteger(mapIndicesVec.emplace_back()) ||
                 parser.parseRSquare())
               return failure();
-          } else
+          } else {
             mapIndicesVec.push_back(-1);
+          }
         }
 
         return success();
@@ -1520,6 +1521,9 @@ static ParseResult parseMapClause(OpAsmParser &parser, IntegerAttr &mapType) {
     if (mapTypeMod == "delete")
       mapTypeBits |= llvm::omp::OpenMPOffloadMappingFlags::OMP_MAP_DELETE;
 
+    if (mapTypeMod == "return_param")
+      mapTypeBits |= llvm::omp::OpenMPOffloadMappingFlags::OMP_MAP_RETURN_PARAM;
+
     return success();
   };
 
@@ -1581,6 +1585,12 @@ static void printMapClause(OpAsmPrinter &p, Operation *op,
                        llvm::omp::OpenMPOffloadMappingFlags::OMP_MAP_DELETE)) {
     emitAllocRelease = false;
     mapTypeStrs.push_back("delete");
+  }
+  if (mapTypeToBitFlag(
+          mapTypeBits,
+          llvm::omp::OpenMPOffloadMappingFlags::OMP_MAP_RETURN_PARAM)) {
+    emitAllocRelease = false;
+    mapTypeStrs.push_back("return_param");
   }
   if (emitAllocRelease)
     mapTypeStrs.push_back("exit_release_or_enter_alloc");
@@ -1776,12 +1786,26 @@ static LogicalResult verifyPrivateVarsMapping(TargetOp targetOp) {
 // MapInfoOp
 //===----------------------------------------------------------------------===//
 
+static LogicalResult verifyMapInfoDefinedArgs(Operation *op,
+                                              StringRef clauseName,
+                                              OperandRange vars) {
+  for (Value var : vars)
+    if (!llvm::isa_and_present<MapInfoOp>(var.getDefiningOp()))
+      return op->emitOpError()
+             << "'" << clauseName
+             << "' arguments must be defined by 'omp.map.info' ops";
+  return success();
+}
+
 LogicalResult MapInfoOp::verify() {
   if (getMapperId() &&
       !SymbolTable::lookupNearestSymbolFrom<omp::DeclareMapperOp>(
           *this, getMapperIdAttr())) {
     return emitError("invalid mapper id");
   }
+
+  if (failed(verifyMapInfoDefinedArgs(*this, "members", getMembers())))
+    return failure();
 
   return success();
 }
@@ -1804,6 +1828,15 @@ LogicalResult TargetDataOp::verify() {
                        "At least one of map, use_device_ptr_vars, or "
                        "use_device_addr_vars operand must be present");
   }
+
+  if (failed(verifyMapInfoDefinedArgs(*this, "use_device_ptr",
+                                      getUseDevicePtrVars())))
+    return failure();
+
+  if (failed(verifyMapInfoDefinedArgs(*this, "use_device_addr",
+                                      getUseDeviceAddrVars())))
+    return failure();
+
   return verifyMapClause(*this, getMapVars());
 }
 
@@ -1888,16 +1921,15 @@ void TargetOp::build(OpBuilder &builder, OperationState &state,
 }
 
 LogicalResult TargetOp::verify() {
-  LogicalResult verifyDependVars =
-      verifyDependVarList(*this, getDependKinds(), getDependVars());
+  if (failed(verifyDependVarList(*this, getDependKinds(), getDependVars())))
+    return failure();
 
-  if (failed(verifyDependVars))
-    return verifyDependVars;
+  if (failed(verifyMapInfoDefinedArgs(*this, "has_device_addr",
+                                      getHasDeviceAddrVars())))
+    return failure();
 
-  LogicalResult verifyMapVars = verifyMapClause(*this, getMapVars());
-
-  if (failed(verifyMapVars))
-    return verifyMapVars;
+  if (failed(verifyMapClause(*this, getMapVars())))
+    return failure();
 
   return verifyPrivateVarsMapping(*this);
 }
@@ -2222,21 +2254,27 @@ LogicalResult ParallelOp::verify() {
 }
 
 LogicalResult ParallelOp::verifyRegions() {
-  auto distributeChildOps = getOps<DistributeOp>();
-  if (!distributeChildOps.empty()) {
+  auto distChildOps = getOps<DistributeOp>();
+  int numDistChildOps = std::distance(distChildOps.begin(), distChildOps.end());
+  if (numDistChildOps > 1)
+    return emitError()
+           << "multiple 'omp.distribute' nested inside of 'omp.parallel'";
+
+  if (numDistChildOps == 1) {
     if (!isComposite())
       return emitError()
              << "'omp.composite' attribute missing from composite operation";
 
     auto *ompDialect = getContext()->getLoadedDialect<OpenMPDialect>();
-    Operation &distributeOp = **distributeChildOps.begin();
+    Operation &distributeOp = **distChildOps.begin();
     for (Operation &childOp : getOps()) {
       if (&childOp == &distributeOp || ompDialect != childOp.getDialect())
         continue;
 
       if (!childOp.hasTrait<OpTrait::IsTerminator>())
         return emitError() << "unexpected OpenMP operation inside of composite "
-                              "'omp.parallel'";
+                              "'omp.parallel': "
+                           << childOp.getName();
     }
   } else if (isComposite()) {
     return emitError()
@@ -2388,9 +2426,15 @@ void WorkshareOp::build(OpBuilder &builder, OperationState &state,
 
 LogicalResult WorkshareLoopWrapperOp::verify() {
   if (!(*this)->getParentOfType<WorkshareOp>())
-    return emitError() << "must be nested in an omp.workshare";
-  if (getNestedWrapper())
-    return emitError() << "cannot be composite";
+    return emitOpError() << "must be nested in an omp.workshare";
+  return success();
+}
+
+LogicalResult WorkshareLoopWrapperOp::verifyRegions() {
+  if (isa_and_nonnull<LoopWrapperInterface>((*this)->getParentOp()) ||
+      getNestedWrapper())
+    return emitOpError() << "expected to be a standalone loop wrapper";
+
   return success();
 }
 
@@ -2415,7 +2459,7 @@ LogicalResult LoopWrapperInterface::verifyImpl() {
 
   Operation &firstOp = *region.op_begin();
   if (!isa<LoopNestOp, LoopWrapperInterface>(firstOp))
-    return emitOpError() << "op nested in loop wrapper is not another loop "
+    return emitOpError() << "nested in loop wrapper is not another loop "
                             "wrapper or `omp.loop_nest`";
 
   return success();
@@ -2444,7 +2488,7 @@ LogicalResult LoopOp::verify() {
 LogicalResult LoopOp::verifyRegions() {
   if (llvm::isa_and_nonnull<LoopWrapperInterface>((*this)->getParentOp()) ||
       getNestedWrapper())
-    return emitError() << "`omp.loop` expected to be a standalone loop wrapper";
+    return emitOpError() << "expected to be a standalone loop wrapper";
 
   return success();
 }
@@ -2601,9 +2645,13 @@ LogicalResult DistributeOp::verifyRegions() {
     // Check for the allowed leaf constructs that may appear in a composite
     // construct directly after DISTRIBUTE.
     if (isa<WsloopOp>(nested)) {
-      if (!llvm::dyn_cast_if_present<ParallelOp>((*this)->getParentOp()))
+      Operation *parentOp = (*this)->getParentOp();
+      if (!llvm::dyn_cast_if_present<ParallelOp>(parentOp) ||
+          !cast<ComposableOpInterface>(parentOp).isComposite()) {
         return emitError() << "an 'omp.wsloop' nested wrapper is only allowed "
-                              "when 'omp.parallel' is the direct parent";
+                              "when a composite 'omp.parallel' is the direct "
+                              "parent";
+      }
     } else if (!isa<SimdOp>(nested))
       return emitError() << "only supported nested wrappers are 'omp.simd' and "
                             "'omp.wsloop'";
@@ -2769,16 +2817,16 @@ LogicalResult TaskgroupOp::verify() {
 void TaskloopOp::build(OpBuilder &builder, OperationState &state,
                        const TaskloopOperands &clauses) {
   MLIRContext *ctx = builder.getContext();
-  // TODO Store clauses in op: privateVars, privateSyms.
   TaskloopOp::build(builder, state, clauses.allocateVars, clauses.allocatorVars,
                     clauses.final, clauses.grainsizeMod, clauses.grainsize,
                     clauses.ifExpr, clauses.inReductionVars,
                     makeDenseBoolArrayAttr(ctx, clauses.inReductionByref),
                     makeArrayAttr(ctx, clauses.inReductionSyms),
                     clauses.mergeable, clauses.nogroup, clauses.numTasksMod,
-                    clauses.numTasks, clauses.priority, /*private_vars=*/{},
-                    /*private_syms=*/nullptr, clauses.reductionMod,
-                    clauses.reductionVars,
+                    clauses.numTasks, clauses.priority,
+                    /*private_vars=*/clauses.privateVars,
+                    /*private_syms=*/makeArrayAttr(ctx, clauses.privateSyms),
+                    clauses.reductionMod, clauses.reductionVars,
                     makeDenseBoolArrayAttr(ctx, clauses.reductionByref),
                     makeArrayAttr(ctx, clauses.reductionSyms), clauses.untied);
 }
@@ -3146,24 +3194,32 @@ void CancelOp::build(OpBuilder &builder, OperationState &state,
   CancelOp::build(builder, state, clauses.cancelDirective, clauses.ifExpr);
 }
 
+static Operation *getParentInSameDialect(Operation *thisOp) {
+  Operation *parent = thisOp->getParentOp();
+  while (parent) {
+    if (parent->getDialect() == thisOp->getDialect())
+      return parent;
+    parent = parent->getParentOp();
+  }
+  return nullptr;
+}
+
 LogicalResult CancelOp::verify() {
   ClauseCancellationConstructType cct = getCancelDirective();
-  Operation *parentOp = (*this)->getParentOp();
-
-  if (!parentOp) {
-    return emitOpError() << "must be used within a region supporting "
-                            "cancel directive";
-  }
+  // The next OpenMP operation in the chain of parents
+  Operation *structuralParent = getParentInSameDialect((*this).getOperation());
+  if (!structuralParent)
+    return emitOpError() << "Orphaned cancel construct";
 
   if ((cct == ClauseCancellationConstructType::Parallel) &&
-      !isa<ParallelOp>(parentOp)) {
+      !mlir::isa<ParallelOp>(structuralParent)) {
     return emitOpError() << "cancel parallel must appear "
                          << "inside a parallel region";
   }
   if (cct == ClauseCancellationConstructType::Loop) {
-    auto loopOp = dyn_cast<LoopNestOp>(parentOp);
-    auto wsloopOp = llvm::dyn_cast_if_present<WsloopOp>(
-        loopOp ? loopOp->getParentOp() : nullptr);
+    // structural parent will be omp.loop_nest, directly nested inside
+    // omp.wsloop
+    auto wsloopOp = mlir::dyn_cast<WsloopOp>(structuralParent->getParentOp());
 
     if (!wsloopOp) {
       return emitOpError()
@@ -3179,17 +3235,25 @@ LogicalResult CancelOp::verify() {
     }
 
   } else if (cct == ClauseCancellationConstructType::Sections) {
-    if (!(isa<SectionsOp>(parentOp) || isa<SectionOp>(parentOp))) {
+    // structural parent will be an omp.section, directly nested inside
+    // omp.sections
+    auto sectionsOp =
+        mlir::dyn_cast<SectionsOp>(structuralParent->getParentOp());
+    if (!sectionsOp) {
       return emitOpError() << "cancel sections must appear "
                            << "inside a sections region";
     }
-    if (isa_and_nonnull<SectionsOp>(parentOp->getParentOp()) &&
-        cast<SectionsOp>(parentOp->getParentOp()).getNowaitAttr()) {
+    if (sectionsOp.getNowait()) {
       return emitError() << "A sections construct that is canceled "
                          << "must not have a nowait clause";
     }
   }
-  // TODO : Add more when we support taskgroup.
+  if ((cct == ClauseCancellationConstructType::Taskgroup) &&
+      (!mlir::isa<omp::TaskOp>(structuralParent) &&
+       !mlir::isa<omp::TaskloopOp>(structuralParent->getParentOp()))) {
+    return emitOpError() << "cancel taskgroup must appear "
+                         << "inside a task region";
+  }
   return success();
 }
 
@@ -3204,29 +3268,33 @@ void CancellationPointOp::build(OpBuilder &builder, OperationState &state,
 
 LogicalResult CancellationPointOp::verify() {
   ClauseCancellationConstructType cct = getCancelDirective();
-  Operation *parentOp = (*this)->getParentOp();
-
-  if (!parentOp) {
-    return emitOpError() << "must be used within a region supporting "
-                            "cancellation point directive";
-  }
+  // The next OpenMP operation in the chain of parents
+  Operation *structuralParent = getParentInSameDialect((*this).getOperation());
+  if (!structuralParent)
+    return emitOpError() << "Orphaned cancellation point";
 
   if ((cct == ClauseCancellationConstructType::Parallel) &&
-      !(isa<ParallelOp>(parentOp))) {
+      !mlir::isa<ParallelOp>(structuralParent)) {
     return emitOpError() << "cancellation point parallel must appear "
                          << "inside a parallel region";
   }
+  // Strucutal parent here will be an omp.loop_nest. Get the parent of that to
+  // find the wsloop
   if ((cct == ClauseCancellationConstructType::Loop) &&
-      (!isa<LoopNestOp>(parentOp) || !isa<WsloopOp>(parentOp->getParentOp()))) {
+      !mlir::isa<WsloopOp>(structuralParent->getParentOp())) {
     return emitOpError() << "cancellation point loop must appear "
                          << "inside a worksharing-loop region";
   }
   if ((cct == ClauseCancellationConstructType::Sections) &&
-      !(isa<SectionsOp>(parentOp) || isa<SectionOp>(parentOp))) {
+      !mlir::isa<omp::SectionOp>(structuralParent)) {
     return emitOpError() << "cancellation point sections must appear "
                          << "inside a sections region";
   }
-  // TODO : Add more when we support taskgroup.
+  if ((cct == ClauseCancellationConstructType::Taskgroup) &&
+      !mlir::isa<omp::TaskOp>(structuralParent)) {
+    return emitOpError() << "cancellation point taskgroup must appear "
+                         << "inside a task region";
+  }
   return success();
 }
 

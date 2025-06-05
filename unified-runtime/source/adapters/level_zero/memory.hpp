@@ -29,9 +29,6 @@ struct ur_device_handle_t_;
 
 bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr);
 bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr);
-bool PreferCopyEngineUsage(ur_device_handle_t Device,
-                           ur_context_handle_t Context, const void *Src,
-                           void *Dst);
 
 // This is an experimental option to test performance of device to device copy
 // operations on copy engines (versus compute engine)

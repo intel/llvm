@@ -198,14 +198,10 @@ ABIArgInfo AMDGPUABIInfo::classifyKernelArgumentType(QualType Ty) const {
         /*ToAS=*/getContext().getTargetAddressSpace(LangAS::cuda_device));
   }
 
-  // FIXME: Should also use this for OpenCL, but it requires addressing the
-  // problem of kernels being called.
-  //
   // FIXME: This doesn't apply the optimization of coercing pointers in structs
   // to global address space when using byref. This would require implementing a
   // new kind of coercion of the in-memory type when for indirect arguments.
-  if (!getContext().getLangOpts().OpenCL && LTy == OrigLTy &&
-      isAggregateTypeForABI(Ty)) {
+  if (LTy == OrigLTy && isAggregateTypeForABI(Ty)) {
     return ABIArgInfo::getIndirectAliased(
         getContext().getTypeAlignInChars(Ty),
         getContext().getTargetAddressSpace(LangAS::opencl_constant),
@@ -302,12 +298,15 @@ public:
   AMDGPUTargetCodeGenInfo(CodeGenTypes &CGT)
       : TargetCodeGenInfo(std::make_unique<AMDGPUABIInfo>(CGT)) {}
 
+  bool supportsLibCall() const override { return false; }
   void setFunctionDeclAttributes(const FunctionDecl *FD, llvm::Function *F,
                                  CodeGenModule &CGM) const;
 
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &M) const override;
   unsigned getOpenCLKernelCallingConv() const override;
+  void
+  setOCLKernelStubCallingConvention(const FunctionType *&FT) const override;
 
   llvm::Constant *getNullPointer(const CodeGen::CodeGenModule &CGM,
       llvm::PointerType *T, QualType QT) const override;
@@ -436,6 +435,14 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
 
 unsigned AMDGPUTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
   return llvm::CallingConv::AMDGPU_KERNEL;
+}
+
+void AMDGPUTargetCodeGenInfo::setOCLKernelStubCallingConvention(
+    const FunctionType *&FT) const {
+  bool IsSYCL = getABIInfo().getContext().getLangOpts().isSYCL();
+  FT = getABIInfo().getContext().adjustFunctionType(
+      FT,
+      FT->getExtInfo().withCallingConv(!IsSYCL ? CC_C : CC_AMDGPUKernelCall));
 }
 
 // Currently LLVM assumes null pointers always have value 0,

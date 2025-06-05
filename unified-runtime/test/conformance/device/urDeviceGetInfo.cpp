@@ -2057,23 +2057,6 @@ TEST_P(urDeviceGetInfoTest, SuccessCommandBufferEventSupport) {
   ASSERT_TRUE(casted_value == false || casted_value == true);
 }
 
-TEST_P(urDeviceGetInfoTest, SuccessClusterLaunch) {
-  size_t property_size = 0;
-  const ur_device_info_t property_name =
-      UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP;
-
-  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
-  ASSERT_EQ(property_size, sizeof(ur_bool_t));
-
-  ur_bool_t property_value = false;
-  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
-                                 &property_value, nullptr));
-
-  bool casted_value = static_cast<bool>(property_value);
-  ASSERT_TRUE(casted_value == false || casted_value == true);
-}
-
 TEST_P(urDeviceGetInfoTest, SuccessBindlessImagesSupport) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
@@ -2608,7 +2591,7 @@ TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
-      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+      property_name);
 
   ASSERT_EQ(property_size, sizeof(int32_t));
 
@@ -2629,7 +2612,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
-      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+      property_name);
 
   ASSERT_EQ(property_size, sizeof(int32_t));
 
@@ -2650,7 +2633,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
-      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+      property_name);
 
   ASSERT_EQ(property_size, sizeof(int32_t));
 
@@ -2754,4 +2737,22 @@ TEST_P(urDeviceGetInfoComponentDevicesTest, SuccessComponentDevices) {
       ASSERT_TRUE(componentDevices.empty());
     }
   }
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessKernelLaunchPropertiesSupport) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(ur_kernel_launch_properties_flags_t));
+
+  ur_kernel_launch_properties_flags_t property_value =
+      UR_KERNEL_LAUNCH_PROPERTIES_FLAG_FORCE_UINT32;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+
+  ASSERT_EQ(property_value & UR_KERNEL_LAUNCH_PROPERTIES_FLAGS_MASK, 0);
 }

@@ -1,6 +1,8 @@
 # Compiles an OpenCL C - or assembles an LL file - to bytecode
 #
 # Arguments:
+# * TARGET <string>
+#     Custom target to create
 # * TRIPLE <string>
 #     Target triple for which to compile the bytecode file.
 # * INPUT <string>
@@ -17,7 +19,7 @@
 function(compile_to_bc)
   cmake_parse_arguments(ARG
     ""
-    "TRIPLE;INPUT;OUTPUT"
+    "TARGET;TRIPLE;INPUT;OUTPUT"
     "EXTRA_OPTS;DEPENDENCIES"
     ${ARGN}
   )
@@ -26,7 +28,7 @@ function(compile_to_bc)
   # board causes too many changes to the resulting bytecode library. This needs
   # investigation. It's still required for the preprocessor step, though.
   set( XCL_OPT )
-  # If this is an LLVM IR file (identified soley by its file suffix),
+  # If this is an LLVM IR file (identified solely by its file suffix),
   # pre-process it with clang to a temp file, then assemble that to bytecode.
   set( TMP_SUFFIX )
   get_filename_component( FILE_EXT ${ARG_INPUT} EXT )
@@ -69,6 +71,12 @@ function(compile_to_bc)
       ${ARG_DEPENDENCIES}
     DEPFILE ${ARG_OUTPUT}.d
   )
+  # FIXME: The target is added to ensure the parallel build of source files.
+  # However, this may result in a large number of targets.
+  # Starting with CMake 3.27, DEPENDS_EXPLICIT_ONLY can be used with
+  # add_custom_command to enable parallel build.
+  # Refer to https://gitlab.kitware.com/cmake/cmake/-/issues/17097 for details.
+  add_custom_target( ${ARG_TARGET} DEPENDS ${ARG_OUTPUT}${TMP_SUFFIX} )
 
   if( ${FILE_EXT} STREQUAL ".ll" )
     add_custom_command(
@@ -301,6 +309,8 @@ endfunction()
 #      Optimization options (for opt)
 #  * TARGET_ENV <string>
 #      Prefix to give the final builtin library aliases
+#  * REMANGLE <string>
+#      Bool string indicating whether remangler will be run
 #  * ALIASES <string> ...
 #      List of aliases
 #  * INTERNAL_LINK_DEPENDENCIES <target> ...
@@ -310,7 +320,7 @@ endfunction()
 function(add_libclc_builtin_set)
   cmake_parse_arguments(ARG
     "CLC_INTERNAL"
-    "ARCH;TRIPLE;ARCH_SUFFIX;TARGET_ENV;PARENT_TARGET"
+    "ARCH;TRIPLE;ARCH_SUFFIX;TARGET_ENV;REMANGLE;PARENT_TARGET"
     "LIB_FILES;GEN_FILES;COMPILE_FLAGS;OPT_FLAGS;ALIASES;INTERNAL_LINK_DEPENDENCIES"
     ${ARGN}
   )
@@ -321,6 +331,7 @@ function(add_libclc_builtin_set)
 
   set( bytecode_files )
   set( bytecode_ir_files )
+  set( compile_tgts )
   foreach( file IN LISTS ARG_GEN_FILES ARG_LIB_FILES )
     # We need to take each file and produce an absolute input file, as well
     # as a unique architecture-specific output file. We deal with a mix of
@@ -350,6 +361,9 @@ function(add_libclc_builtin_set)
 
     get_filename_component( file_dir ${file} DIRECTORY )
 
+    string( REPLACE "/" "-" replaced ${file} )
+    set( tgt compile_tgt-${ARG_ARCH_SUFFIX}${replaced})
+
     set( file_specific_compile_options )
     get_source_file_property( compile_opts ${file} COMPILE_OPTIONS)
     if( compile_opts )
@@ -357,13 +371,16 @@ function(add_libclc_builtin_set)
     endif()
 
     compile_to_bc(
+      TARGET ${tgt}
       TRIPLE ${ARG_TRIPLE}
       INPUT ${input_file}
       OUTPUT ${output_file}
-      EXTRA_OPTS -fno-builtin -nostdlib "${file_specific_compile_options}"
-        "${ARG_COMPILE_FLAGS}" -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
+      EXTRA_OPTS -fno-builtin -nostdlib "${ARG_COMPILE_FLAGS}"
+        "${file_specific_compile_options}"
+        -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
       DEPENDENCIES ${input_file_dep}
     )
+    list( APPEND compile_tgts ${tgt} )
 
     # Collect all files originating in LLVM IR separately
     get_filename_component( file_ext ${file} EXT )
@@ -383,7 +400,7 @@ function(add_libclc_builtin_set)
 
   set( builtins_comp_lib_tgt builtins.comp.${ARG_ARCH_SUFFIX} )
   add_custom_target( ${builtins_comp_lib_tgt}
-    DEPENDS ${bytecode_files}
+    DEPENDS ${bytecode_files} ${compile_tgts}
   )
   set_target_properties( ${builtins_comp_lib_tgt} PROPERTIES FOLDER "libclc/Device IR/Comp" )
 
@@ -469,7 +486,7 @@ function(add_libclc_builtin_set)
   install( FILES ${builtins_lib} DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 
   # Generate remangled variants if requested
-  if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+  if( ARG_REMANGLE )
     set( dummy_in ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
       COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
@@ -494,6 +511,7 @@ function(add_libclc_builtin_set)
           COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
           COMMAND ${libclc-remangler_exe}
           -o "${builtins_remangle_path}"
+          --triple=${ARG_TRIPLE}
           --long-width=${long_width}
           --char-signedness=${signedness}
           --input-ir=${builtins_lib}
@@ -560,23 +578,17 @@ endfunction(add_libclc_builtin_set)
 # LIB_FILE_LIST may be pre-populated and is appended to.
 #
 # Arguments:
-# * CLC_INTERNAL
-#     Pass if compiling the internal CLC builtin libraries, which have a
-#     different directory structure.
 # * LIB_ROOT_DIR <string>
 #     Root directory containing target's lib files, relative to libclc root
 #     directory. If not provided, is set to '.'.
-# * LIB_DIR <string>
-#     Name of the directory containing the target's lib files. If not provided,
-#     is set to 'lib'.
 # * DIRS <string> ...
 #     List of directories under LIB_ROOT_DIR to walk over searching for SOURCES
 #     files. Directories earlier in the list have lower priority than
 #     subsequent ones.
 function(libclc_configure_lib_source LIB_FILE_LIST)
   cmake_parse_arguments(ARG
-    "CLC_INTERNAL"
-    "LIB_DIR;LIB_ROOT_DIR"
+    ""
+    "LIB_ROOT_DIR"
     "DIRS"
     ${ARGN}
   )
@@ -585,19 +597,11 @@ function(libclc_configure_lib_source LIB_FILE_LIST)
     set(ARG_LIB_ROOT_DIR  ".")
   endif()
 
-  if( NOT ARG_LIB_DIR )
-    set(ARG_LIB_DIR  "lib")
-  endif()
-
   # Enumerate SOURCES* files
   set( source_list )
   foreach( l IN LISTS ARG_DIRS )
     foreach( s "SOURCES" "SOURCES_${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}" )
-      if( ARG_CLC_INTERNAL OR ARG_LIB_ROOT_DIR STREQUAL libspirv )
-        file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${ARG_LIB_DIR}/${l}/${s} file_loc )
-      else()
-        file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${l}/${ARG_LIB_DIR}/${s} file_loc )
-      endif()
+      file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/lib/${l}/${s} file_loc )
       file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${file_loc} loc )
       # Prepend the location to give higher priority to the specialized
       # implementation
@@ -610,16 +614,22 @@ function(libclc_configure_lib_source LIB_FILE_LIST)
   ## Add the generated convert files here to prevent adding the ones listed in
   ## SOURCES
   set( rel_files ${${LIB_FILE_LIST}} ) # Source directory input files, relative to the root dir
-  set( objects ${${LIB_FILE_LIST}} )   # A "set" of already-added input files
+  # A "set" of already-added input files
+  set( objects )
+  foreach( f ${${LIB_FILE_LIST}} )
+    get_filename_component( name ${f} NAME )
+    list( APPEND objects ${name} )
+  endforeach()
 
   foreach( l ${source_list} )
     file( READ ${l} file_list )
     string( REPLACE "\n" ";" file_list ${file_list} )
     get_filename_component( dir ${l} DIRECTORY )
     foreach( f ${file_list} )
+      get_filename_component( name ${f} NAME )
       # Only add each file once, so that targets can 'specialize' builtins
-      if( NOT ${f} IN_LIST objects )
-        list( APPEND objects ${f} )
+      if( NOT ${name} IN_LIST objects )
+        list( APPEND objects ${name} )
         list( APPEND rel_files ${dir}/${f} )
       endif()
     endforeach()

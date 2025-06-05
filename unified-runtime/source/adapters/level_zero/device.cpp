@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <climits>
 #include <optional>
+#include <vector>
 
 // UR_L0_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
@@ -52,8 +53,8 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    logger::error("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
-                  "default set.");
+    UR_LOG(ERR, "UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+                "default set.");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
   }
@@ -141,7 +142,7 @@ ur_result_t urDeviceGet(
       break;
     default:
       Matched = false;
-      logger::warning("Unknown device type");
+      UR_LOG(WARN, "Unknown device type");
       break;
     }
 
@@ -194,8 +195,8 @@ static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
 getZesDeviceData(ur_device_handle_t Device) {
   bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
   if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
-    logger::error("SysMan support is unavailable on this system. Please "
-                  "check your level zero driver installation.");
+    UR_LOG(ERR, "SysMan support is unavailable on this system. Please "
+                "check your level zero driver installation.");
     return {nullptr, {}, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION};
   }
 
@@ -250,7 +251,7 @@ ur_result_t urDeviceGetInfo(
     case ZE_DEVICE_TYPE_FPGA:
       return ReturnValue(UR_DEVICE_TYPE_FPGA);
     default:
-      logger::error("This device type is not supported");
+      UR_LOG(ERR, "This device type is not supported");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -1086,29 +1087,26 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
-                       Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims2D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims3D > 0);
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
-    logger::error("Unsupported ParamName in urGetDeviceInfo");
-    logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // L0 does not support mipmaps.
@@ -1119,8 +1117,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP:
-    logger::error("Unsupported ParamName in urGetDeviceInfo");
-    logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
     // L0 does not support creation of images from individual mipmap levels.
@@ -1221,10 +1219,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
@@ -1315,19 +1309,27 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
   case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
-    if (!ParamValue) {
-      // If ParamValue is nullptr, then we are only interested in the size of
-      // the value.
-      return ReturnValue(int32_t{0});
-    }
-
     [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
         getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
       return Result;
 
     zes_pwr_handle_t ZesPwrHandle = nullptr;
-    ZE2UR_CALL(zesDeviceGetCardPowerDomain, (ZesDevice, &ZesPwrHandle));
+    auto DomainResult = zesDeviceGetCardPowerDomain(ZesDevice, &ZesPwrHandle);
+    if (DomainResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    } else if (DomainResult != ZE_RESULT_SUCCESS) {
+      return ze2urResult(DomainResult);
+    }
+
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      // Do this after calling getCardPowerDomain so that UNSUPPORTED is
+      // returned correctly if required
+      return ReturnValue(int32_t{0});
+    }
+
     ZesStruct<zes_power_properties_t> PowerProperties;
     ZE2UR_CALL(zesPowerGetProperties, (ZesPwrHandle, &PowerProperties));
 
@@ -1337,10 +1339,12 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(int32_t{PowerProperties.maxLimit});
     }
   }
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   default:
-    logger::error("Unsupported ParamName in urGetDeviceInfo");
-    logger::error("ParamNameParamName={}(0x{})", ParamName,
-                  logger::toHex(ParamName));
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
+           logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
@@ -1448,7 +1452,7 @@ ur_result_t urDevicePartition(
 
 ur_result_t urDeviceSelectBinary(
     /// [in] handle of the device to select binary for.
-    ur_device_handle_t /*Device*/,
+    [[maybe_unused]] ur_device_handle_t Device,
     /// [in] the array of binaries to select from.
     const ur_device_binary_t *Binaries,
     /// [in] the number of binaries passed in ppBinaries. Must greater than or
@@ -1478,21 +1482,34 @@ ur_result_t urDeviceSelectBinary(
 
   uint32_t *SelectedBinaryInd = SelectedBinary;
 
-  // Find the appropriate device image, fallback to spirv if not found
-  constexpr uint32_t InvalidInd = (std::numeric_limits<uint32_t>::max)();
-  uint32_t Spirv = InvalidInd;
+  // Find the appropriate device image
+  // The order of elements is important, as it defines the priority:
+  std::vector<const char *> FallbackTargets = {UR_DEVICE_BINARY_TARGET_SPIRV64};
+
+  constexpr uint32_t InvalidInd = std::numeric_limits<uint32_t>::max();
+  uint32_t FallbackInd = InvalidInd;
+  uint32_t FallbackPriority = InvalidInd;
 
   for (uint32_t i = 0; i < NumBinaries; ++i) {
     if (strcmp(Binaries[i].pDeviceTargetSpec, BinaryTarget) == 0) {
       *SelectedBinaryInd = i;
       return UR_RESULT_SUCCESS;
     }
-    if (strcmp(Binaries[i].pDeviceTargetSpec,
-               UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-      Spirv = i;
+    for (uint32_t j = 0; j < FallbackTargets.size(); ++j) {
+      // We have a fall-back with the same or higher priority already
+      // no need to check the rest
+      if (FallbackPriority <= j)
+        break;
+
+      if (strcmp(Binaries[i].pDeviceTargetSpec, FallbackTargets[j]) == 0) {
+        FallbackInd = i;
+        FallbackPriority = j;
+        break;
+      }
+    }
   }
-  // Points to a spirv image, if such indeed was found
-  if ((*SelectedBinaryInd = Spirv) != InvalidInd)
+  // We didn't find a primary target, try the highest-priority fall-back
+  if ((*SelectedBinaryInd = FallbackInd) != InvalidInd)
     return UR_RESULT_SUCCESS;
 
   // No image can be loaded for the given device
@@ -1651,8 +1668,8 @@ ur_device_handle_t_::useImmediateCommandLists() {
     }
   }
 
-  logger::info("NOTE: L0 Immediate CommandList Setting: {}",
-               ImmediateCommandlistsSetting);
+  UR_LOG(INFO, "NOTE: L0 Immediate CommandList Setting: {}",
+         ImmediateCommandlistsSetting);
 
   switch (ImmediateCommandlistsSetting) {
   case 0:
@@ -1793,8 +1810,10 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   if (numQueueGroups == 0) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-  logger::info(logger::LegacyMessage("NOTE: Number of queue groups = {}"),
-               "Number of queue groups = {}", numQueueGroups);
+  UR_LOG_LEGACY(INFO,
+                logger::LegacyMessage("NOTE: Number of queue groups = {}"),
+                "Number of queue groups = {}", numQueueGroups);
+
   std::vector<ZeStruct<ze_command_queue_group_properties_t>>
       QueueGroupProperties(numQueueGroups);
   ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1847,22 +1866,26 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         }
       }
       if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
-        logger::info(logger::LegacyMessage(
-                         "NOTE: main blitter/copy engine is not available"),
-                     "main blitter/copy engine is not available");
+        UR_LOG_LEGACY(INFO,
+                      logger::LegacyMessage(
+                          "NOTE: main blitter/copy engine is not available"),
+                      "main blitter/copy engine is not available")
       else
-        logger::info(logger::LegacyMessage(
-                         "NOTE: main blitter/copy engine is available"),
-                     "main blitter/copy engine is available");
+        UR_LOG_LEGACY(INFO,
+                      logger::LegacyMessage(
+                          "NOTE: main blitter/copy engine is available"),
+                      "main blitter/copy engine is available")
 
       if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
-        logger::info(logger::LegacyMessage(
-                         "NOTE: link blitter/copy engines are not available"),
-                     "link blitter/copy engines are not available");
+        UR_LOG_LEGACY(INFO,
+                      logger::LegacyMessage(
+                          "NOTE: link blitter/copy engines are not available"),
+                      "link blitter/copy engines are not available")
       else
-        logger::info(logger::LegacyMessage(
-                         "NOTE: link blitter/copy engines are available"),
-                     "link blitter/copy engines are available");
+        UR_LOG_LEGACY(INFO,
+                      logger::LegacyMessage(
+                          "NOTE: link blitter/copy engines are available"),
+                      "link blitter/copy engines are available")
     }
   }
 

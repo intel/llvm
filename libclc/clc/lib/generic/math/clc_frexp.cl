@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc_convert.h>
+#include <clc/clcfunc.h>
 #include <clc/internal/clc.h>
 #include <clc/math/math.h>
 #include <clc/relational/clc_isinf.h>

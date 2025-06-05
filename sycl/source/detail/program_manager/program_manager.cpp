@@ -177,6 +177,8 @@ static bool isDeviceBinaryTypeSupported(const ContextImplPtr &ContextImpl,
   return "unknown";
 }
 
+// The string produced by this function might be localized, with commas and
+// periods inserted. Presently, it is used only for user facing error output.
 [[maybe_unused]] auto VecToString = [](auto &Vec) -> std::string {
   std::ostringstream Out;
   Out << "{";
@@ -583,8 +585,7 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
 }
 
 static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
-                                 const device &Dev) {
-  detail::device_impl &DeviceImpl = *detail::getSyclObjImpl(Dev);
+                                 const device_impl &DeviceImpl) {
   auto &Adapter = DeviceImpl.getAdapter();
 
   const ur_device_handle_t &URDeviceHandle = DeviceImpl.getHandleRef();
@@ -621,7 +622,7 @@ bool ProgramManager::isSpecialDeviceImage(RTDeviceBinaryImage *BinImage) {
 }
 
 bool ProgramManager::isSpecialDeviceImageShouldBeUsed(
-    RTDeviceBinaryImage *BinImage, const device &Dev) {
+    RTDeviceBinaryImage *BinImage, const device_impl &DeviceImpl) {
   // Decide whether a devicelib image should be used.
   int Bfloat16DeviceLibVersion = -1;
   if (m_Bfloat16DeviceLibImages[0].get() == BinImage)
@@ -640,7 +641,6 @@ bool ProgramManager::isSpecialDeviceImageShouldBeUsed(
     // more devicelib images in this way.
     enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
     ur_bool_t NativeBF16Supported = false;
-    detail::device_impl &DeviceImpl = *detail::getSyclObjImpl(Dev);
     ur_result_t CallSuccessful =
         DeviceImpl.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
             DeviceImpl.getHandleRef(),
@@ -658,7 +658,7 @@ bool ProgramManager::isSpecialDeviceImageShouldBeUsed(
   return false;
 }
 
-static bool checkLinkingSupport(const device &Dev,
+static bool checkLinkingSupport(const device_impl &DeviceImpl,
                                 const RTDeviceBinaryImage &Img) {
   const char *Target = Img.getRawData().DeviceTargetSpec;
   // TODO replace with extension checks once implemented in UR.
@@ -666,7 +666,7 @@ static bool checkLinkingSupport(const device &Dev,
     return true;
   }
   if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-    return Dev.is_gpu() && Dev.get_backend() == backend::opencl;
+    return DeviceImpl.is_gpu() && DeviceImpl.getBackend() == backend::opencl;
   }
   return false;
 }
@@ -701,7 +701,8 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
     HandledSymbols.insert(ISProp->Name);
   }
   ur::DeviceBinaryType Format = MainImg.getFormat();
-  if (!WorkList.empty() && !checkLinkingSupport(Dev, MainImg))
+  if (!WorkList.empty() &&
+      !checkLinkingSupport(*getSyclObjImpl(Dev).get(), MainImg))
     throw exception(make_error_code(errc::feature_not_supported),
                     "Cannot resolve external symbols, linking is unsupported "
                     "for the backend");
@@ -715,10 +716,10 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       RTDeviceBinaryImage *Img = It->second;
       if (Img->getFormat() != Format ||
           !doesDevSupportDeviceRequirements(Dev, *Img) ||
-          !compatibleWithDevice(Img, Dev))
+          !compatibleWithDevice(Img, *getSyclObjImpl(Dev).get()))
         continue;
       if (isSpecialDeviceImage(Img) &&
-          !isSpecialDeviceImageShouldBeUsed(Img, Dev))
+          !isSpecialDeviceImageShouldBeUsed(Img, *getSyclObjImpl(Dev).get()))
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
@@ -1106,14 +1107,11 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
   return ResProgram;
 }
-// When caching is enabled, the returned UrProgram and UrKernel will
-// already have their ref count incremented.
-std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-           ur_program_handle_t>
-ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
-                                  device_impl &DeviceImpl,
-                                  KernelNameStrRefT KernelName,
-                                  const NDRDescT &NDRDesc) {
+
+FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
+    const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -1123,20 +1121,15 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
-
-  auto key = std::make_pair(UrDevice, KernelName);
+  FastKernelSubcacheT *CacheHintPtr =
+      KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcache
+                              : nullptr;
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    auto ret_tuple = Cache.tryToGetKernelFast(key);
-    constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
-    constexpr size_t Program = 3; // see KernelFastCacheValT tuple
-    if (std::get<Kernel>(ret_tuple)) {
-      // Pulling a copy of a kernel and program from the cache,
-      // so we need to retain those resources.
-      ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
-          std::get<Kernel>(ret_tuple));
-      ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
-          std::get<Program>(ret_tuple));
-      return ret_tuple;
+    auto KernelCacheValPtr =
+        Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr);
+    if (auto KernelCacheValPtr =
+            Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr)) {
+      return KernelCacheValPtr;
     }
   }
 
@@ -1175,23 +1168,24 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     // threads when caching is disabled, so we can return
     // nullptr for the mutex.
     auto [Kernel, ArgMask] = BuildF();
-    return make_tuple(Kernel, nullptr, ArgMask, Program);
+    return std::make_shared<FastKernelCacheVal>(
+        Kernel, nullptr, ArgMask, Program, *ContextImpl->getAdapter().get());
   }
 
   auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
-  auto ret_val = std::make_tuple(KernelArgMaskPair.first,
-                                 &(BuildResult->MBuildResultMutex),
-                                 KernelArgMaskPair.second, Program);
+  auto ret_val = std::make_shared<FastKernelCacheVal>(
+      KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
+      KernelArgMaskPair.second, Program, *ContextImpl->getAdapter().get());
   // If caching is enabled, one copy of the kernel handle will be
-  // stored in the cache, and one handle is returned to the
-  // caller. In that case, we need to increase the ref count of the
-  // kernel.
+  // stored in FastKernelCacheVal, and one is in
+  // KernelProgramCache::MKernelsPerProgramCache. To cover
+  // MKernelsPerProgramCache, we need to increase the ref count of the kernel.
   ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
-  Cache.saveKernel(key, ret_val);
+  Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);
   return ret_val;
 }
 
@@ -1476,7 +1470,7 @@ ProgramManager::ProgramManager()
 
 const char *getArchName(const device_impl *DeviceImpl) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  auto Arch = DeviceImpl->getDeviceArch();
+  auto Arch = DeviceImpl->get_info<syclex::info::device::architecture>();
   switch (Arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
@@ -1655,22 +1649,18 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   // one underlying device doesn't support cl_khr_fp64.
   const bool fp64Support = std::all_of(
       Devices.begin(), Devices.end(), [&Context](ur_device_handle_t Device) {
-        std::string DevExtList =
-            Context->getPlatformImpl()
-                .getDeviceImpl(Device)
-                ->get_device_info_string(
-                    UrInfoCode<info::device::extensions>::value);
-        return (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
+        return Context->getPlatformImpl().getDeviceImpl(Device)->has_extension(
+            "cl_khr_fp64");
       });
 
   // Load a fallback library for an extension if the any device does not
   // support it.
   for (auto Device : Devices) {
-    std::string DevExtList =
-        Context->getPlatformImpl()
-            .getDeviceImpl(Device)
-            ->get_device_info_string(
-                UrInfoCode<info::device::extensions>::value);
+    // TODO: device_impl::has_extension should cache extension string, then we'd
+    // be able to use that in the loop below directly.
+    std::string DevExtList = urGetInfoString<UrApiKind::urDeviceGetInfo>(
+        *Context->getPlatformImpl().getDeviceImpl(Device),
+        UR_DEVICE_INFO_EXTENSIONS);
 
     for (auto &Pair : RequiredDeviceLibExt) {
       DeviceLibExt Ext = Pair.first;
@@ -1851,12 +1841,24 @@ void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
     }
 }
 
-std::optional<int>
-ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
-  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-  if (it != m_KernelImplicitLocalArgPos.end())
-    return it->second;
-  return {};
+std::optional<int> ProgramManager::kernelImplicitLocalArgPos(
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
+  auto getLocalArgPos = [&]() -> std::optional<int> {
+    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+    if (it != m_KernelImplicitLocalArgPos.end())
+      return it->second;
+    return {};
+  };
+
+  if (!KernelNameBasedCachePtr)
+    return getLocalArgPos();
+  std::optional<std::optional<int>> &ImplicitLocalArgPos =
+      KernelNameBasedCachePtr->ImplicitLocalArgPos;
+  if (!ImplicitLocalArgPos.has_value()) {
+    ImplicitLocalArgPos = getLocalArgPos();
+  }
+  return ImplicitLocalArgPos.value();
 }
 
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
@@ -2359,7 +2361,7 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
         continue;
       auto ArgMaskMapIt = MapIt->second.find(KernelName);
       if (ArgMaskMapIt != MapIt->second.end())
-        return &MapIt->second[KernelName];
+        return &ArgMaskMapIt->second;
     }
     if (Range.first != Range.second)
       return nullptr;
@@ -2415,14 +2417,14 @@ kernel_id ProgramManager::getSYCLKernelID(KernelNameStrRefT KernelName) {
                   "No kernel found with the specified name");
 }
 
-bool ProgramManager::hasCompatibleImage(const device &Dev) {
+bool ProgramManager::hasCompatibleImage(const device_impl &DeviceImpl) {
   std::lock_guard<std::mutex> Guard(m_KernelIDsMutex);
 
   return std::any_of(
       m_BinImg2KernelIDs.cbegin(), m_BinImg2KernelIDs.cend(),
       [&](std::pair<RTDeviceBinaryImage *,
                     std::shared_ptr<std::vector<kernel_id>>>
-              Elem) { return compatibleWithDevice(Elem.first, Dev); });
+              Elem) { return compatibleWithDevice(Elem.first, DeviceImpl); });
 }
 
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
@@ -2555,7 +2557,7 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     RTDeviceBinaryImage *BinImage, const context &Ctx, const device &Dev) {
   const bundle_state ImgState = getBinImageState(BinImage);
 
-  assert(compatibleWithDevice(BinImage, Dev));
+  assert(compatibleWithDevice(BinImage, *getSyclObjImpl(Dev).get()));
 
   std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
   // Collect kernel names for the image.
@@ -2640,7 +2642,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         KernelImageMap.insert({KernelID, {}});
 
     for (RTDeviceBinaryImage *BinImage : BinImages) {
-      if (!compatibleWithDevice(BinImage, Dev) ||
+      if (!compatibleWithDevice(BinImage, *getSyclObjImpl(Dev).get()) ||
           !doesDevSupportDeviceRequirements(Dev, *BinImage))
         continue;
 

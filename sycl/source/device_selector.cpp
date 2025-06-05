@@ -33,15 +33,14 @@ namespace detail {
 // itself, so only matching devices will be scored.
 static int getDevicePreference(const device &Device) {
   int Score = 0;
-
+  const device_impl &DeviceImpl = *getSyclObjImpl(Device).get();
   // Strongly prefer devices with available images.
   auto &program_manager = sycl::detail::ProgramManager::getInstance();
-  if (program_manager.hasCompatibleImage(Device))
+  if (program_manager.hasCompatibleImage(DeviceImpl))
     Score += 1000;
 
   // Prefer level_zero backend devices.
-  if (detail::getSyclObjImpl(Device)->getBackend() ==
-      backend::ext_oneapi_level_zero)
+  if (DeviceImpl.getBackend() == backend::ext_oneapi_level_zero)
     Score += 50;
 
   return Score;
@@ -284,7 +283,8 @@ int accelerator_selector::operator()(const device &dev) const {
 namespace ext::oneapi {
 
 filter_selector::filter_selector(sycl::detail::string_view Input)
-    : impl(std::make_shared<detail::filter_selector_impl>(Input.data())) {}
+    : impl(std::make_shared<detail::filter_selector_impl>(
+          std::string(std::string_view(Input)))) {}
 
 int filter_selector::operator()(const device &Dev) const {
   return impl->operator()(Dev);

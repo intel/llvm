@@ -6,6 +6,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from benches.compute import *
+from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
@@ -18,11 +19,13 @@ from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
 from utils.validate import Validate
+from utils.detect_versions import DetectVersion
 from presets import enabled_suites, presets
 
 import argparse
 import re
 import statistics
+import os
 
 # Update this if you are changing the layout of the results files
 INTERNAL_WORKDIR_VERSION = "2.0"
@@ -142,10 +145,11 @@ def collect_metadata(suites):
     metadata = {}
 
     for s in suites:
-        metadata.update(s.additionalMetadata())
+        metadata.update(s.additional_metadata())
         suite_benchmarks = s.benchmarks()
         for benchmark in suite_benchmarks:
-            metadata[benchmark.name()] = benchmark.get_metadata()
+            results = benchmark.get_metadata()
+            metadata.update(results)
 
     return metadata
 
@@ -166,6 +170,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         SyclBench(directory),
         LlamaCppBench(directory),
         UMFSuite(directory),
+        GromacsBench(directory),
         TestSuite(),
     ]
 
@@ -198,6 +203,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             except Exception as e:
                 failures[s.name()] = f"Suite setup failure: {e}"
                 print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
+                print(f"failed: {e}")
             else:
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
@@ -250,7 +256,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             print(f"tearing down {benchmark.name()}... ", flush=True)
         benchmark.teardown()
         if options.verbose:
-            print("{benchmark.name()} teardown complete.")
+            print(f"{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -278,7 +284,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
     if options.output_markdown:
         markdown_content = generate_markdown(
-            this_name, chart_data, failures, options.output_markdown
+            this_name, chart_data, failures, options.output_markdown, metadata
         )
 
         md_path = options.output_directory
@@ -306,6 +312,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         html_path = options.output_directory
         if options.output_directory is None:
             html_path = os.path.join(os.path.dirname(__file__), "html")
+
         generate_html(history.runs, compare_names, html_path, metadata)
 
 
@@ -501,7 +508,7 @@ if __name__ == "__main__":
         type=lambda ts: Validate.timestamp(
             ts,
             throw=argparse.ArgumentTypeError(
-                "Specified timestamp not in YYYYMMDD_HHMMSS format."
+                "Specified timestamp not in YYYYMMDD_HHMMSS format"
             ),
         ),
         help="Manually specify timestamp used in metadata",
@@ -512,7 +519,7 @@ if __name__ == "__main__":
         type=lambda gh_repo: Validate.github_repo(
             gh_repo,
             throw=argparse.ArgumentTypeError(
-                "Specified github repo not in <owner>/<repo> format."
+                "Specified github repo not in <owner>/<repo> format"
             ),
         ),
         help="Manually specify github repo metadata of component tested (e.g. SYCL, UMF)",
@@ -523,11 +530,30 @@ if __name__ == "__main__":
         type=lambda commit: Validate.commit_hash(
             commit,
             throw=argparse.ArgumentTypeError(
-                "Specified commit is not a valid commit hash."
+                "Specified commit is not a valid commit hash"
             ),
         ),
         help="Manually specify commit hash metadata of component tested (e.g. SYCL, UMF)",
         default=options.git_commit_override,
+    )
+
+    parser.add_argument(
+        "--detect-version",
+        type=lambda components: Validate.on_re(
+            components,
+            r"[a-z_,]+",
+            throw=argparse.ArgumentTypeError(
+                "Specified --detect-version is not a comma-separated list"
+            ),
+        ),
+        help="Detect versions of components used: comma-separated list with choices from sycl,compute_runtime",
+        default=None,
+    )
+    parser.add_argument(
+        "--detect-version-cpp-path",
+        type=Path,
+        help="Location of detect_version.cpp used to query e.g. DPC++, L0",
+        default=None,
     )
 
     args = parser.parse_args()
@@ -580,6 +606,28 @@ if __name__ == "__main__":
             parser.error("--github-repo and --git_commit must both be defined together")
         options.github_repo_override = args.github_repo
         options.git_commit_override = args.git_commit
+
+    # Automatically detect versions:
+    if args.detect_version is not None:
+        detect_ver_path = args.detect_version_cpp_path
+        if detect_ver_path is None:
+            detect_ver_path = Path(
+                f"{os.path.dirname(__file__)}/utils/detect_versions.cpp"
+            )
+            if not detect_ver_path.is_file():
+                parser.error(
+                    f"Unable to find detect_versions.cpp at {detect_ver_path}, please specify --detect-version-cpp-path"
+                )
+        elif not detect_ver_path.is_file():
+            parser.error(f"Specified --detect-version-cpp-path is not a valid file")
+
+        enabled_components = args.detect_version.split(",")
+        options.detect_versions.sycl = "sycl" in enabled_components
+        options.detect_versions.compute_runtime = (
+            "compute_runtime" in enabled_components
+        )
+
+        detect_res = DetectVersion.init(detect_ver_path)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

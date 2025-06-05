@@ -70,6 +70,7 @@ AArch64MCAsmInfoDarwin::AArch64MCAsmInfoDarwin(bool IsILP32) {
   UsesELFSectionDirectiveForBSS = true;
   SupportsDebugInformation = true;
   UseDataRegionDirectives = true;
+  UseAtForSpecifier = false;
 
   ExceptionsType = ExceptionHandling::DwarfCFI;
 
@@ -107,13 +108,13 @@ AArch64MCAsmInfoELF::AArch64MCAsmInfoELF(const Triple &T) {
   CommentString = "//";
   PrivateGlobalPrefix = ".L";
   PrivateLabelPrefix = ".L";
-  Code32Directive = ".code\t32";
 
   Data16bitsDirective = "\t.hword\t";
   Data32bitsDirective = "\t.word\t";
   Data64bitsDirective = "\t.xword\t";
 
   UseDataRegionDirectives = false;
+  UseAtForSpecifier = false;
 
   WeakRefDirective = "\t.weak\t";
 

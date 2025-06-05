@@ -51,6 +51,7 @@
 #include <utility>
 #include <vector>
 
+static inline clang::QualType GetCharType(clang::ASTContext &Context);
 static inline clang::QualType GetFloat16Type(clang::ASTContext &Context);
 
 #include "OpenCLBuiltins.inc"
@@ -333,18 +334,21 @@ void LookupResult::configure() {
 
 bool LookupResult::checkDebugAssumptions() const {
   // This function is never called by NDEBUG builds.
-  assert(ResultKind != NotFound || Decls.size() == 0);
-  assert(ResultKind != Found || Decls.size() == 1);
-  assert(ResultKind != FoundOverloaded || Decls.size() > 1 ||
+  assert(ResultKind != LookupResultKind::NotFound || Decls.size() == 0);
+  assert(ResultKind != LookupResultKind::Found || Decls.size() == 1);
+  assert(ResultKind != LookupResultKind::FoundOverloaded || Decls.size() > 1 ||
          (Decls.size() == 1 &&
           isa<FunctionTemplateDecl>((*begin())->getUnderlyingDecl())));
-  assert(ResultKind != FoundUnresolvedValue || checkUnresolved());
-  assert(ResultKind != Ambiguous || Decls.size() > 1 ||
-         (Decls.size() == 1 && (Ambiguity == AmbiguousBaseSubobjects ||
-                                Ambiguity == AmbiguousBaseSubobjectTypes)));
-  assert((Paths != nullptr) == (ResultKind == Ambiguous &&
-                                (Ambiguity == AmbiguousBaseSubobjectTypes ||
-                                 Ambiguity == AmbiguousBaseSubobjects)));
+  assert(ResultKind != LookupResultKind::FoundUnresolvedValue ||
+         checkUnresolved());
+  assert(ResultKind != LookupResultKind::Ambiguous || Decls.size() > 1 ||
+         (Decls.size() == 1 &&
+          (Ambiguity == LookupAmbiguityKind::AmbiguousBaseSubobjects ||
+           Ambiguity == LookupAmbiguityKind::AmbiguousBaseSubobjectTypes)));
+  assert((Paths != nullptr) ==
+         (ResultKind == LookupResultKind::Ambiguous &&
+          (Ambiguity == LookupAmbiguityKind::AmbiguousBaseSubobjectTypes ||
+           Ambiguity == LookupAmbiguityKind::AmbiguousBaseSubobjects)));
   return true;
 }
 
@@ -489,8 +493,8 @@ void LookupResult::resolveKind() {
 
   // Fast case: no possible ambiguity.
   if (N == 0) {
-    assert(ResultKind == NotFound ||
-           ResultKind == NotFoundInCurrentInstantiation);
+    assert(ResultKind == LookupResultKind::NotFound ||
+           ResultKind == LookupResultKind::NotFoundInCurrentInstantiation);
     return;
   }
 
@@ -499,14 +503,15 @@ void LookupResult::resolveKind() {
   if (N == 1) {
     const NamedDecl *D = (*Decls.begin())->getUnderlyingDecl();
     if (isa<FunctionTemplateDecl>(D))
-      ResultKind = FoundOverloaded;
+      ResultKind = LookupResultKind::FoundOverloaded;
     else if (isa<UnresolvedUsingValueDecl>(D))
-      ResultKind = FoundUnresolvedValue;
+      ResultKind = LookupResultKind::FoundUnresolvedValue;
     return;
   }
 
   // Don't do any extra resolution if we've already resolved as ambiguous.
-  if (ResultKind == Ambiguous) return;
+  if (ResultKind == LookupResultKind::Ambiguous)
+    return;
 
   llvm::SmallDenseMap<const NamedDecl *, unsigned, 16> Unique;
   llvm::SmallDenseMap<QualType, unsigned, 16> UniqueTypes;
@@ -644,15 +649,15 @@ void LookupResult::resolveKind() {
     Ambiguous = true;
 
   if (Ambiguous && ReferenceToPlaceHolderVariable)
-    setAmbiguous(LookupResult::AmbiguousReferenceToPlaceholderVariable);
+    setAmbiguous(LookupAmbiguityKind::AmbiguousReferenceToPlaceholderVariable);
   else if (Ambiguous)
-    setAmbiguous(LookupResult::AmbiguousReference);
+    setAmbiguous(LookupAmbiguityKind::AmbiguousReference);
   else if (HasUnresolved)
-    ResultKind = LookupResult::FoundUnresolvedValue;
+    ResultKind = LookupResultKind::FoundUnresolvedValue;
   else if (N > 1 || HasFunctionTemplate)
-    ResultKind = LookupResult::FoundOverloaded;
+    ResultKind = LookupResultKind::FoundOverloaded;
   else
-    ResultKind = LookupResult::Found;
+    ResultKind = LookupResultKind::Found;
 }
 
 void LookupResult::addDeclsFromBasePaths(const CXXBasePaths &P) {
@@ -668,7 +673,7 @@ void LookupResult::setAmbiguousBaseSubobjects(CXXBasePaths &P) {
   Paths->swap(P);
   addDeclsFromBasePaths(*Paths);
   resolveKind();
-  setAmbiguous(AmbiguousBaseSubobjects);
+  setAmbiguous(LookupAmbiguityKind::AmbiguousBaseSubobjects);
 }
 
 void LookupResult::setAmbiguousBaseSubobjectTypes(CXXBasePaths &P) {
@@ -676,7 +681,7 @@ void LookupResult::setAmbiguousBaseSubobjectTypes(CXXBasePaths &P) {
   Paths->swap(P);
   addDeclsFromBasePaths(*Paths);
   resolveKind();
-  setAmbiguous(AmbiguousBaseSubobjectTypes);
+  setAmbiguous(LookupAmbiguityKind::AmbiguousBaseSubobjectTypes);
 }
 
 void LookupResult::print(raw_ostream &Out) {
@@ -695,6 +700,10 @@ LLVM_DUMP_METHOD void LookupResult::dump() {
                << ":\n";
   for (NamedDecl *D : *this)
     D->dump();
+}
+
+static inline QualType GetCharType(clang::ASTContext &Context) {
+  return Context.getLangOpts().OpenCL ? Context.CharTy : Context.SignedCharTy;
 }
 
 static inline QualType GetFloat16Type(clang::ASTContext &Context) {
@@ -994,7 +1003,8 @@ bool Sema::LookupBuiltin(LookupResult &R) {
         }
       }
 
-      if (RISCV().DeclareRVVBuiltins || RISCV().DeclareSiFiveVectorBuiltins) {
+      if (RISCV().DeclareRVVBuiltins || RISCV().DeclareSiFiveVectorBuiltins ||
+          RISCV().DeclareAndesVectorBuiltins) {
         if (!RISCV().IntrinsicManager)
           RISCV().IntrinsicManager = CreateRISCVIntrinsicManager(*this);
 
@@ -1033,7 +1043,7 @@ static void LookupPredefedObjCSuperType(Sema &Sema, Scope *S) {
   LookupResult Result(Sema, &Context.Idents.get("objc_super"), SourceLocation(),
                       Sema::LookupTagName);
   Sema.LookupName(Result, S);
-  if (Result.getResultKind() == LookupResult::Found)
+  if (Result.getResultKind() == LookupResultKind::Found)
     if (const TagDecl *TD = Result.getAsSingle<TagDecl>())
       Context.setObjCSuperType(Context.getTagDeclType(TD));
 }
@@ -2821,7 +2831,7 @@ void Sema::DiagnoseAmbiguousLookup(LookupResult &Result) {
   SourceRange LookupRange = Result.getContextRange();
 
   switch (Result.getAmbiguityKind()) {
-  case LookupResult::AmbiguousBaseSubobjects: {
+  case LookupAmbiguityKind::AmbiguousBaseSubobjects: {
     CXXBasePaths *Paths = Result.getBasePaths();
     QualType SubobjectType = Paths->front().back().Base->getType();
     Diag(NameLoc, diag::err_ambiguous_member_multiple_subobjects)
@@ -2837,7 +2847,7 @@ void Sema::DiagnoseAmbiguousLookup(LookupResult &Result) {
     break;
   }
 
-  case LookupResult::AmbiguousBaseSubobjectTypes: {
+  case LookupAmbiguityKind::AmbiguousBaseSubobjectTypes: {
     Diag(NameLoc, diag::err_ambiguous_member_multiple_subobject_types)
       << Name << LookupRange;
 
@@ -2863,7 +2873,7 @@ void Sema::DiagnoseAmbiguousLookup(LookupResult &Result) {
     break;
   }
 
-  case LookupResult::AmbiguousTagHiding: {
+  case LookupAmbiguityKind::AmbiguousTagHiding: {
     Diag(NameLoc, diag::err_ambiguous_tag_hiding) << Name << LookupRange;
 
     llvm::SmallPtrSet<NamedDecl*, 8> TagDecls;
@@ -2888,7 +2898,7 @@ void Sema::DiagnoseAmbiguousLookup(LookupResult &Result) {
     break;
   }
 
-  case LookupResult::AmbiguousReferenceToPlaceholderVariable: {
+  case LookupAmbiguityKind::AmbiguousReferenceToPlaceholderVariable: {
     Diag(NameLoc, diag::err_using_placeholder_variable) << Name << LookupRange;
     DeclContext *DC = nullptr;
     for (auto *D : Result) {
@@ -2900,7 +2910,7 @@ void Sema::DiagnoseAmbiguousLookup(LookupResult &Result) {
     break;
   }
 
-  case LookupResult::AmbiguousReference: {
+  case LookupAmbiguityKind::AmbiguousReference: {
     Diag(NameLoc, diag::err_ambiguous_reference) << Name << LookupRange;
 
     for (auto *D : Result)
@@ -3705,7 +3715,7 @@ Sema::LookupLiteralOperator(Scope *S, LookupResult &R,
                             bool AllowTemplate, bool AllowStringTemplatePack,
                             bool DiagnoseMissing, StringLiteral *StringLit) {
   LookupName(R, S);
-  assert(R.getResultKind() != LookupResult::Ambiguous &&
+  assert(R.getResultKind() != LookupResultKind::Ambiguous &&
          "literal operator lookup can't be ambiguous");
 
   // Filter the lookup results appropriately.
@@ -3765,7 +3775,8 @@ Sema::LookupLiteralOperator(Scope *S, LookupResult &R,
         if (StringLit) {
           SFINAETrap Trap(*this);
           CheckTemplateArgumentInfo CTAI;
-          TemplateArgumentLoc Arg(TemplateArgument(StringLit), StringLit);
+          TemplateArgumentLoc Arg(
+              TemplateArgument(StringLit, /*IsCanonical=*/false), StringLit);
           if (CheckTemplateArgument(
                   Params->getParam(0), Arg, FD, R.getNameLoc(), R.getNameLoc(),
                   /*ArgumentPackIndex=*/0, CTAI, CTAK_Specified) ||
@@ -4781,9 +4792,9 @@ retry_lookup:
                             CorrectionValidator->IsObjCIvarLookup,
                             Name == Typo && !Candidate.WillReplaceSpecifier());
   switch (Result.getResultKind()) {
-  case LookupResult::NotFound:
-  case LookupResult::NotFoundInCurrentInstantiation:
-  case LookupResult::FoundUnresolvedValue:
+  case LookupResultKind::NotFound:
+  case LookupResultKind::NotFoundInCurrentInstantiation:
+  case LookupResultKind::FoundUnresolvedValue:
     if (TempSS) {
       // Immediately retry the lookup without the given CXXScopeSpec
       TempSS = nullptr;
@@ -4800,12 +4811,12 @@ retry_lookup:
       QualifiedResults.push_back(Candidate);
     break;
 
-  case LookupResult::Ambiguous:
+  case LookupResultKind::Ambiguous:
     // We don't deal with ambiguities.
     break;
 
-  case LookupResult::Found:
-  case LookupResult::FoundOverloaded:
+  case LookupResultKind::Found:
+  case LookupResultKind::FoundOverloaded:
     // Store all of the Decls for overloaded symbols
     for (auto *TRD : Result)
       Candidate.addCorrectionDecl(TRD);
@@ -4860,8 +4871,8 @@ void TypoCorrectionConsumer::performQualifiedLookups() {
       // Any corrections added below will be validated in subsequent
       // iterations of the main while() loop over the Consumer's contents.
       switch (Result.getResultKind()) {
-      case LookupResult::Found:
-      case LookupResult::FoundOverloaded: {
+      case LookupResultKind::Found:
+      case LookupResultKind::FoundOverloaded: {
         if (SS && SS->isValid()) {
           std::string NewQualified = TC.getAsString(SemaRef.getLangOpts());
           std::string OldQualified;
@@ -4888,10 +4899,10 @@ void TypoCorrectionConsumer::performQualifiedLookups() {
         }
         break;
       }
-      case LookupResult::NotFound:
-      case LookupResult::NotFoundInCurrentInstantiation:
-      case LookupResult::Ambiguous:
-      case LookupResult::FoundUnresolvedValue:
+      case LookupResultKind::NotFound:
+      case LookupResultKind::NotFoundInCurrentInstantiation:
+      case LookupResultKind::Ambiguous:
+      case LookupResultKind::FoundUnresolvedValue:
         break;
       }
     }
@@ -5388,9 +5399,9 @@ TypoCorrection Sema::CorrectTypo(const DeclarationNameInfo &TypoName,
   bool ObjCMessageReceiver = CCC.WantObjCSuper && !CCC.WantRemainingKeywords;
 
   IdentifierInfo *Typo = TypoName.getName().getAsIdentifierInfo();
-  auto Consumer = makeTypoCorrectionConsumer(TypoName, LookupKind, S, SS, CCC,
-                                             MemberContext, EnteringContext,
-                                             OPT, Mode == CTK_ErrorRecovery);
+  auto Consumer = makeTypoCorrectionConsumer(
+      TypoName, LookupKind, S, SS, CCC, MemberContext, EnteringContext, OPT,
+      Mode == CorrectTypoKind::ErrorRecovery);
 
   if (!Consumer)
     return TypoCorrection();
@@ -5466,9 +5477,9 @@ TypoExpr *Sema::CorrectTypoDelayed(
     TypoDiagnosticGenerator TDG, TypoRecoveryCallback TRC, CorrectTypoKind Mode,
     DeclContext *MemberContext, bool EnteringContext,
     const ObjCObjectPointerType *OPT) {
-  auto Consumer = makeTypoCorrectionConsumer(TypoName, LookupKind, S, SS, CCC,
-                                             MemberContext, EnteringContext,
-                                             OPT, Mode == CTK_ErrorRecovery);
+  auto Consumer = makeTypoCorrectionConsumer(
+      TypoName, LookupKind, S, SS, CCC, MemberContext, EnteringContext, OPT,
+      Mode == CorrectTypoKind::ErrorRecovery);
 
   // Give the external sema source a chance to correct the typo.
   TypoCorrection ExternalTypo;
@@ -5662,7 +5673,7 @@ void Sema::diagnoseMissingImport(SourceLocation Loc, const NamedDecl *Decl,
   llvm::SmallVector<Module*, 8> OwningModules;
   OwningModules.push_back(Owner);
   auto Merged = Context.getModulesWithMergedDefinition(Def);
-  OwningModules.insert(OwningModules.end(), Merged.begin(), Merged.end());
+  llvm::append_range(OwningModules, Merged);
 
   diagnoseMissingImport(Loc, Def, Def->getLocation(), OwningModules, MIK,
                         Recover);

@@ -14,8 +14,8 @@ ordinal: "1"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves all available adapters"
-class: $x
-name: AdapterGet
+class: $xAdapter
+name: Get
 decl: static
 ordinal: "2"
 details:
@@ -46,8 +46,8 @@ returns:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Releases the adapter handle reference indicating end of its usage"
-class: $x
-name: AdapterRelease
+class: $xAdapter
+name: Release
 decl: static
 ordinal: "3"
 details:
@@ -64,8 +64,8 @@ params:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the adapter handle."
-class: $x
-name: AdapterRetain
+class: $xAdapter
+name: Retain
 decl: static
 ordinal: "4"
 details:
@@ -107,8 +107,8 @@ details: |
         $xAdapterGetLastError(hAdapter, &pMessage, &error);
     }
     ```
-class: $x
-name: AdapterGetLastError
+class: $xAdapter
+name: GetLastError
 decl: static
 ordinal: "5"
 params:
@@ -133,7 +133,7 @@ name: $x_adapter_info_t
 typed_etors: True
 etors:
     - name: BACKEND
-      desc: "[$x_adapter_backend_t] Identifies the native backend supported by the adapter."
+      desc: "[$x_backend_t] Identifies the native backend supported by the adapter."
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the adapter.
@@ -147,8 +147,8 @@ etors:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves information about the adapter"
-class: $x
-name: AdapterGetInfo
+class: $xAdapter
+name: GetInfo
 decl: static
 ordinal: "6"
 details:
@@ -185,30 +185,6 @@ returns:
         - "`pPropValue == NULL && pPropSizeRet == NULL`"
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
---- #--------------------------------------------------------------------------
-type: enum
-desc: "Identifies backend of the adapter"
-class: $x
-name: $x_adapter_backend_t
-etors:
-    - name: UNKNOWN
-      value: "0"
-      desc: "The backend is not a recognized one"
-    - name: LEVEL_ZERO
-      value: "1"
-      desc: "The backend is Level Zero"
-    - name: OPENCL
-      value: "2"
-      desc: "The backend is OpenCL"
-    - name: CUDA
-      value: "3"
-      desc: "The backend is CUDA"
-    - name: HIP
-      value: "4"
-      desc: "The backend is HIP"
-    - name: NATIVE_CPU
-      value: "5"
-      desc: "The backend is Native CPU"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Minimum level of messages to be processed by the logger."

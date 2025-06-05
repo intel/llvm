@@ -30,7 +30,7 @@ struct NDRDescT {
            const size_t *GlobalWorkSize, const size_t *LocalWorkSize)
       : WorkDim(WorkDim) {
     for (uint32_t I = 0; I < WorkDim; I++) {
-      GlobalOffset[I] = GlobalWorkOffset[I];
+      GlobalOffset[I] = GlobalWorkOffset ? GlobalWorkOffset[I] : 0;
       GlobalSize[I] = GlobalWorkSize[I];
       LocalSize[I] = LocalWorkSize ? LocalWorkSize[I] : 1;
     }
@@ -52,24 +52,27 @@ struct NDRDescT {
 };
 
 namespace {
-struct WaitInfo {
-  std::vector<ur_event_handle_t> events;
+class WaitInfo {
+  std::vector<ur_event_handle_t> *const events;
   static_assert(std::is_pointer_v<ur_event_handle_t>);
+
+public:
   WaitInfo(uint32_t numEvents, const ur_event_handle_t *WaitList)
-      : events(WaitList, WaitList + numEvents) {}
-  void wait() const { urEventWait(events.size(), events.data()); }
+      : events(numEvents ? new std::vector<ur_event_handle_t>(
+                               WaitList, WaitList + numEvents)
+                         : nullptr) {}
+  void wait() const {
+    if (events)
+      urEventWait(events->size(), events->data());
+  }
+  std::unique_ptr<std::vector<ur_event_handle_t>> getUniquePtr() {
+    return std::unique_ptr<std::vector<ur_event_handle_t>>(events);
+  }
 };
 
-inline static std::unique_ptr<WaitInfo>
-getWaitInfo(uint32_t numEventsInWaitList,
-            const ur_event_handle_t *phEventWaitList) {
-  if (!native_cpu::tasksinfo_t::CanWaitInThread()) {
-    urEventWait(numEventsInWaitList, phEventWaitList);
-    return nullptr;
-  }
-  return (numEventsInWaitList) ? std::make_unique<native_cpu::WaitInfo>(
-                                     numEventsInWaitList, phEventWaitList)
-                               : nullptr;
+inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList) {
+  return native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList);
 }
 
 } // namespace
@@ -114,12 +117,20 @@ static inline void execute_range(native_cpu::state &state,
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  // We don't support any launch properties.
+  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
+       propIndex++) {
+    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
@@ -186,8 +197,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #else
   bool isLocalSizeOne =
       ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
-  if (isLocalSizeOne && ndr.GlobalSize[0] > numParallelThreads &&
-      !kernel->hasLocalArgs()) {
+  if (isLocalSizeOne && !kernel->hasLocalArgs()) {
     // If the local size is one, we make the assumption that we are running a
     // parallel_for over a sycl::range.
     // Todo: we could add more compiler checks and
@@ -201,31 +211,51 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     // divide the global range by the number of threads, set that as the local
     // size and peel everything else.
 
+    // The number of items per kernel invocation should ideally be at least a
+    // multiple of the applied vector width, which we currently assume to be 8.
+    // TODO: Encode this and other kernel capabilities in the binary so we can
+    // use actual values to efficiently enqueue kernels instead of relying on
+    // assumptions.
+    const size_t itemsPerKernelInvocation = 8;
+
     size_t new_num_work_groups_0 = numParallelThreads;
     size_t itemsPerThread = ndr.GlobalSize[0] / numParallelThreads;
+    if (itemsPerThread < itemsPerKernelInvocation) {
+      if (itemsPerKernelInvocation <= numWG0)
+        itemsPerThread = itemsPerKernelInvocation;
+      else if (itemsPerThread == 0)
+        itemsPerThread = numWG0;
+    } else if (itemsPerThread > itemsPerKernelInvocation) {
+      // Launch kernel with number of items that is the next multiple of the
+      // vector width.
+      const size_t nextMult = (itemsPerThread + itemsPerKernelInvocation - 1) /
+                              itemsPerKernelInvocation *
+                              itemsPerKernelInvocation;
+      if (nextMult < numWG0)
+        itemsPerThread = nextMult;
+    }
 
-    for (size_t t = 0; t < numParallelThreads;) {
+    size_t wg0_index = 0;
+    for (size_t t = 0; (wg0_index + itemsPerThread) <= numWG0;
+         wg0_index += itemsPerThread) {
       IndexT first = {t, 0, 0};
       IndexT last = {++t, numWG1, numWG2};
       Tasks.schedule([ndr, itemsPerThread, &kernel = *kernel, first, last,
-                      InEvents = InEvents.get()](size_t) {
+                      InEvents](size_t) {
         native_cpu::state resized_state = getResizedState(ndr, itemsPerThread);
-        if (InEvents)
-          InEvents->wait();
+        InEvents.wait();
         execute_range(resized_state, kernel, first, last);
       });
     }
 
-    size_t start_wg0_remainder = new_num_work_groups_0 * itemsPerThread;
-    if (start_wg0_remainder < numWG0) {
+    if (wg0_index < numWG0) {
       // Peel the remaining work items. Since the local size is 1, we iterate
       // over the work groups.
-      Tasks.schedule([ndr, &kernel = *kernel, start_wg0_remainder, numWG0,
-                      numWG1, numWG2, InEvents = InEvents.get()](size_t) {
-        IndexT first = {start_wg0_remainder, 0, 0};
+      Tasks.schedule([ndr, &kernel = *kernel, wg0_index, numWG0, numWG1, numWG2,
+                      InEvents](size_t) {
+        IndexT first = {wg0_index, 0, 0};
         IndexT last = {numWG0, numWG1, numWG2};
-        if (InEvents)
-          InEvents->wait();
+        InEvents.wait();
         native_cpu::state state = getState(ndr);
         execute_range(state, kernel, first, last);
       });
@@ -252,9 +282,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         wg_start += groupsPerThread[dim];
         last[dim] = wg_start;
         Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
-                        InEvents = InEvents.get()](size_t threadId) {
-          if (InEvents)
-            InEvents->wait();
+                        InEvents](size_t threadId) {
+          InEvents.wait();
           native_cpu::state state = getState(ndr);
           execute_range(state, kernel,
                         kernel.getArgs(numParallelThreads, threadId), first,
@@ -266,9 +295,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       first[dim] = wg_start;
       last[dim] = numWG[dim];
       Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
-                      InEvents = InEvents.get()](size_t threadId) {
-        if (InEvents)
-          InEvents->wait();
+                      InEvents](size_t threadId) {
+        InEvents.wait();
         native_cpu::state state = getState(ndr);
         execute_range(state, kernel,
                       kernel.getArgs(numParallelThreads, threadId), first,
@@ -284,7 +312,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     *phEvent = event;
   }
   event->set_callback([kernel = std::move(kernel), hKernel, event,
-                       InEvents = std::move(InEvents)]() {
+                       InEvents = InEvents.getUniquePtr()]() {
     event->tick_end();
     // TODO: avoid calling clear() here.
     hKernel->_localArgInfo.clear();
@@ -317,14 +345,13 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
     auto Tasks = native_cpu::getScheduler(tp);
     auto InEvents =
         native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
-    Tasks.schedule([f, InEvents = InEvents.get()](size_t) {
-      if (InEvents)
-        InEvents->wait();
+    Tasks.schedule([f, InEvents](size_t) {
+      InEvents.wait();
       f();
     });
     event->set_futures(Tasks.getTaskInfo());
     event->set_callback(
-        [event, InEvents = std::move(InEvents)]() { event->tick_end(); });
+        [event, InEvents = InEvents.getUniquePtr()]() { event->tick_end(); });
     return UR_RESULT_SUCCESS;
   }
   urEventWait(numEventsInWaitList, phEventWaitList);
@@ -418,7 +445,7 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
       blocking);
 }
 
-template <void *(copy_func)(void *dst, const void *src, size_t) = memmove>
+template <bool AllowPartialOverlap = true>
 static inline ur_result_t doCopy_impl(
     ur_queue_handle_t hQueue, void *DstPtr, const void *SrcPtr, size_t Size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
@@ -433,7 +460,11 @@ static inline ur_result_t doCopy_impl(
   return withTimingEvent(
       command_type, hQueue, numEventsInWaitList, phEventWaitList, phEvent,
       [DstPtr, SrcPtr, Size]() {
-        copy_func(DstPtr, SrcPtr, Size);
+        if constexpr (AllowPartialOverlap) {
+          memmove(DstPtr, SrcPtr, Size);
+        } else {
+          memcpy(DstPtr, SrcPtr, Size);
+        }
         return UR_RESULT_SUCCESS;
       },
       blocking);
@@ -607,14 +638,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
         UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
         UR_ASSERT(patternSize != 0, UR_RESULT_ERROR_INVALID_SIZE)
         UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_SIZE)
-        UR_ASSERT(patternSize < size, UR_RESULT_ERROR_INVALID_SIZE)
+        UR_ASSERT(patternSize <= size, UR_RESULT_ERROR_INVALID_SIZE)
         UR_ASSERT(size % patternSize == 0, UR_RESULT_ERROR_INVALID_SIZE)
         // TODO: add check for allocation size once the query is supported
 
         switch (patternSize) {
         case 1:
-          memset(ptr, *static_cast<const uint8_t *>(pPattern),
-                 size * patternSize);
+          memset(ptr, *static_cast<const uint8_t *>(pPattern), size);
           break;
         case 2: {
           const auto pattern = *static_cast<const uint16_t *>(pPattern);
@@ -660,9 +690,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  return doCopy_impl<memcpy>(hQueue, pDst, pSrc, size, numEventsInWaitList,
-                             phEventWaitList, phEvent, UR_COMMAND_USM_MEMCPY,
-                             blocking);
+  return doCopy_impl<false /*use memcpy*/>(
+      hQueue, pDst, pSrc, size, numEventsInWaitList, phEventWaitList, phEvent,
+      UR_COMMAND_USM_MEMCPY, blocking);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(

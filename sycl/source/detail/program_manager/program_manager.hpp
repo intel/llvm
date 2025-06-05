@@ -12,6 +12,7 @@
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
@@ -197,10 +198,11 @@ public:
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-             ur_program_handle_t>
+  FastKernelCacheValPtr
   getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
-                    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {});
+                    KernelNameStrRefT KernelName,
+                    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+                    const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
       KernelNameStrRefT KernelName,
@@ -254,7 +256,7 @@ public:
                                   const char *UniqueId);
 
   // Returns true if any available image is compatible with the device Dev.
-  bool hasCompatibleImage(const device &Dev);
+  bool hasCompatibleImage(const device_impl &DeviceImpl);
 
   // The function gets a device_global entry identified by the pointer to the
   // device_global object from the device_global map.
@@ -357,14 +359,23 @@ public:
   ~ProgramManager() = default;
 
   template <typename NameT>
-  bool kernelUsesAssert(const NameT &KernelName) const {
-    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+  bool kernelUsesAssert(const NameT &KernelName,
+                        KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
+    if (!KernelNameBasedCachePtr)
+      return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+
+    std::optional<bool> &UsesAssert = KernelNameBasedCachePtr->UsesAssert;
+    if (!UsesAssert.has_value())
+      UsesAssert =
+          m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+    return UsesAssert.value();
   }
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  std::optional<int>
-  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
+  std::optional<int> kernelImplicitLocalArgPos(
+      KernelNameStrRefT KernelName,
+      KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -406,7 +417,7 @@ private:
 
   bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
   bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
-                                        const device &Dev);
+                                        const device_impl &DeviceImpl);
 
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is

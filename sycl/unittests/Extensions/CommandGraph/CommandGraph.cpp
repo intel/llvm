@@ -689,3 +689,18 @@ TEST_F(CommandGraphTest, DynamicWorkGroupMemoryGet) {
       Graph, LocalSize};
   ASSERT_ANY_THROW(DynLocalMem.get());
 }
+
+// Tests that dynamic_local_accessor.get() will throw on the host side.
+TEST_F(CommandGraphTest, DynamicLocalAccessorGet) {
+  device Dev;
+  context Ctx{{Dev}};
+  queue Queue{Ctx, Dev};
+  constexpr int LocalSize{32};
+
+  ext::oneapi::experimental::command_graph Graph{Queue.get_context(),
+                                                 Queue.get_device()};
+
+  ext::oneapi::experimental::dynamic_local_accessor<int, 1> DynLocalMem{
+      Graph, LocalSize};
+  ASSERT_ANY_THROW(DynLocalMem.get());
+}

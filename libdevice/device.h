@@ -23,6 +23,7 @@
 #define DEVICE_EXTERNAL __attribute__((weak))
 #endif // __SYCL_DEVICE_ONLY__
 
+#define DEVICE_EXTERN_CPP DEVICE_EXTERNAL
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
 #define DEVICE_EXTERN_C_INLINE                                                 \
   DEVICE_EXTERNAL EXTERN_C __attribute__((always_inline))

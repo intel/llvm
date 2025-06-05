@@ -31,7 +31,7 @@ wait_list_view ur_queue_immediate_in_order_t::getWaitListView(
                                       additionalWaitEvent);
 }
 
-static int32_t getZeOrdinal(ur_device_handle_t hDevice) {
+static uint32_t getZeOrdinal(ur_device_handle_t hDevice) {
   return hDevice->QueueGroup[queue_group_type::Compute].ZeOrdinal;
 }
 
@@ -70,12 +70,13 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
       commandListManager(
           hContext, hDevice,
           hContext->getCommandListCache().getImmediateCommandList(
-              hDevice->ZeDevice, true, getZeOrdinal(hDevice),
-              true /* always enable copy offload */,
+              hDevice->ZeDevice,
+              {true, getZeOrdinal(hDevice),
+               true /* always enable copy offload */},
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
               getZePriority(pProps ? pProps->flags : ur_queue_flags_t{}),
               getZeIndex(pProps)),
-          eventFlagsFromQueueFlags(flags), this) {}
+          eventFlagsFromQueueFlags(flags), this, PoolCacheType::Immediate) {}
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
@@ -92,7 +93,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
                   }
                 }
               }),
-          eventFlagsFromQueueFlags(flags), this) {}
+          eventFlagsFromQueueFlags(flags), this, PoolCacheType::Immediate) {}
 
 ze_event_handle_t ur_queue_immediate_in_order_t::getSignalEvent(
     locked<ur_command_list_manager> &commandList, ur_event_handle_t *hUserEvent,
@@ -131,9 +132,10 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
     }
   }
   default:
-    logger::error("Unsupported ParamName in urQueueGetInfo: "
-                  "ParamName=ParamName={}(0x{})",
-                  propName, logger::toHex(propName));
+    UR_LOG(ERR,
+           "Unsupported ParamName in urQueueGetInfo: "
+           "ParamName=ParamName={}(0x{})",
+           propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -156,6 +158,8 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
       "ur_queue_immediate_in_order_t::zeCommandListHostSynchronize");
   ZE2UR_CALL(zeCommandListHostSynchronize,
              (commandListLocked->getZeCommandList(), UINT64_MAX));
+
+  hContext->getAsyncPool()->cleanupPoolsForQueue(this);
 
   // Free deferred kernels
   for (auto &hKernel : submittedKernels) {
@@ -187,9 +191,28 @@ ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
     ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueKernelLaunch");
+
+  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
+       propIndex++) {
+    if (launchPropList[propIndex].id ==
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE &&
+        launchPropList[propIndex].value.cooperative) {
+      return enqueueCooperativeKernelLaunchHelper(
+          hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+          numEventsInWaitList, phEventWaitList, phEvent);
+    }
+    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE &&
+        launchPropList[propIndex].id !=
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+      // We don't support any other properties.
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
 
   auto commandListLocked = commandListManager.lock();
   UR_CALL(commandListLocked->appendKernelLaunch(
@@ -492,14 +515,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
   auto waitListView =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList);
 
-  auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
-      mapFlags, offset, size, [&](void *src, void *dst, size_t size) {
-        ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                          (commandListLocked->getZeCommandList(), dst, src,
-                           size, nullptr, waitListView.num,
-                           waitListView.handles));
-        waitListView.clear();
-      }));
+  auto pDst = ur_cast<char *>(
+      hBuffer->mapHostPtr(mapFlags, offset, size,
+                          commandListLocked->getZeCommandList(), waitListView));
   *ppRetMap = pDst;
 
   if (waitListView) {
@@ -545,11 +563,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemUnmap(
               waitListView.handles));
   waitListView.clear();
 
-  hBuffer->unmapHostPtr(pMappedPtr, [&](void *src, void *dst, size_t size) {
-    ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                      (commandListLocked->getZeCommandList(), dst, src, size,
-                       nullptr, waitListView.num, waitListView.handles));
-  });
+  hBuffer->unmapHostPtr(pMappedPtr, commandListLocked->getZeCommandList(),
+                        waitListView);
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (commandListLocked->getZeCommandList(), zeSignalEvent));
@@ -603,7 +618,8 @@ ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMAdvise");
 
   auto commandListLocked = commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMAdvise(pMem, size, advice, phEvent));
+  UR_CALL(commandListLocked->appendUSMAdvise(pMem, size, advice, 0, nullptr,
+                                             phEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -703,31 +719,155 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueWriteHostPipe(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMAllocHelper(
+    ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, void **ppMem,
+    ur_event_handle_t *phEvent, ur_usm_type_t type) {
+  auto commandListLocked = commandListManager.lock();
+
+  if (!pPool) {
+    pPool = hContext->getAsyncPool();
+  }
+
+  auto device = (type == UR_USM_TYPE_HOST) ? nullptr : hDevice;
+
+  ur_event_handle_t originAllocEvent = nullptr;
+  auto asyncAlloc = pPool->allocateEnqueued(hContext, this, true, device,
+                                            nullptr, type, size);
+  if (!asyncAlloc) {
+    auto Ret = pPool->allocate(hContext, device, nullptr, type, size, ppMem);
+    if (Ret) {
+      return Ret;
+    }
+  } else {
+    std::tie(*ppMem, originAllocEvent) = *asyncAlloc;
+  }
+
+  auto waitListView = getWaitListView(commandListLocked, phEventWaitList,
+                                      numEventsInWaitList, originAllocEvent);
+
+  ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
+  switch (type) {
+  case UR_USM_TYPE_HOST:
+    commandType = UR_COMMAND_ENQUEUE_USM_HOST_ALLOC_EXP;
+    break;
+  case UR_USM_TYPE_DEVICE:
+    commandType = UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP;
+    break;
+  case UR_USM_TYPE_SHARED:
+    commandType = UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP;
+    break;
+  default:
+    UR_LOG(ERR, "enqueueUSMAllocHelper: unsupported USM type");
+    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+  }
+
+  auto zeSignalEvent = getSignalEvent(commandListLocked, phEvent, commandType);
+  auto [pWaitEvents, numWaitEvents] = waitListView;
+
+  if (numWaitEvents > 0) {
+    ZE2UR_CALL(
+        zeCommandListAppendWaitOnEvents,
+        (commandListLocked->getZeCommandList(), numWaitEvents, pWaitEvents));
+  }
+  if (zeSignalEvent) {
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (commandListLocked->getZeCommandList(), zeSignalEvent));
+  }
+  if (originAllocEvent) {
+    originAllocEvent->release();
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMDeviceAllocExp(
-    ur_usm_pool_handle_t, const size_t,
-    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
-    const ur_event_handle_t *, void **, ur_event_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueUSMDeviceAllocExp");
+
+  return enqueueUSMAllocHelper(pPool, size, pProperties, numEventsInWaitList,
+                               phEventWaitList, ppMem, phEvent,
+                               UR_USM_TYPE_DEVICE);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMSharedAllocExp(
-    ur_usm_pool_handle_t, const size_t,
-    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
-    const ur_event_handle_t *, void **, ur_event_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueUSMSharedAllocExp");
+
+  return enqueueUSMAllocHelper(pPool, size, pProperties, numEventsInWaitList,
+                               phEventWaitList, ppMem, phEvent,
+                               UR_USM_TYPE_SHARED);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMHostAllocExp(
-    ur_usm_pool_handle_t, const size_t,
-    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
-    const ur_event_handle_t *, void **, ur_event_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMHostAllocExp");
+
+  return enqueueUSMAllocHelper(pPool, size, pProperties, numEventsInWaitList,
+                               phEventWaitList, ppMem, phEvent,
+                               UR_USM_TYPE_HOST);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFreeExp(
-    ur_usm_pool_handle_t, void *, uint32_t, const ur_event_handle_t *,
-    ur_event_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_usm_pool_handle_t, void *pMem, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMFreeExp");
+  auto commandListLocked = commandListManager.lock();
+  ur_event_handle_t internalEvent = nullptr;
+  if (phEvent == nullptr) {
+    phEvent = &internalEvent;
+  }
+
+  auto zeSignalEvent = getSignalEvent(commandListLocked, phEvent,
+                                      UR_COMMAND_ENQUEUE_USM_FREE_EXP);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList);
+
+  umf_memory_pool_handle_t hPool = umfPoolByPtr(pMem);
+  if (!hPool) {
+    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+  }
+
+  UsmPool *usmPool = nullptr;
+  auto ret = umfPoolGetTag(hPool, (void **)&usmPool);
+  if (ret != UMF_RESULT_SUCCESS || !usmPool) {
+    // This should never happen
+    UR_LOG(ERR, "enqueueUSMFreeExp: invalid pool tag");
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  size_t size = umfPoolMallocUsableSize(hPool, pMem);
+  if (internalEvent == nullptr) {
+    // When the output event is used instead of an internal event, we need to
+    // increment the refcount.
+    (*phEvent)->RefCount.increment();
+  }
+
+  if (numWaitEvents > 0) {
+    ZE2UR_CALL(
+        zeCommandListAppendWaitOnEvents,
+        (commandListLocked->getZeCommandList(), numWaitEvents, pWaitEvents));
+  }
+
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (commandListLocked->getZeCommandList(), zeSignalEvent));
+
+  // Insert must be done after the signal event is appended.
+  usmPool->asyncPool.insert(pMem, size, *phEvent, this);
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
@@ -771,14 +911,11 @@ ur_queue_immediate_in_order_t::bindlessImagesSignalExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
+ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchHelper(
     ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  TRACK_SCOPE_LATENCY(
-      "ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp");
-
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
@@ -802,16 +939,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
   auto waitListView =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList);
 
-  auto memoryMigrate = [&](void *src, void *dst, size_t size) {
-    ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                      (commandListLocked->getZeCommandList(), dst, src, size,
-                       nullptr, waitListView.num, waitListView.handles));
-    waitListView.clear();
-  };
-
-  UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
-                                        workDim, WG[0], WG[1], WG[2],
-                                        memoryMigrate));
+  UR_CALL(hKernel->prepareForSubmission(
+      hContext, hDevice, pGlobalWorkOffset, workDim, WG[0], WG[1], WG[2],
+      commandListLocked->getZeCommandList(), waitListView));
 
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::"
                       "zeCommandListAppendLaunchCooperativeKernel");
@@ -821,6 +951,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
               waitListView.handles));
 
   recordSubmittedKernel(hKernel);
+
+  postSubmit(hZeKernel, pGlobalWorkOffset);
 
   return UR_RESULT_SUCCESS;
 }
@@ -866,9 +998,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
       "ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp");
 
   auto commandListLocked = commandListManager.lock();
+
   auto zeSignalEvent =
       getSignalEvent(commandListLocked, phEvent, callerCommand);
-
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList,
                       additionalWaitEvent);
@@ -894,9 +1026,14 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
   ur_event_handle_t executionEvent =
       hCommandBuffer->getExecutionEventUnlocked();
 
+  if (executionEvent != nullptr) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (executionEvent->getZeEvent(), UINT64_MAX));
+  }
+
   UR_CALL(enqueueGenericCommandListsExp(
       1, &commandBufferCommandList, phEvent, numEventsInWaitList,
-      phEventWaitList, UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, executionEvent));
+      phEventWaitList, UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, nullptr));
   UR_CALL(hCommandBuffer->registerExecutionEventUnlocked(*phEvent));
   if (internalEvent != nullptr) {
     internalEvent->release();
@@ -904,23 +1041,12 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
-    ur_kernel_handle_t /*hKernel*/, uint32_t /*workDim*/,
-    const size_t * /*pGlobalWorkOffset*/, const size_t * /*pGlobalWorkSize*/,
-    const size_t * /*pLocalWorkSize*/, uint32_t /*numPropsInLaunchPropList*/,
-    const ur_exp_launch_property_t * /*launchPropList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+  UR_LOG_LEGACY(
+      ERR, logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
       "{} function not implemented!", __FUNCTION__);
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

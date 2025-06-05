@@ -247,94 +247,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(128u);
   }
   case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
-    // Take the smaller of maximum surface and maximum texture height.
     int TexHeight = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &TexHeight, hipDeviceAttributeMaxTexture2DHeight, hDevice->get()));
     assert(TexHeight >= 0);
-    int SurfHeight = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &SurfHeight, hipDeviceAttributeMaxTexture2DHeight, hDevice->get()));
-    assert(SurfHeight >= 0);
-
-    int Min = std::min(TexHeight, SurfHeight);
-
-    return ReturnValue(static_cast<size_t>(Min));
+    return ReturnValue(static_cast<size_t>(TexHeight));
   }
   case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
-    // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &TexWidth, hipDeviceAttributeMaxTexture2DWidth, hDevice->get()));
     assert(TexWidth >= 0);
-    int SurfWidth = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &SurfWidth, hipDeviceAttributeMaxTexture2DWidth, hDevice->get()));
-    assert(SurfWidth >= 0);
-
-    int Min = std::min(TexWidth, SurfWidth);
-
-    return ReturnValue(static_cast<size_t>(Min));
+    return ReturnValue(static_cast<size_t>(TexWidth));
   }
   case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
-    // Take the smaller of maximum surface and maximum texture height.
     int TexHeight = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &TexHeight, hipDeviceAttributeMaxTexture3DHeight, hDevice->get()));
     assert(TexHeight >= 0);
-    int SurfHeight = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &SurfHeight, hipDeviceAttributeMaxTexture3DHeight, hDevice->get()));
-    assert(SurfHeight >= 0);
-
-    int Min = std::min(TexHeight, SurfHeight);
-
-    return ReturnValue(static_cast<size_t>(Min));
+    return ReturnValue(static_cast<size_t>(TexHeight));
   }
   case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
-    // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &TexWidth, hipDeviceAttributeMaxTexture3DWidth, hDevice->get()));
     assert(TexWidth >= 0);
-    int SurfWidth = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &SurfWidth, hipDeviceAttributeMaxTexture3DWidth, hDevice->get()));
-    assert(SurfWidth >= 0);
-
-    int Min = std::min(TexWidth, SurfWidth);
-
-    return ReturnValue(static_cast<size_t>(Min));
+    return ReturnValue(static_cast<size_t>(TexWidth));
   }
   case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
-    // Take the smaller of maximum surface and maximum texture depth.
     int TexDepth = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &TexDepth, hipDeviceAttributeMaxTexture3DDepth, hDevice->get()));
     assert(TexDepth >= 0);
-    int SurfDepth = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &SurfDepth, hipDeviceAttributeMaxTexture3DDepth, hDevice->get()));
-    assert(SurfDepth >= 0);
-
-    int Min = std::min(TexDepth, SurfDepth);
-
-    return ReturnValue(static_cast<size_t>(Min));
+    return ReturnValue(static_cast<size_t>(TexDepth));
   }
   case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
-    // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &TexWidth, hipDeviceAttributeMaxTexture1DWidth, hDevice->get()));
     assert(TexWidth >= 0);
-    int SurfWidth = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &SurfWidth, hipDeviceAttributeMaxTexture1DWidth, hDevice->get()));
-    assert(SurfWidth >= 0);
-
-    int Min = std::min(TexWidth, SurfWidth);
-
-    return ReturnValue(static_cast<size_t>(Min));
+    return ReturnValue(static_cast<size_t>(TexWidth));
   }
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
     return ReturnValue(size_t(0));
@@ -430,12 +382,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to HIP's "shared memory".
     // HIP has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    int LocalMemSize = 0;
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &LocalMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock,
-        hDevice->get()));
-    assert(LocalMemSize >= 0);
-    return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    if (hDevice->getMaxChosenLocalMem()) {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
+    } else {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxCapacityLocalMem()));
+    }
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int EccEnabled = 0;
@@ -782,22 +735,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         &tex_pitch_align, hipDeviceAttributeTexturePitchAlignment,
         hDevice->get()));
     assert(tex_pitch_align >= 0);
-    return ReturnValue(static_cast<uint32_t>(tex_pitch_align));
+    return ReturnValue(tex_pitch_align);
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
-    // Default values due to non-existent hipamd queries for linear sizes.
-    constexpr size_t MaxLinearWidth{1};
-    return ReturnValue(MaxLinearWidth);
+    // No direct HIP equivalent. Use `hipDeviceAttributeMaxTexture2DWidth`.
+    int TexWidth = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexWidth, hipDeviceAttributeMaxTexture2DWidth, hDevice->get()));
+    assert(TexWidth >= 0);
+    return ReturnValue(static_cast<size_t>(TexWidth));
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
-    // Default values due to non-existent hipamd queries for linear sizes.
-    constexpr size_t MaxLinearHeight{1};
-    return ReturnValue(MaxLinearHeight);
+    // No direct HIP equivalent. Use `hipDeviceAttributeMaxTexture2DHeight`.
+    int TexHeight = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexHeight, hipDeviceAttributeMaxTexture2DHeight, hDevice->get()));
+    assert(TexHeight >= 0);
+    return ReturnValue(static_cast<size_t>(TexHeight));
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
-    // Default values due to non-existent hipamd queries for linear sizes.
-    constexpr size_t MaxLinearPitch{1};
-    return ReturnValue(MaxLinearPitch);
+    // No direct HIP equivalent. Use `hipDeviceAttributeMaxTexture2DWidth`.
+    int TexPitch = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexPitch, hipDeviceAttributeMaxTexture2DWidth, hDevice->get()));
+    assert(TexPitch >= 0);
+    return ReturnValue(static_cast<size_t>(TexPitch));
   }
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // HIP supports mipmaps.
@@ -1031,7 +993,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
   case UR_DEVICE_INFO_FAN_SPEED:
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
@@ -1079,12 +1040,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(0);
   default:
     break;
   }

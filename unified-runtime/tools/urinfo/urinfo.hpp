@@ -29,7 +29,7 @@ inline void printLoaderConfigInfos(ur_loader_config_handle_t hLoaderConfig,
 inline void printAdapterInfos(ur_adapter_handle_t hAdapter,
                               std::string_view prefix = "  ") {
   std::cout << prefix;
-  printAdapterInfo<ur_adapter_backend_t>(hAdapter, UR_ADAPTER_INFO_BACKEND);
+  printAdapterInfo<ur_backend_t>(hAdapter, UR_ADAPTER_INFO_BACKEND);
   std::cout << prefix;
   printAdapterInfo<uint32_t>(hAdapter, UR_ADAPTER_INFO_VERSION);
 }
@@ -47,7 +47,7 @@ inline void printPlatformInfos(ur_platform_handle_t hPlatform,
   std::cout << prefix;
   printPlatformInfo<char[]>(hPlatform, UR_PLATFORM_INFO_PROFILE);
   std::cout << prefix;
-  printPlatformInfo<ur_platform_backend_t>(hPlatform, UR_PLATFORM_INFO_BACKEND);
+  printPlatformInfo<ur_backend_t>(hPlatform, UR_PLATFORM_INFO_BACKEND);
   std::cout << prefix;
   printPlatformInfo<ur_adapter_handle_t>(hPlatform, UR_PLATFORM_INFO_ADAPTER);
 }
@@ -344,6 +344,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE);
   std::cout << prefix;
+  printDeviceInfo<ur_kernel_launch_properties_flags_t>(
+      hDevice, UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
@@ -355,9 +358,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP);
-  std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP);
@@ -444,13 +444,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP);
-  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
-  std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP);
