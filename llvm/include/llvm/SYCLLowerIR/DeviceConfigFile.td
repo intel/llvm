@@ -262,7 +262,10 @@ class CudaTargetInfo<string targetName, list<Aspect> aspectList, int subGroupSiz
   assert !eq(subGroupSize, 32), "sub-group size for Cuda must be equal to 32 and not " # subGroupSize # ".";
 }
 
-defvar CudaMinAspects = !listconcat(AllUSMAspects, [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker,
+defvar CudaMinUSMAspects = [AspectUsm_device_allocations, AspectUsm_host_allocations, AspectUsm_shared_allocations];
+defvar CudaSM90USMAspects = [AspectUsm_system_allocations, AspectUsm_atomic_host_allocations, AspectUsm_atomic_shared_allocations];
+
+defvar CudaMinAspects = !listconcat(CudaMinUSMAspects, [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker,
     AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_max_mem_bandwidth, AspectExt_intel_memory_bus_width,
     AspectExt_intel_device_info_uuid, AspectExt_oneapi_native_assert, AspectExt_intel_free_memory, AspectExt_intel_device_id,
     AspectExt_intel_memory_clock_rate, AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group,
@@ -292,9 +295,9 @@ def : CudaTargetInfo<"nvidia_gpu_sm_87", !listconcat(CudaMinAspects, CudaBindles
     [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
 def : CudaTargetInfo<"nvidia_gpu_sm_89", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
     [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier])>;
-def : CudaTargetInfo<"nvidia_gpu_sm_90", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
+def : CudaTargetInfo<"nvidia_gpu_sm_90", !listconcat(CudaMinAspects, CudaSM90USMAspects, CudaBindlessImagesAspects,
     [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_cuda_cluster_group])>;
-def : CudaTargetInfo<"nvidia_gpu_sm_90a", !listconcat(CudaMinAspects, CudaBindlessImagesAspects,
+def : CudaTargetInfo<"nvidia_gpu_sm_90a", !listconcat(CudaMinAspects, CudaSM90USMAspects, CudaBindlessImagesAspects,
     [AspectFp16, AspectAtomic64, AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_cuda_cluster_group])>;
 
 //

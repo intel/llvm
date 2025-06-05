@@ -5,8 +5,8 @@
 //
 #pragma once
 
-#include "hash_table7.hpp"
 #include "xpti/xpti_data_types.h"
+#include <emhash/hash_table7.hpp>
 
 #include <atomic>
 #include <shared_mutex>
