@@ -272,7 +272,7 @@ defvar CudaMinUSMAspects = [AspectUsm_device_allocations, AspectUsm_host_allocat
 defvar CudaSM90USMAspects = [AspectUsm_system_allocations, AspectUsm_atomic_host_allocations, AspectUsm_atomic_shared_allocations];
 
 defvar CudaMinAspects = !listconcat(CudaMinUSMAspects, [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker,
-    AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_max_mem_bandwidth, AspectExt_intel_memory_bus_width,
+    AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_memory_bus_width,
     AspectExt_intel_device_info_uuid, AspectExt_oneapi_native_assert, AspectExt_intel_free_memory, AspectExt_intel_device_id,
     AspectExt_intel_memory_clock_rate, AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group,
     AspectExt_oneapi_opportunistic_group, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]);
