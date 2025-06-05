@@ -22,6 +22,8 @@
 
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
+#include "ur_api.h"
+#include "ze_api.h"
 
 namespace v2 {
 
@@ -35,6 +37,18 @@ private:
 
   lockable<ur_command_list_manager> commandListManager;
   std::vector<ur_kernel_handle_t> submittedKernels;
+
+  struct HostTaskData {
+    ur_exp_host_task_function_t pfnHostTask;
+    void *data;
+    ur_event_handle_t InputEvent;
+    ur_event_handle_t OutputEvent;
+    ur_event_handle_t CleanupEvent;
+  };
+
+  std::optional<mpmc::Sender<HostTaskData>> HostTaskSender;
+  std::optional<std::thread> HostTaskWorker;
+  v2::raii::cache_borrowed_event_pool normalEventsPool;
 
   wait_list_view
   getWaitListView(locked<ur_command_list_manager> &commandList,
@@ -284,6 +298,10 @@ public:
                           const ur_exp_enqueue_native_command_properties_t *,
                           uint32_t, const ur_event_handle_t *,
                           ur_event_handle_t *) override;
+  ur_result_t enqueueHostTaskExp(ur_exp_host_task_function_t, void *,
+                                 const ur_exp_host_task_properties_t *,
+                                 uint32_t, const ur_event_handle_t *,
+                                 ur_event_handle_t *) override;
 };
 
 } // namespace v2

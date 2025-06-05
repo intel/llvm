@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <detail/cg.hpp>
 #include <detail/global_handler.hpp>
 #include <sycl/detail/cg_types.hpp>
@@ -29,9 +30,14 @@ class HostTask {
 public:
   HostTask() : MHostTask([]() {}) {}
   HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
+  HostTask(std::function<void()> &&Func,
+           std::shared_ptr<detail::queue_impl> MQueue)
+      : MHostTask(Func), MQueue(MQueue) {}
   HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
 
   bool isInteropTask() const { return !!MInteropTask; }
+
+  std::shared_ptr<detail::queue_impl> MQueue = nullptr;
 
   void call(HostProfilingInfo *HPI) {
     if (!GlobalHandler::instance().isOkToDefer()) {
