@@ -23,8 +23,6 @@ union U {
   float f;
 };
 
-using accType = accessor<int, 1, access::mode::read_write>;
-
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))
 void ff(struct S s) {}
