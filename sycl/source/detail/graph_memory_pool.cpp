@@ -33,11 +33,11 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   AllocInfo.Kind = AllocType;
   // Collect relevant properties from memory pool
   if (MemPool) {
-    auto PropList = MemPool->getPropList();
-    if (PropList.has_property<property::memory_pool::zero_init>()) {
+    auto Props = MemPool->getProps();
+    if (Props.zero_init.second) {
       AllocInfo.ZeroInit = true;
     }
-    if (PropList.has_property<property::memory_pool::read_only>()) {
+    if (Props.read_only.second) {
       AllocInfo.ReadOnly = true;
     }
   }
