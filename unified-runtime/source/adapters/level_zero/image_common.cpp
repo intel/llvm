@@ -1056,7 +1056,7 @@ ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
                                  const ur_usm_desc_t *pUSMDesc,
                                  ur_usm_pool_handle_t pool, size_t widthInBytes,
                                  size_t height, size_t elementSizeBytes,
-                                 void **ppMem, size_t *pResultPitch) {
+                                 void *ppMem, size_t *pResultPitch) {
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(widthInBytes != 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
   UR_ASSERT(ppMem && pResultPitch, UR_RESULT_ERROR_INVALID_NULL_POINTER);
