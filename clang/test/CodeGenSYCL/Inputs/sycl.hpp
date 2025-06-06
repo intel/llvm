@@ -564,7 +564,7 @@ ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) { // #Kerne
 }
 
 template <typename KernelName, typename KernelType, int Dims>
-ATTR_SYCL_KERNEL void
+__attribute__((sycl_kernel)) void
 kernel_parallel_for(const KernelType &KernelFunc) {
   KernelFunc(id<Dims>());
 }
