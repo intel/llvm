@@ -16,12 +16,19 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+class device_impl;
+
 /// Profiling info for the host execution.
 class __SYCL_EXPORT HostProfilingInfo {
   uint64_t StartTime = 0;
   uint64_t EndTime = 0;
+  device_impl *Device = nullptr;
 
 public:
+  // Sets the device associated with a queue that was used to submit the host
+  // task.
+  void setDevice(device_impl *Dev) { Device = Dev; }
+
   /// Returns event's start time.
   ///
   /// \return event's start time in nanoseconds.
