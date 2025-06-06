@@ -1402,6 +1402,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
                                  bool HasESIMD) {
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
+  SmallVector<uint8_t, 256> KernelNamesBytes;
 
   const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
@@ -1438,6 +1439,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       SpirFixupKernels.emplace_back(&F);
 
       auto KernelName = F.getName();
+      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
       auto *KernelNameGV = GetOrCreateGlobalString(
           M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
@@ -1459,8 +1461,9 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   AsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   AsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
-  AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                       "_Z20__AsanKernelMetadata");
+  AsanSpirKernelMetadata->addAttribute(
+      "sycl-unique-id",
+      computeKernelMetadataUniqueId("__AsanKernelMetadata", KernelNamesBytes));
   AsanSpirKernelMetadata->setDSOLocal(true);
 
   // Handle SpirFixupKernels

@@ -31,4 +31,4 @@ entry:
 }
 
 ; CHECK: attributes [[ATTR0]]
-; CHECK-SAME: "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__MsanKernelMetadata"
+; CHECK-SAME: "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="__MsanKernelMetadata3ff767e9a7a43f1f3968062dbb4ee3b4"
