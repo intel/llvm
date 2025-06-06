@@ -1696,7 +1696,11 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::kernel_bundle_impl>
+#else
+  detail::kernel_bundle_impl*
+#endif
   getOrInsertHandlerKernelBundle(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
@@ -1749,6 +1753,10 @@ private:
   /// @param Type The actual type based on what handler functions the user
   /// called.
   void setUserFacingNodeType(ext::oneapi::experimental::node_type Type);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  kernel_bundle<bundle_state::input> getKernelBundle() const;
+#endif
 
 public:
   handler(const handler &) = delete;

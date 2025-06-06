@@ -1982,7 +1982,11 @@ std::string instrumentationGetKernelName(
 
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
+#else
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+#endif
     KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
@@ -2002,7 +2006,7 @@ void instrumentationAddExtraKernelMetadata(
       EliminatedArgMask = SyclKernel->getKernelArgMask();
   } else if (auto SyclKernelImpl =
                  KernelBundleImplPtr ? KernelBundleImplPtr->tryGetKernel(
-                                           KernelName, KernelBundleImplPtr)
+                                           KernelName)
                                      : std::shared_ptr<kernel_impl>{nullptr}) {
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Queue) {
@@ -2101,7 +2105,11 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, const QueueImplPtr &Queue,
     const NDRDescT &NDRDesc,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
+#else
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+#endif
     std::vector<ArgDesc> &CGArgs) {
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
@@ -2194,8 +2202,11 @@ void ExecCGCommand::emitInstrumentationData() {
       auto KernelCG =
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
-          CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle(),
-          KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
+          CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle()
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+          .get()
+#endif
+          , KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
           KernelCG->MSyclKernel, MQueue, KernelCG->MArgs);
     }
 
@@ -2539,7 +2550,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   } else if (auto SyclKernelImpl =
                  KernelBundleImplPtr
                      ? KernelBundleImplPtr->tryGetKernel(
-                           CommandGroup.MKernelName, KernelBundleImplPtr)
+                           CommandGroup.MKernelName)
                      : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
@@ -2661,7 +2672,11 @@ ur_result_t enqueueImpCommandBufferKernel(
 
 void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
+#else
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+#endif
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
@@ -2700,7 +2715,7 @@ void enqueueImpKernel(
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
   } else if ((SyclKernelImpl = KernelBundleImplPtr
                                    ? KernelBundleImplPtr->tryGetKernel(
-                                         KernelName, KernelBundleImplPtr)
+                                         KernelName)
                                    : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
@@ -3260,7 +3275,11 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel.get(),
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle()
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+        .get()
+#endif
+        , SyclKernel.get(),
         KernelName, ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
         getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
         ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,

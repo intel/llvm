@@ -624,7 +624,11 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
 
 void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
+#else
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+#endif
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
@@ -694,7 +698,11 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, const QueueImplPtr &Queue,
     const NDRDescT &NDRDesc,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
+#else
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+#endif
     std::vector<ArgDesc> &CGArgs);
 #endif
 

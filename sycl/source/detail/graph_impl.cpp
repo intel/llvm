@@ -831,7 +831,11 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
         StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
         CGExec->MKernelName.data(), CGExec->MKernelNameBasedCachePtr, nullptr,
-        CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
+        CGExec->MNDRDesc, CGExec->MKernelBundle
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+        .get()
+#endif
+        , CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(
           StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
@@ -1510,8 +1514,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else if (auto SyclKernelImpl =
                  KernelBundleImplPtr
-                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName,
-                                                         KernelBundleImplPtr)
+                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName)
                      : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
