@@ -258,7 +258,9 @@ public:
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
   }
-  const std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
+  const std::shared_ptr<sycl::detail::queue_impl> getQueue() {
+    return impl->get_queue().shared_from_this();
+  }
 
   void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 

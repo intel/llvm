@@ -338,14 +338,14 @@ void context_impl::addDeviceGlobalInitializer(
   }
 }
 
-std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
-    ur_program_handle_t NativePrg,
-    const std::shared_ptr<queue_impl> &QueueImpl) {
+std::vector<ur_event_handle_t>
+context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
+                                      queue_impl &QueueImpl) {
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
   const AdapterPtr &Adapter = getAdapter();
-  device_impl &DeviceImpl = QueueImpl->getDeviceImpl();
+  device_impl &DeviceImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
       std::make_pair(NativePrg, DeviceImpl.getHandleRef()));
@@ -417,7 +417,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =
-          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(*QueueImpl);
+          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl);
 
       // If the device global still has a initialization event it should be
       // added to the initialization events list. Since initialization events
@@ -432,7 +432,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       ur_event_handle_t InitEvent;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Adapter->call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
-          QueueImpl->getHandleRef(), NativePrg,
+          QueueImpl.getHandleRef(), NativePrg,
           DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
           &USMPtr, 0, nullptr, &InitEvent);
 
