@@ -711,11 +711,11 @@ event handler::finalize() {
     break;
   case detail::CGType::EnqueueNativeCommand:
   case detail::CGType::CodeplayHostTask: {
-    detail::context_impl &context = impl->get_context();
+    detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
         std::move(impl->MHostTask), Queue ? Queue->shared_from_this() : nullptr,
-        context.shared_from_this(), std::move(impl->MArgs),
+        Context.shared_from_this(), std::move(impl->MArgs),
         std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
@@ -2240,8 +2240,8 @@ void handler::ext_oneapi_graph(
 
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
 handler::getCommandGraph() const {
-  if (auto *graph = impl->get_graph_or_null()) {
-    return graph->shared_from_this();
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return Graph->shared_from_this();
   }
 
   return impl->get_queue().getCommandGraph();
@@ -2280,8 +2280,8 @@ void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
     int ArgIndex) {
 
-  if (queue_impl *queue = impl->get_queue_or_null();
-      queue && queue->hasCommandGraph()) {
+  if (queue_impl *Queue = impl->get_queue_or_null();
+      Queue && Queue->hasCommandGraph()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Dynamic Parameters cannot be used with Graph Queue recording.");

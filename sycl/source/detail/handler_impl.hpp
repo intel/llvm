@@ -191,15 +191,15 @@ public:
   // includes.
   template <typename Self = handler_impl> detail::device_impl &get_device() {
     Self *self = this;
-    if (auto *queue = self->get_queue_or_null())
-      return queue->getDeviceImpl();
+    if (auto *Queue = self->get_queue_or_null())
+      return Queue->getDeviceImpl();
     else
       return self->get_graph().getDeviceImpl();
   }
   template <typename Self = handler_impl> context_impl &get_context() {
     Self *self = this;
-    if (auto *queue = self->get_queue_or_null())
-      return *queue->getContextImplPtr();
+    if (auto *Queue = self->get_queue_or_null())
+      return *Queue->getContextImplPtr();
     else
       return *self->get_graph().getContextImplPtr();
   }
