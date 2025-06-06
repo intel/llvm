@@ -102,7 +102,7 @@ jobs:
   offload_build:
     name: Adapters (Offload)
     needs: [detect_changes, source_checks]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
     uses: ./.github/workflows/ur-build-offload.yml
 
   macos:
