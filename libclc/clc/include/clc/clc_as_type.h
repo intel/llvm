@@ -10,6 +10,7 @@
 #define __CLC_CLC_AS_TYPE_H__
 
 #define __clc_as_char(x) __builtin_astype(x, char)
+#define __clc_as_schar(x) __builtin_astype(x, schar)
 #define __clc_as_uchar(x) __builtin_astype(x, uchar)
 #define __clc_as_short(x) __builtin_astype(x, short)
 #define __clc_as_ushort(x) __builtin_astype(x, ushort)
@@ -20,6 +21,7 @@
 #define __clc_as_float(x) __builtin_astype(x, float)
 
 #define __clc_as_char2(x) __builtin_astype(x, char2)
+#define __clc_as_schar2(x) __builtin_astype(x, schar2)
 #define __clc_as_uchar2(x) __builtin_astype(x, uchar2)
 #define __clc_as_short2(x) __builtin_astype(x, short2)
 #define __clc_as_ushort2(x) __builtin_astype(x, ushort2)
@@ -30,6 +32,7 @@
 #define __clc_as_float2(x) __builtin_astype(x, float2)
 
 #define __clc_as_char3(x) __builtin_astype(x, char3)
+#define __clc_as_schar3(x) __builtin_astype(x, schar3)
 #define __clc_as_uchar3(x) __builtin_astype(x, uchar3)
 #define __clc_as_short3(x) __builtin_astype(x, short3)
 #define __clc_as_ushort3(x) __builtin_astype(x, ushort3)
@@ -40,6 +43,7 @@
 #define __clc_as_float3(x) __builtin_astype(x, float3)
 
 #define __clc_as_char4(x) __builtin_astype(x, char4)
+#define __clc_as_schar4(x) __builtin_astype(x, schar4)
 #define __clc_as_uchar4(x) __builtin_astype(x, uchar4)
 #define __clc_as_short4(x) __builtin_astype(x, short4)
 #define __clc_as_ushort4(x) __builtin_astype(x, ushort4)
@@ -50,7 +54,9 @@
 #define __clc_as_float4(x) __builtin_astype(x, float4)
 
 #define __clc_as_char8(x) __builtin_astype(x, char8)
+#define __clc_as_schar8(x) __builtin_astype(x, schar8)
 #define __clc_as_uchar8(x) __builtin_astype(x, uchar8)
+#define __clc_as_schar8(x) __builtin_astype(x, schar8)
 #define __clc_as_short8(x) __builtin_astype(x, short8)
 #define __clc_as_ushort8(x) __builtin_astype(x, ushort8)
 #define __clc_as_int8(x) __builtin_astype(x, int8)
@@ -60,6 +66,7 @@
 #define __clc_as_float8(x) __builtin_astype(x, float8)
 
 #define __clc_as_char16(x) __builtin_astype(x, char16)
+#define __clc_as_schar16(x) __builtin_astype(x, schar16)
 #define __clc_as_uchar16(x) __builtin_astype(x, uchar16)
 #define __clc_as_short16(x) __builtin_astype(x, short16)
 #define __clc_as_ushort16(x) __builtin_astype(x, ushort16)
