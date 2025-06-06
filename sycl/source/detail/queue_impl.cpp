@@ -310,7 +310,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                         const detail::code_location &Loc, bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
+  detail::handler_impl HandlerImplVal(*this, SecondaryQueue, CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
   // Inlining `Self` results in a crash when SYCL RT is built using MSVC with
   // optimizations enabled. No crash if built using OneAPI.

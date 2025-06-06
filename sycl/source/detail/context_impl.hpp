@@ -29,7 +29,7 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 namespace detail {
-class context_impl : std::enable_shared_from_this<context_impl> {
+class context_impl : public std::enable_shared_from_this<context_impl> {
   struct private_tag {
     explicit private_tag() = default;
   };

@@ -504,7 +504,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 std::vector<std::shared_ptr<node_impl>> &Deps) {
   (void)Args;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImpl{shared_from_this()};
+  detail::handler_impl HandlerImpl{*this};
   sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
 #else
   sycl::handler Handler{shared_from_this()};
@@ -2284,7 +2284,7 @@ void dynamic_command_group_impl::finalizeCGFList(
     // Handler defined inside the loop so it doesn't appear to the runtime
     // as a single command-group with multiple commands inside.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    detail::handler_impl HandlerImpl{MGraph};
+    detail::handler_impl HandlerImpl{*MGraph};
     sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
 #else
     sycl::handler Handler{MGraph};
