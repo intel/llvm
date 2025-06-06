@@ -2383,7 +2383,8 @@ void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
   impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
 }
 void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
-                                   sycl::range<3> LocalSize, sycl::id<3> Offset) {
+                                   sycl::range<3> LocalSize,
+                                   sycl::id<3> Offset) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
@@ -2395,7 +2396,8 @@ void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
   impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
 }
 void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
-                                   sycl::range<2> LocalSize, sycl::id<2> Offset) {
+                                   sycl::range<2> LocalSize,
+                                   sycl::id<2> Offset) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
@@ -2407,7 +2409,8 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
   impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
 }
 void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
-                                   sycl::range<1> LocalSize, sycl::id<1> Offset) {
+                                   sycl::range<1> LocalSize,
+                                   sycl::id<1> Offset) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
