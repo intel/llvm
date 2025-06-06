@@ -1490,24 +1490,6 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
   const bool UseCopyEngine = false;
   bool MustSignalWaitEvent = true;
 
-  // Level-zero does not allow in-order queue when immediate command-lists are
-  // not used. For that reason, if the UR queue is in-order, we need to emulate,
-  // its in-order properties by adding an event dependency on the last command
-  // executed by the queue.
-  //  std::vector<ur_event_handle_t> WaitList;
-  //  if (Queue->isInOrderQueue() && Queue->LastCommandEvent) {
-  //    WaitList.reserve(NumEventsInWaitList + 1);
-  //
-  //    if (NumEventsInWaitList) {
-  //      WaitList.insert(WaitList.end(), EventWaitList,
-  //                      EventWaitList + NumEventsInWaitList);
-  //    }
-  //    WaitList.push_back(Queue->LastCommandEvent);
-  //
-  //    ++NumEventsInWaitList;
-  //    EventWaitList = WaitList.data();
-  //  }
-
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
