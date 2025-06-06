@@ -284,7 +284,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
     if options.output_markdown:
         markdown_content = generate_markdown(
-            this_name, chart_data, failures, options.output_markdown
+            this_name, chart_data, failures, options.output_markdown, metadata
         )
 
         md_path = options.output_directory

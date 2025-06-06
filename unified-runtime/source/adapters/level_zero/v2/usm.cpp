@@ -229,8 +229,14 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
 
   *ppRetMem = umfPoolAlignedMalloc(umfPool, size, alignment);
   if (*ppRetMem == nullptr) {
-    auto umfRet = umfPoolGetLastAllocationError(umfPool);
-    return umf::umf2urResult(umfRet);
+    if (pool->asyncPool.cleanup()) { // true means that objects were deallocated
+      // let's try again
+      *ppRetMem = umfPoolAlignedMalloc(umfPool, size, alignment);
+    }
+    if (*ppRetMem == nullptr) {
+      auto umfRet = umfPoolGetLastAllocationError(umfPool);
+      return umf::umf2urResult(umfRet);
+    }
   }
 
   return UR_RESULT_SUCCESS;
@@ -244,6 +250,18 @@ ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
     UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
+}
+
+bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t umfPool) {
+  bool found = false;
+  poolManager.forEachPool([&](UsmPool *p) {
+    if (p->umfPool.get() == umfPool) {
+      found = true;
+      return false; // break
+    }
+    return true;
+  });
+  return found;
 }
 
 std::optional<std::pair<void *, ur_event_handle_t>>
@@ -281,14 +299,14 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
 
 void ur_usm_pool_handle_t_::cleanupPools() {
   poolManager.forEachPool([&](UsmPool *p) {
-    return p->asyncPool.cleanup();
+    p->asyncPool.cleanup();
     return true;
   });
 }
 
 void ur_usm_pool_handle_t_::cleanupPoolsForQueue(void *hQueue) {
   poolManager.forEachPool([&](UsmPool *p) {
-    return p->asyncPool.cleanupForQueue(hQueue);
+    p->asyncPool.cleanupForQueue(hQueue);
     return true;
   });
 }
@@ -303,6 +321,7 @@ ur_result_t urUSMPoolCreate(
     /// [out] pointer to USM memory pool
     ur_usm_pool_handle_t *hPool) try {
   *hPool = new ur_usm_pool_handle_t_(hContext, pPoolDesc);
+  hContext->addUsmPool(*hPool);
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);
@@ -325,6 +344,7 @@ ur_result_t
 /// [in] pointer to USM memory pool
 urUSMPoolRelease(ur_usm_pool_handle_t hPool) try {
   if (hPool->RefCount.decrementAndTest()) {
+    hPool->getContextHandle()->removeUsmPool(hPool);
     delete hPool;
   }
   return UR_RESULT_SUCCESS;
@@ -517,12 +537,24 @@ ur_result_t urUSMGetMemAllocInfo(
     return ReturnValue(size);
   }
   case UR_USM_ALLOC_INFO_POOL: {
-    // TODO
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    auto umfPool = umfPoolByPtr(ptr);
+    if (!umfPool) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+
+    ur_result_t ret = UR_RESULT_ERROR_INVALID_VALUE;
+    hContext->forEachUsmPool([&](ur_usm_pool_handle_t hPool) {
+      if (hPool->hasPool(umfPool)) {
+        ret = ReturnValue(hPool);
+        return false; // break;
+      }
+      return true;
+    });
+    return ret;
+  }
   default:
     UR_LOG(ERR, "urUSMGetMemAllocInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
-  }
   }
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
@@ -562,6 +594,23 @@ ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *hostPtr) {
   if (ZeUSMImport.Supported && hostPtr != nullptr)
     ZeUSMImport.doZeUSMRelease(
         hContext->getPlatform()->ZeDriverHandleExpTranslated, hostPtr);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
+                                             void *pDst, const void *pSrc,
+                                             size_t size) {
+  ur_device_handle_t hDevice = hContext->getDevices()[0];
+  auto Ordinal = static_cast<uint32_t>(
+      hDevice
+          ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
+          .ZeOrdinal);
+  auto commandList = hContext->getCommandListCache().getImmediateCommandList(
+      hDevice->ZeDevice, {true, Ordinal, true},
+      ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
+      std::nullopt);
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (commandList.get(), pDst, pSrc, size, nullptr, 0, nullptr));
   return UR_RESULT_SUCCESS;
 }
 

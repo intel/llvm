@@ -50,7 +50,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "3283b5edb8bf771c519625af741b5db7a37b0111"
+        return "ffd199db86a904451f0697cb25a0e7a6b9f2006f"
 
     def setup(self):
         if options.sycl is None:
@@ -285,15 +285,9 @@ class ComputeBenchmark(Benchmark):
         ret = []
         for label, median, stddev, unit in parsed_results:
             extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
-            explicit_group = (
-                self.explicit_group() + extra_label
-                if self.explicit_group() != ""
-                else ""
-            )
             ret.append(
                 Result(
                     label=self.name() + extra_label,
-                    explicit_group=explicit_group,
                     value=median,
                     stddev=stddev,
                     command=command,
@@ -383,12 +377,9 @@ class SubmitKernel(ComputeBenchmark):
         return f"{self.runtime.value.upper()} SubmitKernel {order}{additional_info}, NumKernels {self.NumKernels}"
 
     def explicit_group(self):
-        order = "In Order" if self.ioq else "Out Of Order"
-        completion_str = " With Completion" if self.MeasureCompletion else ""
-
-        # this needs to be inversed (i.e., using events is empty string)
-        # to match the existing already stored results
-        events_str = " not using events" if not self.UseEvents else ""
+        order = "in order" if self.ioq else "out of order"
+        completion_str = " with completion" if self.MeasureCompletion else ""
+        events_str = " using events" if self.UseEvents else ""
 
         kernel_exec_time_str = (
             f" KernelExecTime={self.KernelExecTime}" if self.KernelExecTime != 1 else ""
@@ -399,10 +390,7 @@ class SubmitKernel(ComputeBenchmark):
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
         runtime_name = runtime_to_name(self.runtime)
-
-        completion_desc = completion_desc = (
-            f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
-        )
+        completion_desc = f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
 
         return (
             f"Measures CPU time overhead of submitting {order} kernels through {runtime_name} API{completion_desc}. "
@@ -427,11 +415,15 @@ class SubmitKernel(ComputeBenchmark):
     def get_metadata(self) -> dict[str, BenchmarkMetadata]:
         metadata_dict = super().get_metadata()
 
-        # Create CPU count variant with modified display name
+        # Create CPU count variant with modified display name and explicit_group
         cpu_count_name = self.name() + " CPU count"
         cpu_count_metadata = copy.deepcopy(metadata_dict[self.name()])
         cpu_count_display_name = self.display_name() + ", CPU count"
+        cpu_count_explicit_group = (
+            self.explicit_group() + ", CPU count" if self.explicit_group() else ""
+        )
         cpu_count_metadata.display_name = cpu_count_display_name
+        cpu_count_metadata.explicit_group = cpu_count_explicit_group
         metadata_dict[cpu_count_name] = cpu_count_metadata
 
         return metadata_dict
@@ -668,11 +660,11 @@ class MemcpyExecute(ComputeBenchmark):
 
     def explicit_group(self):
         return (
-            "MemcpyExecute opsPerThread: "
+            "MemcpyExecute, opsPerThread: "
             + str(self.numOpsPerThread)
-            + " numThreads: "
+            + ", numThreads: "
             + str(self.numThreads)
-            + " allocSize: "
+            + ", allocSize: "
             + str(self.allocSize)
         )
 
@@ -718,7 +710,7 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
         )
 
     def explicit_group(self):
-        return f"SinKernelGraph {self.numKernels}"
+        return f"SinKernelGraph, numKernels: {self.numKernels}"
 
     def description(self) -> str:
         execution = "using graphs" if self.withGraphs else "without graphs"
@@ -770,7 +762,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         super().__init__(bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph")
 
     def explicit_group(self):
-        return f"SubmitGraph {self.numKernels}"
+        return f"SubmitGraph, numKernels: {self.numKernels}"
 
     def description(self) -> str:
         return (
@@ -814,7 +806,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         super().__init__(bench, f"ulls_benchmark_{runtime.value}", "EmptyKernel")
 
     def explicit_group(self):
-        return f"EmptyKernel {self.wgc} {self.wgs}"
+        return f"EmptyKernel, wgc: {self.wgc}, wgs: {self.wgs}"
 
     def description(self) -> str:
         return ""
@@ -860,7 +852,7 @@ class UllsKernelSwitch(ComputeBenchmark):
         super().__init__(bench, f"ulls_benchmark_{runtime.value}", "KernelSwitch")
 
     def explicit_group(self):
-        return f"KernelSwitch {self.count} {self.kernelTime}"
+        return f"KernelSwitch, count: {self.count}, kernelTime: {self.kernelTime}"
 
     def description(self) -> str:
         return ""
