@@ -67,7 +67,7 @@ class SyclBench(Suite):
         self.built = True
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
+        if options.sycl is None and options.dry_run is None:
             return []
 
         return [
