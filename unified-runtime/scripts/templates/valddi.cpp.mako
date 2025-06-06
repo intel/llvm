@@ -39,6 +39,9 @@ namespace ur_validation_layer
 
         tracked_params = list(filter(lambda p: any(th.subt(n, tags, p['type']) in [hf['handle'], hf['handle'] + "*"] for hf in handle_create_get_retain_release_funcs), obj['params']))
     %>
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
     %if 'condition' in obj:
@@ -148,9 +151,15 @@ namespace ur_validation_layer
     %if 'condition' in obj:
     #endif // ${th.subt(n, tags, obj['condition'])}
     %endif
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
 
     %endfor
     %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Exported function for filling application's ${tbl['name']} table
     ///        with current process' addresses
@@ -178,6 +187,9 @@ namespace ur_validation_layer
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
 
         %for obj in tbl['functions']:
+%if 'guard' in obj and 'guard' not in tbl:
+#if ${obj['guard']}
+%endif
         %if 'condition' in obj:
     #if ${th.subt(n, tags, obj['condition'])}
         %endif
@@ -189,10 +201,16 @@ namespace ur_validation_layer
         pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = nullptr;
     #endif
         %endif
+%if 'guard' in obj and 'guard' not in tbl:
+#endif // ${obj['guard']}
+%endif
 
         %endfor
         return result;
     }
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
 
     %endfor
     ${x}_result_t
@@ -228,10 +246,16 @@ namespace ur_validation_layer
         }
 
         %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
         if ( ${X}_RESULT_SUCCESS == result )
         {
             result = ur_validation_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
         }
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
 
         %endfor
         return result;
