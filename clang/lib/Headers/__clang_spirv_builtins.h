@@ -26,8 +26,10 @@
 #define __constant __attribute__((opencl_constant))
 #ifdef __SYCL_DEVICE_ONLY__
 #define __generic
+#define __SPIRV_SYCL_EXTERNAL __attribute__((sycl_device))
 #else
 #define __generic __attribute__((opencl_generic))
+#define __SPIRV_SYCL_EXTERNAL
 #endif
 
 // Check if SPIR-V builtins are supported.
@@ -45,60 +47,60 @@
 
 // OpGenericCastToPtrExplicit
 
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __global void *__spirv_GenericCastToPtrExplicit_ToGlobal(__generic void *,
                                                          int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __global const void *
 __spirv_GenericCastToPtrExplicit_ToGlobal(__generic const void *,
                                           int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __global volatile void *
 __spirv_GenericCastToPtrExplicit_ToGlobal(__generic volatile void *,
                                           int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __global const volatile void *
 __spirv_GenericCastToPtrExplicit_ToGlobal(__generic const volatile void *,
                                           int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __local void *__spirv_GenericCastToPtrExplicit_ToLocal(__generic void *,
                                                        int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __local const void *
 __spirv_GenericCastToPtrExplicit_ToLocal(__generic const void *,
                                          int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __local volatile void *
 __spirv_GenericCastToPtrExplicit_ToLocal(__generic volatile void *,
                                          int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __local const volatile void *
 __spirv_GenericCastToPtrExplicit_ToLocal(__generic const volatile void *,
                                          int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __private void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(__generic void *,
                                            int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __private const void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(__generic const void *,
                                            int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __private volatile void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(__generic volatile void *,
                                            int) __SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_overloadable __SPIRV_SYCL_EXTERNAL
 __SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __private const volatile void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(__generic const volatile void *,
@@ -172,6 +174,7 @@ __spirv_GenericCastToPtr_ToPrivate(__generic const volatile void *p,
 #undef __local
 #undef __constant
 #undef __generic
+#undef __SPIRV_SYCL_EXTERNAL
 
 #undef __SPIRV_BUILTIN_ALIAS
 #undef __SPIRV_NOEXCEPT
