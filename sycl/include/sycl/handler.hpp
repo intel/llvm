@@ -3908,7 +3908,7 @@ public:
   //     enqueue_whatever(cgh);
   //   });  // single submission
   //
-  // that needs to be implemented as multiple enqueues envolving
+  // that needs to be implemented as multiple enqueues involving
   // pre-/post-processing internally. SYCL prohibits recursive submits from
   // inside control group function object (lambda above) so we resort to a
   // somewhat hacky way of creating multiple `handler`s and manual finalization
