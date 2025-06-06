@@ -263,15 +263,15 @@ public:
       }
 
       // Single subcache might be used by different contexts.
-      FastKernelSubcacheMapT &CacheMap = MSubcachePtr->Map;
+      // Remove all entries from the subcache that are associated with the
+      // current context.
+      FastKernelSubcacheEntriesT &Entries = MSubcachePtr->Entries;
       FastKernelSubcacheWriteLockT Lock{MSubcachePtr->Mutex};
-      for (auto it = CacheMap.begin(); it != CacheMap.end();) {
-        if (it->first.second == MUrContext) {
-          it = CacheMap.erase(it);
-        } else {
-          ++it;
-        }
-      }
+      Entries.erase(std::remove_if(Entries.begin(), Entries.end(),
+                                   [this](const FastKernelEntryT &Entry) {
+                                     return Entry.Key.second == MUrContext;
+                                   }),
+                    Entries.end());
     }
 
     FastKernelSubcacheT &get() { return *MSubcachePtr; }
@@ -476,14 +476,21 @@ public:
       KernelSubcacheHint = &It.first->second.get();
     }
 
-    const FastKernelSubcacheMapT &SubcacheMap = KernelSubcacheHint->Map;
+    const FastKernelSubcacheEntriesT &SubcacheEntries =
+        KernelSubcacheHint->Entries;
     FastKernelSubcacheReadLockT SubcacheLock{KernelSubcacheHint->Mutex};
     ur_context_handle_t Context = getURContext();
-    auto It = SubcacheMap.find(FastKernelCacheKeyT(Device, Context));
-    if (It != SubcacheMap.end()) {
+    const FastKernelCacheKeyT RequiredKey(Device, Context);
+    // Search for the kernel in the subcache.
+    auto It = std::find_if(SubcacheEntries.begin(), SubcacheEntries.end(),
+                           [&](const FastKernelEntryT &Entry) {
+                             return Entry.Key == RequiredKey;
+                           });
+    if (It != SubcacheEntries.end()) {
       traceKernel("Kernel fetched.", KernelName, true);
-      return It->second;
+      return It->Value;
     }
+
     return FastKernelCacheValPtr();
   }
 
@@ -516,8 +523,8 @@ public:
 
     FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcacheHint->Mutex};
     ur_context_handle_t Context = getURContext();
-    KernelSubcacheHint->Map.emplace(FastKernelCacheKeyT(Device, Context),
-                                    CacheVal);
+    KernelSubcacheHint->Entries.emplace_back(
+        FastKernelCacheKeyT(Device, Context), CacheVal);
   }
 
   // Expects locked program cache
@@ -562,15 +569,21 @@ public:
               bool RemoveSubcache = false;
               {
                 FastKernelSubcacheWriteLockT SubcacheLock{Subcache.Mutex};
-                Subcache.Map.erase(
-                    FastKernelCacheKeyT(FastCacheKey.second, Context));
+                Subcache.Entries.erase(
+                    std::remove_if(
+                        Subcache.Entries.begin(), Subcache.Entries.end(),
+                        [&](const FastKernelEntryT &Entry) {
+                          return Entry.Key == FastKernelCacheKeyT(
+                                                  FastCacheKey.second, Context);
+                        }),
+                    Subcache.Entries.end());
                 traceKernel("Kernel evicted.", FastCacheKey.first, true);
 
                 // Remove the subcache wrapper from this kernel program cache if
                 // the subcache no longer contains entries for this context.
                 RemoveSubcache = std::none_of(
-                    Subcache.Map.begin(), Subcache.Map.end(),
-                    [&](const auto &It) { return It.first.second == Context; });
+                    Subcache.Entries.begin(), Subcache.Entries.end(),
+                    [&](const auto &It) { return It.Key.second == Context; });
               }
               if (RemoveSubcache)
                 MFastKernelCache.erase(FastKernelCacheItr);
