@@ -13,7 +13,7 @@ jobs:
         build_type: [Release]
         compiler: [{c: gcc, cxx: g++}]
 
-    runs-on: "ubuntu-24.04"
+    runs-on: [ "self-hosted", "Linux", "build" ]
     container:
       image: 'ghcr.io/intel/llvm/ubuntu2404_base'
 
