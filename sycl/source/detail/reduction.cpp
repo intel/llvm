@@ -177,6 +177,7 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
   return reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT void
 addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
                std::shared_ptr<int> &Counter) {
@@ -189,6 +190,7 @@ addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
   EventImpl->setHandle(UREvent);
   CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
 }
+#endif
 
 __SYCL_EXPORT void verifyReductionProps(const property_list &Props) {
   auto CheckDataLessProperties = [](int PropertyKind) {

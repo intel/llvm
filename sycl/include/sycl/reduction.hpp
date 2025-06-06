@@ -834,10 +834,6 @@ using __sycl_init_mem_for =
     std::conditional_t<std::is_same_v<KernelName, auto_name>, auto_name,
                        reduction::InitMemKrn<KernelName>>;
 
-__SYCL_EXPORT void
-addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
-               std::shared_ptr<int> &Counter);
-
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           bool ExplicitIdentity, typename RedOutVar>
 class reduction_impl_algo {
@@ -995,7 +991,7 @@ public:
       accessor Mem{*Buf, CGH};
       Func(Mem);
 
-      reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+      HandlerAccess::postProcess(CGH, [&](handler &CopyHandler) {
         // MSVC (19.32.31329) has problems compiling the line below when used
         // as a host compiler in c++17 mode (but not in c++latest)
         //   accessor Mem{*Buf, CopyHandler};
@@ -1071,19 +1067,16 @@ public:
   // On discrete (vs. integrated) GPUs it's faster to initialize memory with an
   // extra kernel than copy it from the host.
   auto getGroupsCounterAccDiscrete(handler &CGH) {
-    queue q = createSyclObjFromImpl<queue>(CGH.MQueue);
-    device Dev = q.get_device();
+    queue q = CGH.getQueue();
     auto Deleter = [=](auto *Ptr) { free(Ptr, q); };
 
     std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
     CGH.addReduction(Counter);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    std::shared_ptr<detail::queue_impl> Queue(CGH.MQueue);
-#else
-    std::shared_ptr<detail::queue_impl> &Queue = CGH.MQueue;
-#endif
-    addCounterInit(CGH, Queue, Counter);
+    HandlerAccess::preProcess(CGH, q,
+                              [Counter = Counter.get()](handler &AuxHandler) {
+                                AuxHandler.memset(Counter, 0, sizeof(int));
+                              });
 
     return Counter.get();
   }
@@ -1178,20 +1171,6 @@ auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
 
 namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
-template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::EventImplPtr E = CGH.finalize();
-#else
-  event E = CGH.finalize();
-#endif
-  handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
-  if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
-    AuxHandler.depends_on(E);
-  AuxHandler.copyCodeLoc(CGH);
-  Func(AuxHandler);
-  CGH.MLastEvent = AuxHandler.finalize();
-  return;
-}
 } // namespace reduction
 
 // This method is used for implementation of parallel_for accepting 1 reduction.
@@ -1785,7 +1764,7 @@ struct NDRangeReduction<
                             "the reduction.");
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
-      reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
+      HandlerAccess::postProcess(CGH, [&](handler &AuxHandler) {
         size_t NElements = Reduction::num_elements;
         size_t NWorkGroups;
         size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
@@ -1837,7 +1816,7 @@ struct NDRangeReduction<
     } // end while (NWorkItems > 1)
 
     if constexpr (Reduction::is_usm) {
-      reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+      HandlerAccess::postProcess(CGH, [&](handler &CopyHandler) {
         reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
     }
@@ -1969,7 +1948,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
 
       auto Rest = [&](auto KernelTag) {
-        reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
+        HandlerAccess::postProcess(CGH, [&](handler &AuxHandler) {
           // We can deduce IsOneWG from the tag type.
           constexpr bool IsOneWG =
               std::is_same_v<std::remove_reference_t<decltype(KernelTag)>,
@@ -2650,7 +2629,7 @@ template <> struct NDRangeReduction<reduction::strategy::multi> {
 
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
-      reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
+      HandlerAccess::postProcess(CGH, [&](handler &AuxHandler) {
         NWorkItems = reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
             AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
       });
