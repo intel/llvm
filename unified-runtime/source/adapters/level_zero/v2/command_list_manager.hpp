@@ -49,150 +49,133 @@ struct ur_command_list_manager {
 
   ~ur_command_list_manager();
 
-  /************ Helper methods *************/
-  ur_result_t enqueueGenericCommandListsExp(
-      uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
-      ur_event_handle_t phEvent, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_command_t callerCommand,
-      ur_event_handle_t additionalWaitEvent);
-
-  void recordSubmittedKernel(ur_kernel_handle_t hKernel);
+  ze_command_list_handle_t getZeCommandList();
 
   ur_result_t releaseSubmittedKernels();
 
-  ze_command_list_handle_t getZeCommandList();
-
-  wait_list_view
-  getWaitListView(const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
-                  ur_event_handle_t additionalWaitEvent = nullptr);
-  ze_event_handle_t getSignalEvent(ur_event_handle_t hUserEvent,
-                                   ur_command_t commandType);
-
   /************ Generic queue methods *************/
-  ur_result_t enqueueEventsWait(uint32_t numEventsInWaitList,
-                                const ur_event_handle_t *phEventWaitList,
-                                ur_event_handle_t phEvent);
-  ur_result_t
-  enqueueEventsWaitWithBarrier(uint32_t numEventsInWaitList,
+  ur_result_t appendEventsWait(uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t phEvent);
-  ur_result_t enqueueMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
-                                   size_t offset, size_t size, void *pDst,
+  ur_result_t
+  appendEventsWaitWithBarrier(uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t phEvent);
+  ur_result_t appendMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
+                                  size_t offset, size_t size, void *pDst,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t phEvent);
+  ur_result_t appendMemBufferWrite(ur_mem_handle_t hBuffer, bool blockingWrite,
+                                   size_t offset, size_t size, const void *pSrc,
                                    uint32_t numEventsInWaitList,
                                    const ur_event_handle_t *phEventWaitList,
                                    ur_event_handle_t phEvent);
-  ur_result_t enqueueMemBufferWrite(ur_mem_handle_t hBuffer, bool blockingWrite,
-                                    size_t offset, size_t size,
-                                    const void *pSrc,
-                                    uint32_t numEventsInWaitList,
-                                    const ur_event_handle_t *phEventWaitList,
-                                    ur_event_handle_t phEvent);
-  ur_result_t enqueueMemBufferReadRect(
+  ur_result_t appendMemBufferReadRect(
       ur_mem_handle_t hBuffer, bool blockingRead, ur_rect_offset_t bufferOrigin,
       ur_rect_offset_t hostOrigin, ur_rect_region_t region,
       size_t bufferRowPitch, size_t bufferSlicePitch, size_t hostRowPitch,
       size_t hostSlicePitch, void *pDst, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent);
-  ur_result_t enqueueMemBufferWriteRect(
+  ur_result_t appendMemBufferWriteRect(
       ur_mem_handle_t hBuffer, bool blockingWrite,
       ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
       ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
       size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t phEvent);
-  ur_result_t enqueueMemBufferCopy(ur_mem_handle_t hBufferSrc,
-                                   ur_mem_handle_t hBufferDst, size_t srcOffset,
-                                   size_t dstOffset, size_t size,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t phEvent);
-  ur_result_t enqueueMemBufferCopyRect(
+  ur_result_t appendMemBufferCopy(ur_mem_handle_t hBufferSrc,
+                                  ur_mem_handle_t hBufferDst, size_t srcOffset,
+                                  size_t dstOffset, size_t size,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t phEvent);
+  ur_result_t appendMemBufferCopyRect(
       ur_mem_handle_t hBufferSrc, ur_mem_handle_t hBufferDst,
       ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
       ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
       size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent);
-  ur_result_t enqueueMemBufferFill(ur_mem_handle_t hBuffer,
-                                   const void *pPattern, size_t patternSize,
-                                   size_t offset, size_t size,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t phEvent);
-  ur_result_t enqueueMemImageRead(ur_mem_handle_t hImage, bool blockingRead,
-                                  ur_rect_offset_t origin,
-                                  ur_rect_region_t region, size_t rowPitch,
-                                  size_t slicePitch, void *pDst,
-                                  uint32_t numEventsInWaitList,
-                                  const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t phEvent);
-  ur_result_t enqueueMemImageWrite(ur_mem_handle_t hImage, bool blockingWrite,
-                                   ur_rect_offset_t origin,
-                                   ur_rect_region_t region, size_t rowPitch,
-                                   size_t slicePitch, void *pSrc,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t phEvent);
-  ur_result_t
-  enqueueMemImageCopy(ur_mem_handle_t hImageSrc, ur_mem_handle_t hImageDst,
-                      ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
-                      ur_rect_region_t region, uint32_t numEventsInWaitList,
-                      const ur_event_handle_t *phEventWaitList,
-                      ur_event_handle_t phEvent);
-  ur_result_t enqueueMemBufferMap(ur_mem_handle_t hBuffer, bool blockingMap,
-                                  ur_map_flags_t mapFlags, size_t offset,
+  ur_result_t appendMemBufferFill(ur_mem_handle_t hBuffer, const void *pPattern,
+                                  size_t patternSize, size_t offset,
                                   size_t size, uint32_t numEventsInWaitList,
                                   const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t phEvent, void **ppRetMap);
-  ur_result_t enqueueMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
-                              uint32_t numEventsInWaitList,
-                              const ur_event_handle_t *phEventWaitList,
-                              ur_event_handle_t phEvent);
-  ur_result_t enqueueUSMFill(void *pMem, size_t patternSize,
-                             const void *pPattern, size_t size,
-                             uint32_t numEventsInWaitList,
-                             const ur_event_handle_t *phEventWaitList,
-                             ur_event_handle_t phEvent);
-  ur_result_t enqueueUSMMemcpy(bool blocking, void *pDst, const void *pSrc,
-                               size_t size, uint32_t numEventsInWaitList,
-                               const ur_event_handle_t *phEventWaitList,
-                               ur_event_handle_t phEvent);
-  ur_result_t enqueueUSMFill2D(void *, size_t, size_t, const void *, size_t,
-                               size_t, uint32_t, const ur_event_handle_t *,
-                               ur_event_handle_t);
-  ur_result_t enqueueUSMMemcpy2D(bool, void *, size_t, const void *, size_t,
-                                 size_t, size_t, uint32_t,
-                                 const ur_event_handle_t *, ur_event_handle_t);
-  ur_result_t enqueueUSMPrefetch(const void *pMem, size_t size,
-                                 ur_usm_migration_flags_t flags,
+                                  ur_event_handle_t phEvent);
+  ur_result_t appendMemImageRead(ur_mem_handle_t hImage, bool blockingRead,
+                                 ur_rect_offset_t origin,
+                                 ur_rect_region_t region, size_t rowPitch,
+                                 size_t slicePitch, void *pDst,
                                  uint32_t numEventsInWaitList,
                                  const ur_event_handle_t *phEventWaitList,
                                  ur_event_handle_t phEvent);
-  ur_result_t enqueueUSMAdvise(const void *pMem, size_t size,
-                               ur_usm_advice_flags_t advice,
-                               uint32_t numEventsInWaitList,
-                               const ur_event_handle_t *phEventWaitList,
-                               ur_event_handle_t phEvent);
-  ur_result_t enqueueDeviceGlobalVariableWrite(
+  ur_result_t appendMemImageWrite(ur_mem_handle_t hImage, bool blockingWrite,
+                                  ur_rect_offset_t origin,
+                                  ur_rect_region_t region, size_t rowPitch,
+                                  size_t slicePitch, void *pSrc,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t phEvent);
+  ur_result_t
+  appendMemImageCopy(ur_mem_handle_t hImageSrc, ur_mem_handle_t hImageDst,
+                     ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
+                     ur_rect_region_t region, uint32_t numEventsInWaitList,
+                     const ur_event_handle_t *phEventWaitList,
+                     ur_event_handle_t phEvent);
+  ur_result_t appendMemBufferMap(ur_mem_handle_t hBuffer, bool blockingMap,
+                                 ur_map_flags_t mapFlags, size_t offset,
+                                 size_t size, uint32_t numEventsInWaitList,
+                                 const ur_event_handle_t *phEventWaitList,
+                                 ur_event_handle_t phEvent, void **ppRetMap);
+  ur_result_t appendMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
+                             uint32_t numEventsInWaitList,
+                             const ur_event_handle_t *phEventWaitList,
+                             ur_event_handle_t phEvent);
+  ur_result_t appendUSMFill(void *pMem, size_t patternSize,
+                            const void *pPattern, size_t size,
+                            uint32_t numEventsInWaitList,
+                            const ur_event_handle_t *phEventWaitList,
+                            ur_event_handle_t phEvent);
+  ur_result_t appendUSMMemcpy(bool blocking, void *pDst, const void *pSrc,
+                              size_t size, uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t phEvent);
+  ur_result_t appendUSMFill2D(void *, size_t, size_t, const void *, size_t,
+                              size_t, uint32_t, const ur_event_handle_t *,
+                              ur_event_handle_t);
+  ur_result_t appendUSMMemcpy2D(bool, void *, size_t, const void *, size_t,
+                                size_t, size_t, uint32_t,
+                                const ur_event_handle_t *, ur_event_handle_t);
+  ur_result_t appendUSMPrefetch(const void *pMem, size_t size,
+                                ur_usm_migration_flags_t flags,
+                                uint32_t numEventsInWaitList,
+                                const ur_event_handle_t *phEventWaitList,
+                                ur_event_handle_t phEvent);
+  ur_result_t appendUSMAdvise(const void *pMem, size_t size,
+                              ur_usm_advice_flags_t advice,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t phEvent);
+  ur_result_t appendDeviceGlobalVariableWrite(
       ur_program_handle_t hProgram, const char *name, bool blockingWrite,
       size_t count, size_t offset, const void *pSrc,
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t phEvent);
-  ur_result_t enqueueDeviceGlobalVariableRead(
+  ur_result_t appendDeviceGlobalVariableRead(
       ur_program_handle_t hProgram, const char *name, bool blockingRead,
       size_t count, size_t offset, void *pDst, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent);
-  ur_result_t enqueueReadHostPipe(ur_program_handle_t hProgram,
+  ur_result_t appendReadHostPipe(ur_program_handle_t hProgram,
+                                 const char *pipe_symbol, bool blocking,
+                                 void *pDst, size_t size,
+                                 uint32_t numEventsInWaitList,
+                                 const ur_event_handle_t *phEventWaitList,
+                                 ur_event_handle_t phEvent);
+  ur_result_t appendWriteHostPipe(ur_program_handle_t hProgram,
                                   const char *pipe_symbol, bool blocking,
-                                  void *pDst, size_t size,
+                                  void *pSrc, size_t size,
                                   uint32_t numEventsInWaitList,
                                   const ur_event_handle_t *phEventWaitList,
                                   ur_event_handle_t phEvent);
-  ur_result_t enqueueWriteHostPipe(ur_program_handle_t hProgram,
-                                   const char *pipe_symbol, bool blocking,
-                                   void *pSrc, size_t size,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t phEvent);
   ur_result_t bindlessImagesImageCopyExp(
       const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
       const ur_image_desc_t *pDstImageDesc,
@@ -209,21 +192,21 @@ struct ur_command_list_manager {
       ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
       uint64_t signalValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent);
-  ur_result_t enqueueCooperativeKernelLaunchExp(
+  ur_result_t appendCooperativeKernelLaunchExp(
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
       const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent);
   ur_result_t
-  enqueueTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
-                               const ur_event_handle_t *phEventWaitList,
-                               ur_event_handle_t phEvent);
+  appendTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t phEvent);
   ur_result_t
-  enqueueCommandBufferExp(ur_exp_command_buffer_handle_t hCommandBuffer,
-                          uint32_t numEventsInWaitList,
-                          const ur_event_handle_t *phEventWaitList,
-                          ur_event_handle_t phEvent);
-  ur_result_t enqueueKernelLaunch(
+  appendCommandBufferExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                         uint32_t numEventsInWaitList,
+                         const ur_event_handle_t *phEventWaitList,
+                         ur_event_handle_t phEvent);
+  ur_result_t appendKernelLaunch(
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
       const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
@@ -231,11 +214,11 @@ struct ur_command_list_manager {
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t phEvent);
   ur_result_t
-  enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
-                          uint32_t, const ur_mem_handle_t *,
-                          const ur_exp_enqueue_native_command_properties_t *,
-                          uint32_t, const ur_event_handle_t *,
-                          ur_event_handle_t);
+  appendNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
+                         uint32_t, const ur_mem_handle_t *,
+                         const ur_exp_enqueue_native_command_properties_t *,
+                         uint32_t, const ur_event_handle_t *,
+                         ur_event_handle_t);
 
   ur_result_t appendUSMAllocHelper(
       ur_queue_t_ *Queue, ur_usm_pool_handle_t pPool, const size_t size,
@@ -249,6 +232,20 @@ struct ur_command_list_manager {
                                ur_event_handle_t phEvent);
 
 private:
+  ur_result_t appendGenericCommandListsExp(
+      uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
+      ur_event_handle_t phEvent, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_command_t callerCommand,
+      ur_event_handle_t additionalWaitEvent);
+
+  void recordSubmittedKernel(ur_kernel_handle_t hKernel);
+
+  wait_list_view
+  getWaitListView(const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
+                  ur_event_handle_t additionalWaitEvent = nullptr);
+  ze_event_handle_t getSignalEvent(ur_event_handle_t hUserEvent,
+                                   ur_command_t commandType);
+
   ur_result_t appendKernelLaunchUnlocked(
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,

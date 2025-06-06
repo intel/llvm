@@ -308,7 +308,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   auto eventsWaitList = commandBuffer->getWaitListFromSyncPoints(
       syncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueKernelLaunch(
+  UR_CALL(commandListLocked->appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
       nullptr, numSyncPointsInWaitList, eventsWaitList,
       commandBuffer->createEventIfRequested(retSyncPoint)));
@@ -333,7 +333,7 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueUSMMemcpy(
+  UR_CALL(commandListLocked->appendUSMMemcpy(
       false, pDst, pSrc, size, numSyncPointsInWaitList, eventsWaitList,
       hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
@@ -360,7 +360,7 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueMemBufferCopy(
+  UR_CALL(commandListLocked->appendMemBufferCopy(
       hSrcMem, hDstMem, srcOffset, dstOffset, size, numSyncPointsInWaitList,
       eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
@@ -387,7 +387,7 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueMemBufferWrite(
+  UR_CALL(commandListLocked->appendMemBufferWrite(
       hBuffer, false, offset, size, pSrc, numSyncPointsInWaitList,
       eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
@@ -412,7 +412,7 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueMemBufferRead(
+  UR_CALL(commandListLocked->appendMemBufferRead(
       hBuffer, false, offset, size, pDst, numSyncPointsInWaitList,
       eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
@@ -441,7 +441,7 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueMemBufferCopyRect(
+  UR_CALL(commandListLocked->appendMemBufferCopyRect(
       hSrcMem, hDstMem, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, numSyncPointsInWaitList,
       eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
@@ -471,7 +471,7 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueMemBufferWriteRect(
+  UR_CALL(commandListLocked->appendMemBufferWriteRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
       numSyncPointsInWaitList, eventsWaitList,
@@ -502,7 +502,7 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueMemBufferReadRect(
+  UR_CALL(commandListLocked->appendMemBufferReadRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
       numSyncPointsInWaitList, eventsWaitList,
@@ -528,7 +528,7 @@ ur_result_t urCommandBufferAppendUSMFillExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueUSMFill(
+  UR_CALL(commandListLocked->appendUSMFill(
       pMemory, patternSize, pPattern, size, numSyncPointsInWaitList,
       eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
   return UR_RESULT_SUCCESS;
@@ -552,7 +552,7 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueMemBufferFill(
+  UR_CALL(commandListLocked->appendMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, numSyncPointsInWaitList,
       eventsWaitList, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
@@ -578,7 +578,7 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueUSMPrefetch(
+  UR_CALL(commandListLocked->appendUSMPrefetch(
       pMemory, size, flags, numSyncPointsInWaitList, eventsWaitList,
       hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
@@ -602,7 +602,7 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueUSMAdvise(
+  UR_CALL(commandListLocked->appendUSMAdvise(
       pMemory, size, advice, numSyncPointsInWaitList, eventsWaitList,
       hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
@@ -652,14 +652,14 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);
 
-  UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(
+  UR_CALL(commandListLocked->appendEventsWaitWithBarrier(
       numSyncPointsInWaitList, eventsWaitList, nullptr));
 
   // Call user-defined function immediately
   pfnNativeCommand(pData);
 
   // Barrier on all commands after user defined commands.
-  UR_CALL(commandListLocked->enqueueEventsWaitWithBarrier(
+  UR_CALL(commandListLocked->appendEventsWaitWithBarrier(
       0, nullptr, hCommandBuffer->createEventIfRequested(pSyncPoint)));
 
   return UR_RESULT_SUCCESS;

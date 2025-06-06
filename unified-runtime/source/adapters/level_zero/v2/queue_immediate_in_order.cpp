@@ -135,10 +135,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   // need to use barrier if profiling is enabled: see
   // zeCommandListAppendWaitOnEvents
   if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
-    return commandListManager.lock()->enqueueEventsWaitWithBarrier(
+    return commandListManager.lock()->appendEventsWaitWithBarrier(
         numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
   } else {
-    return commandListManager.lock()->enqueueEventsWait(
+    return commandListManager.lock()->appendEventsWait(
         numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
   }
 }
