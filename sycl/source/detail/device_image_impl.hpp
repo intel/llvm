@@ -855,9 +855,6 @@ private:
     std::stringstream SS;
     for (sycl::detail::string_view Option : BuildOptions) {
       if (lang == syclex::source_language::sycl) {
-        // If the option starts with -Xs, we need to trim it.
-        // This is a workaround for the fact that the kernel compiler
-        // does not support -Xs options.
         std::string_view OptionSV{Option};
         auto Where = OptionSV.find("-Xs");
         if (Where != std::string_view::npos) {
