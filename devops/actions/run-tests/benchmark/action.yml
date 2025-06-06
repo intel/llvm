@@ -161,7 +161,8 @@ runs:
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --name "$SAVE_NAME" \
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
-        --results-dir "./llvm-ci-perf-results/results/"
+        --results-dir "./llvm-ci-perf-results/results/" \
+        --regression-filter '^[a-z_]_sycl '
       echo "-----"
 
   - name: Cache changes to benchmark folder for archival purposes
