@@ -1,4 +1,4 @@
-from utils.aggregate import Aggregator, SimpleMedian
+from utils.aggregate import Aggregator, SimpleMedian, EWMA
 from utils.validate import Validate
 from utils.result import Result, BenchmarkRun
 from options import options
