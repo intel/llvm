@@ -88,6 +88,8 @@ class Options:
     # CI scripts vs SYCl build source.
     github_repo_override: str = None
     git_commit_override: str = None
+    # EWMA Options:
+    EWMA_smoothing_factor: float = 0.2
 
     detect_versions: DetectVersionsOptions = field(
         default_factory=DetectVersionsOptions

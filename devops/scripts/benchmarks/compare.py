@@ -1,4 +1,4 @@
-from utils.aggregate import Aggregator, SimpleMedian
+from utils.aggregate import Aggregator, SimpleMedian, EWMA
 from utils.validate import Validate
 from utils.result import Result, BenchmarkRun
 from options import options
@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
+
+verbose = False
 
 @dataclass
 class BenchmarkHistoricAverage:
@@ -224,6 +226,11 @@ class Compare:
             elif halfway_round(delta, 2) < -options.regression_threshold:
                 regression.append(perf_diff_entry())
 
+            if verbose:
+                print(
+                    f"{test.name}: expect {hist_avg[test.name].value}, got {test.value}"
+                )
+
         return improvement, regression
 
     def to_hist(
@@ -254,8 +261,12 @@ class Compare:
             from the average for this benchmark run.
         """
 
-        if avg_type != "median":
-            print("Only median is currently supported: Refusing to continue.")
+        if avg_type == "median":
+            aggregator_type = SimpleMedian
+        elif avg_type == "EWMA":
+            aggregator_type = EWMA
+        else:
+            print("Error: Unsupported avg_type f{avg_type}.")
             exit(1)
 
         try:
@@ -281,6 +292,7 @@ class Compare:
             result_dir,
             compare_result.hostname,
             cutoff,
+            aggregator=aggregator_type,
             exclude=[Path(compare_file).stem],
         )
         return Compare.to_hist_avg(hist_avg, compare_result)
@@ -319,18 +331,27 @@ if __name__ == "__main__":
         help="Timestamp (in YYYYMMDD_HHMMSS) of oldest result to include in historic average calculation",
         default="20000101_010101",
     )
+    parser_avg.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Increase output verbosity",
+    )
 
     args = parser.parse_args()
 
+    if args.verbose:
+        verbose = True
+        print("-- Compare.py --")
+
     if args.operation == "to_hist":
-        if args.avg_type != "median":
-            print("Only median is currently supported: exiting.")
-            exit(1)
         if not Validate.timestamp(args.cutoff):
             raise ValueError("Timestamp must be provided as YYYYMMDD_HHMMSS.")
+        if args.avg_type not in ["median", "EWMA"]:
+            print("Only median is currently supported: exiting.")
+            exit(1)
 
         improvements, regressions = Compare.to_hist(
-            "median", args.name, args.compare_file, args.results_dir, args.cutoff
+            args.avg_type, args.name, args.compare_file, args.results_dir, args.cutoff
         )
 
         def print_regression(entry: dict):
