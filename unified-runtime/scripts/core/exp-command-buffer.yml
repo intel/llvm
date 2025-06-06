@@ -310,7 +310,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Decrement the command-buffer object's reference count and delete the command-buffer object if the reference count becomes zero."
+desc: "Decrement the command-buffer object's reference count and delete the command-buffer object if the reference count becomes zero. It is legal to call the entry-point while `hCommandBuffer` is still executing, which will block on completion if the reference count of `hCommandBuffer` becomes zero."
 class: $xCommandBuffer
 name: ReleaseExp
 params:

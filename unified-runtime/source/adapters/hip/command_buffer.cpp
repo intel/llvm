@@ -273,6 +273,9 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   if (hCommandBuffer->decrementReferenceCount() == 0) {
+    if (hCommandBuffer->CurrentExecution) {
+      UR_CHECK_ERROR(hCommandBuffer->CurrentExecution->wait());
+    }
     delete hCommandBuffer;
   }
   return UR_RESULT_SUCCESS;
@@ -798,19 +801,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
 
-    if (phEvent) {
-      RetImplEvent = std::make_unique<ur_event_handle_t_>(
-          UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, hQueue, HIPStream,
-          StreamToken);
-      UR_CHECK_ERROR(RetImplEvent->start());
-    }
+    RetImplEvent = std::make_unique<ur_event_handle_t_>(
+        UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, hQueue, HIPStream, StreamToken);
+    UR_CHECK_ERROR(RetImplEvent->start());
 
     // Launch graph
     UR_CHECK_ERROR(hipGraphLaunch(hCommandBuffer->HIPGraphExec, HIPStream));
 
+    UR_CHECK_ERROR(RetImplEvent->record());
+    hCommandBuffer->CurrentExecution = RetImplEvent.release();
     if (phEvent) {
-      UR_CHECK_ERROR(RetImplEvent->record());
-      *phEvent = RetImplEvent.release();
+      *phEvent = hCommandBuffer->CurrentExecution;
     }
   } catch (ur_result_t Err) {
     return Err;
