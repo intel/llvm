@@ -18,5 +18,4 @@
 struct ur_queue_handle_t_ : RefCounted {
   ol_queue_handle_t OffloadQueue;
   ol_device_handle_t OffloadDevice;
-  ur_context_handle_t Context;
 };

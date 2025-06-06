@@ -13,6 +13,7 @@
 #include <ur/ur.hpp>
 #include <ur_api.h>
 
+#include "adapter.hpp"
 #include "context.hpp"
 #include "device.hpp"
 #include "memory.hpp"
@@ -59,7 +60,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
   if (PerformInitialCopy) {
     auto Res = olMemcpy(nullptr, Ptr, OffloadDevice, HostPtr,
-                        hContext->OffloadHost, size, nullptr);
+                        Adapter.HostDevice, size, nullptr);
     if (Res) {
       return offloadResultToUR(Res);
     }

@@ -31,7 +31,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   }
 
   Queue->OffloadDevice = hDevice->OffloadDevice;
-  Queue->Context = hContext;
 
   *phQueue = Queue;
 
