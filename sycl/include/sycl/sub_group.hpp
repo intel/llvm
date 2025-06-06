@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/access/access.hpp> // for address_space, decorated
 #include <sycl/detail/address_space_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED

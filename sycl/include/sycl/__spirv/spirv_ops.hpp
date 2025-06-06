@@ -234,6 +234,11 @@ extern __DPCPP_SYCL_EXTERNAL
     RetT __spirv_ConvertHandleToSampledImageINTEL(HandleT);
 
 // Atomic SPIR-V builtins
+// TODO: drop these forward-declarations.
+// As of right know, compiler does not forward-declare long long overloads for
+// these and as such we can't drop anything from here. But ideally, we should
+// rely on the compiler to generate those - that would allow to drop
+// spirv_ops.hpp include from more files.
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(AS Type *P, int S,      \
                                                        int O) noexcept;
