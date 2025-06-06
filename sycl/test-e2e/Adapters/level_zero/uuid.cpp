@@ -2,11 +2,10 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{run} %t.out 2>&1
 
 // Test that the UUID is read correctly from Level Zero.
 
-// CHECK: PASSED
 #include <iomanip>
 #include <iostream>
 #include <level_zero/ze_api.h>
@@ -36,6 +35,6 @@ int main() {
     std::cout << "FAILED" << std::endl;
     return -1;
   }
-  std::cout << "PASSED" << std::endl;
+
   return 0;
 }
