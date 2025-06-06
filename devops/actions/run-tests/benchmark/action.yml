@@ -217,6 +217,8 @@ runs:
           --output-html remote \
           --results-dir "./llvm-ci-perf-results/" \
           --output-dir "./llvm-ci-perf-results/" \
+          --sycl foo \
+          --ur foo \
           --dry-run
         cd -
       done
