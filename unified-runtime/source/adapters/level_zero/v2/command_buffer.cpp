@@ -162,8 +162,6 @@ ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
 
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   if (currentExecution) {
-    ZE_CALL_NOCHECK(zeEventHostSynchronize,
-                    (currentExecution->getZeEvent(), UINT64_MAX));
     currentExecution->release();
   }
   for (auto &event : syncPoints) {
