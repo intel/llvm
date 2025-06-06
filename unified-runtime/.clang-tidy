@@ -1,0 +1,4 @@
+---
+Checks:
+  - -llvm-else-after-return
+  - -readability-identifier-naming
