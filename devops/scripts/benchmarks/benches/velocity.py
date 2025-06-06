@@ -44,7 +44,7 @@ class VelocityBench(Suite):
         )
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
+        if options.sycl is None and options.dry_run is None:
             return []
 
         if options.ur_adapter == "cuda" or options.ur_adapter == "hip":

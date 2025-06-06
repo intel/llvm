@@ -136,7 +136,7 @@ class ComputeBench(Suite):
         return runtimes
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
+        if options.sycl is None and options.dry_run is None:
             return []
 
         if options.ur_adapter == "hip":
