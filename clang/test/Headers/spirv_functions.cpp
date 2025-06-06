@@ -1,6 +1,11 @@
 // RUN: %clang_cc1 -Wno-unused-value -O0 -internal-isystem %S/../../lib/Headers -include __clang_spirv_builtins.h -triple spirv64 -emit-llvm %s -fsycl-is-device -o - | FileCheck %s -check-prefixes=SPV
 // RUN: %clang_cc1 -Wno-unused-value -O0 -internal-isystem %S/../../lib/Headers -include __clang_spirv_builtins.h -triple nvptx64 -emit-llvm %s -fsycl-is-device -o - | FileCheck %s -check-prefixes=NV
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define SYCL_EXTERNAL  __attribute__((sycl_device))
+#else
+#define SYCL_EXTERNAL
+#endif
 
 // SPV: void @_Z9test_castPi
 // SPV: call noundef ptr addrspace(1) @llvm.spv.generic.cast.to.ptr.explicit.p1
@@ -15,7 +20,7 @@
 // NV: call noundef ptr @_Z42__spirv_GenericCastToPtrExplicit_ToPrivatePvi
 // NV: addrspacecast ptr %{{.*}} to ptr addrspace(1)
 // NV: addrspacecast ptr %{{.*}} to ptr addrspace(3)
-void test_cast(int* p) {
+SYCL_EXTERNAL void test_cast(int* p) {
   __spirv_GenericCastToPtrExplicit_ToGlobal(p, 5);
   __spirv_GenericCastToPtrExplicit_ToLocal(p, 4);
   __spirv_GenericCastToPtrExplicit_ToPrivate(p, 7);
