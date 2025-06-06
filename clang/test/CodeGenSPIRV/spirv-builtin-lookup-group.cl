@@ -27,7 +27,7 @@ bool group_any(bool predicate) {
 
 char group_broad_cast(char a) {
   // CHECK-LABEL: @group_broad_cast(
-  // CHECK: call spir_func signext i8 @_Z22__spirv_GroupBroadcasticj(
+  // CHECK: call spir_func i32 @_Z22__spirv_GroupBroadcastiij(
   return __spirv_GroupBroadcast(2, a, 0u);
 }
 
@@ -87,7 +87,7 @@ unsigned long group_umax(unsigned long a) {
 
 char group_smin(char a) {
   // CHECK-LABEL: @group_smin(
-  // CHECK: call spir_func signext i8 @_Z17__spirv_GroupSMiniic(
+  // CHECK: call spir_func i32 @_Z17__spirv_GroupSMiniii(
   return __spirv_GroupSMin(2, 0, a);
 }
 

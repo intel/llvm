@@ -961,9 +961,10 @@ public:
     MData = const_cast<xpti_tracepoint_t *>(xptiGetTracepointScopeData());
     if (!MData) {
       if (funcName && fileName)
-        init(funcName, fileName, line, column);
+        init(funcName, fileName, static_cast<uint32_t>(line),
+             static_cast<uint32_t>(column));
       else
-        init(callerFuncName, nullptr, 0, 0);
+        init(callerFuncName, nullptr, 0u, 0u);
     } else {
       MTraceEvent = MData->event_ref();
     }

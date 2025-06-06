@@ -1125,8 +1125,6 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
       KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcache
                               : nullptr;
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    auto KernelCacheValPtr =
-        Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr);
     if (auto KernelCacheValPtr =
             Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr)) {
       return KernelCacheValPtr;

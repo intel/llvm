@@ -818,7 +818,7 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   const bool xptiEnabled = xptiTraceEnabled();
-  int32_t StreamID = xpti::invalid_id;
+  int32_t StreamID = xpti::invalid_id<>;
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
   if (xptiEnabled) {

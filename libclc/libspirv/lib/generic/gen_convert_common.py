@@ -3,6 +3,7 @@
 
 types = [
     "char",
+    "schar",
     "uchar",
     "short",
     "ushort",
@@ -16,6 +17,7 @@ types = [
 ]
 int_types = [
     "char",
+    "schar",
     "uchar",
     "short",
     "ushort",
@@ -25,7 +27,7 @@ int_types = [
     "ulong",
 ]
 unsigned_types = ["uchar", "ushort", "uint", "ulong"]
-signed_types = ["char", "short", "int", "long"]
+signed_types = ["char", "schar", "short", "int", "long"]
 float_types = ["half", "float", "double"]
 int64_types = ["long", "ulong"]
 float64_types = ["double"]
@@ -40,7 +42,8 @@ float_suffix = {"float": "f", "double": ""}
 
 bool_type = {
     "char": "char",
-    "uchar": "char",
+    "schar": "schar",
+    "uchar": "schar",
     "short": "short",
     "ushort": "short",
     "int": "int",
@@ -54,6 +57,7 @@ bool_type = {
 
 unsigned_type = {
     "char": "uchar",
+    "schar": "uchar",
     "uchar": "uchar",
     "short": "ushort",
     "ushort": "ushort",
@@ -65,6 +69,7 @@ unsigned_type = {
 
 sizeof_type = {
     "char": 1,
+    "schar": 1,
     "uchar": 1,
     "short": 2,
     "ushort": 2,
@@ -79,6 +84,7 @@ sizeof_type = {
 
 limit_max = {
     "char": "CHAR_MAX",
+    "schar": "CHAR_MAX",
     "uchar": "UCHAR_MAX",
     "short": "SHRT_MAX",
     "ushort": "USHRT_MAX",
@@ -91,6 +97,7 @@ limit_max = {
 
 limit_min = {
     "char": "CHAR_MIN",
+    "schar": "CHAR_MIN",
     "uchar": "0",
     "short": "SHRT_MIN",
     "ushort": "0",

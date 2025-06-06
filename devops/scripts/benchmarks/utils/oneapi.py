@@ -8,6 +8,7 @@ from utils.utils import download, run
 from options import options
 import os
 import hashlib
+import glob
 
 
 class OneAPI:
@@ -18,6 +19,7 @@ class OneAPI:
 
         self.install_package(
             "base",
+            "2025.1.0+627",
             "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/cca951e1-31e7-485e-b300-fe7627cb8c08/intel-oneapi-base-toolkit-2025.1.0.651_offline.sh",
             "98cad2489f2c90a2b328568a59371cf35855a3338643f61a9fc2d16a265d29f22feb2d673916dd7be18fa12a5e6d2475",
         )
@@ -27,26 +29,41 @@ class OneAPI:
         hash_object = hashlib.md5(path.encode())
         return hash_object.hexdigest()
 
-    def install_package(self, name, url, checksum):
-        package_path = os.path.join(self.oneapi_dir, name)
-        if Path(package_path).exists():
-            print(
-                f"{package_path} exists, skipping installing oneAPI package {name}..."
-            )
-            return
+    def check_install(self, version):
+        logs_dir = os.path.join(self.oneapi_dir, "logs")
+        pattern = f"{logs_dir}/installer.install.intel.oneapi.lin.basekit.product,v={version}*.log"
+        log_files = glob.glob(pattern)
+        success_line = f"Operation 'intel.oneapi.lin.basekit.product,v={version}' execution is finished with status Success."
+        for log_file in log_files:
+            try:
+                with open(log_file, "r") as f:
+                    for line in f:
+                        if success_line in line:
+                            return True
+            except Exception:
+                continue
+        return False
 
-        package = download(
-            self.oneapi_dir, url, f"package_{name}.sh", checksum=checksum
-        )
+    def install_package(self, name, version, url, checksum):
+        if self.check_install(version):
+            print(f"{name} version {version} already installed, skipping.")
+            return
+        package_name = f"package_{name}_{version}.sh"
+        package_path = os.path.join(self.oneapi_dir, f"{package_name}")
+        if Path(package_path).exists():
+            print(f"{package_path} exists, skipping download of oneAPI package...")
+        else:
+            package = download(
+                self.oneapi_dir, url, f"{package_name}", checksum=checksum
+            )
         try:
-            print(f"installing {name}")
             run(
-                f"sh {package} -a -s --eula accept --install-dir {self.oneapi_dir} --instance {self.oneapi_instance_id}"
+                f"sh {package_path} -a -s --eula accept --install-dir {self.oneapi_dir} --instance {self.oneapi_instance_id}"
             )
         except:
-            print("oneAPI installation likely exists already")
+            print(f"OneAPI {name} version {version} installation likely exists already")
             return
-        print(f"{name} installation complete")
+        print(f"OneAPI {name} version {version} installation complete")
 
     def package_dir(self, package, dir):
         return os.path.join(self.oneapi_dir, package, "latest", dir)
