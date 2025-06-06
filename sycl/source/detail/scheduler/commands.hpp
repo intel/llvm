@@ -240,7 +240,7 @@ public:
 
   static std::vector<ur_event_handle_t>
   getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-              const QueueImplPtr &CommandQueue, bool IsHostTaskCommand);
+              queue_impl *CommandQueue, bool IsHostTaskCommand);
 
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce ur
@@ -623,7 +623,7 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
                                      bool read);
 
 void enqueueImpKernel(
-    const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+    queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
@@ -692,7 +692,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     std::string_view SyclKernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr, const QueueImplPtr &Queue,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
     const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);

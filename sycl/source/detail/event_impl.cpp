@@ -176,9 +176,9 @@ event_impl::event_impl(const QueueImplPtr &Queue)
   MState.store(HES_Complete);
 }
 
-void event_impl::setQueue(const QueueImplPtr &Queue) {
-  MQueue = Queue;
-  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
+void event_impl::setQueue(queue_impl &Queue) {
+  MQueue = Queue.shared_from_this();
+  MIsProfilingEnabled = Queue.MIsProfilingEnabled;
 
   // TODO After setting the queue, the event is no longer default
   // constructed. Consider a design change which would allow
