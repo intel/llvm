@@ -161,7 +161,7 @@ runs:
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --avg-type EWMA \
-        --cutoff "$(date -u -d '30 days ago' +'%Y%m%d_%H%M%S)" \
+        --cutoff "$(date -u -d '30 days ago' +'%Y%m%d_%H%M%S')" \
         --name "$SAVE_NAME" \
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/"
