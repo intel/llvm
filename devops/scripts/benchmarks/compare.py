@@ -4,6 +4,7 @@ from utils.result import Result, BenchmarkRun
 from options import options
 
 import os
+import re
 import sys
 import json
 import argparse
