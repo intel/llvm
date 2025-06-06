@@ -17,7 +17,7 @@
 using namespace clang;
 using namespace CodeGen;
 
-static void SetSYCLKernelAttributes(llvm::Function *Fn, CodeGenFunction &CGF) {
+static void SetDeviceKernelAttributes(llvm::Function *Fn, CodeGenFunction &CGF) {
   // SYCL 2020 device language restrictions require forward progress and
   // disallow recursion.
   Fn->setDoesNotRecurse();
@@ -62,7 +62,7 @@ void CodeGenModule::EmitSYCLKernelCaller(const FunctionDecl *KernelEntryPointFn,
   // Emit the SYCL kernel caller function.
   CodeGenFunction CGF(*this);
   SetLLVMFunctionAttributes(GlobalDecl(), FnInfo, Fn, false);
-  SetSYCLKernelAttributes(Fn, CGF);
+  SetDeviceKernelAttributes(Fn, CGF);
   CGF.StartFunction(GlobalDecl(), Ctx.VoidTy, Fn, FnInfo, Args,
                     SourceLocation(), SourceLocation());
   CGF.EmitFunctionBody(OutlinedFnDecl->getBody());

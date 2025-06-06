@@ -1052,7 +1052,7 @@ void Parser::ParseBorlandTypeAttributes(ParsedAttributes &attrs) {
   }
 }
 
-void Parser::ParseOpenCLKernelAttributes(ParsedAttributes &attrs) {
+void Parser::ParseDeviceKernelAttributes(ParsedAttributes &attrs) {
   // Treat these like attributes
   while (Tok.is(tok::kw___kernel)) {
     IdentifierInfo *AttrName = Tok.getIdentifierInfo();
@@ -4050,7 +4050,7 @@ void Parser::ParseDeclarationSpecifiers(
 
     // OpenCL single token adornments.
     case tok::kw___kernel:
-      ParseOpenCLKernelAttributes(DS.getAttributes());
+      ParseDeviceKernelAttributes(DS.getAttributes());
       continue;
 
     // CUDA/HIP single token adornments.

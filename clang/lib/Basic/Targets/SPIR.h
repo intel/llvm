@@ -196,7 +196,7 @@ public:
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel ||
+    return (CC == CC_SpirFunction || CC == CC_DeviceKernel ||
             // Permit CC_X86RegCall which is used to mark external functions
             // with explicit simd or structure type arguments to pass them via
             // registers.
@@ -322,7 +322,7 @@ public:
     if (CC == CC_X86VectorCall)
       // Permit CC_X86VectorCall which is used in Microsoft headers
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
                                     : CCCR_Warning;
   }
 };
@@ -374,7 +374,7 @@ public:
       // Permit CC_X86RegCall which is used to mark external functions with
       // explicit simd or structure type arguments to pass them via registers.
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
                                     : CCCR_Warning;
   }
 };
@@ -522,7 +522,7 @@ public:
     if (CC == CC_X86VectorCall)
       // Permit CC_X86VectorCall which is used in Microsoft headers
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
                                                             : CCCR_Warning;
   }
 };
@@ -572,7 +572,7 @@ public:
       // Permit CC_X86RegCall which is used to mark external functions with
       // explicit simd or structure type arguments to pass them via registers.
       return CCCR_OK;
-    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+    return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
                                                             : CCCR_Warning;
   }
 };

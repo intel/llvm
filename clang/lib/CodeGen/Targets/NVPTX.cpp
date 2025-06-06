@@ -287,16 +287,15 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
   llvm::Function *F = cast<llvm::Function>(GV);
 
   // Perform special handling in OpenCL mode
-  if (M.getLangOpts().OpenCL || M.getLangOpts().SYCLIsDevice) {
+  if (M.getLangOpts().OpenCL || M.getLangOpts().SYCLIsDevice || M.getLangOpts().CUDA) {
     // Use OpenCL function attributes to check for kernel functions
+    // Use function attributes to check for kernel functions
     // By default, all functions are device functions
-    if (FD->hasAttr<OpenCLKernelAttr>()) {
-      // OpenCL __kernel functions get kernel metadata
+    if (FD->hasAttr<DeviceKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>()) {
+      // OpenCL/CUDA kernel functions get kernel metadata
       // Create !{<func-ref>, metadata !"kernel", i32 1} node
-      F->setCallingConv(llvm::CallingConv::PTX_Kernel);
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
-
       if (M.getLangOpts().SYCLIsDevice &&
           supportsGridConstant(getOffloadArch(M))) {
         // Add grid_constant annotations to all relevant kernel-function
@@ -312,30 +311,22 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
         if (!GridConstantParamIdxs.empty())
           addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
       }
+      if (FD->hasAttr<CUDAGlobalAttr>()) {
+        SmallVector<int, 10> GCI;
+        for (auto IV : llvm::enumerate(FD->parameters()))
+          if (IV.value()->hasAttr<CUDAGridConstantAttr>())
+            // For some reason arg indices are 1-based in NVVM
+            GCI.push_back(IV.index() + 1);
+        // Create !{<func-ref>, metadata !"kernel", i32 1} node
+        F->setCallingConv(llvm::CallingConv::PTX_Kernel);
+        addGridConstantNVVMMetadata(F, GCI);
+      }
+      if (CUDALaunchBoundsAttr *Attr = FD->getAttr<CUDALaunchBoundsAttr>())
+        M.handleCUDALaunchBoundsAttr(F, Attr);
     }
   }
-
-  // Perform special handling in CUDA mode.
-  if (M.getLangOpts().CUDA) {
-    // CUDA __global__ functions get a kernel metadata entry.  Since
-    // __global__ functions cannot be called from the device, we do not
-    // need to set the noinline attribute.
-    if (FD->hasAttr<CUDAGlobalAttr>()) {
-      SmallVector<int, 10> GCI;
-      for (auto IV : llvm::enumerate(FD->parameters()))
-        if (IV.value()->hasAttr<CUDAGridConstantAttr>())
-          // For some reason arg indices are 1-based in NVVM
-          GCI.push_back(IV.index() + 1);
-      // Create !{<func-ref>, metadata !"kernel", i32 1} node
-      F->setCallingConv(llvm::CallingConv::PTX_Kernel);
-      addGridConstantNVVMMetadata(F, GCI);
-    }
-    if (CUDALaunchBoundsAttr *Attr = FD->getAttr<CUDALaunchBoundsAttr>())
-      M.handleCUDALaunchBoundsAttr(F, Attr);
-  }
-
   // Attach kernel metadata directly if compiling for NVPTX.
-  if (FD->hasAttr<NVPTXKernelAttr>()) {
+  if (FD->hasAttr<DeviceKernelAttr>()) {
     F->setCallingConv(llvm::CallingConv::PTX_Kernel);
   }
 }

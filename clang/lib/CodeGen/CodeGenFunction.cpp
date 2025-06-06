@@ -657,7 +657,7 @@ CodeGenFunction::getUBSanFunctionTypeHash(QualType Ty) const {
 
 void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
                                          llvm::Function *Fn) {
-  if (!FD->hasAttr<OpenCLKernelAttr>() && !FD->hasAttr<CUDAGlobalAttr>()
+  if (!FD->hasAttr<DeviceKernelAttr>() && !FD->hasAttr<CUDAGlobalAttr>()
     && !FD->hasAttr<SYCLDeviceAttr>())
     return;
 
@@ -674,7 +674,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
           FD->getAttr<SYCLRegisteredKernelNameAttr>()->getRegName(),
           FD->getNameAsString());
 
-  if (FD->hasAttr<OpenCLKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>())
+  if (FD->hasAttr<DeviceKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>())
     CGM.GenKernelArgMetadata(Fn, FD, this);
 
   if (!(getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
@@ -778,7 +778,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   }
 
   bool IsKernelOrDevice =
-      FD->hasAttr<SYCLKernelAttr>() || FD->hasAttr<SYCLDeviceAttr>();
+      FD->hasAttr<DeviceKernelAttr>() || FD->hasAttr<SYCLDeviceAttr>();
   const IntelReqdSubGroupSizeAttr *ReqSubGroup =
       FD->getAttr<IntelReqdSubGroupSizeAttr>();
 
@@ -1934,7 +1934,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     // Implicit copy-assignment gets the same special treatment as implicit
     // copy-constructors.
     emitImplicitAssignmentOperatorBody(Args);
-  } else if (FD->hasAttr<OpenCLKernelAttr>() &&
+  } else if (DeviceKernelAttr::isOpenCLSpelling(
+                 FD->getAttr<DeviceKernelAttr>()) &&
              GD.getKernelReferenceKind() == KernelReferenceKind::Kernel) {
     CallArgList CallArgs;
     for (unsigned i = 0; i < Args.size(); ++i) {

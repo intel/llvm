@@ -12821,7 +12821,7 @@ static GVALinkage adjustGVALinkageForAttributes(const ASTContext &Context,
     if (Context.shouldExternalize(D))
       return GVA_StrongExternal;
   } else if (Context.getLangOpts().SYCLIsDevice &&
-             D->hasAttr<OpenCLKernelAttr>()) {
+             D->hasAttr<DeviceKernelAttr>()) {
     if (L == GVA_DiscardableODR)
       return GVA_StrongODR;
   }
@@ -12991,7 +12991,7 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
   if (D->hasAttr<WeakRefAttr>())
     return false;
 
-  if (LangOpts.SYCLIsDevice && !D->hasAttr<OpenCLKernelAttr>() &&
+  if (LangOpts.SYCLIsDevice && !D->hasAttr<DeviceKernelAttr>() &&
       !D->hasAttr<SYCLDeviceAttr>() && !D->hasAttr<SYCLKernelEntryPointAttr>())
     return false;
 

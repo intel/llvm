@@ -3545,7 +3545,7 @@ bool FunctionDecl::isExternC() const {
 }
 
 bool FunctionDecl::isInExternCContext() const {
-  if (hasAttr<OpenCLKernelAttr>())
+  if (DeviceKernelAttr::isOpenCLSpelling(getAttr<DeviceKernelAttr>()))
     return true;
   return getLexicalDeclContext()->isExternCContext();
 }
@@ -5514,8 +5514,8 @@ FunctionDecl *FunctionDecl::CreateDeserialized(ASTContext &C, GlobalDeclID ID) {
 }
 
 bool FunctionDecl::isReferenceableKernel() const {
-  return hasAttr<CUDAGlobalAttr>() || hasAttr<OpenCLKernelAttr>() ||
-         hasAttr<SYCLKernelAttr>();
+  return hasAttr<CUDAGlobalAttr>() ||
+         DeviceKernelAttr::isOpenCLSpelling(getAttr<DeviceKernelAttr>()) || hasAttr<DeviceKernelAttr>();
 }
 
 BlockDecl *BlockDecl::Create(ASTContext &C, DeclContext *DC, SourceLocation L) {

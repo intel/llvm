@@ -891,7 +891,7 @@ class SingleDeviceFunctionTracker {
     // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
     // routines potentially reachable on device. This is to diagnose such
     // cases later in finalizeSYCLDelayedAnalysis().
-    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
+    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<DeviceKernelAttr>() &&
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
       Parent.SemaSYCLRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                         CallStack.back());
@@ -952,7 +952,7 @@ class SingleDeviceFunctionTracker {
     if (isSYCLKernelBodyFunction(CurrentDecl)) {
       // This is a direct callee of the kernel.
       if (CallStack.size() == 1 &&
-          CallStack.back()->hasAttr<SYCLKernelAttr>()) {
+          CallStack.back()->hasAttr<DeviceKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
@@ -2890,7 +2890,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
                                      bool IsSIMDKernel) {
     // Set implicit attributes.
-    FD->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
+    FD->addAttr(DeviceKernelAttr::CreateImplicit(Context));
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));
     if (IsSIMDKernel)
       FD->addAttr(SYCLSimdAttr::CreateImplicit(Context));
@@ -2900,7 +2900,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
                                         bool IsInline, bool IsSIMDKernel) {
     // Create this with no prototype, and we can fix this up after we've seen
     // all the params.
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    FunctionProtoType::ExtProtoInfo Info(CC_DeviceKernel);
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
 
     FunctionDecl *FD = FunctionDecl::Create(
@@ -2958,7 +2958,7 @@ public:
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    FunctionProtoType::ExtProtoInfo Info(CC_DeviceKernel);
 
     SmallVector<QualType, 8> ArgTys;
     std::transform(std::begin(Params), std::end(Params),
@@ -2974,7 +2974,7 @@ public:
     // to TransformStmt in replaceWithLocalClone can diagnose something that got
     // diagnosed on the actual kernel.
     KernelDecl->addAttr(
-        SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
+        DeviceKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
 
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
   }
@@ -5302,7 +5302,7 @@ void SemaSYCL::CheckSYCLScopeAttr(CXXRecordDecl *Decl) {
 
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
-void SemaSYCL::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
+void SemaSYCL::copyDeviceKernelAttrs(CXXMethodDecl *CallOperator) {
   // Get the operator() function of the wrapper.
   assert(CallOperator && "invalid kernel object");
 
@@ -5433,7 +5433,7 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
     // Attributes of a user-written SYCL kernel must be copied to the internally
     // generated alternative kernel, identified by a known string in its name.
     if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
-      copySYCLKernelAttrs(CallOperator);
+      copyDeviceKernelAttrs(CallOperator);
   }
 
   bool IsSIMDKernel = isESIMDKernelType(CallOperator);
@@ -6013,7 +6013,7 @@ void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
     return;
 
   // If Callee has a SYCL attribute, no diagnostic needed.
-  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<DeviceKernelAttr>())
     return;
 
   // If Callee has a CUDA device attribute, no diagnostic needed.

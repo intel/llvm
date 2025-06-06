@@ -8893,7 +8893,7 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
         FunctionDecl *FD = getCurFunctionDecl();
         // OpenCL v1.1 s6.5.2 and s6.5.3: no local or constant variables
         // in functions.
-        if (FD && !FD->hasAttr<OpenCLKernelAttr>()) {
+        if (FD && !FD->hasAttr<DeviceKernelAttr>()) {
           if (T.getAddressSpace() == LangAS::opencl_constant)
             Diag(NewVD->getLocation(), diag::err_opencl_function_variable)
                 << 0 /*non-kernel only*/ << "constant";
@@ -8905,7 +8905,7 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
         }
         // OpenCL v2.0 s6.5.2 and s6.5.3: local and constant variables must be
         // in the outermost scope of a kernel function.
-        if (FD && FD->hasAttr<OpenCLKernelAttr>()) {
+        if (FD && FD->hasAttr<DeviceKernelAttr>()) {
           if (!getCurScope()->isFunctionScope()) {
             if (T.getAddressSpace() == LangAS::opencl_constant)
               Diag(NewVD->getLocation(), diag::err_opencl_addrspace_scope)
@@ -11034,9 +11034,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
   MarkUnusedFileScopedDecl(NewFD);
 
-
-
-  if (getLangOpts().OpenCL && NewFD->hasAttr<OpenCLKernelAttr>()) {
+  if (getLangOpts().OpenCL && NewFD->hasAttr<DeviceKernelAttr>()) {
     // OpenCL v1.2 s6.8 static is invalid for kernel functions.
     if (SC == SC_Static) {
       Diag(D.getIdentifierLoc(), diag::err_static_kernel);
@@ -12541,7 +12539,7 @@ void Sema::CheckMain(FunctionDecl *FD, const DeclSpec &DS) {
 
   if (getLangOpts().OpenCL) {
     Diag(FD->getLocation(), diag::err_opencl_no_main)
-        << FD->hasAttr<OpenCLKernelAttr>();
+        << FD->hasAttr<DeviceKernelAttr>();
     FD->setInvalidDecl();
     return;
   }
@@ -15831,7 +15829,7 @@ ShouldWarnAboutMissingPrototype(const FunctionDecl *FD,
     return false;
 
   // Don't warn for OpenCL kernels.
-  if (FD->hasAttr<OpenCLKernelAttr>())
+  if (FD->hasAttr<DeviceKernelAttr>())
     return false;
 
   // Don't warn on explicitly deleted functions.
@@ -20741,7 +20739,7 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   // FIXME: This should really be a bitwise-or of the language modes.
   if (FD->hasAttr<SYCLSimdAttr>())
     return Sema::DeviceDiagnosticReason::Esimd;
-  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
+  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<DeviceKernelAttr>())
     return getLangOpts().SYCLCUDACompat
                ? Sema::DeviceDiagnosticReason::SyclCudaCompat
                : Sema::DeviceDiagnosticReason::Sycl;
@@ -20767,7 +20765,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
     return FunctionEmissionStatus::TemplateDiscarded;
 
   if (LangOpts.SYCLIsDevice &&
-      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()))
+      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<DeviceKernelAttr>()))
     return FunctionEmissionStatus::Emitted;
 
   // Check whether this function is an externally visible definition.
@@ -20852,7 +20850,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
   }
 
   if (getLangOpts().SYCLIsDevice) {
-    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
+    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<DeviceKernelAttr>())
       return FunctionEmissionStatus::Unknown;
 
     // Check whether this function is externally visible -- if so, it's
