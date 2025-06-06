@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc_convert.h>
 #include <clc/utils.h>
 #include <libspirv/spirv.h>
 
