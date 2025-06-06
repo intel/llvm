@@ -204,9 +204,9 @@ struct TracePointImpl : xpti_payload_t,
   /// @brief Event data for the trace point.
   xpti::trace_event_data_t MEvent;
   /// @brief Cached Function string ID for the trace point.
-  int32_t MFuncID = xpti::invalid_id;
+  int32_t MFuncID = xpti::invalid_id<>;
   /// @brief Cached File string ID for the trace point.
-  int32_t MFileID = xpti::invalid_id;
+  int32_t MFileID = xpti::invalid_id<>;
   /// @brief Iterator for the metadata associated with the trace point.
   xpti::metadata_t::iterator MCurr;
 
@@ -944,7 +944,7 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     string_id_t KeyID = MStringTableRef.add(Key);
-    if (KeyID == xpti::invalid_id) {
+    if (KeyID == xpti::invalid_id<string_id_t>) {
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
     }
 
@@ -2115,7 +2115,7 @@ public:
 
   string_id_t registerString(const char *String, char **TableString) {
     if (!TableString || !String)
-      return xpti::invalid_id;
+      return xpti::invalid_id<string_id_t>;
 
     *TableString = 0;
 
@@ -2134,7 +2134,7 @@ public:
 
   object_id_t registerObject(const char *Object, size_t Size, uint8_t Type) {
     if (!Object)
-      return xpti::invalid_id;
+      return xpti::invalid_id<object_id_t>;
 
     return MObjectTable.insert(std::string_view(Object, Size), Type);
   }
