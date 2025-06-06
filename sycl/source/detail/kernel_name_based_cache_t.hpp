@@ -7,14 +7,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <emhash/hash_table8.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <mutex>
 #include <optional>
-
-#include <boost/unordered/unordered_flat_map.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -60,7 +60,7 @@ struct FastKernelCacheVal {
 using FastKernelCacheValPtr = std::shared_ptr<FastKernelCacheVal>;
 
 using FastKernelSubcacheMapT =
-    ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValPtr>;
+    emhash8::HashMap<FastKernelCacheKeyT, FastKernelCacheValPtr>;
 
 using FastKernelSubcacheMutexT = SpinLock;
 using FastKernelSubcacheReadLockT = std::lock_guard<FastKernelSubcacheMutexT>;
