@@ -12,8 +12,11 @@
 #include <sycl/properties/all_properties.hpp>
 
 int main() {
-  queue InOrderQueue{property::queue::in_order{}};
-  queue OtherQueue{property::queue::in_order{}};
+  device Device{};
+  context Context{Device};
+
+  queue InOrderQueue{Context, Device, property::queue::in_order{}};
+  queue OtherQueue{Context, Device, property::queue::in_order{}};
 
   using T = int;
 
