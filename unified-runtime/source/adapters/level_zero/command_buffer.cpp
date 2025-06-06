@@ -1494,48 +1494,46 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
   // not used. For that reason, if the UR queue is in-order, we need to emulate,
   // its in-order properties by adding an event dependency on the last command
   // executed by the queue.
-  std::vector<ur_event_handle_t> WaitList;
-  if (Queue->isInOrderQueue() && Queue->LastCommandEvent) {
-    WaitList.reserve(NumEventsInWaitList + 1);
+  //  std::vector<ur_event_handle_t> WaitList;
+  //  if (Queue->isInOrderQueue() && Queue->LastCommandEvent) {
+  //    WaitList.reserve(NumEventsInWaitList + 1);
+  //
+  //    if (NumEventsInWaitList) {
+  //      WaitList.insert(WaitList.end(), EventWaitList,
+  //                      EventWaitList + NumEventsInWaitList);
+  //    }
+  //    WaitList.push_back(Queue->LastCommandEvent);
+  //
+  //    ++NumEventsInWaitList;
+  //    EventWaitList = WaitList.data();
+  //  }
 
-    if (NumEventsInWaitList) {
-      WaitList.insert(WaitList.end(), EventWaitList,
-                      EventWaitList + NumEventsInWaitList);
-    }
-    WaitList.push_back(Queue->LastCommandEvent);
+  ur_ze_event_list_t TmpWaitList;
+  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
-    ++NumEventsInWaitList;
-    EventWaitList = WaitList.data();
-  }
+  // Update the WaitList of the Wait Event
+  // Events are appended to the WaitList if the WaitList is not empty
+  if (CommandBuffer->WaitEvent->WaitList.isEmpty())
+    CommandBuffer->WaitEvent->WaitList = TmpWaitList;
+  else
+    CommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
 
-  if (NumEventsInWaitList) {
-    ur_ze_event_list_t TmpWaitList;
-    UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-        NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  if (!CommandBuffer->WaitEvent->WaitList.isEmpty()) {
+    // Create command-list to execute before `CommandListPtr` and will signal
+    // when `EventWaitList` dependencies are complete.
+    ur_command_list_ptr_t WaitCommandList{};
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, WaitCommandList, false /*UseCopyEngine*/, NumEventsInWaitList,
+        EventWaitList, false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
 
-    // Update the WaitList of the Wait Event
-    // Events are appended to the WaitList if the WaitList is not empty
-    if (CommandBuffer->WaitEvent->WaitList.isEmpty())
-      CommandBuffer->WaitEvent->WaitList = TmpWaitList;
-    else
-      CommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
-
-    if (!CommandBuffer->WaitEvent->WaitList.isEmpty()) {
-      // Create command-list to execute before `CommandListPtr` and will signal
-      // when `EventWaitList` dependencies are complete.
-      ur_command_list_ptr_t WaitCommandList{};
-      UR_CALL(Queue->Context->getAvailableCommandList(
-          Queue, WaitCommandList, false /*UseCopyEngine*/, NumEventsInWaitList,
-          EventWaitList, false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
-
-      ZE2UR_CALL(zeCommandListAppendBarrier,
-                 (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
-                  CommandBuffer->WaitEvent->WaitList.Length,
-                  CommandBuffer->WaitEvent->WaitList.ZeEventList));
-      Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
-                                false /*OKToBatchCommand*/);
-      MustSignalWaitEvent = false;
-    }
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
+                CommandBuffer->WaitEvent->WaitList.Length,
+                CommandBuffer->WaitEvent->WaitList.ZeEventList));
+    Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
+                              false /*OKToBatchCommand*/);
+    MustSignalWaitEvent = false;
   }
   // Given WaitEvent was created without specifying Counting Events, then this
   // event can be signalled on the host.
