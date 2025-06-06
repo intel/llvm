@@ -378,6 +378,18 @@ public:
                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
+  // no_handler
+private:
+  void extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams, std::vector<ArgDesc> &Args);
+
+public:
+  void submit_no_handler(const std::shared_ptr<queue_impl> &Self,
+    detail::NDRDescT NDRDesc, const char *KernelName, void *KernelFunc, int KernelNumParams,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
+
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
