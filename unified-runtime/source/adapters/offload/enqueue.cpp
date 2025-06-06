@@ -137,12 +137,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   void *DevPtr = std::get<BufferMem>(hBuffer->Mem).Ptr;
 
   // TODO: olMemcpy src should be const
-  olMemcpy(hQueue->OffloadQueue, DevPtr + offset, hQueue->OffloadDevice,
-           const_cast<void *>(pSrc), hQueue->Context->OffloadHost, size,
-           phEvent ? &EventOut : nullptr);
+  auto Res =
+      olMemcpy(hQueue->OffloadQueue, DevPtr + offset, hQueue->OffloadDevice,
+               const_cast<void *>(pSrc), hQueue->Context->OffloadHost, size,
+               phEvent ? &EventOut : nullptr);
+  if (Res) {
+    return offloadResultToUR(Res);
+  }
 
   if (blockingWrite) {
-    olWaitQueue(hQueue->OffloadQueue);
+    auto Res = olWaitQueue(hQueue->OffloadQueue);
+    if (Res) {
+      return offloadResultToUR(Res);
+    }
   }
 
   if (phEvent) {
