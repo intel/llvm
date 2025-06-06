@@ -12,6 +12,8 @@ from pathlib import Path
 from dataclasses import dataclass, asdict
 
 
+verbose = False
+
 @dataclass
 class BenchmarkHistoricAverage:
     """Contains historic average information for 1 benchmark"""
@@ -224,6 +226,9 @@ class Compare:
             elif halfway_round(delta, 2) < -options.regression_threshold:
                 regression.append(perf_diff_entry())
 
+            if verbose:
+                print(f"{test.name}: expect {hist_avg[test.name].value}, got {test.value}")
+
         return improvement, regression
 
     def to_hist(
@@ -324,8 +329,18 @@ if __name__ == "__main__":
         help="Timestamp (in YYYYMMDD_HHMMSS) of oldest result to include in historic average calculation",
         default="20000101_010101",
     )
+    parser_avg.add_argument(
+        "--verbose",
+        action='store_true',
+        help="Increase output verbosity",
+    )
 
     args = parser.parse_args()
+
+    if args.verbose:
+        global verbose
+        verbose = True
+        print("-- Compare.py --")
 
     if args.operation == "to_hist":
         if not Validate.timestamp(args.cutoff):
