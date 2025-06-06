@@ -227,7 +227,9 @@ class Compare:
                 regression.append(perf_diff_entry())
 
             if verbose:
-                print(f"{test.name}: expect {hist_avg[test.name].value}, got {test.value}")
+                print(
+                    f"{test.name}: expect {hist_avg[test.name].value}, got {test.value}"
+                )
 
         return improvement, regression
 
@@ -331,7 +333,7 @@ if __name__ == "__main__":
     )
     parser_avg.add_argument(
         "--verbose",
-        action='store_true',
+        action="store_true",
         help="Increase output verbosity",
     )
 

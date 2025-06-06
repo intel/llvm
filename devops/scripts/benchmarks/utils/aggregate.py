@@ -73,11 +73,10 @@ class EWMA(Aggregator):
 
     def get_avg(self) -> float:
         if len(self.elements) == 0:
-            return None   # No elements collected, cannot provide an average
+            return None  # No elements collected, cannot provide an average
 
         alpha = options.EWMA_smoothing_factor
         ewma_t = self.elements[0]
         for x_t in self.elements[1:]:
             ewma_t = alpha * x_t + (1 - alpha) * ewma_t
         return ewma_t
-

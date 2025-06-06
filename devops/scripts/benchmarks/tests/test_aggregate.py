@@ -5,6 +5,7 @@ sys.path.append(f"{os.path.dirname(__file__)}/../")
 from options import options
 from utils.aggregate import *
 
+
 def run_testcase(aggregator: Aggregator, src: list, expected: float) -> bool:
     aggr = aggregator()
     for n in src:
@@ -36,4 +37,3 @@ def test_EWMA():
 
 if __name__ == "__main__":
     test_EWMA()
-
