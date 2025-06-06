@@ -12,7 +12,7 @@ void ff_2(int *ptr, int start, int end) {
   for (int i = start; i <= end; i++)
     ptr[i] = start;
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void (__global int *, int, int)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void (__global int *, int, int) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'
@@ -41,7 +41,7 @@ __attribute__((sycl_device))
 // Explicit instantiation with "int*"
 template void ff_3(int* ptr, int start, int end);
 
-// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void (__global int *, int, int)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel_{{.*}} 'void (__global int *, int, int) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_ptr '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_start 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} __arg_end 'int'
@@ -90,7 +90,7 @@ __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_4(NoPointers S1, Pointers S2, Agg S3) {
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (NoPointers, __generated_Pointers, __generated_Agg)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (NoPointers, __generated_Pointers, __generated_Agg) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S1 'NoPointers'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Pointers'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S3 '__generated_Agg'
@@ -118,7 +118,7 @@ __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_5(Agg1 S1, Derived S2, Derived1 S3) {
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (Agg1, __generated_Derived, __generated_Derived1)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (Agg1, __generated_Derived, __generated_Derived1) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S1 'Agg1'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Derived'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S3 '__generated_Derived1'
@@ -150,7 +150,7 @@ __attribute__((sycl_device))
 
 // Explicit instantiation.
 template void ff_6(Agg S1, Derived1 S2, int);
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_Agg, __generated_Derived1, int)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_Agg, __generated_Derived1, int) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S1 '__generated_Agg'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Derived1'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_end 'int'
@@ -177,7 +177,7 @@ __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
 void ff_7(sycl::work_group_memory<int> mem) {
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__local int *)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__local int *) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_Ptr '__local int *'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
@@ -197,7 +197,7 @@ __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
 void ff_8(sycl::dynamic_work_group_memory<int> DynMem) {
 }
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__local int *)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__local int *) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_Ptr '__local int *'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
@@ -266,7 +266,7 @@ void ff_10(sycl::sampler S) {
 
 // CHECK: FunctionDecl {{.*}}'void (sycl::sampler)'
 // CHECK: ParmVarDecl {{.*}}S 'sycl::sampler'
-// CHECK: FunctionDecl {{.*}}'void (sampler_t)'
+// CHECK: FunctionDecl {{.*}}'void (sampler_t) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}}__arg_Sampler 'sampler_t'
 // CHECK: CXXMemberCallExpr {{.*}}'void'
 // CHECK-NEXT: MemberExpr {{.*}}.__init
@@ -279,7 +279,7 @@ void ff_11(sycl::stream str) {
 
 // CHECK: FunctionDecl {{.*}}'void (sycl::stream)'
 // CHECK: ParmVarDecl {{.*}}str 'sycl::stream'
-// CHECK: FunctionDecl {{.*}}'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int)'
+// CHECK: FunctionDecl {{.*}}'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}}__arg_Ptr '__global char *'
 // CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
 // CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
@@ -296,7 +296,7 @@ void ff_12(sycl::ext::oneapi::experimental::annotated_arg<int> arg) {
 
 // CHECK: FunctionDecl {{.*}}'void (sycl::ext::oneapi::experimental::annotated_arg<int>)'
 // CHECK: ParmVarDecl {{.*}}arg 'sycl::ext::oneapi::experimental::annotated_arg<int>'
-// CHECK: FunctionDecl {{.*}}'void (int)'
+// CHECK: FunctionDecl {{.*}}'void (int) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}}__arg__obj 'int'
 // CHECK: CXXMemberCallExpr {{.*}}
 // CHECK-NEXT: MemberExpr {{.*}}.__init
@@ -309,7 +309,7 @@ void ff_13(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 
 // CHECK: FunctionDecl {{.*}}'void (sycl::ext::oneapi::experimental::annotated_ptr<int>)'
 // CHECK: ParmVarDecl {{.*}}ptr 'sycl::ext::oneapi::experimental::annotated_ptr<int>'
-// CHECK: FunctionDecl {{.*}}'void (int *)'
+// CHECK: FunctionDecl {{.*}}'void (int *) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}}__arg__obj 'int *'
 // CHECK: CXXMemberCallExpr {{.*}}
 // CHECK-NEXT: MemberExpr {{.*}}.__init

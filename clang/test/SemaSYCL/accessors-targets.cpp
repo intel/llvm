@@ -51,7 +51,7 @@ int main() {
         });
   });
 }
-// CHECK: {{.*}}use_local_dep{{.*}} 'void (__local int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
-// CHECK: {{.*}}use_local{{.*}} 'void (__local int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
-// CHECK: {{.*}}use_global{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
-// CHECK: {{.*}}use_constant{{.*}} 'void (__constant int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: {{.*}}use_local_dep{{.*}} 'void (__local int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
+// CHECK: {{.*}}use_local{{.*}} 'void (__local int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
+// CHECK: {{.*}}use_global{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
+// CHECK: {{.*}}use_constant{{.*}} 'void (__constant int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'

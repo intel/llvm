@@ -28,7 +28,7 @@ int main() {
 }
 
 // Check test_kernel_handler parameters
-// NONATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void ((lambda at {{.*}}kernel-handler.cpp{{.*}}), __global char *)'
+// NONATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void ((lambda at {{.*}}kernel-handler.cpp{{.*}}), __global char *) __attribute__((device_kernel))'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg__sycl_functor '(lambda at {{.*}}'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
@@ -57,7 +57,7 @@ int main() {
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'kernel_handler':'sycl::kernel_handler' lvalue Var {{.*}} 'kh' 'kernel_handler':'sycl::kernel_handler'
 
 // Check test_pfwg_kernel_handler parameters
-// NONATIVESUPPORT: FunctionDecl {{.*}}test_pfwg_kernel_handler{{.*}} 'void ((lambda at {{.*}}kernel-handler.cpp{{.*}}), __global char *)'
+// NONATIVESUPPORT: FunctionDecl {{.*}}test_pfwg_kernel_handler{{.*}} 'void ((lambda at {{.*}}kernel-handler.cpp{{.*}}), __global char *) __attribute__((device_kernel))'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__sycl_functor '(lambda at {{.*}}kernel-handler.cpp{{.*}})'
 // NONATIVESUPPORT-NEXT: SYCLScopeAttr {{.*}} Implicit WorkGroup
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
@@ -91,7 +91,7 @@ int main() {
 // Test AST for default SPIR architecture
 
 // Check test_kernel_handler parameters
-// NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, __global char *)'
+// NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, __global char *) __attribute__((device_kernel))'
 // NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
 // NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
