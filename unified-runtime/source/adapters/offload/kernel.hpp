@@ -32,6 +32,13 @@ struct ur_kernel_handle_t_ : RefCounted {
     args_size_t ParamSizes;
     args_ptr_t Pointers;
 
+    struct MemObjArg {
+      ur_mem_handle_t_ *Mem;
+      int Index;
+      ur_mem_flags_t AccessFlags;
+    };
+    std::vector<MemObjArg> MemObjArgs;
+
     // Add an argument. If it already exists, it is replaced. Gaps are filled
     // with empty arguments.
     void addArg(size_t Index, size_t Size, const void *Arg) {
@@ -46,6 +53,19 @@ struct ur_kernel_handle_t_ : RefCounted {
       // Update the stored value for the argument.
       std::memcpy(&Storage[InsertPos], Arg, Size);
       Pointers[Index] = &Storage[InsertPos];
+    }
+
+    void addMemObjArg(int Index, ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
+      assert(hMem && "Invalid mem handle");
+      // If a memobj is already set at this index, update the entry rather
+      // than adding a duplicate one
+      for (auto &Arg : MemObjArgs) {
+        if (Arg.Index == Index) {
+          Arg = MemObjArg{hMem, Index, Flags};
+          return;
+        }
+      }
+      MemObjArgs.push_back(MemObjArg{hMem, Index, Flags});
     }
 
     const args_ptr_t &getPointers() const noexcept { return Pointers; }

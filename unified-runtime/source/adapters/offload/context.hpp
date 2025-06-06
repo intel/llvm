@@ -10,7 +10,9 @@
 
 #pragma once
 
+#include "adapter.hpp"
 #include "common.hpp"
+#include "device.hpp"
 #include <OffloadAPI.h>
 #include <unordered_map>
 #include <ur_api.h>
