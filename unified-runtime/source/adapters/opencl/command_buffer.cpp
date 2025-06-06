@@ -115,6 +115,10 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   if (hCommandBuffer->decrementReferenceCount() == 0) {
+    if (hCommandBuffer->LastSubmission) {
+      cl_int RetErr = clWaitForEvents(1, &(hCommandBuffer->LastSubmission));
+      CL_RETURN_ON_FAILURE(RetErr);
+    }
     delete hCommandBuffer;
   }
 
