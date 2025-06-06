@@ -574,7 +574,7 @@ if cl_options:
     )
     config.substitutions.append(("%include_option", "/FI"))
     config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
-    config.substitutions.append(("%cxx_std_option", "/std:"))
+    config.substitutions.append(("%cxx_std_option", "/Qstd:"))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
     config.substitutions.append(("%O0", "/Od"))
