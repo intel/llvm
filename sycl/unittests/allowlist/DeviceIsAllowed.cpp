@@ -95,6 +95,10 @@ TEST(DeviceIsAllowedTests, CheckLocalizationDoesNotImpact) {
   // We want to make sure that DeviceVenderId doesn't have a comma
   // inserted (ie "0x8,086" ), which will break the platform retrieval.
 
+  if (sycl::platform::get_platforms().empty()) {
+    GTEST_SKIP() << "No SYCL platforms found.";
+  }
+
   try {
     auto previous = std::locale::global(std::locale("en_US.UTF-8"));
 #ifdef _WIN32
