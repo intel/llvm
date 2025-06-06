@@ -58,7 +58,6 @@ add_l0_v2_devices_test(event_pool
     ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_counter.cpp
     ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_normal.cpp
     ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event.cpp
-    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/queue_api.cpp
     ${PROJECT_SOURCE_DIR}/source/ur/ur.cpp
 )
 
