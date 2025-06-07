@@ -1101,7 +1101,7 @@ private:
         Bin = addELFNotes(Bin, Img.File);
       }
       std::pair<Constant *, Constant *> Fbin;
-      if (Img.Tgt == "native_cpu") {
+      if (Triple(Img.Tgt).isNativeCPU()) {
         auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile);
         if (!FBinOrErr)
           return FBinOrErr.takeError();

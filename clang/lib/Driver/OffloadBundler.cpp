@@ -178,8 +178,7 @@ bool OffloadTargetInfo::isOffloadKindCompatible(
 }
 
 bool OffloadTargetInfo::isTripleValid() const {
-  return !Triple.str().empty() && (Triple.getArch() != Triple::UnknownArch ||
-                                   Triple.str() == "native_cpu---");
+  return !Triple.str().empty() && Triple.getArch() != Triple::UnknownArch;
 }
 
 bool OffloadTargetInfo::operator==(const OffloadTargetInfo &Target) const {

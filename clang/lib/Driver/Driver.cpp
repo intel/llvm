@@ -964,7 +964,10 @@ static bool isValidSYCLTriple(llvm::Triple T) {
     return true;
 
   // 'native_cpu' is valid for Native CPU.
-  if (isSYCLNativeCPU(T))
+  // TODO This checks for the exact spelling of the triple because other
+  // spellings would fail confusingly, trying to find nonexistent builtins. This
+  // should probably be done for NVidia and AMD too.
+  if (T.isNativeCPU() && T.str() == "native_cpu")
     return true;
 
   // Check for invalid SYCL device triple values.
@@ -5554,7 +5557,7 @@ class OffloadingActionBuilder final {
       auto IsAMDGCN = TargetTriple.isAMDGCN();
       auto IsSPIR = TargetTriple.isSPIROrSPIRV();
       bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-      bool IsSYCLNativeCPU = isSYCLNativeCPU(TargetTriple);
+      bool IsNativeCPU = TargetTriple.isNativeCPU();
       for (const auto &Input : ListIndex) {
         // No need for any conversion if we are coming in from the
         // clang-offload-deps or regular compilation path.
@@ -5694,7 +5697,7 @@ class OffloadingActionBuilder final {
         // AOT compilation.
         bool SYCLDeviceLibLinked = false;
         Action *NativeCPULib = nullptr;
-        if (IsSPIR || IsNVPTX || IsAMDGCN || IsSYCLNativeCPU) {
+        if (IsSPIR || IsNVPTX || IsAMDGCN || IsNativeCPU) {
           bool UseJitLink =
               IsSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
@@ -5703,7 +5706,7 @@ class OffloadingActionBuilder final {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               TC, SYCLDeviceLibs, UseAOTLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment(),
-              IsSYCLNativeCPU, NativeCPULib, BoundArch);
+              IsNativeCPU, NativeCPULib, BoundArch);
         }
         JobAction *LinkSYCLLibs =
             C.MakeAction<LinkJobAction>(SYCLDeviceLibs, types::TY_LLVM_BC);
@@ -5770,11 +5773,11 @@ class OffloadingActionBuilder final {
 
           // reflects whether current target is ahead-of-time and can't
           // support runtime setting of specialization constants
-          bool IsAOT = IsNVPTX || IsAMDGCN || IsSpirvAOT || IsSYCLNativeCPU;
+          bool IsAOT = IsNVPTX || IsAMDGCN || IsSpirvAOT || IsNativeCPU;
 
           // post link is not optional - even if not splitting, always need to
           // process specialization constants
-          types::ID PostLinkOutType = IsSPIR || IsSYCLNativeCPU
+          types::ID PostLinkOutType = IsSPIR || IsNativeCPU
                                           ? types::TY_Tempfiletable
                                           : types::TY_LLVM_BC;
           auto createPostLinkAction = [&]() {
@@ -5785,7 +5788,7 @@ class OffloadingActionBuilder final {
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
-          if (IsSYCLNativeCPU) {
+          if (IsNativeCPU) {
             if (NativeCPULib) {
               // The native cpu device lib is linked without --only-needed
               // as it contains builtins not referenced in source code but
@@ -9128,7 +9131,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       Action::OffloadKind DependentOffloadKind;
       if (UI.DependentOffloadKind == Action::OFK_SYCL &&
           TargetDeviceOffloadKind == Action::OFK_None &&
-          !(isSYCLNativeCPU(C.getDefaultToolChain().getTriple()) &&
+          !(C.getDefaultToolChain().getTriple().isNativeCPU() &&
             UA->getDependentActionsInfo().size() > 1))
         DependentOffloadKind = Action::OFK_Host;
       else
@@ -10025,7 +10028,7 @@ const ToolChain &Driver::getOffloadToolChain(
                                                            *HostTC, Args, Kind);
       break;
     default:
-      if (Kind == Action::OFK_SYCL && isSYCLNativeCPU(Target))
+      if (Kind == Action::OFK_SYCL && Target.isNativeCPU())
         TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target, *HostTC,
                                                          Args);
       break;
