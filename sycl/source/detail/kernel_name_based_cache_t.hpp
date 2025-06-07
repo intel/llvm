@@ -59,15 +59,27 @@ struct FastKernelCacheVal {
 };
 using FastKernelCacheValPtr = std::shared_ptr<FastKernelCacheVal>;
 
-using FastKernelSubcacheMapT =
-    emhash8::HashMap<FastKernelCacheKeyT, FastKernelCacheValPtr>;
-
 using FastKernelSubcacheMutexT = SpinLock;
 using FastKernelSubcacheReadLockT = std::lock_guard<FastKernelSubcacheMutexT>;
 using FastKernelSubcacheWriteLockT = std::lock_guard<FastKernelSubcacheMutexT>;
 
+struct FastKernelEntryT {
+  FastKernelCacheKeyT Key;
+  FastKernelCacheValPtr Value;
+
+  FastKernelEntryT(FastKernelCacheKeyT Key, const FastKernelCacheValPtr &Value)
+      : Key(Key), Value(Value) {}
+
+  FastKernelEntryT(const FastKernelEntryT &) = default;
+  FastKernelEntryT &operator=(const FastKernelEntryT &) = default;
+  FastKernelEntryT(FastKernelEntryT &&) = default;
+  FastKernelEntryT &operator=(FastKernelEntryT &&) = default;
+};
+
+using FastKernelSubcacheEntriesT = std::vector<FastKernelEntryT>;
+
 struct FastKernelSubcacheT {
-  FastKernelSubcacheMapT Map;
+  FastKernelSubcacheEntriesT Entries;
   FastKernelSubcacheMutexT Mutex;
 };
 

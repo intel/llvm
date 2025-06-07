@@ -1018,7 +1018,7 @@ typedef uint16_t (*xpti_register_user_defined_et_t)(const char *, uint8_t);
 typedef xpti::trace_event_data_t *(*xpti_make_event_t)(
     const char *, xpti::payload_t *, uint16_t, xpti::trace_activity_type_t,
     uint64_t *);
-typedef const xpti::trace_event_data_t *(*xpti_find_event_t)(int64_t);
+typedef const xpti::trace_event_data_t *(*xpti_find_event_t)(uint64_t);
 typedef const xpti::payload_t *(*xpti_query_payload_t)(
     xpti::trace_event_data_t *);
 typedef const xpti::payload_t *(*xpti_query_payload_by_uid_t)(uint64_t uid);

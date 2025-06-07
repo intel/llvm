@@ -4103,6 +4103,7 @@
 ?getPtr@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getPtr@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEAAPEAXXZ
 ?getPtr@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
+?getQueue@handler@_V1@sycl@@AEAA?AVqueue@23@XZ
 ?getRowPitch@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?getSampler@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AUimage_sampler@34@XZ
 ?getSampler@image_plain@detail@_V1@sycl@@IEBA?AUimage_sampler@34@XZ
@@ -4342,9 +4343,12 @@
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
+?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIAEAVhandler@23@@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
+?reduGetMaxWGSize@detail@_V1@sycl@@YA_KAEAVhandler@23@_K@Z
 ?reduGetMaxWGSize@detail@_V1@sycl@@YA_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
 ?reduGetPreferredWGSize@detail@_V1@sycl@@YA_KAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
+?reduGetPreferredWGSize@detail@_V1@sycl@@YA_KAEAVhandler@23@_K@Z
 ?registerDynamicParameter@handler@_V1@sycl@@AEAAXAEAVdynamic_parameter_base@detail@experimental@oneapi@ext@23@H@Z
 ?registerDynamicParameter@handler@_V1@sycl@@AEAAXPEAVdynamic_parameter_impl@detail@experimental@oneapi@ext@23@H@Z
 ?release_external_memory@experimental@oneapi@ext@_V1@sycl@@YAXUexternal_mem@12345@AEBVdevice@45@AEBVcontext@45@@Z

@@ -116,6 +116,16 @@ ur_usm_pool_handle_t ur_context_handle_t_::getDefaultUSMPool() {
 
 ur_usm_pool_handle_t ur_context_handle_t_::getAsyncPool() { return &asyncPool; }
 
+void ur_context_handle_t_::addUsmPool(ur_usm_pool_handle_t hPool) {
+  std::scoped_lock<ur_shared_mutex> lock(Mutex);
+  usmPoolHandles.push_back(hPool);
+}
+
+void ur_context_handle_t_::removeUsmPool(ur_usm_pool_handle_t hPool) {
+  std::scoped_lock<ur_shared_mutex> lock(Mutex);
+  usmPoolHandles.remove(hPool);
+}
+
 const std::vector<ur_device_handle_t> &
 ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
   return p2pAccessDevices[hDevice->Id.value()];
