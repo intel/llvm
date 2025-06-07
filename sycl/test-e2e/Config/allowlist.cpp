@@ -16,6 +16,7 @@
 #include <iostream>
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 static bool isIdenticalDevices(const std::vector<sycl::device> &Devices) {
   return std::all_of(

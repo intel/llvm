@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <numeric>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <sycl/usm.hpp>
 
 namespace {

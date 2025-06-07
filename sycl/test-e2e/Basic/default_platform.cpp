@@ -10,6 +10,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 int main() {
   sycl::platform Plt;
