@@ -4518,6 +4518,17 @@ implicitly inherit this attribute.
   }];
 }
 
+def SYCLDeviceOnlyDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "sycl_device_only";
+  let Content = [{
+This attribute can only be applied to functions and indicates that the function
+is for the device only. This attribute allows to provide a device specific
+overload of an existing function. All ``sycl_device_only`` function callees
+implicitly inherit this attribute.
+  }];
+}
+
 def RISCVInterruptDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "interrupt (RISC-V)";
