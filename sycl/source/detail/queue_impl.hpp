@@ -750,7 +750,14 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    return parseEvent(Handler.finalize());
+    auto Event = parseEvent(Handler.finalize());
+
+    if (Event && !Scheduler::CheckEventReadiness(MContext, Event)) {
+      MDefaultGraphDeps.LastEventPtr = Event;
+      MNoLastEventMode = false;
+    }
+
+    return Event;
   }
 
   template <typename HandlerType = handler>
