@@ -775,25 +775,6 @@ public:
   /// Get the specific kind of offload LTO being performed.
   LTOKind getOffloadLTOMode() const { return OffloadLTOMode; }
 
-  // FPGA Offload Modes.
-  enum DeviceMode {
-    UnsetDeviceMode,
-    FPGAHWMode,
-    FPGAEmulationMode
-  } OffloadCompileMode = UnsetDeviceMode;
-
-  bool IsFPGAHWMode() const { return OffloadCompileMode == FPGAHWMode; }
-
-  bool IsFPGAEmulationMode() const {
-    return OffloadCompileMode == FPGAEmulationMode;
-  }
-
-  void setOffloadCompileMode(DeviceMode ModeValue) {
-    OffloadCompileMode = ModeValue;
-  }
-
-  DeviceMode getOffloadCompileMode() { return OffloadCompileMode; }
-
   /// Get the CUID option.
   const CUIDOptions &getCUIDOpts() const { return CUIDOpts; }
 
@@ -893,9 +874,6 @@ private:
   void checkForOffloadMismatch(Compilation &C,
                                llvm::opt::DerivedArgList &Args) const;
 
-  /// Track filename used for the FPGA dependency info.
-  mutable llvm::StringMap<const std::string> FPGATempDepFiles;
-
   /// A list of inputs and their corresponding integration headers. These
   /// files are generated during the device compilation and are consumed
   /// by the host compilation.
@@ -947,18 +925,6 @@ public:
 
   /// getUseNewOffloadingDriver - use the new offload driver for OpenMP.
   bool getUseNewOffloadingDriver() const { return UseNewOffloadingDriver; };
-
-  /// addFPGATempDepFile - Add a file to be added to the bundling step of
-  /// an FPGA object.
-  void addFPGATempDepFile(const std::string &DepName,
-                          const std::string &FileName) const {
-    FPGATempDepFiles.insert({FileName, DepName});
-  }
-  /// getFPGATempDepFile - Get a file to be added to the bundling step of
-  /// an FPGA object.
-  const std::string getFPGATempDepFile(const std::string &FileName) const {
-    return FPGATempDepFiles[FileName];
-  }
 
   /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
   /// added or should be added given proper criteria.
