@@ -46,7 +46,7 @@ std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
   // If this is being recorded from an in-order queue we need to get the last
   // in-order node if any, since this will later become a dependency of the
   // node being processed here.
-  if (const auto &LastInOrderNode = Graph->getLastInorderNode(Queue.get());
+  if (const auto &LastInOrderNode = Graph->getLastInorderNode(Queue);
       LastInOrderNode) {
     DepNodes.push_back(LastInOrderNode);
   }
