@@ -6,6 +6,8 @@ name: Benchmarks Reusable
 
 on: [ workflow_call ]
 
+permissions: read-all
+
 jobs:
   do-nothing:
     runs-on: ubuntu-latest
