@@ -58,7 +58,6 @@ __DPCPP_SYCL_EXTERNAL uint32_t __spirv_SubgroupLocalInvocationId();
 
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalSize;
-__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalInvocationId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupSize;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInNumWorkgroups;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInLocalInvocationId;
@@ -78,13 +77,13 @@ __SPIRV_VAR_QUALIFIERS __ocl_vec_t<uint32_t, 4> __spirv_BuiltInSubgroupLeMask;
 __SPIRV_VAR_QUALIFIERS __ocl_vec_t<uint32_t, 4> __spirv_BuiltInSubgroupLtMask;
 
 __DPCPP_SYCL_EXTERNAL inline size_t __spirv_GlobalInvocationId_x() {
-  return __spirv_BuiltInGlobalInvocationId.x;
+  return __builtin_spirv_global_invocation_id(0);
 }
 __DPCPP_SYCL_EXTERNAL inline size_t __spirv_GlobalInvocationId_y() {
-  return __spirv_BuiltInGlobalInvocationId.y;
+  return __builtin_spirv_global_invocation_id(1);
 }
 __DPCPP_SYCL_EXTERNAL inline size_t __spirv_GlobalInvocationId_z() {
-  return __spirv_BuiltInGlobalInvocationId.z;
+  return __builtin_spirv_global_invocation_id(2);
 }
 
 __DPCPP_SYCL_EXTERNAL inline size_t __spirv_GlobalSize_x() {

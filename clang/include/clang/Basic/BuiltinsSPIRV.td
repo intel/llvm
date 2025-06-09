@@ -37,3 +37,9 @@ def SPIRVFaceForward : Builtin {
   let Attributes = [NoThrow, Const, CustomTypeChecking];
   let Prototype = "void(...)";
 }
+
+def SPIRVGlobalInvoc : Builtin {
+  let Spellings = ["__builtin_spirv_global_invocation_id"];
+  let Attributes = [NoThrow, Const];
+  let Prototype = "size_t(int)";
+}
