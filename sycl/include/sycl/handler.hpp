@@ -537,11 +537,12 @@ private:
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
     // for parallel_for with sycl::kernel and lambda/functor together
-    // Now if they are equal we extract argumets from lambda/functor for the
+    // Now if they are equal we extract arguments from lambda/functor for the
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
-    const std::string LambdaName = detail::getKernelName<LambdaNameT>();
+    constexpr std::string_view LambdaName =
+        detail::getKernelName<LambdaNameT>();
     detail::ABINeutralKernelNameStrT KernelName = getKernelName();
     return KernelName == LambdaName;
   }
@@ -865,7 +866,9 @@ private:
                     &(detail::getKernelParamDesc<KernelName>),
                     detail::isKernelESIMD<KernelName>(), HasSpecialCapt);
 
-      MKernelName = detail::getKernelName<KernelName>();
+      constexpr std::string_view KernelNameStr =
+          detail::getKernelName<KernelName>();
+      MKernelName = KernelNameStr;
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -1325,8 +1328,9 @@ private:
       KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
                     PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(
-          detail::string_view{detail::getKernelName<NameT>()});
+      constexpr std::string_view Name{detail::getKernelName<NameT>()};
+
+      verifyUsedKernelBundleInternal(detail::string_view{Name});
       processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
@@ -3422,8 +3426,6 @@ private:
   friend class detail::reduction_impl_algo;
 
   friend inline void detail::reduction::finalizeHandler(handler &CGH);
-  template <class FunctorTy>
-  friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
 
   template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
             typename PropertiesT, typename... RestT>
@@ -3866,6 +3868,8 @@ private:
   void setKernelNameBasedCachePtr(
       detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
 
+  queue getQueue();
+
 protected:
   /// Registers event dependencies in this command group.
   void depends_on(const detail::EventImplPtr &Event);
@@ -3884,6 +3888,96 @@ public:
   static void parallelForImpl(handler &Handler, RangeT Range, PropertiesT Props,
                               kernel Kernel) {
     Handler.parallel_for_impl(Range, Props, Kernel);
+  }
+
+  template <typename T, typename> struct dependent {
+    using type = T;
+  };
+  template <typename T>
+  using dependent_queue_t = typename dependent<queue, T>::type;
+  template <typename T>
+  using dependent_handler_t = typename dependent<handler, T>::type;
+
+  // pre/postProcess are used only for reductions right now, but the
+  // abstractions they provide aren't reduction-specific. The main problem they
+  // solve is
+  //
+  //   # User code
+  //   q.submit([&](handler &cgh) {
+  //     set_dependencies(cgh);
+  //     enqueue_whatever(cgh);
+  //   });  // single submission
+  //
+  // that needs to be implemented as multiple enqueues involving
+  // pre-/post-processing internally. SYCL prohibits recursive submits from
+  // inside control group function object (lambda above) so we resort to a
+  // somewhat hacky way of creating multiple `handler`s and manual finalization
+  // of them (instead of the one in `queue::submit`).
+  //
+  // Overloads with `queue &q` are provided in case the caller has it created
+  // already to avoid unnecessary reference count increments associated with
+  // `handler::getQueue()`.
+  template <class FunctorTy>
+  static void preProcess(handler &CGH, dependent_queue_t<FunctorTy> &q,
+                         FunctorTy Func) {
+    bool EventNeeded = !q.is_in_order();
+    handler AuxHandler(getSyclObjImpl(q), EventNeeded);
+    AuxHandler.copyCodeLoc(CGH);
+    std::forward<FunctorTy>(Func)(AuxHandler);
+    auto E = AuxHandler.finalize();
+    assert(!CGH.MIsFinalized &&
+           "Can't do pre-processing if the command has been enqueued already!");
+    if (EventNeeded)
+      CGH.depends_on(E);
+  }
+  template <class FunctorTy>
+  static void preProcess(dependent_handler_t<FunctorTy> &CGH,
+                         FunctorTy &&Func) {
+    preProcess(CGH, CGH.getQueue(), std::forward<FunctorTy>(Func));
+  }
+  template <class FunctorTy>
+  static void postProcess(dependent_handler_t<FunctorTy> &CGH,
+                          FunctorTy &&Func) {
+    // The "hacky" `handler`s manipulation mentioned above and implemented here
+    // is far from perfect. A better approach would be
+    //
+    //    bool OrigNeedsEvent = CGH.needsEvent()
+    //    assert(CGH.not_finalized/enqueued());
+    //    if (!InOrderQueue)
+    //      CGH.setNeedsEvent()
+    //
+    //    handler PostProcessHandler(Queue, OrigNeedsEvent)
+    //    auto E = CGH.finalize(); // enqueue original or current last
+    //                             // post-process
+    //    if (!InOrder)
+    //      PostProcessHandler.depends_on(E)
+    //
+    //    swap_impls(CGH, PostProcessHandler)
+    //    return; // queue::submit finalizes PostProcessHandler and returns its
+    //            // event if necessary.
+    //
+    // Still hackier than "real" `queue::submit` but at least somewhat sane.
+    // That, however hasn't been tried yet and we have an even hackier approach
+    // copied from what's been done in an old reductions implementation before
+    // eventless submission work has started. Not sure how feasible the approach
+    // above is at this moment.
+
+    // This `finalize` is wrong (at least logically) if
+    //   `assert(!CGH.eventNeeded())`
+    auto E = CGH.finalize();
+    dependent_queue_t<FunctorTy> Queue = CGH.getQueue();
+    bool InOrder = Queue.is_in_order();
+    // Cannot use `CGH.eventNeeded()` alone as there might be subsequent
+    // `postProcess` calls and we cannot address them properly similarly to the
+    // `finalize` issue described above. `swap_impls` suggested above might be
+    // able to handle this scenario naturally.
+    handler AuxHandler(getSyclObjImpl(Queue), CGH.eventNeeded() || !InOrder);
+    if (!InOrder)
+      AuxHandler.depends_on(E);
+    AuxHandler.copyCodeLoc(CGH);
+    std::forward<FunctorTy>(Func)(AuxHandler);
+    CGH.MLastEvent = AuxHandler.finalize();
+    return;
   }
 };
 } // namespace detail

@@ -7,7 +7,7 @@
 using namespace sycl;
 queue q;
 
-// expected-warning@+1 {{unknown attribute 'num_simd_work_items' ignored}}
+// expected-warning@+1 {{unknown attribute 'intelfpga::num_simd_work_items' ignored}}
 [[intelfpga::num_simd_work_items(22)]] void RemoveSpelling();
 
 // No diagnostic is emitted because the arguments match.

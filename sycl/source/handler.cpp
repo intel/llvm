@@ -43,13 +43,15 @@ inline namespace _V1 {
 
 namespace detail {
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Check if two ABI exports below are still necessary.
+#endif
 device_impl &getDeviceImplFromHandler(handler &CGH) {
-  assert((CGH.MQueue || getSyclObjImpl(CGH)->MGraph) &&
-         "One of MQueue or MGraph should be nonnull!");
-  if (CGH.MQueue)
-    return CGH.MQueue->getDeviceImpl();
+  return getSyclObjImpl(CGH)->get_device();
+}
 
-  return getSyclObjImpl(CGH)->MGraph->getDeviceImpl();
+device getDeviceFromHandler(handler &CGH) {
+  return createSyclObjFromImpl<device>(getSyclObjImpl(CGH)->get_device());
 }
 
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
@@ -316,8 +318,8 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : MImplOwner(
-          std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
+    : MImplOwner(std::make_shared<detail::handler_impl>(*Queue, nullptr,
+                                                        CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
 handler::handler(detail::handler_impl *HandlerImpl,
@@ -328,7 +330,8 @@ handler::handler(detail::handler_impl *HandlerImpl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(nullptr, CallerNeedsEvent)),
+    : impl(std::make_shared<detail::handler_impl>(*Queue, nullptr,
+                                                  CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -338,20 +341,20 @@ handler::handler(
     std::shared_ptr<detail::queue_impl> Queue,
     [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
     std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue.get(),
+    : impl(std::make_shared<detail::handler_impl>(*Queue, SecondaryQueue.get(),
                                                   CallerNeedsEvent)),
       MQueue(Queue) {}
 #endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(SecondaryQueue,
+    : impl(std::make_shared<detail::handler_impl>(*Queue, SecondaryQueue,
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(Graph)) {}
+    : impl(std::make_shared<detail::handler_impl>(*Graph)) {}
 
 #endif
 
@@ -380,11 +383,11 @@ bool handler::isStateExplicitKernelBundle() const {
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (!impl->MKernelBundle && Insert) {
-    auto Ctx =
-        impl->MGraph ? impl->MGraph->getContext() : MQueue->get_context();
-    auto Dev = impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
-    impl->MKernelBundle = detail::getSyclObjImpl(
-        get_kernel_bundle<bundle_state::input>(Ctx, {Dev}, {}));
+    context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
+    impl->MKernelBundle =
+        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+            Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
+            {}));
   }
   return impl->MKernelBundle;
 }
@@ -416,12 +419,14 @@ event handler::finalize() {
   MIsFinalized = true;
 
   const auto &type = getType();
+  detail::queue_impl *Queue = impl->get_queue_or_null();
+  ext::oneapi::experimental::detail::graph_impl *Graph =
+      impl->get_graph_or_null();
   const bool KernelFastPath =
-      (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-       !MQueue->hasCommandGraph() && !impl->CGData.MRequirements.size() &&
-       !MStreamStorage.size() &&
+      (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
+       !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
        detail::Scheduler::areEventsSafeForSchedulerBypass(
-           impl->CGData.MEvents, MQueue->getContextImplPtr()));
+           impl->CGData.MEvents, Queue->getContextImplPtr()));
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
@@ -480,14 +485,14 @@ event handler::finalize() {
           !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
-          !KernelBundleImpPtr->tryGetKernel(MKernelName.data(),
+          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName),
                                             KernelBundleImpPtr)) {
-        auto Dev =
-            impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
+        detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                MKernelName.data());
-        bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
+                toKernelNameStrT(MKernelName));
+        bool KernelInserted = KernelBundleImpPtr->add_kernel(
+            KernelID, detail::createSyclObjFromImpl<device>(Dev));
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
         if (!KernelInserted &&
@@ -499,7 +504,8 @@ event handler::finalize() {
               build(KernelBundle);
           KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
           setHandlerKernelBundle(KernelBundleImpPtr);
-          KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
+          KernelInserted = KernelBundleImpPtr->add_kernel(
+              KernelID, detail::createSyclObjFromImpl<device>(Dev));
         }
         // If the kernel was not found in executable mode we throw an exception
         if (!KernelInserted)
@@ -544,13 +550,13 @@ event handler::finalize() {
 #endif
 
       bool DiscardEvent =
-          !impl->MEventNeeded && MQueue->supportsDiscardingPiEvents();
+          !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
       if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                MKernelName.data(), impl->MKernelNameBasedCachePtr);
+                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -565,7 +571,7 @@ event handler::finalize() {
 #endif
       auto EnqueueKernel = [&]() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-        int32_t StreamID = xpti::invalid_id;
+        int32_t StreamID = xpti::invalid_id<>;
         xpti_td *CmdTraceEvent = nullptr;
         uint64_t InstanceID = 0;
         if (xptiEnabled) {
@@ -581,14 +587,15 @@ event handler::finalize() {
 #endif
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(*MQueue, MKernelName.data());
+          std::tie(BinImage, std::ignore) = detail::retrieveKernelBinary(
+              *MQueue, toKernelNameStrT(MKernelName));
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
             MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
-            MKernel.get(), MKernelName.data(), impl->MKernelNameBasedCachePtr,
-            RawEvents, DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
+            MKernel.get(), toKernelNameStrT(MKernelName),
+            impl->MKernelNameBasedCachePtr, RawEvents,
+            DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
             impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
@@ -638,13 +645,15 @@ event handler::finalize() {
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
   case detail::CGType::Kernel: {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions
+#endif
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), MKernelName.data(),
+        std::move(impl->MArgs), toKernelNameStrT(MKernelName),
         impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
@@ -702,11 +711,11 @@ event handler::finalize() {
     break;
   case detail::CGType::EnqueueNativeCommand:
   case detail::CGType::CodeplayHostTask: {
-    auto context = impl->MGraph
-                       ? detail::getSyclObjImpl(impl->MGraph->getContext())
-                       : MQueue->getContextImplPtr();
+    detail::context_impl &Context = impl->get_context();
+    detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), MQueue, context, std::move(impl->MArgs),
+        std::move(impl->MHostTask), Queue ? Queue->shared_from_this() : nullptr,
+        Context.shared_from_this(), std::move(impl->MArgs),
         std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
@@ -753,14 +762,15 @@ event handler::finalize() {
     break;
   }
   case detail::CGType::ExecCommandBuffer: {
+    detail::queue_impl *Queue = impl->get_queue_or_null();
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph =
-        MQueue ? MQueue->getCommandGraph() : impl->MGraph;
+        Queue ? Queue->getCommandGraph() : impl->get_graph().shared_from_this();
 
     // If a parent graph is set that means we are adding or recording a subgraph
     // and we don't want to actually execute this command graph submission.
     if (ParentGraph) {
       ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
-      if (MQueue) {
+      if (Queue) {
         ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
             ParentGraph->MMutex);
       }
@@ -825,7 +835,7 @@ event handler::finalize() {
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
   // so it can be retrieved by the graph later.
-  if (impl->MGraph) {
+  if (impl->get_graph_or_null()) {
     impl->MGraphNodeCG = std::move(CommandGroup);
     auto EventImpl = std::make_shared<detail::event_impl>();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -1353,9 +1363,8 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
-  device Dev = impl->MGraph ? impl->MGraph->getDevice()
-                            : detail::getDeviceFromHandler(*this);
-  if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
+  if (!UsedKernelBundleImplPtr->has_kernel(
+          KernelID, detail::createSyclObjFromImpl<device>(impl->get_device())))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),
         "The kernel bundle in use does not contain the kernel");
@@ -1552,8 +1561,10 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
-      get_pointer_type(Src, MQueue->get_context()),
-      get_pointer_type(Dest, MQueue->get_context()));
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
@@ -1582,8 +1593,10 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
-      get_pointer_type(Src, MQueue->get_context()),
-      get_pointer_type(Dest, MQueue->get_context()));
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
 
   // Fill the host extent based on the type of copy.
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
@@ -1738,8 +1751,10 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
-      get_pointer_type(Src, MQueue->get_context()),
-      get_pointer_type(Dest, MQueue->get_context()));
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
@@ -1765,8 +1780,10 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
-      get_pointer_type(Src, MQueue->get_context()),
-      get_pointer_type(Dest, MQueue->get_context()));
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
@@ -1894,9 +1911,9 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  if ((!impl->MGraph && (MQueue->get_context() != ExecBundle.get_context())) ||
-      (impl->MGraph &&
-       (impl->MGraph->getContext() != ExecBundle.get_context())))
+
+  if (&impl->get_context() !=
+      detail::getSyclObjImpl(ExecBundle.get_context()).get())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the primary queue is different from the "
@@ -1946,14 +1963,14 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   if (MQueue && EventGraph) {
     auto QueueGraph = MQueue->getCommandGraph();
 
-    if (EventGraph->getContext() != MQueue->get_context()) {
+    if (EventGraph->getContextImplPtr().get() != &impl->get_context()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Cannot submit to a queue with a dependency from a graph that is "
           "associated with a different context.");
     }
 
-    if (EventGraph->getDevice() != MQueue->get_device()) {
+    if (&EventGraph->getDeviceImpl() != &impl->get_device()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Cannot submit to a queue with a dependency from a graph that is "
@@ -2078,22 +2095,20 @@ bool handler::supportsUSMMemset2D() {
 }
 
 id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
-  device Dev = MQueue->get_device();
+  device_impl &Dev = impl->get_device();
   range<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
                        Dev.get_info<info::device::max_compute_units>();
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+// TODO: do we need this still?
 backend handler::getDeviceBackend() const {
-  if (impl->MGraph)
-    return impl->MGraph->getDevice().get_backend();
-  else
-    return MQueue->getDeviceImpl().getBackend();
+  return impl->get_device().getBackend();
 }
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;
@@ -2103,7 +2118,7 @@ void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
 
 void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                         size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;
@@ -2177,10 +2192,10 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
 
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
-  if (impl->MGraph) {
-    return impl->MGraph->getContextImplPtr();
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return Graph->getContextImplPtr();
   }
-  return MQueue->getContextImplPtr();
+  return impl->get_queue().getContextImplPtr();
 }
 
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
@@ -2225,15 +2240,11 @@ void handler::ext_oneapi_graph(
 
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
 handler::getCommandGraph() const {
-  if (impl->MGraph) {
-    return impl->MGraph;
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return Graph->shared_from_this();
   }
 
-  if (this->MQueue)
-    return MQueue->getCommandGraph();
-  // We should never reach here. MGraph and MQueue can not be null
-  // simultaneously.
-  return nullptr;
+  return impl->get_queue().getCommandGraph();
 }
 
 void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
@@ -2241,7 +2252,7 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  device_impl &DeviceImpl = detail::getDeviceImplFromHandler(*this);
+  device_impl &DeviceImpl = impl->get_device();
   std::array<size_t, 3> UrResult = {};
   auto Ret = DeviceImpl.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
       DeviceImpl.getHandleRef(),
@@ -2269,12 +2280,13 @@ void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
     int ArgIndex) {
 
-  if (MQueue && MQueue->hasCommandGraph()) {
+  if (queue_impl *Queue = impl->get_queue_or_null();
+      Queue && Queue->hasCommandGraph()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Dynamic Parameters cannot be used with Graph Queue recording.");
   }
-  if (!impl->MGraph) {
+  if (!impl->get_graph_or_null()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Dynamic Parameters cannot be used with normal SYCL submissions");
@@ -2405,5 +2417,6 @@ void handler::copyCodeLoc(const handler &other) {
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
 
+queue handler::getQueue() { return createSyclObjFromImpl<queue>(MQueue); }
 } // namespace _V1
 } // namespace sycl

@@ -655,6 +655,9 @@ etors:
 - name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT
   desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCount
   value: '272'
+- name: USM_CONTEXT_MEMCPY_EXP
+  desc: Enumerator for $xUSMContextMemcpyExp
+  value: '273'
 ---
 type: enum
 desc: Defines structure types

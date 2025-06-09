@@ -504,7 +504,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 std::vector<std::shared_ptr<node_impl>> &Deps) {
   (void)Args;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImpl{shared_from_this()};
+  detail::handler_impl HandlerImpl{*this};
   sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
 #else
   sycl::handler Handler{shared_from_this()};
@@ -818,7 +818,7 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   const bool xptiEnabled = xptiTraceEnabled();
-  int32_t StreamID = xpti::invalid_id;
+  int32_t StreamID = xpti::invalid_id<>;
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
   if (xptiEnabled) {
@@ -1904,7 +1904,7 @@ void modifiable_command_graph::end_recording(
 
 void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
                                            bool verbose) const {
-  std::string path{pathstr.data()};
+  std::string path{std::string_view(pathstr)};
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
     impl->printGraphAsDot(std::move(path), verbose);
@@ -2284,7 +2284,7 @@ void dynamic_command_group_impl::finalizeCGFList(
     // Handler defined inside the loop so it doesn't appear to the runtime
     // as a single command-group with multiple commands inside.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    detail::handler_impl HandlerImpl{MGraph};
+    detail::handler_impl HandlerImpl{*MGraph};
     sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
 #else
     sycl::handler Handler{MGraph};

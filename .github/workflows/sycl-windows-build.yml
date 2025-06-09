@@ -140,7 +140,7 @@ jobs:
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
-          --ci-defaults %ARGS% ^
+          --ci-defaults --use-zstd %ARGS% ^
           "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
@@ -240,6 +240,7 @@ jobs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Setup SYCL toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
