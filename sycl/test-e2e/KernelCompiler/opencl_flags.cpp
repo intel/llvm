@@ -18,7 +18,7 @@
 namespace syclex = sycl::ext::oneapi::experimental;
 
 const int N = 8;
-const char *kernelCLSource = "__kernel void sqrt_test(__global float* A) {"
+const char *KernelCLSource = "__kernel void sqrt_test(__global float* A) {"
                              "    __private int x = get_global_id(0);"
                              "    __private int y = get_global_id(1);"
                              "    __private int w = get_global_size(1);"
@@ -27,8 +27,8 @@ const char *kernelCLSource = "__kernel void sqrt_test(__global float* A) {"
                              "}";
 
 int main(void) {
-  // only one device is supported at this time, so we limit the queue and
-  // context to that
+  // Only one device is supported at this time, so we limit the queue and
+  // context to that.
   sycl::device d{sycl::default_selector_v};
   sycl::context ctx{d};
   sycl::queue q{ctx, d};
@@ -44,7 +44,7 @@ int main(void) {
   }
 
   auto kb_src = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::opencl, kernelCLSource);
+      ctx, syclex::source_language::opencl, KernelCLSource);
   auto kb_exe =
       syclex::build(kb_src, syclex::properties{syclex::build_options(
                                 "-cl-fp32-correctly-rounded-divide-sqrt")});
