@@ -752,6 +752,8 @@ class TargetTypeReplacements {
       else if (CloneTypeReplacements[From] != To)
         RemangledCloneTypeReplacements[From] = To;
     }
+    // Replace char with signed char
+    RemangledCloneTypeReplacements["char"] = "signed char";
   }
 
 public:
