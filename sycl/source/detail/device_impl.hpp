@@ -1467,8 +1467,6 @@ public:
         return false;
       }
 
-      /* The kernel handle update capability is not yet required for the
-       * ext_oneapi_graph aspect */
       ur_device_command_buffer_update_capability_flags_t RequiredCapabilities =
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
