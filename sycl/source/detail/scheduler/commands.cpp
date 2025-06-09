@@ -2558,7 +2558,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
 }
 
 ur_result_t enqueueImpCommandBufferKernel(
-    context Ctx, device_impl &DeviceImpl,
+    const context &Ctx, device_impl &DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const CGExecKernel &CommandGroup,
     std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints,

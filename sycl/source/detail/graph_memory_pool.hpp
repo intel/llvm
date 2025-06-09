@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "sycl/detail/common.hpp"
 #include <detail/physical_mem_impl.hpp>                // For physical_mem_impl
 #include <sycl/context.hpp>                            // For context
 #include <sycl/device.hpp>                             // For device
@@ -51,15 +52,19 @@ public:
                  const device &Device)
       : MGraph(GraphImpl), MContext(Context), MDevice(Device) {}
   ~graph_mem_pool() {
-    for (auto &[Ptr, AllocInfo] : MAllocations) {
-      // Unmap allocations if required before physical memory is released
-      // Physical mem is released when MPhysicalMem is cleared
-      if (AllocInfo.Mapped) {
-        unmap(Ptr, AllocInfo.Size, MContext);
+    try {
+      for (auto &[Ptr, AllocInfo] : MAllocations) {
+        // Unmap allocations if required before physical memory is released
+        // Physical mem is released when MPhysicalMem is cleared
+        if (AllocInfo.Mapped) {
+          unmap(Ptr, AllocInfo.Size, MContext);
+        }
+        // Free the VA range
+        free_virtual_mem(reinterpret_cast<uintptr_t>(Ptr), AllocInfo.Size,
+                         MContext);
       }
-      // Free the VA range
-      free_virtual_mem(reinterpret_cast<uintptr_t>(Ptr), AllocInfo.Size,
-                       MContext);
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_mem_pool", e);
     }
     MPhysicalMem.clear();
   }
@@ -119,7 +124,7 @@ public:
             [&](sycl::handler &CGH) { CGH.memset(Ptr, 0, AllocInfo.Size); });
       }
 
-      MPhysicalMem.push_back(PhysicalMem);
+      MPhysicalMem.push_back(std::move(PhysicalMem));
       AllocInfo.PhysicalMemID = MPhysicalMem.size() - 1;
       AllocInfo.Mapped = true;
     }
