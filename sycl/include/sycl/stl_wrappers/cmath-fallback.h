@@ -3,10 +3,9 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#define __DPCPP_SYCL_DEVICE                                                    \
-  __attribute__((sycl_device_only, always_inline, overloadable))
+#define __DPCPP_SYCL_DEVICE __attribute__((sycl_device_only, always_inline))
 #define __DPCPP_SYCL_DEVICE_C                                                  \
-  extern "C" __attribute__((sycl_device_only, always_inline, overloadable))
+  extern "C" __attribute__((sycl_device_only, always_inline))
 
 #define __DPCPP_SPIRV_MAP_UNARY(NAME)                                          \
   __DPCPP_SYCL_DEVICE_C float NAME##f(float x) {                               \

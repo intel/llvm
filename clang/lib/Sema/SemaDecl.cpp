@@ -7354,6 +7354,10 @@ static bool isIncompleteDeclExternC(Sema &S, const T *D) {
     if (S.getLangOpts().CUDA && (D->template hasAttr<CUDADeviceAttr>() ||
                                  D->template hasAttr<CUDAHostAttr>()))
       return false;
+
+    // So does SYCL's device_only attribute.
+    if (S.getLangOpts().isSYCL() && D->template hasAttr<SYCLDeviceOnlyAttr>())
+      return false;
   }
   return D->isExternC();
 }
