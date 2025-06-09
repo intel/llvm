@@ -1171,6 +1171,7 @@ void MemorySanitizerOnSpirv::instrumentPrivateArguments(
 // kernel
 void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
+  SmallVector<uint8_t, 256> KernelNamesBytes;
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
   // following structure:
@@ -1189,6 +1190,7 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
       continue;
 
     auto KernelName = F.getName();
+    KernelNamesBytes.append(KernelName.begin(), KernelName.end());
     auto *KernelNameGV = getOrCreateGlobalString("__msan_kernel", KernelName,
                                                  kSpirOffloadConstantAS);
     SpirKernelsMetadata.emplace_back(ConstantStruct::get(
@@ -1213,8 +1215,9 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
   MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   MsanSpirKernelMetadata->addAttribute("sycl-host-access",
                                        "0"); // read only
-  MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                       "_Z20__MsanKernelMetadata");
+  MsanSpirKernelMetadata->addAttribute(
+      "sycl-unique-id",
+      computeKernelMetadataUniqueId("__MsanKernelMetadata", KernelNamesBytes));
   MsanSpirKernelMetadata->setDSOLocal(true);
 }
 

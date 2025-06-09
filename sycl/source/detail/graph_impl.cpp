@@ -830,7 +830,7 @@ void exec_graph_impl::findRealDeps(
 }
 
 ur_exp_command_buffer_sync_point_t
-exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
+exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
                                    sycl::detail::device_impl &DeviceImpl,
                                    ur_exp_command_buffer_handle_t CommandBuffer,
                                    std::shared_ptr<node_impl> Node) {
