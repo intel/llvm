@@ -194,12 +194,9 @@ TEST_P(urEnqueueCommandBufferExpTest, SerializeInOrOutOfOrderQueue) {
 // Tests releasing command-buffer while it is still executing relying
 // on synchronization during urCommandBufferReleaseExp call.
 TEST_P(urEnqueueCommandBufferExpTest, EnqueueAndRelease) {
-  ASSERT_SUCCESS(urEnqueueCommandBufferExp(out_of_order_queue, cmd_buf_handle,
-                                           0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(
+      in_or_out_of_order_queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Release the command buffer without explicitly waiting beforehand
   EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
-
-  // Wait before exiting
-  ASSERT_SUCCESS(urQueueFinish(out_of_order_queue));
 }
