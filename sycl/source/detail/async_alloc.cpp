@@ -33,7 +33,7 @@ getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
 }
 
 std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
-    sycl::handler &Handler, const std::shared_ptr<detail::queue_impl> &Queue,
+    sycl::handler &Handler, detail::queue_impl *Queue,
     const std::shared_ptr<detail::graph_impl> &Graph,
     const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
   auto HandlerImpl = detail::getSyclObjImpl(Handler);
@@ -46,7 +46,7 @@ std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
   // If this is being recorded from an in-order queue we need to get the last
   // in-order node if any, since this will later become a dependency of the
   // node being processed here.
-  if (const auto &LastInOrderNode = Graph->getLastInorderNode(Queue.get());
+  if (const auto &LastInOrderNode = Graph->getLastInorderNode(Queue);
       LastInOrderNode) {
     DepNodes.push_back(LastInOrderNode);
   }
@@ -78,10 +78,11 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
   ur_event_handle_t Event = nullptr;
   // If a graph is present do the allocation from the graph memory pool instead.
   if (auto Graph = h.getCommandGraph(); Graph) {
-    auto DepNodes = getDepGraphNodes(h, h.MQueue, Graph, DepEvents);
+    auto DepNodes =
+        getDepGraphNodes(h, h.impl->get_queue_or_null(), Graph, DepEvents);
     alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
   } else {
-    auto &Q = h.MQueue->getHandleRef();
+    ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
     Adapter->call<sycl::errc::runtime,
                   sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
@@ -128,13 +129,14 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
   ur_event_handle_t Event = nullptr;
   // If a graph is present do the allocation from the graph memory pool instead.
   if (auto Graph = h.getCommandGraph(); Graph) {
-    auto DepNodes = getDepGraphNodes(h, h.MQueue, Graph, DepEvents);
+    auto DepNodes =
+        getDepGraphNodes(h, h.impl->get_queue_or_null(), Graph, DepEvents);
 
     // Memory pool is passed as the graph may use some properties of it.
     alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(), DepNodes,
                                        sycl::detail::getSyclObjImpl(pool));
   } else {
-    auto &Q = h.MQueue->getHandleRef();
+    ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
     Adapter->call<sycl::errc::runtime,
                   sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, memPoolImpl.get()->get_handle(), size, nullptr, UREvents.size(),

@@ -315,42 +315,27 @@ fill_copy_args(detail::handler_impl *impl,
 } // namespace detail
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-
-handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
-                 bool CallerNeedsEvent)
-    : MImplOwner(std::make_shared<detail::handler_impl>(*Queue, nullptr,
-                                                        CallerNeedsEvent)),
-      impl(MImplOwner.get()), MQueue(Queue) {}
-
-handler::handler(detail::handler_impl *HandlerImpl,
-                 const std::shared_ptr<detail::queue_impl> &Queue)
-    : impl(HandlerImpl), MQueue(Queue) {}
-
+handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
 #else
-
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(*Queue, nullptr,
                                                   CallerNeedsEvent)),
-      MQueue(std::move(Queue)) {}
+      MQueueDoNotUse(std::move(Queue)) {}
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: This function is not used anymore, remove it in the next
-// ABI-breaking window.
 handler::handler(
     std::shared_ptr<detail::queue_impl> Queue,
     [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
     std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(*Queue, SecondaryQueue.get(),
                                                   CallerNeedsEvent)),
-      MQueue(Queue) {}
-#endif
+      MQueueDoNotUse(Queue) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(*Queue, SecondaryQueue,
                                                   CallerNeedsEvent)),
-      MQueue(std::move(Queue)) {}
+      MQueueDoNotUse(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
@@ -539,8 +524,8 @@ event handler::finalize() {
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
       // creation.
-      std::vector<ur_event_handle_t> RawEvents =
-          detail::Command::getUrEvents(impl->CGData.MEvents, MQueue, false);
+      std::vector<ur_event_handle_t> RawEvents = detail::Command::getUrEvents(
+          impl->CGData.MEvents, impl->get_queue_or_null(), false);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       detail::EventImplPtr &LastEventImpl = MLastEvent;
@@ -578,8 +563,9 @@ event handler::finalize() {
           StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), impl->MKernelNameBasedCachePtr, MQueue,
-              impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
+              MKernelName.data(), impl->MKernelNameBasedCachePtr,
+              impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
+              impl->MArgs);
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
@@ -588,11 +574,11 @@ event handler::finalize() {
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
           std::tie(BinImage, std::ignore) = detail::retrieveKernelBinary(
-              *MQueue, toKernelNameStrT(MKernelName));
+              impl->get_queue(), toKernelNameStrT(MKernelName));
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
-            MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
+            impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
             impl->MKernelNameBasedCachePtr, RawEvents,
             DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
@@ -621,16 +607,17 @@ event handler::finalize() {
         LastEventImpl->setStateDiscarded();
 #endif
       } else {
-        LastEventImpl->setQueue(MQueue);
-        LastEventImpl->setWorkerQueue(MQueue);
-        LastEventImpl->setContextImpl(MQueue->getContextImplPtr());
+        detail::queue_impl &Queue = impl->get_queue();
+        LastEventImpl->setQueue(Queue);
+        LastEventImpl->setWorkerQueue(Queue.weak_from_this());
+        LastEventImpl->setContextImpl(impl->get_context().shared_from_this());
         LastEventImpl->setStateIncomplete();
         LastEventImpl->setSubmissionTime();
 
         EnqueueKernel();
         LastEventImpl->setEnqueued();
         // connect returned event with dependent events
-        if (!MQueue->isInOrder()) {
+        if (!Queue.isInOrder()) {
           // MEvents is not used anymore, so can move.
           LastEventImpl->getPreparedDepsEvents() =
               std::move(impl->CGData.MEvents);
@@ -845,11 +832,14 @@ event handler::finalize() {
 #endif
   }
 
+  // Because graph case is handled right above.
+  assert(Queue);
+
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
-  if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
+  if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
     auto EventImpl = std::make_shared<detail::event_impl>();
-    EventImpl->setSubmittedQueue(MQueue);
+    EventImpl->setSubmittedQueue(Queue->weak_from_this());
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
 
@@ -864,14 +854,13 @@ event handler::finalize() {
             : ext::oneapi::experimental::detail::getNodeTypeFromCG(getType());
 
     // Create a new node in the graph representing this command-group
-    if (MQueue->isInOrder()) {
+    if (Queue->isInOrder()) {
       // In-order queues create implicit linear dependencies between nodes.
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
       std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
           Deps;
-      if (auto DependentNode =
-              GraphImpl->getLastInorderNode(impl->get_queue_or_null())) {
+      if (auto DependentNode = GraphImpl->getLastInorderNode(Queue)) {
         Deps.push_back(std::move(DependentNode));
       }
       NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
@@ -879,9 +868,10 @@ event handler::finalize() {
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
       // queue.
-      GraphImpl->setLastInorderNode(*MQueue, NodeImpl);
+      GraphImpl->setLastInorderNode(*Queue, NodeImpl);
     } else {
-      auto LastBarrierRecordedFromQueue = GraphImpl->getBarrierDep(MQueue);
+      auto LastBarrierRecordedFromQueue =
+          GraphImpl->getBarrierDep(Queue->weak_from_this());
       std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
           Deps;
 
@@ -891,7 +881,7 @@ event handler::finalize() {
       NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
-        GraphImpl->setBarrierDep(MQueue, NodeImpl);
+        GraphImpl->setBarrierDep(Queue->weak_from_this(), NodeImpl);
       }
     }
 
@@ -906,7 +896,7 @@ event handler::finalize() {
   }
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), std::move(MQueue), impl->MEventNeeded);
+      std::move(CommandGroup), Queue->shared_from_this(), impl->MEventNeeded);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   MLastEvent = Event;
@@ -1961,8 +1951,9 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   }
 
   auto EventGraph = EventImpl->getCommandGraph();
-  if (MQueue && EventGraph) {
-    auto QueueGraph = MQueue->getCommandGraph();
+  queue_impl *Queue = impl->get_queue_or_null();
+  if (Queue && EventGraph) {
+    auto QueueGraph = Queue->getCommandGraph();
 
     if (EventGraph->getContextImplPtr().get() != &impl->get_context()) {
       throw sycl::exception(
@@ -1989,7 +1980,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
     // we need to set it to recording (implements the transitive queue recording
     // feature).
     if (!QueueGraph) {
-      EventGraph->beginRecording(impl->get_queue());
+      EventGraph->beginRecording(*Queue);
     }
   }
 
@@ -2014,12 +2005,11 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
   }
 }
 
-static bool
-checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
-                     ur_context_info_t InfoQuery) {
-  auto &Adapter = ContextImpl->getAdapter();
+static bool checkContextSupports(detail::context_impl &ContextImpl,
+                                 ur_context_info_t InfoQuery) {
+  auto &Adapter = ContextImpl.getAdapter();
   ur_bool_t SupportsOp = false;
-  Adapter->call<UrApiKind::urContextGetInfo>(ContextImpl->getHandleRef(),
+  Adapter->call<UrApiKind::urContextGetInfo>(ContextImpl.getHandleRef(),
                                              InfoQuery, sizeof(ur_bool_t),
                                              &SupportsOp, nullptr);
   return SupportsOp;
@@ -2032,8 +2022,7 @@ void handler::verifyDeviceHasProgressGuarantee(
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
   using forward_progress =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
-  device_impl &deviceImpl = MQueue->getDeviceImpl();
-  const bool supported = deviceImpl.supportsForwardProgress(
+  const bool supported = impl->get_device().supportsForwardProgress(
       guarantee, threadScope, coordinationScope);
   if (threadScope == execution_scope::work_group) {
     if (!supported) {
@@ -2073,20 +2062,18 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  // Return true when handler_impl is constructed with a graph.
-  if (!MQueue)
+  if (impl->get_graph_or_null())
     return true;
 
-  return checkContextSupports(MQueue->getContextImplPtr(),
+  return checkContextSupports(impl->get_context(),
                               UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
 }
 
 bool handler::supportsUSMFill2D() {
-  // Return true when handler_impl is constructed with a graph.
-  if (!MQueue)
+  if (impl->get_graph_or_null())
     return true;
 
-  return checkContextSupports(MQueue->getContextImplPtr(),
+  return checkContextSupports(impl->get_context(),
                               UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
 }
 
@@ -2156,16 +2143,14 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
                                            size_t DeviceGlobalTSize,
                                            bool IsDeviceImageScoped,
                                            size_t NumBytes, size_t Offset) {
-  std::weak_ptr<detail::context_impl> WeakContextImpl =
-      MQueue->getContextImplPtr();
-  detail::device_impl &Dev = MQueue->getDeviceImpl();
-  host_task([=, &Dev] {
+  host_task([=, &Dev = impl->get_device(),
+             WeakContextImpl = impl->get_context().weak_from_this()] {
     // Capture context as weak to avoid keeping it alive for too long. If it is
     // dead by the time this executes, the operation would not have been visible
     // anyway. Devices are alive till library shutdown so capturing a reference
     // to one is fine.
-    std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
-    if (ContextImpl)
+    if (std::shared_ptr<detail::context_impl> ContextImpl =
+            WeakContextImpl.lock())
       ContextImpl->memcpyToHostOnlyDeviceGlobal(
           Dev, DeviceGlobalPtr, Src, DeviceGlobalTSize, IsDeviceImageScoped,
           NumBytes, Offset);
@@ -2176,18 +2161,15 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
                                              const void *DeviceGlobalPtr,
                                              bool IsDeviceImageScoped,
                                              size_t NumBytes, size_t Offset) {
-  const std::shared_ptr<detail::context_impl> &ContextImpl =
-      MQueue->getContextImplPtr();
-  detail::device_impl &DeviceImpl = MQueue->getDeviceImpl();
-  host_task([=, &DeviceImpl] {
+  host_task([=, Context = impl->get_context().shared_from_this(),
+             &Dev = impl->get_device()] {
     // Unlike memcpy to device_global, we need to keep the context alive in the
     // capture of this operation as we must be able to correctly copy the value
     // to the user-specified pointer. Device is guaranteed to live until SYCL RT
     // library shutdown (but even if it wasn't, alive conext has to guarantee
     // alive device).
-    ContextImpl->memcpyFromHostOnlyDeviceGlobal(
-        DeviceImpl, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes,
-        Offset);
+    Context->memcpyFromHostOnlyDeviceGlobal(
+        Dev, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes, Offset);
   });
 }
 
@@ -2418,6 +2400,8 @@ void handler::copyCodeLoc(const handler &other) {
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
 
-queue handler::getQueue() { return createSyclObjFromImpl<queue>(MQueue); }
+queue handler::getQueue() {
+  return createSyclObjFromImpl<queue>(impl->get_queue());
+}
 } // namespace _V1
 } // namespace sycl
