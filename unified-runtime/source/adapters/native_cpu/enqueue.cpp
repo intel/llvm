@@ -218,7 +218,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     // assumptions.
     const size_t itemsPerKernelInvocation = 8;
 
-    size_t new_num_work_groups_0 = numParallelThreads;
     size_t itemsPerThread = ndr.GlobalSize[0] / numParallelThreads;
     if (itemsPerThread < itemsPerKernelInvocation) {
       if (itemsPerKernelInvocation <= numWG0)
