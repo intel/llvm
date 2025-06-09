@@ -1176,6 +1176,8 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
                    NameValuePair.first == "sycl-single-task-kernel";
           });
       IsFreeFunctionAttr = it != NameValuePairs.end();
+      if (IsFreeFunctionAttr)
+        break;
     }
     if (Redecl->isFirstDecl()) {
       if (IsFreeFunctionAttr)
@@ -7121,6 +7123,13 @@ bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   }
   llvm::raw_fd_ostream Out(IntHeaderFD, true /*close in destructor*/);
   emit(Out);
+
+    int IntHeaderFD1 = 0;
+  std::string S{"/tmp/my-files/header.h"};
+  llvm::sys::fs::openFileForWrite(S, IntHeaderFD1);
+  llvm::raw_fd_ostream Out1(IntHeaderFD1, true /*close in destructor*/);
+  emit(Out1);
+
   return true;
 }
 
