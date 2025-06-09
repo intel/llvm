@@ -36,7 +36,7 @@ struct ur_queue_handle_t_ : RefCounted {
     if (queue_already_locked) {
       events.erase(event);
     } else {
-      std::unique_lock<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(mutex);
       events.erase(event);
     }
   }
