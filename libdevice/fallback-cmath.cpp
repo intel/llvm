@@ -215,4 +215,7 @@ float __devicelib_asinhf(float x) { return __spirv_ocl_asinh(x); }
 DEVICE_EXTERN_C_INLINE
 float __devicelib_atanhf(float x) { return __spirv_ocl_atanh(x); }
 
+DEVICE_EXTERN_C_INLINE
+float __devicelib_rintf(float x) { return __spirv_ocl_rint(x); }
+
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

@@ -194,4 +194,8 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_scalbn(double x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_rint(double x) { return __spirv_ocl_rint(x); }
+
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

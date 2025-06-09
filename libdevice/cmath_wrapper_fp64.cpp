@@ -188,9 +188,7 @@ double nearbyint(double x) { return __nv_nearbyint(x); }
 extern "C" SYCL_EXTERNAL double __nv_rint(double);
 DEVICE_EXTERN_C_INLINE
 double rint(double x) { return __nv_rint(x); }
-#endif // __NVPTX__
-
-#ifdef __AMDGCN__
+#elif defined(__AMDGCN__)
 extern "C" SYCL_EXTERNAL double __ocml_nearbyint_f64(double);
 DEVICE_EXTERN_C_INLINE
 double nearbyint(double x) { return __ocml_nearbyint_f64(x); }
@@ -198,7 +196,10 @@ double nearbyint(double x) { return __ocml_nearbyint_f64(x); }
 extern "C" SYCL_EXTERNAL double __ocml_rint_f64(double);
 DEVICE_EXTERN_C_INLINE
 double rint(double x) { return __ocml_rint_f64(x); }
-#endif // __AMDGCN__
+#else
+DEVICE_EXTERN_C_INLINE
+double rint(double x) { return __devicelib_rint(x); }
+#endif
 
 #if defined(_MSC_VER)
 #include <math.h>
