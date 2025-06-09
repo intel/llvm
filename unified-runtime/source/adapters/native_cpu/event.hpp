@@ -26,7 +26,7 @@ struct ur_event_handle_t_ : RefCounted {
     callback = std::packaged_task<void()>(std::forward<T>(cb));
   }
 
-  void wait();
+  void wait(bool queue_already_locked = false);
 
   uint32_t getExecutionStatus() {
     // TODO: add support for UR_EVENT_STATUS_RUNNING

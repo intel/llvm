@@ -122,13 +122,13 @@ ur_event_handle_t_::~ur_event_handle_t_() {
   }
 }
 
-void ur_event_handle_t_::wait() {
+void ur_event_handle_t_::wait(bool queue_already_locked) {
   std::unique_lock<std::mutex> lock(mutex);
   if (done) {
     return;
   }
   this->futures.wait_all();
-  queue->removeEvent(this);
+  queue->removeEvent(this, queue_already_locked);
   done = true;
   // The callback may need to acquire the lock, so we unlock it here
   lock.unlock();
