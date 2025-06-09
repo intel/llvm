@@ -659,6 +659,14 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   return NodeImpl;
 }
 
+void graph_impl::addQueue(sycl::detail::queue_impl &RecordingQueue) {
+  MRecordingQueues.insert(RecordingQueue.weak_from_this());
+}
+
+void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
+  MRecordingQueues.erase(RecordingQueue.weak_from_this());
+}
+
 bool graph_impl::clearQueues() {
   bool AnyQueuesCleared = false;
   for (auto &Queue : MRecordingQueues) {
@@ -687,6 +695,24 @@ bool graph_impl::checkForCycles() {
   }
 
   return CycleFound;
+}
+
+std::shared_ptr<node_impl>
+graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
+  if (!Queue) {
+    assert(0 ==
+           MInorderQueueMap.count(std::weak_ptr<sycl::detail::queue_impl>{}));
+    return {};
+  }
+  if (0 == MInorderQueueMap.count(Queue->weak_from_this())) {
+    return {};
+  }
+  return MInorderQueueMap[Queue->weak_from_this()];
+}
+
+void graph_impl::setLastInorderNode(sycl::detail::queue_impl &Queue,
+                                    std::shared_ptr<node_impl> Node) {
+  MInorderQueueMap[Queue.weak_from_this()] = Node;
 }
 
 void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
@@ -769,11 +795,10 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
-void graph_impl::beginRecording(
-    const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
+void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
   graph_impl::WriteLock Lock(MMutex);
-  if (!Queue->hasCommandGraph()) {
-    Queue->setCommandGraph(shared_from_this());
+  if (!Queue.hasCommandGraph()) {
+    Queue.setCommandGraph(shared_from_this());
     addQueue(Queue);
   }
 }
@@ -1003,7 +1028,7 @@ exec_graph_impl::~exec_graph_impl() {
 }
 
 sycl::event
-exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                          sycl::detail::CG::StorageInitHelper CGData) {
   WriteLock Lock(MMutex);
 
@@ -1012,8 +1037,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       PartitionsExecutionEvents;
 
   auto CreateNewEvent([&]() {
-    auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
-    NewEvent->setContextImpl(Queue->getContextImplPtr());
+    auto NewEvent =
+        std::make_shared<sycl::detail::event_impl>(Queue.shared_from_this());
+    NewEvent->setContextImpl(Queue.getContextImplPtr());
     NewEvent->setStateIncomplete();
     return NewEvent;
   });
@@ -1035,7 +1061,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       CGData.MEvents.push_back(PartitionsExecutionEvents[DepPartition]);
     }
 
-    auto CommandBuffer = CurrentPartition->MCommandBuffers[Queue->get_device()];
+    auto CommandBuffer = CurrentPartition->MCommandBuffers[Queue.get_device()];
 
     if (CommandBuffer) {
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
@@ -1073,10 +1099,10 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
         NewEvent->setSubmissionTime();
         ur_result_t Res =
-            Queue->getAdapter()
+            Queue.getAdapter()
                 ->call_nocheck<
                     sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-                    Queue->getHandleRef(), CommandBuffer, 0, nullptr, &UREvent);
+                    Queue.getHandleRef(), CommandBuffer, 0, nullptr, &UREvent);
         NewEvent->setHandle(UREvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
@@ -1096,7 +1122,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                 CommandBuffer, nullptr, std::move(CGData));
 
         NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-            std::move(CommandGroup), Queue, /*EventNeeded=*/true);
+            std::move(CommandGroup), Queue.shared_from_this(),
+            /*EventNeeded=*/true);
       }
       NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
@@ -1112,10 +1139,11 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // In case of graph, this queue may differ from the actual execution
       // queue. We therefore overload this Queue before submitting the task.
       static_cast<sycl::detail::CGHostTask &>(*NodeImpl->MCommandGroup.get())
-          .MQueue = Queue;
+          .MQueue = Queue.shared_from_this();
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-          NodeImpl->getCGCopy(), Queue, /*EventNeeded=*/true);
+          NodeImpl->getCGCopy(), Queue.shared_from_this(),
+          /*EventNeeded=*/true);
     }
     PartitionsExecutionEvents[CurrentPartition] = NewEvent;
   }
@@ -1844,21 +1872,20 @@ void modifiable_command_graph::begin_recording(
   // related to graph at all.
   checkGraphPropertiesAndThrow(PropList);
 
-  auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
-  assert(QueueImpl);
+  queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(RecordingQueue);
 
-  if (QueueImpl->hasCommandGraph()) {
+  if (QueueImpl.hasCommandGraph()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording cannot be called for a queue which "
                           "is already in the recording state.");
   }
 
-  if (QueueImpl->get_context() != impl->getContext()) {
+  if (QueueImpl.get_context() != impl->getContext()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue whose context "
                           "differs from the graph context.");
   }
-  if (QueueImpl->get_device() != impl->getDevice()) {
+  if (QueueImpl.get_device() != impl->getDevice()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue whose device "
                           "differs from the graph device.");
@@ -1881,15 +1908,13 @@ void modifiable_command_graph::end_recording() {
 }
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {
-  auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
-  if (!QueueImpl)
-    return;
-  if (QueueImpl->getCommandGraph() == impl) {
-    QueueImpl->setCommandGraph(nullptr);
+  queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(RecordingQueue);
+  if (QueueImpl.getCommandGraph() == impl) {
+    QueueImpl.setCommandGraph(nullptr);
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->removeQueue(QueueImpl);
   }
-  if (QueueImpl->hasCommandGraph())
+  if (QueueImpl.hasCommandGraph())
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
