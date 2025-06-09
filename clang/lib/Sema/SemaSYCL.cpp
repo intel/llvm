@@ -608,8 +608,9 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   // time and will be ignored when the check succeeds. We allow calls to this
   // function to support some important std functions in SYCL device.
   IsAllowed = (Callee->getName() == LibstdcxxFailedAssertion) &&
-         Callee->getNumParams() == 0 && Callee->getReturnType()->isVoidType() &&
-         SrcMgr.isInSystemHeader(Callee->getLocation());
+              Callee->getNumParams() == 0 &&
+              Callee->getReturnType()->isVoidType() &&
+              SrcMgr.isInSystemHeader(Callee->getLocation());
 
   if (IsAllowed)
     return true;
@@ -622,8 +623,9 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   // what we did to "__failed_assertion". The prototype is following:
   // void __glibcxx_assert_fail(const char *, int, const char *, const char*);
   IsAllowed = (Callee->getName() == GlibcxxAssertFail) &&
-         Callee->getNumParams() == 4 && Callee->getReturnType()->isVoidType() &&
-         SrcMgr.isInSystemHeader(Callee->getLocation());
+              Callee->getNumParams() == 4 &&
+              Callee->getReturnType()->isVoidType() &&
+              SrcMgr.isInSystemHeader(Callee->getLocation());
 
   return IsAllowed;
 }
