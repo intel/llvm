@@ -73,6 +73,8 @@ static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
 static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
+static constexpr llvm::StringLiteral GlibcxxAssertFail =
+    "__glibcxx_assert_fail";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
 bool SemaSYCL::isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
@@ -599,14 +601,31 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee->getIdentifier())
     return false;
 
+  bool IsAllowed = false;
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
   // is used to trigger some compilation error when the check fails at compile
   // time and will be ignored when the check succeeds. We allow calls to this
   // function to support some important std functions in SYCL device.
-  return (Callee->getName() == LibstdcxxFailedAssertion) &&
+  IsAllowed = (Callee->getName() == LibstdcxxFailedAssertion) &&
          Callee->getNumParams() == 0 && Callee->getReturnType()->isVoidType() &&
          SrcMgr.isInSystemHeader(Callee->getLocation());
+
+  if (IsAllowed)
+    return true;
+
+  // GCC-15 introduced "std::__glibcxx_assert_fail" declared c++config.h and
+  // extensively used in STL to do runtime check in debug mode. The behavior
+  // is similar to "assert", we have supported it in libdevice in the same way
+  // as "assert". However, Sema check will report "undefined function without
+  // SYCL_EXTERNAL attribute" error in some cases. We have to allow it just as
+  // what we did to "__failed_assertion". The prototype is following:
+  // void __glibcxx_assert_fail(const char *, int, const char *, const char*);
+  IsAllowed = (Callee->getName() == GlibcxxAssertFail) &&
+         Callee->getNumParams() == 4 && Callee->getReturnType()->isVoidType() &&
+         SrcMgr.isInSystemHeader(Callee->getLocation());
+
+  return IsAllowed;
 }
 
 // Helper function to report conflicting function attributes.
