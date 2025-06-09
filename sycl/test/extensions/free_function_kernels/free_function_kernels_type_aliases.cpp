@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsyntax-only -fsycl %s
-// This test verifies whether type aliases aree allowed as kernel parameter to
+// This test verifies whether type aliases are allowed as kernel parameter to
 // free function kernel.
 #include <sycl/sycl.hpp>
 
