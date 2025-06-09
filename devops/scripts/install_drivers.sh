@@ -2,6 +2,7 @@
 
 set -e
 set -x
+set -o pipefail
 
 if [ -f "$1" ]; then
     # Read data from the dependencies.json passed as the first argument.
