@@ -36,7 +36,8 @@ ur_event_handle_t event_pool::allocate() {
 
 #ifndef NDEBUG
   // Set the command type to an invalid value to catch any misuses in tests
-  event->resetQueueAndCommand(nullptr, UR_COMMAND_FORCE_UINT32);
+  event->setQueue(nullptr);
+  event->setCommandType(UR_COMMAND_FORCE_UINT32);
 #endif
 
   return event;
