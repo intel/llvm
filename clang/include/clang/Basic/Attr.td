@@ -1611,7 +1611,7 @@ def SYCLDeviceOnly : InheritableAttr {
   let Spellings = [GNU<"sycl_device_only">];
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [Undocumented];
+  let Documentation = [SYCLDeviceOnlyDocs];
 }
 
 def SYCLGlobalVar : InheritableAttr {
