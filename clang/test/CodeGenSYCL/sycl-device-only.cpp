@@ -1,0 +1,34 @@
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECKD
+// RUN: %clang_cc1 -fsycl-is-host -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECKH
+// Test code generation for sycl_device_only attribute.
+
+// Verify that the device overload is used on device.
+//
+// CHECK-LABEL: _Z3fooi
+// CHECKH: %add = add nsw i32 %0, 10
+// CHECKD: %add = add nsw i32 %0, 20
+int foo(int a) { return a + 10; }
+
+#ifdef __SYCL_DEVICE_ONLY__
+__attribute__((sycl_device_only)) int foo(int a) { return a + 20; }
+#endif
+
+__attribute__((sycl_device)) int bar(int b) {
+  return foo(b);
+}
+
+
+// Verify that in extern C the attribute enables mangling.
+extern "C" {
+// CHECK-LABEL: _Z3fooci
+// CHECKH: %add = add nsw i32 %0, 10
+// CHECKD: %add = add nsw i32 %0, 20
+int fooc(int a) { return a + 10; }
+#ifdef __SYCL_DEVICE_ONLY__
+__attribute__((sycl_device_only)) int fooc(int a) { return a + 20; }
+#endif
+
+__attribute__((sycl_device)) int barc(int b) {
+  return fooc(b);
+}
+}
