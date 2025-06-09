@@ -85,7 +85,9 @@ get_kernel_info(const context &ctxt, const device &dev) {
 }
 
 template <auto *Func, typename Param>
-typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type
+std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
+                 typename sycl::detail::is_kernel_device_specific_info_desc<
+                     Param>::return_type>
 get_kernel_info(const queue &q) {
 
   const sycl::device &dev = q.get_device();
