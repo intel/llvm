@@ -369,7 +369,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
   // TODO: the wait here should be async
   return withTimingEvent(UR_COMMAND_EVENTS_WAIT, hQueue, numEventsInWaitList,
                          phEventWaitList, phEvent,
-                         [&]() { return UR_RESULT_SUCCESS; });
+                         []() { return UR_RESULT_SUCCESS; });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
@@ -377,7 +377,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   return withTimingEvent(UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue,
                          numEventsInWaitList, phEventWaitList, phEvent,
-                         [&]() { return UR_RESULT_SUCCESS; });
+                         []() { return UR_RESULT_SUCCESS; });
 }
 
 UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
@@ -556,12 +556,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   return withTimingEvent(
       UR_COMMAND_MEM_BUFFER_FILL, hQueue, numEventsInWaitList, phEventWaitList,
-      phEvent, [&]() {
-        UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
+      phEvent, [hBuffer, offset, size, patternSize, pPattern]() {
         // TODO: error checking
         // TODO: handle async
         void *startingPtr = hBuffer->_mem + offset;
@@ -615,7 +613,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ur_event_handle_t *phEvent, void **ppRetMap) {
 
   return withTimingEvent(UR_COMMAND_MEM_BUFFER_MAP, hQueue, numEventsInWaitList,
-                         phEventWaitList, phEvent, [&]() {
+                         phEventWaitList, phEvent,
+                         [ppRetMap, hBuffer, offset]() {
                            *ppRetMap = hBuffer->_mem + offset;
                            return UR_RESULT_SUCCESS;
                          });
@@ -627,7 +626,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_event_handle_t *phEvent) {
   return withTimingEvent(UR_COMMAND_MEM_UNMAP, hQueue, numEventsInWaitList,
                          phEventWaitList, phEvent,
-                         [&]() { return UR_RESULT_SUCCESS; });
+                         []() { return UR_RESULT_SUCCESS; });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
@@ -636,7 +635,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   return withTimingEvent(
       UR_COMMAND_USM_FILL, hQueue, numEventsInWaitList, phEventWaitList,
-      phEvent, [&]() {
+      phEvent, [ptr, pPattern, patternSize, size]() {
         UR_ASSERT(ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
         UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
         UR_ASSERT(patternSize != 0, UR_RESULT_ERROR_INVALID_SIZE)
