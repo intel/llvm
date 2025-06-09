@@ -466,6 +466,7 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
             f"--src={self.destination}",
             f"--dst={self.destination}",
             f"--size={self.size}",
+            "--withCopyOffload=0",
         ]
 
 
@@ -501,6 +502,7 @@ class QueueInOrderMemcpy(ComputeBenchmark):
             f"--destinationPlacement={self.destination}",
             f"--size={self.size}",
             "--count=100",
+            "--withCopyOffload=0",
         ]
 
 
