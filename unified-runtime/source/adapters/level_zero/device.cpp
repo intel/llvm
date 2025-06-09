@@ -1604,7 +1604,6 @@ ur_result_t urDeviceGetGlobalTimestamps(
     }
     *HostTimestamp = static_cast<uint64_t>(
         (static_cast<double>(Counter) * 1'000'000'000 / Frequency.QuadPart));
-    std::cout << "L0 adapter host timestamp: " << *HostTimestamp << std::endl;
     return UR_RESULT_SUCCESS;
 #endif
   }
