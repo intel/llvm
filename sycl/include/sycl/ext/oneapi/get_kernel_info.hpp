@@ -12,9 +12,9 @@
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/kernel_bundle.hpp>
 
 #include <vector>
 
@@ -61,7 +61,10 @@ get_kernel_info(const queue &Q) {
 
 // For free functions.
 
-namespace sycl::ext::oneapi::experimental {
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
 
 template <auto *Func, typename Param>
 std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
@@ -97,4 +100,7 @@ get_kernel_info(const queue &q) {
   auto kid = sycl::ext::oneapi::experimental::get_kernel_id<Func>();
   return Bundle.get_kernel(kid).template get_info<Param>(dev);
 }
-} // namespace sycl::ext::oneapi::experimental
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
