@@ -100,7 +100,6 @@ enum InternalDecoration {
 };
 
 enum InternalCapability {
-  ICapFastCompositeINTEL = 6093,
   ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112,
   ICapabilityJointMatrixINTEL = 6118,
@@ -124,7 +123,6 @@ enum InternalCapability {
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
-  IExecModeFastCompositeKernelINTEL = 6088,
   IExecModeNamedSubgroupSizeINTEL = 6446,
 };
 
@@ -253,8 +251,6 @@ constexpr SourceLanguage SourceLanguageCPP20 =
 constexpr Op OpForward = static_cast<Op>(IOpForward);
 constexpr Op OpTypeTokenINTEL = static_cast<Op>(IOpTypeTokenINTEL);
 
-constexpr Decoration DecorationCallableFunctionINTEL =
-    static_cast<Decoration>(IDecCallableFunctionINTEL);
 constexpr Decoration DecorationRuntimeAlignedINTEL =
     static_cast<Decoration>(IDecRuntimeAlignedINTEL);
 constexpr Decoration DecorationHostAccessINTEL =
@@ -266,8 +262,6 @@ constexpr Decoration DecorationImplementInCSRINTEL =
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
 
-constexpr Capability CapabilityFastCompositeINTEL =
-    static_cast<Capability>(ICapFastCompositeINTEL);
 constexpr Capability CapabilityOptNoneINTEL =
     static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityTokenTypeINTEL =
@@ -277,9 +271,6 @@ constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
 
 constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
     static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
-
-constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
-    static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
 
 constexpr ExecutionMode ExecutionModeNamedSubgroupSizeINTEL =
     static_cast<ExecutionMode>(IExecModeNamedSubgroupSizeINTEL);
