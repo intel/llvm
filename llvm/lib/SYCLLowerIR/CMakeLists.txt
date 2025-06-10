@@ -63,6 +63,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/LowerESIMDSlmReservation.cpp
   HostPipes.cpp
   LowerInvokeSimd.cpp
+  LowerSPIRVAddressSpaceCasts.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
   MutatePrintfAddrspace.cpp
