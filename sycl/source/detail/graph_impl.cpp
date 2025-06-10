@@ -297,7 +297,7 @@ void exec_graph_impl::makePartitions() {
   }
 
   // Add an empty partition if there is no partition, i.e. empty graph
-  if (MPartitions.size() == 0) {
+  if (MPartitions.empty()) {
     MPartitions.push_back(std::make_shared<partition>());
     MRootPartitions.push_back(MPartitions[0]);
   }
@@ -1105,13 +1105,6 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     std::vector<detail::EventImplPtr> &WaitEvents, bool EventNeeded) {
 
-  auto CheckURResult = [](ur_result_t UrResult) {
-    if (UrResult != UR_RESULT_SUCCESS) {
-      throw sycl::exception(
-          errc::event, "Failed to enqueue event for command buffer submission");
-    }
-  };
-
   // Create a list containing all the UR event handles in WaitEvents. WaitEvents
   // is assumed to be safe for scheduler bypass and any host-task events that it
   // contains can be ignored.
@@ -1130,12 +1123,10 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
       UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
 
   if (!EventNeeded) {
-    ur_result_t UrResult =
-        Queue->getAdapter()
-            ->call_nocheck<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-                Queue->getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
-                UrEnqueueWaitList, nullptr);
-    CheckURResult(UrResult);
+    Queue->getAdapter()
+        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+            Queue->getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
+            UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
@@ -1143,12 +1134,10 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
-    ur_result_t UrResult =
-        Queue->getAdapter()
-            ->call_nocheck<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-                Queue->getHandleRef(), CommandBuffer, UrEventHandles.size(),
-                UrEnqueueWaitList, &UrEvent);
-    CheckURResult(UrResult);
+    Queue->getAdapter()
+        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+            Queue->getHandleRef(), CommandBuffer, UrEventHandles.size(),
+            UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
     NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     return NewEvent;

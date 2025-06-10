@@ -47,11 +47,12 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
+  const size_t MemsetValue = 12;
   sycl::event Event =
       exp_ext::submit_with_event(OtherQueue, [&](sycl::handler &CGH) {
         exp_ext::single_task(CGH, [=]() {
           for (size_t I = 0; I < Size; ++I)
-            PtrC[I] = 42;
+            PtrC[I] = MemsetValue;
         });
       });
 
@@ -67,7 +68,7 @@ int main() {
   free(PtrC, InOrderQueue);
 
   for (size_t i = 0; i < Size; i++) {
-    T Ref = Pattern * i + 42;
+    T Ref = Pattern * i + MemsetValue;
     assert(check_value(i, Ref, Output[i], "Output"));
   }
 
