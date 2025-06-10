@@ -13,13 +13,12 @@
 // RUN: %clangxx %{dynamic_lib_options} %S/Inputs/b.cpp %if windows %{%T/libdevice_c.lib%} -o %T/libdevice_b.%{dynamic_lib_suffix}
 // RUN: %clangxx %{dynamic_lib_options} %S/Inputs/a.cpp %if windows %{%T/libdevice_b.lib%} -o %T/libdevice_a.%{dynamic_lib_suffix}
 
+// Compressed main executable, while dependencies are not compressed.
+
 // RUN: %clangxx -fsycl --offload-compress %{sycl_target_opts} -fsycl-allow-device-image-dependencies -fsycl-device-code-split=per_kernel %S/Inputs/basic.cpp -o %t.out            \
 // RUN: %if windows                                                                       \
 // RUN:   %{%T/libdevice_a.lib%}                                                          \
 // RUN: %else                                                                             \
 // RUN:   %{-L%T -ldevice_a -ldevice_b -ldevice_c -ldevice_d -Wl,-rpath=%T%}
 
-// RUN: not %{run} %t.out &> FileCheck %s
-
-// CHECK: terminate called after throwing an instance of 'sycl::_V1::exception'
-// CHECK:   what():  No device image found for external symbol _Z6levelAi
+// RUN: %{run} %t.out &> FileCheck %s
