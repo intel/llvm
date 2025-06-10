@@ -119,7 +119,13 @@ std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
 
 static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                ur_loader_config_handle_t LoaderConfig) {
-#define CHECK_UR_SUCCESS(Call) __SYCL_CHECK_UR_CODE_NO_EXC(Call)
+#define CHECK_UR_SUCCESS(Call)                                                 \
+  {                                                                            \
+    if (ur_result_t error = Call) {                                            \
+      std::cerr << "UR adapter initialization failed: "                        \
+                << sycl::detail::codeToString(error) << std::endl;             \
+    }                                                                          \
+  }
 
   UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
   auto loaderConfigCreate =

@@ -41,7 +41,7 @@ device_impl::~device_impl() {
     const AdapterPtr &Adapter = getAdapter();
     ur_result_t Err =
         Adapter->call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
-    __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+    __SYCL_CHECK_UR_CODE_NO_EXC(Err, Adapter->getBackend());
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
