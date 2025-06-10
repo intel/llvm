@@ -30,9 +30,7 @@ template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
 void performReverse(T *DataPtr, size_t N) {
   for (size_t I = 0, J = N - 1; I < J; ++I, --J) {
-    T Temp = DataPtr[I];
-    DataPtr[I] = DataPtr[J];
-    DataPtr[J] = Temp;
+    std::swap(DataPtr[I], DataPtr[J]);
   }
 }
 
@@ -48,50 +46,6 @@ template <typename T, int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
 void ndRangekernel(T *DataPtr, size_t N, T ExpectedResult) {
   setValues<T, Dims>(DataPtr, N, ExpectedResult);
-}
-
-template <auto Func, size_t Dims>
-int runNdRangeKernel(sycl::queue &Queue, sycl::context &Context,
-                     sycl::nd_range<Dims> NdRange,
-                     const int ExpectedResultValue, std::string_view TestName) {
-  sycl::kernel UsedKernel = getKernel<Func>(Context);
-  const int NumberOfElements = NdRange.get_global_range().size();
-  int *DataPtr = sycl::malloc_shared<int>(NumberOfElements, Queue);
-  std::fill(DataPtr, DataPtr + NumberOfElements, 0);
-  Queue
-      .submit([&](sycl::handler &Handler) {
-        Handler.set_args(DataPtr, NumberOfElements, ExpectedResultValue);
-        Handler.parallel_for(NdRange, UsedKernel);
-      })
-      .wait();
-
-  int Failed = performResultCheck(NumberOfElements, DataPtr, TestName,
-                                  ExpectedResultValue);
-  sycl::free(DataPtr, Queue);
-  return Failed;
-}
-
-template <auto Func, typename T, size_t NumOfElements>
-int runSingleTaskKernel(sycl::queue &Queue, sycl::context &Context,
-                        std::string_view TestName) {
-  sycl::kernel UsedKernel = getKernel<Func>(Context);
-  std::array<T, NumOfElements> ExpectedResultValues;
-  std::iota(ExpectedResultValues.begin(), ExpectedResultValues.end(), 0);
-  std::reverse(ExpectedResultValues.begin(), ExpectedResultValues.end());
-
-  T *DataPtr = sycl::malloc_shared<T>(NumOfElements, Queue);
-  std::iota(DataPtr, DataPtr + NumOfElements, 0);
-
-  Queue
-      .submit([&](sycl::handler &Handler) {
-        Handler.set_args(DataPtr, NumOfElements);
-        Handler.single_task(UsedKernel);
-      })
-      .wait();
-  int Failed = performResultCheck<NumOfElements>(DataPtr, TestName,
-                                                 ExpectedResultValues);
-  sycl::free(DataPtr, Queue);
-  return Failed;
 }
 
 int main() {
@@ -120,24 +74,54 @@ int main() {
         "performReverse() free function kernel used as normal host function",
         ExpectedResultValues);
   }
+
   sycl::queue Queue;
   sycl::context Context = Queue.get_context();
 
   {
-    Failed += runSingleTaskKernel<ns::singleTaskKernel<int>, int, N>(
-        Queue, Context,
+    sycl::kernel UsedKernel = getKernel<ns::singleTaskKernel<int>>(Context);
+    std::array<int, N> ExpectedResultValues;
+    std::iota(ExpectedResultValues.begin(), ExpectedResultValues.end(), 0);
+    std::reverse(ExpectedResultValues.begin(), ExpectedResultValues.end());
+
+    int *DataPtr = sycl::malloc_shared<int>(N, Queue);
+    std::iota(DataPtr, DataPtr + N, 0);
+
+    Queue
+        .submit([&](sycl::handler &Handler) {
+          Handler.set_args(DataPtr, N);
+          Handler.single_task(UsedKernel);
+        })
+        .wait();
+    Failed += performResultCheck<N>(
+        DataPtr,
         "performReverse() free function kernel used as device function within "
-        "another kernel");
+        "another kernel",
+        ExpectedResultValues);
+    sycl::free(DataPtr, Queue);
   }
 
   {
     constexpr int ExpectedResultValue = 222;
-    Failed += runNdRangeKernel<ndRangekernel<int, 3>, 3>(
-        Queue, Context,
-        sycl::nd_range{sycl::range{16, 4, 4}, sycl::range{2, 2, 2}},
-        ExpectedResultValue,
-        "setValues() free function kernel used as device function within "
-        "another kernel");
+
+    sycl::kernel UsedKernel = getKernel<ndRangekernel<int, 3>>(Context);
+
+    sycl::nd_range NdRange{sycl::range{16, 4, 4}, sycl::range{2, 2, 2}};
+    size_t NumberOfElements = NdRange.get_global_range().size();
+    int *DataPtr = sycl::malloc_shared<int>(NumberOfElements, Queue);
+    std::fill(DataPtr, DataPtr + NumberOfElements, 0);
+    Queue
+        .submit([&](sycl::handler &Handler) {
+          Handler.set_args(DataPtr, NumberOfElements, ExpectedResultValue);
+          Handler.parallel_for(NdRange, UsedKernel);
+        })
+        .wait();
+
+    Failed += performResultCheck(NumberOfElements, DataPtr,
+                                 "setValues() free function kernel used as "
+                                 "device function within another kernel",
+                                 ExpectedResultValue);
+    sycl::free(DataPtr, Queue);
   }
   return Failed;
 }
