@@ -1300,7 +1300,7 @@ private:
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
+      KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper), KernelType,
                     TransformedArgType, PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(
@@ -1325,8 +1325,8 @@ private:
 #ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
       // If parallel_for range rounding is forced then only range rounded
       // kernel is generated
-      KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
-                    PropertiesT>::wrap(this, KernelFunc);
+      KernelWrapper<WrapAs::parallel_for, NameT, KernelType, KernelType,
+                    TransformedArgType, PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr std::string_view Name{detail::getKernelName<NameT>()};
 
@@ -1540,15 +1540,17 @@ private:
 
   template <
       WrapAs WrapAsVal, typename KernelName, typename KernelType,
-      typename ElementType,
+      typename KernelTypeForProps, typename ElementType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
       typename MergedPropertiesT = typename detail::GetMergedKernelProperties<
-          KernelType, PropertiesT>::type>
+          KernelTypeForProps, PropertiesT>::type>
   struct KernelWrapper;
   template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
-            typename ElementType, typename PropertiesT, typename... MergedProps>
+            typename KernelTypeForProps, typename ElementType,
+            typename PropertiesT, typename... MergedProps>
   struct KernelWrapper<
-      WrapAsVal, KernelName, KernelType, ElementType, PropertiesT,
+      WrapAsVal, KernelName, KernelType, KernelTypeForProps, ElementType,
+      PropertiesT,
       ext::oneapi::experimental::detail::properties_t<MergedProps...>> {
     static void wrap(handler *h, const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1614,8 +1616,8 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
-    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
-        this, KernelFunc);
+    KernelWrapper<WrapAsVal, NameT, KernelType, KernelType, ElementType,
+                  PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1655,8 +1657,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     (void)Kernel;
-    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
-        this, KernelFunc);
+    KernelWrapper<WrapAsVal, NameT, KernelType, KernelType, ElementType,
+                  PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
