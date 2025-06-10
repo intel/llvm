@@ -170,8 +170,9 @@ static ur_result_t redefinedKernelGetGroupInfoAfter(void *pParams) {
 }
 
 #ifndef _WIN32
-static ur_result_t redefinedEnqueueKernelLaunchAfter(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+static ur_result_t redefinedEnqueueKernelLaunchWithArgsExpAfter(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   static ur_event_handle_t UserKernelEvent = **params.pphEvent;
   int Val = KernelLaunchCounter++;
   // This output here is to reduce amount of time requried to debug/reproduce a
@@ -232,8 +233,9 @@ static void setupMock(sycl::unittest::UrMock<> &Mock) {
   using namespace sycl::detail;
   mock::getCallbacks().set_after_callback("urKernelGetGroupInfo",
                                           &redefinedKernelGetGroupInfoAfter);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &redefinedEnqueueKernelLaunchAfter);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExpAfter);
   mock::getCallbacks().set_after_callback("urEnqueueMemBufferMap",
                                           &redefinedEnqueueMemBufferMapAfter);
   mock::getCallbacks().set_before_callback("urEventWait",
@@ -290,7 +292,7 @@ static ur_result_t redefinedKernelGetInfo(void *pParams) {
   return UR_RESULT_ERROR_UNKNOWN;
 }
 
-static ur_result_t redefinedEnqueueKernelLaunch(void *pParms) {
+static ur_result_t redefinedEnqueueKernelLaunchWithArgsExp(void *pParms) {
   int Val = KernelLaunchCounter++;
   // This output here is to reduce amount of time requried to debug/reproduce a
   // failing test upon feature break
@@ -374,8 +376,8 @@ static void setupMockForInterop(sycl::unittest::UrMock<> &Mock,
   mock::getCallbacks().set_after_callback("urKernelGetGroupInfo",
                                           &redefinedKernelGetGroupInfoAfter);
   mock::getCallbacks().set_before_callback(
-      "urEnqueueKernelLaunch",
-      &TestInteropKernel::redefinedEnqueueKernelLaunch);
+      "urEnqueueKernelLaunchWithArgsExp",
+      &TestInteropKernel::redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urEnqueueMemBufferMap",
                                           &redefinedEnqueueMemBufferMapAfter);
   mock::getCallbacks().set_before_callback("urEventWait",

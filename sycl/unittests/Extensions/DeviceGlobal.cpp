@@ -191,8 +191,9 @@ ur_result_t after_urEventGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t after_urEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+ur_result_t after_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   ++KernelCallCounter;
   EXPECT_TRUE(DeviceGlobalInitEvent.has_value())
       << "DeviceGlobalInitEvent has not been set. Kernel call "
@@ -275,7 +276,7 @@ TEST_F(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
   REDEFINE_AFTER(urEnqueueUSMMemcpy);
   REDEFINE_AFTER_TEMPLATED(urEnqueueDeviceGlobalVariableWrite, true);
   REDEFINE_AFTER(urEventGetInfo);
-  REDEFINE_AFTER(urEnqueueKernelLaunch);
+  REDEFINE_AFTER(urEnqueueKernelLaunchWithArgsExp);
 
   // Kernel call 1.
   // First launch should create both init events.
