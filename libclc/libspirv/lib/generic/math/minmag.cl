@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
 #include <clc/utils.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_BODY <minmag.inc>
 #include <clc/math/gentype.inc>

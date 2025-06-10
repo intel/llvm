@@ -117,9 +117,11 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_DEVICE_IMAGE_BACKEND_CONTENT 1
 #define SYCL_EXT_ONEAPI_CURRENT_DEVICE 1
 #define SYCL_KHR_FREE_FUNCTION_COMMANDS 1
+#define SYCL_KHR_QUEUE_EMPTY_QUERY 1
 // In progress yet
 #define SYCL_EXT_ONEAPI_ATOMIC16 0
 #define SYCL_KHR_DEFAULT_CONTEXT 1
+#define SYCL_EXT_INTEL_EVENT_MODE 1
 
 #ifndef __has_include
 #define __has_include(x) 0

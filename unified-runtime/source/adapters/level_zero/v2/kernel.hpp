@@ -83,12 +83,13 @@ public:
 
   // Set all required values for the kernel before submission (including pending
   // memory allocations).
-  ur_result_t
-  prepareForSubmission(ur_context_handle_t hContext, ur_device_handle_t hDevice,
-                       const size_t *pGlobalWorkOffset, uint32_t workDim,
-                       uint32_t groupSizeX, uint32_t groupSizeY,
-                       uint32_t groupSizeZ,
-                       std::function<void(void *, void *, size_t)> migrate);
+  ur_result_t prepareForSubmission(ur_context_handle_t hContext,
+                                   ur_device_handle_t hDevice,
+                                   const size_t *pGlobalWorkOffset,
+                                   uint32_t workDim, uint32_t groupSizeX,
+                                   uint32_t groupSizeY, uint32_t groupSizeZ,
+                                   ze_command_list_handle_t cmdList,
+                                   wait_list_view &waitListView);
 
 private:
   // Keep the program of the kernel.

@@ -191,20 +191,23 @@ event_impl::event_impl(const QueueImplPtr &Queue)
   MState.store(HES_Complete);
 }
 
-void event_impl::setQueue(const QueueImplPtr &Queue) {
-  MQueue = Queue;
-  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
+void event_impl::setQueue(queue_impl &Queue) {
+  MQueue = Queue.shared_from_this();
+  MIsProfilingEnabled = Queue.MIsProfilingEnabled;
+
   // TODO After setting the queue, the event is no longer default
   // constructed. Consider a design change which would allow
   // for such a change regardless of the construction method.
   MIsDefaultConstructed = false;
 }
 
-void event_impl::setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
+void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
   MSubmittedQueue = SubmittedQueue;
-  if (MHostProfilingInfo && SubmittedQueue) {
-    device_impl &Device = SubmittedQueue->getDeviceImpl();
-    MHostProfilingInfo->setDevice(&Device);
+  if (MHostProfilingInfo) {
+    if (auto QueuePtr = SubmittedQueue.lock()) {
+      device_impl &Device = QueuePtr->getDeviceImpl();
+      MHostProfilingInfo->setDevice(&Device);
+    }
   }
 }
 

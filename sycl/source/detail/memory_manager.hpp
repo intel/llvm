@@ -107,17 +107,17 @@ public:
 
   // Copies memory between: host and device, host and host,
   // device and device if memory objects bound to the one context.
-  static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
+  static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, queue_impl *SrcQueue,
                    unsigned int DimSrc, sycl::range<3> SrcSize,
                    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-                   unsigned int SrcElemSize, void *DstMem,
-                   QueueImplPtr TgtQueue, unsigned int DimDst,
-                   sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
-                   sycl::id<3> DstOffset, unsigned int DstElemSize,
+                   unsigned int SrcElemSize, void *DstMem, queue_impl *TgtQueue,
+                   unsigned int DimDst, sycl::range<3> DstSize,
+                   sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                   unsigned int DstElemSize,
                    std::vector<ur_event_handle_t> DepEvents,
                    ur_event_handle_t &OutEvent);
 
-  static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+  static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, queue_impl &Queue,
                    size_t PatternSize, const unsigned char *Pattern,
                    unsigned int Dim, sycl::range<3> Size,
                    sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
@@ -125,62 +125,65 @@ public:
                    std::vector<ur_event_handle_t> DepEvents,
                    ur_event_handle_t &OutEvent);
 
-  static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+  static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, queue_impl &Queue,
                    access::mode AccessMode, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<ur_event_handle_t> DepEvents,
                    ur_event_handle_t &OutEvent);
 
-  static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+  static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, queue_impl &Queue,
                     void *MappedPtr, std::vector<ur_event_handle_t> DepEvents,
                     ur_event_handle_t &OutEvent);
 
-  static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
+  static void copy_usm(const void *SrcMem, queue_impl &Queue, size_t Len,
                        void *DstMem, std::vector<ur_event_handle_t> DepEvents,
                        ur_event_handle_t *OutEvent);
 
-  static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
+  static void context_copy_usm(const void *SrcMem, ContextImplPtr Context,
+                               size_t Len, void *DstMem);
+
+  static void fill_usm(void *DstMem, queue_impl &Queue, size_t Len,
                        const std::vector<unsigned char> &Pattern,
                        std::vector<ur_event_handle_t> DepEvents,
                        ur_event_handle_t *OutEvent);
 
-  static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
+  static void prefetch_usm(void *Ptr, queue_impl &Queue, size_t Len,
                            std::vector<ur_event_handle_t> DepEvents,
                            ur_event_handle_t *OutEvent);
 
-  static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
+  static void advise_usm(const void *Ptr, queue_impl &Queue, size_t Len,
                          ur_usm_advice_flags_t Advice,
                          std::vector<ur_event_handle_t> DepEvents,
                          ur_event_handle_t *OutEvent);
 
   static void copy_2d_usm(const void *SrcMem, size_t SrcPitch,
-                          QueueImplPtr Queue, void *DstMem, size_t DstPitch,
+                          queue_impl &Queue, void *DstMem, size_t DstPitch,
                           size_t Width, size_t Height,
                           std::vector<ur_event_handle_t> DepEvents,
                           ur_event_handle_t *OutEvent);
 
-  static void fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
+  static void fill_2d_usm(void *DstMem, queue_impl &Queue, size_t Pitch,
                           size_t Width, size_t Height,
                           const std::vector<unsigned char> &Pattern,
                           std::vector<ur_event_handle_t> DepEvents,
                           ur_event_handle_t *OutEvent);
 
-  static void memset_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
+  static void memset_2d_usm(void *DstMem, queue_impl &Queue, size_t Pitch,
                             size_t Width, size_t Height, char Value,
                             std::vector<ur_event_handle_t> DepEvents,
                             ur_event_handle_t *OutEvent);
 
   static void
   copy_to_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
-                        QueueImplPtr Queue, size_t NumBytes, size_t Offset,
+                        queue_impl &Queue, size_t NumBytes, size_t Offset,
                         const void *SrcMem,
                         const std::vector<ur_event_handle_t> &DepEvents,
                         ur_event_handle_t *OutEvent);
 
   static void
   copy_from_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
-                          QueueImplPtr Queue, size_t NumBytes, size_t Offset,
+                          queue_impl &Queue, size_t NumBytes, size_t Offset,
                           void *DstMem,
                           const std::vector<ur_event_handle_t> &DepEvents,
                           ur_event_handle_t *OutEvent);
@@ -254,7 +257,7 @@ public:
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void copy_image_bindless(
-      QueueImplPtr Queue, const void *Src, void *Dst,
+      queue_impl &Queue, const void *Src, void *Dst,
       const ur_image_desc_t &SrcDesc, const ur_image_desc_t &DstDesc,
       const ur_image_format_t &SrcFormat, const ur_image_format_t &DstFormat,
       const ur_exp_image_copy_flags_t Flags, ur_rect_offset_t SrcOffset,

@@ -9,4 +9,4 @@
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <distance.inc>
-#include <clc/geometric/floatn.inc>
+#include <libspirv/generic/math/floatn.inc>

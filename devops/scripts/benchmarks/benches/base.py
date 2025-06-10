@@ -51,6 +51,11 @@ class Benchmark(ABC):
         """
         return self.name()
 
+    def explicit_group(self) -> str:
+        """Returns the explicit group name for this benchmark, if any.
+        Can be modified."""
+        return ""
+
     @abstractmethod
     def setup(self):
         pass
@@ -164,6 +169,7 @@ class Benchmark(ABC):
                 range_min=range[0] if range else None,
                 range_max=range[1] if range else None,
                 display_name=self.display_name(),
+                explicit_group=self.explicit_group(),
             )
         }
 

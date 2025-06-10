@@ -12,6 +12,62 @@ type: header
 desc: "Intel $OneApi Unified Runtime APIs"
 ordinal: "10"
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Specifies a launch property id"
+name: $x_kernel_launch_property_id_t
+analogue:
+    - "**CUlaunchAttributeID**"
+etors:
+    - name: IGNORE
+      desc: "The property has no effect."
+    - name: COOPERATIVE
+      desc: "Whether to launch a cooperative kernel."
+    - name: CLUSTER_DIMENSION
+      desc: "work-group cluster dimensions."
+    - name: WORK_GROUP_MEMORY
+      desc: "Implicit work group memory allocation."
+    - name: OPPORTUNISTIC_QUEUE_SERIALIZE
+      desc: "Whether to opportunistically execute kernel launches serially on a native queue"
+--- #--------------------------------------------------------------------------
+type: union
+desc: "Specifies a launch property value"
+name: $x_kernel_launch_property_value_t
+tag: $x_kernel_launch_property_id_t
+analogue:
+    - "**CUlaunchAttributeValue**"
+members:
+    - type: uint32_t[3]
+      name: clusterDim
+      desc: "[in] dimensions of the cluster (units of work-group) (x, y, z). Each value must be a divisor of the corresponding global work-size dimension (in units of work-group)."
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION
+    - type: int
+      name: cooperative
+      desc: "[in] non-zero value indicates a cooperative kernel"
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE
+    - type: size_t
+      name: workgroup_mem_size
+      desc: "[in] non-zero value indicates the amount of work group memory to allocate in bytes"
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY
+    - type: int
+      name: opportunistic_queue_serialize
+      desc: "[in] non-zero value indicates an opportunistic native queue serialized kernel"
+      tag: $X_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Kernel launch property"
+name: $x_kernel_launch_property_t
+analogue:
+    - "**cuLaunchAttribute**"
+members:
+    - type: $x_kernel_launch_property_id_t
+      name: id
+      desc: "[in] launch property id"
+      init: $X_KERNEL_LAUNCH_PROPERTY_ID_IGNORE
+    - type: $x_kernel_launch_property_value_t
+      name: value
+      desc: "[in][tagged_by(id)] launch property value"
+      init: nullptr
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to execute a kernel"
 class: $xEnqueue
@@ -33,7 +89,7 @@ params:
       desc: "[in] number of dimensions, from 1 to 3, to specify the global and work-group work-items"
     - type: "const size_t*"
       name: pGlobalWorkOffset
-      desc: "[in] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
+      desc: "[in][optional] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
     - type: "const size_t*"
       name: pGlobalWorkSize
       desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
@@ -42,6 +98,12 @@ params:
       desc: |
             [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
             If nullptr, the runtime implementation will choose the work-group size.
+    - type: uint32_t
+      name: numPropsInLaunchPropList
+      desc: "[in] size of the launch prop list"
+    - type: const $x_kernel_launch_property_t*
+      name: launchPropList
+      desc: "[in][optional][range(0, numPropsInLaunchPropList)] pointer to a list of launch properties"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -69,6 +131,10 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any property in `launchPropList` isn't supported by the device."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`launchPropList == NULL && numPropsInLaunchPropList > 0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command which waits a list of events to complete before it completes"
