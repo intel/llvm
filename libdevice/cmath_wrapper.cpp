@@ -208,7 +208,7 @@ DEVICE_EXTERN_C_INLINE
 float rintf(float x) { return __ocml_rint_f32(x); }
 #else
 DEVICE_EXTERN_C_INLINE
-float rintf(float x) { return __devicelib_rintf(x); }
+float rintf(float x) { return __spirv_ocl_rint(x); }
 #endif
 
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

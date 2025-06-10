@@ -198,7 +198,7 @@ DEVICE_EXTERN_C_INLINE
 double rint(double x) { return __ocml_rint_f64(x); }
 #else
 DEVICE_EXTERN_C_INLINE
-double rint(double x) { return __devicelib_rint(x); }
+double rint(double x) { return __spirv_ocl_rint(x); }
 #endif
 
 #if defined(_MSC_VER)
