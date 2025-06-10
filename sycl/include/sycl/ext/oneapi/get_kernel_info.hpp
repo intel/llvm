@@ -11,10 +11,10 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
-#include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/queue.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
+#include <sycl/queue.hpp>
 #include <vector>
 
 namespace sycl {
