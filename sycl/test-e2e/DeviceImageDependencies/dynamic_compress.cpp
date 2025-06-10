@@ -3,6 +3,7 @@
 // Modeled after regression seen in CMPLRLLVM-67948.
 
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: Linking using dynamic libraries is not supported on AMD and Nvidia.
 // REQUIRES: zstd
 
 // DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}
