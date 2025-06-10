@@ -94,7 +94,9 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
       return llvm::CallingConv::AMDGPU_KERNEL;
     if (CGM.getTriple().isNVPTX())
       return llvm::CallingConv::PTX_Kernel;
-    if (CGM.getLangOpts().isSYCL())
+    if (CGM.getLangOpts().SYCLIsNativeCPU)
+      return CGM.getTarget().getDefaultCallingConv();
+    if (CGM.getLangOpts().SYCLIsDevice)
       return CGM.getTarget().getDefaultCallingConv();
     llvm_unreachable("Unknown kernel calling convention");
   }
