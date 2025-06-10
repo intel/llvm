@@ -11,6 +11,7 @@
 
 /* 6.1.1 Built-in Scalar Data Types */
 
+typedef signed char schar;
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
@@ -38,6 +39,12 @@ typedef __attribute__((ext_vector_type(3))) char char3;
 typedef __attribute__((ext_vector_type(4))) char char4;
 typedef __attribute__((ext_vector_type(8))) char char8;
 typedef __attribute__((ext_vector_type(16))) char char16;
+
+typedef __attribute__((ext_vector_type(2))) schar schar2;
+typedef __attribute__((ext_vector_type(3))) schar schar3;
+typedef __attribute__((ext_vector_type(4))) schar schar4;
+typedef __attribute__((ext_vector_type(8))) schar schar8;
+typedef __attribute__((ext_vector_type(16))) schar schar16;
 
 typedef __attribute__((ext_vector_type(2))) uchar uchar2;
 typedef __attribute__((ext_vector_type(3))) uchar uchar3;

@@ -507,7 +507,7 @@ ur_result_t urUSMPoolCreate(
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
 
-    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
+    std::scoped_lock<ur_shared_mutex> ContextLock(Context->Mutex);
     Context->UsmPoolHandles.insert(Context->UsmPoolHandles.cend(), *Pool);
 
   } catch (const UsmAllocationException &Ex) {
@@ -531,7 +531,7 @@ ur_result_t
 /// [in] pointer to USM memory pool
 urUSMPoolRelease(ur_usm_pool_handle_t Pool) {
   if (Pool->RefCount.decrementAndTest()) {
-    std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
+    std::scoped_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
     Pool->Context->UsmPoolHandles.remove(Pool);
     delete Pool;
   }
@@ -610,7 +610,7 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, Device, PoolDesc));
 
-    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
+    std::scoped_lock<ur_shared_mutex> ContextLock(Context->Mutex);
     Context->UsmPoolHandles.insert(Context->UsmPoolHandles.cend(), *Pool);
 
   } catch (const UsmAllocationException &Ex) {
@@ -627,7 +627,7 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(
 ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t /*Context*/,
                                            ur_device_handle_t /*Device*/,
                                            ur_usm_pool_handle_t Pool) {
-  std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
+  std::scoped_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
   Pool->Context->UsmPoolHandles.remove(Pool);
   delete Pool;
 

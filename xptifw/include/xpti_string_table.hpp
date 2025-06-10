@@ -61,7 +61,7 @@ public:
   // in the string table is returned through the default argument
   xpti::string_id_t add(const char *str, const char **ref_str = nullptr) {
     if (!str)
-      return xpti::invalid_id;
+      return xpti::invalid_id<xpti::string_id_t>;
 
     std::string LocalStr = str;
     return add(LocalStr, ref_str);
@@ -69,7 +69,7 @@ public:
 
   xpti::string_id_t add(std::string str, const char **ref_str = nullptr) {
     if (str.empty())
-      return xpti::invalid_id;
+      return xpti::invalid_id<xpti::string_id_t>;
 
     //  Lock-free lookup to see if the string exists in the table; XPTI has
     //  always had this as lock-free, but if instability occurs, we can use a
@@ -126,7 +126,7 @@ public:
             if (ref_str)
               *ref_str = nullptr;
 
-            return xpti::invalid_id;
+            return xpti::invalid_id<xpti::string_id_t>;
           }
         }
 
@@ -142,7 +142,7 @@ public:
       }
       // The MMutex will be released here!
     }
-    return xpti::invalid_id;
+    return xpti::invalid_id<xpti::string_id_t>;
   }
 
   //  The reverse query allows one to get the string from the string_id_t that
