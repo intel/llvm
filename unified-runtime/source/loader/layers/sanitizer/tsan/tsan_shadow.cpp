@@ -98,8 +98,6 @@ ur_result_t ShadowMemoryGPU::Setup() {
     return Result;
   }
   ShadowEnd = ShadowBegin + ShadowSize;
-  // Retain the context which reserves shadow memory
-  getContext()->urDdiTable.Context.pfnRetain(Context);
   return UR_RESULT_SUCCESS;
 }
 
