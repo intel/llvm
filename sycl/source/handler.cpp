@@ -366,7 +366,7 @@ bool handler::isStateExplicitKernelBundle() const {
 // If there is no kernel_bundle created:
 // returns newly created kernel_bundle if Insert is true
 // returns nullptr if Insert is false
-detail::kernel_bundle_impl*
+detail::kernel_bundle_impl *
 #else
 // Returns a shared_ptr to the kernel_bundle.
 // If there is no kernel_bundle created:

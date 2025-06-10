@@ -1685,10 +1685,10 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::shared_ptr<detail::kernel_bundle_impl>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::kernel_bundle_impl *
 #else
-  detail::kernel_bundle_impl*
+  std::shared_ptr<detail::kernel_bundle_impl>
 #endif
   getOrInsertHandlerKernelBundle(bool Insert) const;
 
