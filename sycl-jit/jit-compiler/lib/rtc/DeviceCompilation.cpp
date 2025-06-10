@@ -1,4 +1,4 @@
-//==---------------------- DeviceCompilation.cpp ---------------------------==//
+//===- DeviceCompilation.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -178,8 +178,7 @@ public:
     assert(!hasExecuted() && "Action should only be invoked on a single file");
 
     // Create a compiler instance to handle the actual work.
-    CompilerInstance Compiler(std::move(PCHContainerOps));
-    Compiler.setInvocation(std::move(Invocation));
+    CompilerInstance Compiler(std::move(Invocation), std::move(PCHContainerOps));
     Compiler.setFileManager(Files);
     // Suppress summary with number of warnings and errors being printed to
     // stdout.
@@ -256,14 +255,14 @@ protected:
 
 public:
   GetLLVMModuleAction(LLVMContext &Context) : Context{Context}, Module{} {}
-  std::unique_ptr<llvm::Module> takeModule() {
+  ModuleUPtr takeModule() {
     assert(Module);
     return std::move(Module);
   }
 
 private:
   LLVMContext &Context;
-  std::unique_ptr<llvm::Module> Module;
+  ModuleUPtr Module;
 };
 
 class ClangDiagnosticWrapper {
@@ -400,7 +399,7 @@ jit_compiler::calculateHash(InMemoryFile SourceFile,
   return createStringError("Calculating source hash failed");
 }
 
-Expected<std::unique_ptr<llvm::Module>>
+Expected<ModuleUPtr>
 jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
                                 View<InMemoryFile> IncludeFiles,
                                 const InputArgList &UserArgList,
@@ -526,10 +525,10 @@ static bool getDeviceLibraries(const ArgList &Args,
   return FoundUnknownLib;
 }
 
-static Expected<std::unique_ptr<llvm::Module>>
-loadBitcodeLibrary(StringRef LibPath, LLVMContext &Context) {
+static Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
+                                               LLVMContext &Context) {
   SMDiagnostic Diag;
-  std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Context);
+  ModuleUPtr Lib = parseIRFile(LibPath, Diag, Context);
   if (!Lib) {
     std::string DiagMsg;
     raw_string_ostream SOS(DiagMsg);
@@ -566,12 +565,12 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   for (const std::string &LibName : LibNames) {
     std::string LibPath = DPCPPRoot + "/lib/" + LibName;
 
-    auto LibOrErr = loadBitcodeLibrary(LibPath, Context);
-    if (!LibOrErr) {
-      return LibOrErr.takeError();
+    ModuleUPtr LibModule;
+    if (auto Error = loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
+      return Error;
     }
 
-    if (Linker::linkModules(Module, std::move(*LibOrErr),
+    if (Linker::linkModules(Module, std::move(LibModule),
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",
                                LibPath.c_str(), BuildLog.c_str());
@@ -638,7 +637,7 @@ static void encodeProperties(PropertySetRegistry &Properties,
 }
 
 Expected<PostLinkResult>
-jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
+jit_compiler::performPostLink(ModuleUPtr Module,
                               const InputArgList &UserArgList) {
   TimeTraceScope TTS{"performPostLink"};
 
@@ -648,10 +647,16 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
 
   const auto SplitMode = getDeviceCodeSplitMode(UserArgList);
 
+  const bool AllowDeviceImageDependencies = UserArgList.hasFlag(
+      options::OPT_fsycl_allow_device_image_dependencies,
+      options::OPT_fno_sycl_allow_device_image_dependencies, false);
+
   // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
   //       `shouldEmitOnlyKernelsAsEntryPoints` in
   //       `clang/lib/Driver/ToolChains/Clang.cpp`.
-  const bool EmitOnlyKernelsAsEntryPoints = true;
+  // If we allow device image dependencies, we should definitely not only emit
+  // kernels as entry points.
+  const bool EmitOnlyKernelsAsEntryPoints = !AllowDeviceImageDependencies;
 
   // TODO: The optlevel passed to `sycl-post-link` is determined by
   //       `getSYCLPostLinkOptimizationLevel` in
@@ -684,7 +689,8 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
 
   std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
       ModuleDesc{std::move(Module)}, SplitMode,
-      /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints);
+      /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints,
+      AllowDeviceImageDependencies);
   assert(Splitter->hasMoreSplits());
 
   if (auto Err = Splitter->verifyNoCrossModuleDeviceGlobalUsage()) {
@@ -692,7 +698,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   }
 
   SmallVector<RTCDevImgInfo> DevImgInfoVec;
-  SmallVector<std::unique_ptr<llvm::Module>> Modules;
+  SmallVector<ModuleUPtr> Modules;
 
   // TODO: The following logic is missing the ability to link ESIMD and SYCL
   //       modules back together, which would be requested via
@@ -707,7 +713,8 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
     //       `invoke_simd` is supported.
 
     SmallVector<ModuleDesc, 2> ESIMDSplits =
-        splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+        splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
+                     AllowDeviceImageDependencies);
     for (auto &ES : ESIMDSplits) {
       MDesc = std::move(ES);
 
@@ -732,7 +739,8 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
           /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
           /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
-          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
+          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq,
+                                  AllowDeviceImageDependencies);
 
       // When the split mode is none, the required work group size will be added
       // to the whole module, which will make the runtime unable to launch the
@@ -763,12 +771,11 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath = DPCPPRoot + "/lib/" + LibName;
-      auto LibOrErr = loadBitcodeLibrary(LibPath, Ctx);
-      if (!LibOrErr) {
-        return LibOrErr.takeError();
+      ModuleUPtr LibModule;
+      if (auto Error = loadBitcodeLibrary(LibPath, Ctx).moveInto(LibModule)) {
+        return Error;
       }
 
-      std::unique_ptr<llvm::Module> LibModule = std::move(*LibOrErr);
       PropertySetRegistry Properties =
           computeDeviceLibProperties(*LibModule, LibName);
       encodeProperties(Properties, DevImgInfoVec.emplace_back());

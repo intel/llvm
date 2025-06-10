@@ -52,7 +52,7 @@ int main() {
 
   for (size_t i = 0; i < Size; i++) {
     T Ref = Pattern * i;
-    assert(Output[i] == Ref);
+    assert(check_value(i, Ref, Output[i], "Output"));
   }
 
   return 0;

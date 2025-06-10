@@ -1,4 +1,0 @@
-math/fmax.cl
-math/fmin.cl
-math/native_rsqrt.cl
-synchronization/barrier.cl

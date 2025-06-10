@@ -41,6 +41,8 @@ void getAMDGPUTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                              const llvm::opt::ArgList &Args,
                              std::vector<StringRef> &Features);
 
+void addFullLTOPartitionOption(const Driver &D, const llvm::opt::ArgList &Args,
+                               llvm::opt::ArgStringList &CmdArgs);
 } // end namespace amdgpu
 } // end namespace tools
 
@@ -162,7 +164,7 @@ public:
           parseSanitizerValue(A->getValue(), /*Allow Groups*/ false);
       if (K != SanitizerKind::Address)
         Diags.Report(clang::diag::warn_drv_unsupported_option_for_target)
-            << A->getAsString(Args) << getTriple().str();
+            << A->getAsString(Args) << getTriple().str() << 0;
     }
   }
 };

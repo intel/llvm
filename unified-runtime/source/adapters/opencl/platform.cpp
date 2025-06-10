@@ -39,7 +39,7 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
 
   switch (static_cast<uint32_t>(propName)) {
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_OPENCL);
+    return ReturnValue(UR_BACKEND_OPENCL);
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(ur::cl::getAdapter());
   case UR_PLATFORM_INFO_NAME:
@@ -82,26 +82,19 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
       uint32_t NumPlatforms = 0;
       cl_int Res = clGetPlatformIDs(0, nullptr, &NumPlatforms);
 
+      if (NumPlatforms == 0 || Res == CL_PLATFORM_NOT_FOUND_KHR) {
+        if (pNumPlatforms) {
+          *pNumPlatforms = 0;
+        }
+        return UR_RESULT_SUCCESS;
+      }
+      CL_RETURN_ON_FAILURE(Res);
+
       std::vector<cl_platform_id> CLPlatforms(NumPlatforms);
       Res = clGetPlatformIDs(static_cast<cl_uint>(NumPlatforms),
                              CLPlatforms.data(), nullptr);
-
-      /* Absorb the CL_PLATFORM_NOT_FOUND_KHR and just return 0 in num_platforms
-       */
-      if (Res == CL_PLATFORM_NOT_FOUND_KHR) {
-        if (pNumPlatforms) {
-          *pNumPlatforms = 0;
-          return UR_RESULT_SUCCESS;
-        }
-      }
-      /* INVALID_VALUE is returned when the size is invalid, special case it
-       * here
-       */
-      if (Res == CL_INVALID_VALUE && phPlatforms != nullptr &&
-          NumEntries == 0) {
-        return UR_RESULT_ERROR_INVALID_SIZE;
-      }
       CL_RETURN_ON_FAILURE(Res);
+
       try {
         for (uint32_t i = 0; i < NumPlatforms; i++) {
           auto URPlatform =

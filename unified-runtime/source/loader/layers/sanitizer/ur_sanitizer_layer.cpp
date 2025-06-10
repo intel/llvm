@@ -20,7 +20,9 @@ context_t *getContext() {
   try {
     return context_t::get_direct();
   } catch (...) {
-    die("Failed to get sanitizer context.");
+    // Cannot write logger here as that would also introduce a potential
+    // exception
+    std::terminate();
   }
 }
 

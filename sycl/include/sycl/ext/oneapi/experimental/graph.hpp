@@ -121,7 +121,9 @@ enum class node_type {
   memadvise = 7,
   ext_oneapi_barrier = 8,
   host_task = 9,
-  native_command = 10
+  native_command = 10,
+  async_malloc = 11,
+  async_free = 12
 };
 
 /// Class representing a node in the graph, returned by command_graph::add().
@@ -429,6 +431,10 @@ public:
   /// @param Nodes The nodes to use for updating the graph.
   void update(const std::vector<node> &Nodes);
 
+  /// Return the total amount of memory required by this graph for graph-owned
+  /// memory allocations.
+  size_t get_required_mem_size() const;
+
   /// Common Reference Semantics
   friend bool operator==(const executable_command_graph &LHS,
                          const executable_command_graph &RHS) {
@@ -504,10 +510,20 @@ protected:
 namespace detail {
 class __SYCL_EXPORT dynamic_parameter_base {
 public:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  dynamic_parameter_base(size_t ParamSize, const void *Data);
+  dynamic_parameter_base();
+#else
   dynamic_parameter_base() = default;
+#endif
+
+  dynamic_parameter_base(
+      const std::shared_ptr<detail::dynamic_parameter_impl> &impl);
+
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph);
+
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
@@ -533,8 +549,6 @@ protected:
 
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
-  void updateWorkGroupMem(size_t BufferSize);
-
   std::shared_ptr<dynamic_parameter_impl> impl;
 
   template <class Obj>
@@ -542,37 +556,45 @@ protected:
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
-class dynamic_work_group_memory_base
-#ifndef __SYCL_DEVICE_ONLY__
-    : public dynamic_parameter_base
-#endif
-{
+class __SYCL_EXPORT dynamic_work_group_memory_base
+    : public dynamic_parameter_base {
+
 public:
   dynamic_work_group_memory_base() = default;
-#ifndef __SYCL_DEVICE_ONLY__
-  dynamic_work_group_memory_base(
-      experimental::command_graph<graph_state::modifiable> Graph, size_t Size)
-      : dynamic_parameter_base(Graph), BufferSize(Size) {}
-#else
-  dynamic_work_group_memory_base(
-      experimental::command_graph<graph_state::modifiable> /*Graph*/,
-      size_t Size)
-      : BufferSize(Size) {}
-#endif
 
-private:
-#ifdef __SYCL_DEVICE_ONLY__
-  [[maybe_unused]] unsigned char Padding[sizeof(dynamic_parameter_base)];
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  dynamic_work_group_memory_base(size_t BufferSizeInBytes);
 #endif
-  size_t BufferSize{};
-  friend class sycl::handler;
+  // TODO: Remove in next ABI breaking window
+  dynamic_work_group_memory_base(
+      experimental::command_graph<graph_state::modifiable> Graph,
+      size_t BufferSizeInBytes);
+
+protected:
+  void updateWorkGroupMem(size_t NewBufferSizeInBytes);
 };
+
+class __SYCL_EXPORT dynamic_local_accessor_base
+    : public dynamic_parameter_base {
+public:
+  dynamic_local_accessor_base() = default;
+
+  dynamic_local_accessor_base(sycl::range<3> AllocationSize, int Dims,
+                              int ElemSize, const property_list &PropList);
+
+protected:
+  void updateLocalAccessor(sycl::range<3> NewAllocationSize);
+};
+
 } // namespace detail
 
 template <typename DataT, typename PropertyListT = empty_properties_t>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory
-    : public detail::dynamic_work_group_memory_base {
+#ifndef __SYCL_DEVICE_ONLY__
+    : public detail::dynamic_work_group_memory_base
+#endif
+{
 public:
   // Check that DataT is an unbounded array type.
   static_assert(std::is_array_v<DataT> && std::extent_v<DataT, 0> == 0);
@@ -586,6 +608,25 @@ public:
   // closed.
   dynamic_work_group_memory() = default;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __SYCL_DEVICE_ONLY__
+  /// Constructs a new dynamic_work_group_memory object.
+  /// @param Num Number of elements in the unbounded array DataT.
+  dynamic_work_group_memory(size_t Num)
+      : detail::dynamic_work_group_memory_base(
+            Num * sizeof(std::remove_extent_t<DataT>)) {}
+#else
+  dynamic_work_group_memory(size_t /*Num*/) {}
+#endif
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED("Dynamic_work_group_memory constructors taking a graph "
+                    "object have been deprecated "
+                    "and will be removed in the next ABI breaking window.")
+#endif
+
+#ifndef __SYCL_DEVICE_ONLY__
   /// Constructs a new dynamic_work_group_memory object.
   /// @param Graph The graph associated with this object.
   /// @param Num Number of elements in the unbounded array DataT.
@@ -593,6 +634,12 @@ public:
       experimental::command_graph<graph_state::modifiable> Graph, size_t Num)
       : detail::dynamic_work_group_memory_base(
             Graph, Num * sizeof(std::remove_extent_t<DataT>)) {}
+
+#else
+  dynamic_work_group_memory(experimental::command_graph<graph_state::modifiable>
+                            /* Graph */,
+                            size_t /* Num */) {}
+#endif
 
   work_group_memory<DataT, PropertyListT> get() const {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -608,8 +655,7 @@ public:
   /// @param Num The new number of elements in the unbounded array.
   void update([[maybe_unused]] size_t Num) {
 #ifndef __SYCL_DEVICE_ONLY__
-    detail::dynamic_parameter_base::updateWorkGroupMem(
-        Num * sizeof(std::remove_extent_t<DataT>));
+    updateWorkGroupMem(Num * sizeof(std::remove_extent_t<DataT>));
 #endif
   }
 
@@ -622,6 +668,78 @@ private:
       value_type, access::address_space::local_space>::type *;
 
   void __init(decoratedPtr Ptr) { this->WorkGroupMem.__init(Ptr); }
+
+  [[maybe_unused]] unsigned char
+      Padding[sizeof(detail::dynamic_work_group_memory_base)];
+#endif
+};
+
+template <typename DataT, int Dimensions = 1>
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(dynamic_local_accessor) dynamic_local_accessor
+#ifndef __SYCL_DEVICE_ONLY__
+    : public detail::dynamic_local_accessor_base
+#endif
+{
+public:
+  static_assert(Dimensions > 0 && Dimensions <= 3);
+
+  // Frontend requires special types to have a default constructor in order to
+  // have a uniform way of initializing an object of special type to then call
+  // the __init method on it. This is purely an implementation detail and not
+  // part of the spec.
+  // TODO: Revisit this once https://github.com/intel/llvm/issues/16061 is
+  // closed.
+  dynamic_local_accessor() = default;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  /// Constructs a new dynamic_local_accessor object.
+  /// @param Graph The graph associated with this object.
+  /// @param AllocationSize The size of the local accessor.
+  /// @param PropList List of properties for the underlying accessor.
+  dynamic_local_accessor(
+      experimental::command_graph<graph_state::modifiable> /* Graph */,
+      range<Dimensions> AllocationSize, const property_list &PropList = {})
+      : detail::dynamic_local_accessor_base(
+            detail::convertToArrayOfN<3, 1>(AllocationSize), Dimensions,
+            sizeof(DataT), PropList) {}
+#else
+  dynamic_local_accessor(experimental::command_graph<graph_state::modifiable>
+                         /* Graph */,
+                         range<Dimensions> /* AllocationSize */,
+                         const property_list & /*PropList */ = {}) {}
+#endif
+
+  local_accessor<DataT, Dimensions> get() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Error: dynamic_local_accessor::get() can be only "
+                          "called on the device!");
+#endif
+    return LocalAccessor;
+  }
+
+  /// Updates on the host this dynamic_local_accessor and all registered
+  /// nodes with a new size.
+  /// @param Num The new number of elements in the unbounded array.
+  void update([[maybe_unused]] range<Dimensions> NewAllocationSize) {
+#ifndef __SYCL_DEVICE_ONLY__
+    updateLocalAccessor(detail::convertToArrayOfN<3, 1>(NewAllocationSize));
+#endif
+  }
+
+private:
+  local_accessor<DataT, Dimensions> LocalAccessor;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(typename local_accessor<DataT, Dimensions>::ConcreteASPtrType Ptr,
+              range<Dimensions> AccessRange, range<Dimensions> range,
+              id<Dimensions> id) {
+    this->LocalAccessor.__init(Ptr, AccessRange, range, id);
+  }
+
+  [[maybe_unused]] unsigned char
+      Padding[sizeof(detail::dynamic_local_accessor_base)];
 #endif
 };
 
@@ -636,6 +754,19 @@ class dynamic_parameter : public detail::dynamic_parameter_base {
           : sycl::detail::kernel_param_kind_t::kind_std_layout;
 
 public:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs a new dynamic parameter.
+  /// @param Graph The graph associated with this parameter.
+  /// @param Param A reference value for this parameter used for CTAD.
+  dynamic_parameter(const ValueT &Param)
+      : detail::dynamic_parameter_base(sizeof(ValueT), &Param) {}
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED("Dynamic_parameter constructors taking a graph object have "
+                    "been deprecated "
+                    "and will be removed in the next ABI breaking window.")
+#endif
   /// Constructs a new dynamic parameter.
   /// @param Graph The graph associated with this parameter.
   /// @param Param A reference value for this parameter used for CTAD.

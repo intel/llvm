@@ -18,9 +18,7 @@
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_kernel_handle_t_> Kernel{nullptr};
-
   try {
     ScopedContext Active(hProgram->getDevice());
 
@@ -52,13 +50,13 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
         new ur_kernel_handle_t_{CuFunc, CuFuncWithOffsetParam, pKernelName,
                                 hProgram, hProgram->getContext()});
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   } catch (...) {
-    Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
 
   *phKernel = Kernel.release();
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -92,17 +90,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(size_t(MaxThreads));
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-    size_t GroupSize[3] = {0, 0, 0};
-    const auto &ReqdWGSizeMDMap =
-        hKernel->getProgram()->KernelReqdWorkGroupSizeMD;
-    const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(hKernel->getName());
-    if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
-      const auto ReqdWGSize = ReqdWGSizeMD->second;
-      GroupSize[0] = std::get<0>(ReqdWGSize);
-      GroupSize[1] = std::get<1>(ReqdWGSize);
-      GroupSize[2] = std::get<2>(ReqdWGSize);
-    }
-    return ReturnValue(GroupSize, 3);
+    return ReturnValue(hKernel->ReqdThreadsPerBlock, 3);
   }
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     // OpenCL LOCAL == CUDA SHARED
@@ -126,28 +114,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(uint64_t(Bytes));
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE: {
-    size_t MaxGroupSize[3] = {0, 0, 0};
-    const auto &MaxWGSizeMDMap =
-        hKernel->getProgram()->KernelMaxWorkGroupSizeMD;
-    const auto MaxWGSizeMD = MaxWGSizeMDMap.find(hKernel->getName());
-    if (MaxWGSizeMD != MaxWGSizeMDMap.end()) {
-      const auto MaxWGSize = MaxWGSizeMD->second;
-      MaxGroupSize[0] = std::get<0>(MaxWGSize);
-      MaxGroupSize[1] = std::get<1>(MaxWGSize);
-      MaxGroupSize[2] = std::get<2>(MaxWGSize);
-    }
-    return ReturnValue(MaxGroupSize, 3);
+    return ReturnValue(hKernel->MaxThreadsPerBlock, 3);
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE: {
-    size_t MaxLinearGroupSize = 0;
-    const auto &MaxLinearWGSizeMDMap =
-        hKernel->getProgram()->KernelMaxLinearWorkGroupSizeMD;
-    const auto MaxLinearWGSizeMD =
-        MaxLinearWGSizeMDMap.find(hKernel->getName());
-    if (MaxLinearWGSizeMD != MaxLinearWGSizeMDMap.end()) {
-      MaxLinearGroupSize = MaxLinearWGSizeMD->second;
-    }
-    return ReturnValue(MaxLinearGroupSize);
+    return ReturnValue(hKernel->MaxLinearThreadsPerBlock);
   }
   default:
     break;
@@ -189,13 +159,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
-    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
-    uint32_t *pGroupCountRet) {
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    ur_kernel_handle_t hKernel, ur_device_handle_t /*hDevice*/,
+    uint32_t workDim, const size_t *pLocalWorkSize,
+    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_KERNEL);
-
-  std::ignore = hDevice;
 
   size_t localWorkSize = pLocalWorkSize[0];
   localWorkSize *= (workDim >= 2 ? pLocalWorkSize[1] : 1);
@@ -212,7 +180,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     UR_CHECK_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
         &MaxNumActiveGroupsPerCU, hKernel->get(), localWorkSize,
         dynamicSharedMemorySize));
-    detail::ur::assertion(MaxNumActiveGroupsPerCU >= 0);
+    assert(MaxNumActiveGroupsPerCU >= 0);
     // Handle the case where we can't have all SMs active with at least 1 group
     // per SM. In that case, the device is still able to run 1 work-group, hence
     // we will manually check if it is possible with the available HW resources.
@@ -244,33 +212,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties,
+    const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
-  std::ignore = pProperties;
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     hKernel->setKernelArg(argIndex, argSize, pArgValue);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  std::ignore = pProperties;
+    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     hKernel->setKernelLocalArg(argIndex, argSize);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
@@ -357,11 +319,10 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue) {
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
+    const void *pArgValue) {
   try {
     // setKernelArg is expecting a pointer to our argument
     hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
@@ -375,7 +336,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *Properties,
                      ur_mem_handle_t hArgValue) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     // Below sets kernel arg when zero-sized buffers are handled.
     // In such case the corresponding memory is null.
@@ -399,7 +359,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
           arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
         setErrorMessage("UR CUDA kernels only support images with channel "
                         "types int32, uint32, float, and half.",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                        UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
       CUsurfObject CuSurf =
@@ -410,20 +370,18 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
       hKernel->setKernelArg(argIndex, sizeof(CUdeviceptr), (void *)&CuPtr);
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+
+  return UR_RESULT_SUCCESS;
 }
 
 // A NOP for the CUDA backend
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
-    ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName, size_t propSize,
-    const ur_kernel_exec_info_properties_t *pProperties,
-    const void *pPropValue) {
-  std::ignore = hKernel;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetExecInfo(ur_kernel_handle_t /*hKernel*/,
+                    ur_kernel_exec_info_t propName, size_t /*propSize*/,
+                    const ur_kernel_exec_info_properties_t * /*pProperties*/,
+                    const void * /*pPropValue*/) {
 
   switch (propName) {
   case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS:
@@ -436,32 +394,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ur_context_handle_t hContext,
-    ur_program_handle_t hProgram,
-    const ur_kernel_native_properties_t *pProperties,
-    ur_kernel_handle_t *phKernel) {
-  std::ignore = hNativeKernel;
-  std::ignore = hContext;
-  std::ignore = hProgram;
-  std::ignore = pProperties;
-  std::ignore = phKernel;
+    ur_native_handle_t /*hNativeKernel*/, ur_context_handle_t /*hContext*/,
+    ur_program_handle_t /*hProgram*/,
+    const ur_kernel_native_properties_t * /*pProperties*/,
+    ur_kernel_handle_t * /*phKernel*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue) {
-  std::ignore = pProperties;
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_sampler_properties_t * /*pProperties*/,
+    ur_sampler_handle_t hArgValue) {
   try {
     uint32_t SamplerProps = hArgValue->Props;
     hKernel->setKernelArg(argIndex, sizeof(uint32_t), (void *)&SamplerProps);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
@@ -473,22 +423,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
             UR_RESULT_ERROR_INVALID_KERNEL);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
-            UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ur_device_handle_t Device = hQueue->Device;
-  ur_result_t Result = UR_RESULT_SUCCESS;
-  size_t ThreadsPerBlock[3] = {};
+  try {
+    size_t ThreadsPerBlock[3] = {};
+    ur_device_handle_t Device = hQueue->Device;
 
-  // Set the active context here as guessLocalWorkSize needs an active context
-  ScopedContext Active(Device);
+    // Set the active context here as guessLocalWorkSize needs an active context
+    ScopedContext Active(Device);
 
-  guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
-                     hKernel);
+    guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
+                       hKernel);
 
-  std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
-            pSuggestedLocalWorkSize);
-  return Result;
+    std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
+              pSuggestedLocalWorkSize);
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(

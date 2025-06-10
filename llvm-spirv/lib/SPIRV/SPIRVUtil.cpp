@@ -1340,6 +1340,8 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_FLOAT));
   if (Ty->isDoubleTy())
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_DOUBLE));
+  if (Ty->isBFloatTy())
+    return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_BFLOAT));
   if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     return SPIR::RefParamType(new SPIR::VectorType(
         transTypeDesc(VecTy->getElementType(), Info), VecTy->getNumElements()));
@@ -2613,6 +2615,15 @@ public:
       break;
     case OpenCLLIB::S_Upsample:
       addUnsignedArg(1);
+      break;
+    case OpenCLLIB::Nan:
+      addUnsignedArg(0);
+      break;
+    case OpenCLLIB::Shuffle:
+      addUnsignedArg(1);
+      break;
+    case OpenCLLIB::Shuffle2:
+      addUnsignedArg(2);
       break;
     default:;
       // No special handling is needed

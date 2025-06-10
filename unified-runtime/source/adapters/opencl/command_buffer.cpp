@@ -21,6 +21,9 @@
 /// command-buffer to free the underlying object.
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   urQueueRelease(hInternalQueue);
+  if (LastSubmission) {
+    clReleaseEvent(LastSubmission);
+  }
 
   cl_context CLContext = hContext->CLContext;
   cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
@@ -60,9 +63,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  cl_command_buffer_properties_khr Properties[3] = {
-      CL_COMMAND_BUFFER_FLAGS_KHR,
-      IsUpdatable ? CL_COMMAND_BUFFER_MUTABLE_KHR : 0u, 0};
+  // OpenCL command-buffer must be simultaneous use to match expectation of UR
+  // command-buffer specification.
+  cl_command_buffer_flags_khr Flags = CL_COMMAND_BUFFER_SIMULTANEOUS_USE_KHR;
+  if (IsUpdatable) {
+    Flags |= CL_COMMAND_BUFFER_MUTABLE_KHR;
+  }
+
+  cl_command_buffer_properties_khr Properties[3] = {CL_COMMAND_BUFFER_FLAGS_KHR,
+                                                    Flags, 0};
 
   ur_queue_handle_t Queue = nullptr;
   ur_queue_properties_t QueueProperties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
@@ -198,33 +207,59 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
-    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
-    [[maybe_unused]] void *pDst, [[maybe_unused]] const void *pSrc,
-    [[maybe_unused]] size_t size,
-    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
-    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
-        *pSyncPointWaitList,
-    [[maybe_unused]] uint32_t numEventsInWaitList,
-    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    [[maybe_unused]] ur_event_handle_t *phEvent,
-    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
+    size_t size, uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
+  // No extension entry-point exists for USM memcpy, use SVM memcpy in
+  // preparation for USVM.
+  cl_context CLContext = hCommandBuffer->hContext->CLContext;
+  cl_ext::clCommandSVMMemcpyKHR_fn clCommandSVMMemcpyKHR = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clCommandSVMMemcpyKHR)>(
+          CLContext, ur::cl::getAdapter()->fnCache.clCommandSVMMemcpyKHRCache,
+          cl_ext::CommandSVMMemcpyName, &clCommandSVMMemcpyKHR));
+
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  CL_RETURN_ON_FAILURE(clCommandSVMMemcpyKHR(
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr, pDst, pSrc, size,
+      WaitListSize, SyncPointWaitList, RetSyncPoint, nullptr));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
-    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
-    [[maybe_unused]] void *pMemory, [[maybe_unused]] const void *pPattern,
-    [[maybe_unused]] size_t patternSize, [[maybe_unused]] size_t size,
-    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
-    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
-        *pSyncPointWaitList,
-    [[maybe_unused]] uint32_t numEventsInWaitList,
-    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    [[maybe_unused]] ur_event_handle_t *phEvent,
-    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_command_buffer_handle_t hCommandBuffer, void *pMemory,
+    const void *pPattern, size_t patternSize, size_t size,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
+  // No extension entry-point exists for USM fill, use SVM fill in preparation
+  // for USVM.
+  cl_context CLContext = hCommandBuffer->hContext->CLContext;
+  cl_ext::clCommandSVMMemFillKHR_fn clCommandSVMMemFillKHR = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clCommandSVMMemFillKHR)>(
+          CLContext, ur::cl::getAdapter()->fnCache.clCommandSVMMemFillKHRCache,
+          cl_ext::CommandSVMMemFillName, &clCommandSVMMemFillKHR));
+
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  CL_RETURN_ON_FAILURE(
+      clCommandSVMMemFillKHR(hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
+                             pMemory, pPattern, patternSize, size, WaitListSize,
+                             SyncPointWaitList, RetSyncPoint, nullptr));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
@@ -469,16 +504,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
           ur::cl::getAdapter()->fnCache.clEnqueueCommandBufferKHRCache,
           cl_ext::EnqueueCommandBufferName, &clEnqueueCommandBufferKHR));
 
-  const uint32_t NumberOfQueues = 1;
-  cl_event Event;
-  std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
+  // If we've submitted the command-buffer before, then add a dependency on the
+  // last submission.
+  bool AddExtraDep = hCommandBuffer->LastSubmission != nullptr;
+  uint32_t CLWaitListLength =
+      AddExtraDep ? numEventsInWaitList + 1 : numEventsInWaitList;
+  std::vector<cl_event> CLWaitEvents(CLWaitListLength);
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
     CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
   }
+  if (AddExtraDep) {
+    CLWaitEvents[numEventsInWaitList] = hCommandBuffer->LastSubmission;
+  }
+
+  // Always get an event as we need it to serialize any future submissions
+  // of the command-buffer with.
+  cl_event Event;
   cl_command_queue CLQueue = hQueue->CLQueue;
-  CL_RETURN_ON_FAILURE(clEnqueueCommandBufferKHR(
-      NumberOfQueues, &CLQueue, hCommandBuffer->CLCommandBuffer,
-      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+  CL_RETURN_ON_FAILURE(
+      clEnqueueCommandBufferKHR(1, &CLQueue, hCommandBuffer->CLCommandBuffer,
+                                CLWaitListLength, CLWaitEvents.data(), &Event));
+
+  // Retain event so that if a user manually destroys the returned UR
+  // event the adapter still has a valid handle.
+  clRetainEvent(Event);
+  if (hCommandBuffer->LastSubmission) {
+    clReleaseEvent(hCommandBuffer->LastSubmission);
+  }
+  hCommandBuffer->LastSubmission = Event;
 
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;

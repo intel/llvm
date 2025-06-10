@@ -20,14 +20,13 @@ TEST_F(SchedulerTest, FailedDependency) {
   queue Queue(context(Plt), default_selector_v);
 
   detail::Requirement MockReq = getMockRequirement();
-  MockCommand MDepFail(
-      false, detail::getSyclObjImpl(Queue)); // <-- will fail to enqueue
+  MockCommand MDep(detail::getSyclObjImpl(Queue));
   MockCommand MUser(detail::getSyclObjImpl(Queue));
-  MDepFail.addUser(&MUser);
+  MDep.addUser(&MUser);
   std::vector<detail::Command *> ToCleanUp;
-  (void)MUser.addDep(detail::DepDesc{&MDepFail, &MockReq, nullptr}, ToCleanUp);
+  (void)MUser.addDep(detail::DepDesc{&MDep, &MockReq, nullptr}, ToCleanUp);
   MUser.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  MDepFail.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  MDep.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueFailed;
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
@@ -36,13 +35,13 @@ TEST_F(SchedulerTest, FailedDependency) {
       MockScheduler::enqueueCommand(&MUser, Res, detail::NON_BLOCKING);
 
   ASSERT_FALSE(Enqueued) << "Enqueue process must fail\n";
-  ASSERT_EQ(Res.MCmd, &MDepFail) << "Wrong failed command\n";
+  ASSERT_EQ(Res.MCmd, &MDep) << "Wrong failed command\n";
   ASSERT_EQ(Res.MResult, detail::EnqueueResultT::SyclEnqueueFailed)
       << "Enqueue process must fail\n";
   ASSERT_EQ(MUser.MEnqueueStatus, detail::EnqueueResultT::SyclEnqueueReady)
       << "MUser shouldn't be marked as failed\n";
-  ASSERT_EQ(MDepFail.MEnqueueStatus, detail::EnqueueResultT::SyclEnqueueFailed)
-      << "MDepFail should be marked as failed\n";
+  ASSERT_EQ(MDep.MEnqueueStatus, detail::EnqueueResultT::SyclEnqueueFailed)
+      << "MDep should be marked as failed\n";
 }
 
 void RunWithFailedCommandsAndCheck(bool SyncExceptionExpected,

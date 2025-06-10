@@ -143,10 +143,10 @@ createMapInfoOp(fir::FirOpBuilder &builder, mlir::Location loc,
       varType = mlir::TypeAttr::get(seqType.getEleTy());
 
   mlir::omp::MapInfoOp op = builder.create<mlir::omp::MapInfoOp>(
-      loc, retTy, baseAddr, varType, varPtrPtr, members, membersIndex, bounds,
+      loc, retTy, baseAddr, varType,
       builder.getIntegerAttr(builder.getIntegerType(64, false), mapType),
-      mapperId,
       builder.getAttr<mlir::omp::VariableCaptureKindAttr>(mapCaptureType),
+      varPtrPtr, members, membersIndex, bounds, mapperId,
       builder.getStringAttr(name), builder.getBoolAttr(partialMap));
   return op;
 }
@@ -398,14 +398,16 @@ mlir::Value createParentSymAndGenIntermediateMaps(
               interimBounds, treatIndexAsSection);
         }
 
-        // Remove all map TO, FROM and TOFROM bits, from the intermediate
-        // allocatable maps, we simply wish to alloc or release them. It may be
-        // safer to just pass OMP_MAP_NONE as the map type, but we may still
+        // Remove all map-type bits (e.g. TO, FROM, etc.) from the intermediate
+        // allocatable maps, as we simply wish to alloc or release them. It may
+        // be safer to just pass OMP_MAP_NONE as the map type, but we may still
         // need some of the other map types the mapped member utilises, so for
         // now it's good to keep an eye on this.
         llvm::omp::OpenMPOffloadMappingFlags interimMapType = mapTypeBits;
         interimMapType &= ~llvm::omp::OpenMPOffloadMappingFlags::OMP_MAP_TO;
         interimMapType &= ~llvm::omp::OpenMPOffloadMappingFlags::OMP_MAP_FROM;
+        interimMapType &=
+            ~llvm::omp::OpenMPOffloadMappingFlags::OMP_MAP_RETURN_PARAM;
 
         // Create a map for the intermediate member and insert it and it's
         // indices into the parentMemberIndices list to track it.
@@ -551,7 +553,7 @@ void insertChildMapInfoIntoParent(
       // it allows this to work with enter and exit without causing MLIR
       // verification issues. The more appropriate thing may be to take
       // the "main" map type clause from the directive being used.
-      uint64_t mapType = indices.second.memberMap[0].getMapType().value_or(0);
+      uint64_t mapType = indices.second.memberMap[0].getMapType();
 
       llvm::SmallVector<mlir::Value> members;
       members.reserve(indices.second.memberMap.size());

@@ -25,10 +25,10 @@ void LibLoader::freeAdapterLibrary(HMODULE handle) {
   if (handle) {
     int res = dlclose(handle);
     if (res) {
-      logger::error(
-          "Failed to unload the library with the handle at address {}", handle);
+      UR_LOG(ERR, "Failed to unload the library with the handle at address {}",
+             handle);
     } else {
-      logger::info("unloaded adapter 0x{}", handle);
+      UR_LOG(INFO, "unloaded adapter 0x{}", handle);
     }
   }
 }
@@ -40,10 +40,10 @@ LibLoader::loadAdapterLibrary(const char *name) {
   bool deepbind = getenv_tobool(DEEP_BIND_ENV);
   if (deepbind) {
 #if defined(SANITIZER_ANY)
-    logger::warning(
-        "Enabling RTLD_DEEPBIND while running under a sanitizer is likely "
-        "to cause issues. Consider disabling {} environment variable.",
-        DEEP_BIND_ENV);
+    UR_LOG(WARN
+           "Enabling RTLD_DEEPBIND while running under a sanitizer is likely "
+           "to cause issues. Consider disabling {} environment variable.",
+           DEEP_BIND_ENV);
 #endif
     mode |= RTLD_DEEPBIND;
   }
@@ -58,21 +58,21 @@ LibLoader::loadAdapterLibrary(const char *name) {
         (strstr(err, name) == NULL || strstr(err, "required by") != NULL)) {
       // If the adapter cannot be loaded due to missing dependencies or any
       // other related error, it is considered as an error.
-      logger::info("failed to load adapter '{}' with error: {}", name, err);
+      UR_LOG(INFO, "failed to load adapter '{}' with error: {}", name, err);
     } else {
       // Simply having the adapter library missing isn't an error.
-      logger::info("failed to load adapter '{}' with error: {}", name,
-                   err ? err : "unknown error");
+      UR_LOG(INFO, "failed to load adapter '{}' with error: {}", name,
+             err ? err : "unknown error");
     }
   } else {
 #if defined(ADD_FULL_PATH_LOG)
     struct link_map *dlinfo_map;
     if (dlinfo(handle, RTLD_DI_LINKMAP, &dlinfo_map) == 0) {
-      logger::info("loaded adapter 0x{} ({}) from {}", handle, name,
-                   dlinfo_map->l_name);
+      UR_LOG(INFO, "loaded adapter 0x{} ({}) from {}", handle, name,
+             dlinfo_map->l_name);
     } else
 #endif
-      logger::info("loaded adapter 0x{} ({})", handle, name);
+      UR_LOG(INFO, "loaded adapter 0x{} ({})", handle, name);
   }
   return std::unique_ptr<HMODULE, LibLoader::lib_dtor>(handle);
 }

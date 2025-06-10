@@ -77,9 +77,9 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 }
 
 int main() {
-  static constexpr size_t MATRIX_M = TM;
-  static constexpr size_t MATRIX_N = TN;
-  static constexpr size_t MATRIX_K = TK;
+  static constexpr size_t MATRIX_M = TM * 8;
+  static constexpr size_t MATRIX_N = TN * 4;
+  static constexpr size_t MATRIX_K = TK * 4;
   int8_t A[MATRIX_K][MATRIX_M];
   int8_t Aref[MATRIX_K][MATRIX_M];
   int8_t B[MATRIX_N][MATRIX_K];

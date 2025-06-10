@@ -78,10 +78,6 @@ def do_configure(args, passthrough_args):
             sycl_enabled_backends.append("level_zero")
             sycl_enabled_backends.append("level_zero_v2")
 
-    # lld is needed on Windows or for the HIP adapter on AMD
-    if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
-        llvm_enable_projects += ";lld"
-
     libclc_enabled = args.cuda or args.hip or args.native_cpu
     if libclc_enabled:
         llvm_enable_projects += ";libclc"
@@ -134,6 +130,9 @@ def do_configure(args, passthrough_args):
     if args.use_lld:
         llvm_enable_lld = "ON"
 
+    if args.use_zstd:
+        llvm_enable_zstd = "FORCE_ON"
+
     # CI Default conditionally appends to options, keep it at the bottom of
     # args handling
     if args.ci_defaults:
@@ -167,6 +166,10 @@ def do_configure(args, passthrough_args):
 
     if args.disable_preview_lib:
         sycl_preview_lib = "OFF"
+
+    # lld is needed on Windows or when building AMDGPU
+    if platform.system() == "Windows" or "AMDGPU" in llvm_targets_to_build:
+        llvm_enable_projects += ";lld"
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -416,6 +419,9 @@ def main():
     parser.add_argument(
         "--native-cpu-libclc-targets",
         help="Target triples for libclc, used by the Native CPU backend",
+    )
+    parser.add_argument(
+        "--use-zstd", action="store_true", help="Force zstd linkage while building."
     )
     args, passthrough_args = parser.parse_known_intermixed_args()
 

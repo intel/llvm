@@ -1,6 +1,4 @@
 /*
-    See https://github.com/intel/llvm/issues/13813
-
     -ffast-math implies -fno-honor-infinities. In this case, the known_identity
    for sycl::minimum<T> cannot be inifinity (which will be 0), but must instead
     be the max<T> .  Otherwise, reducing sycl::minimum<T>
@@ -10,6 +8,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 // RUN: %clangxx -fsycl -fsyntax-only %s -ffast-math
 // RUN: %clangxx -fsycl -fsyntax-only %s -fno-fast-math
+// RUN: %clangxx -fsycl -fsyntax-only %s -fno-fast-math -fno-honor-infinities -fno-honor-nans
+// RUN: %clangxx -fsycl -fsyntax-only %s -ffast-math -fhonor-infinities -fhonor-nans
 
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/sycl.hpp>
@@ -20,7 +20,7 @@
 template <typename OperandT> void test_known_identity_min() {
   constexpr OperandT identity =
       sycl::known_identity_v<sycl::minimum<OperandT>, OperandT>;
-#ifdef __FAST_MATH__
+#if defined(__FINITE_MATH_ONLY__) && (__FINITE_MATH_ONLY__ == 1)
   constexpr OperandT expected = std::numeric_limits<OperandT>::max();
 #else
   constexpr OperandT expected = std::numeric_limits<OperandT>::infinity();
@@ -33,11 +33,11 @@ template <typename OperandT> void test_known_identity_min() {
 template <typename OperandT> void test_known_identity_max() {
   constexpr OperandT identity =
       sycl::known_identity_v<sycl::maximum<OperandT>, OperandT>;
-#ifdef __FAST_MATH__
+#if defined(__FINITE_MATH_ONLY__) && (__FINITE_MATH_ONLY__ == 1)
   constexpr OperandT expected = std::numeric_limits<OperandT>::lowest();
 #else
-  constexpr OperandT expected =
-      -std::numeric_limits<OperandT>::infinity(); // negative infinity
+  // negative infinity
+  constexpr OperandT expected = -std::numeric_limits<OperandT>::infinity();
 #endif
 
   static_assert(identity == expected,

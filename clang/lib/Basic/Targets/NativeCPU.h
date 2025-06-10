@@ -57,6 +57,8 @@ public:
   }
 
 protected:
+  void setAuxTarget(const TargetInfo *Aux) override;
+
   ArrayRef<const char *> getGCCRegNames() const override { return {}; }
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {

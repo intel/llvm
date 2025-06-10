@@ -173,7 +173,10 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_NULL_POINTER
-    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
 
 --- #--------------------------------------------------------------------------
 type: function
@@ -211,7 +214,10 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_NULL_POINTER
-    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
 
 --- #--------------------------------------------------------------------------
 type: function
@@ -250,7 +256,10 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_NULL_POINTER
-    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
 
 --- #--------------------------------------------------------------------------
 type: function
@@ -283,7 +292,10 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_NULL_POINTER
-    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
 
 --- #--------------------------------------------------------------------------
 type: function

@@ -56,11 +56,9 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties,
+    const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
   // TODO: error checking
-  std::ignore = argIndex;
-  std::ignore = pProperties;
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
@@ -72,8 +70,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  std::ignore = pProperties;
+    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
   // emplace a placeholder kernel arg, gets replaced with a pointer to the
   // memory pool before enqueueing the kernel.
   hKernel->addPtrArg(nullptr, argIndex);
@@ -86,9 +83,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     size_t propSize,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
-  std::ignore = hKernel;
-  std::ignore = propName;
-  std::ignore = pPropValue;
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   // todo: check if we need this
@@ -112,10 +106,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
+urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t /*hDevice*/,
                      ur_kernel_group_info_t propName, size_t propSize,
                      void *pPropValue, size_t *pPropSizeRet) {
-  std::ignore = hDevice;
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
@@ -168,12 +161,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
-                        ur_kernel_sub_group_info_t propName, size_t propSize,
-                        void *pPropValue, size_t *pPropSizeRet) {
-  std::ignore = hKernel;
-  std::ignore = hDevice;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSubGroupInfo(
+    ur_kernel_handle_t /*hKernel*/, ur_device_handle_t /*hDevice*/,
+    ur_kernel_sub_group_info_t propName, size_t propSize, void *pPropValue,
+    size_t *pPropSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   switch (propName) {
@@ -214,12 +205,10 @@ urKernelRelease(ur_kernel_handle_t hKernel) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue) {
-  std::ignore = argIndex;
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
+    const void *pArgValue) {
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pArgValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -229,37 +218,27 @@ urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
-    ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName, size_t propSize,
-    const ur_kernel_exec_info_properties_t *pProperties,
-    const void *pPropValue) {
-  std::ignore = hKernel;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pProperties;
-  std::ignore = pPropValue;
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetExecInfo(ur_kernel_handle_t /*hKernel*/,
+                    ur_kernel_exec_info_t /*propName*/, size_t /*propSize*/,
+                    const ur_kernel_exec_info_properties_t * /*pProperties*/,
+                    const void * /*pPropValue*/) {
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue) {
-  std::ignore = hKernel;
-  std::ignore = argIndex;
-  std::ignore = pProperties;
-  std::ignore = hArgValue;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
+    ur_kernel_handle_t /*hKernel*/, uint32_t /*argIndex*/,
+    const ur_kernel_arg_sampler_properties_t * /*pProperties*/,
+    ur_sampler_handle_t /*hArgValue*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
+                     const ur_kernel_arg_mem_obj_properties_t * /*pProperties*/,
                      ur_mem_handle_t hArgValue) {
-  std::ignore = argIndex;
-  std::ignore = pProperties;
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
@@ -276,33 +255,23 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
-    ur_kernel_handle_t hKernel, uint32_t count,
-    const ur_specialization_constant_info_t *pSpecConstants) {
-  std::ignore = hKernel;
-  std::ignore = count;
-  std::ignore = pSpecConstants;
+    ur_kernel_handle_t /*hKernel*/, uint32_t /*count*/,
+    const ur_specialization_constant_info_t * /*pSpecConstants*/) {
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
-    ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
-  std::ignore = hKernel;
-  std::ignore = phNativeKernel;
+    ur_kernel_handle_t /*hKernel*/, ur_native_handle_t * /*phNativeKernel*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ur_context_handle_t hContext,
-    ur_program_handle_t hProgram,
-    const ur_kernel_native_properties_t *pProperties,
-    ur_kernel_handle_t *phKernel) {
-  std::ignore = hNativeKernel;
-  std::ignore = hContext;
-  std::ignore = hProgram;
-  std::ignore = pProperties;
-  std::ignore = phKernel;
+    ur_native_handle_t /*hNativeKernel*/, ur_context_handle_t /*hContext*/,
+    ur_program_handle_t /*hProgram*/,
+    const ur_kernel_native_properties_t * /*pProperties*/,
+    ur_kernel_handle_t * /*phKernel*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
@@ -314,5 +283,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     [[maybe_unused]] const size_t *pGlobalWorkOffset,
     [[maybe_unused]] const size_t *pGlobalWorkSize,
     [[maybe_unused]] size_t *pSuggestedLocalWorkSize) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] uint32_t workDim,
+    [[maybe_unused]] const size_t *pLocalWorkSize,
+    [[maybe_unused]] size_t dynamicSharedMemorySize,
+    [[maybe_unused]] uint32_t *pGroupCountRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

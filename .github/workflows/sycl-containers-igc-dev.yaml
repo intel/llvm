@@ -7,12 +7,14 @@ on:
     paths:
       - 'devops/actions/build_container/**'
       - 'devops/scripts/**'
+      - '!devops/scripts/benchmarks/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
   pull_request:
     paths:
       - 'devops/actions/build_container/**'
       - 'devops/scripts/**'
+      - '!devops/scripts/benchmarks/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
 
@@ -33,7 +35,6 @@ jobs:
             imagefile: ubuntu2404_intel_drivers
             tag: devigc
             build_args: |
-                  "use_unstable_driver=false"
                   "use_igc_dev=true"
     steps:
       - name: Checkout

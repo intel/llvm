@@ -333,7 +333,7 @@ struct NonCopyable {
 // CHECK-DAG: %struct.NonCopyable = type { i32 }
 
 SYCL_DEVICE int __regcall bar(NonCopyable x) {
-// CHECK-DAG: define dso_local x86_regcallcc noundef i32 @_Z15__regcall3__bar11NonCopyable(ptr noundef byval(%struct.NonCopyable) align 4 %x)
+// CHECK-DAG: define dso_local x86_regcallcc noundef i32 @_Z15__regcall3__bar11NonCopyable(ptr noundef %x)
   return x.a;
 }
 

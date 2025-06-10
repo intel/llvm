@@ -12,9 +12,6 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
@@ -66,7 +63,7 @@ int main() {
   sycl::queue Q;
   sycl::context Ctx = Q.get_context();
 
-  if (!Q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl)) {
+  if (!Q.get_device().ext_oneapi_can_build(syclex::source_language::sycl)) {
     std::cout << "Apparently this device does not support `sycl` source "
                  "kernel bundle extension: "
               << Q.get_device().get_info<sycl::info::device::name>()
@@ -80,46 +77,6 @@ int main() {
       Ctx, syclex::source_language::sycl, SYCLSource1);
   source_kb KBSrc2 = syclex::create_kernel_bundle_from_source(
       Ctx, syclex::source_language::sycl, SYCLSource2);
-
-  // Test joining of source kernel bundles.
-  {
-    std::vector<source_kb> KBSrcs{KBSrc1, KBSrc2};
-    source_kb KBSrcJoined = sycl::join(KBSrcs);
-
-    exe_kb KBExeJoined = syclex::build(KBSrcJoined);
-    assert(KBExeJoined.ext_oneapi_has_kernel("TestKernel1"));
-    assert(KBExeJoined.ext_oneapi_has_kernel("TestKernel2"));
-
-    sycl::kernel K1 = KBExeJoined.ext_oneapi_get_kernel("TestKernel1");
-    sycl::kernel K2 = KBExeJoined.ext_oneapi_get_kernel("TestKernel2");
-
-    int *IntPtr = sycl::malloc_shared<int>(1, Q);
-    *IntPtr = 0;
-
-    Q.submit([&](sycl::handler &CGH) {
-       CGH.set_args(IntPtr);
-       CGH.single_task(K1);
-     }).wait_and_throw();
-
-    if (*IntPtr != 42) {
-      std::cout << "TestKernel1 in joined source bundles failed: " << *IntPtr
-                << " != 42\n";
-      ++Failed;
-    }
-
-    Q.submit([&](sycl::handler &CGH) {
-       CGH.set_args(IntPtr);
-       CGH.single_task(K2);
-     }).wait_and_throw();
-
-    if (*IntPtr != 24) {
-      std::cout << "TestKernel1 in joined source bundles failed: " << *IntPtr
-                << " != 24\n";
-      ++Failed;
-    }
-
-    sycl::free(IntPtr, Q);
-  }
 
   auto KBExe1 = std::make_shared<exe_kb>(syclex::build(KBSrc1));
   auto KBExe2 = std::make_shared<exe_kb>(syclex::build(KBSrc2));
@@ -210,25 +167,12 @@ int main() {
       ++Failed;
     }
 
-    Q.submit([&](sycl::handler &CGH) {
-       CGH.set_args(IntPtr);
-       CGH.single_task(RegularSYCLK);
-     }).wait_and_throw();
-
-    if (*IntPtr != RegularSYCLKernelWriteValue) {
-      std::cout << "Regular SYCL kernel (explicit) in joined mixed executable "
-                   "bundles failed: "
-                << *IntPtr << " != " << RegularSYCLKernelWriteValue << "\n";
-      ++Failed;
-    }
-    *IntPtr = 0;
-
     RunRegularSYCLKernel(Q, KBExeJoined, IntPtr);
 
     if (*IntPtr != RegularSYCLKernelWriteValue) {
-      std::cout << "Regular SYCL kernel (implicit) in joined mixed executable "
-                   "bundles failed: "
-                << *IntPtr << " != " << RegularSYCLKernelWriteValue << "\n";
+      std::cout
+          << "Regular SYCL kernel in joined mixed executable bundles failed: "
+          << *IntPtr << " != " << RegularSYCLKernelWriteValue << "\n";
       ++Failed;
     }
 

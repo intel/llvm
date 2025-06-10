@@ -29,6 +29,7 @@ add_clang_library(clangSema
   DeclSpec.cpp
   DelayedDiagnostic.cpp
   HeuristicResolver.cpp
+  HLSLBuiltinTypeDeclBuilder.cpp
   HLSLExternalSemaSource.cpp
   IdentifierResolver.cpp
   JumpDiagnostics.cpp
@@ -55,6 +56,7 @@ add_clang_library(clangSema
   SemaConsumer.cpp
   SemaCoroutine.cpp
   SemaCUDA.cpp
+  SemaDirectX.cpp
   SemaDecl.cpp
   SemaDeclAttr.cpp
   SemaDeclCXX.cpp
@@ -82,6 +84,7 @@ add_clang_library(clangSema
   SemaOpenACC.cpp
   SemaOpenACCAtomic.cpp
   SemaOpenACCClause.cpp
+  SemaOpenACCClauseAppertainment.cpp
   SemaOpenCL.cpp
   SemaOpenMP.cpp
   SemaOverload.cpp
@@ -112,6 +115,7 @@ add_clang_library(clangSema
   ClangSPIRVBuiltinsImpl
   omp_gen
   ClangDriverOptions
+  acc_gen
 
   LINK_LIBS
   clangAPINotes

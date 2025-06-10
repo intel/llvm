@@ -9,8 +9,10 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "common.hpp"
+
 /// UR queue mapping on physical memory allocations used in virtual memory
 /// management.
 /// TODO: Implement.
 ///
-struct ur_physical_mem_handle_t_ {};
+struct ur_physical_mem_handle_t_ : ur::opencl::handle_base {};

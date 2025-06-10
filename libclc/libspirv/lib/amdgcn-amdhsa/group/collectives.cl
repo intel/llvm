@@ -316,18 +316,6 @@ __CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
 __CLC_GROUP_COLLECTIVE(LogicalOrKHR, __CLC_LOGICAL_OR, bool, false)
 __CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
-// half requires additional mangled entry points
-#define __CLC_GROUP_COLLECTIVE__DF16(MANGLED_NAME, SPIRV_DISPATCH)             \
-  _CLC_DEF _CLC_CONVERGENT half MANGLED_NAME(int scope, uint op, half x) {    \
-    return SPIRV_DISPATCH(scope, op, x);                                       \
-  }
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFAddiiDF16_, __spirv_GroupFAdd)
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMiniiDF16_, __spirv_GroupFMin)
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMaxiiDF16_, __spirv_GroupFMax)
-__CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRiiDF16_,
-                             __spirv_GroupFMulKHR)
-#undef __CLC_GROUP_COLLECTIVE__DF16
-
 #undef __CLC_GROUP_COLLECTIVE_4
 #undef __CLC_GROUP_COLLECTIVE_5
 #undef DISPATCH_TO_CLC_GROUP_COLLECTIVE_MACRO
@@ -391,7 +379,7 @@ __CLC_GROUP_BROADCAST(int, i)
 __CLC_GROUP_BROADCAST(uint, j)
 __CLC_GROUP_BROADCAST(long, l)
 __CLC_GROUP_BROADCAST(ulong, m)
-__CLC_GROUP_BROADCAST(half, DF16_)
+__CLC_GROUP_BROADCAST(half, Dh)
 __CLC_GROUP_BROADCAST(float, f)
 __CLC_GROUP_BROADCAST(double, d)
 

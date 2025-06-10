@@ -97,14 +97,14 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 };
 
 template <typename CommandGroupFunc, typename PropertiesT>
-void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
   Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT>(
       Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
-event submit_with_event_impl(queue &Q, PropertiesT Props,
+event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
   return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
@@ -113,7 +113,7 @@ event submit_with_event_impl(queue &Q, PropertiesT Props,
 } // namespace detail
 
 template <typename CommandGroupFunc, typename PropertiesT>
-void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
+void submit(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::detail::submit_impl(
@@ -121,15 +121,15 @@ void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
 }
 
 template <typename CommandGroupFunc>
-void submit(queue Q, CommandGroupFunc &&CGF,
+void submit(const queue &Q, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
-  submit(std::move(Q), empty_properties_t{},
-         std::forward<CommandGroupFunc>(CGF), CodeLoc);
+  submit(Q, empty_properties_t{}, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
-event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
+event submit_with_event(const queue &Q, PropertiesT Props,
+                        CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
   return sycl::ext::oneapi::experimental::detail::submit_with_event_impl(
@@ -137,10 +137,10 @@ event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
 }
 
 template <typename CommandGroupFunc>
-event submit_with_event(queue Q, CommandGroupFunc &&CGF,
+event submit_with_event(const queue &Q, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
-  return submit_with_event(std::move(Q), empty_properties_t{},
+  return submit_with_event(Q, empty_properties_t{},
                            std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
@@ -408,15 +408,15 @@ inline void partial_barrier(queue Q, const std::vector<event> &Events,
       CodeLoc);
 }
 
-inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
-                          const sycl::detail::code_location &CodeLoc =
-                              sycl::detail::code_location::current()) {
-  Q.ext_oneapi_graph(G, CodeLoc);
-}
-
 inline void execute_graph(handler &CGH,
                           command_graph<graph_state::executable> &G) {
   CGH.ext_oneapi_graph(G);
+}
+
+inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current()) {
+  submit(std::move(Q), [&](handler &CGH) { execute_graph(CGH, G); }, CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental

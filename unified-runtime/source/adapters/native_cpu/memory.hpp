@@ -17,7 +17,7 @@
 #include "common.hpp"
 #include "context.hpp"
 
-struct ur_mem_handle_t_ : _ur_object {
+struct ur_mem_handle_t_ : ur_object {
   ur_mem_handle_t_(size_t Size, bool _IsImage)
       : _mem{static_cast<char *>(malloc(Size))}, _ownsMem{true},
         IsImage{_IsImage} {}
@@ -48,26 +48,25 @@ private:
   const bool IsImage;
 };
 
-struct _ur_buffer final : ur_mem_handle_t_ {
+struct ur_buffer final : ur_mem_handle_t_ {
   // Buffer constructor
-  _ur_buffer(ur_context_handle_t /* Context*/, void *HostPtr)
+  ur_buffer(ur_context_handle_t /* Context*/, void *HostPtr)
       : ur_mem_handle_t_(HostPtr, false) {}
-  _ur_buffer(ur_context_handle_t /* Context*/, void *HostPtr, size_t Size)
+  ur_buffer(ur_context_handle_t /* Context*/, void *HostPtr, size_t Size)
       : ur_mem_handle_t_(HostPtr, Size, false) {}
-  _ur_buffer(ur_context_handle_t /* Context*/, size_t Size)
+  ur_buffer(ur_context_handle_t /* Context*/, size_t Size)
       : ur_mem_handle_t_(Size, false) {}
-  _ur_buffer(_ur_buffer *b, size_t Offset, size_t Size)
+  ur_buffer(ur_buffer *b, size_t Offset, size_t /*Size*/)
       : ur_mem_handle_t_(b->_mem + Offset, false), SubBuffer(b) {
-    std::ignore = Size;
     SubBuffer.Origin = Offset;
   }
 
   bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
 
   struct BB {
-    BB(_ur_buffer *b) : Parent(b), Origin(0) {}
+    BB(ur_buffer *b) : Parent(b), Origin(0) {}
     BB() : BB(nullptr) {}
-    _ur_buffer *const Parent;
+    ur_buffer *const Parent;
     size_t Origin; // only valid if Parent != nullptr
   } SubBuffer;
 };

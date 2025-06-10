@@ -39,7 +39,8 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps);
+                                     const GlobalBinImageProps &GlobProps,
+                                     bool AllowDeviceImageDependencies);
 
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints);

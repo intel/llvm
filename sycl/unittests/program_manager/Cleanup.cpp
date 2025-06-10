@@ -17,7 +17,8 @@ public:
     return m_KernelIDs2BinImage;
   }
 
-  std::unordered_map<std::string, sycl::kernel_id> &getKernelName2KernelID() {
+  std::unordered_map<sycl::detail::KernelNameStrT, sycl::kernel_id> &
+  getKernelName2KernelID() {
     return m_KernelName2KernelIDs;
   }
 
@@ -27,12 +28,14 @@ public:
     return m_BinImg2KernelIDs;
   }
 
-  std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *> &
+  std::unordered_multimap<sycl::detail::KernelNameStrT,
+                          sycl::detail::RTDeviceBinaryImage *> &
   getServiceKernels() {
     return m_ServiceKernels;
   }
 
-  std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *> &
+  std::unordered_multimap<sycl::detail::KernelNameStrT,
+                          sycl::detail::RTDeviceBinaryImage *> &
   getExportedSymbolImages() {
     return m_ExportedSymbolImages;
   }
@@ -57,16 +60,17 @@ public:
     return NativePrograms;
   }
 
-  std::unordered_map<
-      const sycl::detail::RTDeviceBinaryImage *,
-      std::unordered_map<std::string, sycl::detail::KernelArgMask>> &
+  std::unordered_map<const sycl::detail::RTDeviceBinaryImage *,
+                     std::unordered_map<sycl::detail::KernelNameStrT,
+                                        sycl::detail::KernelArgMask>> &
   getEliminatedKernelArgMask() {
     return m_EliminatedKernelArgMasks;
   }
 
   KernelUsesAssertSet &getKernelUsesAssert() { return m_KernelUsesAssert; }
 
-  std::unordered_map<std::string, int> &getKernelImplicitLocalArgPos() {
+  std::unordered_map<sycl::detail::KernelNameStrT, int> &
+  getKernelImplicitLocalArgPos() {
     return m_KernelImplicitLocalArgPos;
   }
 
@@ -81,7 +85,7 @@ public:
     return m_Ptr2HostPipe;
   }
 
-  std::unordered_map<std::string,
+  std::unordered_map<sycl::detail::KernelNameStrT,
                      std::unique_ptr<sycl::detail::DeviceGlobalMapEntry>> &
   getDeviceGlobals() {
     return m_DeviceGlobals;
@@ -380,13 +384,13 @@ TEST(ImageRemoval, NativePrograms) {
   sycl::queue Queue{Dev};
   auto Ctx = Queue.get_context();
   auto ProgramA = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                       sycl::detail::getSyclObjImpl(Dev),
+                                       *sycl::detail::getSyclObjImpl(Dev),
                                        generateRefName("A", "Kernel"));
   auto ProgramB = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                       sycl::detail::getSyclObjImpl(Dev),
+                                       *sycl::detail::getSyclObjImpl(Dev),
                                        generateRefName("B", "Kernel"));
   std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                     sycl::detail::getSyclObjImpl(Dev),
+                                     *sycl::detail::getSyclObjImpl(Dev),
                                      generateRefName("C", "Kernel"));
 
   EXPECT_EQ(PM.getNativePrograms().size(),

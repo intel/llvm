@@ -47,7 +47,8 @@ struct MsanShadowMemory {
                                        uptr &Begin, uptr &End) = 0;
 
   virtual ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue,
-                                         uint32_t NumWG, uptr &Begin,
+                                         uint64_t NumWI, uint32_t NumWG,
+                                         uptr *&Base, uptr &Begin,
                                          uptr &End) = 0;
 
   ur_context_handle_t Context{};
@@ -100,8 +101,10 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
     return UR_RESULT_SUCCESS;
   }
 
-  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
-                                 uptr &End) override {
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint64_t, uint32_t, uptr *&,
+                                 uptr &Begin, uptr &End) override {
+    // This is necessary as msan_rtl use it to check whether detecting private
+    // is enabled
     Begin = ShadowBegin;
     End = ShadowEnd;
     return UR_RESULT_SUCCESS;
@@ -127,8 +130,9 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
   ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                uptr &Begin, uptr &End) override final;
 
-  ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint32_t NumWG,
-                                 uptr &Begin, uptr &End) override final;
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint64_t NumWI,
+                                 uint32_t NumWG, uptr *&Base, uptr &Begin,
+                                 uptr &End) override final;
 
   virtual size_t GetShadowSize() = 0;
 

@@ -20,7 +20,7 @@
 /// UR queue mapping on physical memory allocations used in virtual memory
 /// management.
 ///
-struct ur_physical_mem_handle_t_ {
+struct ur_physical_mem_handle_t_ : ur::cuda::handle_base {
   using native_type = CUmemGenericAllocationHandle;
 
   std::atomic_uint32_t RefCount;
@@ -33,16 +33,12 @@ struct ur_physical_mem_handle_t_ {
   ur_physical_mem_handle_t_(native_type PhysMem, ur_context_handle_t_ *Ctx,
                             ur_device_handle_t Device, size_t Size,
                             ur_physical_mem_properties_t Properties)
-      : RefCount(1), PhysicalMem(PhysMem), Context(Ctx), Device(Device),
-        Size(Size), Properties(Properties) {
+      : handle_base(), RefCount(1), PhysicalMem(PhysMem), Context(Ctx),
+        Device(Device), Size(Size), Properties(Properties) {
     urContextRetain(Context);
-    urDeviceRetain(Device);
   }
 
-  ~ur_physical_mem_handle_t_() {
-    urContextRelease(Context);
-    urDeviceRelease(Device);
-  }
+  ~ur_physical_mem_handle_t_() { urContextRelease(Context); }
 
   native_type get() const noexcept { return PhysicalMem; }
 

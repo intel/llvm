@@ -18,7 +18,6 @@ class Result:
     stdout: str
     passed: bool = True
     unit: str = ""
-    explicit_group: str = ""
     # stddev can be optionally set by the benchmark,
     # if not set, it will be calculated automatically.
     stddev: float = 0.0
@@ -62,6 +61,8 @@ class BenchmarkMetadata:
     tags: list[str] = field(default_factory=list)
     range_min: float = None
     range_max: float = None
+    display_name: str = None
+    explicit_group: str = None
 
 
 @dataclass_json

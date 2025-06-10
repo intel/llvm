@@ -2,6 +2,7 @@
 // REQUIRES: x86-registered-target
 // REQUIRES: nvptx-registered-target
 // REQUIRES: amdgpu-registered-target
+// REQUIRES: spirv-registered-target
 
 // An externally visible variable so static libraries extract.
 __attribute__((visibility("protected"), used)) int x;
@@ -9,6 +10,7 @@ __attribute__((visibility("protected"), used)) int x;
 // RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.elf.o
 // RUN: %clang -cc1 %s -triple nvptx64-nvidia-cuda -emit-llvm-bc -o %t.nvptx.bc
 // RUN: %clang -cc1 %s -triple amdgcn-amd-amdhsa -emit-llvm-bc -o %t.amdgpu.bc
+// RUN: %clang -cc1 %s -triple spirv64-unknown-unknown -emit-llvm-bc -o %t.spirv.bc
 
 // RUN: clang-offload-packager -o %t.out \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=nvptx64-nvidia-cuda,arch=sm_70 \
@@ -49,6 +51,17 @@ __attribute__((visibility("protected"), used)) int x;
 
 // AMDGPU-LTO-TEMPS: clang{{.*}} --target=amdgcn-amd-amdhsa -mcpu=gfx1030 -flto {{.*}}-save-temps
 
+// RUN: clang-offload-packager -o %t.out \
+// RUN:   --image=file=%t.spirv.bc,kind=sycl,triple=spirv64-unknown-unknown,arch=generic
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.out
+// RUN: not clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=SPIRV-LINK-INTEL
+
+// TODO: Remove SPIRV-LINK-INTEL once migration to community flow is completed.
+// SPIRV-LINK: clang{{.*}} -o {{.*}}.img --target=spirv64-unknown-unknown {{.*}}.o --sycl-link -Xlinker -triple=spirv64-unknown-unknown -Xlinker -arch=
+// SPIRV-LINK-INTEL: spirv-to-ir-wrapper{{.*}} -o {{.*}}.bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// SPIRV-LINK-INTEL: llvm-link{{.*}} {{.*}}.bc -o {{.*}}.bc --suppress-warnings
+//
 // RUN: clang-offload-packager -o %t.out \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=x86_64-unknown-linux-gnu \
 // RUN:   --image=file=%t.elf.o,kind=openmp,triple=x86_64-unknown-linux-gnu

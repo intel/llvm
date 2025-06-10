@@ -13,17 +13,23 @@ constexpr auto Props3 = sycl::ext::oneapi::experimental::properties{
 
 struct TestKernel_Props1 {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) { return Props1; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return Props1;
+  }
 };
 
 struct TestKernel_Props2 {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) { return Props2; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return Props2;
+  }
 };
 
 struct TestKernel_Props3 {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) { return Props3; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return Props3;
+  }
 };
 
 int main() {

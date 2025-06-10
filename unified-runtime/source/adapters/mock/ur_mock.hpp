@@ -27,9 +27,17 @@ public:
   context_t();
   ~context_t() = default;
 
-  ur_adapter_handle_t adapter = reinterpret_cast<ur_adapter_handle_t>(1);
-  ur_device_handle_t device = reinterpret_cast<ur_device_handle_t>(2);
-  ur_platform_handle_t platform = reinterpret_cast<ur_platform_handle_t>(3);
+  void *fake_adapter = &urDdiTable;
+  ur_adapter_handle_t adapter =
+      reinterpret_cast<ur_adapter_handle_t>(&fake_adapter);
+
+  void *fake_device = &urDdiTable;
+  ur_device_handle_t device =
+      reinterpret_cast<ur_device_handle_t>(&fake_device);
+
+  void *fake_platform = &urDdiTable;
+  ur_platform_handle_t platform =
+      reinterpret_cast<ur_platform_handle_t>(&fake_platform);
 };
 
 extern context_t d_context;

@@ -14,7 +14,7 @@
 
 #include <vector>
 
-struct ur_program_handle_t_ {
+struct ur_program_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_program;
   native_type CLProgram;
   ur_context_handle_t Context;
@@ -25,7 +25,7 @@ struct ur_program_handle_t_ {
 
   ur_program_handle_t_(native_type Prog, ur_context_handle_t Ctx,
                        uint32_t NumDevices, ur_device_handle_t *Devs)
-      : CLProgram(Prog), Context(Ctx), NumDevices(NumDevices) {
+      : handle_base(), CLProgram(Prog), Context(Ctx), NumDevices(NumDevices) {
     RefCount = 1;
     urContextRetain(Context);
     for (uint32_t i = 0; i < NumDevices; i++) {

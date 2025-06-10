@@ -11,8 +11,11 @@
 #include "sycl/exception.hpp"
 #include <detail/config.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/spinlock.hpp>
@@ -26,11 +29,9 @@
 #include <mutex>
 #include <numeric>
 #include <set>
+#include <sstream>
 #include <thread>
 #include <type_traits>
-
-#include <boost/unordered/unordered_flat_map.hpp>
-#include <boost/unordered_map.hpp>
 
 // For testing purposes
 class MockKernelProgramCache;
@@ -182,8 +183,8 @@ public:
   };
 
   struct ProgramCache {
-    ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
-    ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    emhash8::HashMap<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
+    UnorderedMultimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
     // Mapping between a UR program and its size.
     std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
 
@@ -223,31 +224,66 @@ public:
   };
   using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
-  using KernelByNameT =
-      ::boost::unordered_map<std::string, KernelBuildResultPtr>;
-  using KernelCacheT =
-      ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
+  using KernelByNameT = emhash8::HashMap<KernelNameStrT, KernelBuildResultPtr>;
+  using KernelCacheT = emhash8::HashMap<ur_program_handle_t, KernelByNameT>;
 
-  using KernelFastCacheKeyT =
-      std::pair<ur_device_handle_t, /* UR device handle pointer */
-                std::string         /* Kernel Name */
-                >;
+  class FastKernelSubcacheWrapper {
+  public:
+    FastKernelSubcacheWrapper(FastKernelSubcacheT *CachePtr,
+                              ur_context_handle_t UrContext)
+        : MSubcachePtr{CachePtr}, MUrContext{UrContext} {
+      if (!MSubcachePtr) {
+        MOwnsSubcache = true;
+        MSubcachePtr = new FastKernelSubcacheT();
+      }
+    }
+    FastKernelSubcacheWrapper(const FastKernelSubcacheWrapper &) = delete;
+    FastKernelSubcacheWrapper(FastKernelSubcacheWrapper &&Other)
+        : MSubcachePtr{Other.MSubcachePtr}, MOwnsSubcache{Other.MOwnsSubcache},
+          MUrContext{Other.MUrContext} {
+      Other.MSubcachePtr = nullptr;
+    }
+    FastKernelSubcacheWrapper &
+    operator=(const FastKernelSubcacheWrapper &) = delete;
+    FastKernelSubcacheWrapper &operator=(FastKernelSubcacheWrapper &&Other) {
+      MSubcachePtr = Other.MSubcachePtr;
+      MOwnsSubcache = Other.MOwnsSubcache;
+      MUrContext = Other.MUrContext;
+      Other.MSubcachePtr = nullptr;
+      return *this;
+    };
 
-  using KernelFastCacheValT =
-      std::tuple<ur_kernel_handle_t,    /* UR kernel handle pointer. */
-                 std::mutex *,          /* Mutex guarding this kernel. */
-                 const KernelArgMask *, /* Eliminated kernel argument mask. */
-                 ur_program_handle_t /* UR program handle corresponding to this
-                                     kernel. */
-                 >;
+    ~FastKernelSubcacheWrapper() {
+      if (!MSubcachePtr)
+        return;
 
-  // This container is used as a fast path for retrieving cached kernels.
-  // unordered_flat_map is used here to reduce lookup overhead.
-  // The slow path is used only once for each newly created kernel, so the
-  // higher overhead of insertion that comes with unordered_flat_map is more
-  // of an issue there. For that reason, those use regular unordered maps.
-  using KernelFastCacheT =
-      ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
+      if (MOwnsSubcache) {
+        delete MSubcachePtr;
+        return;
+      }
+
+      // Single subcache might be used by different contexts.
+      // Remove all entries from the subcache that are associated with the
+      // current context.
+      FastKernelSubcacheEntriesT &Entries = MSubcachePtr->Entries;
+      FastKernelSubcacheWriteLockT Lock{MSubcachePtr->Mutex};
+      Entries.erase(std::remove_if(Entries.begin(), Entries.end(),
+                                   [this](const FastKernelEntryT &Entry) {
+                                     return Entry.Key.second == MUrContext;
+                                   }),
+                    Entries.end());
+    }
+
+    FastKernelSubcacheT &get() { return *MSubcachePtr; }
+
+  private:
+    FastKernelSubcacheT *MSubcachePtr = nullptr;
+    bool MOwnsSubcache = false;
+    ur_context_handle_t MUrContext = nullptr;
+  };
+
+  using FastKernelCacheT =
+      emhash8::HashMap<KernelNameStrT, FastKernelSubcacheWrapper>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -323,6 +359,8 @@ public:
 
     int ImageId = CacheKey.first.second;
     std::stringstream DeviceList;
+    DeviceList.imbue(
+        std::locale::classic()); // avoid locale issues, like commas
     std::vector<unsigned char> SerializedObjVec = CacheKey.first.first;
 
     // Convert spec constants to string. Spec constants are stored as
@@ -350,12 +388,12 @@ public:
   // set.
   static inline void traceKernel(std::string_view Msg,
                                  std::string_view KernelName,
-                                 bool IsKernelFastCache = false) {
+                                 bool IsFastKernelCache = false) {
     if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
       return;
 
     std::string Identifier =
-        "[IsFastCache: " + std::to_string(IsKernelFastCache) +
+        "[IsFastCache: " + std::to_string(IsFastKernelCache) +
         "][Key:{Name = " + KernelName.data() + "}]: ";
 
     std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
@@ -415,8 +453,7 @@ public:
   }
 
   std::pair<KernelBuildResultPtr, bool>
-  getOrInsertKernel(ur_program_handle_t Program,
-                    const std::string &KernelName) {
+  getOrInsertKernel(ur_program_handle_t Program, KernelNameStrRefT KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
@@ -428,39 +465,66 @@ public:
     return std::make_pair(It->second, DidInsert);
   }
 
-  template <typename KeyT>
-  KernelFastCacheValT tryToGetKernelFast(KeyT &&CacheKey) {
-    KernelFastCacheReadLockT Lock(MKernelFastCacheMutex);
-    auto It = MKernelFastCache.find(CacheKey);
-    if (It != MKernelFastCache.end()) {
-      traceKernel("Kernel fetched.", CacheKey.second, true);
-      return It->second;
+  FastKernelCacheValPtr
+  tryToGetKernelFast(KernelNameStrRefT KernelName, ur_device_handle_t Device,
+                     FastKernelSubcacheT *KernelSubcacheHint) {
+    FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
+    if (!KernelSubcacheHint) {
+      auto It = MFastKernelCache.try_emplace(
+          KernelName,
+          FastKernelSubcacheWrapper(KernelSubcacheHint, getURContext()));
+      KernelSubcacheHint = &It.first->second.get();
     }
-    return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
+
+    const FastKernelSubcacheEntriesT &SubcacheEntries =
+        KernelSubcacheHint->Entries;
+    FastKernelSubcacheReadLockT SubcacheLock{KernelSubcacheHint->Mutex};
+    ur_context_handle_t Context = getURContext();
+    const FastKernelCacheKeyT RequiredKey(Device, Context);
+    // Search for the kernel in the subcache.
+    auto It = std::find_if(SubcacheEntries.begin(), SubcacheEntries.end(),
+                           [&](const FastKernelEntryT &Entry) {
+                             return Entry.Key == RequiredKey;
+                           });
+    if (It != SubcacheEntries.end()) {
+      traceKernel("Kernel fetched.", KernelName, true);
+      return It->Value;
+    }
+
+    return FastKernelCacheValPtr();
   }
 
-  template <typename KeyT, typename ValT>
-  void saveKernel(KeyT &&CacheKey, ValT &&CacheVal) {
-    ur_program_handle_t Program = std::get<3>(CacheVal);
+  void saveKernel(KernelNameStrRefT KernelName, ur_device_handle_t Device,
+                  const FastKernelCacheValPtr &CacheVal,
+                  FastKernelSubcacheT *KernelSubcacheHint) {
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
             isProgramCacheEvictionEnabled()) {
-
       // Save kernel in fast cache only if the corresponding program is also
       // in the cache.
       auto LockedCache = acquireCachedPrograms();
       auto &ProgCache = LockedCache.get();
-      if (ProgCache.ProgramSizeMap.find(Program) ==
+      if (ProgCache.ProgramSizeMap.find(CacheVal->MProgramHandle) ==
           ProgCache.ProgramSizeMap.end())
         return;
     }
-    // Save reference between the program and the fast cache key.
-    KernelFastCacheWriteLockT Lock(MKernelFastCacheMutex);
-    MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
 
-    // if no insertion took place, thus some other thread has already inserted
+    // Save reference between the program and the fast cache key.
+    FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
+    MProgramToFastKernelCacheKeyMap[CacheVal->MProgramHandle].emplace_back(
+        KernelName, Device);
+
+    // if no insertion took place, then some other thread has already inserted
     // smth in the cache
-    traceKernel("Kernel inserted.", CacheKey.second, true);
-    MKernelFastCache.emplace(CacheKey, CacheVal);
+    traceKernel("Kernel inserted.", KernelName, true);
+    auto It = MFastKernelCache.try_emplace(
+        KernelName,
+        FastKernelSubcacheWrapper(KernelSubcacheHint, getURContext()));
+    KernelSubcacheHint = &It.first->second.get();
+
+    FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcacheHint->Mutex};
+    ur_context_handle_t Context = getURContext();
+    KernelSubcacheHint->Entries.emplace_back(
+        FastKernelCacheKeyT(Device, Context), CacheVal);
   }
 
   // Expects locked program cache
@@ -471,7 +535,7 @@ public:
     if (It != ProgCache.Cache.end()) {
       // We are about to remove this program now.
       // (1) Remove it from KernelPerProgram cache.
-      // (2) Remove corresponding entries from KernelFastCache.
+      // (2) Remove corresponding entries from FastKernelCache.
       // (3) Remove it from ProgramCache KeyMap.
       // (4) Remove it from the ProgramCache.
       // (5) Remove it from ProgramSizeMap.
@@ -491,16 +555,41 @@ public:
       }
 
       {
-        // Remove corresponding entries from KernelFastCache.
-        KernelFastCacheWriteLockT Lock(MKernelFastCacheMutex);
-        if (auto FastCacheKeyItr =
-                MProgramToKernelFastCacheKeyMap.find(NativePrg);
-            FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
-          for (const auto &FastCacheKey : FastCacheKeyItr->second) {
-            MKernelFastCache.erase(FastCacheKey);
-            traceKernel("Kernel evicted.", FastCacheKey.second, true);
+        // Remove corresponding entries from FastKernelCache.
+        FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
+        if (auto FastCacheKeysItr =
+                MProgramToFastKernelCacheKeyMap.find(NativePrg);
+            FastCacheKeysItr != MProgramToFastKernelCacheKeyMap.end()) {
+          ur_context_handle_t Context = getURContext();
+          for (const auto &FastCacheKey : FastCacheKeysItr->second) {
+            if (auto FastKernelCacheItr =
+                    MFastKernelCache.find(FastCacheKey.first);
+                FastKernelCacheItr != MFastKernelCache.end()) {
+              FastKernelSubcacheT &Subcache = FastKernelCacheItr->second.get();
+              bool RemoveSubcache = false;
+              {
+                FastKernelSubcacheWriteLockT SubcacheLock{Subcache.Mutex};
+                Subcache.Entries.erase(
+                    std::remove_if(
+                        Subcache.Entries.begin(), Subcache.Entries.end(),
+                        [&](const FastKernelEntryT &Entry) {
+                          return Entry.Key == FastKernelCacheKeyT(
+                                                  FastCacheKey.second, Context);
+                        }),
+                    Subcache.Entries.end());
+                traceKernel("Kernel evicted.", FastCacheKey.first, true);
+
+                // Remove the subcache wrapper from this kernel program cache if
+                // the subcache no longer contains entries for this context.
+                RemoveSubcache = std::none_of(
+                    Subcache.Entries.begin(), Subcache.Entries.end(),
+                    [&](const auto &It) { return It.Key.second == Context; });
+              }
+              if (RemoveSubcache)
+                MFastKernelCache.erase(FastKernelCacheItr);
+            }
           }
-          MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
+          MProgramToFastKernelCacheKeyMap.erase(FastCacheKeysItr);
         }
       }
 
@@ -512,7 +601,7 @@ public:
       auto KeyMapItrRange = ProgCache.KeyMap.equal_range(CommonKey);
       for (auto KeyMapItr = KeyMapItrRange.first;
            KeyMapItr != KeyMapItrRange.second; ++KeyMapItr) {
-        if (KeyMapItr->second == CacheKey) {
+        if ((*KeyMapItr).second == CacheKey) {
           ProgCache.KeyMap.erase(KeyMapItr);
           break;
         }
@@ -639,11 +728,11 @@ public:
     std::lock_guard<std::mutex> EvictionListLock(MProgramEvictionListMutex);
     std::lock_guard<std::mutex> L1(MProgramCacheMutex);
     std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
-    KernelFastCacheWriteLockT L3(MKernelFastCacheMutex);
+    FastKernelCacheWriteLockT L3(MFastKernelCacheMutex);
     MCachedPrograms = ProgramCache{};
     MKernelsPerProgramCache = KernelCacheT{};
-    MKernelFastCache = KernelFastCacheT{};
-    MProgramToKernelFastCacheKeyMap.clear();
+    MFastKernelCache = FastKernelCacheT{};
+    MProgramToFastKernelCacheKeyMap.clear();
     // Clear the eviction lists and its mutexes.
     MEvictionList.clear();
   }
@@ -751,7 +840,7 @@ public:
     if (It == ProgCache.KeyMap.end())
       return;
 
-    auto Key = It->second;
+    auto Key = (*It).second;
     removeProgramByKey(Key, ProgCache);
     {
       auto LockedEvictionList = acquireEvictionList();
@@ -767,16 +856,17 @@ private:
   KernelCacheT MKernelsPerProgramCache;
   ContextPtr MParentContext;
 
-  using KernelFastCacheMutexT = SpinLock;
-  using KernelFastCacheReadLockT = std::lock_guard<KernelFastCacheMutexT>;
-  using KernelFastCacheWriteLockT = std::lock_guard<KernelFastCacheMutexT>;
-  KernelFastCacheMutexT MKernelFastCacheMutex;
-  KernelFastCacheT MKernelFastCache;
+  using FastKernelCacheMutexT = SpinLock;
+  using FastKernelCacheReadLockT = std::lock_guard<FastKernelCacheMutexT>;
+  using FastKernelCacheWriteLockT = std::lock_guard<FastKernelCacheMutexT>;
+  FastKernelCacheMutexT MFastKernelCacheMutex;
+  FastKernelCacheT MFastKernelCache;
 
   // Map between fast kernel cache keys and program handle.
-  // MKernelFastCacheMutex will be used for synchronization.
-  std::unordered_map<ur_program_handle_t, std::vector<KernelFastCacheKeyT>>
-      MProgramToKernelFastCacheKeyMap;
+  // MFastKernelCacheMutex will be used for synchronization.
+  std::unordered_map<ur_program_handle_t,
+                     std::vector<std::pair<KernelNameStrT, ur_device_handle_t>>>
+      MProgramToFastKernelCacheKeyMap;
 
   EvictionList MEvictionList;
   // Mutexes that will be used when accessing the eviction lists.
@@ -785,6 +875,7 @@ private:
   friend class ::MockKernelProgramCache;
 
   const AdapterPtr &getAdapter();
+  ur_context_handle_t getURContext() const;
 };
 } // namespace detail
 } // namespace _V1

@@ -10,6 +10,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: linux && gpu-intel-gen12 && (!build-mode && run-mode)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17966
+
 #define SYCLCOMPAT_USM_LEVEL_NONE
 #include <sycl/detail/core.hpp>
 #include <syclcompat/memory.hpp>

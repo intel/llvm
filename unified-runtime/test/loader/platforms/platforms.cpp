@@ -27,23 +27,23 @@ int main(int, char *[]) {
   // Initialize the platform
   status = urLoaderInit(0, nullptr);
   if (status != UR_RESULT_SUCCESS) {
-    out.error("urLoaderInit failed with return code: {}", status);
+    UR_LOG_L(out, ERR, "urLoaderInit failed with return code: {}", status);
     return 1;
   }
-  out.info("urLoaderInit succeeded.");
+  UR_LOG_L(out, INFO, "urLoaderInit succeeded.");
 
   uint32_t adapterCount = 0;
   std::vector<ur_adapter_handle_t> adapters;
   status = urAdapterGet(0, nullptr, &adapterCount);
   if (status != UR_RESULT_SUCCESS) {
-    out.error("urAdapterGet failed with return code: {}", status);
+    UR_LOG_L(out, ERR, "urAdapterGet failed with return code: {}", status);
     return 1;
   }
 
   adapters.resize(adapterCount);
   status = urAdapterGet(adapterCount, adapters.data(), nullptr);
   if (status != UR_RESULT_SUCCESS) {
-    out.error("urAdapterGet failed with return code: {}", status);
+    UR_LOG_L(out, ERR, "urAdapterGet failed with return code: {}", status);
     return 1;
   }
 
@@ -53,27 +53,28 @@ int main(int, char *[]) {
     uint32_t adapterPlatformCount = 0;
     status = urPlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
     if (status != UR_RESULT_SUCCESS) {
-      out.error("urPlatformGet failed with return code: {}", status);
+      UR_LOG_L(out, ERR, "urPlatformGet failed with return code: {}", status);
       goto out;
     }
-    out.info("urPlatformGet found {} platforms", platformCount);
+    UR_LOG_L(out, INFO, "urPlatformGet found {} platforms",
+             adapterPlatformCount);
 
-    platforms.reserve(platformCount + adapterPlatformCount);
+    platforms.resize(platformCount + adapterPlatformCount);
     status = urPlatformGet(adapter, adapterPlatformCount,
                            &platforms[platformCount], &adapterPlatformCount);
     if (status != UR_RESULT_SUCCESS) {
-      out.error("urPlatformGet failed with return code: {}", status);
+      UR_LOG_L(out, ERR, "urPlatformGet failed with return code: {}", status);
       goto out;
     }
     platformCount += adapterPlatformCount;
   }
-  platforms.resize(platformCount);
 
   for (auto p : platforms) {
     size_t name_len;
     status = urPlatformGetInfo(p, UR_PLATFORM_INFO_NAME, 0, nullptr, &name_len);
     if (status != UR_RESULT_SUCCESS) {
-      out.error("urPlatformGetInfo failed with return code: {}", status);
+      UR_LOG_L(out, ERR, "urPlatformGetInfo failed with return code: {}",
+               status);
       goto out;
     }
 
@@ -83,11 +84,12 @@ int main(int, char *[]) {
     status =
         urPlatformGetInfo(p, UR_PLATFORM_INFO_NAME, name_len, name, nullptr);
     if (status != UR_RESULT_SUCCESS) {
-      out.error("urPlatformGetInfo failed with return code: {}", status);
+      UR_LOG_L(out, ERR, "urPlatformGetInfo failed with return code: {}",
+               status);
       free(name);
       goto out;
     }
-    out.info("Found {} ", name);
+    UR_LOG_L(out, INFO, "Found {} ", name);
 
     free(name);
   }

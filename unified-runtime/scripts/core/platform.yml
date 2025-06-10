@@ -73,7 +73,7 @@ etors:
       todo: "currently always return FULL_PROFILE, deprecate?"
     - name: BACKEND
       value: "6"
-      desc: "[$x_platform_backend_t] The backend of the platform. Identifies the native backend adapter implementing this platform."
+      desc: "[$x_backend_t] The backend of the platform. Identifies the native backend adapter implementing this platform."
     - name: ADAPTER
       value: "7"
       desc: "[$x_adapter_handle_t] The adapter handle associated with the platform."
@@ -255,27 +255,3 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_VALUE:
       - "If `pFrontendOption` is not a valid frontend option."
---- #--------------------------------------------------------------------------
-type: enum
-desc: "Identifies native backend adapters"
-class: $xPlatform
-name: $x_platform_backend_t
-etors:
-    - name: UNKNOWN
-      value: "0"
-      desc: "The backend is not a recognized one"
-    - name: LEVEL_ZERO
-      value: "1"
-      desc: "The backend is Level Zero"
-    - name: OPENCL
-      value: "2"
-      desc: "The backend is OpenCL"
-    - name: CUDA
-      value: "3"
-      desc: "The backend is CUDA"
-    - name: HIP
-      value: "4"
-      desc: "The backend is HIP"
-    - name: NATIVE_CPU
-      value: "5"
-      desc: "The backend is Native CPU"

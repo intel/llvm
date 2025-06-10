@@ -18,6 +18,7 @@
 #include <queue>
 #include <set>
 #include <shared_mutex>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -452,8 +453,8 @@ public:
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   ur_kernel_handle_t completeSpecConstMaterialization(
-      const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
-      const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
+      queue_impl &Queue, const RTDeviceBinaryImage *BinImage,
+      KernelNameStrRefT KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
@@ -475,6 +476,9 @@ public:
           Nodes,
       const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
+
+  static bool CheckEventReadiness(const ContextImplPtr &Context,
+                                  const EventImplPtr &SyclEventImplPtr);
 
   static bool
   areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,

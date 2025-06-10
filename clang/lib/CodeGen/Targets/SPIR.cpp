@@ -51,7 +51,10 @@ ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
     }
     // Pass all aggregate types allowed by Sema by value.
     if (isAggregateTypeForABI(Ty))
-      return getNaturalAlignIndirect(Ty, getDataLayout().getAllocaAddrSpace());
+      return getNaturalAlignIndirect(Ty,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(Ty));
   }
 
   return DefaultABIInfo::classifyArgumentType(Ty);
@@ -129,7 +132,11 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallArgumentType(QualType Ty) const {
     // Records with non-trivial destructors/copy-constructors should not be
     // passed by value.
     if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
-      return getNaturalAlignIndirect(Ty, RAA == CGCXXABI::RAA_DirectInMemory);
+      return getNaturalAlignIndirect(Ty,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(Ty),
+                                     RAA == CGCXXABI::RAA_DirectInMemory);
 
     // Ignore empty structs/unions.
     if (isEmptyRecord(getContext(), Ty, true))
@@ -203,6 +210,8 @@ public:
   llvm::Type *getSPIRVImageTypeFromHLSLResource(
       const HLSLAttributedResourceType::Attributes &attributes,
       llvm::Type *ElementType, llvm::LLVMContext &Ctx) const;
+  void
+  setOCLKernelStubCallingConvention(const FunctionType *&FT) const override;
 };
 class SPIRVTargetCodeGenInfo : public CommonSPIRTargetCodeGenInfo {
 public:
@@ -321,7 +330,10 @@ ABIArgInfo SPIRVABIInfo::classifyArgumentType(QualType Ty) const {
   // Records with non-trivial destructors/copy-constructors should not be
   // passed by value.
   if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
-    return getNaturalAlignIndirect(Ty, getDataLayout().getAllocaAddrSpace(),
+    return getNaturalAlignIndirect(Ty,
+                                   getCodeGenOpts().UseAllocaASForSrets
+                                       ? getDataLayout().getAllocaAddrSpace()
+                                       : CGT.getTargetAddressSpace(Ty),
                                    RAA == CGCXXABI::RAA_DirectInMemory);
 
   if (const RecordType *RT = Ty->getAs<RecordType>()) {
@@ -377,6 +389,15 @@ void SPIRVTargetCodeGenInfo::setCUDAKernelCallingConvention(
         FT, FT->getExtInfo().withCallingConv(CC_OpenCLKernel));
     return;
   }
+}
+
+void CommonSPIRTargetCodeGenInfo::setOCLKernelStubCallingConvention(
+    const FunctionType *&FT) const {
+  // Disable kernel stub for sycl
+  if (getABIInfo().getContext().getLangOpts().isSYCL())
+     return;
+  FT = getABIInfo().getContext().adjustFunctionType(
+      FT, FT->getExtInfo().withCallingConv(CC_SpirFunction));
 }
 
 LangAS
@@ -543,14 +564,21 @@ llvm::Type *CommonSPIRTargetCodeGenInfo::getHLSLType(
     if (ContainedTy.isNull())
       return nullptr;
 
-    assert(!ResAttrs.RawBuffer &&
-           "Raw buffers handles are not implemented for SPIR-V yet");
     assert(!ResAttrs.IsROV &&
            "Rasterizer order views not implemented for SPIR-V yet");
 
-    // convert element type
     llvm::Type *ElemType = CGM.getTypes().ConvertType(ContainedTy);
-    return getSPIRVImageTypeFromHLSLResource(ResAttrs, ElemType, Ctx);
+    if (!ResAttrs.RawBuffer) {
+      // convert element type
+      return getSPIRVImageTypeFromHLSLResource(ResAttrs, ElemType, Ctx);
+    }
+
+    llvm::ArrayType *RuntimeArrayType = llvm::ArrayType::get(ElemType, 0);
+    uint32_t StorageClass = /* StorageBuffer storage class */ 12;
+    bool IsWritable = ResAttrs.ResourceClass == llvm::dxil::ResourceClass::UAV;
+    return llvm::TargetExtType::get(Ctx, "spirv.VulkanBuffer",
+                                    {RuntimeArrayType},
+                                    {StorageClass, IsWritable});
   }
   case llvm::dxil::ResourceClass::CBuffer:
     llvm_unreachable("CBuffer handles are not implemented for SPIR-V yet");

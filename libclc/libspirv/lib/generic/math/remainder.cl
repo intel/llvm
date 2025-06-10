@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <libspirv/spirv.h>
-
-#include <math/clc_remainder.h>
+#include <clc/math/clc_remainder.h>
 
 #define __CLC_FUNC __spirv_ocl_remainder
 #define __CLC_SW_FUNC __clc_remainder
