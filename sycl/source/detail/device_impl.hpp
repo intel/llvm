@@ -886,11 +886,10 @@ public:
     }
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
-      if (getBackend() != backend::ext_oneapi_cuda)
-        return false;
-
-      return get_info_impl_nocheck<UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP>()
-                 .value_or(0) != 0;
+      auto SupportFlags =
+          get_info_impl<UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES>();
+      return static_cast<bool>(
+          SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
     // ext_codeplay_device_traits.def

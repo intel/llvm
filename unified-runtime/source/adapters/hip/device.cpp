@@ -993,7 +993,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
   case UR_DEVICE_INFO_FAN_SPEED:
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
@@ -1032,21 +1031,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
-  }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(0);
   default:
     break;
   }
@@ -1106,7 +1104,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 /// Gets the native HIP handle of a UR device object
 ///
 /// \param[in] hDevice The UR device to get the native HIP object of.
-/// \param[out] phNativeHandle Set to the native handle of the UR device object.
+/// \param[out] phNativeHandle Set to the native handle of the UR device
+/// object.
 ///
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(

@@ -15,8 +15,8 @@ config.dpcpp_bin_dir = os.path.join(config.dpcpp_root_dir, 'bin')
 def get_dpcpp_tool_path(name):
     try:
         return subprocess.check_output([config.dpcpp_compiler, "-print-prog-name=" + name], text=True)
-    except CalledProcessError:
-        return os.path.join(config.dpcpp_bin_dir, tool)
+    except subprocess.CalledProcessError:
+        return os.path.join(config.dpcpp_bin_dir, name)
 
 config.llvm_tools_dir = os.path.dirname(get_dpcpp_tool_path("llvm-config"))
 config.lit_tools_dir = os.path.dirname("@TEST_SUITE_LIT@")

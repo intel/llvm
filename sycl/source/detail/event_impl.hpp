@@ -74,7 +74,7 @@ public:
   /// as it was constructed with the queue based constructor.
   ///
   /// \param Queue is a queue to be associated with the event
-  void setQueue(const QueueImplPtr &Queue);
+  void setQueue(queue_impl &Queue);
 
   /// Waits for the event.
   ///
@@ -234,14 +234,14 @@ public:
   /// Sets worker queue for command.
   ///
   /// @return
-  void setWorkerQueue(const QueueImplPtr &WorkerQueue) {
+  void setWorkerQueue(std::weak_ptr<queue_impl> WorkerQueue) {
     MWorkerQueue = WorkerQueue;
   };
 
   /// Sets original queue used for submission.
   ///
   /// @return
-  void setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
+  void setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
     MSubmittedQueue = SubmittedQueue;
   };
 
