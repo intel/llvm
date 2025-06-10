@@ -1,6 +1,5 @@
 // Test device image linking when using dynamic libraries when one of
 // the device image is compressed and the other is not.
-// Modeled after regression seen in CMPLRLLVM-67948.
 
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: Linking using dynamic libraries is not supported on AMD
@@ -23,4 +22,4 @@
 // RUN: %else                                                                             \
 // RUN:   %{-L%T -ldevice_a -ldevice_b -ldevice_c -ldevice_d -Wl,-rpath=%T%}
 
-// RUN: %{run} %t.out &> FileCheck %s
+// RUN: %{run} %t.out 2>&1 | FileCheck %s
