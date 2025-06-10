@@ -11,7 +11,7 @@ struct Functor {
   void operator()() const {}
 };
 
-// CHECK: FunctionDecl {{.*}} _ZTS7Functor 'void ()'
+// CHECK: FunctionDecl {{.*}} _ZTS7Functor 'void () __attribute__((device_kernel))'
 // CHECK-NEXT: |-CompoundStmt {{.*}} <{{.*}}line{{.*}}>
 
 int main() {

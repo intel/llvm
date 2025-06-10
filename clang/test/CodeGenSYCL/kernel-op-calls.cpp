@@ -53,7 +53,7 @@ int main() {
 
   Q.submit([&](sycl::handler& cgh) {
       ESIMDFunctor EF;
-      // CHECK: define dso_local spir_kernel void @_ZTS12ESIMDFunctor() {{.*}} !intel_reqd_sub_group_size !{{[0-9]+}} !work_group_size_hint !{{[0-9]+}} !kernel_arg_accessor_ptr !{{[0-9]+}} !sycl_explicit_simd !{{[0-9]+}} !sycl_fixed_targets !{{[0-9]+}} {
+      // CHECK: define dso_local spir_kernel void @_ZTS12ESIMDFunctor() {{.*}} !sycl_explicit_simd !{{[0-9]+}} !intel_reqd_sub_group_size !{{[0-9]+}} !work_group_size_hint !{{[0-9]+}} !kernel_arg_accessor_ptr !{{[0-9]+}} !sycl_fixed_targets !{{[0-9]+}} {
       cgh.parallel_for(sycl::range<1>(10), EF);
     });
 

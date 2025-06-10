@@ -94,6 +94,10 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
       return llvm::CallingConv::AMDGPU_KERNEL;
     if (CGM.getTriple().isNVPTX())
       return llvm::CallingConv::PTX_Kernel;
+    if (CGM.getLangOpts().SYCLIsNativeCPU)
+      return CGM.getTarget().getDefaultCallingConv();
+    if (CGM.getLangOpts().SYCLIsDevice)
+      return CGM.getTarget().getDefaultCallingConv();
     llvm_unreachable("Unknown kernel calling convention");
   }
   case CC_PreserveMost:
@@ -2628,8 +2632,8 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
                                  NumElemsParam);
     }
 
-    if (DeviceKernelAttr::isOpenCLSpelling(
-            TargetDecl->getAttr<DeviceKernelAttr>()) &&
+    if (TargetDecl->hasAttr<DeviceKernelAttr>() &&
+        (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) &&
         CallingConv != CallingConv::CC_C &&
         CallingConv != CallingConv::CC_SpirFunction) {
       // Check CallingConv to avoid adding uniform-work-group-size attribute to
@@ -3013,8 +3017,9 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // > data type, the OpenCL compiler can assume that the pointee is always
     // > appropriately aligned as required by the data type.
     if (TargetDecl &&
-        DeviceKernelAttr::isOpenCLSpelling(
-            TargetDecl->getAttr<DeviceKernelAttr>()) &&
+
+        (TargetDecl->hasAttr<DeviceKernelAttr>() &&
+         (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) &&
         ParamType->isPointerType()) {
       QualType PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {

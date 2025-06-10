@@ -5355,7 +5355,7 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleDeviceKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const auto *FD = dyn_cast_or_null<FunctionDecl>(D);
   bool IsFunctionTemplate = FD && FD->getDescribedFunctionTemplate();
-  if (S.getLangOpts().SYCLIsDevice) {
+  if (S.getLangOpts().isSYCL()) {
     if (!IsFunctionTemplate) {
       S.Diag(AL.getLoc(), diag::warn_attribute_wrong_decl_type_str)
           << AL << AL.isRegularKeywordAttribute() << "function templates";

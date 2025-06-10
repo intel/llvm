@@ -1650,7 +1650,7 @@ def DeviceKernel : DeclOrTypeAttr {
     // list, but here we have the same spelling with unscores and without,
     // so handle that case manually.
       return A.getAttributeSpellingListIndex() == Keyword_kernel ||
-      A.getAttrName()->getName() == "kernel";
+      (A.getAttrName() && A.getAttrName()->getName() == "kernel");
     }
     static inline bool isOpenCLSpelling(const AttributeCommonInfo* A) {
     if (!A) return false;

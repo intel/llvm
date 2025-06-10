@@ -796,7 +796,7 @@ public:
     case CC_X86RegCall:
       return CCCR_OK;
     case CC_DeviceKernel:
-      return IsOpenCL ? CCCR_OK : CCCR_Warning;
+      return IsOpenCL || IsSYCLDevice ? CCCR_OK : CCCR_Warning;
     default:
       return CCCR_Warning;
     }
@@ -842,10 +842,12 @@ public:
   void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override {
     TargetInfo::adjust(Diags, Opts);
     IsOpenCL = Opts.OpenCL;
+    IsSYCLDevice = Opts.SYCLIsDevice;
   }
 
 private:
   bool IsOpenCL = false;
+  bool IsSYCLDevice = false;
 };
 
 // x86-64 UEFI target
