@@ -7,14 +7,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <emhash/hash_table8.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <mutex>
 #include <optional>
-
-#include <boost/unordered/unordered_flat_map.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -59,15 +59,27 @@ struct FastKernelCacheVal {
 };
 using FastKernelCacheValPtr = std::shared_ptr<FastKernelCacheVal>;
 
-using FastKernelSubcacheMapT =
-    ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValPtr>;
-
 using FastKernelSubcacheMutexT = SpinLock;
 using FastKernelSubcacheReadLockT = std::lock_guard<FastKernelSubcacheMutexT>;
 using FastKernelSubcacheWriteLockT = std::lock_guard<FastKernelSubcacheMutexT>;
 
+struct FastKernelEntryT {
+  FastKernelCacheKeyT Key;
+  FastKernelCacheValPtr Value;
+
+  FastKernelEntryT(FastKernelCacheKeyT Key, const FastKernelCacheValPtr &Value)
+      : Key(Key), Value(Value) {}
+
+  FastKernelEntryT(const FastKernelEntryT &) = default;
+  FastKernelEntryT &operator=(const FastKernelEntryT &) = default;
+  FastKernelEntryT(FastKernelEntryT &&) = default;
+  FastKernelEntryT &operator=(FastKernelEntryT &&) = default;
+};
+
+using FastKernelSubcacheEntriesT = std::vector<FastKernelEntryT>;
+
 struct FastKernelSubcacheT {
-  FastKernelSubcacheMapT Map;
+  FastKernelSubcacheEntriesT Entries;
   FastKernelSubcacheMutexT Mutex;
 };
 

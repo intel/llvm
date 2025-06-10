@@ -29,7 +29,7 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 namespace detail {
-class context_impl : std::enable_shared_from_this<context_impl> {
+class context_impl : public std::enable_shared_from_this<context_impl> {
   struct private_tag {
     explicit private_tag() = default;
   };
@@ -223,8 +223,7 @@ public:
 
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
-  initializeDeviceGlobals(ur_program_handle_t NativePrg,
-                          const std::shared_ptr<queue_impl> &QueueImpl);
+  initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl);
 
   void memcpyToHostOnlyDeviceGlobal(device_impl &DeviceImpl,
                                     const void *DeviceGlobalPtr,
