@@ -494,6 +494,7 @@ EXPORTS
 	urPrintUsmAdviceFlags
 	urPrintUsmAllocInfo
 	urPrintUsmAllocLocationDesc
+	urPrintUsmContextMemcpyExpParams
 	urPrintUsmDesc
 	urPrintUsmDeviceAllocParams
 	urPrintUsmDeviceDesc
@@ -570,6 +571,7 @@ EXPORTS
 	urSamplerGetNativeHandle
 	urSamplerRelease
 	urSamplerRetain
+	urUSMContextMemcpyExp
 	urUSMDeviceAlloc
 	urUSMFree
 	urUSMGetMemAllocInfo

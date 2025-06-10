@@ -18,8 +18,8 @@
 #include "queue.hpp"
 #include "sampler.hpp"
 
-#include <array>
 #include <algorithm>
+#include <array>
 
 cl_map_flags convertURMapFlagsToCL(ur_map_flags_t URFlags) {
   cl_map_flags CLFlags = 0;
