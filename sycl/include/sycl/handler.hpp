@@ -424,28 +424,23 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs SYCL handler from the pre-constructed stack-allocated
+  /// `handler_impl` (not enforced, but meaningless to do a heap allocation
+  /// outside handler instance).
+  ///
+  /// \param HandlerImpl is a pre-constructed handler_impl.
+  //
+  // Can't provide this overload outside preview because `handler` lacks
+  // required data members.
+  handler(detail::handler_impl &HandlerImpl);
+#else
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  handler(const std::shared_ptr<detail::queue_impl> &Queue,
-          bool CallerNeedsEvent);
-#else
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
-#endif
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Constructs SYCL handler from the pre-constructed handler_impl and the
-  /// associated queue. Inside of Graph implementation, the Queue value is not
-  /// used, for those cases it can be initialized with an empty shared_ptr.
-  ///
-  /// \param HandlerImpl is a pre-constructed handler_impl.
-  /// \param Queue is a SYCL queue.
-  handler(detail::handler_impl *HandlerImpl,
-          const std::shared_ptr<detail::queue_impl> &Queue);
-#else
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -456,20 +451,14 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: This function is not used anymore, remove it in the next
-  // ABI-breaking window.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue,
           bool CallerNeedsEvent);
-#endif
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
                            detail::queue_impl *SecondaryQueue,
                            bool CallerNeedsEvent);
-#endif
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from Graph.
   ///
   /// The handler will add the command-group as a node to the graph rather than
@@ -3376,16 +3365,15 @@ public:
 
 private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // In some cases we need to construct handler_impl in heap. Sole propose
-  // of MImplOwner is to destroy handler_impl in destructor of handler.
-  // Can't use unique_ptr because declaration of handler_impl is not available
-  // in this header.
-  std::shared_ptr<detail::handler_impl> MImplOwner;
+  // TODO: Maybe make it a reference when non-preview branch is removed.
+  // On the other hand, see `HandlerAccess:postProcess` to how `swap_impl` might
+  // be useful in future, pointer here would make that possible/easier.
   detail::handler_impl *impl;
-  const std::shared_ptr<detail::queue_impl> &MQueue;
 #else
   std::shared_ptr<detail::handler_impl> impl;
-  std::shared_ptr<detail::queue_impl> MQueue;
+
+  // Use impl->get_queue*() instead:
+  std::shared_ptr<detail::queue_impl> MQueueDoNotUse;
 #endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
@@ -3434,8 +3422,6 @@ private:
   friend class detail::reduction_impl_algo;
 
   friend inline void detail::reduction::finalizeHandler(handler &CGH);
-  template <class FunctorTy>
-  friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
 
   template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
             typename PropertiesT, typename... RestT>
@@ -3878,6 +3864,8 @@ private:
   void setKernelNameBasedCachePtr(
       detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
 
+  queue getQueue();
+
 protected:
   /// Registers event dependencies in this command group.
   void depends_on(const detail::EventImplPtr &Event);
@@ -3896,6 +3884,96 @@ public:
   static void parallelForImpl(handler &Handler, RangeT Range, PropertiesT Props,
                               kernel Kernel) {
     Handler.parallel_for_impl(Range, Props, Kernel);
+  }
+
+  template <typename T, typename> struct dependent {
+    using type = T;
+  };
+  template <typename T>
+  using dependent_queue_t = typename dependent<queue, T>::type;
+  template <typename T>
+  using dependent_handler_t = typename dependent<handler, T>::type;
+
+  // pre/postProcess are used only for reductions right now, but the
+  // abstractions they provide aren't reduction-specific. The main problem they
+  // solve is
+  //
+  //   # User code
+  //   q.submit([&](handler &cgh) {
+  //     set_dependencies(cgh);
+  //     enqueue_whatever(cgh);
+  //   });  // single submission
+  //
+  // that needs to be implemented as multiple enqueues involving
+  // pre-/post-processing internally. SYCL prohibits recursive submits from
+  // inside control group function object (lambda above) so we resort to a
+  // somewhat hacky way of creating multiple `handler`s and manual finalization
+  // of them (instead of the one in `queue::submit`).
+  //
+  // Overloads with `queue &q` are provided in case the caller has it created
+  // already to avoid unnecessary reference count increments associated with
+  // `handler::getQueue()`.
+  template <class FunctorTy>
+  static void preProcess(handler &CGH, dependent_queue_t<FunctorTy> &q,
+                         FunctorTy Func) {
+    bool EventNeeded = !q.is_in_order();
+    handler AuxHandler(getSyclObjImpl(q), EventNeeded);
+    AuxHandler.copyCodeLoc(CGH);
+    std::forward<FunctorTy>(Func)(AuxHandler);
+    auto E = AuxHandler.finalize();
+    assert(!CGH.MIsFinalized &&
+           "Can't do pre-processing if the command has been enqueued already!");
+    if (EventNeeded)
+      CGH.depends_on(E);
+  }
+  template <class FunctorTy>
+  static void preProcess(dependent_handler_t<FunctorTy> &CGH,
+                         FunctorTy &&Func) {
+    preProcess(CGH, CGH.getQueue(), std::forward<FunctorTy>(Func));
+  }
+  template <class FunctorTy>
+  static void postProcess(dependent_handler_t<FunctorTy> &CGH,
+                          FunctorTy &&Func) {
+    // The "hacky" `handler`s manipulation mentioned above and implemented here
+    // is far from perfect. A better approach would be
+    //
+    //    bool OrigNeedsEvent = CGH.needsEvent()
+    //    assert(CGH.not_finalized/enqueued());
+    //    if (!InOrderQueue)
+    //      CGH.setNeedsEvent()
+    //
+    //    handler PostProcessHandler(Queue, OrigNeedsEvent)
+    //    auto E = CGH.finalize(); // enqueue original or current last
+    //                             // post-process
+    //    if (!InOrder)
+    //      PostProcessHandler.depends_on(E)
+    //
+    //    swap_impls(CGH, PostProcessHandler)
+    //    return; // queue::submit finalizes PostProcessHandler and returns its
+    //            // event if necessary.
+    //
+    // Still hackier than "real" `queue::submit` but at least somewhat sane.
+    // That, however hasn't been tried yet and we have an even hackier approach
+    // copied from what's been done in an old reductions implementation before
+    // eventless submission work has started. Not sure how feasible the approach
+    // above is at this moment.
+
+    // This `finalize` is wrong (at least logically) if
+    //   `assert(!CGH.eventNeeded())`
+    auto E = CGH.finalize();
+    dependent_queue_t<FunctorTy> Queue = CGH.getQueue();
+    bool InOrder = Queue.is_in_order();
+    // Cannot use `CGH.eventNeeded()` alone as there might be subsequent
+    // `postProcess` calls and we cannot address them properly similarly to the
+    // `finalize` issue described above. `swap_impls` suggested above might be
+    // able to handle this scenario naturally.
+    handler AuxHandler(getSyclObjImpl(Queue), CGH.eventNeeded() || !InOrder);
+    if (!InOrder)
+      AuxHandler.depends_on(E);
+    AuxHandler.copyCodeLoc(CGH);
+    std::forward<FunctorTy>(Func)(AuxHandler);
+    CGH.MLastEvent = AuxHandler.finalize();
+    return;
   }
 };
 } // namespace detail

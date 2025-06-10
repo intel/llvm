@@ -49,8 +49,24 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
   return WGSize;
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// Inline this helper:
+#endif
+uint32_t reduGetMaxNumConcurrentWorkGroups(device_impl &Dev) {
+  uint32_t NumThreads = Dev.get_info<sycl::info::device::max_compute_units>();
+  // TODO: The heuristics here require additional tuning for various devices
+  // and vendors. Also, it would be better to check vendor/generation/etc.
+  if (Dev.is_gpu() && Dev.get_info<sycl::info::device::host_unified_memory>())
+    NumThreads *= 8;
+  return NumThreads;
+}
 // Returns the estimated number of physical threads on the device associated
 // with the given queue.
+__SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh) {
+  return reduGetMaxNumConcurrentWorkGroups(getSyclObjImpl(cgh)->get_device());
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
     std::shared_ptr<sycl::detail::queue_impl> Queue) {
   // TODO: Graphs extension explicit API uses a handler with no queue attached,
@@ -63,25 +79,14 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
   if (Queue == nullptr) {
     return 8;
   }
-  device Dev = Queue->get_device();
-  uint32_t NumThreads = Dev.get_info<sycl::info::device::max_compute_units>();
-  // TODO: The heuristics here require additional tuning for various devices
-  // and vendors. Also, it would be better to check vendor/generation/etc.
-  if (Dev.is_gpu() && Dev.get_info<sycl::info::device::host_unified_memory>())
-    NumThreads *= 8;
-  return NumThreads;
+  return reduGetMaxNumConcurrentWorkGroups(Queue->getDeviceImpl());
 }
+#endif
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT size_t
-reduGetMaxWGSize(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
-                 size_t LocalMemBytesPerWorkItem) {
-#else
-__SYCL_EXPORT size_t
-reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                 size_t LocalMemBytesPerWorkItem) {
+// Inline this helper:
 #endif
-  device Dev = Queue->get_device();
+size_t reduGetMaxWGSize(device_impl &Dev, size_t LocalMemBytesPerWorkItem) {
   size_t MaxWGSize = Dev.get_info<sycl::info::device::max_work_group_size>();
 
   size_t WGSizePerMem = MaxWGSize * 2;
@@ -118,26 +123,24 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
 
   return WGSize;
 }
+__SYCL_EXPORT size_t reduGetMaxWGSize(handler &cgh,
+                                      size_t LocalMemBytesPerWorkItem) {
+  return reduGetMaxWGSize(getSyclObjImpl(cgh)->get_device(),
+                          LocalMemBytesPerWorkItem);
+}
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT
+size_t reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
+                        size_t LocalMemBytesPerWorkItem) {
+  return reduGetMaxWGSize(Queue->getDeviceImpl(), LocalMemBytesPerWorkItem);
+}
+#endif
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT size_t reduGetPreferredWGSize(
-    const std::shared_ptr<queue_impl> &Queue, size_t LocalMemBytesPerWorkItem) {
-#else
-__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
-                                            size_t LocalMemBytesPerWorkItem) {
+// Inline this helper:
 #endif
-  // TODO: Graphs extension explicit API uses a handler with a null queue to
-  // process CGFs, in future we should have access to the device so we can
-  // correctly calculate this.
-  //
-  // The 32 value was chosen as the hardcoded value as it is the returned
-  // value for SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE on
-  // Intel HD Graphics devices used as a L0 backend during development.
-  if (Queue == nullptr) {
-    return 32;
-  }
-  device Dev = Queue->get_device();
-
+size_t reduGetPreferredWGSize(device_impl &Dev,
+                              size_t LocalMemBytesPerWorkItem) {
   // The maximum WGSize returned by CPU devices is very large and does not
   // help the reduction implementation: since all work associated with a
   // work-group is typically assigned to one CPU thread, selecting a large
@@ -174,9 +177,33 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
   }
 
   // Use the maximum work-group size otherwise.
-  return reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
+  return reduGetMaxWGSize(Dev, LocalMemBytesPerWorkItem);
 }
+__SYCL_EXPORT size_t reduGetPreferredWGSize(handler &cgh,
+                                            size_t LocalMemBytesPerWorkItem) {
+  return reduGetPreferredWGSize(getSyclObjImpl(cgh)->get_device(),
+                                LocalMemBytesPerWorkItem);
+}
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
+                                            size_t LocalMemBytesPerWorkItem) {
+  // TODO: Graphs extension explicit API uses a handler with a null queue to
+  // process CGFs, in future we should have access to the device so we can
+  // correctly calculate this.
+  //
+  // The 32 value was chosen as the hardcoded value as it is the returned
+  // value for SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE on
+  // Intel HD Graphics devices used as a L0 backend during development.
+  if (Queue == nullptr) {
+    return 32;
+  }
+  device_impl &Dev = Queue->getDeviceImpl();
 
+  return reduGetPreferredWGSize(Dev, LocalMemBytesPerWorkItem);
+}
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT void
 addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
                std::shared_ptr<int> &Counter) {
@@ -189,6 +216,7 @@ addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
   EventImpl->setHandle(UREvent);
   CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
 }
+#endif
 
 __SYCL_EXPORT void verifyReductionProps(const property_list &Props) {
   auto CheckDataLessProperties = [](int PropertyKind) {

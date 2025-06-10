@@ -687,10 +687,12 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
+    auto &Queue = Handler.impl->get_queue();
+    auto ResEvent =
+        std::make_shared<detail::event_impl>(Queue.shared_from_this());
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
+        Queue.getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
@@ -735,11 +737,8 @@ protected:
   detail::EventImplPtr
   finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(MGraph.expired());
-    assert(MDefaultGraphDeps.LastEventPtr == nullptr);
-    assert(MNoLastEventMode);
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     synchronizeWithExternalEvent(Handler);
 
@@ -826,7 +825,7 @@ protected:
     const CGType Type = getSyclObjImpl(Handler)->MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     // The following code supports barrier synchronization if host task is
     // involved in the scenario. Native barriers cannot handle host task
@@ -1048,7 +1047,7 @@ protected:
   std::atomic<bool> MNoLastEventMode = false;
 
   // Used exclusively in getLastEvent and queue_empty() implementations
-  bool MEmpty = true;
+  std::atomic<bool> MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
   std::mutex MStreamsServiceEventsMutex;

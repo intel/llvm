@@ -16,6 +16,7 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 #include <memory>
 #include <mutex>
@@ -24,9 +25,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-
-// Forward declaration
-class platform;
 
 namespace detail {
 
@@ -1467,8 +1465,6 @@ public:
         return false;
       }
 
-      /* The kernel handle update capability is not yet required for the
-       * ext_oneapi_graph aspect */
       ur_device_command_buffer_update_capability_flags_t RequiredCapabilities =
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
