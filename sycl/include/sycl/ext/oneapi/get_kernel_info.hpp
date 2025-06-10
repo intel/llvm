@@ -62,8 +62,8 @@ get_kernel_info(const queue &Q) {
 // For free functions.
 
 namespace sycl {
-namespace ext {
-namespace oneapi {
+inline namespace _V1 {
+namespace ext::oneapi {
 namespace experimental {
 
 template <auto *Func, typename Param>
@@ -101,6 +101,6 @@ get_kernel_info(const queue &q) {
   return Bundle.get_kernel(kid).template get_info<Param>(dev);
 }
 } // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
+} // namespace _V1
 } // namespace sycl
