@@ -329,9 +329,9 @@ defvar HipSubgroupSizesCDNA = [64];     // gfx908, gfx90a (encapsulates CDNA1..2
 
 defvar HipMinAspects = [AspectGpu, AspectFp16, AspectFp64,
     AspectOnline_compiler, AspectOnline_linker, AspectQueue_profiling,
-    AspectExt_intel_pci_address, AspectExt_intel_max_mem_bandwidth,
-    AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate,
-    AspectExt_intel_memory_bus_width, AspectExt_intel_free_memory];
+    AspectExt_intel_pci_address, AspectExt_intel_device_id,
+    AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width,
+    AspectExt_intel_free_memory];
 
 defvar HipUSMAspects = !listremove(AllUSMAspects, [AspectUsm_system_allocations]);
 defvar HipGraphAspects = [AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph];
