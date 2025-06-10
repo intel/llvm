@@ -1272,7 +1272,8 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     }
   }
 
-  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, 3);
 
   UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
