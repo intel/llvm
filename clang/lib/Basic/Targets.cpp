@@ -699,9 +699,8 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
         else if (HT.getArch() == llvm::Triple::x86_64)
           return std::make_unique<MicrosoftX86_64_SPIR64TargetInfo>(Triple,
                                                                     Opts);
-        else
-          llvm::report_fatal_error(
-              "Unsupported host architecture (not x86_64 or aarch64)");
+        llvm::report_fatal_error(
+            "Unsupported host architecture (not x86_64 or aarch64)");
       }
     case llvm::Triple::Linux:
       if (IsFPGASubArch)
@@ -753,9 +752,8 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
         else if (HT.getArch() == llvm::Triple::x86_64)
           return std::make_unique<MicrosoftX86_64_SPIRV64TargetInfo>(Triple,
                                                                      Opts);
-        else
-          llvm::report_fatal_error(
-              "Unsupported host architecture (not x86_64 or aarch64)");
+        llvm::report_fatal_error(
+            "Unsupported host architecture (not x86_64 or aarch64)");
       }
     default:
       return std::make_unique<SPIRV64TargetInfo>(Triple, Opts);
