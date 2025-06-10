@@ -382,7 +382,7 @@ with test_env():
     else:
         config.substitutions.append(("%level_zero_options", ""))
 
-if lit_config.params.get("test-preview-mode", 'False') != 'False':
+if lit_config.params.get("test-preview-mode", "False") != "False":
     config.available_features.add("preview-mode")
 else:
     # Check for sycl-preview library
@@ -1086,7 +1086,7 @@ for full_name, sycl_device in zip(
     else:
         config.intel_driver_ver[full_name] = {}
 
-if lit_config.params.get("compatibility_testing", 'False') != 'False':
+if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
