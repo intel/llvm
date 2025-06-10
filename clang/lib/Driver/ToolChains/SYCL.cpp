@@ -248,16 +248,16 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
         C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
   }
 
-  // If fsycl-dump-device-code is passed, put the PTX files
-  // into the path provided in fsycl-dump-device-code.
+  // If save-offload-code is passed, put the PTX files
+  // into the path provided in save-offload-code.
   if (T->getToolChain().getTriple().isNVPTX() &&
-      C.getDriver().isDumpDeviceCodeEnabled() && Ext == "s") {
+      C.getDriver().isSaveOffloadCodeEnabled() && Ext == "s") {
     SmallString<128> OutputDir;
 
-    Arg *DumpDeviceCodeArg =
-        C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+    Arg *SaveOffloadCodeArg =
+        C.getArgs().getLastArg(options::OPT_save_offload_code_EQ);
 
-    OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
+    OutputDir = (SaveOffloadCodeArg ? SaveOffloadCodeArg->getValue() : "");
 
     // If the output directory path is empty, put the PTX files in the
     // current directory.
