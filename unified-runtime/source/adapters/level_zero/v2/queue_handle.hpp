@@ -15,11 +15,13 @@
 
 #include "../common.hpp"
 #include "queue_immediate_in_order.hpp"
+#include "queue_immediate_out_of_order.hpp"
 #include <ur_api.h>
 #include <variant>
 
 struct ur_queue_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
-  using data_variant = std::variant<v2::ur_queue_immediate_in_order_t>;
+  using data_variant = std::variant<v2::ur_queue_immediate_in_order_t,
+                                    v2::ur_queue_immediate_out_of_order_t>;
   data_variant queue_data;
 
   static constexpr uintptr_t queue_offset =
