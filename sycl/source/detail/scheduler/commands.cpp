@@ -2213,7 +2213,7 @@ void ExecCGCommand::emitInstrumentationData() {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
               .get()
 #endif
-              , 
+              ,
           KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
           KernelCG->MSyclKernel, MQueue.get(), KernelCG->MArgs);
     }
@@ -3286,7 +3286,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
                          .get()
 #endif
-                         , 
+                         ,
                      SyclKernel.get(), KernelName,
                      ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,

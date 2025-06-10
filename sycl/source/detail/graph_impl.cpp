@@ -862,7 +862,7 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             .get()
 #endif
-            , 
+            ,
         CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(

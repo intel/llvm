@@ -479,7 +479,7 @@ event handler::finalize() {
 #else
     std::shared_ptr<detail::kernel_bundle_impl>
 #endif
-      KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
+        KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&
