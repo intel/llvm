@@ -8053,6 +8053,12 @@ void Sema::ProcessDeclAttributeList(
     D->setInvalidDecl();
   }
 
+  // Do not permit 'sycl_device_only' functions in host code
+  if (getLangOpts().SYCLIsHost && D->hasAttr<SYCLDeviceOnlyAttr>()) {
+    Diag(D->getLocation(), diag::err_sycl_device_only_attr);
+    D->setInvalidDecl();
+  }
+
   // Do this check after processing D's attributes because the attribute
   // objc_method_family can change whether the given method is in the init
   // family, and it can be applied after objc_designated_initializer. This is a

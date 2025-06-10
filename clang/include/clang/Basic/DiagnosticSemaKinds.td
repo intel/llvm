@@ -8048,6 +8048,10 @@ def err_sycl_device_global_not_publicly_accessible: Error<
 def err_sycl_device_global_array : Error<
   "'device_global' array is not allowed">;
 
+def err_sycl_device_only_attr
+    : Error<"'sycl_device_only' functions are not allowed in host side. Please "
+            "guard them with __SYCL_DEVICE_ONLY__.">;
+
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;
 def err_ref_non_value : Error<"%0 does not refer to a value">;
