@@ -5837,11 +5837,10 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
 
   if (const auto *MD = llvm::dyn_cast<CXXMethodDecl>(FD)) {
     if (MD->isStatic()) // Temporary workaround for static methods.
-      return S.Diag(FD->getLocation(),
-                    diag::err_free_function_static_class_method)
-             << MD->getSourceRange();
-    return S.Diag(FD->getLocation(), diag::err_kern_is_nonstatic_method)
-           << FD << MD->getSourceRange();
+      return S.Diag(FD->getLocation(), diag::err_free_function_class_method)
+             << 0 << MD->getSourceRange();
+    return S.Diag(FD->getLocation(), diag::err_free_function_class_method)
+           << 1 << FD << MD->getSourceRange();
   }
 
   for (ParmVarDecl *Param : FD->parameters()) {
