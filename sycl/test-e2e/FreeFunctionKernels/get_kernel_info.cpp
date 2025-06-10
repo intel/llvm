@@ -2,12 +2,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
+
 #include <iostream>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/get_kernel_info.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
-#include <type_traits>
 
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
