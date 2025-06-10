@@ -347,7 +347,7 @@ if __name__ == "__main__":
         if not Validate.timestamp(args.cutoff):
             raise ValueError("Timestamp must be provided as YYYYMMDD_HHMMSS.")
         if args.avg_type not in ["median", "EWMA"]:
-            print("Only median is currently supported: exiting.")
+            print("Only median, EWMA is currently supported: exiting.")
             exit(1)
 
         improvements, regressions = Compare.to_hist(
