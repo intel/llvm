@@ -63,8 +63,9 @@ bool test_ctxt(sycl::kernel &k, sycl::queue &q) {
           q.get_context());
   const std::string wg_size_str = "work_group_size(";
   if (attributes.empty() || attributes.find(wg_size_str) == std::string::npos) {
-    std::cerr << "Work group size attribute is not found in kernel attributes"
-              << std::endl;
+    std::cerr << "Work group size attribute is not found in kernel attributes, "
+                 "attributes:"
+              << attributes << std::endl;
     return false;
   }
   auto wg_size_pos = attributes.find(wg_size_str);
