@@ -1021,14 +1021,16 @@ in the new graph.
 
 ==== Graph-Owned Memory Allocations [[graph-memory-allocations]]
 
+:async_alloc_spec: xref:../experimental/sycl_ext_oneapi_async_memory_alloc.asciidoc
+
 It can be desirable for a graph to own and manage memory allocations for memory
 associated with commands in the graph. This is made possible by using the
 `async_<malloc/malloc_from_pool>` and `async_free` commands from the
-link:../experimental/sycl_ext_oneapi_async_memory_alloc.asciidoc[sycl_ext_oneapi_async_memory_alloc
-] extension. These commands can be added to a graph either via queue recording
-or explicit graph creation, which will create allocations which are owned and
-managed by that specific `command_graph`, and who's lifetimes are tied to the
-lifetime of that graph.
+{async_alloc_spec}[sycl_ext_oneapi_async_memory_alloc] extension. These
+commands can be added to a graph either via queue recording or explicit graph
+creation, which will create allocations which are owned and managed by that
+specific `command_graph`, and who's lifetimes are tied to the lifetime of that
+graph.
 
 Pointers returned from allocation nodes can be used in other graph nodes in the
 same way as regular USM pointers.
@@ -1079,9 +1081,9 @@ async_free(Queue, Ptr);
 
 ===== Supported Features [[allocation-supported-features]]
 
-Currently only device allocations are supported in graphs. Attempting to
-add allocations of any other type to a graph will result in synchronous errors
-being thrown with error code `feature_not_supported`.
+Currently only device allocations are supported. Attempting to add allocations
+of any other type to a graph will result in synchronous errors being thrown
+with error code `feature_not_supported`.
 
 ===== Restrictions
 
@@ -1091,12 +1093,13 @@ nodes:
 * Only one executable graph instance (created by finalizing the modifiable
 graph) can be alive at any time, and all copies of that instance (created via
 the {crs}[common reference semantics] of the `command_graph` class) must be
-destroyed before the graph can be finalized again. Failing to do so will result
-in a sychronous error being thrown with error code `invalid` when attempting to
-finalize the graph again.
+destroyed before the graph can be finalized again. 
 * The graph cannot be used as a sub-graph in another graph.
 * Graph memory allocation nodes cannot be updated, and graphs containing these
 nodes cannot be updated via <<whole-graph-update, Whole Graph Update>>.
+
+Attempting to perform any of the above operations will result in a sychronous
+error being thrown with error code `invalid`.
 
 ===== Allocation Lifetime
 
@@ -1106,7 +1109,7 @@ itself.
 It is only valid to use the pointers returned from graph allocation nodes inside
 the graph in which they were allocated. Any nodes using these allocations must
 be ordered after the allocation node and before the free node for that
-allocation.
+allocation. Failure to do so will result in undefined behavior.
 
 It is invalid to use these pointers outside of the owning graph and doing so
 will result in undefined behavior.
@@ -1115,8 +1118,7 @@ will result in undefined behavior.
 
 The semantics of `async_malloc` and `async_free` within a graph differ from the
 eager SYCL usage described in the
-link:../experimental/sycl_ext_oneapi_async_memory_alloc.asciidoc[sycl_ext_oneapi_async_memory_alloc]
-extension.
+{async_alloc_spec}[sycl_ext_oneapi_async_memory_alloc] extension.
 
 * Graph memory allocations are not made directly from any default or
 user-provided Memory Pool. Each graph containing alloc/free nodes maintains its
@@ -1128,9 +1130,6 @@ allocations, all other properties will be ignored:
 ** The allocation type specified when creating the pool with
 `usm::alloc::<host/device/shared>`, subject to the limitations in the
 <<allocation-supported-features, supported features>> section.
-
-** `property::memory_pool::read_only` - Guarantee from the user that memory is
-only being read from, the implementation may be able to optimize in this case.
 
 ** `property::memory_pool::zero_init` - Allocated memory will be
 zero-initialized only once when first allocated. It will not be zero-initialized
@@ -1388,9 +1387,9 @@ Exceptions:
   property for more information.
 * Throws with error code `invalid` if the type of the command-group is not a
   kernel execution and a `dynamic_parameter` was registered inside `cgf`.
-* Throws with error code `invalid` if the type of the command-group is
-`async_malloc` and the `usm::alloc` type of the associated memory pool is not
-`usm::alloc::device`.
+* Throws with error code `invalid` if the type of the command contained in the
+  command-group is `async_malloc` and the `usm::alloc` type of the associated
+  memory pool is not `usm::alloc::device`.
 
 |
 [source,c++]
