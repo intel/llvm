@@ -510,8 +510,8 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 std::vector<std::shared_ptr<node_impl>> &Deps) {
   (void)Args;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImpl{shared_from_this()};
-  sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+  detail::handler_impl HandlerImpl{*this};
+  sycl::handler Handler{HandlerImpl};
 #else
   sycl::handler Handler{shared_from_this()};
 #endif
@@ -665,6 +665,14 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   return NodeImpl;
 }
 
+void graph_impl::addQueue(sycl::detail::queue_impl &RecordingQueue) {
+  MRecordingQueues.insert(RecordingQueue.weak_from_this());
+}
+
+void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
+  MRecordingQueues.erase(RecordingQueue.weak_from_this());
+}
+
 bool graph_impl::clearQueues() {
   bool AnyQueuesCleared = false;
   for (auto &Queue : MRecordingQueues) {
@@ -693,6 +701,24 @@ bool graph_impl::checkForCycles() {
   }
 
   return CycleFound;
+}
+
+std::shared_ptr<node_impl>
+graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
+  if (!Queue) {
+    assert(0 ==
+           MInorderQueueMap.count(std::weak_ptr<sycl::detail::queue_impl>{}));
+    return {};
+  }
+  if (0 == MInorderQueueMap.count(Queue->weak_from_this())) {
+    return {};
+  }
+  return MInorderQueueMap[Queue->weak_from_this()];
+}
+
+void graph_impl::setLastInorderNode(sycl::detail::queue_impl &Queue,
+                                    std::shared_ptr<node_impl> Node) {
+  MInorderQueueMap[Queue.weak_from_this()] = Node;
 }
 
 void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
@@ -775,11 +801,10 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
-void graph_impl::beginRecording(
-    const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
+void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
   graph_impl::WriteLock Lock(MMutex);
-  if (!Queue->hasCommandGraph()) {
-    Queue->setCommandGraph(shared_from_this());
+  if (!Queue.hasCommandGraph()) {
+    Queue.setCommandGraph(shared_from_this());
     addQueue(Queue);
   }
 }
@@ -811,7 +836,7 @@ void exec_graph_impl::findRealDeps(
 }
 
 ur_exp_command_buffer_sync_point_t
-exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
+exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
                                    sycl::detail::device_impl &DeviceImpl,
                                    ur_exp_command_buffer_handle_t CommandBuffer,
                                    std::shared_ptr<node_impl> Node) {
@@ -824,7 +849,7 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   const bool xptiEnabled = xptiTraceEnabled();
-  int32_t StreamID = xpti::invalid_id;
+  int32_t StreamID = xpti::invalid_id<>;
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
   if (xptiEnabled) {
@@ -2005,21 +2030,20 @@ void modifiable_command_graph::begin_recording(
   // related to graph at all.
   checkGraphPropertiesAndThrow(PropList);
 
-  auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
-  assert(QueueImpl);
+  queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(RecordingQueue);
 
-  if (QueueImpl->hasCommandGraph()) {
+  if (QueueImpl.hasCommandGraph()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording cannot be called for a queue which "
                           "is already in the recording state.");
   }
 
-  if (QueueImpl->get_context() != impl->getContext()) {
+  if (QueueImpl.get_context() != impl->getContext()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue whose context "
                           "differs from the graph context.");
   }
-  if (QueueImpl->get_device() != impl->getDevice()) {
+  if (QueueImpl.get_device() != impl->getDevice()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue whose device "
                           "differs from the graph device.");
@@ -2042,15 +2066,13 @@ void modifiable_command_graph::end_recording() {
 }
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {
-  auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
-  if (!QueueImpl)
-    return;
-  if (QueueImpl->getCommandGraph() == impl) {
-    QueueImpl->setCommandGraph(nullptr);
+  queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(RecordingQueue);
+  if (QueueImpl.getCommandGraph() == impl) {
+    QueueImpl.setCommandGraph(nullptr);
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->removeQueue(QueueImpl);
   }
-  if (QueueImpl->hasCommandGraph())
+  if (QueueImpl.hasCommandGraph())
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
@@ -2446,8 +2468,8 @@ void dynamic_command_group_impl::finalizeCGFList(
     // Handler defined inside the loop so it doesn't appear to the runtime
     // as a single command-group with multiple commands inside.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    detail::handler_impl HandlerImpl{MGraph};
-    sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+    detail::handler_impl HandlerImpl{*MGraph};
+    sycl::handler Handler{HandlerImpl};
 #else
     sycl::handler Handler{MGraph};
 #endif

@@ -310,16 +310,12 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                         const detail::code_location &Loc, bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
-  detail::handler_impl *HandlerImpl = &HandlerImplVal;
-  // Inlining `Self` results in a crash when SYCL RT is built using MSVC with
-  // optimizations enabled. No crash if built using OneAPI.
-  auto Self = shared_from_this();
-  handler Handler(HandlerImpl, Self);
+  detail::handler_impl HandlerImplVal(*this, SecondaryQueue, CallerNeedsEvent);
+  handler Handler(HandlerImplVal);
 #else
   handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #endif
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -582,7 +578,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  int32_t StreamID = xpti::invalid_id;
+  int32_t StreamID = xpti::invalid_id<>;
   if (xptiEnabled) {
     StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
     TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);

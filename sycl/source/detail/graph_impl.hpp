@@ -890,18 +890,12 @@ public:
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
   /// @param RecordingQueue Queue to add to set.
-  void
-  addQueue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
-    MRecordingQueues.insert(RecordingQueue);
-  }
+  void addQueue(sycl::detail::queue_impl &RecordingQueue);
 
   /// Remove a queue from the set of queues which are currently recording to
   /// this graph.
   /// @param RecordingQueue Queue to remove from set.
-  void
-  removeQueue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
-    MRecordingQueues.erase(RecordingQueue);
-  }
+  void removeQueue(sycl::detail::queue_impl &RecordingQueue);
 
   /// Remove all queues which are recording to this graph, also sets all queues
   /// cleared back to the executing state.
@@ -1013,22 +1007,13 @@ public:
   /// @return Last node in this graph added from \p Queue recording, or empty
   /// shared pointer if none.
   std::shared_ptr<node_impl>
-  getLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue) {
-    std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
-    if (0 == MInorderQueueMap.count(QueueWeakPtr)) {
-      return {};
-    }
-    return MInorderQueueMap[QueueWeakPtr];
-  }
+  getLastInorderNode(sycl::detail::queue_impl *Queue);
 
   /// Track the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to register \p Node for.
   /// @param Node Last node that was added to this graph from \p Queue.
-  void setLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                          std::shared_ptr<node_impl> Node) {
-    std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
-    MInorderQueueMap[QueueWeakPtr] = Node;
-  }
+  void setLastInorderNode(sycl::detail::queue_impl &Queue,
+                          std::shared_ptr<node_impl> Node);
 
   /// Prints the contents of the graph to a text file in DOT format.
   /// @param FilePath Path to the output file.
@@ -1188,7 +1173,7 @@ public:
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
   /// @param[in] Queue The queue to be recorded from.
-  void beginRecording(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
+  void beginRecording(sycl::detail::queue_impl &Queue);
 
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.
@@ -1481,7 +1466,8 @@ private:
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
-  enqueueNodeDirect(sycl::context Ctx, sycl::detail::device_impl &DeviceImpl,
+  enqueueNodeDirect(const sycl::context &Ctx,
+                    sycl::detail::device_impl &DeviceImpl,
                     ur_exp_command_buffer_handle_t CommandBuffer,
                     std::shared_ptr<node_impl> Node);
 

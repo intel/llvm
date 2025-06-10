@@ -63,7 +63,7 @@ public:
 #endif
       return KeyLoc->second; // We found it, so we return the Value
     } else
-      return xpti::invalid_id;
+      return xpti::invalid_id<int64_t>;
   }
 
   //  Add a <Key, Value> pair to the hash table. If the Key already exists, this
@@ -121,7 +121,7 @@ public:
 #endif
       return ValLoc->second;
     } else
-      return xpti::invalid_id;
+      return xpti::invalid_id<int64_t>;
   }
 
   void printStatistics() {
