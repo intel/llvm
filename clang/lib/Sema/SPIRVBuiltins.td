@@ -904,6 +904,9 @@ foreach name = ["BitCount"] in {
   def : SPVBuiltin<name, [AIGenTypeN, AIGenTypeN], Attr.Const>;
 }
 
+def : SPVBuiltin<"BitwiseFunctionINTEL",
+                 [AIGenTypeN, AIGenTypeN, AIGenTypeN, AIGenTypeN, Int]>;
+
 // 3.32.20. Barrier Instructions
 
 foreach name = ["ControlBarrier"] in {
