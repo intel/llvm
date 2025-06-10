@@ -1066,7 +1066,7 @@ public:
     std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
     CGH.addReduction(Counter);
 
-    HandlerAccess::preProcess(CGH, q,
+    HandlerAccess::preProcess(CGH,
                               [Counter = Counter.get()](handler &AuxHandler) {
                                 AuxHandler.memset(Counter, 0, sizeof(int));
                               });
