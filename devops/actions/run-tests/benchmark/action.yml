@@ -37,6 +37,7 @@ runs:
     run: |
       case "$RUNNER_TAG" in
         '["PVC_PERF"]' ) ;;
+        '["BMG_PERF"]' ) ;;
         *)
           echo "#"
           echo "# WARNING: Only specific tuned runners are fully supported."
@@ -54,6 +55,7 @@ runs:
       # input.target_devices is not directly used, as this allows code injection
       case "$TARGET_DEVICE" in
         level_zero:*) ;;
+        level_zero_v2:*) ;;
         *)
           echo "#"
           echo "# WARNING: Only level_zero backend is fully supported."
@@ -99,8 +101,6 @@ runs:
       # TODO generate summary + display helpful message here
       export CMPLR_ROOT=./toolchain
       echo "-----"
-      sycl-ls
-      echo "-----"
       # Using --break-system-packages because:
       # - venv is not installed
       # - unable to install anything via pip, as python packages in the docker
@@ -110,40 +110,53 @@ runs:
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
       echo "-----"
 
-      # clang builds have git repo / commit hashes in their --version output,
-      # same goes for dpcpp. Obtain git repo / commit hash info this way:
-
-      # First line of --version is formatted 'clang version ... (<repo> <commit>)'
-      # thus we parse for (<repo> <commit>):
-      sycl_git_info="$(clang++ --version | head -n 1 | grep -oE '\([^ ]+ [a-f0-9]+\)$' | tr -d '()')"
-      if [ -z "$sycl_git_info" ]; then
-        echo "Error: Unable to deduce SYCL build source repo/commit: Are you sure dpcpp variable is in PATH?"
-        exit 1
-      fi
-      sycl_git_repo="$(printf "$sycl_git_info" | cut -d' ' -f1)"
-      sycl_git_commit="$(printf "$sycl_git_info" | cut -d' ' -f2)"
+      # By default, the benchmark scripts forceload level_zero
+      FORCELOAD_ADAPTER="${ONEAPI_DEVICE_SELECTOR%%:*}"
+      echo "Adapter: $FORCELOAD_ADAPTER"
 
       case "$ONEAPI_DEVICE_SELECTOR" in
         level_zero:*) SAVE_SUFFIX="L0" ;;
-        level_zero_v2:*) SAVE_SUFFIX="L0v2" ;;
+        level_zero_v2:*)
+          SAVE_SUFFIX="L0v2"
+          export ONEAPI_DEVICE_SELECTOR="level_zero:gpu"  # "level_zero_v2:gpu" not supported anymore
+          export SYCL_UR_USE_LEVEL_ZERO_V2=1
+          ;;
         opencl:*) SAVE_SUFFIX="OCL" ;;
         *) SAVE_SUFFIX="${ONEAPI_DEVICE_SELECTOR%%:*}";;
       esac
-      # TODO accomodate for different GPUs and backends
-      SAVE_NAME="${SAVE_PREFIX}_PVC_${SAVE_SUFFIX}"
+      case "$RUNNER_TAG" in
+        '["PVC_PERF"]') MACHINE_TYPE="PVC" ;;
+        '["BMG_PERF"]') MACHINE_TYPE="BMG" ;;
+        # Best effort at matching
+        *)
+          MACHINE_TYPE="${RUNNER_TAG#[\"}"
+          MACHINE_TYPE="${MACHINE_TYPE%_PERF=\"]}"
+          ;;
+      esac
+      SAVE_NAME="${SAVE_PREFIX}_${MACHINE_TYPE}_${SAVE_SUFFIX}"
+      echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
       SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
+ 
+      # Cache the compute_runtime version from dependencies.json, but perform a
+      # check with L0 version before using it: This value is not guaranteed to
+      # accurately reflect the current compute_runtime version used, as the
+      # docker images are built nightly. 
+      export COMPUTE_RUNTIME_TAG_CACHE="$(cat ./devops/dependencies.json | jq -r .linux.compute_runtime.github_tag)"
+
+      sycl-ls
+      echo "-----"
 
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
         --sycl "$(realpath ./toolchain)" \
+        --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
         --results-dir "./llvm-ci-perf-results/" \
         --output-dir "./llvm-ci-perf-results/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
-        --github-repo "$sycl_git_repo" \
-        --git-commit "$sycl_git_commit"
+        --detect-version sycl,compute_runtime
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --name "$SAVE_NAME" \
@@ -211,5 +224,5 @@ runs:
     if: always()
     uses: actions/upload-artifact@v4
     with:
-      name: Benchmark run ${{ github.run_id }} (${{ runner.name }})
+      name: Benchmark run ${{ github.run_id }} (${{ env.SAVE_NAME }})
       path: ./cached_changes

@@ -124,8 +124,8 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   }
 }
 
-static ::jit_compiler::BinaryFormat getTargetFormat(const QueueImplPtr &Queue) {
-  auto Backend = Queue->getDeviceImpl().getBackend();
+static ::jit_compiler::BinaryFormat getTargetFormat(queue_impl &Queue) {
+  auto Backend = Queue.getDeviceImpl().getBackend();
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
   case backend::opencl:
@@ -143,7 +143,7 @@ static ::jit_compiler::BinaryFormat getTargetFormat(const QueueImplPtr &Queue) {
 #endif // _WIN32
 
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
-    const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
+    queue_impl &Queue, const RTDeviceBinaryImage *BinImage,
     KernelNameStrRefT KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
 #ifndef _WIN32
@@ -220,8 +220,8 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   }
 
   RTDeviceBinaryImage MaterializedRTDevBinImage{&MaterializedRawDeviceImage};
-  const auto &Context = Queue->get_context();
-  const auto &Device = Queue->get_device();
+  const auto &Context = Queue.get_context();
+  const auto &Device = Queue.get_device();
   auto NewKernel = PM.getOrCreateMaterializedKernel(
       MaterializedRTDevBinImage, Context, Device, KernelName, SpecConstBlob);
 

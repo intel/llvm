@@ -149,6 +149,15 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
   endif()
 
+  if (EMHASH_SYS_LOC)
+    # If we are using system emhash, include the system directory
+    # containing the emhash folder and note this location so
+    # other modules using emhash can find it.
+    cmake_path(GET EMHASH_SYS_LOC PARENT_PATH EMHASH_SYS_LOC)
+    set(SYCL_EMHASH_DIR ${EMHASH_SYS_LOC} CACHE INTERNAL "")
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${EMHASH_SYS_LOC})
+  endif()
+
   # ur_win_proxy_loader
   if (WIN32)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/ur_win_proxy_loader)
@@ -220,7 +229,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
-                        SOVERSION ${SYCL_MAJOR_VERSION})
+                        SOVERSION ${SYCL_MAJOR_VERSION}
+                        # Set the runpath to the lib directory so libsycl can find libur_loader
+                        INSTALL_RPATH "\$ORIGIN")
 
   # When building using icx on Windows, the VERSION file
   # produced by cmake is used in source code
