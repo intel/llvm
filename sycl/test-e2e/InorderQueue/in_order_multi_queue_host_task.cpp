@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <condition_variable>
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
@@ -15,7 +16,7 @@
 
 using namespace sycl;
 
-const int dataSize = 1024 * 1024;
+const int dataSize = 1024;
 
 int main() {
   queue Queue1{property::queue::in_order()};
@@ -25,8 +26,14 @@ int main() {
   int *dataB = malloc_host<int>(dataSize, Queue1);
   int *dataC = malloc_host<int>(dataSize, Queue1);
 
+  bool ready = false;
+  std::mutex host_task_mtx;
+  std::condition_variable cv;
+
   auto Event1 = Queue1.submit([&](handler &cgh) {
     cgh.host_task([&] {
+      std::unique_lock<std::mutex> lk(host_task_mtx);
+      cv.wait(lk, [&] { return ready; });
       for (size_t i = 0; i < dataSize; ++i) {
         dataA[i] = i;
       }
@@ -38,6 +45,12 @@ int main() {
     cgh.parallel_for(range<1>(dataSize),
                      [=](id<1> idx) { dataB[idx[0]] = dataA[idx[0]]; });
   });
+
+  {
+    std::unique_lock<std::mutex> lk(host_task_mtx);
+    ready = true;
+  }
+  cv.notify_one();
 
   Queue2.wait();
 

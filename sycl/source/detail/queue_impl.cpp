@@ -349,7 +349,13 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                          !requiresPostProcess;
 
   if (noLastEventPath) {
-    return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+    std::unique_lock<std::mutex> Lock(MMutex);
+
+    // Check if we are still in no last event mode. There could
+    // have been a concurrent submit.
+    if (MNoLastEventMode.load(std::memory_order_relaxed)) {
+      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+    }
   }
 
   detail::EventImplPtr EventImpl;

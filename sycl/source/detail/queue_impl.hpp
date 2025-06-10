@@ -754,7 +754,7 @@ protected:
 
     if (Event && !Scheduler::CheckEventReadiness(MContext, Event)) {
       MDefaultGraphDeps.LastEventPtr = Event;
-      MNoLastEventMode = false;
+      MNoLastEventMode.store(false, std::memory_order_relaxed);
     }
 
     return Event;
