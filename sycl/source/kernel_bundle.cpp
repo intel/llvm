@@ -299,8 +299,8 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 std::shared_ptr<detail::kernel_bundle_impl>
 compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
              const std::vector<device> &Devs, const property_list &PropList) {
-  return detail::kernel_bundle_impl::create(
-      InputBundle, Devs, PropList, bundle_state::object);
+  return detail::kernel_bundle_impl::create(InputBundle, Devs, PropList,
+                                            bundle_state::object);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
@@ -312,8 +312,8 @@ link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
 std::shared_ptr<detail::kernel_bundle_impl>
 build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
            const std::vector<device> &Devs, const property_list &PropList) {
-  return detail::kernel_bundle_impl::create(
-      InputBundle, Devs, PropList, bundle_state::executable);
+  return detail::kernel_bundle_impl::create(InputBundle, Devs, PropList,
+                                            bundle_state::executable);
 }
 
 // This function finds intersection of associated devices in common for all

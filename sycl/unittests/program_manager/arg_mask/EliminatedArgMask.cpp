@@ -182,8 +182,8 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   EXPECT_TRUE(KernelBundleImplPtr)
       << "Expect command group to contain kernel bundle";
 
-  auto SyclKernelImpl = KernelBundleImplPtr->tryGetKernel(
-      ExecKernel->MKernelName);
+  auto SyclKernelImpl =
+      KernelBundleImplPtr->tryGetKernel(ExecKernel->MKernelName);
   EXPECT_TRUE(SyclKernelImpl != nullptr);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();

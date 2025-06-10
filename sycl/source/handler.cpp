@@ -475,12 +475,11 @@ event handler::finalize() {
   if (type == detail::CGType::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    detail::kernel_bundle_impl*
+    detail::kernel_bundle_impl *
 #else
     std::shared_ptr<detail::kernel_bundle_impl>
 #endif
-      KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+      KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&
@@ -505,12 +504,12 @@ event handler::finalize() {
 #else
                   KernelBundleImpPtr
 #endif
-                );
+              );
           kernel_bundle<bundle_state::executable> ExecKernelBundle =
               build(KernelBundle);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-          std::shared_ptr<detail::kernel_bundle_impl>
-            ExecKernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
+          std::shared_ptr<detail::kernel_bundle_impl> ExecKernelBundleImpPtr =
+              detail::getSyclObjImpl(ExecKernelBundle);
           // Raw ptr is valid, because we saved the shared_ptr to the handler
           setHandlerKernelBundle(ExecKernelBundleImpPtr);
           KernelBundleImpPtr = ExecKernelBundleImpPtr.get();
@@ -537,10 +536,10 @@ event handler::finalize() {
 #else
                 KernelBundleImpPtr
 #endif
-              ));
+                ));
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-        std::shared_ptr<detail::kernel_bundle_impl>
-          ExecKernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
+        std::shared_ptr<detail::kernel_bundle_impl> ExecKernelBundleImpPtr =
+            detail::getSyclObjImpl(ExecBundle);
         // Raw ptr is valid, because we saved the shared_ptr to the handler
         setHandlerKernelBundle(ExecKernelBundleImpPtr);
         KernelBundleImpPtr = ExecKernelBundleImpPtr.get();
@@ -2282,7 +2281,7 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
-  detail::kernel_bundle_impl* KernelBundleImplPtr =
+  detail::kernel_bundle_impl *KernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(

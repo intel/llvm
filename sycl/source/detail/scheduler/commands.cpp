@@ -2010,9 +2010,9 @@ void instrumentationAddExtraKernelMetadata(
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
   } else if (auto SyclKernelImpl =
-                 KernelBundleImplPtr ? KernelBundleImplPtr->tryGetKernel(
-                                           KernelName)
-                                     : std::shared_ptr<kernel_impl>{nullptr}) {
+                 KernelBundleImplPtr
+                     ? KernelBundleImplPtr->tryGetKernel(KernelName)
+                     : std::shared_ptr<kernel_impl>{nullptr}) {
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Queue) {
     // NOTE: Queue can be null when kernel is directly enqueued to a command
@@ -2207,11 +2207,14 @@ void ExecCGCommand::emitInstrumentationData() {
       auto KernelCG =
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
-          CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle()
+          CmdTraceEvent, KernelCG->MNDRDesc,
+          KernelCG
+              ->getKernelBundle()
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-          .get()
+              .get()
 #endif
-          , KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
+              , 
+          KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
           KernelCG->MSyclKernel, MQueue.get(), KernelCG->MArgs);
     }
 
@@ -2553,10 +2556,9 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
     UrKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else if (auto SyclKernelImpl =
-                 KernelBundleImplPtr
-                     ? KernelBundleImplPtr->tryGetKernel(
-                           CommandGroup.MKernelName)
-                     : std::shared_ptr<kernel_impl>{nullptr}) {
+                 KernelBundleImplPtr ? KernelBundleImplPtr->tryGetKernel(
+                                           CommandGroup.MKernelName)
+                                     : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
@@ -2717,10 +2719,10 @@ void enqueueImpKernel(
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
-  } else if ((SyclKernelImpl = KernelBundleImplPtr
-                                   ? KernelBundleImplPtr->tryGetKernel(
-                                         KernelName)
-                                   : std::shared_ptr<kernel_impl>{nullptr})) {
+  } else if ((SyclKernelImpl =
+                  KernelBundleImplPtr
+                      ? KernelBundleImplPtr->tryGetKernel(KernelName)
+                      : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
 
@@ -3278,16 +3280,19 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           retrieveKernelBinary(*MQueue, KernelName);
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(
-        *MQueue, NDRDesc, Args, ExecKernel->getKernelBundle()
+    enqueueImpKernel(*MQueue, NDRDesc, Args,
+                     ExecKernel
+                         ->getKernelBundle()
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-        .get()
+                         .get()
 #endif
-        , SyclKernel.get(),
-        KernelName, ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
-        getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
-        ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
-        ExecKernel->MKernelWorkGroupMemorySize, BinImage);
+                         , 
+                     SyclKernel.get(), KernelName,
+                     ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
+                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+                     ExecKernel->MKernelIsCooperative,
+                     ExecKernel->MKernelUsesClusterLaunch,
+                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
