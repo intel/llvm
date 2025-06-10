@@ -37,9 +37,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     }
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_ENQUEUE_NATIVE_EXP, hQueue, ActiveStream.getStream()));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_ENQUEUE_NATIVE_EXP, hQueue, ActiveStream.getStream());
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 

@@ -9,7 +9,7 @@ sycl::queue deviceQueue;
 void diagnostics()
 {
   // **doublepump
-  //expected-warning@+1 {{unknown attribute 'doublepump' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::doublepump' ignored}}
   [[intelfpga::doublepump]] unsigned int doublepump_var[64];
 
   //expected-error@+2{{attributes are not compatible}}
@@ -29,7 +29,7 @@ void diagnostics()
   unsigned int dpump_reg[64];
 
   // **singlepump
-  //expected-warning@+1 {{unknown attribute 'singlepump' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::singlepump' ignored}}
   [[intelfpga::singlepump]] unsigned int singlepump_var[64];
 
   //expected-error@+1{{attributes are not compatible}}
@@ -48,7 +48,7 @@ void diagnostics()
   unsigned int spump_reg[64];
 
   // **fpga_register
-  //expected-warning@+1 {{unknown attribute 'register' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::register' ignored}}
   [[intelfpga::register]] unsigned int reg_var[64];
 
   //expected-warning@+2{{attribute 'fpga_register' is already applied}}
@@ -155,7 +155,7 @@ void diagnostics()
   [[intel::fpga_memory]]
   [[intel::fpga_memory]] unsigned int mem_mem[64]; // OK
 
-  //expected-warning@+1 {{unknown attribute 'memory' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::memory' ignored}}
   [[intelfpga::memory]] unsigned int memory_var[64];
 
   // Check to see if there's a duplicate attribute with different values
@@ -189,7 +189,7 @@ void diagnostics()
   [[intel::fpga_memory]] unsigned int mem_mlabs_block_ram[64];
 
   // **bankwidth
-  //expected-warning@+1 {{unknown attribute 'bankwidth' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::bankwidth' ignored}}
   [[intelfpga::bankwidth(4)]] unsigned int bankwidth_var[32];
 
   // Checking of incompatible attributes.
@@ -200,7 +200,7 @@ void diagnostics()
   unsigned int bankwidth_reg[64];
 
   // **max_replicates
-  //expected-warning@+1 {{unknown attribute 'max_replicates' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::max_replicates' ignored}}
   [[intelfpga::max_replicates(2)]] unsigned int max_replicates_var[64];
 
   // Checking of different argument values.
@@ -223,7 +223,7 @@ void diagnostics()
   //expected-error@+1{{'simple_dual_port' attribute takes no arguments}}
   [[intel::simple_dual_port(0)]] unsigned int sdp[64];
 
-  //expected-warning@+1 {{unknown attribute 'simple_dual_port' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::simple_dual_port' ignored}}
   [[intelfpga::simple_dual_port]] unsigned int dual_port_var[64];
 
   //expected-note@+1 {{conflicting attribute is here}}
@@ -259,7 +259,7 @@ void diagnostics()
   [[intel::bankwidth(0)]] unsigned int bw_zero[64];
 
   // **private_copies
-  //expected-warning@+1 {{unknown attribute 'private_copies' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::private_copies' ignored}}
   [[intelfpga::private_copies(8)]] unsigned int private_copies_var[64];
 
   // Checking of incompatible attributes.
@@ -316,11 +316,11 @@ void diagnostics()
   //expected-error@+1{{requires a positive integral compile time constant expression}}
   [[intel::numbanks(0)]] unsigned int nb_zero[64];
 
-  //expected-warning@+1 {{unknown attribute 'numbanks' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::numbanks' ignored}}
   [[intelfpga::numbanks(8)]] unsigned int numbanks_var[32];
 
   // **merge
-  //expected-warning@+1 {{unknown attribute 'merge' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::merge' ignored}}
   [[intelfpga::merge("mrg1", "depth")]] unsigned int merge_depth_var[64];
 
   //expected-error@+2{{attributes are not compatible}}
@@ -386,11 +386,11 @@ void diagnostics()
   //expected-error@+1{{'bank_bits' attribute requires a non-negative integral compile time constant expression}}
   [[intel::bank_bits(-1)]] unsigned int bb_negative_arg[4];
 
-  //expected-warning@+1 {{unknown attribute 'bank_bits' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::bank_bits' ignored}}
   [[intelfpga::bank_bits(2, 3, 4, 5)]] unsigned int bankbits_var[64];
 
   // **force_pow2_depth
-  //expected-warning@+1 {{unknown attribute 'force_pow2_depth' ignored}}
+  //expected-warning@+1 {{unknown attribute 'intelfpga::force_pow2_depth' ignored}}
   [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0_var[64];
 
   //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
@@ -423,16 +423,16 @@ void check_gnu_style() {
   //expected-warning@+1{{unknown attribute 'register' ignored}}
   int __attribute__((register)) reg;
 
-  //expected-warning@+1{{unknown attribute '__singlepump__' ignored}}
+  //expected-warning@+1{{unknown attribute 'singlepump' ignored}}
   unsigned int __attribute__((__singlepump__)) singlepump;
 
-  //expected-warning@+1{{unknown attribute '__doublepump__' ignored}}
+  //expected-warning@+1{{unknown attribute 'doublepump' ignored}}
   unsigned int __attribute__((__doublepump__)) doublepump;
 
-  //expected-warning@+1{{unknown attribute '__private_copies__' ignored}}
+  //expected-warning@+1{{unknown attribute 'private_copies' ignored}}
   int __attribute__((__private_copies__(4))) private_copies;
 
-  //expected-warning@+1{{unknown attribute '__merge__' ignored}}
+  //expected-warning@+1{{unknown attribute 'merge' ignored}}
   int __attribute__((__merge__("mrg1","depth"))) merge;
 
   //expected-warning@+1{{unknown attribute 'max_replicates' ignored}}

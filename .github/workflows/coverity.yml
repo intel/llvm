@@ -45,7 +45,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults --hip --cuda \
+          --ci-defaults --use-zstd --hip --cuda \
           -DNATIVECPU_USE_OCK=Off \
           -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
 

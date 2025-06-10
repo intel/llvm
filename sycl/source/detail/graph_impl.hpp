@@ -878,18 +878,12 @@ public:
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
   /// @param RecordingQueue Queue to add to set.
-  void
-  addQueue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
-    MRecordingQueues.insert(RecordingQueue);
-  }
+  void addQueue(sycl::detail::queue_impl &RecordingQueue);
 
   /// Remove a queue from the set of queues which are currently recording to
   /// this graph.
   /// @param RecordingQueue Queue to remove from set.
-  void
-  removeQueue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
-    MRecordingQueues.erase(RecordingQueue);
-  }
+  void removeQueue(sycl::detail::queue_impl &RecordingQueue);
 
   /// Remove all queues which are recording to this graph, also sets all queues
   /// cleared back to the executing state.
@@ -1001,22 +995,13 @@ public:
   /// @return Last node in this graph added from \p Queue recording, or empty
   /// shared pointer if none.
   std::shared_ptr<node_impl>
-  getLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue) {
-    std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
-    if (0 == MInorderQueueMap.count(QueueWeakPtr)) {
-      return {};
-    }
-    return MInorderQueueMap[QueueWeakPtr];
-  }
+  getLastInorderNode(sycl::detail::queue_impl *Queue);
 
   /// Track the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to register \p Node for.
   /// @param Node Last node that was added to this graph from \p Queue.
-  void setLastInorderNode(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                          std::shared_ptr<node_impl> Node) {
-    std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
-    MInorderQueueMap[QueueWeakPtr] = Node;
-  }
+  void setLastInorderNode(sycl::detail::queue_impl &Queue,
+                          std::shared_ptr<node_impl> Node);
 
   /// Prints the contents of the graph to a text file in DOT format.
   /// @param FilePath Path to the output file.
@@ -1176,7 +1161,7 @@ public:
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
   /// @param[in] Queue The queue to be recorded from.
-  void beginRecording(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
+  void beginRecording(sycl::detail::queue_impl &Queue);
 
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.
@@ -1346,7 +1331,7 @@ public:
   /// @param Queue Command-queue to schedule execution on.
   /// @param CGData Command-group data provided by the sycl::handler
   /// @return Event associated with the execution of the graph.
-  sycl::event enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+  sycl::event enqueue(sycl::detail::queue_impl &Queue,
                       sycl::detail::CG::StorageInitHelper CGData);
 
   /// Turns the internal graph representation into UR command-buffers for a
@@ -1457,7 +1442,8 @@ private:
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
-  enqueueNodeDirect(sycl::context Ctx, sycl::detail::device_impl &DeviceImpl,
+  enqueueNodeDirect(const sycl::context &Ctx,
+                    sycl::detail::device_impl &DeviceImpl,
                     ur_exp_command_buffer_handle_t CommandBuffer,
                     std::shared_ptr<node_impl> Node);
 
@@ -1521,8 +1507,7 @@ private:
   /// @param[out] NDRDesc ND-Range to update.
   /// @param[out] UpdateDesc Base struct in the pointer chain.
   void populateURKernelUpdateStructs(
-      const std::shared_ptr<node_impl> &Node,
-      std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
+      const std::shared_ptr<node_impl> &Node, FastKernelCacheValPtr &BundleObjs,
       std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
       std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
       std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
@@ -1656,22 +1641,6 @@ public:
   /// @param Acc The new accessor value
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
-  /// Update the internal value of this dynamic parameter as well as the value
-  /// of this parameter in all registered nodes and dynamic CGs. Should only be
-  /// called for dynamic_work_group_memory arguments parameter.
-  /// @param BufferSize The total size in bytes of the new work_group_memory
-  /// array
-  void updateWorkGroupMem(size_t BufferSize);
-
-  /// Static helper function for updating command-group
-  /// dynamic_work_group_memory arguments.
-  /// @param CG The command-group to update the argument information for.
-  /// @param ArgIndex The argument index to update.
-  /// @param BufferSize The total size in bytes of the new work_group_memory
-  /// array
-  static void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> CG,
-                                   int ArgIndex, size_t BufferSize);
-
   /// Static helper function for updating command-group value arguments.
   /// @param CG The command-group to update the argument information for.
   /// @param ArgIndex The argument index to update.
@@ -1700,6 +1669,58 @@ private:
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
+};
+
+class dynamic_work_group_memory_impl : public dynamic_parameter_impl {
+
+public:
+  dynamic_work_group_memory_impl(size_t BufferSizeInBytes)
+      : BufferSizeInBytes(BufferSizeInBytes) {}
+
+  virtual ~dynamic_work_group_memory_impl() = default;
+
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes and dynamic CGs.
+  /// @param NewBufferSizeInBytes The total size in bytes of the new
+  /// work_group_memory array.
+  void updateWorkGroupMem(size_t NewBufferSizeInBytes);
+
+  /// Static helper function for updating command-group
+  /// dynamic_work_group_memory arguments.
+  /// @param CG The command-group to update the argument information for.
+  /// @param ArgIndex The argument index to update.
+  /// @param NewBufferSizeInBytes The total size in bytes of the new
+  /// work_group_memory array.
+  void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> &CG, int ArgIndex,
+                            size_t NewBufferSizeInBytes);
+
+  size_t BufferSizeInBytes;
+};
+
+class dynamic_local_accessor_impl : public dynamic_parameter_impl {
+
+public:
+  dynamic_local_accessor_impl(sycl::range<3> AllocationSize, int Dims,
+                              int ElemSize, const property_list &PropList);
+
+  virtual ~dynamic_local_accessor_impl() = default;
+
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes and dynamic CGs.
+  /// @param NewAllocationSize The new allocation size for the
+  /// dynamic_local_accessor.
+  void updateLocalAccessor(range<3> NewAllocationSize);
+
+  /// Static helper function for updating command-group dynamic_local_accessor
+  /// arguments.
+  /// @param CG The command-group to update the argument information for.
+  /// @param ArgIndex The argument index to update.
+  /// @param NewAllocationSize The new allocation size for the
+  /// dynamic_local_accessor.
+  void updateCGLocalAccessor(std::shared_ptr<sycl::detail::CG> &CG,
+                             int ArgIndex, range<3> NewAllocationSize);
+
+  detail::LocalAccessorImplHost LAccImplHost;
 };
 
 class dynamic_command_group_impl

@@ -4,6 +4,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v1 ./ipc-test
+
+// TODO: debug for v2
+// REQUIRES: v1
+
 #include <umf/memory_pool.h>
 #include <umf/memory_provider.h>
 #include <uur/fixtures.h>

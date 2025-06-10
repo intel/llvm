@@ -12,7 +12,7 @@
 using T = uint32_t;
 
 struct urMultiDeviceContextTest : uur::urPlatformTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urPlatformTest::SetUp());
     ASSERT_SUCCESS(
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &num_devices));
@@ -32,7 +32,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
     }
   }
 
-  void TearDown() {
+  void TearDown() override {
     uur::urPlatformTest::TearDown();
     if (num_devices <= 1) {
       return;
@@ -51,7 +51,7 @@ struct urMultiDeviceContextTest : uur::urPlatformTest {
 };
 
 struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
     if (num_devices <= 1) {
       return;
@@ -121,7 +121,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     }
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (num_devices > 1) {
       for (auto i = 0u; i < num_devices; ++i) {
         ASSERT_SUCCESS(urKernelRelease(kernels[i]));
@@ -216,8 +216,8 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
 
   // Kernel increments the fill val by 1
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernels[1], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 1, &e1,
-                                       &e2));
+                                       offset, work_dims, nullptr, 0, nullptr,
+                                       1, &e1, &e2));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[0], buffer, false, 0,
                                         buffer_size_bytes, out_vec.data(), 1,
@@ -252,13 +252,13 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
 
   // Kernel increments the fill val by 1
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernels[1], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 1, &e1,
-                                       &e2));
+                                       offset, work_dims, nullptr, 0, nullptr,
+                                       1, &e1, &e2));
 
   // Kernel increments the fill val by 1
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernels[0], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 1, &e2,
-                                       &e3));
+                                       offset, work_dims, nullptr, 0, nullptr,
+                                       1, &e2, &e3));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
                                         buffer_size_bytes, out_vec.data(), 1,

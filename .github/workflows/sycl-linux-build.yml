@@ -32,6 +32,10 @@ on:
       build_artifact_suffix:
         type: string
         required: true
+      build_target:
+        type: string
+        required: false
+        default: sycl-toolchain
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.zst
@@ -169,7 +173,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults ${{ inputs.build_configure_extra_args }} \
+          --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_INSTALL_UTILS=ON \
@@ -177,7 +181,8 @@ jobs:
           -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
     - name: Compile
       id: build
-      run: cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
+      # Emulate default value for manual dispatch as we've run out of available arguments.
+      run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |

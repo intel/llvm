@@ -9,7 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-#include <CL/cl_ext.h>
 #include <ur/ur.hpp>
 
 /// Handle to a kernel command.

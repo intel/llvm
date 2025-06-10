@@ -92,17 +92,7 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(size_t(MaxThreads));
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-    size_t GroupSize[3] = {0, 0, 0};
-    const auto &ReqdWGSizeMDMap =
-        hKernel->getProgram()->KernelReqdWorkGroupSizeMD;
-    const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(hKernel->getName());
-    if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
-      const auto ReqdWGSize = ReqdWGSizeMD->second;
-      GroupSize[0] = std::get<0>(ReqdWGSize);
-      GroupSize[1] = std::get<1>(ReqdWGSize);
-      GroupSize[2] = std::get<2>(ReqdWGSize);
-    }
-    return ReturnValue(GroupSize, 3);
+    return ReturnValue(hKernel->ReqdThreadsPerBlock, 3);
   }
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     // OpenCL LOCAL == HIP SHARED
@@ -166,7 +156,7 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t /*hKernel*/, ur_device_handle_t /*hDevice*/,
     uint32_t /*workDim*/, const size_t * /*pLocalWorkSize*/,
     size_t /*dynamicSharedMemorySize*/, uint32_t * /*pGroupCountRet*/) {
@@ -374,18 +364,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  size_t MaxThreadsPerBlock[3];
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
 
-  MaxThreadsPerBlock[0] = hQueue->Device->getMaxBlockDimX();
-  MaxThreadsPerBlock[1] = hQueue->Device->getMaxBlockDimY();
-  MaxThreadsPerBlock[2] = hQueue->Device->getMaxBlockDimZ();
-
-  ur_device_handle_t Device = hQueue->getDevice();
-  ScopedDevice Active(Device);
-
-  guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
-                     MaxThreadsPerBlock);
+  ScopedDevice Active(hQueue->getDevice());
+  guessLocalWorkSize(hQueue->getDevice(), ThreadsPerBlock, pGlobalWorkSize,
+                     workDim, hKernel);
   std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
             pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;

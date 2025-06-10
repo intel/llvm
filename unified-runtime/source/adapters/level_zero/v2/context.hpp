@@ -31,6 +31,18 @@ struct ur_context_handle_t_ : ur_object {
 
   const std::vector<ur_device_handle_t> &getDevices() const;
   ur_usm_pool_handle_t getDefaultUSMPool();
+  ur_usm_pool_handle_t getAsyncPool();
+
+  void addUsmPool(ur_usm_pool_handle_t hPool);
+  void removeUsmPool(ur_usm_pool_handle_t hPool);
+
+  template <typename Func> void forEachUsmPool(Func func) {
+    std::shared_lock<ur_shared_mutex> lock(Mutex);
+    for (const auto &hPool : usmPoolHandles) {
+      if (!func(hPool))
+        break;
+    }
+  }
 
   const std::vector<ur_device_handle_t> &
   getP2PDevices(ur_device_handle_t hDevice) const;
@@ -67,4 +79,6 @@ private:
   const std::vector<std::vector<ur_device_handle_t>> p2pAccessDevices;
 
   ur_usm_pool_handle_t_ defaultUSMPool;
+  ur_usm_pool_handle_t_ asyncPool;
+  std::list<ur_usm_pool_handle_t> usmPoolHandles;
 };

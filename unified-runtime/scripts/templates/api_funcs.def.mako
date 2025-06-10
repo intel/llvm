@@ -32,7 +32,7 @@ _UR_API(${th.make_func_name(n, tags, obj)})
 %endfor
 %endfor
 %for obj in th.get_loader_functions(specs, meta, n, tags):
-%if n + "Loader" in obj:
-_UR_API(${obj})
+%if n + "Loader" in obj['name']:
+_UR_API(${obj['name']})
 %endif
 %endfor

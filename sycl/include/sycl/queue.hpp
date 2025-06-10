@@ -69,7 +69,7 @@ namespace detail {
 class queue_impl;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-inline event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(const queue &, event &, queue *,
                                  const detail::code_location &);
 
 // Function to postprocess submitted command

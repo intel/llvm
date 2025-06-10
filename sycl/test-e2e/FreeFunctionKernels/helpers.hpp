@@ -6,19 +6,19 @@
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-template <typename T>
+template <typename T, typename S>
 static int performResultCheck(size_t NumberOfElements, const T *ResultPtr,
                               std::string_view TestName,
-                              T ExpectedResultValue) {
-  int IsSuccessful{0};
+                              S ExpectedResultValue) {
+  int Failed{0};
   for (size_t i = 0; i < NumberOfElements; i++) {
     if (ResultPtr[i] != ExpectedResultValue) {
       std::cerr << "Failed " << TestName << " : " << ResultPtr[i]
                 << " != " << ExpectedResultValue << std::endl;
-      ++IsSuccessful;
+      ++Failed;
     }
   }
-  return IsSuccessful;
+  return Failed;
 }
 
 template <auto *Func> static sycl::kernel getKernel(sycl::context &Context) {

@@ -322,7 +322,8 @@ void USMMemoryProvider::get_last_native_error(const char **ErrMsg,
   *ErrCode = static_cast<int32_t>(getLastStatusRef());
 }
 
-umf_result_t USMMemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
+umf_result_t USMMemoryProvider::get_min_page_size(const void *Ptr,
+                                                  size_t *PageSize) {
   (void)Ptr;
   *PageSize = MinPageSize;
 
@@ -529,5 +530,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
                                                        ur_device_handle_t,
                                                        ur_usm_pool_handle_t,
                                                        size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
+                                                          void *, const void *,
+                                                          size_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

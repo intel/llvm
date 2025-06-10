@@ -21,7 +21,6 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Demangle/Demangle.h"
-#include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -32,7 +31,6 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
-#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
@@ -40,6 +38,7 @@
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
+#include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -49,13 +48,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
-#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/DCE.h"
-#include "llvm/Transforms/Scalar/EarlyCSE.h"
-#include "llvm/Transforms/Scalar/SROA.h"
 
 #include <algorithm>
 #include <memory>
@@ -361,69 +354,6 @@ std::string saveModuleSymbolTable(const module_split::ModuleDesc &MD, int I,
   return OutFileName;
 }
 
-template <class PassClass> bool runModulePass(Module &M) {
-  ModulePassManager MPM;
-  ModuleAnalysisManager MAM;
-  // Register required analysis
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  MPM.addPass(PassClass{});
-  PreservedAnalyses Res = MPM.run(M, MAM);
-  return !Res.areAllPreserved();
-}
-
-// When ESIMD code was separated from the regular SYCL code,
-// we can safely process ESIMD part.
-// TODO: support options like -debug-pass, -print-[before|after], and others
-bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
-  LoopAnalysisManager LAM;
-  CGSCCAnalysisManager CGAM;
-  FunctionAnalysisManager FAM;
-  ModuleAnalysisManager MAM;
-
-  PassBuilder PB;
-  PB.registerModuleAnalyses(MAM);
-  PB.registerCGSCCAnalyses(CGAM);
-  PB.registerFunctionAnalyses(FAM);
-  PB.registerLoopAnalyses(LAM);
-  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-
-  ModulePassManager MPM;
-  MPM.addPass(SYCLLowerESIMDPass(!SplitEsimd));
-
-  if (!OptLevelO0) {
-    FunctionPassManager FPM;
-    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-  }
-  MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
-  FunctionPassManager MainFPM;
-  MainFPM.addPass(ESIMDLowerLoadStorePass{});
-
-  if (!OptLevelO0) {
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-    // TODO: maybe remove some passes below that don't affect code quality
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-  }
-  MPM.addPass(ESIMDLowerSLMReservationCalls{});
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
-  MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
-                                     /*RewriteSingleElementVectorsIn*/ false));
-  // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
-  // versions so the entry point table must be rebuilt.
-  // TODO Change entry point search to analysis?
-  std::vector<std::string> Names;
-  MD.saveEntryPointNames(Names);
-  PreservedAnalyses Res = MPM.run(MD.getModule(), MAM);
-  MD.rebuildEntryPoints(Names);
-  return !Res.areAllPreserved();
-}
-
 // Compute the filename suffix for the module
 StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
   return MD.isESIMD() ? "_esimd" : "";
@@ -610,7 +540,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   for (auto &MD : Result) {
     DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
     if (LowerEsimd && MD.isESIMD())
-      Modified |= lowerEsimdConstructs(MD);
+      Modified |= sycl::lowerESIMDConstructs(MD, OptLevelO0, SplitEsimd);
   }
 
   if (!SplitEsimd && Result.size() > 1) {
