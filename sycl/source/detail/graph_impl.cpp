@@ -1056,8 +1056,7 @@ static void cleanupExecutionEvents(std::vector<EventImplPtr> &ExecutionEvents) {
 }
 
 EventImplPtr exec_graph_impl::enqueueHostTaskPartition(
-    std::shared_ptr<partition> &Partition,
-    const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+    std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
     sycl::detail::CG::StorageInitHelper CGData, bool EventNeeded) {
 
   auto NodeImpl = Partition->MSchedule.front();
@@ -1081,12 +1080,12 @@ EventImplPtr exec_graph_impl::enqueueHostTaskPartition(
   // dependencies for the current execution.
   std::unique_ptr<sycl::detail::CG> CommandGroup =
       std::make_unique<sycl::detail::CGHostTask>(sycl::detail::CGHostTask(
-          NodeCommandGroup->MHostTask, Queue, NodeCommandGroup->MContext,
-          NodeCommandGroup->MArgs, std::move(CGData),
-          NodeCommandGroup->getType()));
+          NodeCommandGroup->MHostTask, Queue.shared_from_this(),
+          NodeCommandGroup->MContext, NodeCommandGroup->MArgs,
+          std::move(CGData), NodeCommandGroup->getType()));
 
   EventImplPtr SchedulerEvent = sycl::detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), Queue, EventNeeded);
+      std::move(CommandGroup), Queue.shared_from_this(), EventNeeded);
 
   if (EventNeeded) {
     return SchedulerEvent;
@@ -1095,8 +1094,7 @@ EventImplPtr exec_graph_impl::enqueueHostTaskPartition(
 }
 
 EventImplPtr exec_graph_impl::enqueuePartitionWithScheduler(
-    std::shared_ptr<partition> &Partition,
-    const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+    std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
     sycl::detail::CG::StorageInitHelper CGData, bool EventNeeded) {
 
   if (!Partition->MRequirements.empty()) {
@@ -1108,14 +1106,14 @@ EventImplPtr exec_graph_impl::enqueuePartitionWithScheduler(
                               Partition->MAccessors.end());
   }
 
-  auto CommandBuffer = Partition->MCommandBuffers[Queue->get_device()];
+  auto CommandBuffer = Partition->MCommandBuffers[Queue.get_device()];
 
   std::unique_ptr<sycl::detail::CG> CommandGroup =
       std::make_unique<sycl::detail::CGExecCommandBuffer>(
           CommandBuffer, nullptr, std::move(CGData));
 
   EventImplPtr SchedulerEvent = sycl::detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), Queue, EventNeeded);
+      std::move(CommandGroup), Queue.shared_from_this(), EventNeeded);
 
   if (EventNeeded) {
     SchedulerEvent->setEventFromSubmittedExecCommandBuffer(true);
@@ -1126,8 +1124,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionWithScheduler(
 }
 
 EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
-    std::shared_ptr<partition> &Partition,
-    const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+    std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
     std::vector<detail::EventImplPtr> &WaitEvents, bool EventNeeded) {
 
   // Create a list containing all the UR event handles in WaitEvents. WaitEvents
@@ -1142,26 +1139,27 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     }
   }
 
-  auto CommandBuffer = Partition->MCommandBuffers[Queue->get_device()];
+  auto CommandBuffer = Partition->MCommandBuffers[Queue.get_device()];
   const size_t UrEnqueueWaitListSize = UrEventHandles.size();
   const ur_event_handle_t *UrEnqueueWaitList =
       UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
 
   if (!EventNeeded) {
-    Queue->getAdapter()
+    Queue.getAdapter()
         ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue->getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
+            Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
             UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
-    auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
-    NewEvent->setContextImpl(Queue->getContextImplPtr());
+    auto NewEvent =
+        std::make_shared<sycl::detail::event_impl>(Queue.shared_from_this());
+    NewEvent->setContextImpl(Queue.getContextImplPtr());
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
-    Queue->getAdapter()
+    Queue.getAdapter()
         ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue->getHandleRef(), CommandBuffer, UrEventHandles.size(),
+            Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
             UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
     NewEvent->setEventFromSubmittedExecCommandBuffer(true);
@@ -1169,10 +1167,11 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
   }
 }
 
-EventImplPtr exec_graph_impl::enqueuePartitions(
-    const std::shared_ptr<sycl::detail::queue_impl> &Queue,
-    sycl::detail::CG::StorageInitHelper &CGData,
-    bool IsCGDataSafeForSchedulerBypass, bool EventNeeded) {
+EventImplPtr
+exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
+                                   sycl::detail::CG::StorageInitHelper &CGData,
+                                   bool IsCGDataSafeForSchedulerBypass,
+                                   bool EventNeeded) {
 
   // If EventNeeded is true, this vector is used to keep track of dependencies
   // for the returned event. This is used when the graph has multiple end nodes
@@ -1280,7 +1279,7 @@ EventImplPtr exec_graph_impl::enqueuePartitions(
 }
 
 EventImplPtr
-exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                          sycl::detail::CG::StorageInitHelper CGData,
                          bool EventNeeded) {
   WriteLock Lock(MMutex);
@@ -1291,7 +1290,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
 
   bool IsCGDataSafeForSchedulerBypass =
       detail::Scheduler::areEventsSafeForSchedulerBypass(
-          CGData.MEvents, Queue->getContextImplPtr()) &&
+          CGData.MEvents, Queue.getContextImplPtr()) &&
       CGData.MRequirements.empty();
 
   // This variable represents the returned event. It will always be nullptr if

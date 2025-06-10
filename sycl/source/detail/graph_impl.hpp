@@ -1346,7 +1346,7 @@ public:
   /// operation needs to be returned.
   /// @return Returns an event if EventNeeded is true. Returns nullptr
   /// otherwise.
-  EventImplPtr enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+  EventImplPtr enqueue(sycl::detail::queue_impl &Queue,
                        sycl::detail::CG::StorageInitHelper CGData,
                        bool EventNeeded);
 
@@ -1482,8 +1482,7 @@ private:
   /// @return If EventNeeded is true returns the event resulting from enqueueing
   /// the host-task through the scheduler. Returns nullptr otherwise.
   EventImplPtr enqueueHostTaskPartition(
-      std::shared_ptr<partition> &Partition,
-      const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+      std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
       sycl::detail::CG::StorageInitHelper CGData, bool EventNeeded);
 
   /// Enqueues a graph partition that contains no host-tasks using the
@@ -1497,8 +1496,7 @@ private:
   /// @return If EventNeeded is true returns the event resulting from enqueueing
   /// the command-buffer through the scheduler. Returns nullptr otherwise.
   EventImplPtr enqueuePartitionWithScheduler(
-      std::shared_ptr<partition> &Partition,
-      const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+      std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
       sycl::detail::CG::StorageInitHelper CGData, bool EventNeeded);
 
   /// Enqueues a graph partition that contains no host-tasks by directly calling
@@ -1513,8 +1511,7 @@ private:
   /// @return If EventNeeded is true returns the event resulting from enqueueing
   /// the command-buffer. Returns nullptr otherwise.
   EventImplPtr enqueuePartitionDirectly(
-      std::shared_ptr<partition> &Partition,
-      const std::shared_ptr<sycl::detail::queue_impl> &Queue,
+      std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
       std::vector<detail::EventImplPtr> &WaitEvents, bool EventNeeded);
 
   /// Enqueues all the partitions in a graph.
@@ -1528,10 +1525,10 @@ private:
   /// operation needs to be returned.
   /// @return If EventNeeded is true returns the event resulting from enqueueing
   /// the command-buffer. Returns nullptr otherwise.
-  EventImplPtr
-  enqueuePartitions(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
-                    sycl::detail::CG::StorageInitHelper &CGData,
-                    bool IsCGDataSafeForSchedulerBypass, bool EventNeeded);
+  EventImplPtr enqueuePartitions(sycl::detail::queue_impl &Queue,
+                                 sycl::detail::CG::StorageInitHelper &CGData,
+                                 bool IsCGDataSafeForSchedulerBypass,
+                                 bool EventNeeded);
 
   /// Iterates back through predecessors to find the real dependency.
   /// @param[out] Deps Found dependencies.

@@ -769,18 +769,18 @@ event handler::finalize() {
           nullptr, impl->MExecGraph, std::move(impl->CGData)));
 
     } else {
+      detail::queue_impl &Queue = impl->get_queue();
       bool DiscardEvent = !impl->MEventNeeded &&
-                          MQueue->supportsDiscardingPiEvents() &&
+                          Queue.supportsDiscardingPiEvents() &&
                           !impl->MExecGraph->containsHostTask();
       detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
-          MQueue, std::move(impl->CGData), !DiscardEvent);
+          Queue, std::move(impl->CGData), !DiscardEvent);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return GraphCompletionEvent;
 #else
       return sycl::detail::createSyclObjFromImpl<sycl::event>(
-          GraphCompletionEvent
-              ? GraphCompletionEvent
-              : std::make_shared<sycl::detail::event_impl>(MQueue));
+          GraphCompletionEvent ? GraphCompletionEvent
+                               : std::make_shared<sycl::detail::event_impl>());
 #endif
     }
   } break;
