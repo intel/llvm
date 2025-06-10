@@ -66,6 +66,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
 
+    ScopedContext Active(hDevice);
     unsigned int Flags = CU_STREAM_NON_BLOCKING;
     ur_queue_flags_t URFlags = 0;
     // '0' is the default priority, per CUDA Toolkit 12.2 and earlier
@@ -83,7 +84,6 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
         IsOutOfOrder = true;
       }
       if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
-        ScopedContext Active(hDevice);
         UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
         ScopedContext Active(hDevice);

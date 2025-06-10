@@ -254,12 +254,10 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 }
 
 KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
-  static std::vector<std::unique_ptr<KernelNameBasedCacheT>>
-      &KernelNameBasedCaches = getOrCreate(MKernelNameBasedCaches);
+  static std::deque<KernelNameBasedCacheT> &KernelNameBasedCaches =
+      getOrCreate(MKernelNameBasedCaches);
   LockGuard LG{MKernelNameBasedCaches.Lock};
-  return KernelNameBasedCaches
-      .emplace_back(std::make_unique<KernelNameBasedCacheT>())
-      .get();
+  return &KernelNameBasedCaches.emplace_back();
 }
 
 void GlobalHandler::releaseDefaultContexts() {

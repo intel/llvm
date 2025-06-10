@@ -126,3 +126,4 @@
 #include <sycl/khr/free_function_commands.hpp>
 #include <sycl/khr/group_interface.hpp>
 #include <sycl/khr/static_addrspace_cast.hpp>
+#include <sycl/khr/work_item_queries.hpp>

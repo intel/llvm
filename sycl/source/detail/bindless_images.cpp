@@ -244,7 +244,7 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
   populate_ur_structs(desc, urDesc, urFormat);
 
   // Call impl.
-  ur_exp_image_mem_native_handle_t urImageHandle = 0;
+  ur_exp_image_native_handle_t urImageHandle = 0;
   Adapter
       ->call<sycl::errc::runtime,
              sycl::detail::UrApiKind::urBindlessImagesUnsampledImageCreateExp>(
@@ -372,7 +372,7 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   populate_ur_structs(desc, urDesc, urFormat, pitch);
 
   // Call impl.
-  ur_exp_image_mem_native_handle_t urImageHandle = 0;
+  ur_exp_image_native_handle_t urImageHandle = 0;
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urBindlessImagesSampledImageCreateExp>(
       urCtx, urDevice,

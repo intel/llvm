@@ -25,8 +25,9 @@ public:
   MockQueueImpl(sycl::detail::device_impl &Device,
                 const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
-      : sycl::detail::queue_impl(Device, AsyncHandler, PropList) {}
-  using sycl::detail::queue_impl::finalizeHandler;
+      : sycl::detail::queue_impl(Device, AsyncHandler, PropList,
+                                 sycl::detail::queue_impl::private_tag{}) {}
+  using sycl::detail::queue_impl::finalizeHandlerInOrderHostTaskUnlocked;
 };
 
 // Define type with the only methods called by finalizeHandler
@@ -34,24 +35,34 @@ class LimitedHandler {
 public:
   LimitedHandler(sycl::detail::CGType CGType,
                  std::shared_ptr<MockQueueImpl> Queue)
-      : MCGType(CGType), MQueue(Queue) {}
+      : MCGType(CGType), impl(std::make_shared<handler_impl>(Queue)) {}
 
   virtual ~LimitedHandler() {}
   virtual void depends_on(const sycl::detail::EventImplPtr &) {}
   virtual void depends_on(const std::vector<detail::EventImplPtr> &Events) {}
   virtual void depends_on(event Event) {};
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  virtual sycl::detail::EventImplPtr finalize() {
+    return std::make_shared<detail::event_impl>();
+  }
+#else
   virtual event finalize() {
     sycl::detail::EventImplPtr NewEvent =
         std::make_shared<detail::event_impl>();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }
+#endif
 
   sycl::detail::CGType getType() { return MCGType; }
 
   sycl::detail::CGType MCGType;
-  std::shared_ptr<MockQueueImpl> MQueue;
-  std::shared_ptr<sycl::detail::handler_impl> impl;
+  struct handler_impl {
+    handler_impl(std::shared_ptr<MockQueueImpl> Queue) : MQueue(Queue) {}
+    std::shared_ptr<MockQueueImpl> MQueue;
+    MockQueueImpl &get_queue() { return *MQueue; }
+  };
+  std::shared_ptr<handler_impl> impl;
   std::shared_ptr<detail::kernel_impl> MKernel;
   detail::string MKernelName;
 };
@@ -85,13 +96,15 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
-        .Times(0);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, std::nullopt);
+        .Times(1);
+    Queue->finalizeHandlerInOrderHostTaskUnlocked<LimitedHandlerSimulation>(
+        MockCGH);
   }
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, std::nullopt);
+    Queue->finalizeHandlerInOrderHostTaskUnlocked<LimitedHandlerSimulation>(
+        MockCGH);
   }
 }

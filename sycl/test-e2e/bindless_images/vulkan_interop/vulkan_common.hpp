@@ -61,7 +61,10 @@ static VkCommandPool vk_transferCmdPool;
 static VkCommandBuffer vk_computeCmdBuffer;
 static VkCommandBuffer vk_transferCmdBuffers[2];
 
+static bool supportsDedicatedAllocation = false;
 static bool requiresDedicatedAllocation = false;
+
+static bool supportsExternalSemaphore = false;
 
 // A static debug callback function that relays messages from the Vulkan
 // validation layer to the terminal.
@@ -137,8 +140,11 @@ VkResult setupInstance() {
   std::vector<const char *> requiredInstanceExtensions = {
       VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
       VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME};
+      VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME};
+
+  std::vector<const char *> optionalInstanceExtensions = {
+      VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME,
+      VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME};
 
   // Make sure that our required instance extensions are supported by the
   // running Vulkan instance.
@@ -146,8 +152,23 @@ VkResult setupInstance() {
     std::string requiredExtension = requiredInstanceExtensions[i];
     if (std::find(supportedInstanceExtensions.begin(),
                   supportedInstanceExtensions.end(),
-                  requiredExtension) == supportedInstanceExtensions.end())
+                  requiredExtension) == supportedInstanceExtensions.end()) {
       return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+  }
+
+  // Add any optional instance extensions that are supported by the
+  // running Vulkan instance.
+  for (int i = 0; i < optionalInstanceExtensions.size(); ++i) {
+    std::string optionalExtension = optionalInstanceExtensions[i];
+    if (std::find(supportedInstanceExtensions.begin(),
+                  supportedInstanceExtensions.end(),
+                  optionalExtension) != supportedInstanceExtensions.end()) {
+      requiredInstanceExtensions.push_back(optionalInstanceExtensions[i]);
+      if (optionalExtension == VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME) {
+        supportsDedicatedAllocation = true;
+      }
+    }
   }
 
   // Create the vulkan instance with our required extensions and layers.
@@ -207,8 +228,8 @@ getSupportedDeviceExtensions(std::vector<VkExtensionProperties> &extensions,
   return VK_SUCCESS;
 }
 
-// Set up the Vulkan device.
-VkResult setupDevice(std::string device) {
+// Set up the Vulkan device from the SYCL one
+VkResult setupDevice(const sycl::device &dev) {
   uint32_t physicalDeviceCount = 0;
   // Get all physical devices.
   VK_CHECK_CALL_RET(
@@ -227,37 +248,48 @@ VkResult setupDevice(std::string device) {
   static constexpr const char *requiredExtensions[] = {
       VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
       VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
 #ifdef _WIN32
       VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
 #else
-      VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
       VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
 #endif
   };
 
-  // Make lowercase to fix inconsistent capitalization between SYCL and Vulkan
-  // device naming.
-  std::transform(device.begin(), device.end(), device.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+  static constexpr const char *optionalExtensions[] = {
+      VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+#ifdef _WIN32
+      VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
+#else
+      VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+#endif
+  };
 
-  // From all physical devices, find the first one that supports all our
-  // required device extensions.
+  std::vector<const char *> enabledDeviceExtensions(
+      std::begin(requiredExtensions), std::end(requiredExtensions));
+
+  const auto UUID = dev.get_info<sycl::ext::intel::info::device::uuid>();
+
+  // From all physical devices, find the first one with a matching UUID
+  // that also supports all our required device extensions
   for (int i = 0; i < physicalDeviceCount; i++) {
     vk_physical_device = physicalDevices[i];
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(vk_physical_device, &props);
-    std::string name(props.deviceName);
 
-    // Make lowercase for comparision.
-    std::transform(name.begin(), name.end(), name.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+    VkPhysicalDeviceIDProperties devIDProps = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
 
-    if (name.find(device) == std::string::npos) {
+    VkPhysicalDeviceProperties2 devProps2 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &devIDProps};
+
+    vkGetPhysicalDeviceProperties2(vk_physical_device, &devProps2);
+
+    if (!std::equal(std::begin(UUID), std::end(UUID),
+                    std::begin(devIDProps.deviceUUID),
+                    std::begin(devIDProps.deviceUUID) + VK_UUID_SIZE)) {
       continue;
     }
 
+    // Check if the device supports the required extensions.
     std::vector<VkExtensionProperties> supportedDeviceExtensions;
     getSupportedDeviceExtensions(supportedDeviceExtensions, vk_physical_device);
     const bool hasRequiredExtensions = std::all_of(
@@ -270,13 +302,32 @@ VkResult setupDevice(std::string device) {
                                  });
           return (it != std::end(supportedDeviceExtensions));
         });
+    // Skip this device if it does not support all required extensions.
     if (!hasRequiredExtensions) {
       continue;
     }
 
+    // Check if the device supports the optional extensions, if so add them to
+    // the list of enabled device extensions.
+    for (const char *optionalExt : optionalExtensions) {
+      auto it = std::find_if(std::begin(supportedDeviceExtensions),
+                             std::end(supportedDeviceExtensions),
+                             [&](const VkExtensionProperties &ext) {
+                               return (ext.extensionName ==
+                                       std::string_view(optionalExt));
+                             });
+      if (it != std::end(supportedDeviceExtensions)) {
+        enabledDeviceExtensions.push_back(optionalExt);
+        if (std::string_view(optionalExt) ==
+            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME) {
+          supportsExternalSemaphore = true;
+        }
+      }
+    }
+
     foundDevice = true;
-    std::cout << "Found suitable Vulkan device: " << props.deviceName
-              << std::endl;
+    std::cout << "Found suitable Vulkan device: "
+              << devProps2.properties.deviceName << std::endl;
     break;
   }
 
@@ -347,9 +398,8 @@ VkResult setupDevice(std::string device) {
   dci.pQueueCreateInfos = qcis.data();
   dci.queueCreateInfoCount = qcis.size();
   dci.pEnabledFeatures = &deviceFeatures;
-  dci.enabledExtensionCount =
-      sizeof(requiredExtensions) / sizeof(requiredExtensions[0]);
-  dci.ppEnabledExtensionNames = &requiredExtensions[0];
+  dci.enabledExtensionCount = enabledDeviceExtensions.size();
+  dci.ppEnabledExtensionNames = enabledDeviceExtensions.data();
 
   VK_CHECK_CALL_RET(
       vkCreateDevice(vk_physical_device, &dci, nullptr, &vk_device));
@@ -370,13 +420,15 @@ VkResult setupDevice(std::string device) {
         << "Could not get func pointer to \"vkGetMemoryWin32HandleKHR\"!\n";
     return VK_ERROR_UNKNOWN;
   }
-  vk_getSemaphoreWin32HandleKHR =
-      (PFN_vkGetSemaphoreWin32HandleKHR)vkGetDeviceProcAddr(
-          vk_device, "vkGetSemaphoreWin32HandleKHR");
-  if (!vk_getSemaphoreWin32HandleKHR) {
-    std::cerr
-        << "Could not get func pointer to \"vkGetSemaphoreWin32HandleKHR\"!\n";
-    return VK_ERROR_UNKNOWN;
+  if (supportsExternalSemaphore) {
+    vk_getSemaphoreWin32HandleKHR =
+        (PFN_vkGetSemaphoreWin32HandleKHR)vkGetDeviceProcAddr(
+            vk_device, "vkGetSemaphoreWin32HandleKHR");
+    if (!vk_getSemaphoreWin32HandleKHR) {
+      std::cerr << "Could not get func pointer to "
+                   "\"vkGetSemaphoreWin32HandleKHR\"!\n";
+      return VK_ERROR_UNKNOWN;
+    }
   }
 #else
   vk_getMemoryFdKHR =
@@ -385,11 +437,13 @@ VkResult setupDevice(std::string device) {
     std::cerr << "Could not get func pointer to \"vkGetMemoryFdKHR\"!\n";
     return VK_ERROR_UNKNOWN;
   }
-  vk_getSemaphoreFdKHR = (PFN_vkGetSemaphoreFdKHR)vkGetDeviceProcAddr(
-      vk_device, "vkGetSemaphoreFdKHR");
-  if (!vk_getSemaphoreFdKHR) {
-    std::cerr << "Could not get func pointer to \"vkGetSemaphoreFdKHR\"!\n";
-    return VK_ERROR_UNKNOWN;
+  if (supportsExternalSemaphore) {
+    vk_getSemaphoreFdKHR = (PFN_vkGetSemaphoreFdKHR)vkGetDeviceProcAddr(
+        vk_device, "vkGetSemaphoreFdKHR");
+    if (!vk_getSemaphoreFdKHR) {
+      std::cerr << "Could not get func pointer to \"vkGetSemaphoreFdKHR\"!\n";
+      return VK_ERROR_UNKNOWN;
+    }
   }
 #endif
 
@@ -579,10 +633,11 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
 #else
     emai.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif
-    if (requiresDedicatedAllocation)
+    if (requiresDedicatedAllocation) {
       dedicatedInfo.pNext = &emai;
-    else
+    } else {
       mai.pNext = &emai;
+    }
   }
 
   VkDeviceMemory memory;
@@ -600,12 +655,15 @@ property flags passed.
 */
 uint32_t getImageMemoryTypeIndex(VkImage image, VkMemoryPropertyFlags flags,
                                  VkMemoryRequirements &memRequirements) {
-  VkMemoryDedicatedRequirements dedicatedRequirements{};
-  dedicatedRequirements.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS;
-
   VkMemoryRequirements2 memoryRequirements2{};
   memoryRequirements2.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
-  memoryRequirements2.pNext = &dedicatedRequirements;
+
+  VkMemoryDedicatedRequirements dedicatedRequirements{};
+  if (supportsDedicatedAllocation) {
+    dedicatedRequirements.sType =
+        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS;
+    memoryRequirements2.pNext = &dedicatedRequirements;
+  }
 
   VkImageMemoryRequirementsInfo2 imageRequirementsInfo{};
   imageRequirementsInfo.sType =
@@ -615,8 +673,9 @@ uint32_t getImageMemoryTypeIndex(VkImage image, VkMemoryPropertyFlags flags,
   vk_getImageMemoryRequirements2(vk_device, &imageRequirementsInfo,
                                  &memoryRequirements2);
 
-  if (dedicatedRequirements.requiresDedicatedAllocation)
+  if (dedicatedRequirements.requiresDedicatedAllocation) {
     requiresDedicatedAllocation = true;
+  }
 
   VkPhysicalDeviceMemoryProperties memProperties;
   vkGetPhysicalDeviceMemoryProperties(vk_physical_device, &memProperties);
@@ -714,6 +773,11 @@ HANDLE getSemaphoreWin32Handle(VkSemaphore semaphore) {
   sghwi.semaphore = semaphore;
   sghwi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 
+  if (!supportsExternalSemaphore) {
+    std::cerr << "External semaphore support is not enabled!\n";
+    return 0;
+  }
+
   if (vk_getSemaphoreWin32HandleKHR != nullptr) {
     VK_CHECK_CALL(vk_getSemaphoreWin32HandleKHR(vk_device, &sghwi, &retHandle));
   } else {
@@ -756,6 +820,12 @@ int getSemaphoreOpaqueFD(VkSemaphore semaphore) {
   sgfi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
 
   int fd = 0;
+
+  if (!supportsExternalSemaphore) {
+    std::cerr << "External semaphore support is not enabled!\n";
+    return 0;
+  }
+
   if (vk_getSemaphoreFdKHR != nullptr) {
     VK_CHECK_CALL(vk_getSemaphoreFdKHR(vk_device, &sgfi, &fd));
   } else {
@@ -804,11 +874,9 @@ struct vulkan_image_test_resources_t {
 
   vulkan_image_test_resources_t(VkImageType imgType, VkFormat format,
                                 VkExtent3D ext, const size_t imageSizeBytes) {
-    vkImage = vkutil::createImage(imgType, format, ext,
-                                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                      VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                      VK_IMAGE_USAGE_STORAGE_BIT,
-                                  1);
+    vkImage = vkutil::createImage(
+        imgType, format, ext,
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 1);
     VkMemoryRequirements memRequirements;
     auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
         vkImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);

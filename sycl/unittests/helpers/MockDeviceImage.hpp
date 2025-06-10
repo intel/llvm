@@ -20,8 +20,6 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 namespace sycl {
 inline namespace _V1 {
 namespace unittest {
@@ -193,8 +191,7 @@ public:
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
     MockProperty DeviceLibReqMask("", Data, SYCL_PROPERTY_TYPE_UINT32);
-    insert(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
-           std::move(DeviceLibReqMask));
+    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, std::move(DeviceLibReqMask));
   }
 
   /// Adds a new property to the set.
@@ -464,8 +461,7 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
   std::vector<MockProperty> Value;
   for (const std::string &N : Names)
     Value.push_back({N, {0, 0, 0, 0}, SYCL_PROPERTY_TYPE_UINT32});
-  Set.insert(llvm::util::PropertySetRegistry::SYCL_ASSERT_USED,
-             std::move(Value));
+  Set.insert(__SYCL_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
 }
 
 /// Utility function to add specialization constants to property set.
@@ -474,14 +470,12 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
 inline void addSpecConstants(std::vector<MockProperty> &&SpecConstants,
                              std::vector<char> ValData,
                              MockPropertySet &Props) {
-  Props.insert(llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
-               std::move(SpecConstants));
+  Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
   MockProperty Prop{"all", std::move(ValData), SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
-  Props.insert(
-      llvm::util::PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
-      std::move(Prop));
+  Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
+               std::move(Prop));
 }
 
 /// Utility function to add ESIMD kernel flag to property set.
@@ -490,8 +484,7 @@ inline void addESIMDFlag(MockPropertySet &Props) {
   ValData[0] = 1;
   MockProperty Prop{"isEsimdImage", ValData, SYCL_PROPERTY_TYPE_UINT32};
 
-  Props.insert(llvm::util::PropertySetRegistry::SYCL_MISC_PROP,
-               std::move(Prop));
+  Props.insert(__SYCL_PROPERTY_SET_SYCL_MISC_PROP, std::move(Prop));
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
@@ -604,8 +597,7 @@ addDeviceRequirementsProps(MockPropertySet &Props,
   std::vector<MockProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
-  Props.insert(llvm::util::PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS,
-               std::move(Value));
+  Props.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS, std::move(Value));
 }
 
 inline MockDeviceImage

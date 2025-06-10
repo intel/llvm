@@ -165,6 +165,8 @@ libdevice/nativecpu* @intel/dpcpp-nativecpu-reviewers
 sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.cpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.hpp @intel/sycl-graphs-reviewers
+sycl/source/detail/graph_memory_pool.hpp @intel/sycl-graphs-reviewers
+sycl/source/detail/graph_memory_pool.cpp @intel/sycl-graphs-reviewers
 sycl/unittests/Extensions/CommandGraph/ @intel/sycl-graphs-reviewers
 sycl/test-e2e/Graph @intel/sycl-graphs-reviewers
 sycl/doc/design/CommandGraph.md @intel/sycl-graphs-reviewers
@@ -175,6 +177,7 @@ sycl/doc/syclgraph/ @intel/sycl-graphs-reviewers
 sycl/**/syclcompat/ @intel/syclcompat-lib-reviewers
 sycl/cmake/modules/AddSYCLLibraryUnitTest.cmake @intel/syclcompat-lib-reviewers
 sycl/include/syclcompat.hpp @intel/syclcompat-lib-reviewers
+sycl/test-e2e/syclcompat/ @intel/syclcompat-lib-reviewers
 
 # bindless images
 sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc @intel/bindless-images-reviewers

@@ -8,8 +8,6 @@
 
 #include <sycl/sycl.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 
@@ -66,7 +64,7 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   MockPropertySet PropSet;
   MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
-  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_DEVICE_GLOBALS,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
                  std::vector<MockProperty>{std::move(DevGlobInfo)});
 
   std::vector<MockOffloadEntry> Entries =
@@ -89,7 +87,7 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
   MockPropertySet PropSet;
   MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
-  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_DEVICE_GLOBALS,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
                  std::vector<MockProperty>{std::move(DevGlobInfo)});
 
   std::vector<MockOffloadEntry> Entries =

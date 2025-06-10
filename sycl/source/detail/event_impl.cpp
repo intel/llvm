@@ -113,10 +113,25 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-static uint64_t inline getTimestamp() {
-  auto Timestamp = std::chrono::high_resolution_clock::now().time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(Timestamp)
-      .count();
+static uint64_t inline getTimestamp(device_impl *Device) {
+  if (Device) {
+    try {
+      return Device->getCurrentDeviceTime();
+    } catch (sycl::exception &e) {
+      if (e.code() == sycl::errc::feature_not_supported)
+        throw sycl::exception(
+            make_error_code(errc::profiling),
+            std::string("Unable to get command group submission time: ") +
+                e.what());
+      std::rethrow_exception(std::current_exception());
+    }
+  } else {
+    // Returning host time
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(
+               high_resolution_clock::now().time_since_epoch())
+        .count();
+  }
 }
 
 ur_event_handle_t event_impl::getHandle() const { return MEvent.load(); }
@@ -176,14 +191,24 @@ event_impl::event_impl(const QueueImplPtr &Queue)
   MState.store(HES_Complete);
 }
 
-void event_impl::setQueue(const QueueImplPtr &Queue) {
-  MQueue = Queue;
-  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
+void event_impl::setQueue(queue_impl &Queue) {
+  MQueue = Queue.shared_from_this();
+  MIsProfilingEnabled = Queue.MIsProfilingEnabled;
 
   // TODO After setting the queue, the event is no longer default
   // constructed. Consider a design change which would allow
   // for such a change regardless of the construction method.
   MIsDefaultConstructed = false;
+}
+
+void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
+  MSubmittedQueue = SubmittedQueue;
+  if (MHostProfilingInfo) {
+    if (auto QueuePtr = SubmittedQueue.lock()) {
+      device_impl &Device = QueuePtr->getDeviceImpl();
+      MHostProfilingInfo->setDevice(&Device);
+    }
+  }
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -348,7 +373,10 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
       return get_event_profiling_info<info::event_profiling::command_start>(
           Handle, this->getAdapter());
     }
-    return 0;
+    // If command is nop (for example, USM operations for 0 bytes) return
+    // recorded submission time. If event is created using default constructor,
+    // 0 will be returned.
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
@@ -367,7 +395,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
       return get_event_profiling_info<info::event_profiling::command_end>(
           Handle, this->getAdapter());
     }
-    return 0;
+    // If command is nop (for example, USM operations for 0 bytes) return
+    // recorded submission time. If event is created using default constructor,
+    // 0 will be returned.
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
@@ -470,9 +501,9 @@ event_impl::get_backend_info<info::device::backend_version>() const {
 }
 #endif
 
-void HostProfilingInfo::start() { StartTime = getTimestamp(); }
+void HostProfilingInfo::start() { StartTime = getTimestamp(Device); }
 
-void HostProfilingInfo::end() { EndTime = getTimestamp(); }
+void HostProfilingInfo::end() { EndTime = getTimestamp(Device); }
 
 ur_native_handle_t event_impl::getNative() {
   if (isHost())
@@ -562,23 +593,10 @@ void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
 
-  if (QueueImplPtr Queue = MQueue.lock()) {
-    try {
-      MSubmitTime = Queue->getDeviceImpl().getCurrentDeviceTime();
-    } catch (sycl::exception &e) {
-      if (e.code() == sycl::errc::feature_not_supported)
-        throw sycl::exception(
-            make_error_code(errc::profiling),
-            std::string("Unable to get command group submission time: ") +
-                e.what());
-      std::rethrow_exception(std::current_exception());
-    }
-  } else {
-    // Returning host time
-    using namespace std::chrono;
-    MSubmitTime = duration_cast<nanoseconds>(
-                      high_resolution_clock::now().time_since_epoch())
-                      .count();
+  std::weak_ptr<queue_impl> Queue = isHost() ? MSubmittedQueue : MQueue;
+  if (QueueImplPtr QueuePtr = Queue.lock()) {
+    device_impl &Device = QueuePtr->getDeviceImpl();
+    MSubmitTime = getTimestamp(&Device);
   }
 }
 

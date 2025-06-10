@@ -84,6 +84,9 @@ struct KernelInfo {
   ur_shared_mutex Mutex;
   std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
+  // Need preserve the order of local arguments
+  std::map<uint32_t, TsanLocalArgsInfo> LocalArgs;
+
   KernelInfo() = default;
 
   explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
@@ -126,20 +129,36 @@ struct TsanRuntimeDataWrapper {
   ur_result_t syncFromDevice(ur_queue_handle_t Queue);
 
   ur_result_t syncToDevice(ur_queue_handle_t Queue);
+
+  ur_result_t
+  importLocalArgsInfo(ur_queue_handle_t Queue,
+                      const std::vector<TsanLocalArgsInfo> &LocalArgs);
 };
 
 struct LaunchInfo {
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
+  const size_t *GlobalWorkSize = nullptr;
+  const size_t *GlobalWorkOffset = nullptr;
+  std::vector<size_t> LocalWorkSize;
+  uint32_t WorkDim = 0;
   TsanRuntimeDataWrapper Data;
 
-  LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device)
-      : Context(Context), Device(Device), Data(Context, Device) {
+  LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
+             const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+             const size_t *GlobalWorkOffset, uint32_t WorkDim)
+      : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
+        GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim),
+        Data(Context, Device) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRetain(Context);
     assert(Result == UR_RESULT_SUCCESS);
     Result = getContext()->urDdiTable.Device.pfnRetain(Device);
     assert(Result == UR_RESULT_SUCCESS);
+    if (LocalWorkSize) {
+      this->LocalWorkSize =
+          std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
+    }
   }
 
   ~LaunchInfo() {
@@ -206,6 +225,8 @@ public:
     assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
     return m_KernelMap[Kernel];
   }
+
+  ur_shared_mutex KernelLaunchMutex;
 
 private:
   ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &CI,

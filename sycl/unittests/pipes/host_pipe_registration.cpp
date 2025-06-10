@@ -9,8 +9,6 @@
 #include <cstring>
 #include <sycl/sycl.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 #include <detail/device_binary_image.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
@@ -40,7 +38,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   MockPropertySet PropSet;
   MockProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
-  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_HOST_PIPES,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
                  std::vector<MockProperty>{std::move(HostPipeInfo)});
 
   std::vector<MockOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
@@ -98,7 +96,15 @@ void prepareUrMock(unittest::UrMock<> &Mock) {
 
 class PipeTest : public ::testing::Test {
 public:
-  PipeTest() : Mock{}, Plt{sycl::platform()} {}
+  PipeTest()
+      : Mock{}, Plt{[]() {
+          // Fake extension. Make sure it's redefined before we create device
+          // hierarchy.
+          mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                                  &after_urDeviceGetInfo);
+
+          return sycl::platform{};
+        }()} {}
 
 protected:
   void SetUp() override {
@@ -121,9 +127,6 @@ static sycl::unittest::MockDeviceImage Img = generateDefaultImage();
 static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 TEST_F(PipeTest, Basic) {
-  // Fake extension
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                          &after_urDeviceGetInfo);
 
   // Device registration
 
@@ -156,8 +159,6 @@ ur_result_t after_urEventGetInfo(void *pParams) {
 }
 
 TEST_F(PipeTest, NonBlockingOperationFail) {
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                          &after_urDeviceGetInfo);
   mock::getCallbacks().set_replace_callback("urEventWait", &redefinedEventWait);
 
   bool Success = false;

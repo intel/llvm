@@ -14,8 +14,6 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
-#include <llvm/Support/PropertySetIO.h>
-
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/ScopedEnvVar.hpp>
@@ -84,8 +82,7 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
@@ -104,8 +101,7 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernel3Image() {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({EAMTestKernel3Name});
@@ -307,7 +303,7 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
-    ProgBefore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+    ProgBefore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
                                       *sycl::detail::getSyclObjImpl(Dev), Name);
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
@@ -332,7 +328,7 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
-    ProgAfter = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+    ProgAfter = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
                                      *sycl::detail::getSyclObjImpl(Dev), Name);
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);

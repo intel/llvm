@@ -142,9 +142,10 @@ def warn_drv_unsupported_option_for_offload_arch_req_feature : Warning<
   "ignoring '%0' option for offload arch '%1' as it is not currently supported "
   "there. Use it with an offload arch containing '%2' instead">,
   InGroup<OptionIgnored>;
-def warn_drv_unsupported_option_for_target : Warning<
-  "ignoring '%0' option as it is not currently supported for target '%1'">,
-  InGroup<OptionIgnored>;
+def warn_drv_unsupported_option_for_target
+    : Warning<"ignoring '%0' option as it is not currently supported for "
+              "target '%1'%select{|; only supported for host compilation}2">,
+      InGroup<OptionIgnored>;
 def warn_drv_unsupported_option_for_flang : Warning<
   "the argument '%0' is not supported for option '%1'. Mapping to '%1%2'">,
   InGroup<OptionIgnored>;
@@ -753,6 +754,10 @@ def warn_drv_fine_grained_bitfield_accesses_ignored : Warning<
 def note_drv_verify_prefix_spelling : Note<
   "-verify prefixes must start with a letter and contain only alphanumeric"
   " characters, hyphens, and underscores">;
+
+def note_command_line_code_loc_requirement
+    : Note<"-code-completion-at=<file>:<line>:<column> requires <line> and "
+           "<column> to be integers greater than zero">;
 
 def warn_drv_global_isel_incomplete : Warning<
   "-fglobal-isel support for the '%0' architecture is incomplete">,

@@ -2,6 +2,7 @@
 
 import sys
 import platform
+import subprocess
 
 import site
 
@@ -9,8 +10,15 @@ site.addsitedir("@CMAKE_CURRENT_SOURCE_DIR@")
 
 config.dpcpp_compiler = lit_config.params.get("dpcpp_compiler", "@SYCL_CXX_COMPILER@")
 config.dpcpp_root_dir= os.path.dirname(os.path.dirname(config.dpcpp_compiler))
+config.dpcpp_bin_dir = os.path.join(config.dpcpp_root_dir, 'bin')
 
-config.llvm_tools_dir = os.path.join(config.dpcpp_root_dir, 'bin')
+def get_dpcpp_tool_path(name):
+    try:
+        return subprocess.check_output([config.dpcpp_compiler, "-print-prog-name=" + name], text=True)
+    except subprocess.CalledProcessError:
+        return os.path.join(config.dpcpp_bin_dir, name)
+
+config.llvm_tools_dir = os.path.dirname(get_dpcpp_tool_path("llvm-config"))
 config.lit_tools_dir = os.path.dirname("@TEST_SUITE_LIT@")
 config.dump_ir_supported = lit_config.params.get("dump_ir", ("@DUMP_IR_SUPPORTED@" if "@DUMP_IR_SUPPORTED@" else False))
 config.sycl_tools_dir = config.llvm_tools_dir

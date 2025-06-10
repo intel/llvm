@@ -799,9 +799,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
                                      phEventWaitList));
 
     if (phEvent) {
-      RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
-          ur_event_handle_t_::makeNative(UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP,
-                                         hQueue, HIPStream, StreamToken));
+      RetImplEvent = std::make_unique<ur_event_handle_t_>(
+          UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, hQueue, HIPStream,
+          StreamToken);
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 

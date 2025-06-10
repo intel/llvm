@@ -31,7 +31,6 @@ inline void hip_stream_queue::createStreamWithPriority(hipStream_t *Stream,
 // Function which creates the profiling stream. Called only from makeNative
 // event when profiling is required.
 template <> inline void hip_stream_queue::createHostSubmitTimeStream() {
-  static std::once_flag HostSubmitTimeStreamFlag;
   std::call_once(HostSubmitTimeStreamFlag, [&]() {
     UR_CHECK_ERROR(
         hipStreamCreateWithFlags(&HostSubmitTimeStream, hipStreamNonBlocking));

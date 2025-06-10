@@ -1250,9 +1250,11 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases("intel_gpu_mtl_h", "intel_gpu_12_71_4", "mtl_h")
           .Cases("intel_gpu_arl_h", "intel_gpu_12_74_4", "arl_h")
           .Cases("intel_gpu_bmg_g21", "intel_gpu_20_1_4", "bmg_g21")
+          .Cases("intel_gpu_bmg_g31", "intel_gpu_20_2_0", "bmg_g31")
           .Cases("intel_gpu_lnl_m", "intel_gpu_20_4_4", "lnl_m")
           .Cases("intel_gpu_ptl_h", "intel_gpu_30_0_4", "ptl_h")
           .Cases("intel_gpu_ptl_u", "intel_gpu_30_1_1", "ptl_u")
+          .Cases("intel_gpu_wcl", "intel_gpu_30_3_0", "wcl")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -1342,9 +1344,11 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("mtl_h", "INTEL_GPU_MTL_H")
                       .Case("arl_h", "INTEL_GPU_ARL_H")
                       .Case("bmg_g21", "INTEL_GPU_BMG_G21")
+                      .Case("bmg_g31", "INTEL_GPU_BMG_G31")
                       .Case("lnl_m", "INTEL_GPU_LNL_M")
                       .Case("ptl_h", "INTEL_GPU_PTL_H")
                       .Case("ptl_u", "INTEL_GPU_PTL_U")
+                      .Case("wcl", "INTEL_GPU_WCL")
                       .Case("sm_50", "NVIDIA_GPU_SM_50")
                       .Case("sm_52", "NVIDIA_GPU_SM_52")
                       .Case("sm_53", "NVIDIA_GPU_SM_53")
@@ -1472,6 +1476,7 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
       options::OPT_fprofile_instr_use_EQ, // -fprofile-instr-use
       options::OPT_fcs_profile_generate,  // -fcs-profile-generate
       options::OPT_fcs_profile_generate_EQ,
+      options::OPT_gline_tables_only, // -gline-tables-only
   };
   return UnsupportedOpts;
 }
@@ -1517,7 +1522,7 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
-          << A->getAsString(Args) << getTriple().str();
+          << A->getAsString(Args) << getTriple().str() << 1;
     }
   }
 }

@@ -915,305 +915,138 @@ std::string ModuleDesc::makeSymbolTable() const {
 }
 
 namespace {
-// This is a helper class, which allows to group/categorize function based on
-// provided rules. It is intended to be used in device code split
-// implementation.
-//
-// "Rule" is a simple routine, which returns a string for an llvm::Function
-// passed to it. There could be more than one rule and they are applied in order
-// of their registration. Results obtained from those rules are concatenated
-// together to produce the final result.
-//
-// There are some predefined rules for the most popular use-cases, like grouping
-// functions together based on an attribute value or presence of a metadata.
-// However, there is also a possibility to register a custom callback function
-// as a rule, to implement custom/more complex logic.
-class FunctionsCategorizer {
-public:
-  FunctionsCategorizer() = default;
 
-  std::string computeCategoryFor(Function *) const;
-
-  // Accepts a callback, which should return a string based on provided
-  // function, which will be used as an entry points group identifier.
-  void registerRule(const std::function<std::string(Function *)> &Callback) {
-    Rules.emplace_back(Rule::RKind::K_Callback, Callback);
+void computeFuncCategoryFromAttribute(const Function &F,
+                                      const StringRef AttrName,
+                                      SmallString<256> &Result) {
+  if (F.hasFnAttribute(AttrName)) {
+    const Attribute &Attr = F.getFnAttribute(AttrName);
+    Result += Attr.getValueAsString();
   }
 
-  // Creates a simple rule, which adds a value of a string attribute into a
-  // resulting identifier.
-  void registerSimpleStringAttributeRule(StringRef AttrName) {
-    Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, AttrName);
-  }
-
-  // Creates a simple rule, which adds a value of a string metadata into a
-  // resulting identifier.
-  void registerSimpleStringMetadataRule(StringRef MetadataName) {
-    Rules.emplace_back(Rule::RKind::K_SimpleStringMetadata, MetadataName);
-  }
-
-  // Creates a simple rule, which adds one or another value to a resulting
-  // identifier based on the presence of a metadata on a function.
-  void registerSimpleFlagAttributeRule(StringRef AttrName,
-                                       StringRef IfPresentStr,
-                                       StringRef IfAbsentStr = "") {
-    Rules.emplace_back(Rule::RKind::K_FlagAttribute,
-                       Rule::FlagRuleData{AttrName, IfPresentStr, IfAbsentStr});
-  }
-
-  // Creates a simple rule, which adds one or another value to a resulting
-  // identifier based on the presence of a metadata on a function.
-  void registerSimpleFlagMetadataRule(StringRef MetadataName,
-                                      StringRef IfPresentStr,
-                                      StringRef IfAbsentStr = "") {
-    Rules.emplace_back(
-        Rule::RKind::K_FlagMetadata,
-        Rule::FlagRuleData{MetadataName, IfPresentStr, IfAbsentStr});
-  }
-
-  // Creates a rule, which adds a list of dash-separated integers converted
-  // into strings listed in a metadata to a resulting identifier.
-  void registerListOfIntegersInMetadataRule(StringRef MetadataName) {
-    Rules.emplace_back(Rule::RKind::K_IntegersListMetadata, MetadataName);
-  }
-
-  // Creates a rule, which adds a list of sorted dash-separated integers
-  // converted into strings listed in a metadata to a resulting identifier.
-  void registerListOfIntegersInMetadataSortedRule(StringRef MetadataName) {
-    Rules.emplace_back(Rule::RKind::K_SortedIntegersListMetadata, MetadataName);
-  }
-
-  // Creates a rule, which adds a list of sorted dash-separated integers from
-  // converted into strings listed in a metadata to a resulting identifier.
-  // The form of the metadata is expected to be a metadata node, with its
-  // operands being either an integer or another metadata node with the
-  // form of {!"<aspect_name>", iN <aspect_value>}.
-  void registerAspectListRule(StringRef MetadataName) {
-    registerRule([MetadataName](Function *F) {
-      SmallString<128> Result;
-      if (MDNode *UsedAspects = F->getMetadata(MetadataName)) {
-        SmallVector<std::uint64_t, 8> Values;
-        for (const MDOperand &MDOp : UsedAspects->operands()) {
-          if (auto MDN = dyn_cast<MDNode>(MDOp)) {
-            assert(MDN->getNumOperands() == 2);
-            Values.push_back(mdconst::extract<ConstantInt>(MDN->getOperand(1))
-                                 ->getZExtValue());
-          } else if (auto C = mdconst::dyn_extract<ConstantInt>(MDOp)) {
-            Values.push_back(C->getZExtValue());
-          }
-        }
-
-        llvm::sort(Values);
-
-        for (std::uint64_t V : Values)
-          Result += ("-" + Twine(V)).str();
-      }
-
-      return std::string(Result);
-    });
-  }
-
-private:
-  struct Rule {
-    struct FlagRuleData {
-      StringRef Name, IfPresentStr, IfAbsentStr;
-    };
-
-  private:
-    std::variant<StringRef, FlagRuleData,
-                 std::function<std::string(Function *)>>
-        Storage;
-
-  public:
-    enum class RKind {
-      // Custom callback function
-      K_Callback,
-      // Copy value of the specified attribute, if present
-      K_SimpleStringAttribute,
-      // Copy value of the specified metadata, if present
-      K_SimpleStringMetadata,
-      // Use one or another string based on the specified metadata presence
-      K_FlagMetadata,
-      // Use one or another string based on the specified attribute presence
-      K_FlagAttribute,
-      // Concatenate and use list of integers from the specified metadata
-      K_IntegersListMetadata,
-      // Sort, concatenate and use list of integers from the specified metadata
-      K_SortedIntegersListMetadata
-    };
-    RKind Kind;
-
-    // Returns an index into std::variant<...> Storage defined above, which
-    // corresponds to the specified rule Kind.
-    constexpr static std::size_t storage_index(RKind K) {
-      switch (K) {
-      case RKind::K_SimpleStringAttribute:
-      case RKind::K_IntegersListMetadata:
-      case RKind::K_SimpleStringMetadata:
-      case RKind::K_SortedIntegersListMetadata:
-        return 0;
-      case RKind::K_Callback:
-        return 2;
-      case RKind::K_FlagMetadata:
-      case RKind::K_FlagAttribute:
-        return 1;
-      }
-      // can't use llvm_unreachable in constexpr context
-      return std::variant_npos;
-    }
-
-    template <RKind K> auto getStorage() const {
-      return std::get<storage_index(K)>(Storage);
-    }
-
-    template <typename... Args>
-    Rule(RKind K, Args... args) : Storage(args...), Kind(K) {
-      assert(storage_index(K) == Storage.index());
-    }
-
-    Rule(Rule &&Other) = default;
-  };
-
-  std::vector<Rule> Rules;
-};
-
-std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
-  SmallString<256> Result;
-  for (const auto &R : Rules) {
-    switch (R.Kind) {
-    case Rule::RKind::K_Callback:
-      Result += R.getStorage<Rule::RKind::K_Callback>()(F);
-      break;
-
-    case Rule::RKind::K_SimpleStringAttribute: {
-      StringRef AttrName = R.getStorage<Rule::RKind::K_SimpleStringAttribute>();
-      if (F->hasFnAttribute(AttrName)) {
-        Attribute Attr = F->getFnAttribute(AttrName);
-        Result += Attr.getValueAsString();
-      }
-    } break;
-
-    case Rule::RKind::K_SimpleStringMetadata: {
-      StringRef MetadataName =
-          R.getStorage<Rule::RKind::K_SimpleStringMetadata>();
-      if (F->hasMetadata(MetadataName)) {
-        auto *MDN = F->getMetadata(MetadataName);
-        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-          MDString *S = cast<llvm::MDString>(MDN->getOperand(I).get());
-          Result += "-" + S->getString().str();
-        }
-      }
-    } break;
-
-    case Rule::RKind::K_FlagMetadata: {
-      Rule::FlagRuleData Data = R.getStorage<Rule::RKind::K_FlagMetadata>();
-      if (F->hasMetadata(Data.Name))
-        Result += Data.IfPresentStr;
-      else
-        Result += Data.IfAbsentStr;
-    } break;
-
-    case Rule::RKind::K_IntegersListMetadata: {
-      StringRef MetadataName =
-          R.getStorage<Rule::RKind::K_IntegersListMetadata>();
-      if (F->hasMetadata(MetadataName)) {
-        auto *MDN = F->getMetadata(MetadataName);
-        for (const MDOperand &MDOp : MDN->operands())
-          Result +=
-              "-" + std::to_string(
-                        mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
-      }
-    } break;
-
-    case Rule::RKind::K_SortedIntegersListMetadata: {
-      StringRef MetadataName =
-          R.getStorage<Rule::RKind::K_IntegersListMetadata>();
-      if (F->hasMetadata(MetadataName)) {
-        MDNode *MDN = F->getMetadata(MetadataName);
-
-        SmallVector<std::uint64_t, 8> Values;
-        for (const MDOperand &MDOp : MDN->operands())
-          Values.push_back(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
-
-        llvm::sort(Values);
-
-        for (std::uint64_t V : Values)
-          Result += "-" + std::to_string(V);
-      }
-    } break;
-
-    case Rule::RKind::K_FlagAttribute: {
-      Rule::FlagRuleData Data = R.getStorage<Rule::RKind::K_FlagAttribute>();
-      if (F->hasFnAttribute(Data.Name))
-        Result += Data.IfPresentStr;
-      else
-        Result += Data.IfAbsentStr;
-    } break;
-    }
-
-    Result += "-";
-  }
-
-  return (std::string)Result;
+  Result += "-";
 }
-} // namespace
 
-std::unique_ptr<ModuleSplitterBase>
-getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints,
-                      bool AllowDeviceImageDependencies) {
-  FunctionsCategorizer Categorizer;
+void computeFuncCategoryFromStringMetadata(const Function &F,
+                                           const StringRef MetadataName,
+                                           SmallString<256> &Result) {
+  if (F.hasMetadata(MetadataName)) {
+    const auto *MDN = F.getMetadata(MetadataName);
+    for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+      MDString *S = cast<llvm::MDString>(MDN->getOperand(I).get());
+      Result += '-';
+      Result += S->getString();
+    }
+  }
 
-  EntryPointsGroupScope Scope =
-      selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);
+  Result += "-";
+}
 
+void computeFuncCategoryFromIntegersListMetadata(const Function &F,
+                                                 const StringRef MetadataName,
+                                                 SmallString<256> &Result) {
+  if (F.hasMetadata(MetadataName)) {
+    auto *MDN = F.getMetadata(MetadataName);
+    for (const MDOperand &MDOp : MDN->operands()) {
+      Result += '-';
+      Result +=
+          std::to_string(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+    }
+  }
+
+  Result += "-";
+}
+
+void computeFuncCategoryFromSYCLUsedAspects(const Function &F,
+                                            SmallString<256> &Result) {
+  if (const MDNode *UsedAspects = F.getMetadata("sycl_used_aspects")) {
+    SmallVector<std::uint64_t, 8> Values;
+    for (const MDOperand &MDOp : UsedAspects->operands()) {
+      if (auto MDN = dyn_cast<MDNode>(MDOp)) {
+        assert(MDN->getNumOperands() == 2);
+        Values.push_back(
+            mdconst::extract<ConstantInt>(MDN->getOperand(1))->getZExtValue());
+      } else if (auto C = mdconst::dyn_extract<ConstantInt>(MDOp)) {
+        Values.push_back(C->getZExtValue());
+      }
+    }
+
+    llvm::sort(Values);
+    for (std::uint64_t V : Values) {
+      Result += '-';
+      Result += std::to_string(V);
+    }
+  }
+
+  Result += "-";
+}
+
+/// The function computes a string category for the given \p F.
+/// The categories are used to separate functions during the splitting
+/// meaning if functions get different categories they shouldn't end up
+/// in the same split module.
+std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
+  SmallString<256> Result;
+  computeFuncCategoryFromAttribute(F, sycl::utils::ATTR_SYCL_MODULE_ID, Result);
+
+  // This attribute marks virtual functions and effectively dictates how they
+  // should be grouped together. By design we won't split those groups of
+  // virtual functions further even if functions from the same group use
+  // different optional features and therefore this distinction is put here.
+  // TODO: for AOT use case we shouldn't be outlining those and instead should
+  // only select those functions which are compatible with the target device.
+  computeFuncCategoryFromAttribute(F, "indirectly-callable", Result);
+
+  // Optional features
+  // NOTE: Add more categories at the end of the list to avoid changing orders
+  // of output files in existing tests.
+  computeFuncCategoryFromAttribute(F, "sycl-register-alloc-mode", Result);
+  computeFuncCategoryFromAttribute(F, "sycl-grf-size", Result);
+  computeFuncCategoryFromSYCLUsedAspects(F, Result);
+  computeFuncCategoryFromIntegersListMetadata(F, "reqd_work_group_size",
+                                              Result);
+  computeFuncCategoryFromIntegersListMetadata(F, "work_group_num_dim", Result);
+  computeFuncCategoryFromIntegersListMetadata(F, "intel_reqd_sub_group_size",
+                                              Result);
+  computeFuncCategoryFromAttribute(F, sycl::utils::ATTR_SYCL_OPTLEVEL, Result);
+  computeFuncCategoryFromStringMetadata(F, "sycl_joint_matrix", Result);
+  computeFuncCategoryFromStringMetadata(F, "sycl_joint_matrix_mad", Result);
+  return std::string(Result);
+}
+
+std::string computeFuncCategoryForSplitting(const Function &F,
+                                            EntryPointsGroupScope Scope) {
+  std::string Category;
   switch (Scope) {
   case Scope_Global:
     // We simply perform entry points filtering, but group all of them together.
-    Categorizer.registerRule(
-        [](Function *) -> std::string { return GLOBAL_SCOPE_NAME; });
+    Category = GLOBAL_SCOPE_NAME;
     break;
   case Scope_PerKernel:
     // Per-kernel split is quite simple: every kernel goes into a separate
     // module and that's it, no other rules required.
-    Categorizer.registerRule(
-        [](Function *F) -> std::string { return F->getName().str(); });
+    Category = F.getName().str();
     break;
   case Scope_PerModule:
     // The most complex case, because we should account for many other features
     // like aspects used in a kernel, large-grf mode, reqd-work-group-size, etc.
 
     // This is core of per-source device code split
-    Categorizer.registerSimpleStringAttributeRule(
-        sycl::utils::ATTR_SYCL_MODULE_ID);
-
-    // This attribute marks virtual functions and effectively dictates how they
-    // should be groupped together. By design we won't split those groups of
-    // virtual functions further even if functions from the same group use
-    // different optional features and therefore this rule is put here.
-    // Strictly speaking, we don't even care about module-id splitting for
-    // those, but to avoid that we need to refactor the whole categorizer.
-    // However, this is good enough as it is for an initial version.
-    // TODO: for AOT use case we shouldn't be outlining those and instead should
-    // only select those functions which are compatible with the target device
-    Categorizer.registerSimpleStringAttributeRule("indirectly-callable");
-
-    // Optional features
-    // Note: Add more rules at the end of the list to avoid chaning orders of
-    // output files in existing tests.
-    Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
-    Categorizer.registerSimpleStringAttributeRule("sycl-grf-size");
-    Categorizer.registerAspectListRule("sycl_used_aspects");
-    Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
-    Categorizer.registerListOfIntegersInMetadataRule("work_group_num_dim");
-    Categorizer.registerListOfIntegersInMetadataRule(
-        "intel_reqd_sub_group_size");
-    Categorizer.registerSimpleStringAttributeRule(
-        sycl::utils::ATTR_SYCL_OPTLEVEL);
-    Categorizer.registerSimpleStringMetadataRule("sycl_joint_matrix");
-    Categorizer.registerSimpleStringMetadataRule("sycl_joint_matrix_mad");
+    Category = computeFuncCategoryForSplittingPerSource(F);
     break;
   }
+
+  return Category;
+}
+
+} // namespace
+
+std::unique_ptr<ModuleSplitterBase>
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool AllowDeviceImageDependencies) {
+  EntryPointsGroupScope Scope =
+      selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);
 
   // std::map is used here to ensure stable ordering of entry point groups,
   // which is based on their contents, this greatly helps LIT tests
@@ -1224,7 +1057,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
       continue;
 
-    std::string Key = Categorizer.computeCategoryFor(&F);
+    std::string Key = computeFuncCategoryForSplitting(F, Scope);
     EntryPointsMap[std::move(Key)].insert(&F);
   }
 

@@ -6,6 +6,6 @@ from templates import helper as th
 %>\
 LIBRARY @TARGET_LIBNAME@
 EXPORTS
-%for line in th.get_loader_functions(specs, meta, n, tags):
-	${line}
+%for func in th.get_loader_functions(specs, meta, n, tags):
+	${func['name']}
 %endfor
