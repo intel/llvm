@@ -4019,18 +4019,17 @@ StringRef CountAttributedType::getAttributeName(bool WithMacroPrefix) const {
 }
 
 TypedefType::TypedefType(TypeClass tc, const TypedefNameDecl *D,
-                         QualType Underlying, QualType can)
-    : Type(tc, can, toSemanticDependence(can->getDependence())),
+                         QualType UnderlyingType, bool HasTypeDifferentFromDecl)
+    : Type(tc, UnderlyingType.getCanonicalType(),
+           toSemanticDependence(UnderlyingType->getDependence())),
       Decl(const_cast<TypedefNameDecl *>(D)) {
-  assert(!isa<TypedefType>(can) && "Invalid canonical type");
-  TypedefBits.hasTypeDifferentFromDecl = !Underlying.isNull();
+  TypedefBits.hasTypeDifferentFromDecl = HasTypeDifferentFromDecl;
   if (!typeMatchesDecl())
-    *getTrailingObjects<QualType>() = Underlying;
+    *getTrailingObjects() = UnderlyingType;
 }
 
 QualType TypedefType::desugar() const {
-  return typeMatchesDecl() ? Decl->getUnderlyingType()
-                           : *getTrailingObjects<QualType>();
+  return typeMatchesDecl() ? Decl->getUnderlyingType() : *getTrailingObjects();
 }
 
 UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
@@ -4039,14 +4038,14 @@ UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
       Found(const_cast<UsingShadowDecl *>(Found)) {
   UsingBits.hasTypeDifferentFromDecl = !Underlying.isNull();
   if (!typeMatchesDecl())
-    *getTrailingObjects<QualType>() = Underlying;
+    *getTrailingObjects() = Underlying;
 }
 
 QualType UsingType::getUnderlyingType() const {
   return typeMatchesDecl()
              ? QualType(
                    cast<TypeDecl>(Found->getTargetDecl())->getTypeForDecl(), 0)
-             : *getTrailingObjects<QualType>();
+             : *getTrailingObjects();
 }
 
 QualType MacroQualifiedType::desugar() const { return getUnderlyingType(); }
@@ -4152,7 +4151,7 @@ PackIndexingType::PackIndexingType(QualType Canonical, QualType Pattern,
       Pattern(Pattern), IndexExpr(IndexExpr), Size(Expansions.size()),
       FullySubstituted(FullySubstituted) {
 
-  llvm::uninitialized_copy(Expansions, getTrailingObjects<QualType>());
+  llvm::uninitialized_copy(Expansions, getTrailingObjects());
 }
 
 UnsignedOrNone PackIndexingType::getSelectedIndex() const {
@@ -4375,7 +4374,7 @@ SubstTemplateTypeParmType::SubstTemplateTypeParmType(QualType Replacement,
   SubstTemplateTypeParmTypeBits.HasNonCanonicalUnderlyingType =
       Replacement != getCanonicalTypeInternal();
   if (SubstTemplateTypeParmTypeBits.HasNonCanonicalUnderlyingType)
-    *getTrailingObjects<QualType>() = Replacement;
+    *getTrailingObjects() = Replacement;
 
   SubstTemplateTypeParmTypeBits.Index = Index;
   SubstTemplateTypeParmTypeBits.Final = Final;

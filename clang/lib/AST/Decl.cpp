@@ -5717,8 +5717,7 @@ SourceRange TypeAliasDecl::getSourceRange() const {
 void FileScopeAsmDecl::anchor() {}
 
 FileScopeAsmDecl *FileScopeAsmDecl::Create(ASTContext &C, DeclContext *DC,
-                                           StringLiteral *Str,
-                                           SourceLocation AsmLoc,
+                                           Expr *Str, SourceLocation AsmLoc,
                                            SourceLocation RParenLoc) {
   return new (C, DC) FileScopeAsmDecl(DC, Str, AsmLoc, RParenLoc);
 }
@@ -5727,6 +5726,10 @@ FileScopeAsmDecl *FileScopeAsmDecl::CreateDeserialized(ASTContext &C,
                                                        GlobalDeclID ID) {
   return new (C, ID) FileScopeAsmDecl(nullptr, nullptr, SourceLocation(),
                                       SourceLocation());
+}
+
+std::string FileScopeAsmDecl::getAsmString() const {
+  return GCCAsmStmt::ExtractStringFromGCCAsmStmtComponent(getAsmStringExpr());
 }
 
 void TopLevelStmtDecl::anchor() {}
