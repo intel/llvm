@@ -4380,6 +4380,7 @@
 ?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVwork_group_memory_impl@detail@23@@Z
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setArgsToAssociatedAccessors@handler@_V1@sycl@@AEAAXXZ
+?setDevice@HostProfilingInfo@detail@_V1@sycl@@QEAAXPEAVdevice_impl@234@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z

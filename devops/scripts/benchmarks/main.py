@@ -188,7 +188,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         if s.name() not in enabled_suites(options.preset):
             continue
 
-        suite_benchmarks = s.benchmarks()
+        # filter out benchmarks that are disabled
+        suite_benchmarks = [
+            benchmark for benchmark in s.benchmarks() if benchmark.enabled()
+        ]
         if filter:
             suite_benchmarks = [
                 benchmark
