@@ -27,7 +27,7 @@ int main() {
   });
 }
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name(ptr noundef byval(%struct.NontriviallyCopyable)
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name(ptr noundef byval(%class.anon)
 // CHECK-NOT: define {{.*}}spir_func void @{{.*}}device_func{{.*}}({{.*}}byval(%struct.NontriviallyCopyable)
 // CHECK: define {{.*}}spir_func void @_Z11device_func20NontriviallyCopyable(ptr noundef %X)
 // CHECK: %X.indirect_addr = alloca ptr addrspace(4)

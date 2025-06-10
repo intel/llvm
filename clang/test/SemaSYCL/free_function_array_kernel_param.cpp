@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-decompose-functor -ast-dump \
 // RUN: %s -o - | FileCheck %s
 
 // This test checks parameter rewriting for free functions with parameters

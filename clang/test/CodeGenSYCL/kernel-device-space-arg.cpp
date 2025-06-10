@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm %s -disable-llvm-passes -o - | FileCheck %s
 
-// CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function(ptr addrspace(5) {{.*}} ptr addrspace(6) {{.*}}
+// CHECK: %class.anon = type { ptr addrspace(5), ptr addrspace(6) }
+// CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function(ptr noundef byval(%class.anon) {{.*}}
 
 #include "Inputs/sycl.hpp"
 

@@ -1,6 +1,6 @@
 // REQUIRES: xptifw, opencl, cpu, linux
 // RUN: %build_collector
-// RUN: %{build} -o %t.out
+// RUN: %{build} -fsycl-decompose-functor -o %t.out
 // RUN: env UR_ENABLE_LAYERS=UR_LAYER_TRACING env XPTI_TRACE_ENABLE=1 env XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher env XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
 #include "basic_event_collection.inc"

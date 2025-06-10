@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-decompose-functor -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-decompose-functor -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=INT-HEADER
 
 // INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 0 },
