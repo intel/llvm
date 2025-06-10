@@ -14,7 +14,9 @@
 #include <sycl/async_handler.hpp>             // for async_handler
 #include <sycl/backend_types.hpp>             // for backend, backe...
 #include <sycl/buffer.hpp>                    // for buffer
-#include <sycl/detail/assert_happened.hpp>    // for AssertHappened
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/assert_happened.hpp>
+#endif
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
@@ -66,6 +68,7 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class queue_impl;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 inline event submitAssertCapture(const queue &, event &, queue *,
                                  const detail::code_location &);
 
@@ -76,6 +79,7 @@ inline event submitAssertCapture(const queue &, event &, queue *,
 //                         meaningful when IsKernel is true
 // event &Event - event after which post processing should be executed
 using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
+#endif
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct SubmissionInfoImpl;
@@ -84,8 +88,10 @@ class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo();
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
+#endif
 
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
@@ -121,7 +127,6 @@ public:
   SubmissionInfo(const detail::SubmissionInfo &SI)
       : MPostProcessorFunc(SI.PostProcessorFunc()),
         MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
-#endif
 
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
     return MPostProcessorFunc;
@@ -129,6 +134,7 @@ public:
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
     return MPostProcessorFunc;
   }
+#endif
 
   std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
     return MSecondaryQueue;
@@ -143,7 +149,9 @@ public:
   }
 
 private:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+#endif
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
@@ -426,9 +434,15 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return submit_with_event(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+#else
     return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+#endif
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -446,9 +460,15 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return submit_with_event(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
+#else
     return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
+#endif
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -3581,9 +3601,11 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if __SYCL_USE_FALLBACK_ASSERT
   friend event detail::submitAssertCapture(const queue &, event &, queue *,
                                            const detail::code_location &);
+#endif
 #endif
 
   template <typename CommandGroupFunc, typename PropertiesT>
@@ -3698,7 +3720,11 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  template <typename PropertiesT>
+#else
   template <bool UseFallbackAssert, typename PropertiesT>
+#endif
   event submit_with_event(PropertiesT Props,
                           const detail::type_erased_cgfo_ty &CGF,
                           queue *SecondaryQueuePtr,
@@ -3709,6 +3735,7 @@ private:
     ProcessSubmitProperties(Props, SI);
     if (SecondaryQueuePtr)
       SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if constexpr (UseFallbackAssert)
       SI.PostProcessorFunc() =
           [this, &SecondaryQueuePtr,
@@ -3723,6 +3750,7 @@ private:
                                   TlsCodeLocCapture.query());
             }
           };
+#endif
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
@@ -3738,7 +3766,11 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  template <typename PropertiesT>
+#else
   template <bool UseFallbackAssert, typename PropertiesT>
+#endif
   event submit_with_event(PropertiesT Props,
                           const detail::type_erased_cgfo_ty &CGF,
                           const detail::code_location &CodeLoc =
@@ -3746,6 +3778,7 @@ private:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::v1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if constexpr (UseFallbackAssert)
       SI.PostProcessorFunc() = [this, &TlsCodeLocCapture](bool IsKernel,
                                                           bool KernelUsesAssert,
@@ -3759,6 +3792,7 @@ private:
           submitAssertCapture(*this, E, nullptr, TlsCodeLocCapture.query());
         }
       };
+#endif
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
@@ -3773,15 +3807,22 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  template <typename PropertiesT>
+#else
   template <bool UseFallbackAssert, typename PropertiesT>
+#endif
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,
                             const detail::code_location &CodeLoc) const {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if constexpr (UseFallbackAssert) {
       // If post-processing is needed, fall back to the regular submit.
       // TODO: Revisit whether we can avoid this.
       submit_with_event<UseFallbackAssert>(Props, CGF, CodeLoc);
-    } else {
+    } else
+#endif
+    {
       detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
       detail::v1::SubmissionInfo SI{};
       ProcessSubmitProperties(Props, SI);
@@ -3934,6 +3975,7 @@ template <> struct __SYCL_EXPORT hash<sycl::queue> {
 };
 } // namespace std
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if __SYCL_USE_FALLBACK_ASSERT
 // Explicitly request format macros
 #ifndef __STDC_FORMAT_MACROS
@@ -4032,3 +4074,4 @@ event submitAssertCapture(const queue &Self, event &Event,
 } // namespace _V1
 } // namespace sycl
 #endif // __SYCL_USE_FALLBACK_ASSERT
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
