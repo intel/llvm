@@ -212,7 +212,8 @@ bool test_bundle_apis(queue Queue) {
       ff_2, bundle_state::executable>(Context);
 
   bool PassS =
-      ext::oneapi::experimental::get_kernel_info<ff_2, info::kernel::function_name>(
+      ext::oneapi::experimental::get_kernel_info<ff_2,
+                                                 info::kernel::function_name>(
           Context) == Bundle_ff2.ext_oneapi_get_kernel<ff_2>()
                           .get_info<info::kernel::function_name>();
   std::cout << "PassS=" << PassS << std::endl;
