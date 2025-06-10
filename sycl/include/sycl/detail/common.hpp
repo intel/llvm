@@ -8,6 +8,9 @@
 
 #pragma once
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/exception.hpp> // for sycl::exception, sycl::errc
+#endif                        // #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -139,6 +142,15 @@ public:
   // Used to maintain global state (GCodeLocTLS), so we do not want to copy
   tls_code_loc_t(const tls_code_loc_t &) = delete;
   tls_code_loc_t &operator=(const tls_code_loc_t &) = delete;
+#else
+  tls_code_loc_t &operator=(const tls_code_loc_t &) {
+    // Should never be called. In PREVIEW we marked it as deleted, but
+    // before ABI breaking change we need to keep it for backward compatibility.
+    assert(false && "tls_code_loc_t should not be copied");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "tls_code_loc_t should not be copied");
+    return *this;
+  }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// If the code location is set up by this instance, reset it.
