@@ -33,8 +33,6 @@
 #include "gtest/gtest.h"
 #include <memory>
 
-LLVM_ABI extern llvm::cl::opt<bool> UseNewDbgInfoFormat;
-
 namespace llvm {
 namespace {
 
@@ -1451,8 +1449,6 @@ TEST(InstructionsTest, GetSplat) {
 
 TEST(InstructionsTest, SkipDebug) {
   LLVMContext C;
-  bool OldDbgValueMode = UseNewDbgInfoFormat;
-  UseNewDbgInfoFormat = false;
   std::unique_ptr<Module> M = parseIR(C,
                                       R"(
       declare void @llvm.dbg.value(metadata, metadata, metadata)
@@ -1479,6 +1475,8 @@ TEST(InstructionsTest, SkipDebug) {
   )");
   ASSERT_TRUE(M);
   Function *F = cast<Function>(M->getNamedValue("f"));
+  // This test wants to see dbg.values.
+  F->convertFromNewDbgValues();
   BasicBlock &BB = F->front();
 
   // The first non-debug instruction is the terminator.
@@ -1488,7 +1486,6 @@ TEST(InstructionsTest, SkipDebug) {
 
   // After the terminator, there are no non-debug instructions.
   EXPECT_EQ(nullptr, Term->getNextNonDebugInstruction());
-  UseNewDbgInfoFormat = OldDbgValueMode;
 }
 
 TEST(InstructionsTest, PhiMightNotBeFPMathOperator) {
