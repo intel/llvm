@@ -9,137 +9,56 @@ from options import options
 from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
+from .benchdnn_list import get_bench_dnn_list
 
 
 class OneDnnBench(Suite):
-    def git_url(self):
-        return "https://github.com/oneapi-src/oneDNN.git"
-
-    def git_tag(self):
-        return "v3.8""engine_kind": "gpu"/home/mateuszpn/oneDNN/tests/benchdnn/inputs/graph/complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json
-
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
         build_path = create_build_path(self.directory, "onednn-build")
         self.build_dir = Path(build_path)
         self.src_dir = self.directory / "onednn-repo"
 
+    def git_url(self):
+        return "https://github.com/uxlfoundation/oneDNN.git"
+
+    def git_tag(self):
+        return "v3.8"
+
     def name(self):
         return "BenchDNN"
 
     def benchmarks(self) -> list:
-        return [
-            # OneDnnBenchmark(
-            #     self,
-            #     "binary",
-            #     "shapes",
-            #     "--max-ms-per-prb=1000 --batch=shapes_perf_1st_conv",
-            # ),
-            # OneDnnBenchmark(
-            #     self,
-            #     "conv",
-            #     "in8dst",
-            #     "--max-ms-per-prb=100 --dt=f16:f16:s8,f16:f16:u8,bf16:bf16:s8,bf16:bf16:u8,f32:f32:s8,f32:f32:u8 --batch=shapes_3d_gpu",
-            # ),
-            OneDnnBenchmark(
-                self,
-                "rnn",
-                "shapes-ds2",
-                "--max-ms-per-prb=500 --alg=VANILLA_RNN,LBR_GRU --direction=left2right --batch=shapes_deepspeech_2",
-            ),
-            OneDnnBenchmark(
-                self,
-                "ip",
-                "GPT-J",
-                "--max-ms-per-prb=500 --batch=harness_ip_gpt-j_32-32_inf_lb_bfloat16",
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "abs",
-                "--max-ms-per-prb=100 --dt=f32,bf16,f16 --op-kind=0:Abs,0:Exp,0:GELU,0:HardSwish,0:Log,0:Mish,0:Sigmoid,0:Sqrt,0:Square,0:Tanh --case=op/f32/abs.json",
-                eager=False,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "abs",
-                "--max-ms-per-prb=100 --dt=f32,bf16,f16 --op-kind=0:Abs,0:Exp,0:GELU,0:HardSwish,0:Log,0:Mish,0:Sigmoid,0:Sqrt,0:Square,0:Tanh --case=op/f32/abs.json",
-                eager=True,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "MHA-stable_diffusion",
-                "--max-ms-per-prb=1000 --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json",
-                eager=False,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "MHA-stable_diffusion",
-                "--max-ms-per-prb=1000 --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json",
-                eager=True,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "MHA-stable_diffusion-rewritten",
-                "--max-ms-per-prb=1000 --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json",
-                eager=False,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "MHA-stable_diffusion-rewritten",
-                "--max-ms-per-prb=1000 --dt=f32,bf16,f16 --in-shapes=0:56x8x1024x80+1:56x8x77x80+2:56x8x77x80 --case=complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json",
-                eager=True,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "gated-mlp-int4",
-                "--max-ms-per-prb=2500 --case=complex_fusion/mlp/gated-mlp-int4.json",
-                eager=False,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "gated-mlp-int4",
-                "--max-ms-per-prb=2500 --case=complex_fusion/mlp/gated-mlp-int4.json",
-                eager=True,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "GQA-fp16-v2",
-                "--max-ms-per-prb=500 --dt=f32,bf16,f16 --case=complex_fusion/mha/GQA-fp16-v2.json",
-                eager=False,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "GQA-fp16-v2",
-                "--max-ms-per-prb=500 --dt=f32,f16,bf16 --dt=f32,bf16,f16 --case=complex_fusion/mha/GQA-fp16-v2.json",
-                eager=True,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "sdpa-plain",
-                "--max-ms-per-prb=500 --dt=f32,bf16,f16 --op-kind=1:Multiply,1:Divide --case=complex_fusion/mha/sdpa-plain-simplified-f16.json",
-                eager=False,
-            ),
-            OneDnnBenchmark(
-                self,
-                "graph",
-                "sdpa-plain",
-                "--max-ms-per-prb=500 --dt=f32,bf16,f16 --op-kind=1:Multiply,1:Divide --case=complex_fusion/mha/sdpa-plain-simplified-f16.json",
-                eager=True,
-            ),
-        ]
+        benchmarks = []
+        for entry in get_bench_dnn_list():
+            rungraph = True
+            if len(entry) == 3:
+                bench_driver, bench_name, bench_args = entry
+            elif len(entry) == 4:
+                bench_driver, bench_name, bench_args, rungraph = entry
+            else:
+                raise ValueError(
+                    f"Invalid benchmark entry: {entry}. Expected 3 elements."
+                )
+
+            # Create a benchmark instance for both eager and graph execution modes
+            benchmarks.append(
+                OneDnnBenchmark(
+                    self, bench_driver, bench_name, bench_args, syclgraph=False
+                )
+            )
+            if rungraph == True:
+                benchmarks.append(
+                    OneDnnBenchmark(
+                        self, bench_driver, bench_name, bench_args, syclgraph=True
+                    )
+                )
+        return benchmarks
 
     def setup(self):
+        if options.sycl is None:
+            return
+
         self.src_dir = git_clone(
             self.directory,
             "onednn-repo",
@@ -152,16 +71,13 @@ class OneDnnBench(Suite):
             "cmake",
             f"-S {self.src_dir}",
             f"-B {self.build_dir}",
+            f"-DCMAKE_PREFIX_PATH={options.sycl}",
             "-DCMAKE_BUILD_TYPE=Release",
             "-DDNNL_BUILD_TESTS=ON",
             "-DDNNL_BUILD_EXAMPLES=OFF",
             "-DDNNL_CPU_RUNTIME=SYCL",  # Enable SYCL support
             "-DDNNL_GPU_RUNTIME=SYCL",  # Enable SYCL GPU support
         ]
-
-        if not options.sycl == None:
-            cmake_args.append(f"-DCMAKE_PREFIX_PATH={options.sycl}")
-
         run(
             cmake_args,
             add_sycl=True,
@@ -178,19 +94,27 @@ class OneDnnBench(Suite):
 
 
 class OneDnnBenchmark(Benchmark):
-    def __init__(self, suite, bench_driver, bench_name, bench_args, eager=False):
+    def __init__(self, suite, bench_driver, bench_name, bench_args, syclgraph=True):
         self.suite = suite
         self.bench_name = f"{bench_driver}-{bench_name}"
-        self.bench_args = f"--{bench_driver} --mode=p --engine=gpu --memory-kind=usm_device {bench_args}"
+        self.bench_args = f"--{bench_driver} --mode=P --engine=gpu --max-ms-per-prb=100"
+        # self.bench_args = f"--{bench_driver} --mode=f --engine=gpu"
         self.exp_group = self.bench_name
-        if bench_driver == "graph":
-            if eager:
-                self.bench_args += " --execution-mode=direct"
-                self.bench_name += "-eager"
-            else:
-                self.bench_args += " --execution-mode=graph"
-                self.bench_name += "-graph"
+        if syclgraph:
+            self.bench_args += " --execution-mode=graph"
+            self.bench_name += "-graph"
+        else:
+            self.bench_args += " --execution-mode=direct"
+            self.bench_name += "-eager"
+        self.bench_args += f" {bench_args}"
         self.bench_bin = suite.build_dir / "tests" / "benchdnn" / "benchdnn"
+
+    def enabled(self):
+        if options.sycl is None:
+            return False
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+            return False
+        return True
 
     def name(self):
         return f"onednn-{self.bench_name}"
@@ -211,6 +135,10 @@ class OneDnnBenchmark(Benchmark):
         ld_library = self.suite.oneapi.ld_libraries() + [
             str(self.suite.build_dir / "src")
         ]
+
+        env_vars = dict(env_vars) if env_vars else {}
+        if options.verbose:
+            env_vars["SYCL_UR_TRACE"] = "-2"
 
         output = self.run_bench(
             command,
