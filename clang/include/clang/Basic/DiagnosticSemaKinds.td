@@ -12929,7 +12929,7 @@ def err_free_function_return_type : Error<
 def err_free_function_first_occurrence_missing_attr: Error<
   "the first occurrence of SYCL kernel free function should be declared with 'sycl-nd-range-kernel' or 'sycl-single-task-kernel' compile time properties">;
 def err_free_function_class_method : Error<
-  "%select{static |}0class method can not be used to define a SYCL kernel free function kernel">;
+  "%select{static |}0class method cannot be used to define a SYCL kernel free function kernel">;
 
 
 // SYCL kernel entry point diagnostics

@@ -5138,7 +5138,7 @@ static void handleGlobalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (const auto *Method = dyn_cast<CXXMethodDecl>(FD)) {
     if (Method->isInstance()) {
       S.Diag(Method->getBeginLoc(), diag::err_free_function_class_method)
-          << 1 << Method;
+          << /*non static*/ 1 << Method;
       return;
     }
     S.Diag(Method->getBeginLoc(), diag::warn_kern_is_method) << Method;
