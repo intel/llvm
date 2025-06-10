@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda || hip
+// REQUIRES: target-spir
 // RUN: %clangxx -fsycl -fsycl-device-obj=spirv -c -o %t.o %s
 // RUN: %clangxx -fsycl -Wno-unused-command-line-argument -o %t.out %t.o
 // RUN: %{run} %t.out

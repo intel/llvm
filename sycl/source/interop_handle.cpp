@@ -23,6 +23,16 @@ backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);
 }
 
+bool interop_handle::ext_codeplay_has_graph() const noexcept {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
+  // next ABI breaking window.
+  return MGraph != nullptr;
+#else
+  return MQueue->getInteropGraph() != nullptr;
+#endif
+}
+
 ur_native_handle_t
 interop_handle::getNativeMem(detail::Requirement *Req) const {
   auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
@@ -53,5 +63,26 @@ interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
   return MQueue->getNative(NativeHandleDesc);
 }
 
+ur_native_handle_t interop_handle::getNativeGraph() const {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
+  // next ABI breaking window.
+  auto Graph = MGraph;
+#else
+  auto Graph = MQueue->getInteropGraph();
+#endif
+
+  if (!Graph) {
+    throw exception(
+        make_error_code(errc::invalid),
+        "No backend graph object is available for the command-group");
+  }
+
+  auto Adapter = MQueue->getAdapter();
+  ur_native_handle_t Handle = 0;
+  Adapter->call<detail::UrApiKind::urCommandBufferGetNativeHandleExp>(Graph,
+                                                                      &Handle);
+  return Handle;
+}
 } // namespace _V1
 } // namespace sycl

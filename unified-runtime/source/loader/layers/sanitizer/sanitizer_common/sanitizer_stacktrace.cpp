@@ -82,7 +82,7 @@ SourceInfo ParseSymbolizerOutput(const std::string &Output) {
 
 void StackTrace::print() const {
   if (!stack.size()) {
-    getContext()->logger.always("  failed to acquire backtrace");
+    UR_LOG_L(getContext()->logger, QUIET, "  failed to acquire backtrace");
   }
 
   unsigned index = 0;
@@ -113,21 +113,20 @@ void StackTrace::print() const {
         std::string Result((char *)ResultVector.data());
         SourceInfo SrcInfo = ParseSymbolizerOutput(Result);
         if (SrcInfo.file != "??") {
-          getContext()->logger.always(" #{} in {} {}:{}:{}", index,
-                                      SrcInfo.function, SrcInfo.file,
-                                      SrcInfo.line, SrcInfo.column);
+          UR_LOG_L(getContext()->logger, QUIET, " #{} in {} {}:{}:{}", index,
+                   SrcInfo.function, SrcInfo.file, SrcInfo.line,
+                   SrcInfo.column);
         } else {
-          getContext()->logger.always(" #{} in {} ({}+{})", index,
-                                      SrcInfo.function, ModuleName,
-                                      (void *)Offset);
+          UR_LOG_L(getContext()->logger, QUIET, " #{} in {} ({}+{})", index,
+                   SrcInfo.function, ModuleName, (void *)Offset);
         }
       }
     } else {
-      getContext()->logger.always("  #{} {}", index, BI);
+      UR_LOG_L(getContext()->logger, QUIET, "  #{} {}", index, BI);
     }
     ++index;
   }
-  getContext()->logger.always("");
+  UR_LOG_L(getContext()->logger, QUIET, "");
 
   free(BacktraceSymbols);
 }

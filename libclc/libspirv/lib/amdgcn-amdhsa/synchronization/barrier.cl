@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
+#include <clc/opencl/clc.h>
 #include <libspirv/spirv.h>
 #include <libspirv/spirv_types.h>
 
@@ -31,8 +31,8 @@
     }                                                                          \
   }
 
-_CLC_INLINE void builtin_fence_order(unsigned int scope_memory,
-                                     unsigned int order) {
+_CLC_INLINE void builtin_fence_order(int scope_memory,
+                                     int order) {
   switch ((enum Scope)scope_memory) {
   case CrossDevice:
     BUILTIN_FENCE(order, "")
@@ -48,19 +48,19 @@ _CLC_INLINE void builtin_fence_order(unsigned int scope_memory,
 }
 #undef BUILTIN_FENCE
 
-_CLC_DEF _CLC_OVERLOAD void __mem_fence(unsigned int scope_memory,
-                                        unsigned int semantics) {
+_CLC_DEF _CLC_OVERLOAD void __mem_fence(int scope_memory,
+                                        int semantics) {
   builtin_fence_order(scope_memory, semantics & 0x1F);
 }
 
-_CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int scope_memory,
-                                                  unsigned int semantics) {
+_CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(int scope_memory,
+                                                  int semantics) {
   __mem_fence(scope_memory, semantics);
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
-__spirv_ControlBarrier(unsigned int scope_execution, unsigned int scope_memory,
-                       unsigned int semantics) {
+__spirv_ControlBarrier(int scope_execution, int scope_memory,
+                       int semantics) {
   if (semantics) {
     __mem_fence(scope_memory, semantics);
   }

@@ -1,7 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-
-// UNSUPPORTED: hip
-// UNSUPPORTED-INTENDED: Image arrays are unimplemented in the HIP adapter.
+// REQUIRES: aspect-ext_oneapi_image_array
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -153,7 +151,6 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   }
 
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   sycl::backend backend = dev.get_backend();
 

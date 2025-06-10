@@ -19,7 +19,7 @@ struct LocalMemoryUpdateTestBase
 
     // HIP has extra args for local memory so we define an offset for arg
     // indices here for updating
-    hip_arg_offset = backend == UR_PLATFORM_BACKEND_HIP ? 3 : 0;
+    hip_arg_offset = backend == UR_BACKEND_HIP ? 3 : 0;
     ur_device_usm_access_capability_flags_t shared_usm_flags;
     ASSERT_SUCCESS(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
@@ -43,7 +43,7 @@ struct LocalMemoryUpdateTestBase
                                        local_mem_a_size, nullptr));
 
     // Hip has extra args for local mem at index 1-3
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
                                          sizeof(hip_local_offset), nullptr,
                                          &hip_local_offset));
@@ -58,7 +58,7 @@ struct LocalMemoryUpdateTestBase
     // Index 1 is local_mem_b arg
     ASSERT_SUCCESS(urKernelSetArgLocal(kernel, current_index++,
                                        local_mem_b_size, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
                                          sizeof(hip_local_offset), nullptr,
                                          &hip_local_offset));
@@ -140,7 +140,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryUpdateTest);
 // to original values.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersSameLocalSize) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -207,6 +207,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSameLocalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,         // hCommand
       kernel,                 // hNewKernel
       0,                      // numNewMemObjArgs
       new_input_descs.size(), // numNewPointerArgs
@@ -221,9 +222,9 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSameLocalSize) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -237,7 +238,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSameLocalSize) {
 // Test only passing local memory parameters to update with the original values.
 TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -273,6 +274,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,         // hCommand
       kernel,                 // hNewKernel
       0,                      // numNewMemObjArgs
       0,                      // numNewPointerArgs
@@ -287,9 +289,9 @@ TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -301,7 +303,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
 // parameters from the update.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersEmptyLocalSize) {
   // Run command-buffer prior to update and verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -348,6 +350,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersEmptyLocalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,         // hCommand
       kernel,                 // hNewKernel
       0,                      // numNewMemObjArgs
       new_input_descs.size(), // numNewPointerArgs
@@ -362,9 +365,9 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersEmptyLocalSize) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -380,7 +383,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersEmptyLocalSize) {
 TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
 
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -405,7 +408,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
       nullptr,                                                    // hArgValue
   });
 
-  if (backend == UR_PLATFORM_BACKEND_HIP) {
+  if (backend == UR_BACKEND_HIP) {
     new_value_descs.push_back({
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
@@ -443,7 +446,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
       nullptr,                                                    // hArgValue
   });
 
-  if (backend == UR_PLATFORM_BACKEND_HIP) {
+  if (backend == UR_BACKEND_HIP) {
     new_value_descs.push_back({
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
@@ -503,6 +506,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,                                // hCommand
       kernel,                                        // hNewKernel
       0,                                             // numNewMemObjArgs
       2,                                             // numNewPointerArgs
@@ -517,9 +521,9 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -534,7 +538,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
 // to new larger values.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
   // Run command-buffer prior to update and verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -559,7 +563,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
       nullptr,                                                    // hArgValue
   });
 
-  if (backend == UR_PLATFORM_BACKEND_HIP) {
+  if (backend == UR_BACKEND_HIP) {
     new_value_descs.push_back({
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
@@ -597,7 +601,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
       nullptr,                                                    // hArgValue
   });
 
-  if (backend == UR_PLATFORM_BACKEND_HIP) {
+  if (backend == UR_BACKEND_HIP) {
     new_value_descs.push_back({
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
@@ -657,6 +661,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,                                // hCommand
       kernel,                                        // hNewKernel
       0,                                             // numNewMemObjArgs
       2,                                             // numNewPointerArgs
@@ -671,9 +676,9 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -689,7 +694,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
 // the other local memory argument.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
   // Run command-buffer prior to update and verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -714,7 +719,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
       nullptr,                                                    // hArgValue
   });
 
-  if (backend == UR_PLATFORM_BACKEND_HIP) {
+  if (backend == UR_BACKEND_HIP) {
     new_value_descs.push_back({
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
@@ -774,6 +779,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,                                // hCommand
       kernel,                                        // hNewKernel
       0,                                             // numNewMemObjArgs
       2,                                             // numNewPointerArgs
@@ -788,8 +794,8 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
 
   std::vector<ur_exp_command_buffer_update_value_arg_desc_t>
       second_update_value_args{};
@@ -805,7 +811,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
       nullptr,                                                    // hArgValue
   });
 
-  if (backend == UR_PLATFORM_BACKEND_HIP) {
+  if (backend == UR_BACKEND_HIP) {
     second_update_value_args.push_back({
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
@@ -835,9 +841,10 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t second_update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
-      kernel, // hNewKernel
-      0,      // numNewMemObjArgs
-      0,      // numNewPointerArgs
+      command_handle, // hCommand
+      kernel,         // hNewKernel
+      0,              // numNewMemObjArgs
+      0,              // numNewPointerArgs
       static_cast<uint32_t>(second_update_value_args.size()), // numNewValueArgs
       n_dimensions,                                           // newWorkDim
       nullptr,                         // pNewMemObjArgList
@@ -847,10 +854,10 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
       nullptr,                         // pNewGlobalWorkSize
       nullptr,                         // pNewLocalWorkSize
   };
-  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(command_handle,
-                                                      &second_update_desc));
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &second_update_desc));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -887,7 +894,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryMultiUpdateTest);
 // to original values.
 TEST_P(LocalMemoryMultiUpdateTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -950,28 +957,32 @@ TEST_P(LocalMemoryMultiUpdateTest, UpdateParameters) {
       &shared_ptrs[4], // pArgValue
   };
 
-  // Update kernel inputs
-  ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
-      nullptr,                                                        // pNext
-      kernel,                 // hNewKernel
-      0,                      // numNewMemObjArgs
-      new_input_descs.size(), // numNewPointerArgs
-      new_value_descs.size(), // numNewValueArgs
-      n_dimensions,           // newWorkDim
-      nullptr,                // pNewMemObjArgList
-      new_input_descs.data(), // pNewPointerArgList
-      new_value_descs.data(), // pNewValueArgList
-      nullptr,                // pNewGlobalWorkOffset
-      nullptr,                // pNewGlobalWorkSize
-      nullptr,                // pNewLocalWorkSize
-  };
+  std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> update_descs;
+  for (auto &handle : command_handles) {
+    // Update kernel inputs
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        handle,                 // hCommand
+        kernel,                 // hNewKernel
+        0,                      // numNewMemObjArgs
+        new_input_descs.size(), // numNewPointerArgs
+        new_value_descs.size(), // numNewValueArgs
+        n_dimensions,           // newWorkDim
+        nullptr,                // pNewMemObjArgList
+        new_input_descs.data(), // pNewPointerArgList
+        new_value_descs.data(), // pNewValueArgList
+        nullptr,                // pNewGlobalWorkOffset
+        nullptr,                // pNewGlobalWorkSize
+        nullptr,                // pNewLocalWorkSize
+    };
+    update_descs.push_back(update_desc);
+  }
 
   // Update kernel and enqueue command-buffer again
-  for (auto &handle : command_handles) {
-    ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
-  }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, update_descs.size(), update_descs.data()));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -1039,31 +1050,37 @@ TEST_P(LocalMemoryMultiUpdateTest, UpdateWithoutBlocking) {
       &shared_ptrs[4], // pArgValue
   };
 
-  // Update kernel inputs
-  ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
-      nullptr,                                                        // pNext
-      kernel,                 // hNewKernel
-      0,                      // numNewMemObjArgs
-      new_input_descs.size(), // numNewPointerArgs
-      new_value_descs.size(), // numNewValueArgs
-      n_dimensions,           // newWorkDim
-      nullptr,                // pNewMemObjArgList
-      new_input_descs.data(), // pNewPointerArgList
-      new_value_descs.data(), // pNewValueArgList
-      nullptr,                // pNewGlobalWorkOffset
-      nullptr,                // pNewGlobalWorkSize
-      nullptr,                // pNewLocalWorkSize
-  };
   // Enqueue without calling urQueueFinish after
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
-  // Update kernel and enqueue command-buffer again
+  std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> update_descs;
   for (auto &handle : command_handles) {
-    ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
+    // Update kernel inputs
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        handle,                 // hCommand
+        kernel,                 // hNewKernel
+        0,                      // numNewMemObjArgs
+        new_input_descs.size(), // numNewPointerArgs
+        new_value_descs.size(), // numNewValueArgs
+        n_dimensions,           // newWorkDim
+        nullptr,                // pNewMemObjArgList
+        new_input_descs.data(), // pNewPointerArgList
+        new_value_descs.data(), // pNewValueArgList
+        nullptr,                // pNewGlobalWorkOffset
+        nullptr,                // pNewGlobalWorkSize
+        nullptr,                // pNewLocalWorkSize
+    };
+    update_descs.push_back(update_desc);
   }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+
+  // Update kernel and enqueue command-buffer again
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, update_descs.size(), update_descs.data()));
+
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -1082,7 +1099,7 @@ struct LocalMemoryUpdateTestBaseOutOfOrder : LocalMemoryUpdateTestBase {
 
     // HIP has extra args for local memory so we define an offset for arg
     // indices here for updating
-    hip_arg_offset = backend == UR_PLATFORM_BACKEND_HIP ? 3 : 0;
+    hip_arg_offset = backend == UR_BACKEND_HIP ? 3 : 0;
     ur_device_usm_access_capability_flags_t shared_usm_flags;
     ASSERT_SUCCESS(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
@@ -1102,7 +1119,7 @@ struct LocalMemoryUpdateTestBaseOutOfOrder : LocalMemoryUpdateTestBase {
     }
 
     std::array<size_t, 12> index_order{};
-    if (backend != UR_PLATFORM_BACKEND_HIP) {
+    if (backend != UR_BACKEND_HIP) {
       index_order = {3, 2, 4, 5, 1, 0};
     } else {
       index_order = {9, 8, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3};
@@ -1126,7 +1143,7 @@ struct LocalMemoryUpdateTestBaseOutOfOrder : LocalMemoryUpdateTestBase {
     // Index 1 is local_mem_b arg
     ASSERT_SUCCESS(urKernelSetArgLocal(kernel, index_order[current_index++],
                                        local_mem_b_size, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, index_order[current_index++],
                                          sizeof(hip_local_offset), nullptr,
                                          &hip_local_offset));
@@ -1143,7 +1160,7 @@ struct LocalMemoryUpdateTestBaseOutOfOrder : LocalMemoryUpdateTestBase {
                                        local_mem_a_size, nullptr));
 
     // Hip has extra args for local mem at index 1-3
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, index_order[current_index++],
                                          sizeof(hip_local_offset), nullptr,
                                          &hip_local_offset));
@@ -1180,7 +1197,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryUpdateTestOutOfOrder);
 // values when the kernel arguments were added out of order.
 TEST_P(LocalMemoryUpdateTestOutOfOrder, UpdateAllParameters) {
   // Run command-buffer prior to update and verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -1250,6 +1267,7 @@ TEST_P(LocalMemoryUpdateTestOutOfOrder, UpdateAllParameters) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,         // hCommand
       kernel,                 // hNewKernel
       0,                      // numNewMemObjArgs
       new_input_descs.size(), // numNewPointerArgs
@@ -1264,9 +1282,9 @@ TEST_P(LocalMemoryUpdateTestOutOfOrder, UpdateAllParameters) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 

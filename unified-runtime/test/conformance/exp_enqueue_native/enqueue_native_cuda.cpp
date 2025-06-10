@@ -12,7 +12,7 @@
 using T = uint32_t;
 
 struct urCudaEnqueueNativeCommandTest : uur::urQueueTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-usm_shared_allocations
 // UNSUPPORTED: cuda && windows
+// UNSUPPORTED-INTENDED: CUDA doesn't support prefetch on Windows.
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 

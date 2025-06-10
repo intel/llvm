@@ -16,9 +16,9 @@
 #include "msan_allocator.hpp"
 #include "msan_buffer.hpp"
 #include "msan_libdevice.hpp"
-#include "msan_options.hpp"
 #include "msan_shadow.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
+#include "sanitizer_common/sanitizer_options.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -79,13 +79,19 @@ struct KernelInfo {
 
   // sanitized kernel
   bool IsInstrumented = false;
+  // check local memory
+  bool IsCheckLocals = true;
+  // check private memory
+  bool IsCheckPrivates = true;
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
   std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
-  explicit KernelInfo(ur_kernel_handle_t Kernel, bool IsInstrumented)
-      : Handle(Kernel), IsInstrumented(IsInstrumented) {
+  // Need preserve the order of local arguments
+  std::map<uint32_t, MsanLocalArgsInfo> LocalArgs;
+
+  explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Kernel.pfnRetain(Kernel);
     assert(Result == UR_RESULT_SUCCESS);
@@ -102,8 +108,13 @@ struct ProgramInfo {
   ur_program_handle_t Handle;
   std::atomic<int32_t> RefCount = 1;
 
+  struct KernelMetada {
+    bool CheckLocals;
+    bool CheckPrivates;
+  };
+
   // Program is built only once, so we don't need to lock it
-  std::unordered_set<std::string> InstrumentedKernels;
+  std::unordered_map<std::string, KernelMetada> KernelMetadataMap;
 
   explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
     [[maybe_unused]] auto Result =
@@ -118,11 +129,12 @@ struct ProgramInfo {
   }
 
   bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
+  const KernelMetada &getKernelMetadata(ur_kernel_handle_t Kernel) const;
 };
 
 struct ContextInfo {
   ur_context_handle_t Handle;
-  size_t MaxAllocatedSize = 1024;
+  size_t CleanShadowSize = 1024;
   std::atomic<int32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
@@ -136,8 +148,76 @@ struct ContextInfo {
   ~ContextInfo();
 };
 
+struct MsanRuntimeDataWrapper {
+  MsanRuntimeData Host{};
+
+  MsanRuntimeData *DevicePtr = nullptr;
+
+  ur_context_handle_t Context{};
+
+  ur_device_handle_t Device{};
+
+  MsanRuntimeDataWrapper(ur_context_handle_t Context, ur_device_handle_t Device)
+      : Context(Context), Device(Device) {}
+
+  MsanRuntimeDataWrapper(const MsanRuntimeDataWrapper &) = delete;
+
+  MsanRuntimeDataWrapper &operator=(const MsanRuntimeDataWrapper &) = delete;
+
+  ~MsanRuntimeDataWrapper();
+
+  MsanRuntimeData *getDevicePtr() {
+    if (DevicePtr == nullptr) {
+      ur_result_t Result = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+          Context, Device, nullptr, nullptr, sizeof(MsanRuntimeData),
+          (void **)&DevicePtr);
+      if (Result != UR_RESULT_SUCCESS) {
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to alloc device usm for msan runtime data: {}",
+                 Result);
+      }
+    }
+    return DevicePtr;
+  }
+
+  ur_result_t syncFromDevice(ur_queue_handle_t Queue) {
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, ur_cast<void *>(&Host), getDevicePtr(),
+        sizeof(MsanRuntimeData), 0, nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  ur_result_t syncToDevice(ur_queue_handle_t Queue) {
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, getDevicePtr(), ur_cast<void *>(&Host),
+        sizeof(MsanRuntimeData), 0, nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  ur_result_t
+  importLocalArgsInfo(ur_queue_handle_t Queue,
+                      const std::vector<MsanLocalArgsInfo> &LocalArgs) {
+    assert(!LocalArgs.empty());
+
+    Host.NumLocalArgs = LocalArgs.size();
+    const size_t LocalArgsInfoSize =
+        sizeof(MsanLocalArgsInfo) * Host.NumLocalArgs;
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, nullptr, LocalArgsInfoSize,
+        ur_cast<void **>(&Host.LocalArgs)));
+
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0,
+        nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+};
+
 struct USMLaunchInfo {
-  MsanLaunchInfo *Data = nullptr;
+  MsanRuntimeDataWrapper Data;
 
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
@@ -149,8 +229,9 @@ struct USMLaunchInfo {
   USMLaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
                 const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                 const size_t *GlobalWorkOffset, uint32_t WorkDim)
-      : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
-        GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim) {
+      : Data(Context, Device), Context(Context), Device(Device),
+        GlobalWorkSize(GlobalWorkSize), GlobalWorkOffset(GlobalWorkOffset),
+        WorkDim(WorkDim) {
     if (LocalWorkSize) {
       this->LocalWorkSize =
           std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
@@ -169,6 +250,8 @@ struct DeviceGlobalInfo {
 struct SpirKernelInfo {
   uptr KernelName;
   uptr Size;
+  uptr CheckLocals;
+  uptr CheckPrivates;
 };
 
 class MsanInterceptor {
@@ -214,7 +297,7 @@ public:
     if (m_Adapters.find(Adapter) != m_Adapters.end()) {
       return UR_RESULT_SUCCESS;
     }
-    UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
+    UR_CALL(getContext()->urDdiTable.Adapter.pfnRetain(Adapter));
     m_Adapters.insert(Adapter);
     return UR_RESULT_SUCCESS;
   }
@@ -247,14 +330,14 @@ public:
   KernelInfo &getOrCreateKernelInfo(ur_kernel_handle_t Kernel);
   ur_result_t eraseKernelInfo(ur_kernel_handle_t Kernel);
 
-  const MsanOptions &getOptions() { return m_Options; }
-
   void exitWithErrors() {
     m_NormalExit = false;
     exit(1);
   }
 
   bool isNormalExit() { return m_NormalExit; }
+
+  ur_shared_mutex KernelLaunchMutex;
 
 private:
   /// Initialize Global Variables & Kernel Name at first Launch
@@ -291,8 +374,6 @@ private:
   /// Assumption: all USM chunks are allocated in one VA
   MsanAllocationMap m_AllocationMap;
   ur_shared_mutex m_AllocationMapMutex;
-
-  MsanOptions m_Options;
 
   std::unordered_set<ur_adapter_handle_t> m_Adapters;
   ur_shared_mutex m_AdaptersMutex;

@@ -13,6 +13,7 @@
 #include <mutex>
 #include <string.h>
 
+#include "adapters/level_zero/usm.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
@@ -26,10 +27,9 @@ ur_result_t urContextCreate(
     /// [in][range(0, DeviceCount)] array of handle of devices.
     const ur_device_handle_t *Devices,
     /// [in][optional] pointer to context creation properties.
-    const ur_context_properties_t *Properties,
+    const ur_context_properties_t * /*Properties*/,
     /// [out] pointer to handle of context object created
     ur_context_handle_t *RetContext) {
-  std::ignore = Properties;
 
   ur_platform_handle_t Platform = Devices[0]->Platform;
   ZeStruct<ze_context_desc_t> ContextDesc{};
@@ -120,21 +120,6 @@ ur_result_t urContextGetInfo(
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(uint8_t{false});
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-
-    ur_memory_order_capability_flags_t Capabilities =
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
-    return ReturnValue(Capabilities);
-  }
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
 
   default:
     // TODO: implement other parameters
@@ -177,130 +162,19 @@ ur_result_t urContextCreateWithNativeHandle(
 
 ur_result_t urContextSetExtendedDeleter(
     /// [in] handle of the context.
-    ur_context_handle_t Context,
+    ur_context_handle_t /*Context*/,
     /// [in] Function pointer to extended deleter.
-    ur_context_extended_deleter_t Deleter,
+    ur_context_extended_deleter_t /*Deleter*/,
     /// [in][out][optional] pointer to data to be passed to callback.
-    void *UserData) {
-  std::ignore = Context;
-  std::ignore = Deleter;
-  std::ignore = UserData;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+    void * /*UserData*/) {
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace ur::level_zero
 
 ur_result_t ur_context_handle_t_::initialize() {
-
-  // Helper lambda to create various USM allocators for a device.
-  // Note that the CCS devices and their respective subdevices share a
-  // common ze_device_handle and therefore, also share USM allocators.
-  auto createUSMAllocators = [this](ur_device_handle_t Device) {
-    auto MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
-                           reinterpret_cast<ur_context_handle_t>(this), Device)
-                           .second;
-    auto UmfDeviceParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Device]);
-    DeviceMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
-                                                   std::move(MemProvider),
-                                                   UmfDeviceParamsHandle.get())
-                            .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-
-    auto UmfSharedParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Shared]);
-    SharedMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
-                                                   std::move(MemProvider),
-                                                   UmfSharedParamsHandle.get())
-                            .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-
-    auto UmfSharedROParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance
-            .Configs[usm::DisjointPoolMemType::SharedReadOnly]);
-    SharedReadOnlyMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(
-                            umfDisjointPoolOps(), std::move(MemProvider),
-                            UmfSharedROParamsHandle.get())
-                            .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    DeviceMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    SharedMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    SharedReadOnlyMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
-  };
-
-  // Recursive helper to call createUSMAllocators for all sub-devices
-  std::function<void(ur_device_handle_t)> createUSMAllocatorsRecursive;
-  createUSMAllocatorsRecursive =
-      [createUSMAllocators,
-       &createUSMAllocatorsRecursive](ur_device_handle_t Device) -> void {
-    createUSMAllocators(Device);
-    for (auto &SubDevice : Device->SubDevices)
-      createUSMAllocatorsRecursive(SubDevice);
-  };
-
-  // Create USM pool for each pair (device, context).
-  //
-  for (auto &Device : Devices) {
-    createUSMAllocatorsRecursive(Device);
-  }
-  // Create USM pool for host. Device and Shared USM allocations
-  // are device-specific. Host allocations are not device-dependent therefore
-  // we don't need a map with device as key.
-  auto MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
-                         reinterpret_cast<ur_context_handle_t>(this), nullptr)
-                         .second;
-  auto UmfHostParamsHandle = getUmfParamsHandle(
-      DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host]);
-  HostMemPool =
-      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
-                                 UmfHostParamsHandle.get())
-          .second;
-
-  MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
-                    reinterpret_cast<ur_context_handle_t>(this), nullptr)
-                    .second;
-  HostMemProxyPool =
-      umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second;
-
-  // We may allocate memory to this root device so create allocators.
-  if (SingleRootDevice &&
-      DeviceMemPools.find(SingleRootDevice->ZeDevice) == DeviceMemPools.end()) {
-    createUSMAllocators(SingleRootDevice);
-  }
-
   // Create the immediate command list to be used for initializations.
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
@@ -311,7 +185,7 @@ ur_result_t ur_context_handle_t_::initialize() {
   // D2D migartion, if no P2P, is broken since it should use
   // immediate command-list for the specfic devices, and this single one.
   //
-  ur_device_handle_t Device = SingleRootDevice ? SingleRootDevice : Devices[0];
+  ur_device_handle_t Device = Devices[0];
 
   // Prefer to use copy engine for initialization copies,
   // if available and allowed (main copy engine with index 0).
@@ -329,11 +203,13 @@ ur_result_t ur_context_handle_t_::initialize() {
 
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  if (Device->useDriverInOrderLists() &&
+  if (Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       Device->useDriverCounterBasedEvents()) {
-    logger::debug(
+    UR_LOG(
+        DEBUG,
         "L0 Synchronous Immediate Command List needed with In Order property.");
-    ZeCommandQueueDesc.flags |= ZE_COMMAND_LIST_FLAG_IN_ORDER;
+    ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }
   ZE2UR_CALL(
       zeCommandListCreateImmediate,
@@ -386,7 +262,8 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
       Contexts.erase(It);
   }
   ze_context_handle_t DestroyZeContext =
-      Context->OwnNativeHandle ? Context->ZeContext : nullptr;
+      (Context->OwnNativeHandle && checkL0LoaderTeardown()) ? Context->ZeContext
+                                                            : nullptr;
 
   // Clean up any live memory associated with Context
   ur_result_t Result = Context->finalize();
@@ -403,8 +280,12 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
   if (DestroyZeContext) {
     auto ZeResult = ZE_CALL_NOCHECK(zeContextDestroy, (DestroyZeContext));
     // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                     ZeResult != ZE_RESULT_ERROR_UNKNOWN))
       return ze2urResult(ZeResult);
+    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+    }
   }
 
   return Result;
@@ -419,15 +300,23 @@ ur_result_t ur_context_handle_t_::finalize() {
   // urContextRelease. There could be some memory that may have not been
   // deallocated. For example, event and event pool caches would be still alive.
 
+  AsyncPool.cleanupPools();
+
   if (!DisableEventsCaching) {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
     for (auto &EventCache : EventCaches) {
       for (auto &Event : EventCache) {
-        auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+        if (checkL0LoaderTeardown()) {
+          auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+          // Gracefully handle the case that L0 was already unloaded.
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                           ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+            return ze2urResult(ZeResult);
+          if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+            ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+          }
+        }
         Event->ZeEvent = nullptr;
-        // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-          return ze2urResult(ZeResult);
         delete Event;
       }
       EventCache.clear();
@@ -437,41 +326,61 @@ ur_result_t ur_context_handle_t_::finalize() {
     std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
       for (auto &ZePool : ZePoolCache) {
-        auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
-        // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-          return ze2urResult(ZeResult);
+        if (checkL0LoaderTeardown()) {
+          auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
+          // Gracefully handle the case that L0 was already unloaded.
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                           ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+            return ze2urResult(ZeResult);
+          if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+            ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+          }
+        }
       }
       ZePoolCache.clear();
     }
   }
 
-  // Destroy the command list used for initializations
-  auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandListInit));
-  // Gracefully handle the case that L0 was already unloaded.
-  if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-    return ze2urResult(ZeResult);
+  if (checkL0LoaderTeardown()) {
+    // Destroy the command list used for initializations
+    auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandListInit));
+    // Gracefully handle the case that L0 was already unloaded.
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                     ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+      return ze2urResult(ZeResult);
+    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+    }
+  }
 
   std::scoped_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   for (auto &List : ZeComputeCommandListCache) {
     for (auto &Item : List.second) {
       ze_command_list_handle_t ZeCommandList = Item.first;
-      if (ZeCommandList) {
+      if (ZeCommandList && checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
     }
   }
   for (auto &List : ZeCopyCommandListCache) {
     for (auto &Item : List.second) {
       ze_command_list_handle_t ZeCommandList = Item.first;
-      if (ZeCommandList) {
+      if (ZeCommandList && checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
     }
   }
@@ -550,8 +459,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
     if (ProfilingEnabled)
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
-    logger::debug("ze_event_pool_desc_t flags set to: {}",
-                  ZeEventPoolDesc.flags);
+    UR_LOG(DEBUG, "ze_event_pool_desc_t flags set to: {}",
+           ZeEventPoolDesc.flags);
     if (CounterBasedEventEnabled) {
       if (UsingImmCmdList) {
         counterBasedExt.flags = ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_IMMEDIATE;
@@ -559,8 +468,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
         counterBasedExt.flags =
             ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
       }
-      logger::debug("ze_event_pool_desc_t counter based flags set to: {}",
-                    counterBasedExt.flags);
+      UR_LOG(DEBUG, "ze_event_pool_desc_t counter based flags set to: {}",
+             counterBasedExt.flags);
       if (InterruptBasedEventEnabled) {
         counterBasedExt.pNext = &eventSyncMode;
       }
@@ -600,10 +509,11 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
       getEventCache(HostVisible, WithProfiling, Device,
                     CounterBasedEventEnabled, InterruptBasedEventEnabled);
   if (Cache->empty()) {
-    logger::info("Cache empty (Host Visible: {}, Profiling: {}, Counter: {}, "
-                 "Interrupt: {}, Device: {})",
-                 HostVisible, WithProfiling, CounterBasedEventEnabled,
-                 InterruptBasedEventEnabled, Device);
+    UR_LOG(INFO,
+           "Cache empty (Host Visible: {}, Profiling: {}, Counter: {}, "
+           "Interrupt: {}, Device: {})",
+           HostVisible, WithProfiling, CounterBasedEventEnabled,
+           InterruptBasedEventEnabled, Device);
     return nullptr;
   }
 
@@ -614,11 +524,12 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
   // We have to reset event before using it.
   Event->reset();
 
-  logger::info("Using {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
-               "Interrupt: {}, Device: {}) from cache {}",
-               Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
-               Event->CounterBasedEventsEnabled,
-               Event->InterruptBasedEventsEnabled, Device, Cache);
+  UR_LOG(INFO,
+         "Using {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
+         "Interrupt: {}, Device: {}) from cache {}",
+         Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
+         Event->CounterBasedEventsEnabled, Event->InterruptBasedEventsEnabled,
+         Device, Cache);
 
   return Event;
 }
@@ -634,10 +545,11 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
   auto Cache = getEventCache(
       Event->isHostVisible(), Event->isProfilingEnabled(), Device,
       Event->CounterBasedEventsEnabled, Event->InterruptBasedEventsEnabled);
-  logger::info("Inserting {} event (Host Visible: {}, Profiling: {}, Counter: "
-               "{}, Device: {}) into cache {}",
-               Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
-               Event->CounterBasedEventsEnabled, Device, Cache);
+  UR_LOG(INFO,
+         "Inserting {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
+         "Device: {}) into cache {}",
+         Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
+         Event->CounterBasedEventsEnabled, Device, Cache);
   Cache->emplace_back(Event);
 }
 
@@ -786,8 +698,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       // If this is an InOrder Queue, then only allow lists which are in order.
-      if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
-          !(ZeCommandListIt->second.InOrderList)) {
+      if (Queue->Device->Platform->allowDriverInOrderLists(
+              true /*Only Allow Driver In Order List if requested*/) &&
+          Queue->isInOrderQueue() && !(ZeCommandListIt->second.InOrderList)) {
         continue;
       }
       // Only allow to reuse Regular Command Lists
@@ -853,8 +766,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
       continue;
 
     // If this is an InOrder Queue, then only allow lists which are in order.
-    if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
-        !(it->second.IsInOrderList)) {
+    if (Queue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
+        Queue->isInOrderQueue() && !(it->second.IsInOrderList)) {
       continue;
     }
 

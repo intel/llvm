@@ -11,6 +11,7 @@
 
 #include <ur_api.h>
 
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <numeric>
@@ -32,7 +33,7 @@
 /// A compiler pass converts the UR API local memory model into the
 /// HIP shared model. This object simply calculates the total of
 /// shared memory, and the initial offsets of each parameter.
-struct ur_kernel_handle_t_ {
+struct ur_kernel_handle_t_ : ur::hip::handle_base {
   using native_type = hipFunction_t;
 
   native_type Function;
@@ -110,6 +111,9 @@ struct ur_kernel_handle_t_ {
 
       // Copy new argument to storage if it hasn't been added before.
       if (ParamSizes[Index] == 0) {
+        if ((InsertPos + Size) > MAX_PARAM_BYTES) {
+          throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
+        }
         ParamSizes[Index] = Size;
         std::memcpy(&Storage[InsertPos], Arg, Size);
         ArgPointers[Index] = &Storage[InsertPos];
@@ -232,15 +236,24 @@ struct ur_kernel_handle_t_ {
   ur_kernel_handle_t_(hipFunction_t Func, hipFunction_t FuncWithOffsetParam,
                       const char *Name, ur_program_handle_t Program,
                       ur_context_handle_t Ctxt)
-      : Function{Func}, FunctionWithOffsetParam{FuncWithOffsetParam},
-        Name{Name}, Context{Ctxt}, Program{Program}, RefCount{1} {
-    assert(Program->getDevice());
-    UR_CHECK_ERROR(urKernelGetGroupInfo(
-        this, Program->getDevice(),
-        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr));
+      : handle_base(), Function{Func},
+        FunctionWithOffsetParam{FuncWithOffsetParam}, Name{Name}, Context{Ctxt},
+        Program{Program}, RefCount{1} {
     urProgramRetain(Program);
     urContextRetain(Context);
+
+    const auto &ReqdWGSizeMDMap = Program->KernelReqdWorkGroupSizeMD;
+    const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(Name);
+    if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
+      const auto ReqdWGSize = ReqdWGSizeMD->second;
+      ReqdThreadsPerBlock[0] = std::get<0>(ReqdWGSize);
+      ReqdThreadsPerBlock[1] = std::get<1>(ReqdWGSize);
+      ReqdThreadsPerBlock[2] = std::get<2>(ReqdWGSize);
+    } else {
+      ReqdThreadsPerBlock[0] = 0;
+      ReqdThreadsPerBlock[1] = 0;
+      ReqdThreadsPerBlock[2] = 0;
+    }
   }
 
   ur_kernel_handle_t_(hipFunction_t Func, const char *Name,

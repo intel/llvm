@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // This file contains tests covering eviction in in-memory program cache.
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"

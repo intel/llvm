@@ -21,13 +21,15 @@ template <>
 struct KernelInfo<TestKernelWithMemObj> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernelWithMemObj"; }
   static constexpr unsigned getNumParams() { return 1; }
-  static const detail::kernel_param_desc_t &getParamDesc(int) {
-    static detail::kernel_param_desc_t desc{
-        detail::kernel_param_kind_t::kind_accessor,
-        int(access::target::device) /*info*/, 0 /*offset*/};
+  static constexpr const detail::kernel_param_desc_t &getParamDesc(int) {
     return desc;
   }
   static constexpr uint32_t getKernelSize() { return 32; }
+
+private:
+  static constexpr detail::kernel_param_desc_t desc{
+      detail::kernel_param_kind_t::kind_accessor,
+      int(access::target::device) /*info*/, 0 /*offset*/};
 };
 } // namespace detail
 } // namespace _V1

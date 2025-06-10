@@ -9,7 +9,7 @@
 #include <uur/known_failure.h>
 
 struct urKernelSetArgLocalTest : uur::urKernelTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "mean";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }
@@ -50,7 +50,7 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
 
     // HIP has extra args for local memory so we define an offset for arg
     // indices here for updating
-    hip_arg_offset = backend == UR_PLATFORM_BACKEND_HIP ? 3 : 0;
+    hip_arg_offset = backend == UR_BACKEND_HIP ? 3 : 0;
     ur_device_usm_access_capability_flags_t shared_usm_flags;
     ASSERT_SUCCESS(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
@@ -74,7 +74,7 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
                                        local_mem_a_size, nullptr));
 
     // Hip has extra args for local mem at index 1-3
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
                                          sizeof(hip_local_offset), nullptr,
                                          &hip_local_offset));
@@ -89,7 +89,7 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
     // Index 1 is local_mem_b arg
     ASSERT_SUCCESS(urKernelSetArgLocal(kernel, current_index++,
                                        local_mem_b_size, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
                                          sizeof(hip_local_offset), nullptr,
                                          &hip_local_offset));
@@ -145,14 +145,14 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
 
   uint32_t hip_arg_offset = 0;
   static constexpr uint64_t hip_local_offset = 0;
-  ur_platform_backend_t backend{};
+  ur_backend_t backend{};
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalMultiTest);
 
 TEST_P(urKernelSetArgLocalMultiTest, Basic) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];
@@ -162,9 +162,9 @@ TEST_P(urKernelSetArgLocalMultiTest, Basic) {
 }
 
 TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];
@@ -173,9 +173,9 @@ TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
   Validate(output, X, Y, A, global_size, local_size);
 
   // Relaunch with new arguments
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   uint32_t *new_output = (uint32_t *)shared_ptrs[0];
   uint32_t *new_X = (uint32_t *)shared_ptrs[3];
@@ -185,9 +185,9 @@ TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
 
 // Overwrite local args to a larger value, then reset back to original
 TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];
@@ -203,7 +203,7 @@ TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
                                      new_local_mem_a_size, nullptr));
 
   // Hip has extra args for local mem at index 1-3
-  if (backend == UR_PLATFORM_BACKEND_HIP) {
+  if (backend == UR_BACKEND_HIP) {
     ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
                                        sizeof(hip_local_offset), nullptr,
                                        &hip_local_offset));
@@ -218,7 +218,7 @@ TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
   // Index 1 is local_mem_b arg
   ASSERT_SUCCESS(urKernelSetArgLocal(kernel, current_index++,
                                      new_local_mem_b_size, nullptr));
-  if (backend == UR_PLATFORM_BACKEND_HIP) {
+  if (backend == UR_BACKEND_HIP) {
     ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
                                        sizeof(hip_local_offset), nullptr,
                                        &hip_local_offset));
@@ -230,9 +230,9 @@ TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
                                        &hip_local_offset));
   }
 
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &new_local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size,
+      &new_local_size, 0, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   Validate(output, X, Y, A, global_size, new_local_size);
@@ -249,7 +249,7 @@ struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
 
     // HIP has extra args for local memory so we define an offset for arg
     // indices here for updating
-    hip_arg_offset = backend == UR_PLATFORM_BACKEND_HIP ? 3 : 0;
+    hip_arg_offset = backend == UR_BACKEND_HIP ? 3 : 0;
     ur_device_usm_access_capability_flags_t shared_usm_flags;
     ASSERT_SUCCESS(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
@@ -269,7 +269,7 @@ struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
     }
 
     std::array<size_t, 12> index_order{};
-    if (backend != UR_PLATFORM_BACKEND_HIP) {
+    if (backend != UR_BACKEND_HIP) {
       index_order = {3, 2, 4, 5, 1, 0};
     } else {
       index_order = {9, 8, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3};
@@ -293,7 +293,7 @@ struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
     // Index 1 is local_mem_b arg
     ASSERT_SUCCESS(urKernelSetArgLocal(kernel, index_order[current_index++],
                                        local_mem_b_size, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, index_order[current_index++],
                                          sizeof(hip_local_offset), nullptr,
                                          &hip_local_offset));
@@ -310,7 +310,7 @@ struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
                                        local_mem_a_size, nullptr));
 
     // Hip has extra args for local mem at index 1-3
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, index_order[current_index++],
                                          sizeof(hip_local_offset), nullptr,
                                          &hip_local_offset));
@@ -326,9 +326,9 @@ struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalOutOfOrder);
 TEST_P(urKernelSetArgLocalOutOfOrder, Success) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];

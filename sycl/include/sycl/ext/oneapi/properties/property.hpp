@@ -210,7 +210,7 @@ enum PropKind : uint32_t {
   InputDataPlacement = 65,
   OutputDataPlacement = 66,
   IncludeFiles = 67,
-  RegisteredKernelNames = 68,
+  RegisteredNames = 68,
   ClusterLaunch = 69,
   FPGACluster = 70,
   Balanced = 71,

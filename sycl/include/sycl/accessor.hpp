@@ -227,7 +227,23 @@ template <typename DataT, int Dimensions = 1,
           typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class accessor;
 
+namespace ext::oneapi::experimental {
+template <typename, int> class dynamic_local_accessor;
+}
+
 namespace detail {
+
+template <typename... Ts>
+#ifndef __SYCL_DEVICE_ONLY__
+[[noreturn]]
+#endif
+void cannot_be_called_on_host([[maybe_unused]] const char *API,
+                              Ts &&.../* ignore */) {
+#ifndef __SYCL_DEVICE_ONLY__
+  std::cerr << API << " cannot be called on host!" << std::endl;
+  std::abort();
+#endif
+}
 
 // A helper structure which is shared between buffer accessor and accessor_impl
 // TODO: Unify with AccessorImplDevice?
@@ -544,7 +560,11 @@ public:
   friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <typename, int, access::mode, access::target, access::placeholder,
             typename>
@@ -580,7 +600,11 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   LocalAccessorImplPtr impl;
 };
@@ -839,7 +863,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
 public:
   // 4.7.6.9.1. Interface for buffer command accessors
@@ -2212,8 +2240,6 @@ protected:
     const auto *this_const = this;
     (void)getSize();
     (void)this_const->getSize();
-    (void)getPtr();
-    (void)this_const->getPtr();
 #endif
   }
 
@@ -2232,7 +2258,11 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <typename DataT_, int Dimensions_> friend class local_accessor;
 
@@ -2564,22 +2594,20 @@ public:
   __SYCL2020_DEPRECATED(
       "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
   local_ptr<DataT> get_pointer() const noexcept {
-#ifndef __SYCL_DEVICE_ONLY__
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_pointer must not be called on the host for a local accessor");
-#endif
+#if __SYCL_DEVICE_ONLY__
     return local_ptr<DataT>(local_acc::getQualifiedPtr());
+#else
+    detail::cannot_be_called_on_host("local_accessor::get_pointer");
+#endif
   }
 
   template <access::decorated IsDecorated>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
-#ifndef __SYCL_DEVICE_ONLY__
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_multi_ptr must not be called on the host for a local accessor");
-#endif
+#if __SYCL_DEVICE_ONLY__
     return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
+#else
+    detail::cannot_be_called_on_host("local_accessor::get_multi_ptr");
+#endif
   }
 
   template <typename Property> bool has_property() const noexcept {
@@ -2614,6 +2642,8 @@ public:
 
 private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+  template <typename, int>
+  friend class ext::oneapi::experimental::dynamic_local_accessor;
 };
 
 template <typename DataT, int Dimensions = 1,
@@ -2650,7 +2680,11 @@ protected:
   friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 #endif // __SYCL_DEVICE_ONLY__
 
 public:

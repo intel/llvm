@@ -9,7 +9,7 @@
 #include <uur/known_failure.h>
 
 struct urUSMPoolCreateTest : uur::urContextTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
     ur_bool_t poolSupport = false;
     ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(device, poolSupport));
@@ -29,7 +29,7 @@ TEST_P(urUSMPoolCreateTest, Success) {
 }
 
 TEST_P(urUSMPoolCreateTest, SuccessWithFlag) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
 
   ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};

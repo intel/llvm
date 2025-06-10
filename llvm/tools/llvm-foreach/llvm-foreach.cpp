@@ -92,25 +92,14 @@ static void error(std::error_code EC, const Twine &Prefix) {
     error(Prefix + ": " + EC.message());
 }
 
-// With BlockingWait=false this function just goes through the all
-// submitted jobs to check if some of them have finished.
-int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted,
-                           bool BlockingWait = true) {
+// This function returns 0 if all jobs have successfully completed..
+int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted) {
   std::string ErrMsg;
   auto It = JobsSubmitted.begin();
   while (It != JobsSubmitted.end()) {
-    sys::ProcessInfo WaitResult = sys::Wait(
-        *It, /*SecondsToWait*/ BlockingWait ? std::nullopt : std::optional(0),
-        &ErrMsg);
-
-    // Check if the job has finished (PID will be 0 if it's not).
-    if (!BlockingWait && !WaitResult.Pid) {
-      It++;
-      continue;
-    }
-    assert(BlockingWait || WaitResult.Pid);
+    sys::ProcessInfo WaitResult = sys::Wait(*It, std::nullopt, &ErrMsg);
+    assert(WaitResult.Pid);
     It = JobsSubmitted.erase(It);
-
     if (WaitResult.ReturnCode != 0) {
       errs() << "llvm-foreach: " << ErrMsg << '\n';
       return WaitResult.ReturnCode;
@@ -271,12 +260,10 @@ int main(int argc, char **argv) {
         IncOutArg += ("_" + Twine(j)).str();
       Args[OutIncrementArg.ArgNum] = IncOutArg;
     }
-
     // Do not start execution of a new job until previous one(s) are finished,
     // if the maximum number of parallel workers is reached.
-    while (JobsSubmitted.size() == JobsInParallel)
-      if (int Result =
-              checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ false))
+    if (JobsSubmitted.size() == JobsInParallel)
+      if (int Result = checkIfJobsAreFinished(JobsSubmitted))
         Res = Result;
 
     JobsSubmitted.emplace_back(
@@ -285,9 +272,8 @@ int main(int argc, char **argv) {
   }
 
   // Wait for all commands to be executed.
-  while (!JobsSubmitted.empty())
-    if (int Result =
-            checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ true))
+  if (!JobsSubmitted.empty())
+    if (int Result = checkIfJobsAreFinished(JobsSubmitted))
       Res = Result;
 
   if (!OutputFileList.empty()) {

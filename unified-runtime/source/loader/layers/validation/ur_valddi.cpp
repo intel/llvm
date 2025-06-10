@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023-2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -31,9 +31,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     ur_adapter_handle_t *phAdapters,
     /// [out][optional] returns the total number of adapters available.
     uint32_t *pNumAdapters) {
-  auto pfnAdapterGet = getContext()->urDdiTable.Global.pfnAdapterGet;
+  auto pfnGet = getContext()->urDdiTable.Adapter.pfnGet;
 
-  if (nullptr == pfnAdapterGet) {
+  if (nullptr == pfnGet) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -42,7 +42,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
       return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
-  ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+  ur_result_t result = pfnGet(NumEntries, phAdapters, pNumAdapters);
 
   if (getContext()->enableLeakChecking && phAdapters &&
       result == UR_RESULT_SUCCESS) {
@@ -60,9 +60,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     /// [in][release] Adapter handle to release
     ur_adapter_handle_t hAdapter) {
-  auto pfnAdapterRelease = getContext()->urDdiTable.Global.pfnAdapterRelease;
+  auto pfnRelease = getContext()->urDdiTable.Adapter.pfnRelease;
 
-  if (nullptr == pfnAdapterRelease) {
+  if (nullptr == pfnRelease) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -75,7 +75,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     getContext()->refCountContext->decrementRefCount(hAdapter, true);
   }
 
-  ur_result_t result = pfnAdapterRelease(hAdapter);
+  ur_result_t result = pfnRelease(hAdapter);
 
   return result;
 }
@@ -85,9 +85,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
 __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     /// [in][retain] Adapter handle to retain
     ur_adapter_handle_t hAdapter) {
-  auto pfnAdapterRetain = getContext()->urDdiTable.Global.pfnAdapterRetain;
+  auto pfnRetain = getContext()->urDdiTable.Adapter.pfnRetain;
 
-  if (nullptr == pfnAdapterRetain) {
+  if (nullptr == pfnRetain) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
@@ -96,7 +96,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
-  ur_result_t result = pfnAdapterRetain(hAdapter);
+  ur_result_t result = pfnRetain(hAdapter);
 
   if (getContext()->enableLeakChecking) {
     getContext()->refCountContext->incrementRefCount(hAdapter, true);
@@ -116,30 +116,29 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
     /// [out] pointer to an integer where the adapter specific error code will
     /// be stored.
     int32_t *pError) {
-  auto pfnAdapterGetLastError =
-      getContext()->urDdiTable.Global.pfnAdapterGetLastError;
+  auto pfnGetLastError = getContext()->urDdiTable.Adapter.pfnGetLastError;
 
-  if (nullptr == pfnAdapterGetLastError) {
+  if (nullptr == pfnGetLastError) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMessage)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pError)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hAdapter)) {
-    getContext()->refCountContext->logInvalidReference(hAdapter);
+    URLOG_CTX_INVALID_REFERENCE(hAdapter);
   }
 
-  ur_result_t result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+  ur_result_t result = pfnGetLastError(hAdapter, ppMessage, pError);
 
   return result;
 }
@@ -162,21 +161,21 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
     /// [out][optional] pointer to the actual number of bytes being queried by
     /// pPropValue.
     size_t *pPropSizeRet) {
-  auto pfnAdapterGetInfo = getContext()->urDdiTable.Global.pfnAdapterGetInfo;
+  auto pfnGetInfo = getContext()->urDdiTable.Adapter.pfnGetInfo;
 
-  if (nullptr == pfnAdapterGetInfo) {
+  if (nullptr == pfnGetInfo) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_ADAPTER_INFO_VERSION < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -187,11 +186,83 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hAdapter)) {
-    getContext()->refCountContext->logInvalidReference(hAdapter);
+    URLOG_CTX_INVALID_REFERENCE(hAdapter);
   }
 
   ur_result_t result =
-      pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue, pPropSizeRet);
+      pfnGetInfo(hAdapter, propName, propSize, pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterSetLoggerCallback
+__urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level) {
+  auto pfnSetLoggerCallback =
+      getContext()->urDdiTable.Adapter.pfnSetLoggerCallback;
+
+  if (nullptr == pfnSetLoggerCallback) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pfnLoggerCallback)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_LOGGER_LEVEL_QUIET < level)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+    URLOG_CTX_INVALID_REFERENCE(hAdapter);
+  }
+
+  ur_result_t result =
+      pfnSetLoggerCallback(hAdapter, pfnLoggerCallback, pUserData, level);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterSetLoggerCallbackLevel
+__urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level) {
+  auto pfnSetLoggerCallbackLevel =
+      getContext()->urDdiTable.Adapter.pfnSetLoggerCallbackLevel;
+
+  if (nullptr == pfnSetLoggerCallbackLevel) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_LOGGER_LEVEL_QUIET < level)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+    URLOG_CTX_INVALID_REFERENCE(hAdapter);
+  }
+
+  ur_result_t result = pfnSetLoggerCallbackLevel(hAdapter, level);
 
   return result;
 }
@@ -199,10 +270,8 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -221,8 +290,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == phAdapters)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NumEntries == 0 && phPlatforms != NULL)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -231,8 +300,12 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
       return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  ur_result_t result =
-      pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+    URLOG_CTX_INVALID_REFERENCE(hAdapter);
+  }
+
+  ur_result_t result = pfnGet(hAdapter, NumEntries, phPlatforms, pNumPlatforms);
 
   return result;
 }
@@ -262,14 +335,14 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_PLATFORM_INFO_ADAPTER < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -298,11 +371,11 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pVersion)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result = pfnGetApiVersion(hPlatform, pVersion);
@@ -325,11 +398,11 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativePlatform)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result = pfnGetNativeHandle(hPlatform, phNativePlatform);
@@ -356,16 +429,16 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phPlatform)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hAdapter)) {
-    getContext()->refCountContext->logInvalidReference(hAdapter);
+    URLOG_CTX_INVALID_REFERENCE(hAdapter);
   }
 
   ur_result_t result = pfnCreateWithNativeHandle(hNativePlatform, hAdapter,
@@ -392,14 +465,14 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pFrontendOption)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppPlatformOption)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result =
@@ -434,11 +507,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NumEntries > 0 && phDevices == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_DEVICE_TYPE_VPU < DeviceType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -487,16 +560,16 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName)
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -505,7 +578,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
@@ -587,19 +660,19 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pProperties)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pProperties->pProperties)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnPartition(hDevice, pProperties, NumDevices,
@@ -630,14 +703,14 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pBinaries)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSelectedBinary)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NumBinaries == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -645,7 +718,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
@@ -668,16 +741,16 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeDevice)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGetNativeHandle(hDevice, phNativeDevice);
@@ -704,16 +777,16 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevice)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hAdapter)) {
-    getContext()->refCountContext->logInvalidReference(hAdapter);
+    URLOG_CTX_INVALID_REFERENCE(hAdapter);
   }
 
   ur_result_t result =
@@ -751,7 +824,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
@@ -874,16 +947,16 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName)
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -892,7 +965,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result =
@@ -915,16 +988,16 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeContext)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnGetNativeHandle(hContext, phNativeContext);
@@ -956,16 +1029,16 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phContext)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hAdapter)) {
-    getContext()->refCountContext->logInvalidReference(hAdapter);
+    URLOG_CTX_INVALID_REFERENCE(hAdapter);
   }
 
   ur_result_t result = pfnCreateWithNativeHandle(
@@ -995,16 +1068,16 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pfnDeleter)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnSetExtendedDeleter(hContext, pfnDeleter, pUserData);
@@ -1034,9 +1107,6 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -1045,6 +1115,9 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
 
     if (NULL == phMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_MEM_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1078,7 +1151,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result =
@@ -1111,11 +1184,11 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_MEM_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1141,7 +1214,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result =
@@ -1224,14 +1297,14 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pRegion)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_MEM_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1245,7 +1318,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result =
@@ -1271,21 +1344,21 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hMem)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hMem)) {
-    getContext()->refCountContext->logInvalidReference(hMem);
+    URLOG_CTX_INVALID_REFERENCE(hMem);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);
@@ -1312,16 +1385,16 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result =
@@ -1357,9 +1430,6 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -1368,11 +1438,14 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
 
     if (NULL == phMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnImageCreateWithNativeHandle(
@@ -1410,14 +1483,14 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hMemory)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hMemory)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_MEM_INFO_REFERENCE_COUNT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1428,7 +1501,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hMemory)) {
-    getContext()->refCountContext->logInvalidReference(hMemory);
+    URLOG_CTX_INVALID_REFERENCE(hMemory);
   }
 
   ur_result_t result =
@@ -1462,14 +1535,14 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hMemory)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hMemory)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_IMAGE_INFO_NUM_SAMPLES < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1480,7 +1553,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hMemory)) {
-    getContext()->refCountContext->logInvalidReference(hMemory);
+    URLOG_CTX_INVALID_REFERENCE(hMemory);
   }
 
   ur_result_t result =
@@ -1505,14 +1578,14 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phSampler)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT < pDesc->addressingMode)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1523,7 +1596,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnCreate(hContext, pDesc, phSampler);
@@ -1606,14 +1679,14 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hSampler)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hSampler)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_SAMPLER_INFO_FILTER_MODE < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1624,7 +1697,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hSampler)) {
-    getContext()->refCountContext->logInvalidReference(hSampler);
+    URLOG_CTX_INVALID_REFERENCE(hSampler);
   }
 
   ur_result_t result =
@@ -1647,16 +1720,16 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hSampler)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeSampler)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hSampler)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hSampler)) {
-    getContext()->refCountContext->logInvalidReference(hSampler);
+    URLOG_CTX_INVALID_REFERENCE(hSampler);
   }
 
   ur_result_t result = pfnGetNativeHandle(hSampler, phNativeSampler);
@@ -1683,16 +1756,16 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phSampler)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnCreateWithNativeHandle(hNativeSampler, hContext,
@@ -1725,11 +1798,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1744,12 +1817,12 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(pool)) {
-    getContext()->refCountContext->logInvalidReference(pool);
+    URLOG_CTX_INVALID_REFERENCE(pool);
   }
 
   ur_result_t result = pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
@@ -1779,14 +1852,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ppMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1801,17 +1874,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(pool)) {
-    getContext()->refCountContext->logInvalidReference(pool);
+    URLOG_CTX_INVALID_REFERENCE(pool);
   }
 
   ur_result_t result =
@@ -1842,14 +1915,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ppMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1864,17 +1937,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(pool)) {
-    getContext()->refCountContext->logInvalidReference(pool);
+    URLOG_CTX_INVALID_REFERENCE(pool);
   }
 
   ur_result_t result =
@@ -1897,16 +1970,16 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnFree(hContext, pMem);
@@ -1937,11 +2010,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_ALLOC_INFO_POOL < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1949,7 +2022,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnGetMemAllocInfo(hContext, pMem, propName, propSize,
@@ -1975,14 +2048,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pPoolDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppPool)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1990,7 +2063,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnPoolCreate(hContext, pPoolDesc, ppPool);
@@ -2073,16 +2146,16 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPool)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_USM_POOL_INFO_CONTEXT < propName)
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -2091,7 +2164,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hPool)) {
-    getContext()->refCountContext->logInvalidReference(hPool);
+    URLOG_CTX_INVALID_REFERENCE(hPool);
   }
 
   ur_result_t result =
@@ -2129,14 +2202,14 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2147,12 +2220,12 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGranularityGetInfo(
@@ -2182,16 +2255,16 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnReserve(hContext, pStart, size, ppStart);
@@ -2215,16 +2288,16 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnFree(hContext, pStart, size);
@@ -2254,14 +2327,14 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pStart)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hPhysicalMem)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pStart)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2269,12 +2342,12 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hPhysicalMem)) {
-    getContext()->refCountContext->logInvalidReference(hPhysicalMem);
+    URLOG_CTX_INVALID_REFERENCE(hPhysicalMem);
   }
 
   ur_result_t result =
@@ -2299,16 +2372,16 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnUnmap(hContext, pStart, size);
@@ -2334,11 +2407,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2346,7 +2419,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnSetAccess(hContext, pStart, size, flags);
@@ -2382,11 +2455,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_VIRTUAL_MEM_INFO_ACCESS_MODE < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2394,7 +2467,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnGetInfo(hContext, pStart, size, propName, propSize,
@@ -2424,14 +2497,14 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == phPhysicalMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == phPhysicalMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL != pProperties && UR_PHYSICAL_MEM_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2439,12 +2512,12 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
@@ -2540,7 +2613,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hPhysicalMem)) {
-    getContext()->refCountContext->logInvalidReference(hPhysicalMem);
+    URLOG_CTX_INVALID_REFERENCE(hPhysicalMem);
   }
 
   ur_result_t result =
@@ -2569,9 +2642,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pIL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -2581,6 +2651,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     if (NULL != pProperties && pProperties->count > 0 &&
         NULL == pProperties->pMetadatas)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pProperties && NULL != pProperties->pMetadatas &&
         pProperties->count == 0)
@@ -2592,7 +2665,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result =
@@ -2633,9 +2706,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevices)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -2652,6 +2722,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
         NULL == pProperties->pMetadatas)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
     if (NULL != pProperties && NULL != pProperties->pMetadatas &&
         pProperties->count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -2662,7 +2735,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result =
@@ -2701,12 +2774,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnBuild(hContext, hProgram, pOptions);
@@ -2739,12 +2812,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnCompile(hContext, hProgram, pOptions);
@@ -2775,14 +2848,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phPrograms)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phProgram)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -2790,7 +2863,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result =
@@ -2870,27 +2943,27 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pFunctionName)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppFunctionPointer)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
@@ -2922,27 +2995,27 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalVariableName)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppGlobalVariablePointerRet)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnGetGlobalVariablePointer(
@@ -2978,14 +3051,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_PROGRAM_INFO_KERNEL_NAMES < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2996,7 +3069,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result =
@@ -3044,12 +3117,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGetBuildInfo(hProgram, hDevice, propName, propSize,
@@ -3076,11 +3149,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pSpecConstants)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -3088,7 +3161,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result =
@@ -3111,16 +3184,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeProgram)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnGetNativeHandle(hProgram, phNativeProgram);
@@ -3147,16 +3220,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phProgram)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnCreateWithNativeHandle(hNativeProgram, hContext,
@@ -3185,19 +3258,19 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pKernelName)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phKernel)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnCreate(hProgram, pKernelName, phKernel);
@@ -3231,16 +3304,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pArgValue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result =
@@ -3273,7 +3346,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result = pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
@@ -3307,14 +3380,14 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_KERNEL_INFO_SPILL_MEM_SIZE < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3325,7 +3398,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result =
@@ -3370,12 +3443,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGetGroupInfo(hKernel, hDevice, propName, propSize,
@@ -3420,12 +3493,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnGetSubGroupInfo(hKernel, hDevice, propName, propSize,
@@ -3509,7 +3582,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result =
@@ -3539,11 +3612,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pPropValue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3551,7 +3624,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result =
@@ -3587,12 +3660,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hArgValue)) {
-    getContext()->refCountContext->logInvalidReference(hArgValue);
+    URLOG_CTX_INVALID_REFERENCE(hArgValue);
   }
 
   ur_result_t result =
@@ -3628,12 +3701,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hArgValue)) {
-    getContext()->refCountContext->logInvalidReference(hArgValue);
+    URLOG_CTX_INVALID_REFERENCE(hArgValue);
   }
 
   ur_result_t result =
@@ -3659,11 +3732,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pSpecConstants)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -3671,7 +3744,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result =
@@ -3694,16 +3767,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeKernel)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result = pfnGetNativeHandle(hKernel, phNativeKernel);
@@ -3732,21 +3805,21 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phKernel)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnCreateWithNativeHandle(
@@ -3787,12 +3860,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalWorkOffset)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -3801,21 +3868,87 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 
     if (NULL == pSuggestedLocalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnGetSuggestedLocalWorkSize(
       hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize,
       pSuggestedLocalWorkSize);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] number of dimensions, from 1 to 3, to specify the work-group
+    /// work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of local work-items forming a work-group that will execute the
+    /// kernel function.
+    const size_t *pLocalWorkSize,
+    /// [in] size of dynamic shared memory, for each work-group, in bytes,
+    /// that will be used when the kernel is launched
+    size_t dynamicSharedMemorySize,
+    /// [out] pointer to maximum number of groups
+    uint32_t *pGroupCountRet) {
+  auto pfnSuggestMaxCooperativeGroupCount =
+      getContext()->urDdiTable.Kernel.pfnSuggestMaxCooperativeGroupCount;
+
+  if (nullptr == pfnSuggestMaxCooperativeGroupCount) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pLocalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pGroupCountRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (workDim < 1 || workDim > 3)
+      return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hKernel)) {
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnSuggestMaxCooperativeGroupCount(
+      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+      pGroupCountRet);
 
   return result;
 }
@@ -3841,14 +3974,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_QUEUE_INFO_EMPTY < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3859,7 +3992,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result =
@@ -3886,14 +4019,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == phQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == phQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL != pProperties && UR_QUEUE_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3911,12 +4044,12 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
@@ -3994,16 +4127,16 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeQueue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
@@ -4032,21 +4165,21 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phQueue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnCreateWithNativeHandle(hNativeQueue, hContext,
@@ -4077,7 +4210,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnFinish(hQueue);
@@ -4103,7 +4236,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnFlush(hQueue);
@@ -4132,14 +4265,14 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hEvent)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EVENT_INFO_REFERENCE_COUNT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -4150,7 +4283,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hEvent)) {
-    getContext()->refCountContext->logInvalidReference(hEvent);
+    URLOG_CTX_INVALID_REFERENCE(hEvent);
   }
 
   ur_result_t result =
@@ -4193,7 +4326,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hEvent)) {
-    getContext()->refCountContext->logInvalidReference(hEvent);
+    URLOG_CTX_INVALID_REFERENCE(hEvent);
   }
 
   ur_result_t result =
@@ -4293,16 +4426,16 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hEvent)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeEvent)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hEvent)) {
-    getContext()->refCountContext->logInvalidReference(hEvent);
+    URLOG_CTX_INVALID_REFERENCE(hEvent);
   }
 
   ur_result_t result = pfnGetNativeHandle(hEvent, phNativeEvent);
@@ -4329,22 +4462,23 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phEvent)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result =
       pfnCreateWithNativeHandle(hNativeEvent, hContext, pProperties, phEvent);
 
-  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
@@ -4369,11 +4503,11 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hEvent)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pfnNotify)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXECUTION_INFO_QUEUED < execStatus)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -4384,7 +4518,7 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hEvent)) {
-    getContext()->refCountContext->logInvalidReference(hEvent);
+    URLOG_CTX_INVALID_REFERENCE(hEvent);
   }
 
   ur_result_t result = pfnSetCallback(hEvent, execStatus, pfnNotify, pUserData);
@@ -4402,8 +4536,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// [in] number of dimensions, from 1 to 3, to specify the global and
     /// work-group work-items
     uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
     const size_t *pGlobalWorkOffset,
     /// [in] pointer to an array of workDim unsigned values that specify the
     /// number of global work-items in workDim that will execute the kernel
@@ -4414,6 +4548,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
+    const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4433,17 +4572,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pGlobalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (launchPropList == NULL && numPropsInLaunchPropList > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hKernel)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pGlobalWorkOffset)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == pGlobalWorkSize)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4462,17 +4601,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result = pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
+      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4521,11 +4666,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result =
       pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4575,11 +4725,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
                                                 phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4617,14 +4772,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4650,17 +4805,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result =
       pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
                        numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4698,14 +4858,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4731,17 +4891,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result =
       pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc,
                         numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4792,14 +4957,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4807,7 +4972,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     if (phEventWaitList != NULL && numEventsInWaitList == 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
-    if (region.width == 0 || region.height == 0 || region.width == 0)
+    if (region.width == 0 || region.height == 0 || region.depth == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
 
     if (bufferRowPitch != 0 && bufferRowPitch < region.width)
@@ -4854,18 +5019,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result = pfnMemBufferReadRect(
       hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
       bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4917,14 +5087,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4932,7 +5102,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     if (phEventWaitList != NULL && numEventsInWaitList == 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
-    if (region.width == 0 || region.height == 0 || region.width == 0)
+    if (region.width == 0 || region.height == 0 || region.depth == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
 
     if (bufferRowPitch != 0 && bufferRowPitch < region.width)
@@ -4979,18 +5149,23 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result = pfnMemBufferWriteRect(
       hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
       bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5068,22 +5243,27 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBufferSrc)) {
-    getContext()->refCountContext->logInvalidReference(hBufferSrc);
+    URLOG_CTX_INVALID_REFERENCE(hBufferSrc);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBufferDst)) {
-    getContext()->refCountContext->logInvalidReference(hBufferDst);
+    URLOG_CTX_INVALID_REFERENCE(hBufferDst);
   }
 
   ur_result_t result =
       pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset,
                        size, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5197,23 +5377,28 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBufferSrc)) {
-    getContext()->refCountContext->logInvalidReference(hBufferSrc);
+    URLOG_CTX_INVALID_REFERENCE(hBufferSrc);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBufferDst)) {
-    getContext()->refCountContext->logInvalidReference(hBufferDst);
+    URLOG_CTX_INVALID_REFERENCE(hBufferDst);
   }
 
   ur_result_t result = pfnMemBufferCopyRect(
       hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList,
       phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5251,14 +5436,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pPattern)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pPattern)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5299,17 +5484,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result =
       pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset, size,
                        numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5352,14 +5542,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hImage)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5388,17 +5578,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hImage)) {
-    getContext()->refCountContext->logInvalidReference(hImage);
+    URLOG_CTX_INVALID_REFERENCE(hImage);
   }
 
   ur_result_t result = pfnMemImageRead(
       hQueue, hImage, blockingRead, origin, region, rowPitch, slicePitch, pDst,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5441,14 +5636,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hImage)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5477,17 +5672,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hImage)) {
-    getContext()->refCountContext->logInvalidReference(hImage);
+    URLOG_CTX_INVALID_REFERENCE(hImage);
   }
 
   ur_result_t result = pfnMemImageWrite(
       hQueue, hImage, blockingWrite, origin, region, rowPitch, slicePitch, pSrc,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5571,22 +5771,27 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hImageSrc)) {
-    getContext()->refCountContext->logInvalidReference(hImageSrc);
+    URLOG_CTX_INVALID_REFERENCE(hImageSrc);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hImageDst)) {
-    getContext()->refCountContext->logInvalidReference(hImageDst);
+    URLOG_CTX_INVALID_REFERENCE(hImageDst);
   }
 
   ur_result_t result =
       pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
                       region, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5627,14 +5832,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ppRetMap)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ppRetMap)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (UR_MAP_FLAGS_MASK & mapFlags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -5663,17 +5868,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result =
       pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags, offset, size,
                       numEventsInWaitList, phEventWaitList, phEvent, ppRetMap);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5705,14 +5915,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pMappedPtr)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hMem)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pMappedPtr)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5731,16 +5941,21 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hMem)) {
-    getContext()->refCountContext->logInvalidReference(hMem);
+    URLOG_CTX_INVALID_REFERENCE(hMem);
   }
 
   ur_result_t result = pfnMemUnmap(
       hQueue, hMem, pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5777,14 +5992,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pPattern)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (patternSize == 0 || size == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -5819,12 +6034,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result =
       pfnUSMFill(hQueue, pMem, patternSize, pPattern, size, numEventsInWaitList,
                  phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5860,14 +6080,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (size == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -5903,12 +6123,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result =
       pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
                    phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5942,11 +6167,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_MIGRATION_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -5978,11 +6203,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnUSMPrefetch(
       hQueue, pMem, size, flags, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6008,11 +6238,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_ADVICE_FLAGS_MASK & advice)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -6030,10 +6260,15 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6076,14 +6311,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pPattern)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (pitch == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -6133,7 +6368,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result =
@@ -6182,14 +6417,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (srcPitch == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -6237,7 +6472,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result =
@@ -6284,17 +6519,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == name)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -6313,17 +6548,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnDeviceGlobalVariableWrite(
       hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6365,17 +6605,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == name)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -6394,17 +6634,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnDeviceGlobalVariableRead(
       hQueue, hProgram, name, blockingRead, count, offset, pDst,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6447,17 +6692,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pipe_symbol)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -6476,17 +6721,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result =
       pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
                       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6530,17 +6780,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pipe_symbol)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -6559,17 +6809,677 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result =
       pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
                        numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMDeviceAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMDeviceAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMDeviceAllocExp;
+
+  if (nullptr == pfnUSMDeviceAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pProperties &&
+        UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    URLOG_CTX_INVALID_REFERENCE(pPool);
+  }
+
+  ur_result_t result = pfnUSMDeviceAllocExp(hQueue, pPool, size, pProperties,
+                                            numEventsInWaitList,
+                                            phEventWaitList, ppMem, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMSharedAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMSharedAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMSharedAllocExp;
+
+  if (nullptr == pfnUSMSharedAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pProperties &&
+        UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    URLOG_CTX_INVALID_REFERENCE(pPool);
+  }
+
+  ur_result_t result = pfnUSMSharedAllocExp(hQueue, pPool, size, pProperties,
+                                            numEventsInWaitList,
+                                            phEventWaitList, ppMem, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMHostAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMHostAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMHostAllocExp;
+
+  if (nullptr == pfnUSMHostAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pProperties &&
+        UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    URLOG_CTX_INVALID_REFERENCE(pPool);
+  }
+
+  ur_result_t result =
+      pfnUSMHostAllocExp(hQueue, pPool, size, pProperties, numEventsInWaitList,
+                         phEventWaitList, ppMem, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMFreeExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] pointer to USM memory object
+    void *pMem,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMFreeExp = getContext()->urDdiTable.EnqueueExp.pfnUSMFreeExp;
+
+  if (nullptr == pfnUSMFreeExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    URLOG_CTX_INVALID_REFERENCE(pPool);
+  }
+
+  ur_result_t result = pfnUSMFreeExp(hQueue, pPool, pMem, numEventsInWaitList,
+                                     phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolCreateExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to USM pool descriptor. Can be chained with
+    /// ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_desc_t *pPoolDesc,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) {
+  auto pfnPoolCreateExp = getContext()->urDdiTable.USMExp.pfnPoolCreateExp;
+
+  if (nullptr == pfnPoolCreateExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pPoolDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pPool)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnPoolCreateExp(hContext, hDevice, pPoolDesc, pPool);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    getContext()->refCountContext->createRefCount(*pPool);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolDestroyExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool to be destroyed
+    ur_usm_pool_handle_t hPool) {
+  auto pfnPoolDestroyExp = getContext()->urDdiTable.USMExp.pfnPoolDestroyExp;
+
+  if (nullptr == pfnPoolDestroyExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    URLOG_CTX_INVALID_REFERENCE(hPool);
+  }
+
+  ur_result_t result = pfnPoolDestroyExp(hContext, hDevice, hPool);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetDefaultDevicePoolExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) {
+  auto pfnPoolGetDefaultDevicePoolExp =
+      getContext()->urDdiTable.USMExp.pfnPoolGetDefaultDevicePoolExp;
+
+  if (nullptr == pfnPoolGetDefaultDevicePoolExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pPool)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnPoolGetDefaultDevicePoolExp(hContext, hDevice, pPool);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
+    /// [in] handle to USM memory pool for property retrieval
+    ur_usm_pool_handle_t hPool,
+    /// [in] queried property name
+    ur_usm_pool_info_t propName,
+    /// [out][optional] returned query value
+    void *pPropValue,
+    /// [out][optional] returned query value size
+    size_t *pPropSizeRet) {
+  auto pfnPoolGetInfoExp = getContext()->urDdiTable.USMExp.pfnPoolGetInfoExp;
+
+  if (nullptr == pfnPoolGetInfoExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (pPropValue == NULL && pPropSizeRet == NULL)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    URLOG_CTX_INVALID_REFERENCE(hPool);
+  }
+
+  ur_result_t result =
+      pfnPoolGetInfoExp(hPool, propName, pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) {
+  auto pfnPoolSetInfoExp = getContext()->urDdiTable.USMExp.pfnPoolSetInfoExp;
+
+  if (nullptr == pfnPoolSetInfoExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pPropValue)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    URLOG_CTX_INVALID_REFERENCE(hPool);
+  }
+
+  ur_result_t result = pfnPoolSetInfoExp(hPool, propName, pPropValue, propSize);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetDevicePoolExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool to set for a device
+    ur_usm_pool_handle_t hPool) {
+  auto pfnPoolSetDevicePoolExp =
+      getContext()->urDdiTable.USMExp.pfnPoolSetDevicePoolExp;
+
+  if (nullptr == pfnPoolSetDevicePoolExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    URLOG_CTX_INVALID_REFERENCE(hPool);
+  }
+
+  ur_result_t result = pfnPoolSetDevicePoolExp(hContext, hDevice, hPool);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetDevicePoolExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) {
+  auto pfnPoolGetDevicePoolExp =
+      getContext()->urDdiTable.USMExp.pfnPoolGetDevicePoolExp;
+
+  if (nullptr == pfnPoolGetDevicePoolExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pPool)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnPoolGetDevicePoolExp(hContext, hDevice, pPool);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolTrimToExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolTrimToExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool for trimming
+    ur_usm_pool_handle_t hPool,
+    /// [in] minimum number of bytes to keep in the pool
+    size_t minBytesToKeep) {
+  auto pfnPoolTrimToExp = getContext()->urDdiTable.USMExp.pfnPoolTrimToExp;
+
+  if (nullptr == pfnPoolTrimToExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    URLOG_CTX_INVALID_REFERENCE(hPool);
+  }
+
+  ur_result_t result =
+      pfnPoolTrimToExp(hContext, hDevice, hPool, minBytesToKeep);
 
   return result;
 }
@@ -6602,17 +7512,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pResultPitch)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -6627,17 +7537,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(pool)) {
-    getContext()->refCountContext->logInvalidReference(pool);
+    URLOG_CTX_INVALID_REFERENCE(pool);
   }
 
   ur_result_t result =
@@ -6675,12 +7585,12 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
@@ -6717,12 +7627,12 @@ urBindlessImagesSampledImageHandleDestroyExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
@@ -6752,12 +7662,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -6767,18 +7671,24 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     if (NULL == phImageMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
@@ -6813,12 +7723,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnImageFreeExp(hContext, hDevice, hImageMem);
@@ -6849,12 +7759,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -6864,18 +7768,24 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     if (NULL == phImage)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnUnsampledImageCreateExp(
@@ -6897,8 +7807,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [in] sampler to be used
-    ur_sampler_handle_t hSampler,
+    /// [in] pointer to sampler description to be used
+    const ur_sampler_desc_t *pSamplerDesc,
     /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage) {
   auto pfnSampledImageCreateExp =
@@ -6909,23 +7819,30 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hSampler)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pImageDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (NULL == pSamplerDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == phImage)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT <
+        pSamplerDesc->addressingMode)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (UR_SAMPLER_FILTER_MODE_LINEAR < pSamplerDesc->filterMode)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
@@ -6933,22 +7850,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hSampler)) {
-    getContext()->refCountContext->logInvalidReference(hSampler);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
       pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                               pImageDesc, hSampler, phImage);
+                               pImageDesc, pSamplerDesc, phImage);
 
   return result;
 }
@@ -6995,9 +7907,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -7019,6 +7928,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     if (NULL == pCopyRegion)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
     if (UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
@@ -7039,7 +7951,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnImageCopyExp(
@@ -7071,11 +7983,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_IMAGE_INFO_NUM_SAMPLES < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -7083,11 +7995,200 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnImageGetInfoExp(hContext, hImageMem, propName,
                                           pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageMemoryHandleTypeSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryHandleTypeSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for allocating the given image
+    /// backing memory handle type
+    ur_bool_t *pSupportedRet) {
+  auto pfnGetImageMemoryHandleTypeSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageMemoryHandleTypeSupportExp;
+
+  if (nullptr == pfnGetImageMemoryHandleTypeSupportExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pImageDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pImageFormat)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSupportedRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnGetImageMemoryHandleTypeSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageUnsampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating unsampled image
+    /// handles
+    ur_bool_t *pSupportedRet) {
+  auto pfnGetImageUnsampledHandleSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageUnsampledHandleSupportExp;
+
+  if (nullptr == pfnGetImageUnsampledHandleSupportExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pImageDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pImageFormat)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSupportedRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnGetImageUnsampledHandleSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageSampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageSampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating sampled image
+    /// handles
+    ur_bool_t *pSupportedRet) {
+  auto pfnGetImageSampledHandleSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageSampledHandleSupportExp;
+
+  if (nullptr == pfnGetImageSampledHandleSupportExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pImageDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pImageFormat)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSupportedRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE < imageMemHandleType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnGetImageSampledHandleSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
 
   return result;
 }
@@ -7113,24 +8214,24 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == phImageMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == phImageMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem,
@@ -7165,12 +8266,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnMipmapFreeExp(hContext, hDevice, hMem);
@@ -7201,17 +8302,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pExternalMemDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phExternalMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < memHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -7219,12 +8320,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnImportExternalMemoryExp(
@@ -7256,15 +8357,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hExternalMem)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -7274,18 +8366,27 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     if (NULL == phImageMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hExternalMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnMapExternalArrayExp(
@@ -7317,6 +8418,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ppRetMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
@@ -7325,19 +8429,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
 
     if (NULL == hExternalMem)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ppRetMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnMapExternalLinearMemoryExp(
@@ -7375,16 +8476,58 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
       pfnReleaseExternalMemoryExp(hContext, hDevice, hExternalMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesFreeMappedLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) {
+  auto pfnFreeMappedLinearMemoryExp =
+      getContext()->urDdiTable.BindlessImagesExp.pfnFreeMappedLinearMemoryExp;
+
+  if (nullptr == pfnFreeMappedLinearMemoryExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (pMem == NULL)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
 
   return result;
 }
@@ -7410,30 +8553,30 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pExternalSemaphoreDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phExternalSemaphore)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE < semHandleType)
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT < semHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result = pfnImportExternalSemaphoreExp(
@@ -7472,12 +8615,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
@@ -7537,7 +8680,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnWaitExternalSemaphoreExp(
@@ -7598,7 +8741,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnSignalExternalSemaphoreExp(
@@ -7626,27 +8769,27 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pCommandBufferDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
   ur_result_t result =
@@ -7747,8 +8890,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t *phKernelAlternatives,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -7773,17 +8916,17 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalWorkOffset)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phKernelAlternatives == NULL && numKernelAlternatives > 0)
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -7814,7 +8957,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
   }
 
   ur_result_t result = pfnAppendKernelLaunchExp(
@@ -7839,8 +8982,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -7864,14 +9007,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (size == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -7920,8 +9063,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -7945,14 +9088,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMemory)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pPattern)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (patternSize == 0 || size == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -8009,8 +9152,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8066,12 +9209,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hSrcMem)) {
-    getContext()->refCountContext->logInvalidReference(hSrcMem);
+    URLOG_CTX_INVALID_REFERENCE(hSrcMem);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDstMem)) {
-    getContext()->refCountContext->logInvalidReference(hDstMem);
+    URLOG_CTX_INVALID_REFERENCE(hDstMem);
   }
 
   ur_result_t result = pfnAppendMemBufferCopyExp(
@@ -8097,8 +9240,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     const void *pSrc,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8122,14 +9265,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -8154,7 +9297,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result = pfnAppendMemBufferWriteExp(
@@ -8180,8 +9323,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     void *pDst,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8205,14 +9348,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -8237,7 +9380,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result = pfnAppendMemBufferReadExp(
@@ -8273,8 +9416,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     size_t dstSlicePitch,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8330,12 +9473,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hSrcMem)) {
-    getContext()->refCountContext->logInvalidReference(hSrcMem);
+    URLOG_CTX_INVALID_REFERENCE(hSrcMem);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hDstMem)) {
-    getContext()->refCountContext->logInvalidReference(hDstMem);
+    URLOG_CTX_INVALID_REFERENCE(hDstMem);
   }
 
   ur_result_t result = pfnAppendMemBufferCopyRectExp(
@@ -8375,8 +9518,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     void *pSrc,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8400,14 +9543,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -8432,7 +9575,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result = pfnAppendMemBufferWriteRectExp(
@@ -8471,8 +9614,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     void *pDst,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8496,14 +9639,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -8528,7 +9671,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result = pfnAppendMemBufferReadRectExp(
@@ -8557,8 +9700,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8582,14 +9725,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pPattern)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pPattern)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -8614,7 +9757,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hBuffer)) {
-    getContext()->refCountContext->logInvalidReference(hBuffer);
+    URLOG_CTX_INVALID_REFERENCE(hBuffer);
   }
 
   ur_result_t result = pfnAppendMemBufferFillExp(
@@ -8638,8 +9781,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8663,11 +9806,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMemory)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_MIGRATION_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -8717,8 +9860,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_usm_advice_flags_t advice,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -8742,11 +9885,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMemory)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_ADVICE_FLAGS_MASK & advice)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -8784,12 +9927,63 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferEnqueueExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+/// @brief Intercept function for urCommandBufferAppendNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     /// [in] Handle of the command-buffer object.
     ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  auto pfnAppendNativeCommandExp =
+      getContext()->urDdiTable.CommandBufferExp.pfnAppendNativeCommandExp;
+
+  if (nullptr == pfnAppendNativeCommandExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pfnNativeCommand)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+
+    if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+  }
+
+  ur_result_t result = pfnAppendNativeCommandExp(
+      hCommandBuffer, pfnNativeCommand, pData, hChildCommandBuffer,
+      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueCommandBufferExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -8802,17 +9996,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// phEvent are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) {
-  auto pfnEnqueueExp = getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
+  auto pfnCommandBufferExp =
+      getContext()->urDdiTable.EnqueueExp.pfnCommandBufferExp;
 
-  if (nullptr == pfnEnqueueExp) {
+  if (nullptr == pfnCommandBufferExp) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
+    if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (NULL == hQueue)
+    if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
@@ -8832,11 +10027,16 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
-  ur_result_t result = pfnEnqueueExp(
-      hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+  ur_result_t result = pfnCommandBufferExp(
+      hQueue, hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -8844,9 +10044,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
   auto pfnUpdateKernelLaunchExp =
@@ -8857,18 +10060,21 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommand)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pUpdateKernelLaunch)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (pUpdateKernelLaunch->newWorkDim < 1 ||
-        pUpdateKernelLaunch->newWorkDim > 3)
-      return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pUpdateKernelLaunch->hCommand)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (numKernelUpdates == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
-  ur_result_t result = pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+  ur_result_t result = pfnUpdateKernelLaunchExp(
+      hCommandBuffer, numKernelUpdates, pUpdateKernelLaunch);
 
   return result;
 }
@@ -8888,11 +10094,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommand)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phSignalEvent)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommand)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result = pfnUpdateSignalEventExp(hCommand, phSignalEvent);
@@ -8964,14 +10170,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -8987,144 +10193,29 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueCooperativeKernelLaunchExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  auto pfnCooperativeKernelLaunchExp =
-      getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
+/// @brief Intercept function for urCommandBufferGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer) {
+  auto pfnGetNativeHandleExp =
+      getContext()->urDdiTable.CommandBufferExp.pfnGetNativeHandleExp;
 
-  if (nullptr == pfnCooperativeKernelLaunchExp) {
+  if (nullptr == pfnGetNativeHandleExp) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pGlobalWorkOffset)
+    if (NULL == phNativeCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (NULL == pGlobalWorkSize)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (phEventWaitList == NULL && numEventsInWaitList > 0)
-      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-
-    if (phEventWaitList != NULL && numEventsInWaitList == 0)
-      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-
-    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
-      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
-        if (phEventWaitList[i] == NULL) {
-          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-        }
-      }
-    }
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
-  }
-
-  ur_result_t result = pfnCooperativeKernelLaunchExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
-__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] number of dimensions, from 1 to 3, to specify the work-group
-    /// work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of local work-items forming a work-group that will execute the
-    /// kernel function.
-    const size_t *pLocalWorkSize,
-    /// [in] size of dynamic shared memory, for each work-group, in bytes,
-    /// that will be used when the kernel is launched
-    size_t dynamicSharedMemorySize,
-    /// [out] pointer to maximum number of groups
-    uint32_t *pGroupCountRet) {
-  auto pfnSuggestMaxCooperativeGroupCountExp =
-      getContext()->urDdiTable.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
-
-  if (nullptr == pfnSuggestMaxCooperativeGroupCountExp) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
+    if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pLocalWorkSize)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == pGroupCountRet)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
-  }
-
-  ur_result_t result = pfnSuggestMaxCooperativeGroupCountExp(
-      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
-      pGroupCountRet);
+  ur_result_t result =
+      pfnGetNativeHandleExp(hCommandBuffer, phNativeCommandBuffer);
 
   return result;
 }
@@ -9164,11 +10255,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phEvent)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -9187,99 +10278,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnTimestampRecordingExp(
       hQueue, blocking, numEventsInWaitList, phEventWaitList, phEvent);
 
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function. If nullptr, the runtime implementation
-    /// will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_exp_launch_property_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If nullptr,
-    /// the numEventsInWaitList must be 0, indicating that no wait event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  auto pfnKernelLaunchCustomExp =
-      getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
-
-  if (nullptr == pfnKernelLaunchCustomExp) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
   }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pGlobalWorkOffset)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == pGlobalWorkSize)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == launchPropList)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
-      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
-        if (phEventWaitList[i] == NULL) {
-          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-        }
-      }
-    }
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hKernel)) {
-    getContext()->refCountContext->logInvalidReference(hKernel);
-  }
-
-  ur_result_t result = pfnKernelLaunchCustomExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
 
   return result;
 }
@@ -9302,16 +10310,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevices)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
@@ -9337,16 +10345,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevices)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
+    URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
   ur_result_t result = pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
@@ -9381,9 +10389,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevices)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -9393,17 +10398,63 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     if (NULL == phProgram)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
                                   phPrograms, pOptions, phProgram);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+  auto pfnContextMemcpyExp =
+      getContext()->urDdiTable.USMExp.pfnContextMemcpyExp;
+
+  if (nullptr == pfnContextMemcpyExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (size == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnContextMemcpyExp(hContext, pDst, pSrc, size);
 
   return result;
 }
@@ -9424,16 +10475,16 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnImportExp(hContext, pMem, size);
@@ -9455,16 +10506,16 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
+    URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
   ur_result_t result = pfnReleaseExp(hContext, pMem);
@@ -9496,12 +10547,12 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(commandDevice)) {
-    getContext()->refCountContext->logInvalidReference(commandDevice);
+    URLOG_CTX_INVALID_REFERENCE(commandDevice);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(peerDevice)) {
-    getContext()->refCountContext->logInvalidReference(peerDevice);
+    URLOG_CTX_INVALID_REFERENCE(peerDevice);
   }
 
   ur_result_t result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
@@ -9533,12 +10584,12 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(commandDevice)) {
-    getContext()->refCountContext->logInvalidReference(commandDevice);
+    URLOG_CTX_INVALID_REFERENCE(commandDevice);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(peerDevice)) {
-    getContext()->refCountContext->logInvalidReference(peerDevice);
+    URLOG_CTX_INVALID_REFERENCE(peerDevice);
   }
 
   ur_result_t result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
@@ -9575,19 +10626,19 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == commandDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == peerDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName)
+    if (NULL == commandDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == peerDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -9596,12 +10647,12 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(commandDevice)) {
-    getContext()->refCountContext->logInvalidReference(commandDevice);
+    URLOG_CTX_INVALID_REFERENCE(commandDevice);
   }
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(peerDevice)) {
-    getContext()->refCountContext->logInvalidReference(peerDevice);
+    URLOG_CTX_INVALID_REFERENCE(peerDevice);
   }
 
   ur_result_t result = pfnPeerAccessGetInfoExp(
@@ -9661,11 +10712,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnEventsWaitWithBarrierExt(
       hQueue, pProperties, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -9710,11 +10766,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pfnNativeEnqueue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pProperties &&
         UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags)
@@ -9731,30 +10787,35 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
   if (getContext()->enableLifetimeValidation &&
       !getContext()->refCountContext->isReferenceValid(hQueue)) {
-    getContext()->refCountContext->logInvalidReference(hQueue);
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
   }
 
   ur_result_t result = pfnNativeCommandExp(
       hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
       numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
+/// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     /// [in] API version requested
     ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) {
-  auto &dditable = ur_validation_layer::getContext()->urDdiTable.Global;
+    ur_adapter_dditable_t *pDdiTable) {
+  auto &dditable = ur_validation_layer::getContext()->urDdiTable.Adapter;
 
   if (nullptr == pDdiTable)
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
@@ -9767,21 +10828,28 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  dditable.pfnAdapterGet = pDdiTable->pfnAdapterGet;
-  pDdiTable->pfnAdapterGet = ur_validation_layer::urAdapterGet;
+  dditable.pfnGet = pDdiTable->pfnGet;
+  pDdiTable->pfnGet = ur_validation_layer::urAdapterGet;
 
-  dditable.pfnAdapterRelease = pDdiTable->pfnAdapterRelease;
-  pDdiTable->pfnAdapterRelease = ur_validation_layer::urAdapterRelease;
+  dditable.pfnRelease = pDdiTable->pfnRelease;
+  pDdiTable->pfnRelease = ur_validation_layer::urAdapterRelease;
 
-  dditable.pfnAdapterRetain = pDdiTable->pfnAdapterRetain;
-  pDdiTable->pfnAdapterRetain = ur_validation_layer::urAdapterRetain;
+  dditable.pfnRetain = pDdiTable->pfnRetain;
+  pDdiTable->pfnRetain = ur_validation_layer::urAdapterRetain;
 
-  dditable.pfnAdapterGetLastError = pDdiTable->pfnAdapterGetLastError;
-  pDdiTable->pfnAdapterGetLastError =
-      ur_validation_layer::urAdapterGetLastError;
+  dditable.pfnGetLastError = pDdiTable->pfnGetLastError;
+  pDdiTable->pfnGetLastError = ur_validation_layer::urAdapterGetLastError;
 
-  dditable.pfnAdapterGetInfo = pDdiTable->pfnAdapterGetInfo;
-  pDdiTable->pfnAdapterGetInfo = ur_validation_layer::urAdapterGetInfo;
+  dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
+  pDdiTable->pfnGetInfo = ur_validation_layer::urAdapterGetInfo;
+
+  dditable.pfnSetLoggerCallback = pDdiTable->pfnSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallback =
+      ur_validation_layer::urAdapterSetLoggerCallback;
+
+  dditable.pfnSetLoggerCallbackLevel = pDdiTable->pfnSetLoggerCallbackLevel;
+  pDdiTable->pfnSetLoggerCallbackLevel =
+      ur_validation_layer::urAdapterSetLoggerCallbackLevel;
 
   return result;
 }
@@ -9847,6 +10915,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   pDdiTable->pfnImageGetInfoExp =
       ur_validation_layer::urBindlessImagesImageGetInfoExp;
 
+  dditable.pfnGetImageMemoryHandleTypeSupportExp =
+      pDdiTable->pfnGetImageMemoryHandleTypeSupportExp;
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      ur_validation_layer::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+
+  dditable.pfnGetImageUnsampledHandleSupportExp =
+      pDdiTable->pfnGetImageUnsampledHandleSupportExp;
+  pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+      ur_validation_layer::urBindlessImagesGetImageUnsampledHandleSupportExp;
+
+  dditable.pfnGetImageSampledHandleSupportExp =
+      pDdiTable->pfnGetImageSampledHandleSupportExp;
+  pDdiTable->pfnGetImageSampledHandleSupportExp =
+      ur_validation_layer::urBindlessImagesGetImageSampledHandleSupportExp;
+
   dditable.pfnMipmapGetLevelExp = pDdiTable->pfnMipmapGetLevelExp;
   pDdiTable->pfnMipmapGetLevelExp =
       ur_validation_layer::urBindlessImagesMipmapGetLevelExp;
@@ -9871,6 +10954,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   dditable.pfnReleaseExternalMemoryExp = pDdiTable->pfnReleaseExternalMemoryExp;
   pDdiTable->pfnReleaseExternalMemoryExp =
       ur_validation_layer::urBindlessImagesReleaseExternalMemoryExp;
+
+  dditable.pfnFreeMappedLinearMemoryExp =
+      pDdiTable->pfnFreeMappedLinearMemoryExp;
+  pDdiTable->pfnFreeMappedLinearMemoryExp =
+      ur_validation_layer::urBindlessImagesFreeMappedLinearMemoryExp;
 
   dditable.pfnImportExternalSemaphoreExp =
       pDdiTable->pfnImportExternalSemaphoreExp;
@@ -9984,8 +11072,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnAppendUSMAdviseExp =
       ur_validation_layer::urCommandBufferAppendUSMAdviseExp;
 
-  dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
-  pDdiTable->pfnEnqueueExp = ur_validation_layer::urCommandBufferEnqueueExp;
+  dditable.pfnAppendNativeCommandExp = pDdiTable->pfnAppendNativeCommandExp;
+  pDdiTable->pfnAppendNativeCommandExp =
+      ur_validation_layer::urCommandBufferAppendNativeCommandExp;
 
   dditable.pfnUpdateKernelLaunchExp = pDdiTable->pfnUpdateKernelLaunchExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
@@ -10001,6 +11090,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
   dditable.pfnGetInfoExp = pDdiTable->pfnGetInfoExp;
   pDdiTable->pfnGetInfoExp = ur_validation_layer::urCommandBufferGetInfoExp;
+
+  dditable.pfnGetNativeHandleExp = pDdiTable->pfnGetNativeHandleExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur_validation_layer::urCommandBufferGetNativeHandleExp;
 
   return result;
 }
@@ -10198,14 +11291,23 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  dditable.pfnKernelLaunchCustomExp = pDdiTable->pfnKernelLaunchCustomExp;
-  pDdiTable->pfnKernelLaunchCustomExp =
-      ur_validation_layer::urEnqueueKernelLaunchCustomExp;
+  dditable.pfnUSMDeviceAllocExp = pDdiTable->pfnUSMDeviceAllocExp;
+  pDdiTable->pfnUSMDeviceAllocExp =
+      ur_validation_layer::urEnqueueUSMDeviceAllocExp;
 
-  dditable.pfnCooperativeKernelLaunchExp =
-      pDdiTable->pfnCooperativeKernelLaunchExp;
-  pDdiTable->pfnCooperativeKernelLaunchExp =
-      ur_validation_layer::urEnqueueCooperativeKernelLaunchExp;
+  dditable.pfnUSMSharedAllocExp = pDdiTable->pfnUSMSharedAllocExp;
+  pDdiTable->pfnUSMSharedAllocExp =
+      ur_validation_layer::urEnqueueUSMSharedAllocExp;
+
+  dditable.pfnUSMHostAllocExp = pDdiTable->pfnUSMHostAllocExp;
+  pDdiTable->pfnUSMHostAllocExp = ur_validation_layer::urEnqueueUSMHostAllocExp;
+
+  dditable.pfnUSMFreeExp = pDdiTable->pfnUSMFreeExp;
+  pDdiTable->pfnUSMFreeExp = ur_validation_layer::urEnqueueUSMFreeExp;
+
+  dditable.pfnCommandBufferExp = pDdiTable->pfnCommandBufferExp;
+  pDdiTable->pfnCommandBufferExp =
+      ur_validation_layer::urEnqueueCommandBufferExp;
 
   dditable.pfnTimestampRecordingExp = pDdiTable->pfnTimestampRecordingExp;
   pDdiTable->pfnTimestampRecordingExp =
@@ -10351,39 +11453,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetSpecializationConstants =
       ur_validation_layer::urKernelSetSpecializationConstants;
 
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's KernelExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_kernel_exp_dditable_t *pDdiTable) {
-  auto &dditable = ur_validation_layer::getContext()->urDdiTable.KernelExp;
-
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
-          UR_MINOR_VERSION(version))
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  dditable.pfnSuggestMaxCooperativeGroupCountExp =
-      pDdiTable->pfnSuggestMaxCooperativeGroupCountExp;
-  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
-      ur_validation_layer::urKernelSuggestMaxCooperativeGroupCountExp;
+  dditable.pfnSuggestMaxCooperativeGroupCount =
+      pDdiTable->pfnSuggestMaxCooperativeGroupCount;
+  pDdiTable->pfnSuggestMaxCooperativeGroupCount =
+      ur_validation_layer::urKernelSuggestMaxCooperativeGroupCount;
 
   return result;
 }
@@ -10841,8 +11914,39 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
+  dditable.pfnPoolCreateExp = pDdiTable->pfnPoolCreateExp;
+  pDdiTable->pfnPoolCreateExp = ur_validation_layer::urUSMPoolCreateExp;
+
+  dditable.pfnPoolDestroyExp = pDdiTable->pfnPoolDestroyExp;
+  pDdiTable->pfnPoolDestroyExp = ur_validation_layer::urUSMPoolDestroyExp;
+
+  dditable.pfnPoolGetDefaultDevicePoolExp =
+      pDdiTable->pfnPoolGetDefaultDevicePoolExp;
+  pDdiTable->pfnPoolGetDefaultDevicePoolExp =
+      ur_validation_layer::urUSMPoolGetDefaultDevicePoolExp;
+
+  dditable.pfnPoolGetInfoExp = pDdiTable->pfnPoolGetInfoExp;
+  pDdiTable->pfnPoolGetInfoExp = ur_validation_layer::urUSMPoolGetInfoExp;
+
+  dditable.pfnPoolSetInfoExp = pDdiTable->pfnPoolSetInfoExp;
+  pDdiTable->pfnPoolSetInfoExp = ur_validation_layer::urUSMPoolSetInfoExp;
+
+  dditable.pfnPoolSetDevicePoolExp = pDdiTable->pfnPoolSetDevicePoolExp;
+  pDdiTable->pfnPoolSetDevicePoolExp =
+      ur_validation_layer::urUSMPoolSetDevicePoolExp;
+
+  dditable.pfnPoolGetDevicePoolExp = pDdiTable->pfnPoolGetDevicePoolExp;
+  pDdiTable->pfnPoolGetDevicePoolExp =
+      ur_validation_layer::urUSMPoolGetDevicePoolExp;
+
+  dditable.pfnPoolTrimToExp = pDdiTable->pfnPoolTrimToExp;
+  pDdiTable->pfnPoolTrimToExp = ur_validation_layer::urUSMPoolTrimToExp;
+
   dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
   pDdiTable->pfnPitchedAllocExp = ur_validation_layer::urUSMPitchedAllocExp;
+
+  dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
+  pDdiTable->pfnContextMemcpyExp = ur_validation_layer::urUSMContextMemcpyExp;
 
   dditable.pfnImportExp = pDdiTable->pfnImportExp;
   pDdiTable->pfnImportExp = ur_validation_layer::urUSMImportExp;
@@ -11036,8 +12140,8 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_validation_layer::urGetGlobalProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Global);
+    result = ur_validation_layer::urGetAdapterProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -11073,11 +12177,6 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetKernelProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Kernel);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    result = ur_validation_layer::urGetKernelExpProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->KernelExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -11145,7 +12244,7 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
 
 ur_result_t context_t::tearDown() {
   if (enableLeakChecking) {
-    getContext()->refCountContext->logInvalidReferences();
+    URLOG_CTX_INVALID_REFERENCES();
   }
 
   return UR_RESULT_SUCCESS;

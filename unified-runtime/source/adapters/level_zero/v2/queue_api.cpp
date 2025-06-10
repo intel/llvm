@@ -59,11 +59,14 @@ ur_result_t urQueueFlush(ur_queue_handle_t hQueue) try {
 ur_result_t urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) try {
   return hQueue->get().enqueueKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      numEventsInWaitList, phEventWaitList, phEvent);
+      numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+      phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -342,6 +345,49 @@ ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+ur_result_t urEnqueueUSMDeviceAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueUSMDeviceAllocExp(
+      pPool, size, pProperties, numEventsInWaitList, phEventWaitList, ppMem,
+      phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueUSMSharedAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueUSMSharedAllocExp(
+      pPool, size, pProperties, numEventsInWaitList, phEventWaitList, ppMem,
+      phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueUSMHostAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueUSMHostAllocExp(pPool, size, pProperties,
+                                              numEventsInWaitList,
+                                              phEventWaitList, ppMem, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueUSMFreeExp(ur_queue_handle_t hQueue,
+                                ur_usm_pool_handle_t pPool, void *pMem,
+                                uint32_t numEventsInWaitList,
+                                const ur_event_handle_t *phEventWaitList,
+                                ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueUSMFreeExp(pPool, pMem, numEventsInWaitList,
+                                         phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 ur_result_t urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, const void *pSrc, void *pDst,
     const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,
@@ -377,14 +423,12 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-ur_result_t urEnqueueCooperativeKernelLaunchExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-  return hQueue->get().enqueueCooperativeKernelLaunchExp(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      numEventsInWaitList, phEventWaitList, phEvent);
+ur_result_t urEnqueueCommandBufferExp(
+    ur_queue_handle_t hQueue, ur_exp_command_buffer_handle_t hCommandBuffer,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueCommandBufferExp(
+      hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -393,20 +437,6 @@ ur_result_t urEnqueueTimestampRecordingExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
   return hQueue->get().enqueueTimestampRecordingExp(
       blocking, numEventsInWaitList, phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-ur_result_t urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_exp_launch_property_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) try {
-  return hQueue->get().enqueueKernelLaunchCustomExp(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

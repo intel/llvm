@@ -168,8 +168,13 @@ float __devicelib_fmaf(float x, float y, float z) {
   return __spirv_ocl_fma(x, y, z);
 }
 
+#if defined(__SPIR__) || defined(__SPIRV__)
+DEVICE_EXTERN_C_INLINE
+float __devicelib_sinf(float x) { return (x == 0.0f) ? x : __spirv_ocl_sin(x); }
+#else
 DEVICE_EXTERN_C_INLINE
 float __devicelib_sinf(float x) { return __spirv_ocl_sin(x); }
+#endif
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_cosf(float x) { return __spirv_ocl_cos(x); }

@@ -11,7 +11,7 @@
 #include <libspirv/spirv_types.h>
 
 extern int __clc_nvvm_reflect_arch();
-_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
+_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(int, int);
 
 #define __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,     \
                                            ADDR_SPACE, ADDR_SPACE_NV, ORDER)   \
@@ -36,14 +36,11 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   }                                                                            \
   }
 
-#define __CLC_NVVM_ATOMIC_STORE_IMPL(                                          \
-    TYPE, TYPE_MANGLED, SUBSTITUTION, TYPE_NV, TYPE_MANGLED_NV, ADDR_SPACE,    \
-    POINTER_AND_ADDR_SPACE_MANGLED, ADDR_SPACE_NV)                             \
-  __attribute__((always_inline)) _CLC_DECL void _Z19__spirv_\
-AtomicStore##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagEN\
-S##SUBSTITUTION##_19MemorySemanticsMask4FlagE##TYPE_MANGLED(                   \
-      volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                     \
-      enum MemorySemanticsMask semantics, TYPE value) {                        \
+#define __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV,           \
+                                     ADDR_SPACE, ADDR_SPACE_NV)                \
+  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL void                  \
+  __spirv_AtomicStore(ADDR_SPACE TYPE *pointer, int scope, int semantics,      \
+                      TYPE value) {                                            \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \
     unsigned int order = semantics & 0x1F;                                     \
@@ -82,22 +79,21 @@ Memory order is stored in the lowest 5 bits */                                 \
     __builtin_unreachable();                                                   \
   }
 
-#define __CLC_NVVM_ATOMIC_STORE(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV)  \
-  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_MANGLED, 1, TYPE_NV, TYPE_MANGLED_NV,\
-                               __global, PU3AS1, _global_)                     \
-  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_MANGLED, 1, TYPE_NV, TYPE_MANGLED_NV,\
-                               __local, PU3AS3, _shared_)                      \
-  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_MANGLED, 0, TYPE_NV, TYPE_MANGLED_NV,\
-                               , P, _gen_)
+#define __CLC_NVVM_ATOMIC_STORE(TYPE, TYPE_NV, TYPE_MANGLED_NV)                \
+  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, __global,       \
+                               _global_)                                       \
+  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, __local,        \
+                               _shared_)                                       \
+  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, , _gen_)
 
-__CLC_NVVM_ATOMIC_STORE(int, i, int, i)
-__CLC_NVVM_ATOMIC_STORE(uint, j, int, i)
-__CLC_NVVM_ATOMIC_STORE(long, l, long, l)
-__CLC_NVVM_ATOMIC_STORE(ulong, m, long, l)
+__CLC_NVVM_ATOMIC_STORE(int, int, i)
+__CLC_NVVM_ATOMIC_STORE(uint, int, i)
+__CLC_NVVM_ATOMIC_STORE(long, long, l)
+__CLC_NVVM_ATOMIC_STORE(ulong, long, l)
 
-__CLC_NVVM_ATOMIC_STORE(float, f, float, f)
+__CLC_NVVM_ATOMIC_STORE(float, float, f)
 #ifdef cl_khr_int64_base_atomics
-__CLC_NVVM_ATOMIC_STORE(double, d, double, d)
+__CLC_NVVM_ATOMIC_STORE(double, double, d)
 #endif
 
 #undef __CLC_NVVM_ATOMIC_STORE_TYPES

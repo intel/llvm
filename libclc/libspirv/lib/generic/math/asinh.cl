@@ -10,10 +10,10 @@
 
 #include "ep_log.h"
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_asinh(float x) {
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint ax = ux & EXSIGNBIT_SP32;
   uint xsgn = ax ^ ux;
 
@@ -51,12 +51,12 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_asinh(float x) {
   // approximated by asinhf(x) = ln(abs(x) + sqrt(x*x+1))
   // with the sign of x (see Abramowitz and Stegun 4.6.20)
 
-  float absx = as_float(ax);
+  float absx = __clc_as_float(ax);
   int hi = ax > 0x46000000U;
   float y = MATH_SQRT(absx * absx + 1.0f) + absx;
   y = hi ? absx : y;
   float r = __spirv_ocl_log(y) + (hi ? 0x1.62e430p-1f : 0.0f);
-  float z2 = as_float(xsgn | as_uint(r));
+  float z2 = __clc_as_float(xsgn | __clc_as_uint(r));
 
   float z = ax <= 0x40000000 ? z1 : z2;
   z = ax < 0x39800000U || ax >= PINFBITPATT_SP32 ? x : z;
@@ -187,9 +187,9 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_asinh(double x) {
   const double log2_lead = 0x1.62e42ep-1;
   const double log2_tail = 0x1.efa39ef35793cp-25;
 
-  ulong ux = as_ulong(x);
+  ulong ux = __clc_as_ulong(x);
   ulong ax = ux & ~SIGNBIT_DP64;
-  double absx = as_double(ax);
+  double absx = __clc_as_double(ax);
 
   double t = x * x;
   double pn, tn, pd, td;
@@ -366,6 +366,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_asinh, double)
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_asinh, __builtin_asinh, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_asinh, __builtin_asinhf, half)
 
 #endif

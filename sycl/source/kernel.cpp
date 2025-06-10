@@ -22,15 +22,16 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   ur_kernel_handle_t hKernel = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClKernel);
-  Adapter->call<detail::UrApiKind::urKernelCreateWithNativeHandle>(
-      nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
-      nullptr, nullptr, &hKernel);
+  Adapter
+      ->call<errc::invalid, detail::UrApiKind::urKernelCreateWithNativeHandle>(
+          nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
+          nullptr, nullptr, &hKernel);
   impl = std::make_shared<detail::kernel_impl>(
       hKernel, detail::getSyclObjImpl(SyclContext), nullptr, nullptr);
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    impl->getAdapter()->call<detail::UrApiKind::urKernelRetain>(hKernel);
+    __SYCL_OCL_CALL(clRetainKernel, ClKernel);
   }
 }
 
@@ -101,15 +102,27 @@ kernel::get_info(const device &Device, const range<3> &WGSize) const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::get_info<Namespace::info::DescType::Desc>(const device &) const;
+
+#include <sycl/info/ext_intel_kernel_info_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 template __SYCL_EXPORT uint32_t
 kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
     const device &, const sycl::range<3> &) const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// This function is unused and should be removed in the next ABI-breaking
+// window.
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue) const {
   return impl->ext_oneapi_get_info<Param>(std::move(Queue));
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
@@ -117,6 +130,12 @@ kernel::ext_oneapi_get_info(queue Queue, const range<1> &WorkGroupSize,
                             size_t DynamicLocalMemorySize) const {
   return impl->ext_oneapi_get_info<Param>(std::move(Queue), WorkGroupSize,
                                           DynamicLocalMemorySize);
+}
+
+template <typename Param>
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue, const range<3> &WG) const {
+  return impl->ext_oneapi_get_info<Param>(Queue, WG);
 }
 
 template <typename Param>
@@ -129,11 +148,89 @@ kernel::ext_oneapi_get_info(queue Queue, const range<2> &WorkGroupSize,
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue, const range<2> &WG) const {
+  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+}
+
+template <typename Param>
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue, const range<1> &WG) const {
+  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+}
+
+template <typename Param>
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                             size_t DynamicLocalMemorySize) const {
   return impl->ext_oneapi_get_info<Param>(std::move(Queue), WorkGroupSize,
                                           DynamicLocalMemorySize);
 }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// These functions are unused and should be removed in the next ABI-breaking
+// window.
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_work_group_size::return_type
+    kernel::ext_oneapi_get_info<ext::oneapi::experimental::info::
+                                    kernel_queue_specific::max_work_group_size>(
+        queue Queue) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_work_item_sizes<1>::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_work_item_sizes<1>>(queue Queue) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_work_item_sizes<2>::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_work_item_sizes<2>>(queue Queue) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_work_item_sizes<3>::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_work_item_sizes<3>>(queue Queue) const;
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_sub_group_size::return_type
+    kernel::ext_oneapi_get_info<ext::oneapi::experimental::info::
+                                    kernel_queue_specific::max_sub_group_size>(
+        queue Queue, const range<3> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_sub_group_size::return_type
+    kernel::ext_oneapi_get_info<ext::oneapi::experimental::info::
+                                    kernel_queue_specific::max_sub_group_size>(
+        queue Queue, const range<2> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_sub_group_size::return_type
+    kernel::ext_oneapi_get_info<ext::oneapi::experimental::info::
+                                    kernel_queue_specific::max_sub_group_size>(
+        queue Queue, const range<1> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::num_sub_groups::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::num_sub_groups>(
+        queue Queue, const range<3> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::num_sub_groups::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::num_sub_groups>(
+        queue Queue, const range<2> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::num_sub_groups::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::num_sub_groups>(
+        queue Queue, const range<1> &) const;
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT)           \
   template __SYCL_EXPORT ReturnT                                               \

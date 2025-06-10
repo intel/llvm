@@ -22,7 +22,7 @@ inline ur_result_t after_urEnqueueEventsWaitWithBarrierExt(void *pParams) {
 
   assert(*Params.ppProperties != nullptr);
   assert((*Params.ppProperties)->flags &
-         UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS);
+         UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT);
 
   ++counter_urEnqueueEventsWaitWithBarrierExt;
   return UR_RESULT_SUCCESS;

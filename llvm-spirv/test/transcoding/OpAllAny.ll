@@ -43,7 +43,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: convergent mustprogress nofree norecurse nounwind willreturn writeonly
-define dso_local spir_func void @test_vector(ptr addrspace(4) nocapture writeonly %out, <2 x i8> %c, <2 x i16> %s, <2 x i32> %i, <2 x i64> %l) local_unnamed_addr #0 {
+define dso_local spir_func void @test_vector(ptr addrspace(4) captures(none) writeonly %out, <2 x i8> %c, <2 x i16> %s, <2 x i32> %i, <2 x i64> %l) local_unnamed_addr #0 {
 entry:
   %call = tail call spir_func i32 @_Z3anyDv2_c(<2 x i8> %c) #2
   %call1 = tail call spir_func i32 @_Z3anyDv2_s(<2 x i16> %s) #2

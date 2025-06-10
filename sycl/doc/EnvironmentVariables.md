@@ -25,7 +25,6 @@ compiler and runtime.
 | `SYCL_USM_HOSTPTR_IMPORT` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
 | `SYCL_EAGER_INIT` | Integer | Enable by specifying non-zero value. Tells the SYCL runtime to do as much as possible initialization at objects construction as opposed to doing lazy initialization on the fly. This may mean doing some redundant work at warmup but ensures fastest possible execution on the following hot and reportable paths. It also instructs UR adapters to do the same. Default is "0".  |
 | `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl_reduction_preferred_workgroup_size) | Controls the preferred work-group size of reductions. |
-| `SYCL_ENABLE_FUSION_CACHING` | '1' or '0' | Enable ('1') or disable ('0') caching of JIT compilations for kernel fusion. Caching avoids repeatedly running the JIT compilation pipeline if the same sequence of kernels is fused multiple times. Default value is '1'. |
 | `SYCL_JIT_AMDGCN_PTX_KERNELS` | '1' or '0' | Enable ('1') or disable ('0') JIT compilation of kernels. Only supported for Nvidia and AMD backends. Note, that it is required to have a valid binary for the desired backend (AMD or CUDA), that was compiled with `-fsycl-embed-ir` in order to use JIT-ing. When JIT-ing is enabled SYCL runtime will try to cache and reuse JIT-compiled kernels, furthermore if a kernel uses specialization constants the compiler will attempt to materialize the values in place, turning them to de-facto compile time constants. Default is '0'. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target architecture to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
@@ -160,6 +159,7 @@ For a description of parallel for range rounding in DPC++ see
 | `SYCL_ENABLE_PCI` (Deprecated) | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 1. This option is kept for compatibility reasons and is immediately deprecated. |
 | `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero adapter (each memory request will go directly to Level Zero runtime) |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero adapter. |
+| `SYCL_UR_USE_LEVEL_ZERO_V2` | Integer | Enable ('1') or disable ('0') the use of a preview version of the Level Zero adapter, which features a redesigned architecture aimed at optimizing performance for different queue modes (immediate/batched, in-order/out-of-order). This version is expected to reduce runtime overhead and currently only support immediate, in-order mode. If you experience any performance or functional issues with this adapter enabled, please report them on GitHub, specifying the adapter used. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -294,7 +294,7 @@ variables in production code.</span>
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT` (experimental) | Any(\*) | Enable support of images. This option is experimental since the image support is not fully implemented. |
+| `SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT` (experimental) | Any(\*) | Enable support of images. This option is experimental since the image support is not fully implemented. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 

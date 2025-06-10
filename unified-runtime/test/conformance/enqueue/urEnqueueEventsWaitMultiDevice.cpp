@@ -20,6 +20,7 @@ void checkDevicesSupportSharedUSM(
         uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_single));
     if (!shared_usm_single) {
       GTEST_SKIP() << "Shared USM is not supported by the device.";
+      return;
     }
   }
 }
@@ -31,7 +32,7 @@ struct urEnqueueEventsWaitMultiDeviceTest
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueMultiDeviceTest<2>::SetUp());
 
-    checkDevicesSupportSharedUSM(devices);
+    UUR_RETURN_ON_FATAL_FAILURE(checkDevicesSupportSharedUSM(devices));
 
     ptrs.resize(devices.size());
     for (size_t i = 0; i < devices.size(); i++) {
@@ -129,7 +130,7 @@ struct urEnqueueEventsWaitMultiDeviceMTTest
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urMultiQueueMultiDeviceTestWithParam<8,
                                                   uur::BoolTestParam>::SetUp());
-    checkDevicesSupportSharedUSM(devices);
+    UUR_RETURN_ON_FATAL_FAILURE(checkDevicesSupportSharedUSM(devices));
 
     ptrs.resize(devices.size());
     for (size_t i = 0; i < devices.size(); i++) {
@@ -194,13 +195,6 @@ TEST_P(urEnqueueEventsWaitMultiDeviceMTTest, EnqueueWaitSingleQueueMultiOps) {
 }
 
 TEST_P(urEnqueueEventsWaitMultiDeviceMTTest, EnqueueWaitOnAllQueues) {
-  // Fails when -fsanitize=cfi
-#ifdef UR_USE_CFI
-  if (getParam().value) {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
-  }
-#endif
-
   std::vector<uur::raii::Event> eventsRaii(devices.size());
   std::vector<ur_event_handle_t> events(devices.size());
   auto work = [this, &events, &eventsRaii](size_t i) {

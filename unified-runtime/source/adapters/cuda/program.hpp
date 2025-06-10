@@ -17,7 +17,7 @@
 
 #include "context.hpp"
 
-struct ur_program_handle_t_ {
+struct ur_program_handle_t_ : ur::cuda::handle_base {
   using native_type = CUmodule;
   native_type Module;
   const char *Binary;
@@ -39,6 +39,7 @@ struct ur_program_handle_t_ {
   std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
       KernelMaxWorkGroupSizeMD;
   std::unordered_map<std::string, uint64_t> KernelMaxLinearWorkGroupSizeMD;
+  std::unordered_map<std::string, uint32_t> KernelReqdSubGroupSizeMD;
 
   constexpr static size_t MaxLogSize = 8192u;
 
@@ -47,17 +48,18 @@ struct ur_program_handle_t_ {
   ur_program_build_status_t BuildStatus = UR_PROGRAM_BUILD_STATUS_NONE;
 
   ur_program_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device)
-      : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-        Context{Context}, Device{Device}, KernelReqdWorkGroupSizeMD{},
-        KernelMaxWorkGroupSizeMD{}, KernelMaxLinearWorkGroupSizeMD{} {
+      : handle_base(), Module{nullptr}, Binary{}, BinarySizeInBytes{0},
+        RefCount{1}, Context{Context}, Device{Device},
+        KernelReqdWorkGroupSizeMD{}, KernelMaxWorkGroupSizeMD{},
+        KernelMaxLinearWorkGroupSizeMD{}, KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
-    urDeviceRetain(Device);
+
+    // When the log is queried we use strnlen(InfoLog), so it needs to be
+    // initialized like this when it's empty to correctly return 0.
+    InfoLog[0] = '\0';
   }
 
-  ~ur_program_handle_t_() {
-    urContextRelease(Context);
-    urDeviceRelease(Device);
-  }
+  ~ur_program_handle_t_() { urContextRelease(Context); }
 
   ur_result_t setMetadata(const ur_program_metadata_t *Metadata, size_t Length);
 

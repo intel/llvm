@@ -51,13 +51,24 @@ int memcmp(const void *s1, const void *s2, size_t n) {
 DEVICE_EXTERN_C_INLINE
 int rand() {
   size_t gid =
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+      (__spirv_GlobalInvocationId_x() * __spirv_GlobalSize_y() *
+       __spirv_GlobalSize_z()) +
+      (__spirv_GlobalInvocationId_y() * __spirv_GlobalSize_z()) +
+      __spirv_GlobalInvocationId_z();
+#else
       (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
        __spirv_BuiltInGlobalSize.z) +
       (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
       __spirv_BuiltInGlobalInvocationId.z;
-  size_t global_size = __spirv_BuiltInGlobalSize.x *
-                       __spirv_BuiltInGlobalSize.y *
-                       __spirv_BuiltInGlobalSize.z;
+#endif
+  size_t global_size =
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+      __spirv_GlobalSize_x() * __spirv_GlobalSize_y() * __spirv_GlobalSize_z();
+#else
+      __spirv_BuiltInGlobalSize.x * __spirv_BuiltInGlobalSize.y *
+      __spirv_BuiltInGlobalSize.z;
+#endif
   size_t gid1 =
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   if (RAND_NEXT_ACC[gid1] == 0)
@@ -73,13 +84,24 @@ int rand() {
 DEVICE_EXTERN_C_INLINE
 void srand(unsigned int seed) {
   size_t gid =
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+      (__spirv_GlobalInvocationId_x() * __spirv_GlobalSize_y() *
+       __spirv_GlobalSize_z()) +
+      (__spirv_GlobalInvocationId_y() * __spirv_GlobalSize_z()) +
+      __spirv_GlobalInvocationId_z();
+#else
       (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
        __spirv_BuiltInGlobalSize.z) +
       (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
       __spirv_BuiltInGlobalInvocationId.z;
-  size_t global_size = __spirv_BuiltInGlobalSize.x *
-                       __spirv_BuiltInGlobalSize.y *
-                       __spirv_BuiltInGlobalSize.z;
+#endif
+  size_t global_size =
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+      __spirv_GlobalSize_x() * __spirv_GlobalSize_y() * __spirv_GlobalSize_z();
+#else
+      __spirv_BuiltInGlobalSize.x * __spirv_BuiltInGlobalSize.y *
+      __spirv_BuiltInGlobalSize.z;
+#endif
   size_t gid1 =
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   RAND_NEXT_ACC[gid1] = seed;
@@ -126,5 +148,21 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
       __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
       __spirv_LocalInvocationId_z());
 }
+
+// In GCC-15, std::__glibcxx_assert_fail is added to do runtime check for some
+// STL items such as std::array in debug mode, its behavior is same as assert,
+// so just handle it in the same way as '__assert_fail'.
+namespace std {
+DEVICE_EXTERN_CPP
+void __glibcxx_assert_fail(const char *file, int line, const char *func,
+                           const char *cond) noexcept {
+  __devicelib_assert_fail(
+      cond, file, line, func, __spirv_GlobalInvocationId_x(),
+      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
+      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
+      __spirv_LocalInvocationId_z());
+}
+} // namespace std
+
 #endif
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

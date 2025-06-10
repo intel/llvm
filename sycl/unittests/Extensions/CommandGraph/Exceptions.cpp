@@ -213,6 +213,42 @@ void addImagesCopies(experimental::detail::modifiable_command_graph &G,
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
+
+/// Tries to add nodes including asynchronous allocation instructions to the
+/// graph G. It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Size Size in bytes to allocate.
+/// @param Ptr Generic pointer to allocated memory.
+template <OperationPath PathKind, usm::alloc AllocKind>
+void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
+                   size_t Size, [[maybe_unused]] void *Ptr) {
+  // simple alloc
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        Ptr =
+            sycl::ext::oneapi::experimental::async_malloc(CGH, AllocKind, Size);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Ptr = sycl::ext::oneapi::experimental::async_malloc(Q, AllocKind, Size);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        Ptr =
+            sycl::ext::oneapi::experimental::async_malloc(CGH, AllocKind, Size);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+
+  ASSERT_EQ(ExceptionCode, sycl::errc::feature_not_supported);
+}
 } // anonymous namespace
 
 TEST_F(CommandGraphTest, ExplicitBarrierException) {
@@ -378,19 +414,6 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
                                            ImgMemUSM, Pitch, Desc);
 
   sycl::free(ImgMemUSM, Ctxt);
-}
-
-// ext_codeplay_enqueue_native_command isn't supported with SYCL graphs
-TEST_F(CommandGraphTest, EnqueueCustomCommandCheck) {
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.add([&](sycl::handler &CGH) {
-      CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {});
-    });
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
 // sycl_ext_oneapi_work_group_scratch_memory isn't supported with SYCL graphs
@@ -883,4 +906,34 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
 
   experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
   ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// host and shared allocations are not currently supported by graphs, checks for
+// correct exception behaviour.
+TEST_F(CommandGraphTest, AsyncAllocKindExceptionCheck) {
+  auto Context = Queue.get_context();
+  auto Device = Queue.get_device();
+
+  void *Ptr1 = nullptr;
+  void *Ptr2 = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  addAsyncAlloc<OperationPath::RecordReplay, usm::alloc::host>(Graph, Queue,
+                                                               1024, Ptr1);
+  addAsyncAlloc<OperationPath::RecordReplay, usm::alloc::shared>(Graph, Queue,
+                                                                 1024, Ptr1);
+  addAsyncAlloc<OperationPath::Shortcut, usm::alloc::host>(Graph, Queue, 1024,
+                                                           Ptr2);
+  addAsyncAlloc<OperationPath::Shortcut, usm::alloc::shared>(Graph, Queue, 1024,
+                                                             Ptr2);
+
+  Graph.end_recording();
+
+  void *Ptr3 = nullptr;
+  void *Ptr4 = nullptr;
+  addAsyncAlloc<OperationPath::Explicit, usm::alloc::host>(Graph, Queue, 1024,
+                                                           Ptr3);
+  addAsyncAlloc<OperationPath::Explicit, usm::alloc::shared>(Graph, Queue, 1024,
+                                                             Ptr4);
 }

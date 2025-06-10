@@ -21,12 +21,19 @@ add_ur_library(ur_loader
 )
 install_ur_library(ur_loader)
 
+target_compile_definitions(ur_loader PRIVATE
+    UR_USE_DEBUG_POSTFIX=$<BOOL:${UR_USE_DEBUG_POSTFIX}>
+)
+
 if (MSVC)
     set(TARGET_LIBNAME ur_loader)
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
     set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.def)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.def.in ${LOADER_VERSION_SCRIPT} @ONLY)
+    configure_linker_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/loader.def.in
+        ${LOADER_VERSION_SCRIPT} @ONLY
+    )
     set_target_properties(ur_loader PROPERTIES
         LINK_OPTIONS "LINKER:/DEF:${LOADER_VERSION_SCRIPT}"
     )
@@ -35,14 +42,14 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
     set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.map)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.map.in ${LOADER_VERSION_SCRIPT} @ONLY)
-    target_link_options(ur_loader PRIVATE "-Wl,--version-script=${LOADER_VERSION_SCRIPT}")
+    configure_linker_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/loader.map.in
+        ${LOADER_VERSION_SCRIPT} @ONLY
+    )
+    target_link_options(ur_loader PRIVATE
+        "-Wl,--version-script=${LOADER_VERSION_SCRIPT}"
+    )
 endif()
-
-set_target_properties(ur_loader PROPERTIES
-    LIBRARY_OUTPUT_NAME ur_loader
-    RUNTIME_OUTPUT_NAME ur_loader
-)
 
 add_library(${PROJECT_NAME}::loader ALIAS ur_loader)
 
@@ -104,11 +111,9 @@ endif()
 
 target_sources(ur_loader
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_object.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_loader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_ldrddi.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_ldrddi.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libapi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.hpp
@@ -140,8 +145,6 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_interceptor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_interceptor.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_libdevice.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_options.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_options.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_quarantine.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_quarantine.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/asan_report.cpp
@@ -161,12 +164,21 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_interceptor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_interceptor.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_libdevice.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_options.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_options.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_report.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_report.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_buffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_buffer.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_ddi.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_ddi.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_interceptor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_interceptor.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_libdevice.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_report.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_report.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_shadow.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_shadow.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/backtrace.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/sanitizer_utils.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_allocator.hpp
@@ -176,6 +188,8 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_stacktrace.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_utils.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_utils.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_options.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_options.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.hpp

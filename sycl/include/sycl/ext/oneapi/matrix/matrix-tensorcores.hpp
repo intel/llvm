@@ -28,7 +28,7 @@ namespace experimental {
 namespace matrix {
 
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout = layout::dynamic>
+          layout Layout>
 struct joint_matrix;
 
 } // namespace matrix

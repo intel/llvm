@@ -16,6 +16,7 @@ add_ur_adapter(${TARGET_NAME} SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/async_alloc.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
@@ -56,7 +57,7 @@ if(UR_OPENCL_INCLUDE_DIR)
 else()
     FetchContent_Declare(OpenCL-Headers
         GIT_REPOSITORY  "https://github.com/KhronosGroup/OpenCL-Headers.git"
-        GIT_TAG         542d7a8f65ecfd88b38de35d8b10aa67b36b33b2
+        GIT_TAG         60ba29d8117b5f81d6ab294fa62d9b6688d83f4e
     )
     FetchContent_MakeAvailable(OpenCL-Headers)
     FetchContent_GetProperties(OpenCL-Headers
@@ -79,6 +80,11 @@ else()
     endif()
     set(OpenCLICDLoaderLibrary OpenCL::OpenCL)
 endif()
+
+# Make interface library use within the project.
+add_library(OpenCLICDLoader INTERFACE)
+target_link_libraries(OpenCLICDLoader INTERFACE "${OpenCLICDLoaderLibrary}")
+target_include_directories(OpenCLICDLoader INTERFACE ${OpenCLIncludeDirectory})
 
 message(STATUS "OpenCL Include Directory: ${OpenCLIncludeDirectory}")
 message(STATUS "OpenCL ICD Loader Library: ${OpenCLICDLoaderLibrary}")

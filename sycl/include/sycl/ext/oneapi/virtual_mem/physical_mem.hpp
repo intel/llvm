@@ -63,7 +63,8 @@ private:
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
 };
 
 } // namespace ext::oneapi::experimental

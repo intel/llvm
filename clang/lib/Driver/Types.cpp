@@ -227,7 +227,17 @@ bool types::isObjC(ID Id) {
   }
 }
 
-bool types::isOpenCL(ID Id) { return Id == TY_CL || Id == TY_CLCXX; }
+bool types::isOpenCL(ID Id) {
+  switch (Id) {
+  default:
+    return false;
+  case TY_PP_CL:
+  case TY_PP_CLCXX:
+  case TY_CL:
+  case TY_CLCXX:
+    return true;
+  }
+}
 
 bool types::isCXX(ID Id) {
   switch (Id) {
@@ -287,19 +297,6 @@ bool types::isHIP(ID Id) {
   case TY_HIP:
   case TY_PP_HIP:
   case TY_HIP_DEVICE:
-    return true;
-  }
-}
-
-bool types::isFPGA(ID Id) {
-  switch (Id) {
-  default:
-    return false;
-
-  case TY_FPGA_AOCR:
-  case TY_FPGA_AOCX:
-  case TY_FPGA_AOCO:
-  case TY_FPGA_AOCR_EMU:
     return true;
   }
 }
@@ -389,8 +386,6 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("cppm", TY_CXXModule)
       .Case("cxxm", TY_CXXModule)
       .Case("hlsl", TY_HLSL)
-      .Case("aocr", TY_FPGA_AOCR)
-      .Case("aocx", TY_FPGA_AOCX)
       .Default(TY_INVALID);
 }
 

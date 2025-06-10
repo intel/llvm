@@ -17,6 +17,7 @@
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urKernelSetExecInfo
+// CHECK-NEXT: UR Call Begin : urKernelRetain
 // CHECK:      UR Call Begin : urKernelSetArgPointer
 // CHECK-NEXT: UR Call Begin : urKernelGetGroupInfo
 // CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunch
@@ -24,6 +25,7 @@
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urKernelSetExecInfo
+// CHECK-NEXT: UR Call Begin : urKernelRetain
 // CHECK:      Node create
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
@@ -32,12 +34,6 @@
 // CHECK-DAG:    from_source : false
 // CHECK-DAG:    kernel_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
 // CHECK-DAG:    sycl_device : {{.*}}
-// CHECK:      Node create
-// CHECK-DAG:   queue_id : {{.*}}
-// CHECK-DAG:   kernel_name : virtual_node[{{.*}}]
-// CHECK-NEXT: Edge create
-// CHECK-DAG:   queue_id : {{.*}}
-// CHECK-DAG:   event : {{.*}}
 // CHECK: Task begin
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
@@ -49,8 +45,6 @@
 // CHECK:      UR Call Begin : urKernelSetArgPointer
 // CHECK-NEXT: UR Call Begin : urKernelGetGroupInfo
 // CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunch
-// CHECK-NEXT: UR Call Begin : urKernelRelease
-// CHECK-NEXT: UR Call Begin : urProgramRelease
 // CHECK-NEXT: Signal
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
@@ -99,3 +93,7 @@
 // CHECK-NEXT: Wait end
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sycl_device_type : {{.*}}
+// CHECK:      UR Call Begin : urKernelRelease
+// CHECK:      UR Call Begin : urKernelRelease
+// CHECK:      UR Call Begin : urKernelRelease
+// CHECK:      UR Call Begin : urKernelRelease

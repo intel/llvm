@@ -272,14 +272,21 @@ Conformance tests *must* not make assumptions about the adapter under test.
 Tests fixtures or cases *must* query for support of optional features and skip
 testing if unsupported by the adapter.
 
-All tests in the Unified Runtime project are configured to use CTest to run. 
-All conformance tests have the ``conformance`` label attached to them which 
-allows them to be run independently. To run all the conformance tests, execute 
-the following command from the build directory.
+Conformance tests are ran as part of the main ``test`` target, but can also be
+executed using the `check-unified-runtime-conformance` target as follows:
 
 .. code-block:: console
      
-    ctest -L "conformance"
+    cmake --build build --target check-unified-runtime-conformance
+
+A specific device/adapter can be specified by using ``ONEAPI_DEVICE_SELECTOR``
+in the same way as in the `DPC++ compiler
+<https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md#oneapi_device_selector>`_.
+
+A number of tests are skipped on certain adapters due to being known failures.
+To force all tests to run, including known failures,
+``UR_CTS_ALSO_RUN_KNOWN_FAILURES`` may be set to ``1`` as an environment
+variable.
 
 Experimental Features
 =====================
@@ -357,3 +364,16 @@ to easily differentiate experimental feature symbols, the following conventions
 *   All structures, enumerations, and other types must follow
     ``${x}_exp_name_t`` name case convention.
 ## --validate=on
+
+New Adapters
+============
+
+The UR loader will only load UR adapter libraries made known to it via entries
+in `scripts/core/manifests.yml`_. New adapters must have their own entry in that
+file before the loader will recognize them. See `YaML.md`_ for details about
+manifest semantics.
+
+.. _scripts/core/manifests.yml:
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/core/manifests.yml
+.. _YaML.md:
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/YaML.md

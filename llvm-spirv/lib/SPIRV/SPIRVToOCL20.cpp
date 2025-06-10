@@ -176,7 +176,7 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
     if (auto *TypedPtrTy = dyn_cast<TypedPointerType>(PtrArgTy)) {
       if (TypedPtrTy->getAddressSpace() != SPIRAS_Generic) {
         Type *ElementTy = TypedPtrTy->getElementType();
-        Type *FixedPtr = PointerType::get(ElementTy, SPIRAS_Generic);
+        Type *FixedPtr = PointerType::get(CI->getContext(), SPIRAS_Generic);
         PtrArg = Builder.CreateAddrSpaceCast(PtrArg, FixedPtr,
                                              PtrArg->getName() + ".as");
         PtrArgTy = TypedPointerType::get(ElementTy, SPIRAS_Generic);
@@ -207,7 +207,7 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
   // value by pointer passed as 2nd argument (aka expected) while SPIR-V
   // instructions returns this new/original value as a resulting value.
   AllocaInst *PExpected = new AllocaInst(
-      MemTy, 0, "expected",
+      MemTy, M->getDataLayout().getAllocaAddrSpace(), "expected",
       CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
   PExpected->setAlignment(Align(MemTy->getScalarSizeInBits() / 8));
 
@@ -222,7 +222,8 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
               [=](IRBuilder<> &Builder, Value *Expected) {
                 Builder.CreateStore(Expected, PExpected);
                 unsigned AddrSpc = SPIRAS_Generic;
-                Type *PtrTyAS = PointerType::get(PExpected->getType(), AddrSpc);
+                Type *PtrTyAS =
+                    PointerType::get(Expected->getContext(), AddrSpc);
                 Value *V = Builder.CreateAddrSpaceCast(
                     PExpected, PtrTyAS, PExpected->getName() + ".as");
                 return std::make_pair(V, TypedPointerType::get(MemTy, AddrSpc));

@@ -17,6 +17,7 @@ struct app {
   bool verbose = false;
   bool linear_ids = true;
   bool ignore_device_selector = false;
+  bool using_environment_selector = false;
   ur_loader_config_handle_t loaderConfig = nullptr;
   std::vector<ur_adapter_handle_t> adapters;
   std::unordered_map<ur_adapter_handle_t, std::vector<ur_platform_handle_t>>
@@ -34,6 +35,7 @@ struct app {
                      "To see all devices, use the "
                      "--ignore-device-selector CLI option.\n\n",
                      device_selector);
+        using_environment_selector = true;
       }
     }
     UR_CHECK(urLoaderConfigCreate(&loaderConfig));
@@ -98,12 +100,12 @@ options:
       auto adapter = adapters[adapterIndex];
       // Enumerate platforms
       uint32_t numPlatforms = 0;
-      UR_CHECK(urPlatformGet(&adapter, 1, 0, nullptr, &numPlatforms));
+      UR_CHECK(urPlatformGet(adapter, 0, nullptr, &numPlatforms));
       if (numPlatforms == 0) {
         continue;
       }
       adapterPlatformsMap[adapter].resize(numPlatforms);
-      UR_CHECK(urPlatformGet(&adapter, 1, numPlatforms,
+      UR_CHECK(urPlatformGet(adapter, numPlatforms,
                              adapterPlatformsMap[adapter].data(), nullptr));
 
       for (size_t platformIndex = 0; platformIndex < numPlatforms;
@@ -139,7 +141,12 @@ options:
           auto device = devices[deviceIndex];
           auto device_type = urinfo::getDeviceType(device);
 
-          if (linear_ids) {
+          // If we are using ONEAPI_DEVICE_SELECTOR, then the device id numbers
+          // won't match, so don't print them. This matches the behavior of
+          // sycl-ls.
+          if (using_environment_selector) {
+            std::cout << "[" << adapter_backend << ":" << device_type << "]";
+          } else if (linear_ids) {
             std::cout << "[" << adapter_backend << ":" << device_type << "]";
             std::cout << "[" << adapter_backend << ":" << adapter_device_id
                       << "]";

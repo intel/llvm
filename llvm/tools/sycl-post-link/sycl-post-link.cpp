@@ -21,7 +21,6 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Demangle/Demangle.h"
-#include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -30,36 +29,26 @@
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
-#include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
-#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
-#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
+#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
+#include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
-#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/DCE.h"
-#include "llvm/Transforms/Scalar/EarlyCSE.h"
-#include "llvm/Transforms/Scalar/SROA.h"
-#include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
 #include <memory>
@@ -102,6 +91,11 @@ cl::opt<std::string> OutputDir{
     "out-dir",
     cl::desc(
         "Directory where files listed in the result file table will be output"),
+    cl::value_desc("dirname"), cl::cat(PostLinkCat)};
+
+cl::opt<std::string> DeviceLibDir{
+    "device-lib-dir",
+    cl::desc("Directory where sycl fallback device libraries reside"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
 struct TargetFilenamePair {
@@ -251,6 +245,11 @@ cl::opt<bool> GenerateDeviceImageWithDefaultSpecConsts{
              "replaced with default values from specialization id(s)."),
     cl::cat(PostLinkCat)};
 
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"), cl::cat(PostLinkCat),
+    cl::init(false)};
+
 struct IrPropSymFilenameTriple {
   std::string Ir;
   std::string Prop;
@@ -307,8 +306,18 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff, StringRef Target = "") {
-  auto PropSet =
-      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+
+  PropSetRegTy PropSet;
+
+  // For bf16 devicelib module, no kernel included and no specialization
+  // constant used, skip regular Prop emit. However, we have fallback and
+  // native version of bf16 devicelib and we need new property values to
+  // indicate all exported function.
+  if (!MD.isSYCLDeviceLib())
+    PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps,
+                                      AllowDeviceImageDependencies);
+  else
+    PropSet = computeDeviceLibProperties(MD.getModule(), MD.Name);
 
   // When the split mode is none, the required work group size will be added
   // to the whole module, which will make the runtime unable to
@@ -345,69 +354,6 @@ std::string saveModuleSymbolTable(const module_split::ModuleDesc &MD, int I,
   return OutFileName;
 }
 
-template <class PassClass> bool runModulePass(Module &M) {
-  ModulePassManager MPM;
-  ModuleAnalysisManager MAM;
-  // Register required analysis
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  MPM.addPass(PassClass{});
-  PreservedAnalyses Res = MPM.run(M, MAM);
-  return !Res.areAllPreserved();
-}
-
-// When ESIMD code was separated from the regular SYCL code,
-// we can safely process ESIMD part.
-// TODO: support options like -debug-pass, -print-[before|after], and others
-bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
-  LoopAnalysisManager LAM;
-  CGSCCAnalysisManager CGAM;
-  FunctionAnalysisManager FAM;
-  ModuleAnalysisManager MAM;
-
-  PassBuilder PB;
-  PB.registerModuleAnalyses(MAM);
-  PB.registerCGSCCAnalyses(CGAM);
-  PB.registerFunctionAnalyses(FAM);
-  PB.registerLoopAnalyses(LAM);
-  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-
-  ModulePassManager MPM;
-  MPM.addPass(SYCLLowerESIMDPass(!SplitEsimd));
-
-  if (!OptLevelO0) {
-    FunctionPassManager FPM;
-    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-  }
-  MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
-  FunctionPassManager MainFPM;
-  MainFPM.addPass(ESIMDLowerLoadStorePass{});
-
-  if (!OptLevelO0) {
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-    // TODO: maybe remove some passes below that don't affect code quality
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-  }
-  MPM.addPass(ESIMDLowerSLMReservationCalls{});
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
-  MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
-                                     /*RewriteSingleElementVectorsIn*/ false));
-  // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
-  // versions so the entry point table must be rebuilt.
-  // TODO Change entry point search to analysis?
-  std::vector<std::string> Names;
-  MD.saveEntryPointNames(Names);
-  PreservedAnalyses Res = MPM.run(MD.getModule(), MAM);
-  MD.rebuildEntryPoints(Names);
-  return !Res.areAllPreserved();
-}
-
 // Compute the filename suffix for the module
 StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
   return MD.isESIMD() ? "_esimd" : "";
@@ -429,13 +375,22 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
   MD.saveSplitInformationAsMetadata();
-  if (!IRFilename.empty()) {
-    // don't save IR, just record the filename
-    BaseTriple.Ir = IRFilename.str();
+
+  if (!MD.isSYCLDeviceLib()) {
+    if (!IRFilename.empty()) {
+      // don't save IR, just record the filename
+      BaseTriple.Ir = IRFilename.str();
+    } else {
+      MD.cleanup(AllowDeviceImageDependencies);
+      BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
+    }
   } else {
-    MD.cleanup();
+    // For deviceLib Modules, don't need to do clean up, no entry-point
+    // is included, the module only includes a bunch of exported functions
+    // intended to be invoked by user's device modules.
     BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
+
   if (DoSymGen) {
     // save the names of the entry points - the symbol table
     BaseTriple.Sym = saveModuleSymbolTable(MD, I, Suffix);
@@ -454,6 +409,26 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
     }
     addTableRow(*Table, CopyTriple);
   }
+}
+
+void saveDeviceLibModule(
+    std::vector<std::unique_ptr<util::SimpleTable>> &OutTables, int I,
+    const std::string &DeviceLibFileName) {
+  SMDiagnostic Err;
+  LLVMContext Context;
+  StringRef DeviceLibLoc = DeviceLibDir;
+  std::string DeviceLibPath = DeviceLibLoc.str() + "/" + DeviceLibFileName;
+  std::unique_ptr<Module> DeviceLibIR =
+      parseIRFile(DeviceLibPath, Err, Context);
+  Module *DeviceLibMPtr = DeviceLibIR.get();
+  if (!DeviceLibMPtr) {
+    errs() << "sycl-post-link NOTE: fail to load bfloat16 device library "
+              "modules\n";
+    return;
+  }
+  llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
+                                             DeviceLibFileName);
+  saveModule(OutTables, DeviceLibMD, I, DeviceLibFileName);
 }
 
 module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
@@ -538,114 +513,6 @@ void addTableRow(util::SimpleTable &Table,
   Table.addRow(Row);
 }
 
-// Removes the global variable "llvm.used" and returns true on success.
-// "llvm.used" is a global constant array containing references to kernels
-// available in the module and callable from host code. The elements of
-// the array are ConstantExpr bitcast to i8*.
-// The variable must be removed as it is a) has done the job to the moment
-// of this function call and b) the references to the kernels callable from
-// host must not have users.
-static bool removeSYCLKernelsConstRefArray(Module &M) {
-  GlobalVariable *GV = M.getGlobalVariable("llvm.used");
-
-  if (!GV) {
-    return false;
-  }
-  assert(GV->user_empty() && "Unexpected llvm.used users");
-  Constant *Initializer = GV->getInitializer();
-  GV->setInitializer(nullptr);
-  GV->eraseFromParent();
-
-  // Destroy the initializer and all operands of it.
-  SmallVector<Constant *, 8> IOperands;
-  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
-    IOperands.push_back(cast<Constant>(*It));
-  assert(llvm::isSafeToDestroyConstant(Initializer) &&
-         "Cannot remove initializer of llvm.used global");
-  Initializer->destroyConstant();
-  for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    auto Op = (*It)->stripPointerCasts();
-    auto *F = dyn_cast<Function>(Op);
-    if (llvm::isSafeToDestroyConstant(*It)) {
-      (*It)->destroyConstant();
-    } else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
-               !F->use_empty()) {
-      // The element in "llvm.used" array has other users. That is Ok for
-      // specialization constants, but is wrong for kernels.
-      llvm::report_fatal_error("Unexpected usage of SYCL kernel");
-    }
-
-    // Remove unused kernel declarations to avoid LLVM IR check fails.
-    if (F && F->isDeclaration() && F->use_empty())
-      F->eraseFromParent();
-  }
-  return true;
-}
-
-// Removes all device_global variables from the llvm.compiler.used global
-// variable. A device_global with internal linkage will be in llvm.compiler.used
-// to avoid the compiler wrongfully removing it during optimizations. However,
-// as an effect the device_global variables will also be distributed across
-// binaries, even if llvm.compiler.used has served its purpose. To avoid
-// polluting other binaries with unused device_global variables, we remove them
-// from llvm.compiler.used and erase them if they have no further uses.
-static bool removeDeviceGlobalFromCompilerUsed(Module &M) {
-  GlobalVariable *GV = M.getGlobalVariable("llvm.compiler.used");
-  if (!GV)
-    return false;
-
-  // Erase the old llvm.compiler.used. A new one will be created at the end if
-  // there are other values in it (other than device_global).
-  assert(GV->user_empty() && "Unexpected llvm.compiler.used users");
-  Constant *Initializer = GV->getInitializer();
-  const auto *VAT = cast<ArrayType>(GV->getValueType());
-  GV->setInitializer(nullptr);
-  GV->eraseFromParent();
-
-  // Destroy the initializer. Keep the operands so we keep the ones we need.
-  SmallVector<Constant *, 8> IOperands;
-  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
-    IOperands.push_back(cast<Constant>(*It));
-  assert(llvm::isSafeToDestroyConstant(Initializer) &&
-         "Cannot remove initializer of llvm.compiler.used global");
-  Initializer->destroyConstant();
-
-  // Iterate through all operands. If they are device_global then we drop them
-  // and erase them if they have no uses afterwards. All other values are kept.
-  SmallVector<Constant *, 8> NewOperands;
-  for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    Constant *Op = *It;
-    auto *DG = dyn_cast<GlobalVariable>(Op->stripPointerCasts());
-
-    // If it is not a device_global we keep it.
-    if (!DG || !isDeviceGlobalVariable(*DG)) {
-      NewOperands.push_back(Op);
-      continue;
-    }
-
-    // Destroy the device_global operand.
-    if (llvm::isSafeToDestroyConstant(Op))
-      Op->destroyConstant();
-
-    // Remove device_global if it no longer has any uses.
-    if (!DG->isConstantUsed())
-      DG->eraseFromParent();
-  }
-
-  // If we have any operands left from the original llvm.compiler.used we create
-  // a new one with the new size.
-  if (!NewOperands.empty()) {
-    ArrayType *ATy = ArrayType::get(VAT->getElementType(), NewOperands.size());
-    GlobalVariable *NGV =
-        new GlobalVariable(M, ATy, false, GlobalValue::AppendingLinkage,
-                           ConstantArray::get(ATy, NewOperands), "");
-    NGV->setName("llvm.compiler.used");
-    NGV->setSection("llvm.metadata");
-  }
-
-  return true;
-}
-
 SmallVector<module_split::ModuleDesc, 2>
 handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
             bool &SplitOccurred) {
@@ -655,8 +522,9 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   // unless -split-esimd option is specified. The graphs become disjoint
   // when linked back because functions shared between graphs are cloned and
   // renamed.
-  SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
-      std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+  SmallVector<module_split::ModuleDesc, 2> Result =
+      module_split::splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
+                                 AllowDeviceImageDependencies);
 
   if (Result.size() > 1 && SplitOccurred &&
       (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
@@ -672,7 +540,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   for (auto &MD : Result) {
     DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
     if (LowerEsimd && MD.isESIMD())
-      Modified |= lowerEsimdConstructs(MD);
+      Modified |= sycl::lowerESIMDConstructs(MD, OptLevelO0, SplitEsimd);
   }
 
   if (!SplitEsimd && Result.size() > 1) {
@@ -691,7 +559,8 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
     Linked.restoreLinkageOfDirectInvokeSimdTargets();
     string_vector Names;
     Linked.saveEntryPointNames(Names);
-    Linked.cleanup(); // may remove some entry points, need to save/rebuild
+    // cleanup may remove some entry points, need to save/rebuild
+    Linked.cleanup(AllowDeviceImageDependencies);
     Linked.rebuildEntryPoints(Names);
     Result.clear();
     Result.emplace_back(std::move(Linked));
@@ -775,51 +644,16 @@ processInputModule(std::unique_ptr<Module> M) {
 
   // Used in output filenames generation.
   int ID = 0;
+  if (llvm::esimd::moduleContainsInvokeSimdBuiltin(*M) && SplitEsimd)
+    error("'invoke_simd' calls detected, '-" + SplitEsimd.ArgStr +
+          "' must not be specified");
 
   // Keeps track of any changes made to the input module and report to the user
   // if none were made.
-  bool Modified = false;
+  bool Modified = llvm::module_split::runPreSplitProcessingPipeline(*M);
 
-  // Propagate ESIMD attribute to wrapper functions to prevent
-  // spurious splits and kernel link errors.
-  Modified |= runModulePass<SYCLFixupESIMDKernelWrapperMDPass>(*M);
-
-  // After linking device bitcode "llvm.used" holds references to the kernels
-  // that are defined in the device image. But after splitting device image into
-  // separate kernels we may end up with having references to kernel declaration
-  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
-  // and these declarations cause an assertion in llvm-spirv. To workaround this
-  // issue remove "llvm.used" from the input module before performing any other
-  // actions.
-  Modified |= removeSYCLKernelsConstRefArray(*M.get());
-
-  // There may be device_global variables kept alive in "llvm.compiler.used"
-  // to keep the optimizer from wrongfully removing them. llvm.compiler.used
-  // symbols are usually removed at backend lowering, but this is handled here
-  // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
-  if (M->getTargetTriple().find("spir") != std::string::npos)
-    Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
-
-  // MemorySanitizer specific passes
-  if (isModuleUsingAsan(*M) || isModuleUsingMsan(*M)) {
-    // Fix attributes and metadata of KernelMetadata
-    Modified |= runModulePass<SanitizerKernelMetadataPass>(*M);
-  }
-
-  // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
-  // LLVM IR specification.
-  Modified |= runModulePass<SYCLJointMatrixTransformPass>(*M);
-
-  // Do invoke_simd processing before splitting because this:
-  // - saves processing time (the pass is run once, even though on larger IR)
-  // - doing it before SYCL/ESIMD splitting is required for correctness
-  const bool InvokeSimdMet = runModulePass<SYCLLowerInvokeSimdPass>(*M);
-
-  if (InvokeSimdMet && SplitEsimd) {
-    error("'invoke_simd' calls detected, '-" + SplitEsimd.ArgStr +
-          "' must not be specified");
-  }
-  Modified |= InvokeSimdMet;
+  // Keeps track of whether any device image uses bf16 devicelib.
+  bool IsBF16DeviceLibUsed = false;
 
   DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "Input");
 
@@ -834,7 +668,7 @@ processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
           module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints);
+          EmitOnlyKernelsAsEntryPoints, AllowDeviceImageDependencies);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -875,7 +709,7 @@ processInputModule(std::unique_ptr<Module> M) {
         error("some modules had to be split, '-" + IROutputOnly.ArgStr +
               "' can't be used");
       }
-      MMs.front().cleanup();
+      MMs.front().cleanup(AllowDeviceImageDependencies);
       saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
       return Tables;
     }
@@ -890,6 +724,7 @@ processInputModule(std::unique_ptr<Module> M) {
                 "have been made\n";
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
+      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
       saveModule(Tables, IrMD, ID, OutIRFileName);
     }
 
@@ -898,11 +733,17 @@ processInputModule(std::unique_ptr<Module> M) {
     if (!MMsWithDefaultSpecConsts.empty()) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
+        IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
         saveModule(Tables, IrMD, ID, OutIRFileName);
       }
 
       ++ID;
     }
+  }
+
+  if (IsBF16DeviceLibUsed && (DeviceLibDir.getNumOccurrences() > 0)) {
+    saveDeviceLibModule(Tables, ID, "libsycl-fallback-bfloat16.bc");
+    saveDeviceLibModule(Tables, ID + 1, "libsycl-native-bfloat16.bc");
   }
   return Tables;
 }
@@ -913,8 +754,7 @@ int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
   LLVMContext Context;
-  cl::HideUnrelatedOptions(
-      {&PostLinkCat, &module_split::getModuleSplitCategory()});
+  cl::HideUnrelatedOptions({&PostLinkCat});
   cl::ParseCommandLineOptions(
       argc, argv,
       "SYCL post-link device code processing tool.\n"

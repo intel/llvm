@@ -104,6 +104,22 @@ static RetType __invoke__SampledImageFetch(ImageT Img, CoordT Coords) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
+static std::enable_if_t<std::is_same_v<RetType, sycl::vec<float, 4>> ||
+                            std::is_same_v<RetType, sycl::vec<int, 4>> ||
+                            std::is_same_v<RetType, sycl::vec<unsigned int, 4>>,
+                        RetType>
+__invoke__SampledImageGather(ImageT Img, CoordT Coords, unsigned Component) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_SampledImageGather<TempRetT, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords, Component));
+}
+
+template <typename RetType, typename ImageT, typename CoordT>
 static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
                                          int ArrayLayer) {
 

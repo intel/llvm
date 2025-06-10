@@ -16,10 +16,10 @@
 #include "asan_allocator.hpp"
 #include "asan_buffer.hpp"
 #include "asan_libdevice.hpp"
-#include "asan_options.hpp"
 #include "asan_shadow.hpp"
 #include "asan_statistics.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
+#include "sanitizer_common/sanitizer_options.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -185,8 +185,9 @@ struct AsanRuntimeDataWrapper {
           Context, Device, nullptr, nullptr, sizeof(AsanRuntimeData),
           (void **)&DevicePtr);
       if (Result != UR_RESULT_SUCCESS) {
-        getContext()->logger.error(
-            "Failed to alloc device usm for asan runtime data: {}", Result);
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to alloc device usm for asan runtime data: {}",
+                 Result);
       }
     }
     return DevicePtr;
@@ -309,7 +310,7 @@ public:
     if (m_Adapters.find(Adapter) != m_Adapters.end()) {
       return UR_RESULT_SUCCESS;
     }
-    UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
+    UR_CALL(getContext()->urDdiTable.Adapter.pfnRetain(Adapter));
     m_Adapters.insert(Adapter);
     return UR_RESULT_SUCCESS;
   }
@@ -342,8 +343,6 @@ public:
   KernelInfo &getOrCreateKernelInfo(ur_kernel_handle_t Kernel);
   ur_result_t eraseKernelInfo(ur_kernel_handle_t Kernel);
 
-  const AsanOptions &getOptions() { return m_Options; }
-
   void exitWithErrors() {
     m_NormalExit = false;
     exit(1);
@@ -375,8 +374,6 @@ private:
   ur_result_t registerSpirKernels(ur_program_handle_t Program);
 
 private:
-  // m_Options may be used in other places, place it at the top
-  AsanOptions m_Options;
   std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
       m_ContextMap;
   ur_shared_mutex m_ContextMapMutex;

@@ -3,7 +3,8 @@ from lit.BooleanExpression import BooleanExpression
 
 class E2EExpr(BooleanExpression):
     build_specific_features = {
-        "build-and-run-mode",
+        "run-mode",
+        "build-mode",
         "preview-mode",
         "target-spir",
         "target-nvidia",
@@ -13,11 +14,13 @@ class E2EExpr(BooleanExpression):
         "any-target-is-nvidia",
         "any-target-is-amd",
         "any-target-is-native_cpu",
+        "opencl-cpu-rt",
         "spirv-backend",
         "linux",
         "system-linux",
         "windows",
         "system-windows",
+        "cl_options",
         "enable-perf-tests",
         "preview-breaking-changes-supported",
         "has_ndebug",
@@ -28,10 +31,21 @@ class E2EExpr(BooleanExpression):
         "xptifw",
         "level_zero_dev_kit",
         "cuda_dev_kit",
+        "hip_dev_kit",
         "zstd",
         "vulkan",
+        "hip_options",
+        "cuda_options",
+        "host=None",
+        "target=None",
+        "shell",
+        "non-root-user",
+        "llvm-spirv",
+        "llvm-link",
         "true",
         "false",
+        "pdtracker",
+        "ze_debug",
     }
 
     def __init__(self, string, variables, build_only_mode, final_unknown_value):
@@ -59,14 +73,10 @@ class E2EExpr(BooleanExpression):
     def parseMATCH(self):
         token = self.token
         BooleanExpression.parseMATCH(self)
-        if token not in self.build_specific_features and self.build_only_mode:
+        if token not in E2EExpr.build_specific_features and self.build_only_mode:
             self.unknown = True
         else:
             self.unknown = False
-        if self.value and self.unknown:
-            raise ValueError(
-                'Runtime feature "' + token + '" evaluated to True in build-only'
-            )
 
     def parseAND(self):
         self.parseNOT()
@@ -105,6 +115,18 @@ class E2EExpr(BooleanExpression):
         self.parseOR()
         self.expect(BooleanExpression.END)
         return self.final_unknown_value if self.unknown else self.value
+
+    @staticmethod
+    def check_build_features(variables):
+        rt_features = [x for x in variables if x not in E2EExpr.build_specific_features]
+        if rt_features:
+            raise ValueError(
+                "Runtime features: "
+                + str(rt_features)
+                + " evaluated to True in build-only\n"
+                + "If this is a new build specific feature append it to:"
+                + "`build_specific_features` in `sycl/test-e2e/E2EExpr.py`"
+            )
 
 
 import unittest
@@ -158,11 +180,12 @@ class TestE2EExpr(unittest.TestCase):
         self.assertFalse(
             UnsupportedBuildEval("linux && (vulkan && rt_feature)", {"linux"})
         )
-        # runtime feature is present in build-only
+        # Check that no runtime features are present in build-only
         with self.assertRaises(ValueError):
-            RequiresBuildEval("rt_feature", {"rt_feature"})
+            E2EExpr.check_build_features({"rt-feature"})
         with self.assertRaises(ValueError):
-            UnsupportedBuildEval("rt_feature", {"rt_feature"})
+            E2EExpr.check_build_features({"build-only", "rt-feature"})
+        E2EExpr.check_build_features({"build-mode"})
 
 
 if __name__ == "__main__":

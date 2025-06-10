@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "platform.hpp"
 #include "usm.hpp"
 
 #include <cassert>
@@ -35,18 +36,10 @@ ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
 }
 
 /// Create a UR CUDA context.
-///
-/// By default creates a scoped context and keeps the last active CUDA context
-/// on top of the CUDA context stack.
-/// With the __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of
-/// PI_TRUE creates a primary CUDA context and activates it on the CUDA context
-/// stack.
-///
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
-                const ur_context_properties_t *pProperties,
+                const ur_context_properties_t * /*pProperties*/,
                 ur_context_handle_t *phContext) {
-  std::ignore = pProperties;
 
   std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
@@ -74,34 +67,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
                        hContext->getDevices().size());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(hContext->getReferenceCount());
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint32_t Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
-    return ReturnValue(Capabilities);
-  }
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    int Major = 0;
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-        hContext->getDevices()[0]->get()));
-    uint32_t Capabilities =
-        (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM
-                     : UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
-    return ReturnValue(Capabilities);
-  }
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
     return ReturnValue(true);
@@ -122,8 +87,7 @@ urContextRelease(ur_context_handle_t hContext) {
     return UR_RESULT_SUCCESS;
   }
   hContext->invokeExtendedDeleters();
-
-  std::unique_ptr<ur_context_handle_t_> Context{hContext};
+  delete hContext;
 
   return UR_RESULT_SUCCESS;
 }

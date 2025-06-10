@@ -13,7 +13,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -51,6 +51,11 @@ cl::opt<IRSplitMode> SplitMode(
                clEnumValN(module_split::SPLIT_AUTO, "auto",
                           "Choose split mode automatically")),
     cl::cat(SplitCategory));
+
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"),
+    cl::cat(SplitCategory), cl::init(false)};
 
 void writeStringToFile(const std::string &Content, StringRef Path) {
   std::error_code EC;
@@ -120,6 +125,7 @@ int main(int argc, char *argv[]) {
   Settings.Mode = SplitMode;
   Settings.OutputAssembly = OutputAssembly;
   Settings.OutputPrefix = OutputFilenamePrefix;
+  Settings.AllowDeviceImageDependencies = AllowDeviceImageDependencies;
   auto SplitModulesOrErr = splitSYCLModule(std::move(M), Settings);
   if (!SplitModulesOrErr) {
     Err.print(argv[0], errs());

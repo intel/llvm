@@ -10,6 +10,7 @@
 
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 #include <detail/sycl_mem_obj_i.hpp>
@@ -52,6 +53,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #endif
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
+    if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     EnqueueResultT Res;
     bool Enqueued =
         GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
@@ -65,6 +69,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
+    if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     EnqueueResultT Res;
     bool Enqueued =
         GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
@@ -156,12 +163,14 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
         }
         delete NewCmd;
       }
+      cleanupCommands(ToCleanUp);
     };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd,
-                                                Blocking);
       try {
+        Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp,
+                                                  Cmd, Blocking);
+
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw exception(make_error_code(errc::runtime),
                           "Auxiliary enqueue process failed.");
@@ -179,9 +188,14 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
       try {
         bool Enqueued = GraphProcessor::enqueueCommand(
             NewCmd, Lock, Res, ToCleanUp, NewCmd, Blocking);
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw exception(make_error_code(errc::runtime),
-                          "Enqueue process failed.");
+        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+          throw sycl::detail::set_ur_error(
+              sycl::exception(sycl::make_error_code(errc::runtime),
+                              std::string("Enqueue process failed.\n") +
+                                  __SYCL_UR_ERROR_REPORT +
+                                  sycl::detail::codeToString(Res.MErrCode)),
+              Res.MErrCode);
+        }
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
@@ -271,7 +285,20 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     // No operations were performed on the mem object
     return true;
 
-  {
+#ifdef _WIN32
+  // If we are shutting down on Windows it may not be
+  // safe to wait on host threads, as the OS may
+  // abandon them. But no worries, the memory WILL be reclaimed.
+  bool allowWait =
+      MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
+  if (!allowWait) {
+    StrictLock = false;
+  }
+#else
+  bool allowWait = true;
+#endif
+
+  if (allowWait) {
     // This only needs a shared mutex as it only involves enqueueing and
     // awaiting for events
     ReadLockT Lock = StrictLock ? ReadLockT(MGraphLock)
@@ -281,10 +308,20 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     waitForRecordToFinish(Record, Lock);
   }
   {
+    // If allowWait is false, it means the application is shutting down.
+    // On Windows we can't safely wait on threads, because they have likely been
+    // abandoned. So we will try to get the lock. If we can, great, we'll remove
+    // the record. But if we can't, we just skip. The OS will reclaim the
+    // memory.
     WriteLockT Lock = StrictLock ? acquireWriteLock()
                                  : WriteLockT(MGraphLock, std::try_to_lock);
-    if (!Lock.owns_lock())
-      return false;
+    if (!Lock.owns_lock()) {
+
+      if (allowWait)
+        return false; // Record was not removed, the caller may try again.
+      else
+        return true; // skip.
+    }
     MGraphBuilder.decrementLeafCountersForRecord(Record);
     MGraphBuilder.cleanupCommandsForRecord(Record);
     MGraphBuilder.removeRecordForMemObj(MemObj);
@@ -567,11 +604,10 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
   for (auto It = MAuxiliaryResources.begin();
        It != MAuxiliaryResources.end();) {
-    const EventImplPtr &Event = It->first;
     if (Blocking == BlockingT::BLOCKING) {
-      Event->waitInternal();
+      It->first->waitInternal();
       It = MAuxiliaryResources.erase(It);
-    } else if (Event->isCompleted())
+    } else if (It->first->isCompleted())
       It = MAuxiliaryResources.erase(It);
     else
       ++It;
@@ -579,9 +615,9 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 }
 
 ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
-    [[maybe_unused]] QueueImplPtr Queue,
+    [[maybe_unused]] queue_impl &Queue,
     [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
-    [[maybe_unused]] const std::string &KernelName,
+    [[maybe_unused]] KernelNameStrRefT KernelName,
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
 #if SYCL_EXT_JIT_ENABLE && !_WIN32
   return detail::jit_compiler::get_instance().materializeSpecConstants(
@@ -640,8 +676,8 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
   return NewCmdEvent;
 }
 
-bool CheckEventReadiness(const ContextImplPtr &Context,
-                         const EventImplPtr &SyclEventImplPtr) {
+bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
+                                    const EventImplPtr &SyclEventImplPtr) {
   // Events that don't have an initialized context are throwaway events that
   // don't represent actual dependencies. Calling getContextImpl() would set
   // their context, which we wish to avoid as it is expensive.
@@ -662,7 +698,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, ContextImplPtr Context) {
+    const std::vector<sycl::event> &DepEvents, const ContextImplPtr &Context) {
 
   return std::all_of(
       DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
@@ -672,7 +708,7 @@ bool Scheduler::areEventsSafeForSchedulerBypass(
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, ContextImplPtr Context) {
+    const std::vector<EventImplPtr> &DepEvents, const ContextImplPtr &Context) {
 
   return std::all_of(DepEvents.begin(), DepEvents.end(),
                      [&Context](const EventImplPtr &SyclEventImplPtr) {

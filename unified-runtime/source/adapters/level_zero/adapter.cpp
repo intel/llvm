@@ -41,7 +41,7 @@ public:
     this->ostream = &std::cerr;
   }
 
-  virtual void print([[maybe_unused]] logger::Level level,
+  virtual void print([[maybe_unused]] ur_logger_level_t level,
                      const std::string &msg) override {
     fprintf(stderr, "%s", msg.c_str());
   }
@@ -163,7 +163,7 @@ ur_result_t initPlatforms(PlatformVec &platforms,
     ZE2UR_CALL(zeDriverGet, (&ZeDriverGetCount, ZeDriverGetHandles.data()));
   }
   if (ZeDriverGetCount == 0 && GlobalAdapter->ZeInitDriversCount == 0) {
-    logger::error("\nNo Valid L0 Drivers found.\n");
+    UR_LOG(ERR, "\nNo Valid L0 Drivers found.\n");
     return UR_RESULT_SUCCESS;
   }
 
@@ -188,9 +188,10 @@ ur_result_t initPlatforms(PlatformVec &platforms,
           // newer drivers.
           if (ZeDriverGetProperties.driverVersion !=
               ZeInitDriverProperties.driverVersion) {
-            logger::debug("\nzeDriverHandle {} added to the zeInitDrivers list "
-                          "of possible handles.\n",
-                          ZeDriverGetHandles[Y]);
+            UR_LOG(DEBUG,
+                   "\nzeDriverHandle {} added to the zeInitDrivers list "
+                   "of possible handles.\n",
+                   ZeDriverGetHandles[Y]);
             ZeDrivers.push_back(ZeDriverGetHandles[Y]);
           }
         }
@@ -201,7 +202,7 @@ ur_result_t initPlatforms(PlatformVec &platforms,
     ZeDrivers.assign(ZeDriverGetHandles.begin(), ZeDriverGetHandles.end());
   }
   ZeDriverCount = ZeDrivers.size();
-  logger::debug("\n{} L0 Drivers found.\n", ZeDriverCount);
+  UR_LOG(DEBUG, "\n{} L0 Drivers found.\n", ZeDriverCount);
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
     // Keep track of the first platform init for this Driver
     bool DriverPlatformInit = false;
@@ -295,13 +296,25 @@ Behavior Summary:
   SysMan initialization is skipped.
 */
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(logger::get_logger("level_zero")) {
+    : handle_base(), logger(logger::get_logger("level_zero")) {
   ZeInitDriversResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
 
+#ifdef UR_STATIC_LEVEL_ZERO
+  // Given static linking of the L0 Loader, we must delay the loader's
+  // destruction of its context until after the UR Adapter is destroyed.
+  zelSetDelayLoaderContextTeardown();
+#endif
+
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    setEnvVar("ZEL_ENABLE_LOADER_LOGGING", "1");
+    setEnvVar("ZEL_LOADER_LOGGING_LEVEL", "trace");
+    setEnvVar("ZEL_LOADER_LOG_CONSOLE", "1");
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+#endif
   };
 
   if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
@@ -335,10 +348,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     // Dynamically load the new L0 apis separately.
     // This must be done to avoid attempting to use symbols that do
     // not exist in older loader runtimes.
+#ifndef UR_STATIC_LEVEL_ZERO
 #ifdef _WIN32
-    HMODULE processHandle = GetModuleHandle(NULL);
+    GlobalAdapter->processHandle = GetModuleHandle(NULL);
 #else
-    HMODULE processHandle = nullptr;
+    GlobalAdapter->processHandle = nullptr;
+#endif
 #endif
 
     // initialize level zero only once.
@@ -351,7 +366,8 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       }
 
       if (getenv("SYCL_ENABLE_PCI") != nullptr) {
-        logger::warning(
+        UR_LOG(
+            WARN,
             "WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
       }
 
@@ -373,13 +389,13 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       if (UrL0InitAllDrivers) {
         L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
       }
-      logger::debug("\nzeInit with flags value of {}\n",
-                    static_cast<int>(L0InitFlags));
+      UR_LOG(DEBUG, "\nzeInit with flags value of {}\n",
+             static_cast<int>(L0InitFlags));
       GlobalAdapter->ZeInitResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
       if (GlobalAdapter->ZeInitResult != ZE_RESULT_SUCCESS) {
         const char *ErrorString = "Unknown";
         zeParseError(GlobalAdapter->ZeInitResult, ErrorString);
-        logger::error("\nzeInit failed with {}\n", ErrorString);
+        UR_LOG(ERR, "\nzeInit failed with {}\n", ErrorString);
       }
 
       bool useInitDrivers = false;
@@ -395,9 +411,9 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
             if (strncmp(versions[i].component_name, "loader",
                         strlen("loader")) == 0) {
               loader_version = versions[i].component_lib_version;
-              logger::debug("\nLevel Zero Loader Version: {}.{}.{}\n",
-                            loader_version.major, loader_version.minor,
-                            loader_version.patch);
+              UR_LOG(DEBUG, "\nLevel Zero Loader Version: {}.{}.{}\n",
+                     loader_version.major, loader_version.minor,
+                     loader_version.patch);
               break;
             }
           }
@@ -409,15 +425,30 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
              loader_version.patch >= 2)) {
           useInitDrivers = true;
         }
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+        if ((loader_version.major == 1 && loader_version.minor < 21) ||
+            (loader_version.major == 1 && loader_version.minor == 21 &&
+             loader_version.patch < 2)) {
+          UR_LOG(
+              WARN,
+              "WARNING: Level Zero Loader version is older than 1.21.2. "
+              "Please update to the latest version for API logging support.\n");
+        }
+#endif
       }
 
       if (useInitDrivers) {
+#ifdef UR_STATIC_LEVEL_ZERO
+        GlobalAdapter->initDriversFunctionPtr = zeInitDrivers;
+#else
         GlobalAdapter->initDriversFunctionPtr =
             (ze_pfnInitDrivers_t)ur_loader::LibLoader::getFunctionPtr(
-                processHandle, "zeInitDrivers");
+                GlobalAdapter->processHandle, "zeInitDrivers");
+#endif
         if (GlobalAdapter->initDriversFunctionPtr) {
-          logger::debug("\nzeInitDrivers with flags value of {}\n",
-                        static_cast<int>(GlobalAdapter->InitDriversDesc.flags));
+          UR_LOG(DEBUG, "\nzeInitDrivers with flags value of {}\n",
+                 static_cast<int>(GlobalAdapter->InitDriversDesc.flags));
           GlobalAdapter->ZeInitDriversResult =
               ZE_CALL_NOCHECK(GlobalAdapter->initDriversFunctionPtr,
                               (&GlobalAdapter->ZeInitDriversCount, nullptr,
@@ -427,7 +458,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
           } else {
             const char *ErrorString = "Unknown";
             zeParseError(GlobalAdapter->ZeInitDriversResult, ErrorString);
-            logger::error("\nzeInitDrivers failed with {}\n", ErrorString);
+            UR_LOG(ERR, "\nzeInitDrivers failed with {}\n", ErrorString);
           }
         }
       }
@@ -445,24 +476,16 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
     // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
     if (*GlobalAdapter->ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-      logger::error("Level Zero Uninitialized\n");
+      UR_LOG(ERR, "Level Zero Uninitialized\n");
       result = std::move(platforms);
       return;
     }
     if (*GlobalAdapter->ZeResult != ZE_RESULT_SUCCESS) {
-      logger::error("Level Zero initialization failure\n");
+      UR_LOG(ERR, "Level Zero initialization failure\n");
       result = ze2urResult(*GlobalAdapter->ZeResult);
 
       return;
     }
-    // Dynamically load the new L0 SysMan separate init and new EXP apis
-    // separately. This must be done to avoid attempting to use symbols that do
-    // not exist in older loader runtimes.
-#ifdef _WIN32
-    GlobalAdapter->processHandle = GetModuleHandle(NULL);
-#else
-    GlobalAdapter->processHandle = nullptr;
-#endif
 
     // Check if the user has enabled the default L0 SysMan initialization.
     const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
@@ -484,6 +507,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       ZesInitNeeded = true;
     }
     if (ZesInitNeeded) {
+#ifdef UR_STATIC_LEVEL_ZERO
+      GlobalAdapter->getDeviceByUUIdFunctionPtr = zesDriverGetDeviceByUuidExp;
+      GlobalAdapter->getSysManDriversFunctionPtr = zesDriverGet;
+      GlobalAdapter->sysManInitFunctionPtr = zesInit;
+#else
       GlobalAdapter->getDeviceByUUIdFunctionPtr =
           (zes_pfnDriverGetDeviceByUuidExp_t)
               ur_loader::LibLoader::getFunctionPtr(
@@ -494,13 +522,14 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       GlobalAdapter->sysManInitFunctionPtr =
           (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(
               GlobalAdapter->processHandle, "zesInit");
+#endif
     }
     if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
         GlobalAdapter->getSysManDriversFunctionPtr &&
         GlobalAdapter->sysManInitFunctionPtr) {
       ze_init_flags_t L0ZesInitFlags = 0;
-      logger::debug("\nzesInit with flags value of {}\n",
-                    static_cast<int>(L0ZesInitFlags));
+      UR_LOG(DEBUG, "\nzesInit with flags value of {}\n",
+             static_cast<int>(L0ZesInitFlags));
       GlobalAdapter->ZesResult = ZE_CALL_NOCHECK(
           GlobalAdapter->sysManInitFunctionPtr, (L0ZesInitFlags));
     } else {
@@ -668,7 +697,13 @@ ur_result_t urAdapterRelease(ur_adapter_handle_t) {
   if (GlobalAdapter) {
     std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
     if (--GlobalAdapter->RefCount == 0) {
-      return adapterStateTeardown();
+      auto result = adapterStateTeardown();
+#ifdef UR_STATIC_LEVEL_ZERO
+      // Given static linking of the L0 Loader, we must delay the loader's
+      // destruction of its context until after the UR Adapter is destroyed.
+      zelLoaderContextTeardown();
+#endif
+      return result;
     }
   }
 
@@ -696,7 +731,7 @@ ur_result_t urAdapterGetLastError(
   *Message = ErrorMessage;
   *Error = ErrorAdapterNativeCode;
 
-  return ErrorMessageCode;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
@@ -706,7 +741,7 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
 
   switch (PropName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_LEVEL_ZERO);
+    return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(GlobalAdapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION: {
@@ -723,4 +758,26 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
 
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urAdapterSetLoggerCallback(
+    ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
+    void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
+
+  if (GlobalAdapter) {
+    GlobalAdapter->logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t,
+                                            ur_logger_level_t level) {
+
+  if (GlobalAdapter) {
+    GlobalAdapter->logger.setCallbackLevel(level);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace ur::level_zero

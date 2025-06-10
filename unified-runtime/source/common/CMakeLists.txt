@@ -12,9 +12,9 @@ else()
 endif()
 
 if (UR_BUILD_ADAPTER_CUDA)
-    find_package(CUDA 10.1 REQUIRED)
+    find_package(CUDAToolkit 10.1 REQUIRED)
     set(UMF_BUILD_CUDA_PROVIDER ON CACHE INTERNAL "Build UMF CUDA provider")
-    set(UMF_CUDA_INCLUDE_DIR "${CUDA_INCLUDE_DIRS}" CACHE INTERNAL "CUDA headers")
+    set(UMF_CUDA_INCLUDE_DIR "${CUDAToolkit_INCLUDE_DIRS}" CACHE INTERNAL "CUDA headers")
 else()
     set(UMF_BUILD_CUDA_PROVIDER OFF CACHE INTERNAL "Build UMF CUDA provider")
 endif()
@@ -40,11 +40,12 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 5a515c56c92be75944c8246535c408cee7711114
-    # Author: Lukasz Dorau <lukasz.dorau@intel.com>
-    # Date:   Mon Feb 17 10:56:05 2025 +0100
-    # Merge pull request #1086 from vinser52/svinogra_l0_linking
-    set(UMF_TAG 5a515c56c92be75944c8246535c408cee7711114)
+    # commit 0a63bbd489e8e910c3f9a2129b287bfc63925716 (HEAD -> main, upstream/main)
+    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
+    # Date:   Mon May 12 09:46:48 2025 +0200
+    # Merge pull request #1308 from lukaszstolarczuk/depr-hwloc-disable-cmake
+    # [CMake] Warn about UMF_DISABLE_HWLOC being deprecated
+    set(UMF_TAG 0a63bbd489e8e910c3f9a2129b287bfc63925716)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -72,7 +73,6 @@ else()
   set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
-  set(UMF_BUILD_LIBUMF_POOL_DISJOINT ON CACHE INTERNAL "Build Disjoint Pool")
 
   FetchContent_MakeAvailable(unified-memory-framework)
   FetchContent_GetProperties(unified-memory-framework)
@@ -127,5 +127,4 @@ add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
 target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
-    umf::disjoint_pool
 )

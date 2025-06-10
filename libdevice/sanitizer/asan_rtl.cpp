@@ -26,11 +26,11 @@ static const __SYCL_CONSTANT__ char __newline[] = "\n";
 static const __SYCL_CONSTANT__ char __global_shadow_out_of_bound[] =
     "[kernel] Global shadow memory out-of-bound (ptr: %p -> %p, base: %p)\n";
 static const __SYCL_CONSTANT__ char __local_shadow_out_of_bound[] =
-    "[kernel] Local shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
-    "%p)\n";
+    "[kernel] Local shadow memory out-of-bound (ptr: %p -> %p, wid: %llu, "
+    "base: %p)\n";
 static const __SYCL_CONSTANT__ char __private_shadow_out_of_bound[] =
-    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
-    "%p)\n";
+    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wid: %llu, "
+    "sid: %llu, base: %p)\n";
 
 static const __SYCL_CONSTANT__ char __asan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
@@ -117,54 +117,52 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_LOCAL) { // local
-    // The size of SLM is 64KB on DG2
-    constexpr unsigned slm_size = 64 * 1024;
-    const auto wg_lid =
-        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-            __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.z;
-
     const auto shadow_offset = launch_info->LocalShadowOffset;
     if (shadow_offset == 0) {
       return 0;
     }
 
-    auto shadow_ptr = shadow_offset +
-                      ((wg_lid * slm_size) >> ASAN_SHADOW_SCALE) +
+    // The size of SLM is 64KB on DG2
+    constexpr unsigned slm_size = 64 * 1024;
+    const size_t wid = WorkGroupLinearId();
+
+    auto shadow_ptr = shadow_offset + ((wid * slm_size) >> ASAN_SHADOW_SCALE) +
                       ((addr & (slm_size - 1)) >> ASAN_SHADOW_SCALE);
 
     ASAN_DEBUG(const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
                if (shadow_ptr > shadow_offset_end) {
                  __spirv_ocl_printf(__local_shadow_out_of_bound, addr,
-                                    shadow_ptr, wg_lid, (uptr)shadow_offset);
+                                    shadow_ptr, wid, (uptr)shadow_offset);
                  return 0;
                });
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_PRIVATE) { // private
-    // work-group linear id
-    const auto WG_LID =
-        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-            __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.z;
-
     const auto shadow_offset = launch_info->PrivateShadowOffset;
     if (shadow_offset == 0) {
       return 0;
     }
 
-    uptr shadow_ptr = shadow_offset +
-                      ((WG_LID * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
-                      ((addr & (ASAN_PRIVATE_SIZE - 1)) >> ASAN_SHADOW_SCALE);
+    const auto wid = WorkGroupLinearId();
+    const size_t sid = SubGroupLinearId();
+    const uptr private_base = launch_info->PrivateBase[sid];
 
-    ASAN_DEBUG(const auto shadow_offset_end =
-                   launch_info->PrivateShadowOffsetEnd;
-               if (shadow_ptr > shadow_offset_end) {
-                 __spirv_ocl_printf(__private_shadow_out_of_bound, addr,
-                                    shadow_ptr, WG_LID, (uptr)shadow_offset);
-                 return 0;
-               });
+    // FIXME: The recorded private_base may not be the most bottom one,
+    // ideally there should have a build-in to get this information
+    if (addr < private_base) {
+      return 0;
+    }
+
+    uptr shadow_ptr = shadow_offset +
+                      ((wid * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((addr - private_base) >> ASAN_SHADOW_SCALE);
+
+    const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
+    if (shadow_ptr > shadow_offset_end) {
+      __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, wid,
+                         sid, private_base);
+      return 0;
+    };
+
     return shadow_ptr;
   }
 
@@ -196,57 +194,52 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
         });
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_LOCAL) { // local
-    // The size of SLM is 128KB on PVC
-    constexpr unsigned SLM_SIZE = 128 * 1024;
-    // work-group linear id
-    const auto wg_lid =
-        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-            __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.z;
-
     const auto shadow_offset = launch_info->LocalShadowOffset;
-
     if (shadow_offset == 0) {
       return 0;
     }
 
-    uptr shadow_ptr = shadow_offset +
-                      ((wg_lid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
+    // The size of SLM is 128KB on PVC
+    constexpr unsigned SLM_SIZE = 128 * 1024;
+    const auto wid = WorkGroupLinearId();
+
+    uptr shadow_ptr = shadow_offset + ((wid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
                       ((addr & (SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
 
     ASAN_DEBUG(const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
                if (shadow_ptr > shadow_offset_end) {
                  __spirv_ocl_printf(__local_shadow_out_of_bound, addr,
-                                    shadow_ptr, wg_lid, (uptr)shadow_offset);
+                                    shadow_ptr, wid, (uptr)shadow_offset);
                  return 0;
                });
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_PRIVATE) { // private
-    // work-group linear id
-    const auto WG_LID =
-        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-            __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.z;
-
     const auto shadow_offset = launch_info->PrivateShadowOffset;
-
     if (shadow_offset == 0) {
       return 0;
     }
 
-    uptr shadow_ptr = shadow_offset +
-                      ((WG_LID * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
-                      ((addr & (ASAN_PRIVATE_SIZE - 1)) >> ASAN_SHADOW_SCALE);
+    const size_t wid = WorkGroupLinearId();
+    const size_t sid = SubGroupLinearId();
+    const uptr private_base = launch_info->PrivateBase[sid];
 
-    ASAN_DEBUG(const auto shadow_offset_end =
-                   launch_info->PrivateShadowOffsetEnd;
-               if (shadow_ptr > shadow_offset_end) {
-                 __spirv_ocl_printf(__private_shadow_out_of_bound, addr,
-                                    shadow_ptr, WG_LID, (uptr)shadow_offset);
-                 return 0;
-               });
+    // FIXME: The recorded private_base may not be the most bottom one,
+    // ideally there should have a build-in to get this information
+    if (addr < private_base) {
+      return 0;
+    }
+
+    uptr shadow_ptr = shadow_offset +
+                      ((wid * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((addr - private_base) >> ASAN_SHADOW_SCALE);
+
+    const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
+    if (shadow_ptr > shadow_offset_end) {
+      __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, wid,
+                         sid, private_base);
+      return 0;
+    };
+
     return shadow_ptr;
   }
 
@@ -330,19 +323,26 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 static __SYCL_CONSTANT__ const char __mem_sanitizer_report[] =
     "[kernel] SanitizerReport (ErrorType=%d, IsRecover=%d)\n";
 
+void __asan_exit(ErrorType error_type) {
+  // Exit the kernel when we really need it
+  switch (error_type) {
+  case ErrorType::UNKNOWN:
+  case ErrorType::UNKNOWN_DEVICE:
+  case ErrorType::NULL_POINTER:
+    __devicelib_exit();
+    break;
+  default:
+    break;
+  }
+}
+
 void __asan_internal_report_save(ErrorType error_type) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
 
-  // work-group linear id
-  const auto WG_LID =
-      __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-          __spirv_BuiltInNumWorkgroups.z +
-      __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-      __spirv_BuiltInWorkgroupId.z;
-
+  const size_t wid = WorkGroupLinearId();
   auto &SanitizerReport = ((__SYCL_GLOBAL__ AsanRuntimeData *)__AsanLaunchInfo)
-                              ->Report[WG_LID % ASAN_MAX_NUM_REPORTS];
+                              ->Report[wid % ASAN_MAX_NUM_REPORTS];
 
   if (atomicCompareAndSet(
           &(((__SYCL_GLOBAL__ AsanRuntimeData *)__AsanLaunchInfo)->ReportFlag),
@@ -359,7 +359,7 @@ void __asan_internal_report_save(ErrorType error_type) {
                                   SanitizerReport.ErrorTy,
                                   SanitizerReport.IsRecover));
   }
-  __devicelib_exit();
+  __asan_exit(error_type);
 }
 
 void __asan_internal_report_save(
@@ -370,15 +370,9 @@ void __asan_internal_report_save(
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
 
-  // work-group linear id
-  const auto WG_LID =
-      __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-          __spirv_BuiltInNumWorkgroups.z +
-      __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-      __spirv_BuiltInWorkgroupId.z;
-
+  const size_t wid = WorkGroupLinearId();
   auto &SanitizerReport = ((__SYCL_GLOBAL__ AsanRuntimeData *)__AsanLaunchInfo)
-                              ->Report[WG_LID % ASAN_MAX_NUM_REPORTS];
+                              ->Report[wid % ASAN_MAX_NUM_REPORTS];
 
   if ((is_recover ||
        atomicCompareAndSet(
@@ -435,7 +429,7 @@ void __asan_internal_report_save(
                                   SanitizerReport.ErrorTy,
                                   SanitizerReport.IsRecover));
   }
-  __devicelib_exit();
+  __asan_exit(error_type);
 }
 
 ///
@@ -881,24 +875,46 @@ static __SYCL_CONSTANT__ const char __mem_set_shadow_private_end[] =
 static __SYCL_CONSTANT__ const char __mem_set_shadow_private[] =
     "[kernel] set_shadow_private(beg=%p, end=%p, val:%02X)\n";
 
-DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr begin, uptr size,
+// We outline the function of setting shadow memory of private memory, because
+// it may allocate failed on UR
+DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr shadow, uptr size,
                                                         char val) {
-  if (!__AsanLaunchInfo)
+  auto *launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
+  if (!launch_info || launch_info->PrivateShadowOffset == 0)
+    return;
+
+  // "__asan_mem_to_shadow" may return 0 although "PrivateShadowOffset != 0", in
+  // this case, "shadow" may be out of range of private shadow
+  if (shadow < launch_info->PrivateShadowOffset)
     return;
 
   ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private_begin));
 
-  auto *launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
-  if (launch_info->PrivateShadowOffset == 0)
-    return;
-
-  ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private, (void *)begin,
-                                (void *)(begin + size), val & 0xFF));
+  ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private, (void *)shadow,
+                                (void *)(shadow + size), val & 0xFF));
 
   for (size_t i = 0; i < size; i++)
-    ((__SYCL_GLOBAL__ u8 *)begin)[i] = val;
+    ((__SYCL_GLOBAL__ u8 *)shadow)[i] = val;
 
   ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private_end));
+}
+
+static __SYCL_CONSTANT__ const char __asan_print_private_base[] =
+    "[kernel] set_private_base: %llu -> %p\n";
+
+DEVICE_EXTERN_C_NOINLINE void
+__asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
+  auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
+  if (!launch_info || launch_info->PrivateShadowOffset == 0 ||
+      launch_info->PrivateBase == 0)
+    return;
+  // Only set on the first sub-group item
+  if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
+    return;
+  const size_t sid = SubGroupLinearId();
+  launch_info->PrivateBase[sid] = (uptr)ptr;
+  SubGroupBarrier();
+  ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
 }
 
 #endif // __SPIR__ || __SPIRV__

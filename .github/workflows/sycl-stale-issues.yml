@@ -8,10 +8,11 @@ permissions: read-all
 
 jobs:
   close-issues:
+    if: github.repository == 'intel/llvm'
     permissions:
       issues: write  # for actions/stale to close stale issues
       pull-requests: write  # for actions/stale to close stale PRs
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/stale@v9
       with:

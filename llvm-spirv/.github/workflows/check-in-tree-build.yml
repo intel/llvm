@@ -16,6 +16,9 @@ on:
       - '**.md'   # README
       - '**/check-code-style.yml' # check-code-style workflow
       - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
+      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
+      - '**/backport-to-branch.yml' # backport-to-branch workflow
+      - '**/patch-release.yaml' # patch-release workflow
   pull_request:
     branches:
       - main
@@ -25,6 +28,21 @@ on:
       - '**.md'   # README
       - '**/check-code-style.yml' # check-code-style workflow
       - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
+      - '**/backport-to-branch.yml' # backport-to-branch workflow
+      - '**/patch-release.yaml' # patch-release workflow
+  repository_dispatch:
+    types: [backport-complete]
+    branches:
+      - main
+      - llvm_release_*
+    paths-ignore: # no need to check formatting for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-out-of-tree-build.yml' # check-out-of-tree-build workflow
+      - '**/backport-to-branch.yml' # backport-to-branch workflow
+      - '**/patch-release.yaml' # patch-release workflow
+
   schedule:
     # Ideally, we might want to simplify our regular nightly build as we
     # probably don't need every configuration to be built every day: most of
@@ -32,7 +50,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 20
+  LLVM_VERSION: 21
 
 jobs:
   build_and_test_linux:

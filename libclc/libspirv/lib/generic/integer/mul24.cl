@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <core/clc_core.h>
+#include <clc/integer/clc_mul24.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <mul24.inc>
-#include <clc/integer/integer-gentype.inc>
+#include <integer-gentype.inc>

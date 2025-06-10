@@ -47,7 +47,6 @@ public:
 
   Adapter(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
-        TracingMutex(std::make_shared<std::mutex>()),
         MAdapterMutex(std::make_shared<std::mutex>()) {
 
 #ifdef _WIN32
@@ -67,30 +66,25 @@ public:
   /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT_SUCCESS
   template <sycl::errc errc = sycl::errc::runtime>
   void checkUrResult(ur_result_t ur_result) const {
-    const char *message = nullptr;
     if (ur_result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+      const char *message = nullptr;
       int32_t adapter_error = 0;
       ur_result = call_nocheck<UrApiKind::urAdapterGetLastError>(
           MAdapter, &message, &adapter_error);
-
-      // If the warning level is greater then 2 emit the message
-      if (message != nullptr &&
-          detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
-        std::clog << message << std::endl;
-      }
-
-      // If it is a warning do not throw code
-      if (ur_result == UR_RESULT_SUCCESS) {
-        return;
-      }
+      throw sycl::detail::set_ur_error(
+          sycl::exception(
+              sycl::make_error_code(errc),
+              __SYCL_UR_ERROR_REPORT + sycl::detail::codeToString(ur_result) +
+                  (message ? "\n" + std::string(message) + "(adapter error )" +
+                                 std::to_string(adapter_error) + "\n"
+                           : std::string{})),
+          ur_result);
     }
     if (ur_result != UR_RESULT_SUCCESS) {
       throw sycl::detail::set_ur_error(
           sycl::exception(sycl::make_error_code(errc),
                           __SYCL_UR_ERROR_REPORT +
-                              sycl::detail::codeToString(ur_result) +
-                              (message ? "\n" + std::string(message) + "\n"
-                                       : std::string{})),
+                              sycl::detail::codeToString(ur_result)),
           ur_result);
     }
   }
@@ -98,10 +92,10 @@ public:
   std::vector<ur_platform_handle_t> &getUrPlatforms() {
     std::call_once(PlatformsPopulated, [&]() {
       uint32_t platformCount = 0;
-      call<UrApiKind::urPlatformGet>(&MAdapter, 1, 0, nullptr, &platformCount);
+      call<UrApiKind::urPlatformGet>(MAdapter, 0, nullptr, &platformCount);
       UrPlatforms.resize(platformCount);
       if (platformCount) {
-        call<UrApiKind::urPlatformGet>(&MAdapter, 1, platformCount,
+        call<UrApiKind::urPlatformGet>(MAdapter, platformCount,
                                        UrPlatforms.data(), nullptr);
       }
       // We need one entry in this per platform
@@ -123,12 +117,12 @@ public:
   ///
   /// \sa adapter::checkUrResult
   template <UrApiKind UrApiOffset, typename... ArgsT>
-  ur_result_t call_nocheck(ArgsT... Args) const {
+  ur_result_t call_nocheck(ArgsT &&...Args) const {
     ur_result_t R = UR_RESULT_SUCCESS;
     if (!adapterReleased) {
       detail::UrFuncInfo<UrApiOffset> UrApiInfo;
       auto F = UrApiInfo.getFuncPtr(&UrFuncPtrs);
-      R = F(Args...);
+      R = F(std::forward<ArgsT>(Args)...);
     }
     return R;
   }
@@ -137,15 +131,15 @@ public:
   ///
   /// \throw sycl::runtime_exception if the call was not successful.
   template <UrApiKind UrApiOffset, typename... ArgsT>
-  void call(ArgsT... Args) const {
-    auto Err = call_nocheck<UrApiOffset>(Args...);
+  void call(ArgsT &&...Args) const {
+    auto Err = call_nocheck<UrApiOffset>(std::forward<ArgsT>(Args)...);
     checkUrResult(Err);
   }
 
   /// \throw sycl::exceptions(errc) if the call was not successful.
   template <sycl::errc errc, UrApiKind UrApiOffset, typename... ArgsT>
-  void call(ArgsT... Args) const {
-    auto Err = call_nocheck<UrApiOffset>(Args...);
+  void call(ArgsT &&...Args) const {
+    auto Err = call_nocheck<UrApiOffset>(std::forward<ArgsT>(Args)...);
     checkUrResult<errc>(Err);
   }
 
@@ -212,7 +206,6 @@ public:
 private:
   ur_adapter_handle_t MAdapter;
   backend MBackend;
-  std::shared_ptr<std::mutex> TracingMutex;
   // Mutex to guard UrPlatforms and LastDeviceIds.
   // Note that this is a temporary solution until we implement the global
   // Device/Platform cache later.

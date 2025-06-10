@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 /*
  * ====================================================
@@ -96,9 +96,9 @@
 #define w6_f -1.6309292987e-03f /* 0xbad5c4e8 */
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_lgamma_r(float x, private int *signp) {
-  int hx = as_int(x);
+  int hx = __clc_as_int(x);
   int ix = hx & 0x7fffffff;
-  float absx = as_float(ix);
+  float absx = __clc_as_float(ix);
 
   if (ix >= 0x7f800000) {
     *signp = 1;
@@ -292,7 +292,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_lgamma_r(float x, private int *signp) {
   if (x < 0.0f) {
     float t = __spirv_ocl_sinpi(x);
     r = __spirv_ocl_log(pi_f / __spirv_ocl_fabs(t * x)) - r;
-    r = t == 0.0f ? as_float(PINFBITPATT_SP32) : r;
+    r = t == 0.0f ? __clc_as_float(PINFBITPATT_SP32) : r;
     s = t < 0.0f ? -1 : s;
   }
 
@@ -427,13 +427,13 @@ _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_lgamma_r,
 #define v4 1.04222645593369134254e-01 /* 0x3FBAAE55, 0xD6537C88 */
 #define v5 3.21709242282423911810e-03 /* 0x3F6A5ABB, 0x57D0CF61 */
 
-#define s0 -7.72156649015328655494e-02 /* 0xBFB3C467, 0xE37DB0C8 */
-#define s1 2.14982415960608852501e-01  /* 0x3FCB848B, 0x36E20878 */
-#define s2 3.25778796408930981787e-01  /* 0x3FD4D98F, 0x4F139F59 */
-#define s3 1.46350472652464452805e-01  /* 0x3FC2BB9C, 0xBEE5F2F7 */
-#define s4 2.66422703033638609560e-02  /* 0x3F9B481C, 0x7E939961 */
-#define s5 1.84028451407337715652e-03  /* 0x3F5E26B6, 0x7368F239 */
-#define s6 3.19475326584100867617e-05  /* 0x3F00BFEC, 0xDD17E945 */
+#define s0_d -7.72156649015328655494e-02 /* 0xBFB3C467, 0xE37DB0C8 */
+#define s1_d 2.14982415960608852501e-01  /* 0x3FCB848B, 0x36E20878 */
+#define s2_d 3.25778796408930981787e-01  /* 0x3FD4D98F, 0x4F139F59 */
+#define s3_d 1.46350472652464452805e-01  /* 0x3FC2BB9C, 0xBEE5F2F7 */
+#define s4_d 2.66422703033638609560e-02  /* 0x3F9B481C, 0x7E939961 */
+#define s5_d 1.84028451407337715652e-03  /* 0x3F5E26B6, 0x7368F239 */
+#define s6_d 3.19475326584100867617e-05  /* 0x3F00BFEC, 0xDD17E945 */
 
 #define r1 1.39200533467621045958e+00 /* 0x3FF645A7, 0x62C4AB74 */
 #define r2 7.21935547567138069525e-01 /* 0x3FE71A18, 0x93D3DCDC */
@@ -451,9 +451,9 @@ _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_lgamma_r,
 #define w6 -1.63092934096575273989e-03 /* 0xBF5AB89D, 0x0B9E43E4 */
 
 _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_lgamma_r(double x, private int *ip) {
-  ulong ux = as_ulong(x);
+  ulong ux = __clc_as_ulong(x);
   ulong ax = ux & EXSIGNBIT_DP64;
-  double absx = as_double(ax);
+  double absx = __clc_as_double(ax);
 
   if (ax >= 0x7ff0000000000000UL) {
     // +-Inf, NaN
@@ -574,11 +574,11 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_lgamma_r(double x, private int *ip) {
                 __spirv_ocl_fma(
                     y,
                     __spirv_ocl_fma(
-                        y, __spirv_ocl_fma(y, __spirv_ocl_fma(y, s6, s5), s4),
-                        s3),
-                    s2),
-                s1),
-            s0);
+                        y, __spirv_ocl_fma(y, __spirv_ocl_fma(y, s6_d, s5_d), s4_d),
+                        s3_d),
+                    s2_d),
+                s1_d),
+            s0_d);
     double q = __spirv_ocl_fma(
         y,
         __spirv_ocl_fma(
@@ -625,7 +625,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_lgamma_r(double x, private int *ip) {
   if (x < 0.0) {
     double t = __spirv_ocl_sinpi(x);
     r = __spirv_ocl_log(pi / __spirv_ocl_fabs(t * x)) - r;
-    r = t == 0.0 ? as_double(PINFBITPATT_DP64) : r;
+    r = t == 0.0 ? __clc_as_double(PINFBITPATT_DP64) : r;
     *ip = t < 0.0 ? -1 : 1;
   } else
     *ip = 1;

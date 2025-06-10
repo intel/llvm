@@ -42,25 +42,16 @@ constexpr std::array optional_ur_device_info_t = {
     UR_DEVICE_INFO_IP_VERSION,
     UR_DEVICE_INFO_COMPONENT_DEVICES,
     UR_DEVICE_INFO_COMPOSITE_DEVICE,
+    UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS,
+    UR_DEVICE_INFO_FAN_SPEED,
+    UR_DEVICE_INFO_MIN_POWER_LIMIT,
+    UR_DEVICE_INFO_MAX_POWER_LIMIT,
 };
 
 template <> inline bool isQueryOptional(ur_device_info_t query) {
   return std::find(optional_ur_device_info_t.begin(),
                    optional_ur_device_info_t.end(),
                    query) != optional_ur_device_info_t.end();
-}
-
-constexpr std::array optional_ur_context_info_t = {
-    UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
-    UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
-    UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES,
-    UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES,
-};
-
-template <> inline bool isQueryOptional(ur_context_info_t query) {
-  return std::find(optional_ur_context_info_t.begin(),
-                   optional_ur_context_info_t.end(),
-                   query) != optional_ur_context_info_t.end();
 }
 
 constexpr std::array optional_ur_usm_alloc_info_t = {

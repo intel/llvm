@@ -2784,118 +2784,698 @@ inline T bfe_safe(const T source, const uint32_t bit_start,
                   const uint32_t num_bits);
 ```
 
-## Sample Code
+### Group Utilities
 
-Below is a simple linear algebra sample, which computes `y = mx + b` implemented
-using this library:
+Group utility functions and classes optimize data movement,
+processing, and communication within work-groups. The `exchange` class
+facilitates rearranging data between blocked and striped layouts, improving
+memory access patterns. The `group_radix_sort` class implements an efficient
+radix sort for distributed data, supporting both ascending and descending
+order. The `group_load` and `group_store` classes manage structured data
+movement between linear memory and work-group arrangements, supporting
+blocked and striped formats with optional range-guarding. The `group_shuffle`
+class enables efficient inter-work-item communication through selective data
+exchanges, shifting operations, and group-wide data movement. These utilities
+collectively enhance parallel performance by improving memory efficiency,
+load balancing, and computational throughput.
 
 ``` c++
-#include <cassert>
-#include <iostream>
+namespace syclcompat {
+/// Rearranging data partitioned across a work-group.
+///
+/// \tparam T The type of the data elements.
+/// \tparam ElementsPerWorkItem The number of data elements assigned to a
+/// work-item.
+template <typename T, size_t ElementsPerWorkItem> class exchange {
+public:
+  exchange(uint8_t *local_memory);
 
-#include <syclcompat.hpp>
-#include <sycl/sycl.hpp>
+  static size_t get_local_memory_size(size_t group_threads);
 
-/**
- * Slope intercept form of a straight line equation: Y = m * X + b
- */
-template <int BLOCK_SIZE>
-void slope_intercept(float *Y, float *X, float m, float b, size_t n) {
+  /// Inplace rearrange elements from blocked order to striped order.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// blocked \p input across the work-group is:
+  ///
+  ///   {[0, 1, 2, 3], [4, 5, 6, 7], ..., [508, 509, 510, 511]}.
+  ///
+  /// The striped order output is:
+  ///
+  ///   {[0, 128, 256, 384], [1, 129, 257, 385], ..., [127, 255, 383, 511]}.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  template <typename Item>
+  __syclcompat_inline__ void
+  blocked_to_striped(Item item, T (&input)[ElementsPerWorkItem]);
 
-  // Block index
-  size_t bx = syclcompat::work_group_id::x();
-  // Thread index
-  size_t tx = syclcompat::local_id::x();
+  /// Inplace rearrange elements from striped order to blocked order.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// striped \p input across the work-group is:
+  ///
+  ///   { [0, 128, 256, 384], [1, 129, 257, 385], ..., [127, 255, 383, 511] }.
+  ///
+  /// The blocked order output is:
+  ///
+  ///   { [0, 1, 2, 3], [4, 5, 6, 7], ..., [508, 509, 510, 511] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  template <typename Item>
+  __syclcompat_inline__ void
+  striped_to_blocked(Item item, T (&input)[ElementsPerWorkItem]);
 
-  size_t i = bx * BLOCK_SIZE + tx;
-  // or  i = syclcompat::global_id::x();
-  if (i < n)
-    Y[i] = m * X[i] + b;
-}
+  /// Rearrange elements from blocked order to striped order.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// blocked \p input across the work-group is:
+  ///
+  ///   { [0, 1, 2, 3], [4, 5, 6, 7], ..., [508, 509, 510, 511] }.
+  ///
+  /// The striped order output is:
+  ///
+  ///   { [0, 128, 256, 384], [1, 129, 257, 385], ..., [127, 255, 383, 511] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param output The corresponding output data of each work-item.
+  template <typename Item>
+  __syclcompat_inline__ void
+  blocked_to_striped(Item item, T (&input)[ElementsPerWorkItem],
+                     T (&output)[ElementsPerWorkItem]);
 
-void check_memory(void *ptr, std::string msg) {
-  if (ptr == nullptr) {
-    std::cerr << "Failed to allocate memory: " << msg << std::endl;
-    exit(EXIT_FAILURE);
-  }
-}
+  /// Rearrange elements from striped order to blocked order.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// striped \p input across the work-group is:
+  ///
+  ///   { [0, 128, 256, 384], [1, 129, 257, 385], ..., [127, 255, 383, 511] }.
+  ///
+  /// The blocked order output is:
+  ///
+  ///   { [0, 1, 2, 3], [4, 5, 6, 7], ..., [508, 509, 510, 511] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param output The corresponding output data of each work-item.
+  template <typename Item>
+  __syclcompat_inline__ void
+  striped_to_blocked(Item item, T (&input)[ElementsPerWorkItem],
+                     T (&output)[ElementsPerWorkItem]);
 
-/**
- * Program main
- */
-int main(int argc, char **argv) {
-  std::cout << "Simple Kernel example" << std::endl;
+  /// Inplace exchanges data items annotated by rank into blocked arrangement.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// striped \p input across the work-group is:
+  ///
+  ///   { [0, 128, 256, 384], [1, 129, 257, 385], ..., [127, 255, 383, 511] }.
+  ///
+  /// The rank across the work-group is:
+  ///
+  ///   { [0, 1, 2, 3], [4, 5, 6, 7], ..., [508, 509, 510, 511] }.
+  ///
+  /// The blocked order output is:
+  ///
+  ///   { [0, 1, 2, 3], [4, 5, 6, 7], ..., [508, 509, 510, 511] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param ranks The corresponding rank annotation of each work-item.
+  template <typename Item>
+  __syclcompat_inline__ void
+  scatter_to_blocked(Item item, T (&input)[ElementsPerWorkItem],
+                     int (&ranks)[ElementsPerWorkItem]);
 
-  constexpr size_t n_points = 32;
-  constexpr float m = 1.5f;
-  constexpr float b = 0.5f;
+  /// Inplace exchanges data items annotated by rank into striped arrangement.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// blocked \p input across the work-group is:
+  ///
+  ///   { [0, 1, 2, 3], [4, 5, 6, 7], ..., [508, 509, 510, 511] }.
+  ///
+  /// The rank across the work-group is:
+  ///
+  ///   { [16, 20, 24, 28], [32, 36, 40, 44], ..., [499, 503, 507, 511] }.
+  ///
+  /// The striped order output of each work-item will be:
+  ///
+  ///   { [0, 128, 256, 384], [1, 129, 257, 385], ..., [127, 255, 383, 511] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param ranks The corresponding rank annotation of each work-item.
+  template <typename Item>
+  __syclcompat_inline__ void
+  scatter_to_striped(Item item, T (&input)[ElementsPerWorkItem],
+                     int (&ranks)[ElementsPerWorkItem]);
+};
 
-  int block_size = 32;
-  if (block_size > syclcompat::get_current_device()
-                       .get_info<sycl::info::device::max_work_group_size>())
-    block_size = 16;
+/// The work-group wide radix sort to sort integer data elements
+/// assigned to all work-items in the work-group.
+///
+/// \tparam T The type of the data elements.
+/// \tparam ElementsPerWorkItem The number of data elements assigned to
+/// a work-item.
+/// \tparam RADIX_BITS The number of radix bits per digit place.
+template <typename T, int ElementsPerWorkItem, int RADIX_BITS = 4>
+class group_radix_sort {
+public:
+  group_radix_sort(uint8_t *local_memory);
 
-  std::cout << "block_size = " << block_size << ", n_points = " << n_points
-            << std::endl;
+  static size_t get_local_memory_size(size_t group_threads);
 
-  // Allocate host memory for vectors X and Y
-  size_t mem_size = n_points * sizeof(float);
-  float *h_X = (float *)syclcompat::malloc_host(mem_size);
-  float *h_Y = (float *)syclcompat::malloc_host(mem_size);
-  check_memory(h_X, "h_X allocation failed.");
-  check_memory(h_Y, "h_Y allocation failed.");
+  /// Performs an ascending work-group wide radix sort over a blocked
+  /// arrangement of input elements.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// \p input across the work-group is:
+  ///
+  ///   { [0,511,1,510], [2,509,3,508], [4,507,5,506], ..., [254,257,255,256] }.
+  ///
+  /// The ascending order output is:
+  ///
+  ///   { [0,1,2,3], [4,5,6,7], [8,9,10,11], ..., [508,509,510,511] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param begin_bit The beginning (least-significant) bit index needed for
+  /// key comparison.
+  /// \param end_bit The past-the-end (most-significant) bit
+  /// index needed for key comparison.
+  template <typename Item>
+  __syclcompat_inline__ void
+  sort(const Item &item, T (&input)[ElementsPerWorkItem], int begin_bit = 0,
+       int end_bit = 8 * sizeof(T));
 
-  // Alternative templated allocation for the expected output
-  float *h_expected = syclcompat::malloc_host<float>(n_points);
-  check_memory(h_expected, "Not enough for h_expected.");
+  /// Performs an descending work-group wide radix sort over a blocked
+  /// arrangement of input elements.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// \p input across the work-group is:
+  ///
+  ///   { [0,511,1,510], [2,509,3,508], [4,507,5,506], ..., [254,257,255,256] }.
+  ///
+  /// The descending order output is:
+  ///
+  ///   { [511,510,509,508], [11,10,9,8], [7,6,5,4], ..., [3,2,1,0] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param begin_bit The beginning (least-significant) bit index needed for
+  /// key comparison.
+  /// \param end_bit The past-the-end (most-significant) bit
+  /// index needed for key comparison.
+  template <typename Item>
+  __syclcompat_inline__ void
+  sort_descending(const Item &item, T (&input)[ElementsPerWorkItem],
+                  int begin_bit = 0, int end_bit = 8 * sizeof(T));
 
-  // Initialize host memory & expected output
-  for (size_t i = 0; i < n_points; i++) {
-    h_X[i] = i + 1;
-    h_expected[i] = m * h_X[i] + b;
-  }
+  /// Performs an ascending radix sort across a blocked arrangement of input
+  /// elements, leaving them in a striped arrangement.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// \p input across the work-group is:
+  ///
+  ///   { [0,511,1,510], [2,509,3,508], [4,507,5,506], ..., [254,257,255,256] }.
+  ///
+  /// The corresponding output of each work-item will be:
+  ///
+  ///   { [0,128,256,384], [1,129,257,385], [2,130,258,386], ...,
+  ///   [127,255,383,511] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param begin_bit The beginning (least-significant) bit index needed for
+  /// key comparison.
+  /// \param end_bit The past-the-end (most-significant) bit
+  /// index needed for key comparison.
+  template <typename Item>
+  __syclcompat_inline__ void
+  sort_blocked_to_striped(const Item &item, T (&input)[ElementsPerWorkItem],
+                          int begin_bit = 0, int end_bit = 8 * sizeof(T));
 
-  // Allocate device memory
-  float *d_X = (float *)syclcompat::malloc(mem_size);
-  float *d_Y = (float *)syclcompat::malloc(mem_size);
-  check_memory(d_X, "d_X allocation failed.");
-  check_memory(d_Y, "d_Y allocation failed.");
+  /// Performs an descending radix sort across a blocked arrangement of input
+  /// elements, leaving them in a striped arrangement.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// \p input across the work-group is:
+  ///
+  ///   { [0,511,1,510], [2,509,3,508], [4,507,5,506], ..., [254,257,255,256] }.
+  ///
+  /// The descending striped order output is:
+  ///
+  ///   { [0,128,256,384], [1,129,257,385], [2,130,258,386], ...,
+  ///   [127,255,383,511] }.
+  ///
+  /// \tparam Item The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param begin_bit The beginning (least-significant) bit index needed for
+  /// key comparison.
+  /// \param end_bit The past-the-end (most-significant) bit
+  /// index needed for key comparison.
+  template <typename Item>
+  __syclcompat_inline__ void sort_descending_blocked_to_striped(
+      const Item &item, T (&input)[ElementsPerWorkItem], int begin_bit = 0,
+      int end_bit = 8 * sizeof(T));
+};
 
-  // copy host memory to device
-  syclcompat::memcpy(d_X, h_X, mem_size);
+/// Load linear segment items into block format across threads
+/// Helper for Block Load
+enum load_algorithm {
+  BLOCK_LOAD_DIRECT,
+  BLOCK_LOAD_STRIPED,
+};
 
-  size_t threads = block_size;
-  size_t grid = n_points / block_size;
+/// Load a linear segment of elements into a blocked arrangement across the
+/// work-group.
+///
+/// \tparam T The data type to load.
+/// \tparam ElementsPerWorkItem The number of consecutive elements partitioned
+/// onto each work-item.
+/// \tparam InputIteratorT  The random-access iterator type for input \iterator.
+/// \tparam ItemT The sycl::nd_item index space class.
+/// \param item The calling work-item.
+/// \param input_iter The work-group's base input iterator for loading from.
+/// \param data Data to load.
+template <typename T, size_t ElementsPerWorkItem, typename InputIteratorT,
+          typename ItemT>
+__syclcompat_inline__ void load_direct_blocked(const ItemT &item,
+                                               InputIteratorT input_iter,
+                                               T (&data)[ElementsPerWorkItem]);
 
-  std::cout << "Computing result using SYCL Kernel... ";
-  if (block_size == 16) {
-    syclcompat::launch<slope_intercept<16>>(grid, threads, d_Y, d_X, m, b,
-                                        n_points);
-  } else {
-    syclcompat::launch<slope_intercept<32>>(grid, threads, d_Y, d_X, m, b,
-                                        n_points);
-  }
-  syclcompat::wait();
-  std::cout << "DONE" << std::endl;
+/// Load a linear segment of elements into a striped arrangement across the
+/// work-group.
+///
+/// \tparam T The data type to load.
+/// \tparam ElementsPerWorkItem The number of consecutive elements partitioned
+/// onto each work-item.
+/// \tparam InputIteratorT  The random-access iterator type for input \iterator.
+/// \tparam ItemT The sycl::nd_item index space class.
+/// \param item The calling work-item.
+/// \param input_iter The work-group's base input iterator for loading from.
+/// \param data Data to load.
+template <typename T, int ElementsPerWorkItem, typename InputIteratorT,
+          typename ItemT>
+__syclcompat_inline__ void load_direct_striped(const ItemT &item,
+                                               InputIteratorT input_iter,
+                                               T (&data)[ElementsPerWorkItem]);
 
-  // Async copy result from device to host
-  syclcompat::memcpy_async(h_Y, d_Y, mem_size).wait();
+/// Load a linear segment of elements into a blocked arrangement across the
+/// work-group, guarded by range.
+///
+/// \tparam T The data type to load.
+/// \tparam ElementsPerWorkItem The number of consecutive elements partitioned
+/// onto each work-item.
+/// \tparam InputIteratorT  The random-access iterator type for input \iterator.
+/// \tparam ItemT The sycl::nd_item index space class.
+/// \param item The calling work-item.
+/// \param input_iter The work-group's base input iterator for loading from.
+/// \param data Data to load.
+/// \param valid_items Number of valid items to load
+template <typename T, size_t ElementsPerWorkItem, typename InputIteratorT,
+          typename ItemT>
+__syclcompat_inline__ void
+load_direct_blocked(const ItemT &item, InputIteratorT input_iter,
+                    T (&data)[ElementsPerWorkItem], int valid_items);
 
-  // Check output
-  for (size_t i = 0; i < n_points; i++) {
-    assert(h_Y[i] - h_expected[i] < 1e-6);
-  }
+/// Load a linear segment of elements into a striped arrangement across the
+/// work-group, guarded by range.
+///
+/// \tparam T The data type to load.
+/// \tparam ElementsPerWorkItem The number of consecutive elements partitioned
+/// onto each work-item.
+/// \tparam InputIteratorT  The random-access iterator type for input \iterator.
+/// \tparam ItemT The sycl::nd_item index space class.
+/// \param item The calling work-item.
+/// \param input_iter The work-group's base input iterator for loading from.
+/// \param data Data to load.
+/// \param valid_items Number of valid items to load
+template <typename T, int ElementsPerWorkItem, typename InputIteratorT,
+          typename ItemT>
+__syclcompat_inline__ void
+load_direct_striped(const ItemT &item, InputIteratorT input_iter,
+                    T (&data)[ElementsPerWorkItem], int valid_items);
 
-  // Clean up memory
-  syclcompat::free(h_X);
-  syclcompat::free(h_Y);
-  syclcompat::free(h_expected);
-  syclcompat::free(d_X);
-  syclcompat::free(d_Y);
+/// Store a blocked arrangement of items across a work-group into a linear
+/// segment of items.
+///
+/// \tparam T The data type to store.
+/// \tparam ElementsPerWorkItem The number of consecutive elements partitioned
+/// onto each work-item.
+/// \tparam OutputIteratorT  The random-access iterator type for output.
+/// \iterator.
+/// \tparam ItemT The sycl::nd_item index space class.
+/// \param item The calling work-item.
+/// \param output_iter The work-group's base output iterator for writing.
+/// \param data Data to store.
+template <typename T, size_t ElementsPerWorkItem, typename OutputIteratorT,
+          typename ItemT>
+__syclcompat_inline__ void
+store_direct_blocked(const ItemT &item, OutputIteratorT output_iter,
+                     T (&data)[ElementsPerWorkItem]);
 
-  return 0;
-}
+/// Store a striped arrangement of items across a work-group into a linear
+/// segment of items.
+///
+/// \tparam T The data type to store.
+/// \tparam ElementsPerWorkItem The number of consecutive elements partitioned
+/// onto each work-item.
+/// \tparam OutputIteratorT  The random-access iterator type for output.
+/// \iterator.
+/// \tparam ItemT The sycl::nd_item index space class.
+/// \param item The calling work-item.
+/// \param output_iter The work-group's base output iterator for writing.
+/// \param items Data to store.
+template <typename T, size_t ElementsPerWorkItem, typename OutputIteratorT,
+          typename ItemT>
+__syclcompat_inline__ void
+store_direct_striped(const ItemT &item, OutputIteratorT output_iter,
+                     T (&data)[ElementsPerWorkItem]);
+
+/// Store a blocked arrangement of items across a work-group into a linear
+/// segment of items, guarded by range.
+///
+/// \tparam T The data type to store.
+/// \tparam ElementsPerWorkItem The number of consecutive elements partitioned
+/// onto each work-item.
+/// \tparam OutputIteratorT  The random-access iterator type for output.
+/// \iterator.
+/// \tparam ItemT The sycl::nd_item index space class.
+/// \param item The calling work-item.
+/// \param output_iter The work-group's base output iterator for writing.
+/// \param data Data to store.
+/// \param valid_items Number of valid items to load
+template <typename T, size_t ElementsPerWorkItem, typename OutputIteratorT,
+          typename ItemT>
+__syclcompat_inline__ void
+store_direct_blocked(const ItemT &item, OutputIteratorT output_iter,
+                     T (&data)[ElementsPerWorkItem], size_t valid_items);
+
+/// Store a striped arrangement of items across a work-group into a linear
+/// segment of items, guarded by range.
+///
+/// \tparam T The data type to store.
+/// \tparam ElementsPerWorkItem The number of consecutive elements partitioned
+/// onto each work-item.
+/// \tparam OutputIteratorT  The random-access iterator type for output.
+/// \iterator.
+/// \tparam ItemT The sycl::nd_item index space class.
+/// \param item The calling work-item.
+/// \param output_iter The work-group's base output iterator for writing.
+/// \param items Data to store.
+/// \param valid_items Number of valid items to load
+template <typename T, size_t ElementsPerWorkItem, typename OutputIteratorT,
+          typename ItemT>
+__syclcompat_inline__ void
+store_direct_striped(const ItemT &item, OutputIteratorT output_iter,
+                     T (&data)[ElementsPerWorkItem], size_t valid_items);
+
+/// Enumerates alternative algorithms for syclcompat::group::group_load to read
+/// a linear segment of data from memory into a blocked arrangement across a
+/// work-group.
+enum class group_load_algorithm {
+  /// A blocked arrangement of data is read directly from memory.
+  blocked,
+
+  /// A striped arrangement of data is read directly from memory.
+  striped
+};
+
+/// Provide methods for loading a linear segment of items from memory into a
+/// blocked arrangement across a work-group.
+///
+/// \tparam T The input data type.
+/// \tparam ElementsPerWorkItem The number of data elements assigned to a
+/// work-item.
+/// \tparam LoadAlgorithm The data movement strategy, default is blocked.
+template <typename T, size_t ElementsPerWorkItem,
+          group_load_algorithm LoadAlgorithm = group_load_algorithm::blocked>
+class group_load {
+public:
+  group_load(uint8_t *);
+
+  static size_t get_local_memory_size([[maybe_unused]] size_t work_group_size);
+
+  /// Load a linear segment of items from memory.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// \p input across the work-group is:
+  ///
+  ///   1, 2, 3, 4, 5, 6, 7, ..., 508, 509, 510, 511.
+  ///
+  /// The blocked order \p data of each work-item will be:
+  ///
+  ///   {[0,1,2,3], [4,5,6,7], ..., [508,509,510,511]}.
+  ///
+  /// The striped order \p output of each work-item will be:
+  ///
+  ///   {[0,128,256,384], [1,129,257,385], ..., [127,255,383,511]}.
+  ///
+  /// \tparam ItemT The sycl::nd_item index space class.
+  /// \tparam InputIteratorT The random-access iterator type for input
+  /// \iterator.
+  /// \param item The work-item identifier.
+  /// \param input_iter The work-group's base input iterator for loading from.
+  /// \param data The data to load.
+  template <typename ItemT, typename InputIteratorT>
+  __syclcompat_inline__ void load(const ItemT &item, InputIteratorT input_iter,
+                                  T (&data)[ElementsPerWorkItem]);
+
+  /// Load a linear segment of items from memory, guarded by range.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and
+  /// valid_items is 5, the \p input across the work-group is:
+  ///
+  ///   0, 1, 2, 3, 4, 5, 6, 7, ..., 508, 509, 510, 511.
+  ///
+  /// The blocked order \p data of each work-item will be:
+  ///
+  ///   {[0,1,2,3], [4,?,?,?], ..., [?,?,?,?]}.
+  ///
+  /// The striped order \p output of each work-item will be:
+  ///
+  ///   {[0,?,?,?], [1,?,?,?], [2,?,?,?], [3,?,?,?] ..., [?,?,?,?]}.
+  ///
+  /// \tparam ItemT The sycl::nd_item index space class.
+  /// \tparam InputIteratorT The random-access iterator type for input
+  /// \iterator.
+  /// \param item The work-item identifier.
+  /// \param input_iter The work-group's base input iterator for loading from.
+  /// \param data The data to load.
+  /// \param valid_items Number of valid items to load
+  template <typename ItemT, typename InputIteratorT>
+  __syclcompat_inline__ void load(const ItemT &item, InputIteratorT input_iter,
+                                  T (&data)[ElementsPerWorkItem],
+                                  int valid_items);
+};
+
+/// Enumerates alternative algorithms for syclcompat::group::group_load to write
+/// a blocked arrangement of items across a work-group to a linear segment of
+/// memory.
+enum class group_store_algorithm {
+  /// A blocked arrangement of data is written directly to memory.
+  blocked,
+
+  /// A striped arrangement of data is written directly to memory.
+  striped,
+};
+
+/// Provide methods for writing a blocked arrangement of elements partitioned
+/// across a work-group to a linear segment of memory.
+///
+/// \tparam T The output data type.
+/// \tparam ElementsPerWorkItem The number of data elements assigned to a
+/// work-item.
+/// \tparam StoreAlgorithm The data movement strategy, default is blocked.
+template <typename T, size_t ElementsPerWorkItem,
+          group_store_algorithm StoreAlgorithm = group_store_algorithm::blocked>
+class group_store {
+public:
+  group_store(uint8_t *);
+
+  static size_t get_local_memory_size([[maybe_unused]] size_t work_group_size);
+
+  /// Store items into a linear segment of memory.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and the
+  /// \p input across the work-group is:
+  ///
+  ///   {[0,1,2,3], [4,5,6,7], ..., [508,509,510,511]}.
+  ///
+  /// The blocked order \p output will be:
+  ///
+  ///   1, 2, 3, 4, 5, 6, 7, ..., 508, 509, 510, 511.
+  ///
+  /// The striped order \p output will be:
+  ///
+  ///   0, 128, 256, 384, 1, 129, 257, 385, ..., 127, 255, 383, 511.
+  ///
+  /// \tparam ItemT The sycl::nd_item index space class.
+  /// \tparam OutputIteratorT The random-access iterator type for \p output
+  /// iterator.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param data The data to store.
+  template <typename ItemT, typename OutputIteratorT>
+  __syclcompat_inline__ void store(const ItemT &item,
+                                   OutputIteratorT output_iter,
+                                   T (&data)[ElementsPerWorkItem]);
+
+  /// Store items into a linear segment of memory, guarded by range.
+  ///
+  /// Suppose 512 integer data elements partitioned across 128 work-items, where
+  /// each work-item owns 4 ( \p ElementsPerWorkItem ) data elements and
+  /// \p valid_items is 5, the \p output across the work-group is:
+  ///
+  ///   {[0,0,0,0], [0,0,0,0], ..., [0,0,0,0]}.
+  ///
+  /// The blocked order \p output will be:
+  ///
+  ///   0, 1, 2, 3, 4, 5, 0, 0, ..., 0, 0, 0, 0.
+  ///
+  /// The striped order \p output will be:
+  ///
+  ///   0, 4, 8, 12, 16, 0, 0, 0, ..., 0, 0, 0, 0.
+  ///
+  /// \tparam ItemT The sycl::nd_item index space class.
+  /// \tparam OutputIteratorT The random-access iterator type for \p output
+  /// iterator.
+  /// \param item The work-item identifier.
+  /// \param input The input data of each work-item.
+  /// \param data The data to store.
+  /// \param valid_items Number of valid items to load
+  template <typename ItemT, typename OutputIteratorT>
+  __syclcompat_inline__ void
+  store(const ItemT &item, OutputIteratorT output_iter,
+        T (&data)[ElementsPerWorkItem], size_t valid_items);
+};
+
+/// The work-group wide shuffle operations that allow work-items to exchange
+/// data elements with other work-items within the same work-group.
+///
+/// \tparam T The type of the data elements.
+/// \tparam group_dim_0 The first dimension size of the work-group.
+/// \tparam group_dim_1 The second dimension size of the work-group.
+/// \tparam group_dim_2 The third dimension size of the work-group.
+template <typename T, int group_dim_0, int group_dim_1 = 1, int group_dim_2 = 1>
+class group_shuffle {
+public:
+  group_shuffle(uint8_t *local_memory);
+
+  static constexpr size_t get_local_memory_size(size_t work_group_size);
+
+  /// Selects a value from a work-item at a given distance in the work-group
+  /// and stores the value in the output.
+  ///
+  /// \tparam ItemT The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input from the calling work-item.
+  /// \param output The output where the selected data will be stored.
+  /// \param distance The distance of work-items to look ahead or behind in the
+  /// work-group.
+  template <typename ItemT>
+  __syclcompat_inline__ void select(const ItemT &item, T input, T &output,
+                                    int distance = 1);
+  /// Selects a value from a work-item at a given distance in the work-group
+  /// and stores the value in the output, using a wrapped index to handle
+  /// overflow.
+  ///
+  /// \tparam ItemT The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data to be selected.
+  /// \param output The output where the selected data will be stored.
+  /// \param distance The number of work-items to look ahead in the
+  /// work-group.
+  template <typename ItemT>
+  __syclcompat_inline__ void select2(const ItemT &item, T input, T &output,
+                                     unsigned int distance = 1);
+  /// Performs a shuffle operation to move data to the right across the
+  /// work-items, shifting elements in a work-item array by one position to the
+  /// right.
+  ///
+  /// \tparam ElementsPerWorkItem The number of data elements per work-item.
+  /// \tparam ItemT The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data to be shuffled.
+  /// \param output The array that will store the shuffle result.
+  template <int ElementsPerWorkItem, typename ItemT>
+  __syclcompat_inline__ void shuffle_right(const ItemT &item,
+                                           T (&input)[ElementsPerWorkItem],
+                                           T (&output)[ElementsPerWorkItem]);
+
+  /// Performs a shuffle operation to move data to the right across the
+  /// work-items, storing the suffix of the group after the shuffle operation.
+  ///
+  /// \tparam ElementsPerWorkItem The number of data elements per work-item.
+  /// \tparam ItemT The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data to be shuffled.
+  /// \param output The array that will store the shuffle result.
+  /// \param group_suffix The suffix of the group after the shuffle.
+  template <int ElementsPerWorkItem, typename ItemT>
+  __syclcompat_inline__ void
+  shuffle_right(const ItemT &item, T (&input)[ElementsPerWorkItem],
+                T (&output)[ElementsPerWorkItem], T &group_suffix);
+
+  /// Performs a shuffle operation to move data to the left across the
+  /// work-items, shifting elements in a work-item array by one position to the
+  /// left.
+  ///
+  /// \tparam ElementsPerWorkItem The number of data elements per work-item.
+  /// \tparam ItemT The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data to be shuffled.
+  /// \param output The array that will store the shuffle result.
+  template <int ElementsPerWorkItem, typename ItemT>
+  __syclcompat_inline__ void shuffle_left(const ItemT &item,
+                                          T (&input)[ElementsPerWorkItem],
+                                          T (&output)[ElementsPerWorkItem]);
+
+  /// Performs a shuffle operation to move data to the left across the
+  /// work-items, storing the prefix of the group before the shuffle operation.
+  ///
+  /// \tparam ElementsPerWorkItem The number of data elements per work-item.
+  /// \tparam ItemT The work-item identifier type.
+  /// \param item The work-item identifier.
+  /// \param input The input data to be shuffled.
+  /// \param output The array that will store the shuffle result.
+  /// \param group_prefix The prefix of the group before the shuffle.
+  template <int ElementsPerWorkItem, typename ItemT>
+  __syclcompat_inline__ void
+  shuffle_left(const ItemT &item, T (&input)[ElementsPerWorkItem],
+               T (&output)[ElementsPerWorkItem], T &group_prefix);
+};
+} // namespace syclcompat
 ```
+
+## Sample Code
+
+The file [helloworld.cpp](../../test-e2e/syclcompat/helloworld.cpp) contains
+a simple example which computes `y = mx + b` implemented using this library.
 
 ## Maintainers
 

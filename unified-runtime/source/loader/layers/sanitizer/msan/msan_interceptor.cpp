@@ -14,7 +14,6 @@
 
 #include "msan_interceptor.hpp"
 #include "msan_ddi.hpp"
-#include "msan_options.hpp"
 #include "msan_report.hpp"
 #include "msan_shadow.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
@@ -39,7 +38,7 @@ MsanInterceptor::~MsanInterceptor() {
   m_ContextMap.clear();
 
   for (auto Adapter : m_Adapters) {
-    getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
+    getContext()->urDdiTable.Adapter.pfnRelease(Adapter);
   }
 }
 
@@ -51,6 +50,8 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
+  std::shared_ptr<DeviceInfo> DeviceInfo =
+      Device ? getDeviceInfo(Device) : nullptr;
 
   void *Allocated = nullptr;
 
@@ -67,15 +68,15 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   *ResultPtr = Allocated;
 
-  ContextInfo->MaxAllocatedSize = std::max(ContextInfo->MaxAllocatedSize, Size);
+  if (Type != AllocType::DEVICE_USM) {
+    ContextInfo->CleanShadowSize = std::max(ContextInfo->CleanShadowSize, Size);
+  }
 
   // For host/shared usm, we only record the alloc size.
   if (Type != AllocType::DEVICE_USM) {
     return UR_RESULT_SUCCESS;
   }
-
   assert(Device);
-  std::shared_ptr<DeviceInfo> DeviceInfo = getDeviceInfo(Device);
 
   auto AI = std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
                                                           Size,
@@ -124,7 +125,7 @@ ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ManagedQueue InternalQueue(Context, Device);
   if (!InternalQueue) {
-    getContext()->logger.error("Failed to create internal queue");
+    UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
     return UR_RESULT_ERROR_INVALID_QUEUE;
   }
 
@@ -139,15 +140,16 @@ ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
+  UR_CALL(LaunchInfo.Data.syncFromDevice(Queue));
 
   if (Result == UR_RESULT_SUCCESS) {
-    const auto &Report = LaunchInfo.Data->Report;
+    const auto &Report = LaunchInfo.Data.Host.Report;
 
     if (!Report.Flag) {
       return Result;
     }
 
-    ReportUsesUninitializedValue(LaunchInfo.Data->Report, Kernel);
+    ReportUsesUninitializedValue(LaunchInfo.Data.Host.Report, Kernel);
 
     exitWithErrors();
   }
@@ -158,13 +160,13 @@ ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
 ur_result_t MsanInterceptor::registerProgram(ur_program_handle_t Program) {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
-  getContext()->logger.info("registerSpirKernels");
+  UR_LOG_L(getContext()->logger, INFO, "registerSpirKernels");
   Result = registerSpirKernels(Program);
   if (Result != UR_RESULT_SUCCESS) {
     return Result;
   }
 
-  getContext()->logger.info("registerDeviceGlobals");
+  UR_LOG_L(getContext()->logger, INFO, "registerDeviceGlobals");
   Result = registerDeviceGlobals(Program);
   if (Result != UR_RESULT_SUCCESS) {
     return Result;
@@ -203,8 +205,8 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
         Queue, true, &SKInfo[0], MetadataPtr,
         sizeof(SpirKernelInfo) * NumOfSpirKernel, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Can't read the value of <{}>: {}",
-                                 kSPIR_MsanSpirKernelMetadata, Result);
+      UR_LOG_L(getContext()->logger, ERR, "Can't read the value of <{}>: {}",
+               kSPIR_MsanSpirKernelMetadata, Result);
       return Result;
     }
 
@@ -218,20 +220,25 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
           Queue, true, KernelNameV.data(), (void *)SKI.KernelName,
           sizeof(char) * SKI.Size, 0, nullptr, nullptr);
       if (Result != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("Can't read kernel name: {}", Result);
+        UR_LOG_L(getContext()->logger, ERR, "Can't read kernel name: {}",
+                 Result);
         return Result;
       }
 
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
 
-      getContext()->logger.info("SpirKernel(name='{}', isInstrumented={})",
-                                KernelName, true);
+      UR_LOG_L(getContext()->logger, INFO,
+               "SpirKernel(name='{}', isInstrumented={}, "
+               "checkLocals={}, checkPrivates={})",
+               KernelName, true, (bool)SKI.CheckLocals,
+               (bool)SKI.CheckPrivates);
 
-      PI->InstrumentedKernels.insert(std::move(KernelName));
+      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetada{
+          (bool)SKI.CheckLocals, (bool)SKI.CheckPrivates};
     }
-    getContext()->logger.info("Number of sanitized kernel: {}",
-                              PI->InstrumentedKernels.size());
+    UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
+             PI->KernelMetadataMap.size());
   }
 
   return UR_RESULT_SUCCESS;
@@ -255,7 +262,7 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         Device, Program, kSPIR_MsanDeviceGlobalMetadata, &MetadataSize,
         &MetadataPtr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.info("No device globals");
+      UR_LOG_L(getContext()->logger, INFO, "No device globals");
       continue;
     }
 
@@ -267,18 +274,26 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         Queue, true, &GVInfos[0], MetadataPtr,
         sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Device Global[{}] Read Failed: {}",
-                                 kSPIR_MsanDeviceGlobalMetadata, Result);
+      UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
+               kSPIR_MsanDeviceGlobalMetadata, Result);
       return Result;
     }
 
     auto DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
     for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
       const auto &GVInfo = GVInfos[i];
-      UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
-                                                      GVInfo.Size, 0));
-      ContextInfo->MaxAllocatedSize =
-          std::max(ContextInfo->MaxAllocatedSize, GVInfo.Size);
+
+      // Only support device global USM
+      if (DeviceInfo->Type == DeviceType::CPU ||
+          (DeviceInfo->Type == DeviceType::GPU_PVC &&
+           MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
+          (DeviceInfo->Type == DeviceType::GPU_DG2 &&
+           MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
+        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
+                                                        GVInfo.Size, 0));
+        ContextInfo->CleanShadowSize =
+            std::max(ContextInfo->CleanShadowSize, GVInfo.Size);
+      }
     }
   }
 
@@ -368,13 +383,18 @@ KernelInfo &MsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
   }
 
   // Create new KernelInfo
-  auto Program = GetProgram(Kernel);
-  auto PI = getProgramInfo(Program);
-  bool IsInstrumented = PI->isKernelInstrumented(Kernel);
+  auto PI = getProgramInfo(GetProgram(Kernel));
+  auto KI = std::make_unique<KernelInfo>(Kernel);
+
+  KI->IsInstrumented = PI->isKernelInstrumented(Kernel);
+  if (KI->IsInstrumented) {
+    auto &KM = PI->getKernelMetadata(Kernel);
+    KI->IsCheckLocals = KM.CheckLocals;
+    KI->IsCheckPrivates = KM.CheckPrivates;
+  }
 
   std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-  m_KernelMap.emplace(Kernel,
-                      std::make_unique<KernelInfo>(Kernel, IsInstrumented));
+  m_KernelMap.emplace(Kernel, std::move(KI));
   return *m_KernelMap[Kernel].get();
 }
 
@@ -416,20 +436,14 @@ ur_result_t MsanInterceptor::prepareLaunch(
     ur_kernel_handle_t Kernel, USMLaunchInfo &LaunchInfo) {
   auto Program = GetProgram(Kernel);
 
-  auto EnqueueWriteGlobal = [&Queue, &Program](const char *Name,
-                                               const void *Value, size_t Size) {
-    auto Result = getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
-        Queue, Program, Name, false, Size, 0, Value, 0, nullptr, nullptr);
-    if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Failed to write device global \"{}\": {}",
-                                 Name, Result);
-      return Result;
-    }
-    return UR_RESULT_SUCCESS;
-  };
-
   // Set membuffer arguments
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
+  UR_LOG_L(getContext()->logger, INFO,
+           "KernelInfo {} (Name=<{}>, IsInstrumented={}, "
+           "IsCheckLocals={}, IsCheckPrivates={})",
+           (void *)Kernel, GetKernelName(Kernel), KernelInfo.IsInstrumented,
+           KernelInfo.IsCheckLocals, KernelInfo.IsCheckPrivates);
+
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
   for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
@@ -438,9 +452,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
     ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
         Kernel, ArgIndex, nullptr, ArgPointer);
     if (URes != UR_RESULT_SUCCESS) {
-      getContext()->logger.error(
-          "Failed to set buffer {} as the {} arg to kernel {}: {}",
-          ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel, URes);
+      UR_LOG_L(getContext()->logger, ERR,
+               "Failed to set buffer {} as the {} arg to kernel {}: {}",
+               ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
+               URes);
     }
   }
 
@@ -450,25 +465,134 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Set LaunchInfo
   auto ContextInfo = getContextInfo(LaunchInfo.Context);
-  LaunchInfo.Data->GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
-  LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
-  LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
-  LaunchInfo.Data->Debug = getOptions().Debug ? 1 : 0;
+  LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
+  LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+
+  LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
+  LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
+  LaunchInfo.Data.Host.IsRecover = getContext()->Options.Recover ? 1 : 0;
+
+  // Clean shadow
+  // Its content is always zero, and is used for unsupport memory types
   UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->MaxAllocatedSize, &LaunchInfo.Data->CleanShadow));
+      ContextInfo->CleanShadowSize,
+      (void **)&LaunchInfo.Data.Host.CleanShadow));
+  UR_CALL(EnqueueUSMBlockingSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
+                                0, ContextInfo->CleanShadowSize, 0, nullptr,
+                                nullptr));
 
-  getContext()->logger.info(
-      "launch_info {} (GlobalShadow={}, Device={}, Debug={})",
-      (void *)LaunchInfo.Data, LaunchInfo.Data->GlobalShadowOffset,
-      ToString(LaunchInfo.Data->DeviceTy), LaunchInfo.Data->Debug);
+  if (LaunchInfo.LocalWorkSize.empty()) {
+    LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    if (URes != UR_RESULT_SUCCESS) {
+      if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return URes;
+      }
+      // If urKernelGetSuggestedLocalWorkSize is not supported by driver, we
+      // fallback to inefficient implementation
+      for (size_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+        LaunchInfo.LocalWorkSize[Dim] = 1;
+      }
+    }
+  }
+
+  const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
+  uint32_t NumWG = 1;
+  for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+    NumWG *= (LaunchInfo.GlobalWorkSize[Dim] + LocalWorkSize[Dim] - 1) /
+             LocalWorkSize[Dim];
+  }
+
+  uint64_t NumWI = 1;
+  for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+    NumWI *= LaunchInfo.GlobalWorkSize[Dim];
+  }
+
+  // Write shadow memory offset for local memory
+  if (KernelInfo.IsCheckLocals) {
+    if (DeviceInfo->Shadow->AllocLocalShadow(
+            Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
+            LaunchInfo.Data.Host.LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+      UR_LOG_L(getContext()->logger, WARN,
+               "Failed to allocate shadow memory for local memory, "
+               "maybe the number of workgroup ({}) is too large",
+               NumWG);
+      UR_LOG_L(getContext()->logger, WARN,
+               "Skip checking local memory of kernel <{}> ",
+               GetKernelName(Kernel));
+    } else {
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "ShadowMemory(Local, WorkGroup={}, {} - {})", NumWG,
+               (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+               (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
+    }
+  }
+
+  // Write shadow memory offset for private memory
+  if (KernelInfo.IsCheckPrivates) {
+    if (DeviceInfo->Shadow->AllocPrivateShadow(
+            Queue, NumWI, NumWG, LaunchInfo.Data.Host.PrivateBase,
+            LaunchInfo.Data.Host.PrivateShadowOffset,
+            LaunchInfo.Data.Host.PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+      UR_LOG_L(getContext()->logger, WARN,
+               "Failed to allocate shadow memory for private memory, "
+               "maybe the number of workgroup ({}) is too large",
+               NumWG);
+      UR_LOG_L(getContext()->logger, WARN,
+               "Skip checking private memory of kernel <{}>",
+               GetKernelName(Kernel));
+      LaunchInfo.Data.Host.PrivateShadowOffset = 0;
+    } else {
+      UR_LOG_L(
+          getContext()->logger, DEBUG,
+          "ShadowMemory(Private, WorkGroup={}, PrivateBase={}, Shadow={} - {})",
+          NumWG, (void *)LaunchInfo.Data.Host.PrivateBase,
+          (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+          (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
+    }
+
+    // Write local arguments info
+    if (!KernelInfo.LocalArgs.empty()) {
+      std::vector<MsanLocalArgsInfo> LocalArgsInfo;
+      for (auto [ArgIndex, ArgInfo] : KernelInfo.LocalArgs) {
+        LocalArgsInfo.push_back(ArgInfo);
+        UR_LOG_L(getContext()->logger, DEBUG,
+                 "LocalArgs (argIndex={}, size={})", ArgIndex, ArgInfo.Size);
+      }
+      UR_CALL(LaunchInfo.Data.importLocalArgsInfo(Queue, LocalArgsInfo));
+    }
+  }
+
+  // sync msan runtime data to device side
+  UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
+
+  UR_LOG_L(getContext()->logger, INFO,
+           "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
+           "PrivateShadow={}, CleanShadow={}, LocalArgs={}, NumLocalArgs={}, "
+           "Device={}, Debug={})",
+           (void *)LaunchInfo.Data.getDevicePtr(),
+           (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
+           (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+           (void *)LaunchInfo.Data.Host.PrivateBase,
+           (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+           (void *)LaunchInfo.Data.Host.CleanShadow,
+           (void *)LaunchInfo.Data.Host.LocalArgs,
+           LaunchInfo.Data.Host.NumLocalArgs,
+           ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
   ur_result_t URes =
-      EnqueueWriteGlobal("__MsanLaunchInfo", &LaunchInfo.Data, sizeof(uptr));
+      getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
+          Queue, Program, "__MsanLaunchInfo", false,
+          sizeof(LaunchInfo.Data.DevicePtr), 0, &LaunchInfo.Data.DevicePtr, 0,
+          nullptr, nullptr);
   if (URes != UR_RESULT_SUCCESS) {
-    getContext()->logger.info("EnqueueWriteGlobal(__MsanLaunchInfo) "
-                              "failed, maybe empty kernel: {}",
-                              URes);
+    UR_LOG_L(getContext()->logger, INFO,
+             "EnqueueWriteGlobal(__MsanLaunchInfo) "
+             "failed, maybe empty kernel: {}",
+             URes);
   }
 
   return UR_RESULT_SUCCESS;
@@ -510,15 +634,21 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
   Shadow = GetMsanShadowMemory(Context, Handle, Type);
   assert(Shadow && "Failed to get shadow memory");
   UR_CALL(Shadow->Setup());
-  getContext()->logger.info("ShadowMemory(Global): {} - {}",
-                            (void *)Shadow->ShadowBegin,
-                            (void *)Shadow->ShadowEnd);
+  UR_LOG_L(getContext()->logger, INFO, "ShadowMemory(Global): {} - {}",
+           (void *)Shadow->ShadowBegin, (void *)Shadow->ShadowEnd);
   return UR_RESULT_SUCCESS;
 }
 
 bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
-  return InstrumentedKernels.find(Name) != InstrumentedKernels.end();
+  return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
+}
+
+const ProgramInfo::KernelMetada &
+ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
+  const auto Name = GetKernelName(Kernel);
+  assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());
+  return KernelMetadataMap.at(Name);
 }
 
 ContextInfo::~ContextInfo() {
@@ -530,23 +660,24 @@ ContextInfo::~ContextInfo() {
 ur_result_t USMLaunchInfo::initialize() {
   UR_CALL(getContext()->urDdiTable.Context.pfnRetain(Context));
   UR_CALL(getContext()->urDdiTable.Device.pfnRetain(Device));
-  UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-      Context, Device, nullptr, nullptr, sizeof(MsanLaunchInfo),
-      (void **)&Data));
-  *Data = MsanLaunchInfo{};
   return UR_RESULT_SUCCESS;
+}
+
+MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
+  if (Host.CleanShadow) {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.CleanShadow);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
+  if (DevicePtr) {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.USM.pfnFree(Context, (void *)DevicePtr);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
 }
 
 USMLaunchInfo::~USMLaunchInfo() {
   [[maybe_unused]] ur_result_t Result;
-  if (Data) {
-    if (Data->CleanShadow) {
-      Result = getContext()->urDdiTable.USM.pfnFree(Context, Data->CleanShadow);
-      assert(Result == UR_RESULT_SUCCESS);
-    }
-    Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Data);
-    assert(Result == UR_RESULT_SUCCESS);
-  }
   Result = getContext()->urDdiTable.Context.pfnRelease(Context);
   assert(Result == UR_RESULT_SUCCESS);
   Result = getContext()->urDdiTable.Device.pfnRelease(Device);

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/context.hpp>                               // for context
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
 #include <sycl/device.hpp>                                // for device
@@ -283,6 +284,54 @@ __SYCL_EXPORT void release_external_memory(external_mem externalMem,
  */
 __SYCL_EXPORT void release_external_memory(external_mem externalMem,
                                            const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Unmap external linear memory region
+ *
+ *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
+ *  @param   syclDevice  The device in which the external memory was created
+ *  @param   syclContext The context in which the external memory was created
+ */
+__SYCL_EXPORT void
+unmap_external_linear_memory(void *mappedLinearMem,
+                             const sycl::device &syclDevice,
+                             const sycl::context &syclContext);
+
+/**
+ *  @brief   Unmap external linear memory region
+ *
+ *  @param   mappedLinearMem Pointer to the mapped linear memory region to unmap
+ *  @param   syclQueue The queue in which the external memory was created
+ */
+inline void unmap_external_linear_memory(void *mappedLinearMem,
+                                         const sycl::queue &syclQueue) {
+  unmap_external_linear_memory(mappedLinearMem, syclQueue.get_device(),
+                               syclQueue.get_context());
+}
+
+/**
+ *  @brief   Unmap external image memory
+ *
+ *  @param   mappedImageMem Handle to the mapped image memory to unmap
+ *  @param   syclDevice  The device in which the external memory was created
+ *  @param   syclContext The context in which the external memory was created
+ */
+__SYCL_EXPORT void unmap_external_image_memory(
+    image_mem_handle mappedImageMem, image_type imageType,
+    const sycl::device &syclDevice, const sycl::context &syclContext);
+
+/**
+ *  @brief   Unmap external image memory
+ *
+ *  @param   mappedImageMem Handle to the mapped image memory to unmap
+ *  @param   syclQueue The queue in which the external memory was created
+ */
+inline void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                        image_type imageType,
+                                        const sycl::queue &syclQueue) {
+  unmap_external_image_memory(mappedImageMem, imageType, syclQueue.get_device(),
+                              syclQueue.get_context());
+}
 
 /**
  *  @brief   Create an image and return the device image handle
@@ -591,6 +640,89 @@ get_image_num_channels(const image_mem_handle memHandle,
 __SYCL_EXPORT unsigned int
 get_image_num_channels(const image_mem_handle memHandle,
                        const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Returns a vector of image-backing memory types supported by the
+ *           device for a given `image_descriptor`. If the returned vector is
+ *           empty, it indicates that the device does not support allocating or
+ *           creating images with the properties described in the
+ *           `image_descriptor`.
+ *
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   syclDevice The device in which we created our image memory handle
+ *  @param   syclContext The context in which we created our image memory handle
+ *  @return  List of supported image-backing memory types
+ */
+__SYCL_EXPORT std::vector<image_memory_handle_type>
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::device &syclDevice,
+                         const sycl::context &syclContext);
+
+/**
+ *  @brief   Returns a vector of image-backing memory types supported by the
+ *           device for a given `image_descriptor`. If the returned vector is
+ *           empty, it indicates that the device does not support allocating or
+ *           creating images with the properties described in the
+ *           `image_descriptor`.
+ *
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   syclQueue The device/context association for which we want to query
+ *                     image memory support.
+ *  @return  List of supported image-backing memory types
+ */
+__SYCL_EXPORT std::vector<image_memory_handle_type>
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Returns `true` if the device supports creation of images of the
+ *           ImageHandleType, given the combination of `image_descriptor` and
+ *           `image_memory_handle_type`.
+ *
+ *  @tparam  ImageHandleType Either `sampled_image_handle` or
+ *           `unsampled_image_handle`.
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   imageMemoryHandleType Image memory handle type we want to query
+ *                                 support for.
+ *  @param   syclDevice The device in which we want to query image handle
+ *                      support
+ *  @param   syclContext The context in which we want to query image handle
+ *                      support
+ *  @return  Boolean indicating support for image creation with the specified
+ *           parameter.
+ */
+
+template <typename ImageHandleType>
+__SYCL_EXPORT bool
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::device &syclDevice,
+                          const sycl::context &syclContext);
+
+/**
+ *  @brief   Returns `true` if the device supports creation of images of the
+ *           ImageHandleType, given the combination of `image_descriptor` and
+ *           `image_memory_handle_type`.
+ *
+ *  @tparam  ImageHandleType Either `sampled_image_handle` or
+ *           `unsampled_image_handle`
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   imageMemoryHandleType Image memory handle type we want to query
+ *                                 support for.
+ *  @param   syclQueue The device/context association for which we want to query
+ *                     image handle support.
+ *  @return  Boolean indicating support for image creation with the specified
+ *           parameter.
+ */
+template <typename ImageHandleType>
+__SYCL_EXPORT bool
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::queue &syclQueue);
 
 namespace detail {
 
@@ -907,6 +1039,31 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
+#endif
+}
+
+template <typename DataT>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_bindless_images_gather)]]
+#endif
+std::enable_if_t<std::is_same_v<DataT, float4> || std::is_same_v<DataT, int4> ||
+                     std::is_same_v<DataT, uint4>,
+                 DataT> gather_image(const sampled_image_handle &imageHandle
+                                     [[maybe_unused]],
+                                     const float2 &coords [[maybe_unused]],
+                                     const unsigned i [[maybe_unused]]) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  return __invoke__SampledImageGather<DataT>(
+      CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, float2::size()),
+      coords, i);
+#else
+  return {0, 0, 0, 0};
+#endif
+#else
+  throw exception{make_error_code(errc::feature_not_supported),
+                  "gather_image is not supported on the host"};
 #endif
 }
 

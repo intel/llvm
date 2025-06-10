@@ -18,10 +18,10 @@ namespace ur_sanitizer_layer {
 namespace asan {
 
 void AllocInfo::print() {
-  getContext()->logger.info(
-      "AllocInfo(Alloc=[{}-{}),  User=[{}-{}), AllocSize={}, Type={})",
-      (void *)AllocBegin, (void *)(AllocBegin + AllocSize), (void *)UserBegin,
-      (void *)(UserEnd), AllocSize, ToString(Type));
+  UR_LOG_L(getContext()->logger, INFO,
+           "AllocInfo(Alloc=[{}-{}),  User=[{}-{}), AllocSize={}, Type={})",
+           (void *)AllocBegin, (void *)(AllocBegin + AllocSize),
+           (void *)UserBegin, (void *)(UserEnd), AllocSize, ToString(Type));
 }
 
 } // namespace asan

@@ -19,7 +19,7 @@ target triple = "spir64-unknown-unknown"
 @imageSampler = addrspace(2) constant i32 36, align 4
 
 ; Function Attrs: nounwind
-define spir_kernel void @sample_kernel(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, ptr addrspace(1) nocapture %xOffsets, ptr addrspace(1) nocapture %yOffsets, ptr addrspace(1) nocapture %results) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @sample_kernel(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0) %input, ptr addrspace(1) captures(none) %xOffsets, ptr addrspace(1) captures(none) %yOffsets, ptr addrspace(1) captures(none) %results) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
   %1 = tail call spir_func i64 @_Z13get_global_idj(i32 0) #1
   %2 = trunc i64 %1 to i32
   %3 = tail call spir_func i64 @_Z13get_global_idj(i32 1) #1

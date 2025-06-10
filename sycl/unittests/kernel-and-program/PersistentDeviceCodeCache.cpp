@@ -336,8 +336,8 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   std::sort(Imgs.begin(), Imgs.end(),
             [](const detail::RTDeviceBinaryImage *A,
                const detail::RTDeviceBinaryImage *B) {
-              return std::strcmp(A->getRawData().EntriesBegin->name,
-                                 B->getRawData().EntriesBegin->name) < 0;
+              return std::strcmp(A->getRawData().EntriesBegin->GetName(),
+                                 B->getRawData().EntriesBegin->GetName()) < 0;
             });
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Imgs, {}, BuildOptions);

@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 #include <clc/utils.h>
 
-#include <math/math.h>
+#include <clc/math/math.h>
 
 #define __CLC_BODY <modf.inc>
 #include <clc/math/gentype.inc>

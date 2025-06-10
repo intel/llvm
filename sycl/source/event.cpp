@@ -29,9 +29,7 @@ event::event(cl_event ClEvent, const context &SyclContext)
           detail::ur::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  // TODO(pi2ur): Don't just cast from cl_event above
-  impl->getAdapter()->call<detail::UrApiKind::urEventRetain>(
-      detail::ur::cast<ur_event_handle_t>(ClEvent));
+  __SYCL_OCL_CALL(clRetainEvent, ClEvent);
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
@@ -64,7 +62,7 @@ std::vector<event> event::get_wait_list() {
 }
 
 event::event(std::shared_ptr<detail::event_impl> event_impl)
-    : impl(event_impl) {}
+    : impl(std::move(event_impl)) {}
 
 template <typename Param>
 typename detail::is_event_info_desc<Param>::return_type
@@ -81,7 +79,7 @@ event::get_backend_info() const {
 template <typename Param>
 typename detail::is_event_profiling_info_desc<Param>::return_type
 event::get_profiling_info() const {
-  if (impl->getCommandGraph()) {
+  if (impl->hasCommandGraph()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Profiling information is unavailable for events "
                           "returned from a submission to a queue in the "

@@ -127,8 +127,10 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(
   using namespace SPIRVDebug::Operand::DebugDeclare;
   SPIRVWordVec Ops(OperandCount);
   Ops[DebugLocalVarIdx] = transDbgEntry(DbgDecl->getVariable())->getId();
-  Ops[VariableIdx] = Alloca ? SPIRVWriter->transValue(Alloca, BB)->getId()
-                            : getDebugInfoNoneId();
+  unsigned OpVariableId = getDebugInfoNoneId();
+  if (Alloca && !(isa<ConstantPointerNull>(Alloca) || isa<UndefValue>(Alloca)))
+    OpVariableId = SPIRVWriter->transValue(Alloca, BB)->getId();
+  Ops[VariableIdx] = OpVariableId;
   Ops[ExpressionIdx] = transDbgEntry(DbgDecl->getExpression())->getId();
   DD->setArguments(Ops);
 }
@@ -1125,8 +1127,8 @@ LLVMToSPIRVDbgTran::transDbgTemplateParameter(const DITemplateParameter *TP) {
       Constant *C = cast<ConstantAsMetadata>(TVVal)->getValue();
       Ops[ValueIdx] = SPIRVWriter->transValue(C, nullptr)->getId();
     } else {
-      SPIRVType *TyPtr = SPIRVWriter->transType(
-          PointerType::get(Type::getInt8Ty(M->getContext()), 0));
+      SPIRVType *TyPtr =
+          SPIRVWriter->transType(PointerType::get(M->getContext(), 0));
       Ops[ValueIdx] = BM->addNullConstant(TyPtr)->getId();
     }
   }

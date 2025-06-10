@@ -10,25 +10,7 @@
 
 #include "platform.hpp"
 #include "adapter.hpp"
-
-ur_result_t cl_adapter::getPlatformVersion(cl_platform_id Plat,
-                                           oclv::OpenCLVersion &Version) {
-
-  size_t PlatVerSize = 0;
-  CL_RETURN_ON_FAILURE(
-      clGetPlatformInfo(Plat, CL_PLATFORM_VERSION, 0, nullptr, &PlatVerSize));
-
-  std::string PlatVer(PlatVerSize, '\0');
-  CL_RETURN_ON_FAILURE(clGetPlatformInfo(Plat, CL_PLATFORM_VERSION, PlatVerSize,
-                                         PlatVer.data(), nullptr));
-
-  Version = oclv::OpenCLVersion(PlatVer);
-  if (!Version.isValid()) {
-    return UR_RESULT_ERROR_INVALID_PLATFORM;
-  }
-
-  return UR_RESULT_SUCCESS;
-}
+#include "device.hpp"
 
 static cl_int mapURPlatformInfoToCL(ur_platform_info_t URPropName) {
 
@@ -57,7 +39,7 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
 
   switch (static_cast<uint32_t>(propName)) {
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_OPENCL);
+    return ReturnValue(UR_BACKEND_OPENCL);
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(ur::cl::getAdapter());
   case UR_PLATFORM_INFO_NAME:
@@ -65,9 +47,11 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_VERSION:
   case UR_PLATFORM_INFO_EXTENSIONS:
   case UR_PLATFORM_INFO_PROFILE: {
+    cl_platform_id Plat = hPlatform->CLPlatform;
+
     CL_RETURN_ON_FAILURE(
-        clGetPlatformInfo(cl_adapter::cast<cl_platform_id>(hPlatform),
-                          CLPropName, propSize, pPropValue, pSizeRet));
+        clGetPlatformInfo(Plat, CLPropName, propSize, pPropValue, pSizeRet));
+
     return UR_RESULT_SUCCESS;
   }
   default:
@@ -83,41 +67,88 @@ urPlatformGetApiVersion([[maybe_unused]] ur_platform_handle_t hPlatform,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
+  static std::mutex adapterPopulationMutex{};
+  ur_adapter_handle_t Adapter = nullptr;
+  UR_RETURN_ON_FAILURE(urAdapterGet(1, &Adapter, nullptr));
+  if (Adapter && !(Adapter->NumPlatforms)) {
+    std::lock_guard guard{adapterPopulationMutex};
 
-  cl_int Result =
-      clGetPlatformIDs(cl_adapter::cast<cl_uint>(NumEntries),
-                       cl_adapter::cast<cl_platform_id *>(phPlatforms),
-                       cl_adapter::cast<cl_uint *>(pNumPlatforms));
+    // It's possible for urPlatformGet, if ran on multiple threads, to enter
+    // this branch simultaneously. This check ensures that only one sees that
+    // Adapter->NumPlatforms is zero.
+    if (Adapter->NumPlatforms == 0) {
+      uint32_t NumPlatforms = 0;
+      cl_int Res = clGetPlatformIDs(0, nullptr, &NumPlatforms);
 
-  /* Absorb the CL_PLATFORM_NOT_FOUND_KHR and just return 0 in num_platforms */
-  if (Result == CL_PLATFORM_NOT_FOUND_KHR) {
-    Result = CL_SUCCESS;
-    if (pNumPlatforms) {
-      *pNumPlatforms = 0;
+      if (NumPlatforms == 0 || Res == CL_PLATFORM_NOT_FOUND_KHR) {
+        if (pNumPlatforms) {
+          *pNumPlatforms = 0;
+        }
+        return UR_RESULT_SUCCESS;
+      }
+      CL_RETURN_ON_FAILURE(Res);
+
+      std::vector<cl_platform_id> CLPlatforms(NumPlatforms);
+      Res = clGetPlatformIDs(static_cast<cl_uint>(NumPlatforms),
+                             CLPlatforms.data(), nullptr);
+      CL_RETURN_ON_FAILURE(Res);
+
+      try {
+        for (uint32_t i = 0; i < NumPlatforms; i++) {
+          auto URPlatform =
+              std::make_unique<ur_platform_handle_t_>(CLPlatforms[i]);
+          UR_RETURN_ON_FAILURE(URPlatform->InitDevices());
+          Adapter->URPlatforms.emplace_back(URPlatform.release());
+        }
+        Adapter->NumPlatforms = NumPlatforms;
+      } catch (std::bad_alloc &) {
+        return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      } catch (...) {
+        return UR_RESULT_ERROR_INVALID_PLATFORM;
+      }
     }
   }
 
-  /* INVALID_VALUE is returned when the size is invalid, special case it here */
-  if (Result == CL_INVALID_VALUE && phPlatforms != nullptr && NumEntries == 0) {
-    return UR_RESULT_ERROR_INVALID_SIZE;
+  if (pNumPlatforms != nullptr) {
+    *pNumPlatforms = Adapter->NumPlatforms;
+  }
+  if (NumEntries && phPlatforms) {
+    for (uint32_t i = 0; i < NumEntries; i++) {
+      phPlatforms[i] = Adapter->URPlatforms[i].get();
+    }
   }
 
-  return mapCLErrorToUR(Result);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
-  *phNativePlatform = reinterpret_cast<ur_native_handle_t>(hPlatform);
+  *phNativePlatform =
+      reinterpret_cast<ur_native_handle_t>(hPlatform->CLPlatform);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t hNativePlatform, ur_adapter_handle_t,
     const ur_platform_native_properties_t *, ur_platform_handle_t *phPlatform) {
-  *phPlatform = reinterpret_cast<ur_platform_handle_t>(hNativePlatform);
-  return UR_RESULT_SUCCESS;
+  cl_platform_id NativeHandle =
+      reinterpret_cast<cl_platform_id>(hNativePlatform);
+
+  uint32_t NumPlatforms = 0;
+  UR_RETURN_ON_FAILURE(urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
+  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
+  UR_RETURN_ON_FAILURE(
+      urPlatformGet(nullptr, NumPlatforms, Platforms.data(), nullptr));
+
+  for (uint32_t i = 0; i < NumPlatforms; i++) {
+    if (Platforms[i]->CLPlatform == NativeHandle) {
+      *phPlatform = Platforms[i];
+      return UR_RESULT_SUCCESS;
+    }
+  }
+  return UR_RESULT_ERROR_INVALID_PLATFORM;
 }
 
 // Returns plugin specific backend option.
@@ -153,4 +184,44 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
     return UR_RESULT_SUCCESS;
   }
   return UR_RESULT_ERROR_INVALID_VALUE;
+}
+
+ur_result_t ur_platform_handle_t_::InitDevices() {
+  if (Devices.empty()) {
+    cl_uint DeviceNum = 0;
+    cl_int Res =
+        clGetDeviceIDs(CLPlatform, CL_DEVICE_TYPE_ALL, 0, nullptr, &DeviceNum);
+
+    // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
+    if (Res == CL_DEVICE_NOT_FOUND) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    CL_RETURN_ON_FAILURE(Res);
+
+    std::vector<cl_device_id> CLDevices(DeviceNum);
+    Res = clGetDeviceIDs(CLPlatform, CL_DEVICE_TYPE_ALL, DeviceNum,
+                         CLDevices.data(), nullptr);
+
+    // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
+    if (Res == CL_DEVICE_NOT_FOUND) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    CL_RETURN_ON_FAILURE(Res);
+
+    try {
+      Devices.resize(DeviceNum);
+      for (size_t i = 0; i < DeviceNum; i++) {
+        Devices[i] =
+            std::make_unique<ur_device_handle_t_>(CLDevices[i], this, nullptr);
+      }
+    } catch (std::bad_alloc &) {
+      return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    } catch (...) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
 }

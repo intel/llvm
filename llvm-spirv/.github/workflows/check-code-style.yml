@@ -18,18 +18,33 @@ on:
       - 'test/**' # tests
       - '**.md'   # README
       - '**.txt'  # CMakeLists.txt
-      - '**/check-**-build.yml' # Other workflows
+      - '**/check-**-build.yml' # build workflows
+      - '**/backport-to-branch.yml' # backport workflow
+      - '**/patch-release.yaml' # patch release workflow
+  repository_dispatch:
+    types: [backport-complete]
+    branches:
+      - main
+      - llvm_release_*
+    paths-ignore: # no need to check formatting for:
+      - 'docs/**' # documentation
+      - 'test/**' # tests
+      - '**.md'   # README
+      - '**.txt'  # CMakeLists.txt
+      - '**/check-**-build.yml' # build workflows
+      - '**/backport-to-branch.yml' # backport workflow
+      - '**/patch-release.yaml' # patch release workflow
 
 env:
   # We need compile command database in order to perform clang-tidy check. So,
   # in order to perform configure step we need to setup llvm-dev package. This
   # env variable used to specify desired version of it
-  LLVM_VERSION: 20
+  LLVM_VERSION: 21
 
 jobs:
   clang-format-and-tidy:
     name: clang-format & clang-tidy
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout sources
       uses: actions/checkout@v4
@@ -54,7 +69,7 @@ jobs:
           # perform or skip further steps, i.e. there is no sense to install
           # clang-format if PR hasn't changed .cpp files at all
           # See [workflow-commands] for reference
-          echo '::set-output name=HAS_CHANGES::true'
+          echo 'HAS_CHANGES=true' >> "$GITHUB_OUTPUT"
         fi
 
     - name: Install dependencies
@@ -64,7 +79,7 @@ jobs:
         # launched, so, we need to setup llvm package to perform cmake
         # configuration step to generate that database
         curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
-        echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal main" | sudo tee -a /etc/apt/sources.list
+        echo "deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy main" | sudo tee -a /etc/apt/sources.list
         sudo apt-get update
         sudo apt-get install -yqq \
             clang-format-${{ env.LLVM_VERSION }} clang-tidy-${{ env.LLVM_VERSION }} \

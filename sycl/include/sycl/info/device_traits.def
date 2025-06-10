@@ -135,6 +135,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, execution_capabilities,
                          UR_DEVICE_INFO_EXECUTION_CAPABILITIES)
 __SYCL_PARAM_TRAITS_SPEC(device, queue_profiling, bool,
                          UR_DEVICE_INFO_QUEUE_PROPERTIES)
+// TODO: UR_DEVICE_INFO_FORCE_UINT32 looks wrong here:
 __SYCL_PARAM_TRAITS_SPEC(device, built_in_kernel_ids,
                          std::vector<sycl::kernel_id>, UR_DEVICE_INFO_FORCE_UINT32)
 __SYCL_PARAM_TRAITS_SPEC(device, built_in_kernels, std::vector<std::string>,
@@ -234,8 +235,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>, __SYCL_TR
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
                          UR_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t, __SYCL_TRAIT_HANDLED_IN_RT)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_cuda_cluster_group, bool,
-                         UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_cuda_cluster_group, bool, __SYCL_TRAIT_HANDLED_IN_RT)
 
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC

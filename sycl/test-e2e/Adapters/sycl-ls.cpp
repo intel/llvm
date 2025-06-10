@@ -1,6 +1,6 @@
-// RUN: sycl-ls --verbose | grep "Device \[" | wc -l >%t.verbose.out
-// RUN: sycl-ls | wc -l >%t.concise.out
-// RUN: diff %t.verbose.out %t.concise.out
+// RUN: %{run-unfiltered-devices} sycl-ls --verbose | grep "Device \[" | wc -l >%t.verbose.out
+// RUN: %{run-unfiltered-devices} sycl-ls | wc -l >%t.concise.out
+// RUN: %{run-aux} diff %t.verbose.out %t.concise.out
 
 //==---- sycl-ls.cpp - SYCL test for consistency of sycl-ls output ---------==//
 //
@@ -9,6 +9,3 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// The test crashed on CUDA CI machines with the latest OpenCL GPU RT
-// (21.19.19792).
-// UNSUPPORTED: cuda

@@ -24,9 +24,77 @@ extern "C" {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGet
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGet_t)(uint32_t,
+                                                    ur_adapter_handle_t *,
+                                                    uint32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterRelease
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterRelease_t)(ur_adapter_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterRetain
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterRetain_t)(ur_adapter_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGetLastError
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetLastError_t)(
+    ur_adapter_handle_t, const char **, int32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGetInfo
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetInfo_t)(ur_adapter_handle_t,
+                                                        ur_adapter_info_t,
+                                                        size_t, void *,
+                                                        size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterSetLoggerCallback
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterSetLoggerCallback_t)(
+    ur_adapter_handle_t, ur_logger_callback_t, void *, ur_logger_level_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterSetLoggerCallbackLevel
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterSetLoggerCallbackLevel_t)(
+    ur_adapter_handle_t, ur_logger_level_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of Adapter functions pointers
+typedef struct ur_adapter_dditable_t {
+  ur_pfnAdapterGet_t pfnGet;
+  ur_pfnAdapterRelease_t pfnRelease;
+  ur_pfnAdapterRetain_t pfnRetain;
+  ur_pfnAdapterGetLastError_t pfnGetLastError;
+  ur_pfnAdapterGetInfo_t pfnGetInfo;
+  ur_pfnAdapterSetLoggerCallback_t pfnSetLoggerCallback;
+  ur_pfnAdapterSetLoggerCallbackLevel_t pfnSetLoggerCallbackLevel;
+} ur_adapter_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Adapter table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_adapter_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetAdapterProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetAdapterProcAddrTable_t)(
+    ur_api_version_t, ur_adapter_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformGet
-typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(ur_adapter_handle_t *,
-                                                     uint32_t, uint32_t,
+typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(ur_adapter_handle_t,
+                                                     uint32_t,
                                                      ur_platform_handle_t *,
                                                      uint32_t *);
 
@@ -489,6 +557,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSetSpecializationConstants_t)(
     ur_kernel_handle_t, uint32_t, const ur_specialization_constant_info_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urKernelSuggestMaxCooperativeGroupCount
+typedef ur_result_t(UR_APICALL *ur_pfnKernelSuggestMaxCooperativeGroupCount_t)(
+    ur_kernel_handle_t, ur_device_handle_t, uint32_t, const size_t *, size_t,
+    uint32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Kernel functions pointers
 typedef struct ur_kernel_dditable_t {
   ur_pfnKernelCreate_t pfnCreate;
@@ -507,6 +581,8 @@ typedef struct ur_kernel_dditable_t {
   ur_pfnKernelSetArgSampler_t pfnSetArgSampler;
   ur_pfnKernelSetArgMemObj_t pfnSetArgMemObj;
   ur_pfnKernelSetSpecializationConstants_t pfnSetSpecializationConstants;
+  ur_pfnKernelSuggestMaxCooperativeGroupCount_t
+      pfnSuggestMaxCooperativeGroupCount;
 } ur_kernel_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -528,40 +604,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
 /// @brief Function-pointer for urGetKernelProcAddrTable
 typedef ur_result_t(UR_APICALL *ur_pfnGetKernelProcAddrTable_t)(
     ur_api_version_t, ur_kernel_dditable_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urKernelSuggestMaxCooperativeGroupCountExp
-typedef ur_result_t(
-    UR_APICALL *ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t)(
-    ur_kernel_handle_t, ur_device_handle_t, uint32_t, const size_t *, size_t,
-    uint32_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Table of KernelExp functions pointers
-typedef struct ur_kernel_exp_dditable_t {
-  ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t
-      pfnSuggestMaxCooperativeGroupCountExp;
-} ur_kernel_exp_dditable_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's KernelExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_kernel_exp_dditable_t *pDdiTable);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGetKernelExpProcAddrTable
-typedef ur_result_t(UR_APICALL *ur_pfnGetKernelExpProcAddrTable_t)(
-    ur_api_version_t, ur_kernel_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueGetInfo
@@ -840,66 +882,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetPhysicalMemProcAddrTable_t)(
     ur_api_version_t, ur_physical_mem_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGet
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGet_t)(uint32_t,
-                                                    ur_adapter_handle_t *,
-                                                    uint32_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterRelease
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterRelease_t)(ur_adapter_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterRetain
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterRetain_t)(ur_adapter_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGetLastError
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetLastError_t)(
-    ur_adapter_handle_t, const char **, int32_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urAdapterGetInfo
-typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetInfo_t)(ur_adapter_handle_t,
-                                                        ur_adapter_info_t,
-                                                        size_t, void *,
-                                                        size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Table of Global functions pointers
-typedef struct ur_global_dditable_t {
-  ur_pfnAdapterGet_t pfnAdapterGet;
-  ur_pfnAdapterRelease_t pfnAdapterRelease;
-  ur_pfnAdapterRetain_t pfnAdapterRetain;
-  ur_pfnAdapterGetLastError_t pfnAdapterGetLastError;
-  ur_pfnAdapterGetInfo_t pfnAdapterGetInfo;
-} ur_global_dditable_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGetGlobalProcAddrTable
-typedef ur_result_t(UR_APICALL *ur_pfnGetGlobalProcAddrTable_t)(
-    ur_api_version_t, ur_global_dditable_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueKernelLaunch
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunch_t)(
     ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
-    const size_t *, const size_t *, uint32_t, const ur_event_handle_t *,
+    const size_t *, const size_t *, uint32_t,
+    const ur_kernel_launch_property_t *, uint32_t, const ur_event_handle_t *,
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1111,18 +1098,37 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueProcAddrTable_t)(
     ur_api_version_t, ur_enqueue_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueKernelLaunchCustomExp
-typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunchCustomExp_t)(
-    ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
-    const size_t *, const size_t *, uint32_t, const ur_exp_launch_property_t *,
-    uint32_t, const ur_event_handle_t *, ur_event_handle_t *);
+/// @brief Function-pointer for urEnqueueUSMDeviceAllocExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMDeviceAllocExp_t)(
+    ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueCooperativeKernelLaunchExp
-typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCooperativeKernelLaunchExp_t)(
-    ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
-    const size_t *, const size_t *, uint32_t, const ur_event_handle_t *,
-    ur_event_handle_t *);
+/// @brief Function-pointer for urEnqueueUSMSharedAllocExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMSharedAllocExp_t)(
+    ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMHostAllocExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMHostAllocExp_t)(
+    ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMFreeExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMFreeExp_t)(
+    ur_queue_handle_t, ur_usm_pool_handle_t, void *, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueCommandBufferExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCommandBufferExp_t)(
+    ur_queue_handle_t, ur_exp_command_buffer_handle_t, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueTimestampRecordingExp
@@ -1141,8 +1147,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueNativeCommandExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
-  ur_pfnEnqueueKernelLaunchCustomExp_t pfnKernelLaunchCustomExp;
-  ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
+  ur_pfnEnqueueUSMDeviceAllocExp_t pfnUSMDeviceAllocExp;
+  ur_pfnEnqueueUSMSharedAllocExp_t pfnUSMSharedAllocExp;
+  ur_pfnEnqueueUSMHostAllocExp_t pfnUSMHostAllocExp;
+  ur_pfnEnqueueUSMFreeExp_t pfnUSMFreeExp;
+  ur_pfnEnqueueCommandBufferExp_t pfnCommandBufferExp;
   ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
   ur_pfnEnqueueNativeCommandExp_t pfnNativeCommandExp;
 } ur_enqueue_exp_dditable_t;
@@ -1166,170 +1175,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 /// @brief Function-pointer for urGetEnqueueExpProcAddrTable
 typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueExpProcAddrTable_t)(
     ur_api_version_t, ur_enqueue_exp_dditable_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesUnsampledImageHandleDestroyExp
-typedef ur_result_t(
-    UR_APICALL *ur_pfnBindlessImagesUnsampledImageHandleDestroyExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_image_native_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesSampledImageHandleDestroyExp
-typedef ur_result_t(
-    UR_APICALL *ur_pfnBindlessImagesSampledImageHandleDestroyExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_image_native_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesImageAllocateExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageAllocateExp_t)(
-    ur_context_handle_t, ur_device_handle_t, const ur_image_format_t *,
-    const ur_image_desc_t *, ur_exp_image_mem_native_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesImageFreeExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageFreeExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesUnsampledImageCreateExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageCreateExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t,
-    const ur_image_format_t *, const ur_image_desc_t *,
-    ur_exp_image_native_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesSampledImageCreateExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t,
-    const ur_image_format_t *, const ur_image_desc_t *, ur_sampler_handle_t,
-    ur_exp_image_native_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesImageCopyExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageCopyExp_t)(
-    ur_queue_handle_t, const void *, void *, const ur_image_desc_t *,
-    const ur_image_desc_t *, const ur_image_format_t *,
-    const ur_image_format_t *, ur_exp_image_copy_region_t *,
-    ur_exp_image_copy_flags_t, uint32_t, const ur_event_handle_t *,
-    ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesImageGetInfoExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageGetInfoExp_t)(
-    ur_context_handle_t, ur_exp_image_mem_native_handle_t, ur_image_info_t,
-    void *, size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapGetLevelExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t,
-    uint32_t, ur_exp_image_mem_native_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesMipmapFreeExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapFreeExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesImportExternalMemoryExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalMemoryExp_t)(
-    ur_context_handle_t, ur_device_handle_t, size_t, ur_exp_external_mem_type_t,
-    ur_exp_external_mem_desc_t *, ur_exp_external_mem_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesMapExternalArrayExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMapExternalArrayExp_t)(
-    ur_context_handle_t, ur_device_handle_t, const ur_image_format_t *,
-    const ur_image_desc_t *, ur_exp_external_mem_handle_t,
-    ur_exp_image_mem_native_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesMapExternalLinearMemoryExp
-typedef ur_result_t(
-    UR_APICALL *ur_pfnBindlessImagesMapExternalLinearMemoryExp_t)(
-    ur_context_handle_t, ur_device_handle_t, uint64_t, uint64_t,
-    ur_exp_external_mem_handle_t, void **);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesReleaseExternalMemoryExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseExternalMemoryExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_external_mem_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesImportExternalSemaphoreExp
-typedef ur_result_t(
-    UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_exp_external_semaphore_type_t,
-    ur_exp_external_semaphore_desc_t *, ur_exp_external_semaphore_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesReleaseExternalSemaphoreExp
-typedef ur_result_t(
-    UR_APICALL *ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t)(
-    ur_context_handle_t, ur_device_handle_t,
-    ur_exp_external_semaphore_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesWaitExternalSemaphoreExp
-typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesWaitExternalSemaphoreExp_t)(
-    ur_queue_handle_t, ur_exp_external_semaphore_handle_t, bool, uint64_t,
-    uint32_t, const ur_event_handle_t *, ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urBindlessImagesSignalExternalSemaphoreExp
-typedef ur_result_t(
-    UR_APICALL *ur_pfnBindlessImagesSignalExternalSemaphoreExp_t)(
-    ur_queue_handle_t, ur_exp_external_semaphore_handle_t, bool, uint64_t,
-    uint32_t, const ur_event_handle_t *, ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Table of BindlessImagesExp functions pointers
-typedef struct ur_bindless_images_exp_dditable_t {
-  ur_pfnBindlessImagesUnsampledImageHandleDestroyExp_t
-      pfnUnsampledImageHandleDestroyExp;
-  ur_pfnBindlessImagesSampledImageHandleDestroyExp_t
-      pfnSampledImageHandleDestroyExp;
-  ur_pfnBindlessImagesImageAllocateExp_t pfnImageAllocateExp;
-  ur_pfnBindlessImagesImageFreeExp_t pfnImageFreeExp;
-  ur_pfnBindlessImagesUnsampledImageCreateExp_t pfnUnsampledImageCreateExp;
-  ur_pfnBindlessImagesSampledImageCreateExp_t pfnSampledImageCreateExp;
-  ur_pfnBindlessImagesImageCopyExp_t pfnImageCopyExp;
-  ur_pfnBindlessImagesImageGetInfoExp_t pfnImageGetInfoExp;
-  ur_pfnBindlessImagesMipmapGetLevelExp_t pfnMipmapGetLevelExp;
-  ur_pfnBindlessImagesMipmapFreeExp_t pfnMipmapFreeExp;
-  ur_pfnBindlessImagesImportExternalMemoryExp_t pfnImportExternalMemoryExp;
-  ur_pfnBindlessImagesMapExternalArrayExp_t pfnMapExternalArrayExp;
-  ur_pfnBindlessImagesMapExternalLinearMemoryExp_t
-      pfnMapExternalLinearMemoryExp;
-  ur_pfnBindlessImagesReleaseExternalMemoryExp_t pfnReleaseExternalMemoryExp;
-  ur_pfnBindlessImagesImportExternalSemaphoreExp_t
-      pfnImportExternalSemaphoreExp;
-  ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t
-      pfnReleaseExternalSemaphoreExp;
-  ur_pfnBindlessImagesWaitExternalSemaphoreExp_t pfnWaitExternalSemaphoreExp;
-  ur_pfnBindlessImagesSignalExternalSemaphoreExp_t
-      pfnSignalExternalSemaphoreExp;
-} ur_bindless_images_exp_dditable_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's BindlessImagesExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_bindless_images_exp_dditable_t *pDdiTable);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGetBindlessImagesExpProcAddrTable
-typedef ur_result_t(UR_APICALL *ur_pfnGetBindlessImagesExpProcAddrTable_t)(
-    ur_api_version_t, ur_bindless_images_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMHostAlloc
@@ -1422,10 +1267,60 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetUSMProcAddrTable_t)(
     ur_api_version_t, ur_usm_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolCreateExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolCreateExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_desc_t *,
+    ur_usm_pool_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolDestroyExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolDestroyExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolGetDefaultDevicePoolExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetDefaultDevicePoolExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolGetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetInfoExp_t)(ur_usm_pool_handle_t,
+                                                           ur_usm_pool_info_t,
+                                                           void *, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolSetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolSetInfoExp_t)(ur_usm_pool_handle_t,
+                                                           ur_usm_pool_info_t,
+                                                           void *, size_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolSetDevicePoolExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolSetDevicePoolExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolGetDevicePoolExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetDevicePoolExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolTrimToExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolTrimToExp_t)(ur_context_handle_t,
+                                                          ur_device_handle_t,
+                                                          ur_usm_pool_handle_t,
+                                                          size_t);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMPitchedAllocExp
 typedef ur_result_t(UR_APICALL *ur_pfnUSMPitchedAllocExp_t)(
     ur_context_handle_t, ur_device_handle_t, const ur_usm_desc_t *,
     ur_usm_pool_handle_t, size_t, size_t, size_t, void **, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMContextMemcpyExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMContextMemcpyExp_t)(
+    ur_context_handle_t, void *, const void *, size_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMImportExp
@@ -1440,7 +1335,16 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMReleaseExp_t)(ur_context_handle_t,
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of USMExp functions pointers
 typedef struct ur_usm_exp_dditable_t {
+  ur_pfnUSMPoolCreateExp_t pfnPoolCreateExp;
+  ur_pfnUSMPoolDestroyExp_t pfnPoolDestroyExp;
+  ur_pfnUSMPoolGetDefaultDevicePoolExp_t pfnPoolGetDefaultDevicePoolExp;
+  ur_pfnUSMPoolGetInfoExp_t pfnPoolGetInfoExp;
+  ur_pfnUSMPoolSetInfoExp_t pfnPoolSetInfoExp;
+  ur_pfnUSMPoolSetDevicePoolExp_t pfnPoolSetDevicePoolExp;
+  ur_pfnUSMPoolGetDevicePoolExp_t pfnPoolGetDevicePoolExp;
+  ur_pfnUSMPoolTrimToExp_t pfnPoolTrimToExp;
   ur_pfnUSMPitchedAllocExp_t pfnPitchedAllocExp;
+  ur_pfnUSMContextMemcpyExp_t pfnContextMemcpyExp;
   ur_pfnUSMImportExp_t pfnImportExp;
   ur_pfnUSMReleaseExp_t pfnReleaseExp;
 } ur_usm_exp_dditable_t;
@@ -1464,6 +1368,206 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 /// @brief Function-pointer for urGetUSMExpProcAddrTable
 typedef ur_result_t(UR_APICALL *ur_pfnGetUSMExpProcAddrTable_t)(
     ur_api_version_t, ur_usm_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesUnsampledImageHandleDestroyExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesUnsampledImageHandleDestroyExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_image_native_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesSampledImageHandleDestroyExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesSampledImageHandleDestroyExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_image_native_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesImageAllocateExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageAllocateExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_format_t *,
+    const ur_image_desc_t *, ur_exp_image_mem_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesImageFreeExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageFreeExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesUnsampledImageCreateExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageCreateExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t,
+    const ur_image_format_t *, const ur_image_desc_t *,
+    ur_exp_image_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesSampledImageCreateExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t,
+    const ur_image_format_t *, const ur_image_desc_t *,
+    const ur_sampler_desc_t *, ur_exp_image_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesImageCopyExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageCopyExp_t)(
+    ur_queue_handle_t, const void *, void *, const ur_image_desc_t *,
+    const ur_image_desc_t *, const ur_image_format_t *,
+    const ur_image_format_t *, ur_exp_image_copy_region_t *,
+    ur_exp_image_copy_flags_t, uint32_t, const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesImageGetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageGetInfoExp_t)(
+    ur_context_handle_t, ur_exp_image_mem_native_handle_t, ur_image_info_t,
+    void *, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for
+/// urBindlessImagesGetImageMemoryHandleTypeSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageMemoryHandleTypeSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, ur_exp_image_mem_type_t, ur_bool_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageUnsampledHandleSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, ur_exp_image_mem_type_t, ur_bool_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesGetImageSampledHandleSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageSampledHandleSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, ur_exp_image_mem_type_t, ur_bool_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapGetLevelExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t,
+    uint32_t, ur_exp_image_mem_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesMipmapFreeExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapFreeExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesImportExternalMemoryExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalMemoryExp_t)(
+    ur_context_handle_t, ur_device_handle_t, size_t, ur_exp_external_mem_type_t,
+    ur_exp_external_mem_desc_t *, ur_exp_external_mem_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesMapExternalArrayExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMapExternalArrayExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_format_t *,
+    const ur_image_desc_t *, ur_exp_external_mem_handle_t,
+    ur_exp_image_mem_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesMapExternalLinearMemoryExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesMapExternalLinearMemoryExp_t)(
+    ur_context_handle_t, ur_device_handle_t, uint64_t, uint64_t,
+    ur_exp_external_mem_handle_t, void **);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesReleaseExternalMemoryExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseExternalMemoryExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_external_mem_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesFreeMappedLinearMemoryExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesFreeMappedLinearMemoryExp_t)(
+    ur_context_handle_t, ur_device_handle_t, void *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesImportExternalSemaphoreExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_external_semaphore_type_t,
+    ur_exp_external_semaphore_desc_t *, ur_exp_external_semaphore_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesReleaseExternalSemaphoreExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t)(
+    ur_context_handle_t, ur_device_handle_t,
+    ur_exp_external_semaphore_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesWaitExternalSemaphoreExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesWaitExternalSemaphoreExp_t)(
+    ur_queue_handle_t, ur_exp_external_semaphore_handle_t, bool, uint64_t,
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesSignalExternalSemaphoreExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesSignalExternalSemaphoreExp_t)(
+    ur_queue_handle_t, ur_exp_external_semaphore_handle_t, bool, uint64_t,
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of BindlessImagesExp functions pointers
+typedef struct ur_bindless_images_exp_dditable_t {
+  ur_pfnBindlessImagesUnsampledImageHandleDestroyExp_t
+      pfnUnsampledImageHandleDestroyExp;
+  ur_pfnBindlessImagesSampledImageHandleDestroyExp_t
+      pfnSampledImageHandleDestroyExp;
+  ur_pfnBindlessImagesImageAllocateExp_t pfnImageAllocateExp;
+  ur_pfnBindlessImagesImageFreeExp_t pfnImageFreeExp;
+  ur_pfnBindlessImagesUnsampledImageCreateExp_t pfnUnsampledImageCreateExp;
+  ur_pfnBindlessImagesSampledImageCreateExp_t pfnSampledImageCreateExp;
+  ur_pfnBindlessImagesImageCopyExp_t pfnImageCopyExp;
+  ur_pfnBindlessImagesImageGetInfoExp_t pfnImageGetInfoExp;
+  ur_pfnBindlessImagesGetImageMemoryHandleTypeSupportExp_t
+      pfnGetImageMemoryHandleTypeSupportExp;
+  ur_pfnBindlessImagesGetImageUnsampledHandleSupportExp_t
+      pfnGetImageUnsampledHandleSupportExp;
+  ur_pfnBindlessImagesGetImageSampledHandleSupportExp_t
+      pfnGetImageSampledHandleSupportExp;
+  ur_pfnBindlessImagesMipmapGetLevelExp_t pfnMipmapGetLevelExp;
+  ur_pfnBindlessImagesMipmapFreeExp_t pfnMipmapFreeExp;
+  ur_pfnBindlessImagesImportExternalMemoryExp_t pfnImportExternalMemoryExp;
+  ur_pfnBindlessImagesMapExternalArrayExp_t pfnMapExternalArrayExp;
+  ur_pfnBindlessImagesMapExternalLinearMemoryExp_t
+      pfnMapExternalLinearMemoryExp;
+  ur_pfnBindlessImagesReleaseExternalMemoryExp_t pfnReleaseExternalMemoryExp;
+  ur_pfnBindlessImagesFreeMappedLinearMemoryExp_t pfnFreeMappedLinearMemoryExp;
+  ur_pfnBindlessImagesImportExternalSemaphoreExp_t
+      pfnImportExternalSemaphoreExp;
+  ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t
+      pfnReleaseExternalSemaphoreExp;
+  ur_pfnBindlessImagesWaitExternalSemaphoreExp_t pfnWaitExternalSemaphoreExp;
+  ur_pfnBindlessImagesSignalExternalSemaphoreExp_t
+      pfnSignalExternalSemaphoreExp;
+} ur_bindless_images_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's BindlessImagesExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_bindless_images_exp_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetBindlessImagesExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetBindlessImagesExpProcAddrTable_t)(
+    ur_api_version_t, ur_bindless_images_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferCreateExp
@@ -1591,15 +1695,18 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferEnqueueExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
-    ur_exp_command_buffer_handle_t, ur_queue_handle_t, uint32_t,
-    const ur_event_handle_t *, ur_event_handle_t *);
+/// @brief Function-pointer for urCommandBufferAppendNativeCommandExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendNativeCommandExp_t)(
+    ur_exp_command_buffer_handle_t,
+    ur_exp_command_buffer_native_command_function_t, void *,
+    ur_exp_command_buffer_handle_t, uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferUpdateKernelLaunchExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateKernelLaunchExp_t)(
-    ur_exp_command_buffer_command_handle_t,
+    ur_exp_command_buffer_handle_t, uint32_t,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1618,6 +1725,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateWaitEventsExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetInfoExp_t)(
     ur_exp_command_buffer_handle_t, ur_exp_command_buffer_info_t, size_t,
     void *, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferGetNativeHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetNativeHandleExp_t)(
+    ur_exp_command_buffer_handle_t, ur_native_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of CommandBufferExp functions pointers
@@ -1639,11 +1751,12 @@ typedef struct ur_command_buffer_exp_dditable_t {
   ur_pfnCommandBufferAppendMemBufferFillExp_t pfnAppendMemBufferFillExp;
   ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
   ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
-  ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
+  ur_pfnCommandBufferAppendNativeCommandExp_t pfnAppendNativeCommandExp;
   ur_pfnCommandBufferUpdateKernelLaunchExp_t pfnUpdateKernelLaunchExp;
   ur_pfnCommandBufferUpdateSignalEventExp_t pfnUpdateSignalEventExp;
   ur_pfnCommandBufferUpdateWaitEventsExp_t pfnUpdateWaitEventsExp;
   ur_pfnCommandBufferGetInfoExp_t pfnGetInfoExp;
+  ur_pfnCommandBufferGetNativeHandleExp_t pfnGetNativeHandleExp;
 } ur_command_buffer_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1866,23 +1979,22 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetDeviceProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all DDI tables
 typedef struct ur_dditable_t {
+  ur_adapter_dditable_t Adapter;
   ur_platform_dditable_t Platform;
   ur_context_dditable_t Context;
   ur_event_dditable_t Event;
   ur_program_dditable_t Program;
   ur_program_exp_dditable_t ProgramExp;
   ur_kernel_dditable_t Kernel;
-  ur_kernel_exp_dditable_t KernelExp;
   ur_queue_dditable_t Queue;
   ur_sampler_dditable_t Sampler;
   ur_mem_dditable_t Mem;
   ur_physical_mem_dditable_t PhysicalMem;
-  ur_global_dditable_t Global;
   ur_enqueue_dditable_t Enqueue;
   ur_enqueue_exp_dditable_t EnqueueExp;
-  ur_bindless_images_exp_dditable_t BindlessImagesExp;
   ur_usm_dditable_t USM;
   ur_usm_exp_dditable_t USMExp;
+  ur_bindless_images_exp_dditable_t BindlessImagesExp;
   ur_command_buffer_exp_dditable_t CommandBufferExp;
   ur_usm_p2p_exp_dditable_t UsmP2PExp;
   ur_virtual_mem_dditable_t VirtualMem;

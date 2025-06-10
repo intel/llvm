@@ -17,12 +17,9 @@
 #pragma once
 
 #include <ur_api.h>
-#include <ze_api.h>
 
 struct ur_queue_t_ {
   virtual ~ur_queue_t_();
-
-  virtual void deferEventFree(ur_event_handle_t hEvent) = 0;
 
   virtual ur_result_t queueGetInfo(ur_queue_info_t, size_t, void *,
                                    size_t *) = 0;
@@ -33,7 +30,8 @@ struct ur_queue_t_ {
   virtual ur_result_t enqueueKernelLaunch(ur_kernel_handle_t, uint32_t,
                                           const size_t *, const size_t *,
                                           const size_t *, uint32_t,
-                                          const ur_event_handle_t *,
+                                          const ur_kernel_launch_property_t *,
+                                          uint32_t, const ur_event_handle_t *,
                                           ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueEventsWait(uint32_t, const ur_event_handle_t *,
                                         ur_event_handle_t *) = 0;
@@ -128,6 +126,24 @@ struct ur_queue_t_ {
                                            bool, void *, size_t, uint32_t,
                                            const ur_event_handle_t *,
                                            ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueUSMDeviceAllocExp(ur_usm_pool_handle_t, const size_t,
+                           const ur_exp_async_usm_alloc_properties_t *,
+                           uint32_t, const ur_event_handle_t *, void **,
+                           ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueUSMSharedAllocExp(ur_usm_pool_handle_t, const size_t,
+                           const ur_exp_async_usm_alloc_properties_t *,
+                           uint32_t, const ur_event_handle_t *, void **,
+                           ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueUSMHostAllocExp(ur_usm_pool_handle_t, const size_t,
+                         const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+                         const ur_event_handle_t *, void **,
+                         ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueUSMFreeExp(ur_usm_pool_handle_t, void *, uint32_t,
+                                        const ur_event_handle_t *,
+                                        ur_event_handle_t *) = 0;
   virtual ur_result_t bindlessImagesImageCopyExp(
       const void *, void *, const ur_image_desc_t *, const ur_image_desc_t *,
       const ur_image_format_t *, const ur_image_format_t *,
@@ -139,17 +155,13 @@ struct ur_queue_t_ {
   virtual ur_result_t bindlessImagesSignalExternalSemaphoreExp(
       ur_exp_external_semaphore_handle_t, bool, uint64_t, uint32_t,
       const ur_event_handle_t *, ur_event_handle_t *) = 0;
-  virtual ur_result_t enqueueCooperativeKernelLaunchExp(
-      ur_kernel_handle_t, uint32_t, const size_t *, const size_t *,
-      const size_t *, uint32_t, const ur_event_handle_t *,
-      ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueCommandBufferExp(ur_exp_command_buffer_handle_t,
+                                              uint32_t,
+                                              const ur_event_handle_t *,
+                                              ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueTimestampRecordingExp(bool, uint32_t,
                                                    const ur_event_handle_t *,
                                                    ur_event_handle_t *) = 0;
-  virtual ur_result_t enqueueKernelLaunchCustomExp(
-      ur_kernel_handle_t, uint32_t, const size_t *, const size_t *,
-      const size_t *, uint32_t, const ur_exp_launch_property_t *, uint32_t,
-      const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t
   enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
                                   uint32_t, const ur_event_handle_t *,
@@ -160,8 +172,4 @@ struct ur_queue_t_ {
                           const ur_exp_enqueue_native_command_properties_t *,
                           uint32_t, const ur_event_handle_t *,
                           ur_event_handle_t *) = 0;
-
-  virtual ur_result_t enqueueCommandBuffer(ze_command_list_handle_t,
-                                           ur_event_handle_t *, uint32_t,
-                                           const ur_event_handle_t *) = 0;
 };

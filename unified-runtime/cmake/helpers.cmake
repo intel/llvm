@@ -1,4 +1,4 @@
-# Copyright (C) 2023-2024 Intel Corporation
+# Copyright (C) 2023 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -80,10 +80,10 @@ else()
 endif()
 
 set(CFI_FLAGS "")
-if (CFI_HAS_CFI_SANITIZE)
+if (CXX_HAS_CFI_SANITIZE)
     # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
     # guarantee. -fsanitize=cfi depends on -flto
-    set(CFI_FLAGS "-flto -fsanitize=cfi -fno-sanitize=cfi-icall -fsanitize-ignorelist=${PROJECT_SOURCE_DIR}/sanitizer-ignorelist.txt")
+    set(CFI_FLAGS "-flto;-fsanitize=cfi;-fno-sanitize=cfi-icall;-fsanitize-ignorelist=${PROJECT_SOURCE_DIR}/sanitizer-ignorelist.txt")
 endif()
 
 function(add_ur_target_compile_options name)
@@ -99,11 +99,11 @@ function(add_ur_target_compile_options name)
             -Wunused-parameter
 
             # Hardening options
-            -fPIC
             -fstack-protector-strong
             -fvisibility=hidden
 
             ${CFI_FLAGS}
+
             $<$<BOOL:${CXX_HAS_FCF_PROTECTION_FULL}>:-fcf-protection=full>
             $<$<BOOL:${CXX_HAS_FSTACK_CLASH_PROTECTION}>:-fstack-clash-protection>
 
@@ -171,15 +171,7 @@ function(add_ur_target_link_options name)
 endfunction()
 
 function(add_ur_target_exec_options name)
-    if(NOT MSVC)
-        if(NOT APPLE)
-            if(CMAKE_BUILD_TYPE STREQUAL "Release")
-                target_link_options(${name} PRIVATE
-                    $<$<CXX_COMPILER_ID:GNU>:-pie>
-                )
-            endif()
-        endif()
-    elseif(MSVC)
+    if(MSVC)
         target_link_options(${name} PRIVATE
             LINKER:/ALLOWISOLATION
         )
@@ -191,6 +183,9 @@ function(add_ur_executable name)
     add_ur_target_compile_options(${name})
     add_ur_target_exec_options(${name})
     add_ur_target_link_options(${name})
+    if(UR_EXTERNAL_DEPENDENCIES)
+        add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})
+    endif()
 endfunction()
 
 function(add_ur_library name)
@@ -202,16 +197,43 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
+    if(UR_USE_DEBUG_POSTFIX)
+        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
+    endif()
+    if(UR_EXTERNAL_DEPENDENCIES)
+        add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})
+    endif()
+    add_dependencies(unified-runtime-libraries ${name})
 endfunction()
+
+if(NOT TARGET unified-runtime-libraries)
+    add_custom_target(unified-runtime-libraries)
+endif()
 
 function(install_ur_library name)
     install(TARGETS ${name}
+            COMPONENT unified-runtime
             EXPORT ${PROJECT_NAME}-targets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endfunction()
+
+if(UR_USE_DEBUG_POSTFIX AND NOT TARGET install-unified-runtime-libraries)
+    add_custom_target(install-unified-runtime-libraries
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMPONENT=unified-runtime
+            -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMPONENT=umfd
+            -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+        DEPENDS unified-runtime-libraries
+    )
+    if(TARGET build_umfd)
+        add_dependencies(install-unified-runtime-libraries build_umfd)
+    endif()
+endif()
 
 include(FetchContent)
 
@@ -241,4 +263,21 @@ function(FetchContentSparse_Declare name GIT_REPOSITORY GIT_TAG GIT_DIR)
     set(content-build-dir ${CMAKE_BINARY_DIR}/content-${name})
     FetchSource(${GIT_REPOSITORY} ${GIT_TAG} ${GIT_DIR} ${content-build-dir})
     FetchContent_Declare(${name} SOURCE_DIR ${content-build-dir}/${GIT_DIR})
+endfunction()
+
+function(configure_linker_file input output)
+    # Configure the input file into a temporary file, this needs to happen
+    # first in order to keep default configure_file() behaviour when the input
+    # file is changed to avoid going out of sync with in-tree
+    set(tmp ${output}.tmp)
+    configure_file(${input} ${tmp} ${ARGN})
+    # Strip guarded lines and capture stripped content from stdout
+    execute_process(
+        COMMAND ${PYTHON_EXECUTABLE}
+            ${PROJECT_SOURCE_DIR}/scripts/strip-guarded-lines.py ${tmp}
+            # List names of guarded blocks to include in the output file here
+        OUTPUT_VARIABLE stripped
+    )
+    # Write stripped output to file for use by the linker
+    file(GENERATE OUTPUT ${output} CONTENT "${stripped}")
 endfunction()

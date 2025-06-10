@@ -13,7 +13,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: bitcast
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_fn(ptr addrspace(1) nocapture readonly %src, ptr addrspace(1) nocapture %dst) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @test_fn(ptr addrspace(1) captures(none) readonly %src, ptr addrspace(1) captures(none) %dst) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
 entry:
   %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #2
   %sext = shl i64 %call, 32

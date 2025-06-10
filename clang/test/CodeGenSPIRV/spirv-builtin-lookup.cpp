@@ -15,3 +15,19 @@ double acos(double val) {
 }
 
 // CHECK: declare noundef double @_Z16__spirv_ocl_acosd(double noundef)
+
+void control_barrier() {
+  // CHECK-LABEL: @_Z15control_barrierv
+  // CHECK: call void @_Z22__spirv_ControlBarrieriii
+  __spirv_ControlBarrier(2, 2, 912);
+}
+
+// CHECK: declare void @_Z22__spirv_ControlBarrieriii(i32 noundef, i32 noundef, i32 noundef)
+
+void memory_barrier() {
+  // CHECK-LABEL: @_Z14memory_barrierv
+  // CHECK: call void @_Z21__spirv_MemoryBarrierii(
+  __spirv_MemoryBarrier(0, 2);
+}
+
+// CHECK: declare void @_Z21__spirv_MemoryBarrierii(i32 noundef, i32 noundef)

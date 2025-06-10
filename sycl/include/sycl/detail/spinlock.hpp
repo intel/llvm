@@ -26,6 +26,8 @@ namespace detail {
 /// std::mutex, that doesn't provide such guarantees).
 class SpinLock {
 public:
+  bool try_lock() { return !MLock.test_and_set(std::memory_order_acquire); }
+
   void lock() {
     while (MLock.test_and_set(std::memory_order_acquire))
       std::this_thread::yield();

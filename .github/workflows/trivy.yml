@@ -30,6 +30,7 @@ jobs:
         run: ./bin/trivy config --format json --output trivy-report.json --ignorefile=devops/.trivyignore.yaml devops/containers --exit-code 1
 
       - name: Upload report artifact
+        if: always() && !cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: trivy-report

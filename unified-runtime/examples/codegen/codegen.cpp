@@ -49,11 +49,11 @@ std::vector<ur_adapter_handle_t>
 get_supported_adapters(std::vector<ur_adapter_handle_t> &adapters) {
   std::vector<ur_adapter_handle_t> supported_adapters;
   for (auto adapter : adapters) {
-    ur_adapter_backend_t backend;
+    ur_backend_t backend;
     ur_check(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
-                              sizeof(ur_adapter_backend_t), &backend, nullptr));
+                              sizeof(ur_backend_t), &backend, nullptr));
 
-    if (backend == UR_ADAPTER_BACKEND_LEVEL_ZERO) {
+    if (backend == UR_BACKEND_LEVEL_ZERO) {
       supported_adapters.push_back(adapter);
     }
   }
@@ -64,16 +64,20 @@ get_supported_adapters(std::vector<ur_adapter_handle_t> &adapters) {
 std::vector<ur_platform_handle_t>
 get_platforms(std::vector<ur_adapter_handle_t> &adapters) {
   uint32_t platformCount = 0;
-  ur_check(urPlatformGet(adapters.data(), adapters.size(), 1, nullptr,
-                         &platformCount));
+  std::vector<ur_platform_handle_t> platforms;
+  for (auto adapter : adapters) {
+    uint32_t adapterPlatformCount = 0;
+    urPlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
 
+    platforms.resize(platformCount + adapterPlatformCount);
+    urPlatformGet(adapter, adapterPlatformCount, &platforms[platformCount],
+                  &adapterPlatformCount);
+    platformCount += adapterPlatformCount;
+  }
   if (!platformCount) {
     throw std::runtime_error("No platforms available.");
   }
 
-  std::vector<ur_platform_handle_t> platforms(platformCount);
-  ur_check(urPlatformGet(adapters.data(), adapters.size(), platformCount,
-                         platforms.data(), nullptr));
   return platforms;
 }
 

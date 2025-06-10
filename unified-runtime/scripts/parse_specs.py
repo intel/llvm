@@ -1,11 +1,8 @@
-"""
-Copyright (C) 2022-2023 Intel Corporation
-
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-"""
+# Copyright (C) 2022-2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
 import generate_ids
@@ -17,7 +14,7 @@ import copy
 from templates.helper import param_traits, type_traits, value_traits
 import ctypes
 import itertools
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from version import Version
 
 
@@ -26,12 +23,9 @@ all_versions = [
     Version(ver) for ver in ["0.6", "0.7", "0.8", "0.9", "0.10", "0.11", "0.12"]
 ]
 
-"""
-    preprocess object
-"""
-
 
 def _preprocess(d):
+    """preprocess object"""
     if "enum" == d["type"]:
         use_hex = False
         next = 0
@@ -52,12 +46,8 @@ def _preprocess(d):
     return d
 
 
-"""
-    substitute tags
-"""
-
-
 def _subt(name, tags):
+    """substitute tags"""
     name = re.sub(r"(\w+)\(.*\)", r"\1", name)  # removes '()' part of macros
     for key, value in tags.items():
         name = re.sub(re.escape(key), value, name)
@@ -65,12 +55,8 @@ def _subt(name, tags):
     return name
 
 
-"""
-    get the line number of each document
-"""
-
-
 def _get_line_nums(f):
+    """get the line number of each document"""
     nums = []
     for line_num, line in enumerate(util.textRead(f)):
         if re.match(r"^\-\-\-.*", line):
@@ -78,12 +64,8 @@ def _get_line_nums(f):
     return nums
 
 
-"""
-    convert etor to int
-"""
-
-
 def _get_etor_value(value, prev):
+    """convert etor to int"""
     if value:
         if value_traits.is_ver(value):
             return (
@@ -99,13 +81,14 @@ def _get_etor_value(value, prev):
         return prev + 1
 
 
-"""
-    validate documents meet some basic (easily detectable) requirements of code generation
-"""
-
-
 def _validate_doc(f, d, tags, line_num, meta):
-    is_iso = lambda x: re.match(r"[_a-zA-Z][_a-zA-Z0-9]{0,30}", x)
+    """
+    validate documents meet some basic (easily detectable) requirements of code
+    generation
+    """
+
+    def is_iso(x):
+        return re.match(r"[_a-zA-Z][_a-zA-Z0-9]{0,30}", x)
 
     def __validate_ordinal(d):
         if "ordinal" in d:
@@ -114,7 +97,7 @@ def _validate_doc(f, d, tags, line_num, meta):
 
             try:
                 ordinal = str(int(d["ordinal"]))
-            except:
+            except BaseException:
                 ordinal = None
 
             if ordinal != d["ordinal"]:
@@ -129,7 +112,7 @@ def _validate_doc(f, d, tags, line_num, meta):
 
             try:
                 version = str(d["version"])
-            except:
+            except BaseException:
                 version = None
 
             if version != d["version"]:
@@ -143,7 +126,7 @@ def _validate_doc(f, d, tags, line_num, meta):
                 return x
         return None
 
-    def __validate_desc(desc):
+    def __validate_desc(desc: Union[dict, str], prefix: str):
         if isinstance(desc, dict):
             for k, v in desc.items():
                 if not isinstance(k, str):
@@ -153,7 +136,7 @@ def _validate_doc(f, d, tags, line_num, meta):
 
                 try:
                     version = str(k)
-                except:
+                except BaseException:
                     version = None
 
                 if version != k:
@@ -216,7 +199,6 @@ def _validate_doc(f, d, tags, line_num, meta):
 
     def __validate_details(d):
         if "details" in d:
-
             if not (isinstance(d["details"], list) or isinstance(d["details"], str)):
                 raise Exception("'details' must be a string or a sequence")
 
@@ -264,34 +246,36 @@ def _validate_doc(f, d, tags, line_num, meta):
         for i, item in enumerate(d["etors"]):
             prefix = "'etors'[%s] " % i
             if not isinstance(item, dict):
-                raise Exception(prefix + "must be a mapping: '%s'" % (i, type(item)))
+                raise Exception(
+                    prefix + "must be a mapping: %d, '%s'" % (i, type(item))
+                )
 
             if ("desc" not in item) or ("name" not in item):
                 raise Exception(
                     prefix + "requires the following scalar fields: {`desc`, `name`}"
                 )
 
-            if "extend" in d and d.get("extend") == True and "value" not in item:
+            if "extend" in d and d.get("extend") and "value" not in item:
                 raise Exception(
                     prefix
                     + "must include a value for experimental features: {`value`: `0xabcd`}"
                 )
 
             if typed:
-                type = extract_type(item["desc"])
-                if type is None:
+                ty = extract_type(item["desc"])
+                if ty is None:
                     raise Exception(
                         prefix
                         + "typed etor "
                         + item["name"]
                         + " must begin with a type identifier: [type]"
                     )
-                type_name = _subt(type, tags)
+                type_name = _subt(ty, tags)
                 if not is_iso(type_name):
                     raise Exception(
                         prefix
                         + "type "
-                        + str(type)
+                        + str(ty)
                         + " in a typed etor "
                         + item["name"]
                         + " must be a valid ISO C identifier"
@@ -351,7 +335,9 @@ def _validate_doc(f, d, tags, line_num, meta):
                 if type_traits.is_handle(m):
                     return True
                 if type_traits.is_struct(m, meta):
-                    return has_handle(type_traits.get_struct_members(m["type"]), meta)
+                    return has_handle(
+                        type_traits.get_struct_members(m["type"], meta), meta
+                    )
             return False
 
         for m in members:
@@ -370,7 +356,7 @@ def _validate_doc(f, d, tags, line_num, meta):
                 # exception messages.
                 __validate_struct_range_members(name, member_members, meta)
 
-    def __validate_members(d, tags, meta):
+    def __validate_members(d, meta):
         if "members" not in d:
             raise Exception(
                 "'%s' requires the following sequence of mappings: {`members`}"
@@ -385,7 +371,9 @@ def _validate_doc(f, d, tags, line_num, meta):
         for i, item in enumerate(d["members"]):
             prefix = "'members'[%s] " % i
             if not isinstance(item, dict):
-                raise Exception(prefix + "must be a mapping: '%s'" % (i, type(item)))
+                raise Exception(
+                    prefix + "must be a mapping: %d, '%s'" % (i, type(item))
+                )
 
             if ("desc" not in item) or ("type" not in item) or ("name" not in item):
                 raise Exception(
@@ -393,7 +381,7 @@ def _validate_doc(f, d, tags, line_num, meta):
                     + "requires the following scalar fields: {`desc`, 'type', `name`}"
                 )
 
-            annotation = __validate_desc(item["desc"])
+            annotation = __validate_desc(item["desc"], prefix)
             if not annotation:
                 raise Exception(
                     prefix + "'desc' must start with {'[in]', '[out]', '[in,out]'}"
@@ -429,7 +417,7 @@ def _validate_doc(f, d, tags, line_num, meta):
                 )
             max_ver = ver
 
-    def __validate_params(d, tags, meta):
+    def __validate_params(d, meta):
         if "params" not in d:
             raise Exception(
                 "'function' requires the following sequence of mappings: {`params`}"
@@ -440,11 +428,17 @@ def _validate_doc(f, d, tags, line_num, meta):
 
         d_ver = Version(d.get("version", default_version))
         max_ver = d_ver
-        min = {"[in]": None, "[out]": None, "[in,out]": None}
+        min: Dict[str, Union[int, None]] = {
+            "[in]": None,
+            "[out]": None,
+            "[in,out]": None,
+        }
         for i, item in enumerate(d["params"]):
             prefix = "'params'[%s] " % i
             if not isinstance(item, dict):
-                raise Exception(prefix + "must be a mapping: '%s'" % (i, type(item)))
+                raise Exception(
+                    prefix + "must be a mapping: %d, '%s'" % (i, type(item))
+                )
 
             if ("desc" not in item) or ("type" not in item) or ("name" not in item):
                 raise Exception(
@@ -452,7 +446,7 @@ def _validate_doc(f, d, tags, line_num, meta):
                     + "requires the following scalar fields: {`desc`, 'type', `name`}"
                 )
 
-            annotation = __validate_desc(item["desc"])
+            annotation = __validate_desc(item["desc"], prefix)
             if not annotation:
                 raise Exception(
                     prefix + "'desc' must start with {'[in]', '[out]', '[in,out]'}"
@@ -596,7 +590,7 @@ def _validate_doc(f, d, tags, line_num, meta):
                 __validate_union_tag(d)
             __validate_type(d, "name", tags)
             __validate_base(d)
-            __validate_members(d, tags, meta)
+            __validate_members(d, meta)
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
@@ -614,7 +608,7 @@ def _validate_doc(f, d, tags, line_num, meta):
             else:
                 __validate_name(d, "name", tags, case="camel")
 
-            __validate_params(d, tags, meta)
+            __validate_params(d, meta)
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
@@ -640,12 +634,8 @@ def _validate_doc(f, d, tags, line_num, meta):
         raise
 
 
-"""
-    filters object by version
-"""
-
-
 def _filter_version(d, max_ver: Version) -> Optional[Dict]:
+    """filters object by version"""
     ver = Version(d.get("version", default_version))
     if ver > max_ver:
         return None
@@ -691,12 +681,8 @@ def _filter_version(d, max_ver: Version) -> Optional[Dict]:
     return __filter_desc(d)
 
 
-"""
-    creates docs per version
-"""
-
-
 def _make_versions(d, max_ver: Version) -> List[Version]:
+    """creates docs per version"""
     docs = []
     type = d["type"]
     if "function" == type or "struct" == type:
@@ -719,12 +705,8 @@ def _make_versions(d, max_ver: Version) -> List[Version]:
     return docs
 
 
-"""
-    generates meta-data on all objects
-"""
-
-
 def _generate_meta(d, ordinal, meta):
+    """generates meta-data on all objects"""
     type = d["type"]
     name = re.sub(r"(\w+)\(.*\)", r"\1", d["name"])  # removes '()' part of macros
 
@@ -766,6 +748,7 @@ def _generate_meta(d, ordinal, meta):
         if "enum" == type:
             value = -1
             max_value = -1
+            max_index = -1
             bit_mask = 0
             meta[type][name]["etors"] = []
             for idx, etor in enumerate(d["etors"]):
@@ -855,12 +838,8 @@ def _generate_meta(d, ordinal, meta):
     return meta
 
 
-"""
-    generates SHA512 string for the given object
-"""
-
-
 def _generate_hash(obj):
+    """generates SHA512 string for the given object"""
     # functions-only (for now)...
     if re.match(r"function", obj["type"]):
         hash = hashlib.sha256()
@@ -876,12 +855,8 @@ def _generate_hash(obj):
     return obj
 
 
-"""
-    generates structure members from base
-"""
-
-
 def _inline_base(obj, meta):
+    """generates structure members from base"""
     if re.match(r"struct|union", obj["type"]):
         base = obj.get("base")
         if base in meta["struct"]:
@@ -896,12 +871,8 @@ def _inline_base(obj, meta):
     return obj
 
 
-"""
-    generate complete return permutations
-"""
-
-
 def _generate_returns(obj, meta):
+    """generate complete return permutations"""
     if re.match(r"function", obj["type"]):
         # default results for all functions
         rets = [
@@ -946,7 +917,8 @@ def _generate_returns(obj, meta):
                 )
 
         def append_enum_checks(param, accessor: str):
-            ptypename = type_traits.base(param["type"])
+            typename = type_traits.base(param["type"])
+            assert typename
 
             prefix = "`"
             if param_traits.is_optional(item):
@@ -968,20 +940,19 @@ def _generate_returns(obj, meta):
             else:
                 if (
                     type_traits.is_flags(param["type"])
-                    and "bit_mask" in meta["enum"][ptypename].keys()
+                    and "bit_mask" in meta["enum"][typename].keys()
                 ):
                     _append(
                         rets,
                         "$X_RESULT_ERROR_INVALID_ENUMERATION",
                         prefix
-                        + "%s & %s`" % (ptypename.upper()[:-2] + "_MASK", accessor),
+                        + "%s & %s`" % (typename.upper()[:-2] + "_MASK", accessor),
                     )
                 else:
                     _append(
                         rets,
                         "$X_RESULT_ERROR_INVALID_ENUMERATION",
-                        prefix
-                        + "%s < %s`" % (meta["enum"][ptypename]["max"], accessor),
+                        prefix + "%s < %s`" % (meta["enum"][typename]["max"], accessor),
                     )
 
         # generate results based on parameters
@@ -1002,7 +973,7 @@ def _generate_returns(obj, meta):
             ):
                 typename = type_traits.base(item["type"])
                 # walk each entry in the desc for pointers and enums
-                for i, m in enumerate(meta["struct"][typename]["members"]):
+                for m in meta["struct"][typename]["members"]:
                     if param_traits.is_nocheck(m):
                         continue
 
@@ -1035,12 +1006,8 @@ def _inline_extended_structs(specs, meta):
             s["objects"][i] = obj
 
 
-"""
-    generates extra content
-"""
-
-
 def _generate_extra(specs, meta):
+    """generates extra content"""
     for s in specs:
         for i, obj in enumerate(s["objects"]):
             obj = _generate_hash(obj)
@@ -1048,12 +1015,8 @@ def _generate_extra(specs, meta):
             s["objects"][i] = obj
 
 
-"""
-    generates reference-data on all objects
-"""
-
-
 def _generate_ref(specs, tags, ref):
+    """generates reference-data on all objects"""
     for s in specs:
         for obj in s["objects"]:
             # create dict if typename is not already known...
@@ -1102,8 +1065,9 @@ def _validate_ext_enum_range(extension, enum) -> bool:
             if value in existing_values:
                 return False
             return True
-    except:
-        return False
+    except BaseException:
+        pass
+    return False
 
 
 def _extend_enums(enum_extensions, specs, meta):
@@ -1120,9 +1084,9 @@ def _extend_enums(enum_extensions, specs, meta):
             for obj in s["objects"]
             if obj["type"] == "enum" and k == obj["name"] and not obj.get("extend")
         ][0]
-        for i, extension in enumerate(group):
+        for extension in group:
             if not _validate_ext_enum_range(extension, matching_enum):
-                raise Exception(f"Invalid enum values.")
+                raise Exception("Invalid enum values.")
             matching_enum["etors"].extend(extension["etors"])
 
         _refresh_enum_meta(matching_enum, meta)
@@ -1138,14 +1102,12 @@ def _extend_enums(enum_extensions, specs, meta):
         matching_enum["etors"] = sorted(matching_enum["etors"], key=sort_etors)
 
 
-"""
-Entry-point:
-    Reads each YML file and extracts data
-    Returns list of data per file
-"""
-
-
 def parse(section, version, tags, meta, ref):
+    """
+    Entry-point:
+        Reads each YML file and extracts data
+        Returns list of data per file
+    """
     path = os.path.join("./", section)
     specs = []
 
@@ -1155,7 +1117,6 @@ def parse(section, version, tags, meta, ref):
 
     enum_extensions = []
     for f in files:
-
         print("Parsing %s..." % f)
         docs = util.yamlRead(f)
         line_nums = _get_line_nums(f)
@@ -1173,7 +1134,7 @@ def parse(section, version, tags, meta, ref):
             if not d:
                 continue
 
-            if d["type"] == "enum" and d.get("extend") == True:
+            if d["type"] == "enum" and d.get("extend"):
                 # enum extensions are resolved later
                 enum_extensions.append(d)
                 continue
@@ -1199,7 +1160,7 @@ def parse(section, version, tags, meta, ref):
                 if "name" in header:
                     name = header["name"]
                 elif basename.startswith("exp-"):
-                    name = f'{basename[len("exp-"):]} (experimental)'
+                    name = f"{basename[len('exp-') :]} (experimental)"
                 else:
                     name = basename
                 for c in "_-":

@@ -299,14 +299,27 @@ public:
 
   /// kernel_compiler extension
 
+  /// Indicates if the device can build a kernel for the given language.
+  ///
+  /// \param Language is one of the values from the
+  /// kernel_bundle::source_language enumeration described in the
+  /// sycl_ext_oneapi_kernel_compiler specification
+  ///
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::build function on kernel bundles written in
+  /// the source language \p Language.
+  bool
+  ext_oneapi_can_build(ext::oneapi::experimental::source_language Language);
+
   /// Indicates if the device can compile a kernel for the given language.
   ///
   /// \param Language is one of the values from the
   /// kernel_bundle::source_language enumeration described in the
   /// sycl_ext_oneapi_kernel_compiler specification
   ///
-  /// \return true only if the device supports kernel bundles written in the
-  /// source language `lang`.
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::compile function on kernel bundles written in
+  /// the source language \p Language.
   bool
   ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
 
@@ -362,7 +375,7 @@ public:
 
 private:
   std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
+  device(std::shared_ptr<detail::device_impl> Impl) : impl(std::move(Impl)) {}
 
   ur_native_handle_t getNative() const;
 
@@ -371,7 +384,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

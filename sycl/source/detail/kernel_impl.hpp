@@ -75,10 +75,10 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    getAdapter()->call<UrApiKind::urKernelRetain>(MKernel);
     ur_native_handle_t nativeHandle = 0;
     getAdapter()->call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                            &nativeHandle);
+    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
@@ -115,6 +115,9 @@ public:
   typename Param::return_type get_info(const device &Device,
                                        const range<3> &WGSize) const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // This function is unused and should be removed in the next ABI breaking.
+
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue.
   ///
@@ -122,6 +125,7 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(queue Queue) const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue and values.
@@ -162,6 +166,39 @@ public:
   ext_oneapi_get_info(queue Queue, const range<3> &MaxWorkGroupSize,
                       size_t DynamicLocalMemorySize) const;
 
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG is a work group size
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(queue Queue,
+                                                  const range<3> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG is a work group size
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(queue Queue,
+                                                  const range<2> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG is a work group size
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(queue Queue,
+                                                  const range<1> &WG) const;
+
   /// Get a constant reference to a raw kernel object.
   ///
   /// \return a constant reference to a valid UrKernel instance with raw
@@ -174,16 +211,19 @@ public:
   /// \return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
+  bool isInteropOrSourceBased() const noexcept;
+  bool hasSYCLMetadata() const noexcept;
+
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
     const AdapterPtr &Adapter = MContext->getAdapter();
 
-    if (MContext->getBackend() == backend::opencl)
-      Adapter->call<UrApiKind::urKernelRetain>(MKernel);
-
     ur_native_handle_t NativeKernel = 0;
     Adapter->call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
+
+    if (MContext->getBackend() == backend::opencl)
+      __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
 
     return NativeKernel;
   }
@@ -195,12 +235,13 @@ public:
   ur_program_handle_t getProgramRef() const { return MProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
-  std::mutex &getNoncacheableEnqueueMutex() {
+  std::mutex &getNoncacheableEnqueueMutex() const {
     return MNoncacheableEnqueueMutex;
   }
 
   const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
   std::mutex *getCacheMutex() const { return MCacheMutex; }
+  std::string_view getName() const;
 
 private:
   ur_kernel_handle_t MKernel = nullptr;
@@ -210,9 +251,10 @@ private:
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
-  std::mutex MNoncacheableEnqueueMutex;
+  mutable std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
+  mutable std::string MName;
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
@@ -227,6 +269,8 @@ private:
   size_t queryMaxNumWorkGroups(queue Queue,
                                const range<Dimensions> &WorkGroupSize,
                                size_t DynamicLocalMemorySize) const;
+
+  void enableUSMIndirectAccess() const;
 };
 
 template <int Dimensions>
@@ -331,7 +375,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
 
   uint32_t GroupCount{0};
   if (auto Result = Adapter->call_nocheck<
-                    UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
+                    UrApiKind::urKernelSuggestMaxCooperativeGroupCount>(
           Handle, DeviceHandleRef, Dimensions, WG, DynamicLocalMemorySize,
           &GroupCount);
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE &&
@@ -383,6 +427,113 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
                                DynamicLocalMemorySize);
 }
 
+template <>
+inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
+    return_type
+    kernel_impl::get_info<
+        ext::intel::info::kernel_device_specific::spill_memory_size>(
+        const device &Device) const {
+  if (!Device.has(aspect::ext_intel_spill_memory_size))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "This device does not have the ext_intel_spill_memory_size aspect");
+
+  return get_kernel_device_specific_info<
+      ext::intel::info::kernel_device_specific::spill_memory_size>(
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
+      getAdapter());
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// These functions are unused and should be removed in the next ABI breaking.
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_work_group_size::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_work_group_size>(
+        queue Queue) const {
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle =
+      getSyclObjImpl(Queue.get_device())->getHandleRef();
+
+  size_t KernelWGSize = 0;
+  Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+      MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+      sizeof(size_t), &KernelWGSize, nullptr);
+  return KernelWGSize;
+}
+
+template <int Dimensions>
+inline sycl::id<Dimensions>
+generate_id(const sycl::range<Dimensions> &DevMaxWorkItemSizes,
+            const size_t DevWgSize) {
+  sycl::id<Dimensions> Ret;
+  for (int i = 0; i < Dimensions; i++) {
+    // DevMaxWorkItemSizes values are inverted, see
+    // sycl/source/detail/device_info.hpp:582
+    Ret[i] = std::min(DevMaxWorkItemSizes[i], DevWgSize);
+  }
+  return Ret;
+}
+
+#define ADD_TEMPLATE_METHOD_SPEC(Num)                                          \
+  template <>                                                                  \
+  inline typename syclex::info::kernel_queue_specific::max_work_item_sizes<    \
+      Num>::return_type                                                        \
+  kernel_impl::ext_oneapi_get_info<                                            \
+      syclex::info::kernel_queue_specific::max_work_item_sizes<Num>>(          \
+      queue Queue) const {                                                     \
+    const auto Dev = Queue.get_device();                                       \
+    const auto DeviceWgSize =                                                  \
+        get_info<info::kernel_device_specific::work_group_size>(Dev);          \
+    const auto DeviceMaxWorkItemSizes =                                        \
+        Dev.get_info<info::device::max_work_item_sizes<Num>>();                \
+    return generate_id<Num>(DeviceMaxWorkItemSizes, DeviceWgSize);             \
+  } // namespace detail
+
+ADD_TEMPLATE_METHOD_SPEC(1)
+ADD_TEMPLATE_METHOD_SPEC(2)
+ADD_TEMPLATE_METHOD_SPEC(3)
+
+#undef ADD_TEMPLATE_METHOD_SPEC
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+#define ADD_TEMPLATE_METHOD_SPEC(QueueSpec, Num, Kind, Reg)                    \
+  template <>                                                                  \
+  inline typename syclex::info::kernel_queue_specific::QueueSpec::return_type  \
+  kernel_impl::ext_oneapi_get_info<                                            \
+      syclex::info::kernel_queue_specific::QueueSpec>(                         \
+      queue Queue, const range<Num> &WG) const {                               \
+    if (WG.size() == 0)                                                        \
+      throw exception(sycl::make_error_code(errc::invalid),                    \
+                      "The work-group size cannot be zero.");                  \
+    const auto &Adapter = getAdapter();                                        \
+    const auto DeviceNativeHandle =                                            \
+        getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
+    uint32_t KernelSubWGSize = 0;                                              \
+    Adapter->call<UrApiKind::Kind>(MKernel, DeviceNativeHandle, Reg,           \
+                                   sizeof(uint32_t), &KernelSubWGSize,         \
+                                   nullptr);                                   \
+    return KernelSubWGSize;                                                    \
+  }
+
+ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 3, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
+ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 2, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
+ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 1, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
+
+ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 3, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
+ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 2, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
+ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 1, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
+
+#undef ADD_TEMPLATE_METHOD_SPEC
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -3,7 +3,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  FixABIMuxBuiltinsSYCLNativeCPU.cpp
   FAtomicsNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -35,15 +34,15 @@ endif()
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit 846a5c6118826171fb1c93702dd12b004053165c
-    # Merge: 81355afb 11967b11
+    # commit 4e4811a9b4945088667e1a1653742ffdf84e5168
+    # Merge: b347adff05 0101b4ff40
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Fri Jan 24 15:41:13 2025 +0000
+    # Date:   Wed Jun 4 13:17:16 2025 +0100
     # 
-    #     Merge pull request #659 from hvdijk/vec-size-1
+    #     Merge pull request #854 from hvdijk/avoid-computeknownbits
     #     
-    #     [vecz] Handle vectors of size 1.
-    set(OCK_GIT_INTERNAL_TAG 846a5c6118826171fb1c93702dd12b004053165c)
+    #     [LLVM 21] Avoid computeKnownBits.
+    set(OCK_GIT_INTERNAL_TAG 4e4811a9b4945088667e1a1653742ffdf84e5168)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

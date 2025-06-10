@@ -10,12 +10,13 @@ inputs:
   extra_cmake_args:
     required: false
   target_devices:
-    required: true
+    required: false
+    default: all
   extra_lit_opts:
     required: false
   retention-days:
     required: false
-  cxx_compiler:
+  sycl_compiler:
     required: false
 
 
@@ -23,11 +24,13 @@ runs:
   using: "composite"
   steps:
   - name: Checkout E2E tests
-    uses: ./devops/actions/cached_checkout
+    uses: actions/checkout@v4
     with:
       path: llvm
       ref: ${{ inputs.ref || github.sha }}
-      cache_path: "/__w/repo_cache/"
+      sparse-checkout: |
+        llvm/utils/lit
+        sycl/test-e2e
 
   - name: Download E2E Binaries
     if: inputs.testing_mode == 'run-only'
@@ -55,7 +58,7 @@ runs:
     if: inputs.testing_mode != 'run-only'
     shell: bash
     run: |
-      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.cxx_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
+      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
   - name: SYCL End-to-end tests
     shell: bash {0}
     env:
@@ -65,6 +68,7 @@ runs:
       exit_code=$?
       cat e2e.log
       if [ $exit_code -ne 0 ]; then
+        # This is duplicated between lin/win, updates must change both.
         awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
       fi
       exit $exit_code

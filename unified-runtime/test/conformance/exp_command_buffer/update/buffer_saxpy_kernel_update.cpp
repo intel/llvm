@@ -39,7 +39,7 @@ struct BufferSaxpyKernelTest
     // Lambda to add accessor arguments depending on backend.
     // HIP has 3 offset parameters and other backends only have 1.
     auto addAccessorArgs = [&]() {
-      if (backend == UR_PLATFORM_BACKEND_HIP) {
+      if (backend == UR_BACKEND_HIP) {
         size_t val = 0;
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
                                            sizeof(size_t), nullptr, &val));
@@ -133,7 +133,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(BufferSaxpyKernelTest);
 
 TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   ASSERT_SUCCESS(urQueueFinish(queue));
@@ -142,7 +142,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   ur_exp_command_buffer_update_memobj_arg_desc_t new_input_descs[2];
 
   // Index 5 on HIP and 3 on non-HIP is X buffer
-  const uint32_t x_arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 5 : 3;
+  const uint32_t x_arg_index = (backend == UR_BACKEND_HIP) ? 5 : 3;
   new_input_descs[0] = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC, // stype
       nullptr,                                                     // pNext
@@ -152,7 +152,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   };
 
   // Index 9 on HIP and 5 on non-HIP is Y buffer
-  const uint32_t y_arg_index = backend == (UR_PLATFORM_BACKEND_HIP) ? 9 : 5;
+  const uint32_t y_arg_index = backend == (UR_BACKEND_HIP) ? 9 : 5;
   new_input_descs[1] = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC, // stype
       nullptr,                                                     // pNext
@@ -162,7 +162,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   };
 
   // Index 4 on HIP and 2 on non-HIP is A
-  const uint32_t a_arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
+  const uint32_t a_arg_index = (backend == UR_BACKEND_HIP) ? 4 : 2;
   uint32_t new_A = 33;
   ur_exp_command_buffer_update_value_arg_desc_t new_A_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
@@ -176,6 +176,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,  // hCommand
       kernel,          // hNewKernel
       2,               // numNewMemObjArgs
       0,               // numNewPointerArgs
@@ -190,9 +191,9 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 

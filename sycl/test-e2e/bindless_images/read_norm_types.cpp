@@ -43,6 +43,24 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
     syclexp::image_descriptor descOut(globalSize, NChannels,
                                       sycl::image_channel_type::fp32);
 
+    // Verify ability to allocate the descIn descriptor.
+    // The LevelZero device does not support unnormalized types.
+    if (!bindless_helpers::memoryAllocationSupported(
+            descIn, syclexp::image_memory_handle_type::opaque_handle, q)) {
+      // The device does not support allocating opaque memory or creating images
+      // from descIn. Skip the test.
+      std::cout << "Memory allocation unsupported. Skipping test.\n";
+      return true;
+    }
+    if (NDims == 2 &&
+        !bindless_helpers::memoryAllocationSupported(
+            descIn, syclexp::image_memory_handle_type::usm_pointer, q)) {
+      // The device does not support allocating usm memory or creating images
+      // from descIn. Skip the test.
+      std::cout << "Memory allocation unsupported. Skipping test.\n";
+      return true;
+    }
+
     syclexp::image_mem_handle imgMemIn = syclexp::alloc_image_mem(descIn, q);
     syclexp::image_mem_handle imgMemOut = syclexp::alloc_image_mem(descOut, q);
 

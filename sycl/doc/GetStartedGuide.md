@@ -13,8 +13,9 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
     * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
-    * [Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion-and-jit-compilation)
+    * [Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation](#build-dpc-toolchain-with-additional-features-enabled-that-require-runtimejit-compilation)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
+    * [Build DPC++ toolchain with device image compression support](#build-dpc-toolchain-with-device-image-compression-support)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
   * [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -39,15 +40,15 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Prerequisites
 
-* `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.20 or later - [Download](http://www.cmake.org/download/)
-* `python` - [Download](https://www.python.org/downloads/)
-* `ninja` -
-[Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
-* `hwloc` version 2.3 or later (Linux only)
-  * libhwloc-dev or hwloc-devel package on linux
-* C++ compiler
-  * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+| Software                                                                    | Version                                                                                                                              |
+| ---                                                                         | ---                                                                                                                                  |
+| [Git](https://git-scm.com/downloads)                                        |                                                                                                                                      |
+| [CMake](http://www.cmake.org/download/)                                     | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Python](https://www.python.org/downloads/)                                 | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Ninja](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages) |                                                                                                                                      |
+| `hwloc`                                                                     | >= 2.3 (Linux only, `libhwloc-dev` or `hwloc-devel`)                                                                                 |
+| C++ compiler                                                                | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library) |
+|`zstd` (optional) | >= 1.4.8 (see [ZSTD](#build-dpc-toolchain-with-device-image-compression-support)) |
 
 Alternatively, you can create a Docker image that has everything you need for
 building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
@@ -91,11 +92,12 @@ git clone --config core.autocrlf=false https://github.com/intel/llvm -b sycl
 ## Build DPC++ toolchain
 
 The easiest way to get started is to use the buildbot
-[configure](../../buildbot/configure.py) and
-[compile](../../buildbot/compile.py) scripts.
+[configure](https://github.com/intel/llvm/blob/sycl/buildbot/configure.py) and
+[compile](https://github.com/intel/llvm/blob/sycl/buildbot/compile.py) scripts.
 
 In case you want to configure CMake manually the up-to-date reference for
-variables is in these files.
+variables is in these files. Note that the CMake variables set by default by the [configure.py](../../buildbot/configure.py) script are the ones commonly used by
+ DPC++ developers and might not necessarily suffice for your project-specific needs.
 
 **Linux**:
 
@@ -128,6 +130,7 @@ flags can be found by launching the script with `--help`):
 * `-t` -> Build type (Debug or Release)
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
+* `--use-zstd` -> Force link zstd while building LLVM (see [ZSTD](#build-dpc-toolchain-with-device-image-compression-support))
 
 You can use the following flags with `compile.py` (full list of available flags
 can be found by launching the script with `--help`):
@@ -219,13 +222,13 @@ Firstly, **do not** add the toolkit to your standard environment variables
 (`PATH`, `LD_LIBRARY_PATH`), as to do so will create conflicts with OpenCL
 headers.
 
-Secondly, set the `CUDA_LIB_PATH` environment variable and pass the CMake
-variable `CUDA_TOOLKIT_ROOT_DIR` as follows:
+Secondly pass the CMake variable `CUDAToolkit_ROOT` as follows:
 
 ```sh
-CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda --cmake-opt="-DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda/toolkit"
+CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py \
+    --cuda -DCUDA_Toolkit_ROOT=/path/to/cuda/toolkit
 
-CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
+CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
 
 $DPCPP_HOME/llvm/build/bin/clang++ -std=c++17 -O3 -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=/path/to/cuda/toolkit *.cpp -o a.out
 
@@ -234,14 +237,6 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DPCPP_HOME/llvm/build/lib ./a.out
 
 ### Build DPC++ toolchain with support for HIP AMD
 
-There is beta support for oneAPI DPC++ for HIP on AMD devices. It is not feature
-complete and it still contains known and unknown bugs. Currently it has only
-been tried on Linux, with ROCm 4.2.0, 4.3.0, 4.5.2, 5.3.0, and 5.4.3, using the
-AMD Radeon Pro W6800 (gtx1030), MI50 (gfx906), MI100 (gfx908) and MI250x
-(gfx90a) devices. The backend is tested by a relevant device/toolkit prior to a
-oneAPI plugin release. Go to the plugin release
-[pages](https://developer.codeplay.com/products/oneapi/amd) for further details.
-
 To enable support for HIP devices, follow the instructions for the Linux DPC++
 toolchain, but add the `--hip` flag to `configure.py`.
 
@@ -249,14 +244,22 @@ Enabling this flag requires an installation of ROCm on the system, for
 instruction on how to install this refer to
 [AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
+ROCm versions above 5.7 are recommended as earlier versions don't have graph
+support. DPC++ aims to support new ROCm versions as they come out, so there may
+be a delay but generally the latest ROCm version should work. The ROCm support
+is mostly tested on AMD Radeon Pro W6800 (gfx1030), and MI250x (gfx90a), however
+other architectures supported by LLVM may work just fine. The full list of ROCm
+versions tested prior to oneAPI releases are listed on the plugin release
+[pages](https://developer.codeplay.com/products/oneapi/amd).
+
 The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it is
 installed somewhere else, the directory must be provided through the CMake
-variable `UR_HIP_ROCM_DIR` which can be passed using the
-`--cmake-opt` option of `configure.py` as follows:
+variable `UR_HIP_ROCM_DIR` which can be passed through to cmake using the
+configure helper script as follows:
 
 ```sh
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
-  --cmake-opt=-DUR_HIP_ROCM_DIR=/usr/local/rocm
+  -DUR_HIP_ROCM_DIR=/usr/local/rocm
 ```
 If further customization is required — for instance when the layout of
 individual directories can not be inferred from `UR_HIP_ROCM_DIR` —
@@ -277,7 +280,10 @@ by default when configuring for HIP. For more details on building LLD refer to
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
-There is experimental support for oneAPI DPC++ for HIP on Nvidia devices.
+HIP applications can be built to target Nvidia GPUs, so in theory it is possible
+to build the DPC++ HIP support for Nvidia, however this is not supported, so it
+may not work.
+
 There is no continuous integration for this and there are no guarantees for
 supported platforms or configurations.
 
@@ -289,13 +295,12 @@ To enable support for HIP NVIDIA devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--hip` and `--hip-platform NVIDIA` flags to
 `configure.py`.
 
-Enabling this flag requires HIP to be installed, more specifically
-[HIP NVCC](https://rocmdocs.amd.com/en/latest/Installation_Guide/HIP-Installation.html#nvidia-platform),
-as well as the CUDA Runtime API to be installed, see
-[NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
-
-Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
-CUDA 11, and using a GeForce 1060 device.
+Enabling this flag requires HIP to be installed, specifically for Nvidia, see
+the Nvidia tab on the HIP installation docs
+[here](https://rocm.docs.amd.com/projects/HIP/en/latest/install/install.html),
+as well as the CUDA Runtime API to be installed, see [NVIDIA CUDA Installation
+Guide for
+Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
 ### Build DPC++ toolchain with support for ARM processors
 
@@ -309,17 +314,44 @@ For CUDA support also add the `--cuda` flag.
 Currently, this has only been tried on Linux, with CUDA 12.3, and using a 
 Grace Hopper platform with a ARM64 processor and an H100 GPU.
 
-### Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation
+### Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation
 
-Support for the experimental SYCL extension for user-driven kernel fusion at
-runtime is enabled by default. The same mechanism is used to allow JIT
-compilation of AMD and Nvidia kernels.
+Support for runtime compilation of SYCL source code (via the
+`sycl_ext_oneapi_kernel_compiler` extension) is enabled by default. The same
+mechanism is used to allow JIT compilation of AMD and Nvidia kernels, including
+materialization of specialization constants.
 
-To disable support for these features, follow the instructions for the Linux
-DPC++ toolchain, but add the `--disable-jit` flag.
+To disable support for these features, add the `--disable-jit` flag.
 
-Both kernel fusion and JIT compilation of AMD and Nvidia kernels are currently
-not yet supported on the Windows platform.
+JIT compilation of AMD and Nvidia kernels is not yet supported on the Windows
+platform.
+
+### Build DPC++ toolchain with device image compression support
+
+Device image compression enables the compression of device code (SYCL Kernels) during compilation and decompressing them on-demand during the execution of the corresponding SYCL application.
+This reduces the size of fat binaries for both Just-in-Time (JIT) and Ahead-of-Time (AOT) compilation. Refer to the [blog post](https://www.intel.com/content/www/us/en/developer/articles/technical/sycl-compilation-device-image-compression.html) for more details on this feature.
+
+To enable device image compression, you need to build the DPC++ toolchain with the
+zstd compression library. By default, zstd is optional for DPC++ builds i.e. CMake will search for zstd installation but if not found, it will not fail the build
+and this feature will simply be disabled.
+
+To override this behavior and force the build to use zstd, you can use the `--use-zstd` flag in the `configure.py` script or by adding `-DLLVM_ENABLE_ZSTD=FORCE_ON` to the CMake configuration command.
+
+#### How to obtain zstd?
+
+Minimum zstd version that we have tested with is *1.4.8*.
+
+**Linux**:
+
+You can install zstd using the package manager of your distribution. For example, on Ubuntu, you can run:
+```sh
+sudo apt-get install libzstd-dev
+```
+Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd_1_5_6_ub24.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd_1_5_6_ub24.sh) script.
+
+**Windows**
+
+For Windows, prebuilt zstd binaries can be obtained from the [facebook/zstd](https://github.com/facebook/zstd/releases/tag/v1.5.6) release page. After obtaining the zstd binaries, you can add the path to the zstd installation directory to the `PATH` environment variable.
 
 ### Build Doxygen documentation
 
@@ -706,14 +738,6 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 The results are correct!
 ```
 
-**NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR`
-environment variable.
-
-```bash
-ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
-```
-
 **NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
 using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
 [Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc))
@@ -746,6 +770,14 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   -Xcuda-ptxas --maxrregcount=128 -Xcuda-ptxas --verbose \
   -Xsycl-target-backend --cuda-gpu-arch=sm_80
 ```
+
+Additionally AMD and Nvidia targets also support aliases for the target to
+simplify passing the specific architectures, for example
+`-fsycl-targets=nvidia_gpu_sm_80` is equivalent to
+`-fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend
+--cuda-gpu-arch=sm_80`, the full list of available aliases is documented in the
+ [Users Manual](UsersManual.md#generic-options), for the `-fsycl-targets`
+ option.
 
 To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
 specify the target architecture.  The examples provided use a supported
@@ -915,11 +947,14 @@ int CUDASelector(const sycl::device &Device) {
 
 ### HIP back-end limitations
 
-* Requires a ROCm compatible operating system, for full details of supported
-  Operating System for ROCm, please refer to the
-  [ROCm Supported Operating Systems](https://github.com/RadeonOpenCompute/ROCm#supported-operating-systems).
-* Support is still in a beta state, but the backend is being actively developed.
-* Global offsets are currently not supported.
+* Requires a ROCm compatible system and GPU, see for
+  [Linux](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html#supported-skus)
+  and for
+  [Windows](https://rocm.docs.amd.com/projects/install-on-windows/en/latest/reference/system-requirements.html#supported-skus).
+* Windows for HIP is not supported by DPC++ at the moment so it may not work.
+* `printf` within kernels is not supported.
+* C++ standard library functions using complex types are not supported,
+  `sycl::complex` should be used instead.
 
 ## Find More
 

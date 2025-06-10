@@ -239,6 +239,16 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*namespace info */                                                        \
   } /*namespace Namespace */
 
+#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
+                                                  ReturnT, UrCode)             \
+  namespace Namespace::info {                                                  \
+  namespace Desctype {                                                         \
+  template <int Dimensions> struct Desc {                                      \
+    using return_type = ReturnT<Dimensions>;                                   \
+  };                                                                           \
+  }                                                                            \
+  }
+
 namespace ext::oneapi::experimental::info::device {
 template <int Dimensions> struct max_work_groups;
 template <ext::oneapi::experimental::execution_scope CoordinationScope>
@@ -249,12 +259,27 @@ template <ext::oneapi::experimental::execution_scope CoordinationScope>
 struct work_item_progress_capabilities;
 
 } // namespace ext::oneapi::experimental::info::device
+
+namespace ext::intel {
+enum class throttle_reason {
+  power_cap,
+  current_limit,
+  thermal_limit,
+  psu_alert,
+  sw_range,
+  hw_range,
+  other
+};
+} // namespace ext::intel
+
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_intel_kernel_info_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
+#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 } // namespace _V1
 } // namespace sycl

@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_INTERNAL_API
 
 #include <detail/context_impl.hpp>
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 
+#include <helpers/KernelInteropCommon.hpp>
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
 
@@ -115,14 +115,26 @@ TEST(GetNative, GetNativeHandle) {
     cgh.single_task<TestKernel<KS>>([=]() { (void)Acc; });
   });
 
+  EXPECT_EQ(mockOpenCLNumContextRetains(), 0ul);
+  EXPECT_EQ(mockOpenCLNumQueueRetains(), 0ul);
+  EXPECT_EQ(mockOpenCLNumDeviceRetains(), 0ul);
+  EXPECT_EQ(mockOpenCLNumEventRetains(), 0ul);
+  ASSERT_EQ(TestCounter, 2 + DeviceRetainCounter - 1)
+      << "Not all the retain methods were called";
+
   get_native<backend::opencl>(Context);
   get_native<backend::opencl>(Queue);
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
   get_native<backend::opencl>(Buffer);
 
-  // Depending on global caches state, urDeviceRetain is called either once or
-  // twice, so there'll be 6 or 7 calls.
-  ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)
-      << "Not all the retain methods were called";
+  EXPECT_EQ(mockOpenCLNumContextRetains(), 1ul);
+  EXPECT_EQ(mockOpenCLNumQueueRetains(), 1ul);
+  EXPECT_EQ(mockOpenCLNumDeviceRetains(), 1ul);
+  EXPECT_EQ(mockOpenCLNumEventRetains(), 1ul);
+
+  // get_native shouldn't retain the SYCL objects, but instead retains the
+  // underlying handles
+  ASSERT_EQ(TestCounter, 2 + DeviceRetainCounter - 1)
+      << "get_native retained SYCL objects";
 }

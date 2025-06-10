@@ -121,7 +121,7 @@ struct InstRegexOp : public SetTheory::Operator {
       StringRef PatStr = Original.substr(FirstMeta);
       if (!PatStr.empty()) {
         // For the rest use a python-style prefix match.
-        std::string pat = std::string(PatStr);
+        std::string pat = PatStr.str();
         // Add ^ anchor. If we had one originally, don't need the group.
         if (HadAnchor) {
           pat.insert(0, "^");
@@ -413,9 +413,9 @@ void CodeGenSchedModels::collectSTIPredicates() {
   for (const Record *R : Records.getAllDerivedDefinitions("STIPredicate")) {
     const Record *Decl = R->getValueAsDef("Declaration");
 
-    const auto It = Decl2Index.find(Decl);
-    if (It == Decl2Index.end()) {
-      Decl2Index[Decl] = STIPredicates.size();
+    const auto [It, Inserted] =
+        Decl2Index.try_emplace(Decl, STIPredicates.size());
+    if (Inserted) {
       STIPredicateFunction Predicate(Decl);
       Predicate.addDefinition(R);
       STIPredicates.emplace_back(std::move(Predicate));
@@ -544,7 +544,7 @@ void CodeGenSchedModels::addProcModel(const Record *ProcDef) {
   if (!ProcModelMap.try_emplace(ModelKey, ProcModels.size()).second)
     return;
 
-  std::string Name = std::string(ModelKey->getName());
+  std::string Name = ModelKey->getName().str();
   if (ModelKey->isSubClassOf("SchedMachineModel")) {
     const Record *ItinsDef = ModelKey->getValueAsDef("Itineraries");
     ProcModels.emplace_back(ProcModels.size(), Name, ModelKey, ItinsDef);
@@ -938,7 +938,7 @@ CodeGenSchedModels::createSchedClassName(const Record *ItinClassDef,
                                          ArrayRef<unsigned> OperReads) {
   std::string Name;
   if (ItinClassDef && ItinClassDef->getName() != "NoItinerary")
-    Name = std::string(ItinClassDef->getName());
+    Name = ItinClassDef->getName().str();
   for (unsigned Idx : OperWrites) {
     if (!Name.empty())
       Name += '_';
@@ -2016,8 +2016,9 @@ void CodeGenSchedModels::collectRWResources(unsigned RWIdx, bool IsRead,
     if (Alias->getValueInit("SchedModel")->isComplete()) {
       AliasProcIndices.push_back(
           getProcModel(Alias->getValueAsDef("SchedModel")).Index);
-    } else
+    } else {
       AliasProcIndices = ProcIndices;
+    }
     const CodeGenSchedRW &AliasRW = getSchedRW(Alias->getValueAsDef("AliasRW"));
     assert(AliasRW.IsRead == IsRead && "cannot alias reads to writes");
 
@@ -2129,13 +2130,15 @@ void CodeGenSchedModels::addWriteRes(const Record *ProcWriteResDef,
 void CodeGenSchedModels::addReadAdvance(const Record *ProcReadAdvanceDef,
                                         CodeGenProcModel &PM) {
   for (const Record *ValidWrite :
-       ProcReadAdvanceDef->getValueAsListOfDefs("ValidWrites"))
+       ProcReadAdvanceDef->getValueAsListOfDefs("ValidWrites")) {
     if (getSchedRWIdx(ValidWrite, /*IsRead=*/false) == 0)
       PrintFatalError(
           ProcReadAdvanceDef->getLoc(),
           "ReadAdvance referencing a ValidWrite that is not used by "
           "any instruction (" +
               ValidWrite->getName() + ")");
+    PM.ReadOfWriteSet.insert(ValidWrite);
+  }
 
   ConstRecVec &RADefs = PM.ReadAdvanceDefs;
   if (is_contained(RADefs, ProcReadAdvanceDef))
@@ -2173,12 +2176,7 @@ bool CodeGenProcModel::isUnsupported(const CodeGenInstruction &Inst) const {
 }
 
 bool CodeGenProcModel::hasReadOfWrite(const Record *WriteDef) const {
-  for (auto &RADef : ReadAdvanceDefs) {
-    ConstRecVec ValidWrites = RADef->getValueAsListOfDefs("ValidWrites");
-    if (is_contained(ValidWrites, WriteDef))
-      return true;
-  }
-  return false;
+  return ReadOfWriteSet.count(WriteDef);
 }
 
 #ifndef NDEBUG

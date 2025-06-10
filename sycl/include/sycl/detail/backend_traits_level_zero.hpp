@@ -20,6 +20,7 @@
 #include <sycl/device.hpp>                                  // for device
 #include <sycl/event.hpp>                                   // for event
 #include <sycl/ext/oneapi/backend/level_zero_ownership.hpp> // for ownership
+#include <sycl/ext/oneapi/experimental/graph.hpp>           // for command_graph
 #include <sycl/image.hpp>                                   // for image
 #include <sycl/kernel.hpp>                                  // for kernel
 #include <sycl/kernel_bundle.hpp>                           // for kernel_b...
@@ -205,6 +206,12 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, kernel> {
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, kernel> {
   using type = ze_kernel_handle_t;
+};
+
+using graph = ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>;
+template <> struct BackendReturn<backend::ext_oneapi_level_zero, graph> {
+  using type = ze_command_list_handle_t;
 };
 
 template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {

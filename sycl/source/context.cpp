@@ -15,6 +15,7 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
@@ -68,8 +69,7 @@ context::context(const std::vector<device> &DeviceList,
     throw exception(make_error_code(errc::invalid),
                     "Can't add devices across platforms to a single context.");
   else
-    impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
-                                                  PropList);
+    impl = detail::context_impl::create(DeviceList, AsyncHandler, PropList);
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   const auto &Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
@@ -80,8 +80,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
   Adapter->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
       nativeHandle, Adapter->getUrAdapter(), 0, nullptr, nullptr, &hContext);
 
-  impl =
-      std::make_shared<detail::context_impl>(hContext, AsyncHandler, Adapter);
+  impl = detail::context_impl::create(hContext, AsyncHandler, Adapter);
 }
 
 template <typename Param>
@@ -124,12 +123,49 @@ std::vector<device> context::get_devices() const {
   return impl->get_info<info::context::devices>();
 }
 
-context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
+context::context(std::shared_ptr<detail::context_impl> Impl)
+    : impl(std::move(Impl)) {}
 
 ur_native_handle_t context::getNative() const { return impl->getNative(); }
 
 const property_list &context::getPropList() const {
   return impl->getPropList();
+}
+
+sycl::ext::oneapi::experimental::memory_pool
+context::ext_oneapi_get_default_memory_pool(const device &dev,
+                                            sycl::usm::alloc kind) const {
+  if (kind == sycl::usm::alloc::host)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Default host memory pool requested but device supplied!");
+  if (kind == sycl::usm::alloc::unknown)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Unknown allocation kinds are disallowed!");
+
+  if (kind != sycl::usm::alloc::device)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Only device allocated memory pools are supported!");
+
+  return detail::createSyclObjFromImpl<
+      sycl::ext::oneapi::experimental::memory_pool>(
+      impl->get_default_memory_pool(*this, dev, kind));
+}
+
+sycl::ext::oneapi::experimental::memory_pool
+context::ext_oneapi_get_default_memory_pool(sycl::usm::alloc kind) const {
+  if (kind == sycl::usm::alloc::device || kind == sycl::usm::alloc::shared)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Device and shared allocation kinds are disallowed "
+                          "without specifying a device!");
+  if (kind == sycl::usm::alloc::unknown)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Unknown allocation kinds are disallowed!");
+
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Host allocated pools are unsupported!");
 }
 
 } // namespace _V1

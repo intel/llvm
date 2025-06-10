@@ -45,8 +45,8 @@ and not recommended to use in production environment.
     currently overrides all the other specified SYCL targets when enabled.)
 
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
-    support are accepted, providing a streamlined interface for AOT. Only one of
-    these values at a time is supported.
+    support are accepted, providing a streamlined interface for AOT.
+    A comma-separated list of valid Intel, NVIDIA and AMD Processor Graphics values are supported.
     * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
     * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
     * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
@@ -203,13 +203,15 @@ and not recommended to use in production environment.
 **`--offload-compress`**
 
     Enables device image compression for SYCL offloading. Device images
-    are compressed using `zstd` compression algorithm and only if their size
+    are compressed using zstd compression algorithm and only if their size
     exceeds 512 bytes.
+    To use this option, DPC++ must be built with zstd support. Otherwise,
+    the compiler will throw an error during compilation.
     Default value is false.
 
 **`--offload-compression-level=<int>`**
 
-    `zstd` compression level used to compress device images when `--offload-
+    zstd compression level used to compress device images when `--offload-
     compress` is enabled.
     The default value is 10.
 
@@ -322,6 +324,18 @@ and not recommended to use in production environment.
 
 ## Other options
 
+**`-f[no-]offload-fp32-prec-sqrt`**
+
+    Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
+    Without this flag, the default precision requirement for `sycl::sqrt` is 3
+    ULP.
+
+**`-f[no-]offload-fp32-prec-div`**
+
+    Enable use of correctly rounded divide operation as defined by IEE754.
+    Without this flag, the default precision requirement for divide in SYCL is
+    2.5 ULP.
+
 **`-fsycl-device-only`**
 
     Compile only device part of the code and ignore host part.
@@ -331,11 +345,13 @@ and not recommended to use in production environment.
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
     Enabled by default.
+    This option is replaced with -fsycl-device-obj=<arg>.
 
 **`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
 
     Specify format of device code stored in the resulting object. The <arg> can
-    be one of the following:  "spirv" - SPIR-V is emitted, "llvmir" - LLVM-IR
+    be one of the following:  "spirv" - SPIR-V, "asm" - assembly output when
+    possible (PTX, when targetting Nvidia devices) , or "llvmir" - LLVM-IR
     bitcode format is emitted (default).
 
 **`-fsycl-help[=backend]`**
@@ -365,14 +381,14 @@ and not recommended to use in production environment.
     options (e.g. -c, -E, -S) may interfere with the expected output set during
     the host compilation.  Doing so is considered undefined behavior.
 
-**`-fsycl-fp32-prec-sqrt`**
+**`-fsycl-fp32-prec-sqrt`** [DEPRECATED]
 
     Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
     Without this flag, the default precision requirement for `sycl::sqrt` is 3
     ULP.
+    This option is replaced with -foffload-fp32-prec-sqrt.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
-
 
 **`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
 

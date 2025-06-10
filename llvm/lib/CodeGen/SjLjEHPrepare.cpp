@@ -150,8 +150,7 @@ static void MarkBlocksLiveIn(BasicBlock *BB,
   if (!LiveBBs.insert(BB).second)
     return; // already been here.
 
-  for (BasicBlock *B : inverse_depth_first(BB))
-    LiveBBs.insert(B);
+  LiveBBs.insert_range(inverse_depth_first(BB));
 }
 
 /// substituteLPadValues - Substitute the values returned by the landingpad
@@ -368,7 +367,7 @@ void SjLjEHPrepareImpl::lowerAcrossUnwindEdges(Function &F,
       DemotePHIToStack(PN);
 
     // Move the landingpad instruction back to the top of the landing pad block.
-    LPI->moveBefore(&UnwindBlock->front());
+    LPI->moveBefore(UnwindBlock->begin());
   }
 }
 
@@ -478,7 +477,7 @@ bool SjLjEHPrepareImpl::setupEntryBlockAndCallSites(Function &F) {
         continue;
       }
       Instruction *StackAddr = CallInst::Create(StackAddrFn, "sp");
-      StackAddr->insertAfter(&I);
+      StackAddr->insertAfter(I.getIterator());
       new StoreInst(StackAddr, StackPtr, true,
                     std::next(StackAddr->getIterator()));
     }
