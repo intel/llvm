@@ -5835,6 +5835,13 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
     return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
   }
 
+  if (const auto *MD = llvm::dyn_cast<CXXMethodDecl>(FD))
+    // The free function extension specification usual methods to be used to
+    // define a free function kernel. We also disallow static methods because we
+    // use integration header.
+    return S.Diag(FD->getLocation(), diag::err_free_function_class_method)
+           << !MD->isStatic() << MD->getSourceRange();
+
   for (ParmVarDecl *Param : FD->parameters()) {
     if (Param->hasDefaultArg()) {
       return S.Diag(Param->getLocation(),
