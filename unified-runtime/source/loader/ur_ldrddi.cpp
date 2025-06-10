@@ -5501,6 +5501,29 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnContextMemcpyExp = dditable->USMExp.pfnContextMemcpyExp;
+  if (nullptr == pfnContextMemcpyExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnContextMemcpyExp(hContext, pDst, pSrc, size);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -6797,6 +6820,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       pDdiTable->pfnPoolGetDevicePoolExp = ur_loader::urUSMPoolGetDevicePoolExp;
       pDdiTable->pfnPoolTrimToExp = ur_loader::urUSMPoolTrimToExp;
       pDdiTable->pfnPitchedAllocExp = ur_loader::urUSMPitchedAllocExp;
+      pDdiTable->pfnContextMemcpyExp = ur_loader::urUSMContextMemcpyExp;
       pDdiTable->pfnImportExp = ur_loader::urUSMImportExp;
       pDdiTable->pfnReleaseExp = ur_loader::urUSMReleaseExp;
     } else {

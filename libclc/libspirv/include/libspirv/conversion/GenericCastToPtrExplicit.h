@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if _CLC_GENERIC_AS_SUPPORTED
+
 #define GenericCastToPtrExplicit_To(ADDRSPACE, NAME)                           \
   _CLC_DECL _CLC_OVERLOAD                                                      \
       ADDRSPACE void *__spirv_GenericCastToPtrExplicit_To##NAME(               \
@@ -25,3 +27,5 @@ GenericCastToPtrExplicit_To(local, Local);
 GenericCastToPtrExplicit_To(private, Private);
 
 #undef GenericCastToPtrExplicit_To
+
+#endif // _CLC_GENERIC_AS_SUPPORTED

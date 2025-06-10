@@ -111,6 +111,11 @@ struct DeviceGlobalMapEntry {
   // Gets or allocates USM memory for a device_global.
   DeviceGlobalUSMMem &getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl);
 
+  // This overload allows the allocation to be initialized without a queue. The
+  // UR adapter in use must report true for
+  // UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP to take advantage of this.
+  DeviceGlobalUSMMem &getOrAllocateDeviceGlobalUSM(const context &Context);
+
   // Removes resources for device_globals associated with the context.
   void removeAssociatedResources(const context_impl *CtxImpl);
 

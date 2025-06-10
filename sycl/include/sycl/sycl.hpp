@@ -124,3 +124,4 @@
 #include <sycl/ext/oneapi/weak_object.hpp>
 #include <sycl/khr/free_function_commands.hpp>
 #include <sycl/khr/group_interface.hpp>
+#include <sycl/khr/work_item_queries.hpp>

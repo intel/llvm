@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc_convert.h>
-#include <clc/relational/clc_all.h>
 #include <libspirv/spirv.h>
 
 #define HALF_MAX_SQRT 0x1.0p+8h
@@ -17,7 +15,8 @@
                                   MAX_SQRT, MIN_SQRT)                          \
   _CLC_OVERLOAD _CLC_DEF FP_TYPE##VLEN __spirv_ocl_normalize(                  \
       FP_TYPE##VLEN p) {                                                       \
-    if (__clc_all(p == (FP_TYPE##VLEN)0.0##FLOAT_MARK))                        \
+    if (__spirv_All(__spirv_SConvert_Rchar##VLEN(                              \
+            p == (FP_TYPE##VLEN)0.0##FLOAT_MARK)))                             \
       return p;                                                                \
     FP_TYPE l2 = __spirv_Dot(p, p);                                            \
     if (l2 < FLT_MIN) {                                                        \
@@ -31,7 +30,7 @@
             __spirv_ocl_select(                                                \
                 (FP_TYPE##VLEN)0.0##FLOAT_MARK,                                \
                 (FP_TYPE##VLEN)1.0##FLOAT_MARK,                                \
-                __clc_convert_##INT_TYPE##VLEN(__spirv_IsInf(p))),             \
+                __spirv_SConvert_R##INT_TYPE##VLEN(__spirv_IsInf(p))),         \
             p);                                                                \
         l2 = __spirv_Dot(p, p);                                                \
       }                                                                        \

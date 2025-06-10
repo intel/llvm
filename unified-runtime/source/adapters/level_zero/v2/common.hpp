@@ -19,7 +19,8 @@
 namespace v2 {
 namespace raii {
 
-template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT)>
+template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT),
+          const char *destroyName>
 struct ze_handle_wrapper {
   ze_handle_wrapper(bool ownZeHandle = true)
       : handle(nullptr), ownZeHandle(ownZeHandle) {}
@@ -64,7 +65,8 @@ struct ze_handle_wrapper {
     }
 
     if (ownZeHandle && checkL0LoaderTeardown()) {
-      auto zeResult = destroy(handle);
+      ze_result_t zeResult =
+          ZE_CALL_NOCHECK_NAME(destroy, (handle), destroyName);
       // Gracefully handle the case that L0 was already unloaded.
       if (zeResult && (zeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                        zeResult != ZE_RESULT_ERROR_UNKNOWN))
@@ -92,23 +94,17 @@ private:
   bool ownZeHandle;
 };
 
-using ze_kernel_handle_t =
-    ze_handle_wrapper<::ze_kernel_handle_t, zeKernelDestroy>;
+#define HANDLE_WRAPPER_TYPE(ZeHandleT, DestroyFunc)                            \
+  inline constexpr char ZeHandleT##_destroyName[] = #DestroyFunc;              \
+  using ZeHandleT =                                                            \
+      ze_handle_wrapper<::ZeHandleT, DestroyFunc, ZeHandleT##_destroyName>;
 
-using ze_event_handle_t =
-    ze_handle_wrapper<::ze_event_handle_t, zeEventDestroy>;
-
-using ze_event_pool_handle_t =
-    ze_handle_wrapper<::ze_event_pool_handle_t, zeEventPoolDestroy>;
-
-using ze_context_handle_t =
-    ze_handle_wrapper<::ze_context_handle_t, zeContextDestroy>;
-
-using ze_command_list_handle_t =
-    ze_handle_wrapper<::ze_command_list_handle_t, zeCommandListDestroy>;
-
-using ze_image_handle_t =
-    ze_handle_wrapper<::ze_image_handle_t, zeImageDestroy>;
+HANDLE_WRAPPER_TYPE(ze_kernel_handle_t, zeKernelDestroy)
+HANDLE_WRAPPER_TYPE(ze_event_handle_t, zeEventDestroy)
+HANDLE_WRAPPER_TYPE(ze_event_pool_handle_t, zeEventPoolDestroy)
+HANDLE_WRAPPER_TYPE(ze_context_handle_t, zeContextDestroy)
+HANDLE_WRAPPER_TYPE(ze_command_list_handle_t, zeCommandListDestroy)
+HANDLE_WRAPPER_TYPE(ze_image_handle_t, zeImageDestroy)
 
 } // namespace raii
 } // namespace v2
