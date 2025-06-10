@@ -56,6 +56,11 @@ class Benchmark(ABC):
         Can be modified."""
         return ""
 
+    def enabled(self) -> bool:
+        """Returns whether this benchmark is enabled.
+        By default, it returns True, but can be overridden to disable a benchmark."""
+        return True
+
     @abstractmethod
     def setup(self):
         pass
