@@ -1,6 +1,3 @@
-// UNSUPPORTED: any-device-is-hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16805
-
 // RUN: %{build} -o %t.out
 // RUN: env PRINT_FULL_DEVICE_INFO=1 %{run-unfiltered-devices} %t.out > %t1.conf
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:0" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
