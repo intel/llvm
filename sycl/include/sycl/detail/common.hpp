@@ -164,8 +164,10 @@ public:
   bool isToplevel() const { return !MLocalScope; }
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Cache the TLS location to decrease amount of TLS accesses.
   detail::code_location &CodeLocTLSRef;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   // The flag that is used to determine if the object is in a local scope or in
   // the top level scope.
   bool MLocalScope = true;
