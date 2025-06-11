@@ -733,26 +733,18 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
           !isSpecialDeviceImageShouldBeUsed(Img, *getSyclObjImpl(Dev).get()))
         continue;
 
-      // Check if the image format matches the main image format.
       // If any of the images is compressed, we need to decompress it
       // and then check if the format matches.
-      if (Img->getFormat() != Format) {
-        if (Format == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE ||
-            Img->getFormat() == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE) {
-
-          auto MainImgPtr = const_cast<RTDeviceBinaryImage *>(&MainImg);
-          CheckAndDecompressImage(MainImgPtr);
-          CheckAndDecompressImage(Img);
-          Format = MainImg.getFormat();
-
-          // Nope, we can't link two images with different formats.
-          if (Img->getFormat() != Format)
-            continue;
-        }
-        // Skip this image as its format differs from the main image.
-        else
-          continue;
+      if (Format == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE ||
+          Img->getFormat() == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE) {
+        auto MainImgPtr = const_cast<RTDeviceBinaryImage *>(&MainImg);
+        CheckAndDecompressImage(MainImgPtr);
+        CheckAndDecompressImage(Img);
+        Format = MainImg.getFormat();
       }
+      // Skip this image if its format differs from the main image.
+      if (Img->getFormat() != Format)
+        continue;
 
       DeviceImagesToLink.insert(Img);
       Found = true;
