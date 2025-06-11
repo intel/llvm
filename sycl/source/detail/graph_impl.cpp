@@ -1002,11 +1002,6 @@ exec_graph_impl::~exec_graph_impl() {
     const sycl::detail::AdapterPtr &Adapter =
         sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
-    // We need to wait on all command buffer executions before we can release
-    // them.
-    for (auto &Event : MExecutionEvents) {
-      Event->wait(Event);
-    }
 
     // Clean up any graph-owned allocations that were allocated
     MGraphImpl->getMemPool().deallocateAndUnmapAll();
@@ -1545,7 +1540,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, ExecCG.MKernelName,
+        *ContextImpl, DeviceImpl, ExecCG.MKernelName,
         ExecCG.MKernelNameBasedCachePtr);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;

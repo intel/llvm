@@ -2,6 +2,8 @@
 
 name: Trivy
 
+permissions: read-all
+
 on:
   pull_request:
     paths:
