@@ -15,6 +15,45 @@
 #include "logger/ur_logger.hpp"
 #include "queue_handle.hpp"
 
+ur_result_t ur_execution_event_handle_t::assign(ur_event_handle_t hNewEvent) {
+  assert(hNewEvent);
+  assert(hNewEvent->getURQueueHandle());
+
+  auto newQueue = hNewEvent->getURQueueHandle();
+  auto currentQueue = hEvent ? hEvent->getURQueueHandle() : nullptr;
+
+  if (hEvent) {
+    UR_CALL(hEvent->release());
+  }
+
+  hEvent = hNewEvent;
+
+  if (newQueue != currentQueue) {
+    if (currentQueue)
+      UR_CALL(currentQueue->queueRelease());
+    UR_CALL(newQueue->queueRetain());
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_event_handle_t ur_execution_event_handle_t::get() { return hEvent; }
+
+ur_result_t ur_execution_event_handle_t::release() {
+  if (hEvent) {
+    assert(hEvent->getURQueueHandle());
+
+    auto hQueue = hEvent->getURQueueHandle();
+    UR_CALL_NOCHECK(hEvent->release());
+    UR_CALL_NOCHECK(hQueue->queueRelease());
+
+    hEvent = nullptr;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_execution_event_handle_t::~ur_execution_event_handle_t() { release(); }
+
 namespace {
 
 ur_result_t getZeKernelWrapped(ur_kernel_handle_t kernel,
@@ -69,13 +108,12 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     : eventPool(context->getEventPoolCache(PoolCacheType::Regular)
                     .borrow(device->Id.value(),
                             isInOrder ? v2::EVENT_FLAGS_COUNTER : 0)),
-      context(context), device(device),
+      context(context), device(device), currentExecution(nullptr),
       isUpdatable(desc ? desc->isUpdatable : false),
       isInOrder(desc ? desc->isInOrder : false),
       commandListManager(
           context, device,
-          std::forward<v2::raii::command_list_unique_handle>(commandList))
-{}
+          std::forward<v2::raii::command_list_unique_handle>(commandList)) {}
 
 ur_exp_command_buffer_sync_point_t
 ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
@@ -146,25 +184,16 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   return UR_RESULT_SUCCESS;
 }
 ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
-  return currentExecution;
+  return currentExecution.get();
 }
 
 ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
     ur_event_handle_t nextExecutionEvent) {
-  if (currentExecution) {
-    UR_CALL(currentExecution->release());
-    currentExecution = nullptr;
-  }
-  if (nextExecutionEvent) {
-    currentExecution = nextExecutionEvent;
-  }
+  UR_CALL(currentExecution.assign(nextExecutionEvent));
   return UR_RESULT_SUCCESS;
 }
 
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
-  if (currentExecution) {
-    currentExecution->release();
-  }
   for (auto &event : syncPoints) {
     event->release();
   }
@@ -181,14 +210,13 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
       this, device, context->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
       numUpdateCommands, updateCommands));
 
-  if (currentExecution) {
+  if (currentExecution.get()) {
     // TODO: Move synchronization to command buffer enqueue
     // it would require to remember the update commands and perform update
     // before appending to the queue
     ZE2UR_CALL(zeEventHostSynchronize,
-               (currentExecution->getZeEvent(), UINT64_MAX));
-    currentExecution->release();
-    currentExecution = nullptr;
+               (currentExecution.get()->getZeEvent(), UINT64_MAX));
+    UR_CALL(currentExecution.release());
   }
 
   device_ptr_storage_t zeHandles;
