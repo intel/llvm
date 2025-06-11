@@ -29,7 +29,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
       std::min(static_cast<uint32_t>(hPlatform->Devices.size()), NumEntries);
 
   for (size_t I = 0; I < NumDevices; I++) {
-    phDevices[I] = &hPlatform->Devices[I];
+    phDevices[I] = hPlatform->Devices[I].get();
   }
 
   return UR_RESULT_SUCCESS;
