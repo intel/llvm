@@ -44,6 +44,32 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
 } // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGet
+ur_result_t urAdapterGet(
+    /// [in] the number of adapters to be added to phAdapters. If phAdapters
+    /// is not NULL, then NumEntries should be greater than zero, otherwise
+    /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    uint32_t NumEntries,
+    /// [out][optional][range(0, NumEntries)] array of handle of adapters. If
+    /// NumEntries is less than the number of adapters available, then
+    /// ::urAdapterGet shall only retrieve that number of platforms.
+    ur_adapter_handle_t *phAdapters,
+    /// [out][optional] returns the total number of adapters available.
+    uint32_t *pNumAdapters) {
+  auto pfnAdapterGet = getContext()->urDdiTable.Adapter.pfnGet;
+
+  ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+  if (result == UR_RESULT_SUCCESS && phAdapters) {
+    const uint32_t NumAdapters = pNumAdapters ? *pNumAdapters : NumEntries;
+    for (uint32_t i = 0; i < NumAdapters; ++i) {
+      UR_CALL(getTsanInterceptor()->holdAdapter(phAdapters[i]));
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextCreate
 __urdlllocal ur_result_t UR_APICALL urContextCreate(
     /// [in] the number of devices given in phDevices
@@ -1202,6 +1228,27 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Adapter table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+ur_result_t urGetAdapterProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_adapter_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnGet = ur_sanitizer_layer::tsan::urAdapterGet;
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Context table
 ///        with current process' addresses
 ///
@@ -1379,6 +1426,11 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urCheckVersion(UR_API_VERSION_CURRENT);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::tsan::urGetAdapterProcAddrTable(&dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {

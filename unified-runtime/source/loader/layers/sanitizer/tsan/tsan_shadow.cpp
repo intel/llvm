@@ -47,7 +47,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
   return URes;
 }
 
-ur_result_t ShadowMemoryCPU::Destory() {
+ur_result_t ShadowMemoryCPU::Destroy() {
   if (ShadowBegin == 0 && ShadowEnd == 0)
     return UR_RESULT_SUCCESS;
   static ur_result_t URes = [this]() {
@@ -98,12 +98,10 @@ ur_result_t ShadowMemoryGPU::Setup() {
     return Result;
   }
   ShadowEnd = ShadowBegin + ShadowSize;
-  // Retain the context which reserves shadow memory
-  getContext()->urDdiTable.Context.pfnRetain(Context);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ShadowMemoryGPU::Destory() {
+ur_result_t ShadowMemoryGPU::Destroy() {
   if (ShadowBegin == 0) {
     return UR_RESULT_SUCCESS;
   }
