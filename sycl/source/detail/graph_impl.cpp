@@ -1133,7 +1133,6 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
   std::vector<ur_event_handle_t> UrEventHandles{};
   UrEventHandles.reserve(WaitEvents.size());
   for (auto &SyclWaitEvent : WaitEvents) {
-    auto URHandle = SyclWaitEvent->getHandle();
     if (auto URHandle = SyclWaitEvent->getHandle()) {
       UrEventHandles.push_back(URHandle);
     }
