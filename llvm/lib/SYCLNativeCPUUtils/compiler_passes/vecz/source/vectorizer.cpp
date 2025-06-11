@@ -248,8 +248,7 @@ VectorizationUnit *vecz::createVectorizationUnit(VectorizationContext &Ctx,
   const unsigned SimdDimIdx = Opts.vec_dim_idx;
   const unsigned LocalSize = Opts.local_size;
   const bool Auto = Opts.vecz_auto;
-  auto VF =
-      ElementCount::get(Opts.factor.getKnownMin(), Opts.factor.isScalable());
+  auto VF = Opts.factor;
 
   if (!Kernel || VF.isScalar()) {
     ++VeczBail;
@@ -345,8 +344,7 @@ bool vecz::createVectorizedFunctionMetadata(VectorizationUnit &vu) {
   const auto dim = vu.dimension();
 
   // emit output metadata based on vectorization result
-  auto finalVF = compiler::utils::VectorizationFactor(vf.getKnownMinValue(),
-                                                      vf.isScalable());
+  auto finalVF = vf;
 
   const compiler::utils::VectorizationInfo info{
       finalVF, dim, vu.choices().vectorPredication()};

@@ -17,7 +17,6 @@
 #include <compiler/utils/attributes.h>
 #include <compiler/utils/device_info.h>
 #include <compiler/utils/metadata.h>
-#include <compiler/utils/vectorization_factor.h>
 #include <compiler/utils/verify_reqd_sub_group_size_pass.h>
 #include <llvm/IR/DiagnosticInfo.h>
 #include <llvm/IR/DiagnosticPrinter.h>
@@ -97,13 +96,15 @@ PreservedAnalyses VerifyReqdSubGroupSizeSatisfiedPass::run(
       continue;
     }
 
-    auto CurrSGSize = VectorizationFactor::getFixedWidth(
-        compiler::utils::getMuxSubgroupSize(F));
-    if (auto VeczInfo = parseVeczToOrigFnLinkMetadata(F)) {
-      CurrSGSize = VeczInfo->second.vf * CurrSGSize.getKnownMin();
-    }
+    auto VeczInfo = parseVeczToOrigFnLinkMetadata(F);
+    auto CurrSGSize = VeczInfo ? llvm::ElementCount::get(
+                                     compiler::utils::getMuxSubgroupSize(F) *
+                                         VeczInfo->second.vf.getKnownMinValue(),
+                                     VeczInfo->second.vf.isScalable())
+                               : llvm::ElementCount::getFixed(
+                                     compiler::utils::getMuxSubgroupSize(F));
 
-    if (CurrSGSize != ReqdSGSize) {
+    if (CurrSGSize != llvm::ElementCount::getFixed(*ReqdSGSize)) {
       M.getContext().diagnose(DiagnosticInfoReqdSGSize(
           F, *ReqdSGSize, DiagnosticInfoReqdSGSize::DK_FailedReqdSGSize));
     }
