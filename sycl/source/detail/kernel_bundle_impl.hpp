@@ -71,6 +71,7 @@ class kernel_bundle_impl
     : public std::enable_shared_from_this<kernel_bundle_impl> {
 
   using SpecConstMapT = std::map<std::string, std::vector<unsigned char>>;
+  using Base = std::enable_shared_from_this<kernel_bundle_impl>;
 
   struct private_tag {
     explicit private_tag() = default;
@@ -616,8 +617,7 @@ public:
                             "kernel_bundles successfully built from "
                             "kernel_bundle<bundle_state::ext_oneapi_source>.");
 
-    std::shared_ptr<kernel_bundle_impl> Self =
-        const_cast<kernel_bundle_impl *>(this)->shared_from_this();
+    std::shared_ptr<kernel_bundle_impl> Self = shared_from_this();
 
     // TODO: When linking is properly implemented for kernel compiler binaries,
     //       there can be scenarios where multiple binaries have the same
@@ -628,8 +628,9 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> PotentialKernelImpl =
-              DevImgImpl->tryGetSourceBasedKernel(Name, MContext, Self,
-                                                  DevImgImpl))
+              // move is performed only when SourceBasedKernel is not null
+              DevImgImpl->tryGetSourceBasedKernel(Name, MContext,
+                                                  std::move(Self), DevImgImpl))
         return detail::createSyclObjFromImpl<kernel>(
             std::move(PotentialKernelImpl));
     }
@@ -948,14 +949,13 @@ public:
 
     return std::make_shared<kernel_impl>(
         Kernel, detail::getSyclObjImpl(MContext), SelectedImage,
-        const_cast<kernel_bundle_impl *>(this)->shared_from_this(), ArgMask,
-        SelectedImage->get_ur_program_ref(), CacheMutex);
+        shared_from_this(), ArgMask, SelectedImage->get_ur_program_ref(),
+        CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>
   tryGetKernel(detail::KernelNameStrRefT Name) const {
-    std::shared_ptr<kernel_bundle_impl> Self =
-        const_cast<kernel_bundle_impl *>(this)->shared_from_this();
+    std::shared_ptr<kernel_bundle_impl> Self = shared_from_this();
     // TODO: For source-based kernels, it may be faster to keep a map between
     //       {kernel_name, device} and their corresponding image.
     // First look through the kernels registered in source-based images.
@@ -963,8 +963,9 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> SourceBasedKernel =
-              DevImgImpl->tryGetSourceBasedKernel(Name, MContext, Self,
-                                                  DevImgImpl))
+              // move is performed only when SourceBasedKernel is not null
+              DevImgImpl->tryGetSourceBasedKernel(Name, MContext,
+                                                  std::move(Self), DevImgImpl))
         return SourceBasedKernel;
     }
 
@@ -974,6 +975,10 @@ public:
                 Name))
       return tryGetOfflineKernel(*MaybeKernelID);
     return nullptr;
+  }
+
+  std::shared_ptr<kernel_bundle_impl> shared_from_this() const {
+    return const_cast<kernel_bundle_impl *>(this)->Base::shared_from_this();
   }
 
 private:

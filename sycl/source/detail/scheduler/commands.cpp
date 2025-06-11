@@ -1988,11 +1988,7 @@ std::string instrumentationGetKernelName(
 
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-#else
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-#endif
     KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel, queue_impl *Queue,
@@ -2110,11 +2106,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
     const NDRDescT &NDRDesc,
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-#else
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-#endif
     std::vector<ArgDesc> &CGArgs) {
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
@@ -2208,12 +2200,7 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc,
-          KernelCG
-              ->getKernelBundle()
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-              .get()
-#endif
-              ,
+          KernelCG->getKernelBundle().get(),
           KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
           KernelCG->MSyclKernel, MQueue.get(), KernelCG->MArgs);
     }
@@ -2679,11 +2666,7 @@ ur_result_t enqueueImpCommandBufferKernel(
 
 void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-#else
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-#endif
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
@@ -3281,15 +3264,10 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(*MQueue, NDRDesc, Args,
-                     ExecKernel
-                         ->getKernelBundle()
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-                         .get()
-#endif
-                         ,
-                     SyclKernel.get(), KernelName,
-                     ExecKernel->MKernelNameBasedCachePtr, RawEvents, EventImpl,
-                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+                     ExecKernel->getKernelBundle().get(), SyclKernel.get(),
+                     KernelName, ExecKernel->MKernelNameBasedCachePtr,
+                     RawEvents, EventImpl, getMemAllocationFunc,
+                     ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
                      ExecKernel->MKernelUsesClusterLaunch,
                      ExecKernel->MKernelWorkGroupMemorySize, BinImage);

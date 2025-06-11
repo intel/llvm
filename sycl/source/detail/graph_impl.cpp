@@ -856,14 +856,7 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
         StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
         CGExec->MKernelName.data(), CGExec->MKernelNameBasedCachePtr, nullptr,
-        CGExec->MNDRDesc,
-        CGExec
-            ->MKernelBundle
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-            .get()
-#endif
-            ,
-        CGExec->MArgs);
+        CGExec->MNDRDesc, CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(
           StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);

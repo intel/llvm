@@ -619,7 +619,7 @@ public:
 
   std::shared_ptr<kernel_impl> tryGetSourceBasedKernel(
       std::string_view Name, const context &Context,
-      const std::shared_ptr<kernel_bundle_impl> &OwnerBundle,
+      std::shared_ptr<kernel_bundle_impl> &&OwnerBundle,
       const std::shared_ptr<device_image_impl> &Self) const {
     if (!(getOriginMask() & ImageOriginKernelCompiler))
       return nullptr;
@@ -639,8 +639,8 @@ public:
             PM.getOrCreateKernel(Context, AdjustedName,
                                  /*PropList=*/{}, UrProgram);
         return std::make_shared<kernel_impl>(UrKernel, getSyclObjImpl(Context),
-                                             Self, OwnerBundle, ArgMask,
-                                             UrProgram, CacheMutex);
+                                             Self, std::move(OwnerBundle),
+                                             ArgMask, UrProgram, CacheMutex);
       }
       return nullptr;
     }
@@ -653,7 +653,7 @@ public:
     // Kernel created by urKernelCreate is implicitly retained.
 
     return std::make_shared<kernel_impl>(
-        UrKernel, detail::getSyclObjImpl(Context), Self, OwnerBundle,
+        UrKernel, detail::getSyclObjImpl(Context), Self, std::move(OwnerBundle),
         /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
   }
 

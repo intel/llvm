@@ -361,19 +361,12 @@ bool handler::isStateExplicitKernelBundle() const {
   return impl->isStateExplicitKernelBundle();
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// Returns a ptr to the kernel_bundle.
-// If there is no kernel_bundle created:
-// returns newly created kernel_bundle if Insert is true
-// returns nullptr if Insert is false
-detail::kernel_bundle_impl *
-#else
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // Returns a shared_ptr to the kernel_bundle.
 // If there is no kernel_bundle created:
 // returns newly created kernel_bundle if Insert is true
 // returns shared_ptr(nullptr) if Insert is false
 std::shared_ptr<detail::kernel_bundle_impl>
-#endif
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (!impl->MKernelBundle && Insert) {
     context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
@@ -382,11 +375,24 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
             Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
             {}));
   }
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  return impl->MKernelBundle.get();
-#else
   return impl->MKernelBundle;
+}
 #endif
+
+// Returns a ptr to the kernel_bundle.
+// If there is no kernel_bundle created:
+// returns newly created kernel_bundle if Insert is true
+// returns nullptr if Insert is false
+detail::kernel_bundle_impl *
+handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
+  if (!impl->MKernelBundle && Insert) {
+    context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
+    impl->MKernelBundle =
+        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+            Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
+            {}));
+  }
+  return impl->MKernelBundle.get();
 }
 
 // Sets kernel bundle to the provided one.
@@ -474,12 +480,8 @@ event handler::finalize() {
 
   if (type == detail::CGType::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::kernel_bundle_impl *
-#else
-    std::shared_ptr<detail::kernel_bundle_impl>
-#endif
-        KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
+        KernelBundleImpPtr = getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&
@@ -499,24 +501,14 @@ event handler::finalize() {
             KernelBundleImpPtr->get_bundle_state() == bundle_state::input) {
           auto KernelBundle =
               detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-                  *KernelBundleImpPtr
-#else
-                  KernelBundleImpPtr
-#endif
-              );
+                  *KernelBundleImpPtr);
           kernel_bundle<bundle_state::executable> ExecKernelBundle =
               build(KernelBundle);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
           std::shared_ptr<detail::kernel_bundle_impl> ExecKernelBundleImpPtr =
               detail::getSyclObjImpl(ExecKernelBundle);
           // Raw ptr is valid, because we saved the shared_ptr to the handler
           setHandlerKernelBundle(ExecKernelBundleImpPtr);
           KernelBundleImpPtr = ExecKernelBundleImpPtr.get();
-#else
-          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
-          setHandlerKernelBundle(KernelBundleImpPtr);
-#endif
           KernelInserted = KernelBundleImpPtr->add_kernel(
               KernelID, detail::createSyclObjFromImpl<device>(Dev));
         }
@@ -531,22 +523,12 @@ event handler::finalize() {
         // Underlying level expects kernel_bundle to be in executable state
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-                *KernelBundleImpPtr
-#else
-                KernelBundleImpPtr
-#endif
-                ));
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+                *KernelBundleImpPtr));
         std::shared_ptr<detail::kernel_bundle_impl> ExecKernelBundleImpPtr =
             detail::getSyclObjImpl(ExecBundle);
         // Raw ptr is valid, because we saved the shared_ptr to the handler
         setHandlerKernelBundle(ExecKernelBundleImpPtr);
         KernelBundleImpPtr = ExecKernelBundleImpPtr.get();
-#else
-        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
-        setHandlerKernelBundle(KernelBundleImpPtr);
-#endif
         break;
       }
       case bundle_state::executable:
@@ -1385,12 +1367,8 @@ detail::ABINeutralKernelNameStrT handler::getKernelName() {
 }
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
-#else
-  auto UsedKernelBundleImplPtr =
-#endif
-      getOrInsertHandlerKernelBundle(/*Insert=*/false);
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
     return;
 
@@ -2282,7 +2260,7 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
   detail::kernel_bundle_impl *KernelBundleImplPtr =
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
 
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
       *KernelBundleImplPtr);
