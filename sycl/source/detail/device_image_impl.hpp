@@ -1050,11 +1050,12 @@ private:
 
       // Filter the devices that support the image requirements.
       std::vector<sycl::device> SupportingDevs = Devices;
-      auto NewSupportingDevsEnd = std::remove_if(
-          SupportingDevs.begin(), SupportingDevs.end(),
-          [&NewImageRef](const sycl::device &SDev) {
-            return !doesDevSupportDeviceRequirements(*detail::getSyclObjImpl(SDev), NewImageRef);
-          });
+      auto NewSupportingDevsEnd =
+          std::remove_if(SupportingDevs.begin(), SupportingDevs.end(),
+                         [&NewImageRef](const sycl::device &SDev) {
+                           return !doesDevSupportDeviceRequirements(
+                               *detail::getSyclObjImpl(SDev), NewImageRef);
+                         });
 
       // If there are no devices that support the image, we skip it.
       if (NewSupportingDevsEnd == SupportingDevs.begin())
