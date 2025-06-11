@@ -37,9 +37,6 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
     if (Props.zero_init.second) {
       AllocInfo.ZeroInit = true;
     }
-    if (Props.read_only.second) {
-      AllocInfo.ReadOnly = true;
-    }
   }
 
   switch (AllocType) {

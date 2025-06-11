@@ -454,7 +454,7 @@
 ??0kernel_id@_V1@sycl@@AEAA@PEBD@Z
 ??0kernel_id@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0kernel_id@_V1@sycl@@QEAA@AEBV012@@Z
-??0memory_pool@experimental@oneapi@ext@_V1@sycl@@IEAA@AEBVcontext@45@AEBVdevice@45@W4alloc@usm@45@AEBUpool_properties@012345@@Z
+??0memory_pool@experimental@oneapi@ext@_V1@sycl@@IEAA@AEBVcontext@45@AEBVdevice@45@W4alloc@usm@45@Upool_properties@012345@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@IEAA@V?$shared_ptr@Vmemory_pool_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
@@ -4106,7 +4106,6 @@
 ?getPropList@queue@_V1@sycl@@AEBAAEBVproperty_list@23@XZ
 ?getPropList@sampler@_V1@sycl@@AEBAAEBVproperty_list@23@XZ
 ?getPropList@stream@_V1@sycl@@AEBAAEBVproperty_list@23@XZ
-?getProps@memory_pool@experimental@oneapi@ext@_V1@sycl@@IEBAAEBUpool_properties@123456@XZ
 ?getPtr@AccessorBaseHost@detail@_V1@sycl@@QEAAPEAXXZ
 ?getPtr@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getPtr@LocalAccessorBaseHost@detail@_V1@sycl@@QEAAPEAXXZ
