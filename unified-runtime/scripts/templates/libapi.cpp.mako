@@ -36,6 +36,9 @@ extern "C" {
 %for s in specs:
 ## FUNCTION ###################################################################
 %for obj in th.filter_items(s['objects'], 'type', 'function'):
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 %if 'condition' in obj:
 #if ${th.subt(n, tags, obj['condition'])}
@@ -69,6 +72,9 @@ try {
 } catch(...) { return exceptionToResult(std::current_exception()); }
 %if 'condition' in obj:
 #endif // ${th.subt(n, tags, obj['condition'])}
+%endif
+%if 'guard' in obj:
+#endif // ${obj['guard']}
 %endif
 
 %endfor

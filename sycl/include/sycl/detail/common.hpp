@@ -168,11 +168,9 @@ private:
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_UR_ERROR_REPORT                                                 \
-  "Native API failed. " /*__FILE__*/                                           \
-  /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
-                          "Native API returns: "
+#define __SYCL_UR_ERROR_REPORT(backend)                                        \
+  std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
+      " backend failed with error: "
 
 #include <sycl/exception.hpp>
 
