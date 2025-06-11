@@ -8,15 +8,12 @@
 // CHECKH: %add = add nsw i32 %0, 10
 // CHECKD: %add = add nsw i32 %0, 20
 int foo(int a) { return a + 10; }
-
-#ifdef __SYCL_DEVICE_ONLY__
 __attribute__((sycl_device_only)) int foo(int a) { return a + 20; }
-#endif
 
+// Use a `sycl_device` function as entry point
 __attribute__((sycl_device)) int bar(int b) {
   return foo(b);
 }
-
 
 // Verify that in extern C the attribute enables mangling.
 extern "C" {
@@ -24,10 +21,9 @@ extern "C" {
 // CHECKH: %add = add nsw i32 %0, 10
 // CHECKD: %add = add nsw i32 %0, 20
 int fooc(int a) { return a + 10; }
-#ifdef __SYCL_DEVICE_ONLY__
 __attribute__((sycl_device_only)) int fooc(int a) { return a + 20; }
-#endif
 
+// Use a `sycl_device` function as entry point
 __attribute__((sycl_device)) int barc(int b) {
   return fooc(b);
 }

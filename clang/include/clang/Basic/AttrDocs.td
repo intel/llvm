@@ -4523,9 +4523,10 @@ def SYCLDeviceOnlyDocs : Documentation {
   let Heading = "sycl_device_only";
   let Content = [{
 This attribute can only be applied to functions and indicates that the function
-is for the device only. This attribute allows to provide a device specific
-overload of an existing function. All ``sycl_device_only`` function callees
-implicitly inherit this attribute.
+is only available for the device. It allows functions marked with it to
+overload existing functions without the attribute, in which case the overload
+with the attribute will be used on the device side and the overload without
+will be used on the host side.
   }];
 }
 
