@@ -1512,8 +1512,8 @@ private:
   //
   // First, from SYCL 2020, Table 129 (Member functions of the `handler ` class)
   //   > The callable ... can optionally take a `kernel_handler` ... in
-  //   which > case the SYCL runtime will construct an instance of
-  //   `kernel_handler` > and pass it to the callable.
+  //   > which case the SYCL runtime will construct an instance of
+  //   > `kernel_handler` and pass it to the callable.
   //
   // Note: "..." due to slight wording variability between
   // single_task/parallel_for (e.g. only parameter vs last). This helper class
