@@ -24,13 +24,13 @@ using namespace sycl::access;
 __attribute__((always_inline)) float dispatch(float *x) {
   if (dynamic_address_cast<address_space::global_space>(x)
           .get() /*!=nullptr*/) {
-    return foo_ex(*x);
+    return foo(*x);
   } else if (dynamic_address_cast<address_space::local_space>(x)
                  .get() /*!=nullptr*/) {
-    return bar_ex(*x);
+    return bar(*x);
   } else if (dynamic_address_cast<address_space::private_space>(x)
                  .get() /*!=nullptr*/) {
-    return baz_ex(*x);
+    return baz(*x);
   }
 
   return -1;
