@@ -60,11 +60,11 @@ if(NATIVECPU_WITH_ONETBB)
   FetchContent_Declare(
     tbb
     GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
-#commit 7dfe7e744ac583bd1c202f6e0eff4f51269bc524 (HEAD -> master, origin/master, origin/HEAD)
-#Author: Olga Malysheva <olga.malysheva@intel.com>
-#Date:   Wed Apr 30 21:29:20 2025 +0200
-#    Update compiler and linker options (#1719)
-    GIT_TAG 7dfe7e744ac583bd1c202f6e0eff4f51269bc524
+#commit 54f3611e12b77ae40bf919eca65e7ff2218fdc34 (HEAD -> master, origin/master, origin/HEAD)
+#Author: Alexandra <alexandra.epanchinzeva@intel.com>
+#Date:   Fri Jun 6 15:02:22 2025 +0200
+#    Update README.md (#1750)
+    GIT_TAG 54f3611e12b77ae40bf919eca65e7ff2218fdc34
     CMAKE_ARGS "-DTBB_TEST:BOOL=OFF -DTBB_EXAMPLES:BOOL=OFF -DTBB_BENCH:BOOL=OFF"
     OVERRIDE_FIND_PACKAGE
   )
