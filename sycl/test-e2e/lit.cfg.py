@@ -316,7 +316,7 @@ with test_env():
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", f"{os.devnull}"],
+    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", os.devnull],
     stdin=subprocess.PIPE,
     stderr=subprocess.PIPE,
 )
