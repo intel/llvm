@@ -6,6 +6,7 @@
 #include "../helpers.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
+#include <sycl/platform.hpp>
 
 #ifdef SYCL_EXT_ONEAPI_COMPOSITE_DEVICE
 
