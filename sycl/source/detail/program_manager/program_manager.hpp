@@ -414,9 +414,9 @@ private:
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device &Dev);
 
-  bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
-  bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
-                                        const device_impl &DeviceImpl);
+  bool isBfloat16DeviceImage(RTDeviceBinaryImage *BinImage);
+  bool shouldBF16DeviceImageBeUsed(RTDeviceBinaryImage *BinImage,
+                                   const device_impl &DeviceImpl);
 
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is
