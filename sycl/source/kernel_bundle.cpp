@@ -369,7 +369,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   // number of targets. This kernel is compatible with the device if there is
   // at least one image (containing this kernel) whose aspects are supported by
   // the device and whose target matches the device.
-  device_impl &DevImpl = *getSyclObjImpl(Dev);
+  detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
   for (const auto &KernelID : KernelIDs) {
     std::set<detail::RTDeviceBinaryImage *> BinImages =
         detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
