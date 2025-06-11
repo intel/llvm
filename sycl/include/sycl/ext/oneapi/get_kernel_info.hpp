@@ -11,8 +11,6 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
-#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
 #include <vector>
@@ -52,35 +50,6 @@ get_kernel_info(const queue &Q) {
           Q.get_context());
   return Bundle.template get_kernel<KernelName>().template get_info<Param>(
       Q.get_device());
-}
-
-namespace experimental {
-
-template <auto *Func, typename Param,
-          typename = std::enable_if_t<is_kernel_v<Func>>>
-typename Param::return_type get_kernel_info(const context &ctxt) {
-  // this calls ext::oneapi::experimental overload of get_kernel_bundle
-  auto bundle = get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
-  return bundle.template ext_oneapi_get_kernel<Func>()
-      .template get_info<Param>();
-}
-
-template <auto *Func, typename Param,
-          typename = std::enable_if_t<is_kernel_v<Func>>>
-typename Param::return_type get_kernel_info(const context &ctxt,
-                                            const device &dev) {
-  auto bundle = get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
-  return bundle.template ext_oneapi_get_kernel<Func>().template get_info<Param>(
-      dev);
-}
-
-template <auto *Func, typename Param,
-          typename = std::enable_if_t<is_kernel_v<Func>>>
-typename Param::return_type get_kernel_info(const queue &q) {
-  auto bundle =
-      get_kernel_bundle<Func, sycl::bundle_state::executable>(q.get_context());
-  return bundle.template ext_oneapi_get_kernel<Func>().template get_info<Param>(
-      q.get_device());
 }
 
 } // namespace experimental
