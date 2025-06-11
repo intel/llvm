@@ -1,4 +1,4 @@
-// REQUIRES: xptifw, opencl, (cpu || accelerator)
+// REQUIRES: xptifw, opencl, cpu
 // RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
@@ -15,10 +15,7 @@
 int main() {
   bool MismatchFound = false;
 
-  auto selector_v = [](const sycl::device &d) {
-    return std::max(cpu_selector_v(d), accelerator_selector_v(d));
-  };
-  sycl::device Device{selector_v};
+  sycl::device Device{default_selector_v};
   auto Devices = Device.create_sub_devices<
       sycl::info::partition_property::partition_equally>(2);
 

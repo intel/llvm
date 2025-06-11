@@ -127,12 +127,6 @@ template <typename T> void testMultPtr() {
             global_ptr<void> ptr_8 = global_ptr<void>(ptr_7);
             ext::intel::host_ptr<void> ptr_9((void *)RawPtr);
             global_ptr<void> ptr_10 = global_ptr<void>(ptr_9);
-            // TODO: need propagation of a7b763b26 patch to acl tool before
-            // testing these conversions - otherwise the test would fail on
-            // accelerator device during reversed translation from SPIR-V to
-            // LLVM IR device_ptr<T> ptr_11(accessorData_1); global_ptr<T>
-            // ptr_12 = global_ptr<T>(ptr_11);
-
             innerFunc<T>(wiID.get_local_id().get(0), ptr_1, ptr_2, local_ptr);
           });
     });

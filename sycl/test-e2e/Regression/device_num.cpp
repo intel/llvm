@@ -21,7 +21,6 @@ using namespace std;
 const std::map<info::device_type, std::string> DeviceTypeStringMap = {
     {info::device_type::cpu, "cpu"},
     {info::device_type::gpu, "gpu"},
-    {info::device_type::accelerator, "acc"}};
 
 const std::map<backend, std::string> BackendStringMap = {
     {backend::opencl, "opencl"},
@@ -112,7 +111,6 @@ int GetPreferredDeviceIndex(const std::vector<device> &devices,
   const std::map<info::device_type, int> scoreByType = {
       {info::device_type::cpu, 300},
       {info::device_type::gpu, 500},
-      {info::device_type::accelerator, 75}};
   int score = -1;
   int index = -1;
   int devCount = devices.size();
@@ -196,15 +194,6 @@ int main() {
   if (targetDevIndex >= 0) {
     device d(cpu_selector_v);
     std::cout << "cpu_selector_v selected ";
-    printDeviceType(d);
-    assert(devices[targetDevIndex] == d &&
-           "The selected device is not the target device specified.");
-  }
-  targetDevIndex =
-      GetPreferredDeviceIndex(devices, info::device_type::accelerator);
-  if (targetDevIndex >= 0) {
-    device d(accelerator_selector_v);
-    std::cout << "accelerator_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");
