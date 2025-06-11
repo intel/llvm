@@ -376,8 +376,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
 
     if (std::none_of(BinImages.begin(), BinImages.end(),
                      [&](const detail::RTDeviceBinaryImage *Img) {
-                       return doesDevSupportDeviceRequirements(DevImpl,
-                                                               *Img) &&
+                       return doesDevSupportDeviceRequirements(DevImpl, *Img) &&
                               doesImageTargetMatchDevice(*Img, DevImpl);
                      }))
       return false;

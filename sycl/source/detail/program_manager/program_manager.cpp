@@ -914,9 +914,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::copy(DeviceImagesToLink.begin(), DeviceImagesToLink.end(),
             std::back_inserter(AllImages));
 
-  return getBuiltURProgram(
-      std::move(AllImages), ContextImpl,
-      {createSyclObjFromImpl<device>(RootOrSubDevImpl)});
+  return getBuiltURProgram(std::move(AllImages), ContextImpl,
+                           {createSyclObjFromImpl<device>(RootOrSubDevImpl)});
 }
 
 ur_program_handle_t ProgramManager::getBuiltURProgram(
@@ -1541,8 +1540,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
   ContextImpl.getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
-      DeviceImpl.getHandleRef(), UrBinaries.data(), UrBinaries.size(),
-      &ImgInd);
+      DeviceImpl.getHandleRef(), UrBinaries.data(), UrBinaries.size(), &ImgInd);
   return DeviceFilteredImgs[ImgInd];
 }
 
@@ -1623,8 +1621,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   }
 
   ContextImpl.getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
-      DeviceImpl.getHandleRef(), UrBinaries.data(), UrBinaries.size(),
-      &ImgInd);
+      DeviceImpl.getHandleRef(), UrBinaries.data(), UrBinaries.size(), &ImgInd);
 
   ImageIterator = ImageSet.begin();
   std::advance(ImageIterator, ImgInd);
