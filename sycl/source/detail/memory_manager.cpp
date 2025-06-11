@@ -1146,7 +1146,7 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   ProgramManager &PM = ProgramManager::getInstance();
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
-      DeviceGlobalEntry->MImages, *ContextImpl, getSyclObjImpl(Device).get());
+      DeviceGlobalEntry->MImages, *ContextImpl, *getSyclObjImpl(Device));
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =

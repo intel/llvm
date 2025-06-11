@@ -894,7 +894,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
       MustBuildOnSubdevice == true ? DeviceImpl : *RootDevImpl;
 
   const RTDeviceBinaryImage &Img =
-      getDeviceImage(KernelName, ContextImpl, &RootOrSubDevImpl);
+      getDeviceImage(KernelName, ContextImpl, RootOrSubDevImpl);
 
   // Check that device supports all aspects used by the kernel
   if (auto exception =
@@ -1510,7 +1510,7 @@ template <typename StorageKey>
 RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
     const StorageKey &Key, context_impl &ContextImpl,
-    const device_impl *DeviceImpl) {
+    const device_impl &DeviceImpl) {
   auto [ItBegin, ItEnd] = ImagesSet.equal_range(Key);
   if (ItBegin == ItEnd)
     return nullptr;
@@ -1523,7 +1523,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   std::vector<RTDeviceBinaryImage *> DeviceFilteredImgs;
   DeviceFilteredImgs.reserve(std::distance(ItBegin, ItEnd));
   for (auto It = ItBegin; It != ItEnd; ++It) {
-    if (doesImageTargetMatchDevice(*It->second, *DeviceImpl))
+    if (doesImageTargetMatchDevice(*It->second, DeviceImpl))
       DeviceFilteredImgs.push_back(It->second);
   }
 
@@ -1541,7 +1541,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
   ContextImpl.getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
-      DeviceImpl->getHandleRef(), UrBinaries.data(), UrBinaries.size(),
+      DeviceImpl.getHandleRef(), UrBinaries.data(), UrBinaries.size(),
       &ImgInd);
   return DeviceFilteredImgs[ImgInd];
 }
@@ -1549,10 +1549,10 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
 RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
                                context_impl &ContextImpl,
-                               const device_impl *DeviceImpl) {
+                               const device_impl &DeviceImpl) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
-              << ContextImpl.get() << ", " << DeviceImpl << ")\n";
+              << ContextImpl.get() << ", " << &DeviceImpl << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1595,12 +1595,12 @@ ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
     const std::unordered_set<RTDeviceBinaryImage *> &ImageSet,
-    context_impl &ContextImpl, const device_impl *DeviceImpl) {
+    context_impl &ContextImpl, const device_impl &DeviceImpl) {
   assert(ImageSet.size() > 0);
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file "
-              << ContextImpl.get() << ", " << DeviceImpl << ")\n";
+              << ContextImpl.get() << ", " << &DeviceImpl << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1623,7 +1623,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   }
 
   ContextImpl.getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
-      DeviceImpl->getHandleRef(), UrBinaries.data(), UrBinaries.size(),
+      DeviceImpl.getHandleRef(), UrBinaries.data(), UrBinaries.size(),
       &ImgInd);
 
   ImageIterator = ImageSet.begin();
@@ -2650,7 +2650,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
   for (const sycl::device &Dev : Devs) {
 
-    auto &device_impl = *getSyclObjImpl(Dev).get();
+    auto &device_impl = *getSyclObjImpl(Dev);
     // Track the highest image state for each requested kernel.
     using StateImagesPairT =
         std::pair<bundle_state, std::vector<RTDeviceBinaryImage *>>;

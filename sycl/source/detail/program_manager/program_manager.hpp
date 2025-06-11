@@ -136,11 +136,11 @@ public:
 
   RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
                                       context_impl &ContextImpl,
-                                      const device_impl *DeviceImpl);
+                                      const device_impl &DeviceImpl);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      context_impl &ContextImpl, const device_impl *DeviceImpl);
+      context_impl &ContextImpl, const device_impl &DeviceImpl);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       context_impl &ContextImpl,

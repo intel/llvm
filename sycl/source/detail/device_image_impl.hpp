@@ -1152,7 +1152,7 @@ private:
       std::set<RTDeviceBinaryImage *> ImgDeps;
       for (const device &Device : DevImgImpl->get_devices()) {
         std::set<RTDeviceBinaryImage *> DevImgDeps = PM.collectDeviceImageDeps(
-            *NewImage, *getSyclObjImpl(Device).get(),
+            *NewImage, *getSyclObjImpl(Device),
             /*ErrorOnUnresolvableImport=*/State == bundle_state::executable);
         ImgDeps.insert(DevImgDeps.begin(), DevImgDeps.end());
       }
