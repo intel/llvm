@@ -10,7 +10,7 @@
 
 template <typename T>
 SYCL_EXTERNAL void test_builtins(
-    T *out, T x, T y, sycl::vec<T, 2> *out2, sycl::vec<float, 2> f2,
+    T *out, T x, T y, sycl::vec<T, 4> *out2, sycl::vec<float, 4> f2,
     sycl::nd_item<2> item,
     sycl::multi_ptr<T, sycl::access::address_space::global_space> ptr_global,
     sycl::multi_ptr<T, sycl::access::address_space::local_space> ptr_local) {
@@ -29,12 +29,12 @@ SYCL_EXTERNAL void test_builtins(
   group.async_work_group_copy(ptr_local, ptr_global, num_elem);
 }
 
-// CHECK-SCHAR-LABEL: define dso_local spir_func void @_Z18test_char_builtinsPcccPN4sycl3_V13vecIcLi2EEENS2_IfLi2EEENS1_7nd_itemILi2EEENS1_9multi_ptrIcLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IcLSA_3ELSB_2EEE(
-// CHECK-SCHAR-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef signext [[X:%.*]], i8 noundef signext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
+// CHECK-SCHAR-LABEL: define dso_local spir_func void @_Z18test_char_builtinsPcccPN4sycl3_V13vecIcLi4EEENS2_IfLi4EEENS1_7nd_itemILi2EEENS1_9multi_ptrIcLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IcLSA_3ELSB_2EEE(
+// CHECK-SCHAR-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef signext [[X:%.*]], i8 noundef signext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 16 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-SCHAR-NEXT:  [[ENTRY:.*:]]
-// CHECK-SCHAR-NEXT:    [[TMP0:%.*]] = load <2 x float>, ptr [[F2]], align 8
-// CHECK-SCHAR-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
-// CHECK-SCHAR-NEXT:    [[TMP2:%.*]] = load i64, ptr [[PTR_LOCAL]], align 8, !tbaa [[TBAA7]]
+// CHECK-SCHAR-NEXT:    [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD:%.*]] = load <4 x float>, ptr [[F2]], align 16
+// CHECK-SCHAR-NEXT:    [[TMP0:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
+// CHECK-SCHAR-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_LOCAL]], align 8, !tbaa [[TBAA7]]
 // CHECK-SCHAR-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef signext i8 @_Z17__spirv_ocl_s_minaa(i8 noundef signext [[X]], i8 noundef signext [[Y]]) #[[ATTR3:[0-9]+]]
 // CHECK-SCHAR-NEXT:    store i8 [[CALL_I_I_I]], ptr addrspace(4) [[OUT]], align 1, !tbaa [[TBAA12:![0-9]+]]
 // CHECK-SCHAR-NEXT:    [[CALL_I_I30_I:%.*]] = tail call spir_func noundef signext i8 @_Z17__spirv_ocl_s_maxaa(i8 noundef signext [[X]], i8 noundef signext [[Y]]) #[[ATTR3]]
@@ -55,19 +55,19 @@ SYCL_EXTERNAL void test_builtins(
 // CHECK-SCHAR-NEXT:    [[CALL_I_I35_I:%.*]] = tail call spir_func noundef signext i8 @_Z19__spirv_ocl_s_rhaddaa(i8 noundef signext [[X]], i8 noundef signext [[Y]]) #[[ATTR3]]
 // CHECK-SCHAR-NEXT:    [[ARRAYIDX12_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[OUT]], i64 6
 // CHECK-SCHAR-NEXT:    store i8 [[CALL_I_I35_I]], ptr addrspace(4) [[ARRAYIDX12_I]], align 1, !tbaa [[TBAA12]]
-// CHECK-SCHAR-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef <2 x i8> @_Z31__spirv_ConvertFToS_Rschar2_rteDv2_f(<2 x float> noundef [[TMP0]]) #[[ATTR3]]
-// CHECK-SCHAR-NEXT:    store <2 x i8> [[CALL_I_I_I_I]], ptr addrspace(4) [[OUT2]], align 2
-// CHECK-SCHAR-NEXT:    [[TMP3:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(1)
-// CHECK-SCHAR-NEXT:    [[TMP4:%.*]] = inttoptr i64 [[TMP2]] to ptr addrspace(3)
-// CHECK-SCHAR-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS3aPU3AS1Kamm9ocl_event(i32 noundef 2, ptr addrspace(3) noundef [[TMP4]], ptr addrspace(1) noundef [[TMP3]], i64 noundef 4, i64 noundef 1, target("spirv.Event") zeroinitializer) #[[ATTR4:[0-9]+]], !noalias [[META13:![0-9]+]]
+// CHECK-SCHAR-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef <4 x i8> @_Z31__spirv_ConvertFToS_Rschar4_rteDv4_f(<4 x float> noundef [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD]]) #[[ATTR3]]
+// CHECK-SCHAR-NEXT:    store <4 x i8> [[CALL_I_I_I_I]], ptr addrspace(4) [[OUT2]], align 4
+// CHECK-SCHAR-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(1)
+// CHECK-SCHAR-NEXT:    [[TMP3:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(3)
+// CHECK-SCHAR-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS3aPU3AS1Kamm9ocl_event(i32 noundef 2, ptr addrspace(3) noundef [[TMP3]], ptr addrspace(1) noundef [[TMP2]], i64 noundef 4, i64 noundef 1, target("spirv.Event") zeroinitializer) #[[ATTR4:[0-9]+]], !noalias [[META13:![0-9]+]]
 // CHECK-SCHAR-NEXT:    ret void
 //
-// CHECK-UCHAR-LABEL: define dso_local spir_func void @_Z18test_char_builtinsPcccPN4sycl3_V13vecIcLi2EEENS2_IfLi2EEENS1_7nd_itemILi2EEENS1_9multi_ptrIcLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IcLSA_3ELSB_2EEE(
-// CHECK-UCHAR-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef zeroext [[X:%.*]], i8 noundef zeroext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
+// CHECK-UCHAR-LABEL: define dso_local spir_func void @_Z18test_char_builtinsPcccPN4sycl3_V13vecIcLi4EEENS2_IfLi4EEENS1_7nd_itemILi2EEENS1_9multi_ptrIcLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IcLSA_3ELSB_2EEE(
+// CHECK-UCHAR-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef zeroext [[X:%.*]], i8 noundef zeroext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 16 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-UCHAR-NEXT:  [[ENTRY:.*:]]
-// CHECK-UCHAR-NEXT:    [[TMP0:%.*]] = load <2 x float>, ptr [[F2]], align 8
-// CHECK-UCHAR-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
-// CHECK-UCHAR-NEXT:    [[TMP2:%.*]] = load i64, ptr [[PTR_LOCAL]], align 8, !tbaa [[TBAA7]]
+// CHECK-UCHAR-NEXT:    [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD:%.*]] = load <4 x float>, ptr [[F2]], align 16
+// CHECK-UCHAR-NEXT:    [[TMP0:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
+// CHECK-UCHAR-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_LOCAL]], align 8, !tbaa [[TBAA7]]
 // CHECK-UCHAR-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef zeroext i8 @_Z17__spirv_ocl_u_minhh(i8 noundef zeroext [[X]], i8 noundef zeroext [[Y]]) #[[ATTR3:[0-9]+]]
 // CHECK-UCHAR-NEXT:    store i8 [[CALL_I_I_I]], ptr addrspace(4) [[OUT]], align 1, !tbaa [[TBAA12:![0-9]+]]
 // CHECK-UCHAR-NEXT:    [[CALL_I_I30_I:%.*]] = tail call spir_func noundef zeroext i8 @_Z17__spirv_ocl_u_maxhh(i8 noundef zeroext [[X]], i8 noundef zeroext [[Y]]) #[[ATTR3]]
@@ -88,27 +88,27 @@ SYCL_EXTERNAL void test_builtins(
 // CHECK-UCHAR-NEXT:    [[CALL_I_I35_I:%.*]] = tail call spir_func noundef zeroext i8 @_Z19__spirv_ocl_u_rhaddhh(i8 noundef zeroext [[X]], i8 noundef zeroext [[Y]]) #[[ATTR3]]
 // CHECK-UCHAR-NEXT:    [[ARRAYIDX12_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[OUT]], i64 6
 // CHECK-UCHAR-NEXT:    store i8 [[CALL_I_I35_I]], ptr addrspace(4) [[ARRAYIDX12_I]], align 1, !tbaa [[TBAA12]]
-// CHECK-UCHAR-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef <2 x i8> @_Z31__spirv_ConvertFToU_Ruchar2_rteDv2_f(<2 x float> noundef [[TMP0]]) #[[ATTR3]]
-// CHECK-UCHAR-NEXT:    store <2 x i8> [[CALL_I_I_I_I]], ptr addrspace(4) [[OUT2]], align 2
-// CHECK-UCHAR-NEXT:    [[TMP3:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(1)
-// CHECK-UCHAR-NEXT:    [[TMP4:%.*]] = inttoptr i64 [[TMP2]] to ptr addrspace(3)
-// CHECK-UCHAR-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS3hPU3AS1Khmm9ocl_event(i32 noundef 2, ptr addrspace(3) noundef [[TMP4]], ptr addrspace(1) noundef [[TMP3]], i64 noundef 4, i64 noundef 1, target("spirv.Event") zeroinitializer) #[[ATTR4:[0-9]+]], !noalias [[META13:![0-9]+]]
+// CHECK-UCHAR-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef <4 x i8> @_Z31__spirv_ConvertFToU_Ruchar4_rteDv4_f(<4 x float> noundef [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD]]) #[[ATTR3]]
+// CHECK-UCHAR-NEXT:    store <4 x i8> [[CALL_I_I_I_I]], ptr addrspace(4) [[OUT2]], align 4
+// CHECK-UCHAR-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(1)
+// CHECK-UCHAR-NEXT:    [[TMP3:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(3)
+// CHECK-UCHAR-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS3hPU3AS1Khmm9ocl_event(i32 noundef 2, ptr addrspace(3) noundef [[TMP3]], ptr addrspace(1) noundef [[TMP2]], i64 noundef 4, i64 noundef 1, target("spirv.Event") zeroinitializer) #[[ATTR4:[0-9]+]], !noalias [[META13:![0-9]+]]
 // CHECK-UCHAR-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_char_builtins(
-    char *out, char x, char y, sycl::vec<char, 2> *out2, sycl::vec<float, 2> f2,
+    char *out, char x, char y, sycl::vec<char, 4> *out2, sycl::vec<float, 4> f2,
     sycl::nd_item<2> item,
     sycl::multi_ptr<char, sycl::access::address_space::global_space> ptr_global,
     sycl::multi_ptr<char, sycl::access::address_space::local_space> ptr_local) {
   test_builtins(out, x, y, out2, f2, item, ptr_global, ptr_local);
 }
 
-// CHECK-LABEL: define dso_local spir_func void @_Z19test_schar_builtinsPaaaPN4sycl3_V13vecIaLi2EEENS2_IfLi2EEENS1_7nd_itemILi2EEENS1_9multi_ptrIaLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IaLSA_3ELSB_2EEE(
-// CHECK-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef signext [[X:%.*]], i8 noundef signext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
+// CHECK-LABEL: define dso_local spir_func void @_Z19test_schar_builtinsPaaaPN4sycl3_V13vecIaLi4EEENS2_IfLi4EEENS1_7nd_itemILi2EEENS1_9multi_ptrIaLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IaLSA_3ELSB_2EEE(
+// CHECK-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef signext [[X:%.*]], i8 noundef signext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 16 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x float>, ptr [[F2]], align 8
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[PTR_LOCAL]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD:%.*]] = load <4 x float>, ptr [[F2]], align 16
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_LOCAL]], align 8, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef signext i8 @_Z17__spirv_ocl_s_minaa(i8 noundef signext [[X]], i8 noundef signext [[Y]]) #[[ATTR3:[0-9]+]]
 // CHECK-NEXT:    store i8 [[CALL_I_I_I]], ptr addrspace(4) [[OUT]], align 1, !tbaa [[TBAA12:![0-9]+]]
 // CHECK-NEXT:    [[CALL_I_I30_I:%.*]] = tail call spir_func noundef signext i8 @_Z17__spirv_ocl_s_maxaa(i8 noundef signext [[X]], i8 noundef signext [[Y]]) #[[ATTR3]]
@@ -129,16 +129,16 @@ SYCL_EXTERNAL void test_char_builtins(
 // CHECK-NEXT:    [[CALL_I_I35_I:%.*]] = tail call spir_func noundef signext i8 @_Z19__spirv_ocl_s_rhaddaa(i8 noundef signext [[X]], i8 noundef signext [[Y]]) #[[ATTR3]]
 // CHECK-NEXT:    [[ARRAYIDX12_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[OUT]], i64 6
 // CHECK-NEXT:    store i8 [[CALL_I_I35_I]], ptr addrspace(4) [[ARRAYIDX12_I]], align 1, !tbaa [[TBAA12]]
-// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef <2 x i8> @_Z31__spirv_ConvertFToS_Rschar2_rteDv2_f(<2 x float> noundef [[TMP0]]) #[[ATTR3]]
-// CHECK-NEXT:    store <2 x i8> [[CALL_I_I_I_I]], ptr addrspace(4) [[OUT2]], align 2
-// CHECK-NEXT:    [[TMP3:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(1)
-// CHECK-NEXT:    [[TMP4:%.*]] = inttoptr i64 [[TMP2]] to ptr addrspace(3)
-// CHECK-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS3aPU3AS1Kamm9ocl_event(i32 noundef 2, ptr addrspace(3) noundef [[TMP4]], ptr addrspace(1) noundef [[TMP3]], i64 noundef 4, i64 noundef 1, target("spirv.Event") zeroinitializer) #[[ATTR4:[0-9]+]], !noalias [[META18:![0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef <4 x i8> @_Z31__spirv_ConvertFToS_Rschar4_rteDv4_f(<4 x float> noundef [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD]]) #[[ATTR3]]
+// CHECK-NEXT:    store <4 x i8> [[CALL_I_I_I_I]], ptr addrspace(4) [[OUT2]], align 4
+// CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(1)
+// CHECK-NEXT:    [[TMP3:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(3)
+// CHECK-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS3aPU3AS1Kamm9ocl_event(i32 noundef 2, ptr addrspace(3) noundef [[TMP3]], ptr addrspace(1) noundef [[TMP2]], i64 noundef 4, i64 noundef 1, target("spirv.Event") zeroinitializer) #[[ATTR4:[0-9]+]], !noalias [[META18:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_schar_builtins(
     signed char *out, signed char x, signed char y,
-    sycl::vec<signed char, 2> *out2, sycl::vec<float, 2> f2,
+    sycl::vec<signed char, 4> *out2, sycl::vec<float, 4> f2,
     sycl::nd_item<2> item,
     sycl::multi_ptr<signed char, sycl::access::address_space::global_space>
         ptr_global,
@@ -147,12 +147,12 @@ SYCL_EXTERNAL void test_schar_builtins(
   test_builtins(out, x, y, out2, f2, item, ptr_global, ptr_local);
 }
 
-// CHECK-LABEL: define dso_local spir_func void @_Z19test_schar_builtinsPhhhPN4sycl3_V13vecIhLi2EEENS2_IfLi2EEENS1_7nd_itemILi2EEENS1_9multi_ptrIhLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IhLSA_3ELSB_2EEE(
-// CHECK-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef zeroext [[X:%.*]], i8 noundef zeroext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define dso_local spir_func void @_Z19test_schar_builtinsPhhhPN4sycl3_V13vecIhLi4EEENS2_IfLi4EEENS1_7nd_itemILi2EEENS1_9multi_ptrIhLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IhLSA_3ELSB_2EEE(
+// CHECK-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef zeroext [[X:%.*]], i8 noundef zeroext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 16 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x float>, ptr [[F2]], align 8
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[PTR_LOCAL]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD:%.*]] = load <4 x float>, ptr [[F2]], align 16
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_LOCAL]], align 8, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef zeroext i8 @_Z17__spirv_ocl_u_minhh(i8 noundef zeroext [[X]], i8 noundef zeroext [[Y]]) #[[ATTR3]]
 // CHECK-NEXT:    store i8 [[CALL_I_I_I]], ptr addrspace(4) [[OUT]], align 1, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[CALL_I_I30_I:%.*]] = tail call spir_func noundef zeroext i8 @_Z17__spirv_ocl_u_maxhh(i8 noundef zeroext [[X]], i8 noundef zeroext [[Y]]) #[[ATTR3]]
@@ -173,16 +173,16 @@ SYCL_EXTERNAL void test_schar_builtins(
 // CHECK-NEXT:    [[CALL_I_I35_I:%.*]] = tail call spir_func noundef zeroext i8 @_Z19__spirv_ocl_u_rhaddhh(i8 noundef zeroext [[X]], i8 noundef zeroext [[Y]]) #[[ATTR3]]
 // CHECK-NEXT:    [[ARRAYIDX12_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[OUT]], i64 6
 // CHECK-NEXT:    store i8 [[CALL_I_I35_I]], ptr addrspace(4) [[ARRAYIDX12_I]], align 1, !tbaa [[TBAA12]]
-// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef <2 x i8> @_Z31__spirv_ConvertFToU_Ruchar2_rteDv2_f(<2 x float> noundef [[TMP0]]) #[[ATTR3]]
-// CHECK-NEXT:    store <2 x i8> [[CALL_I_I_I_I]], ptr addrspace(4) [[OUT2]], align 2
-// CHECK-NEXT:    [[TMP3:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(1)
-// CHECK-NEXT:    [[TMP4:%.*]] = inttoptr i64 [[TMP2]] to ptr addrspace(3)
-// CHECK-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS3hPU3AS1Khmm9ocl_event(i32 noundef 2, ptr addrspace(3) noundef [[TMP4]], ptr addrspace(1) noundef [[TMP3]], i64 noundef 4, i64 noundef 1, target("spirv.Event") zeroinitializer) #[[ATTR4]], !noalias [[META23:![0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef <4 x i8> @_Z31__spirv_ConvertFToU_Ruchar4_rteDv4_f(<4 x float> noundef [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD]]) #[[ATTR3]]
+// CHECK-NEXT:    store <4 x i8> [[CALL_I_I_I_I]], ptr addrspace(4) [[OUT2]], align 4
+// CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(1)
+// CHECK-NEXT:    [[TMP3:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(3)
+// CHECK-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS3hPU3AS1Khmm9ocl_event(i32 noundef 2, ptr addrspace(3) noundef [[TMP3]], ptr addrspace(1) noundef [[TMP2]], i64 noundef 4, i64 noundef 1, target("spirv.Event") zeroinitializer) #[[ATTR4]], !noalias [[META23:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_schar_builtins(
     unsigned char *out, unsigned char x, unsigned char y,
-    sycl::vec<unsigned char, 2> *out2, sycl::vec<float, 2> f2,
+    sycl::vec<unsigned char, 4> *out2, sycl::vec<float, 4> f2,
     sycl::nd_item<2> item,
     sycl::multi_ptr<unsigned char, sycl::access::address_space::global_space>
         ptr_global,
