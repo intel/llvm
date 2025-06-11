@@ -1237,8 +1237,6 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 ur_result_t urGetAdapterProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t,
     /// [in,out] pointer to table of DDI function pointers
     ur_adapter_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
@@ -1431,8 +1429,8 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::tsan::urGetAdapterProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Adapter);
+    result =
+        ur_sanitizer_layer::tsan::urGetAdapterProcAddrTable(&dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
