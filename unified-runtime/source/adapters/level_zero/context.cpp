@@ -339,6 +339,20 @@ ur_result_t ur_context_handle_t_::finalize() {
       }
       ZePoolCache.clear();
     }
+    for (auto &ZePool : ZePoolCleanupList) {
+      if (NumEventsAvailableInEventPool[ZePool] == 0 &&
+          checkL0LoaderTeardown()) {
+        auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+          return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
+      }
+    }
+    ZePoolCleanupList.clear();
   }
 
   if (checkL0LoaderTeardown()) {
@@ -423,6 +437,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
       if (DisableEventsCaching) {
         // Remove full pool from the cache if events caching is disabled.
+        // also add pool to cleanup list to prevent leaks.
+        ZePoolCleanupList.push_back(*ZePoolCache->begin());
         ZePoolCache->erase(ZePoolCache->begin());
       } else {
         // If event caching is enabled then we don't destroy events so there is
