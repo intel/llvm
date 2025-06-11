@@ -42,9 +42,13 @@ struct ur_queue_handle_t_ : RefCounted {
     while (!events.empty()) {
       auto ev = *events.begin();
       // ur_event_handle_t_::wait removes itself from the events set in the
-      // queue. Since removeEvent locks the mutex we need to unlock it here.
+      // queue.
+      ev->incrementReferenceCount();
+      // Unlocking mutex for removeEvent and for event callbacks that may need
+      // to acquire it.
       lock.unlock();
       ev->wait();
+      decrementOrDelete(ev);
       lock.lock();
     }
     events.clear();
