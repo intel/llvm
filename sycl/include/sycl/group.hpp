@@ -292,8 +292,7 @@ public:
                                 access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    uint32_t flags =
-        detail::getSPIRVMemorySemanticsMask(accessSpace);
+    uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory
     // barrier only for load operations or only for store operations.
     // The full read-and-write barrier is used and the template parameter
@@ -339,11 +338,13 @@ public:
   /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
   __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
-  std::enable_if_t<!detail::is_bool<dataT>::value,
-                   device_event> async_work_group_copy([[maybe_unused]] global_ptr<dataT> dest,
-                                                       [[maybe_unused]] local_ptr<dataT> src,
-                                                       [[maybe_unused]] size_t numElements,
-                                                       [[maybe_unused]] size_t destStride)
+  std::enable_if_t<
+      !detail::is_bool<dataT>::value,
+      device_event> async_work_group_copy([[maybe_unused]] global_ptr<dataT>
+                                              dest,
+                                          [[maybe_unused]] local_ptr<dataT> src,
+                                          [[maybe_unused]] size_t numElements,
+                                          [[maybe_unused]] size_t destStride)
       const {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_event_t E = __spirv_GroupAsyncCopy(

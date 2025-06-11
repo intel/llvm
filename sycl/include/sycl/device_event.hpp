@@ -20,7 +20,7 @@ inline namespace _V1 {
 /// \ingroup sycl_api
 class device_event {
 private:
-  [[maybe_unused]] __ocl_event_t m_Event;
+  __ocl_event_t m_Event;
 
 public:
   device_event(const device_event &rhs) = default;
@@ -31,6 +31,7 @@ public:
   device_event(__ocl_event_t Event) : m_Event(Event) {}
 
   void wait() {
+    (void)m_Event;
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_GroupWaitEvents(__spv::Scope::Workgroup, 1, &m_Event);
 #endif
