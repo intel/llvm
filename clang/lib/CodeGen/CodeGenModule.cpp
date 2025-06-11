@@ -4320,6 +4320,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     }
   }
 
+  // Don't emit 'sycl_device_only' function in SYCL host compilation.
+  if (LangOpts.SYCLIsHost && isa<FunctionDecl>(Global) &&
+      Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+    return;
+  }
+
   if (LangOpts.OpenMP) {
     // If this is OpenMP, check if it is legal to emit this global normally.
     if (OpenMPRuntime && OpenMPRuntime->emitTargetGlobal(GD))
