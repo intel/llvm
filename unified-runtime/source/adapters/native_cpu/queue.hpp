@@ -51,7 +51,6 @@ struct ur_queue_handle_t_ : RefCounted {
       decrementOrDelete(ev);
       lock.lock();
     }
-    events.clear();
   }
 
   ~ur_queue_handle_t_() { finish(); }
