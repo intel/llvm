@@ -6596,7 +6596,8 @@ public:
       }
       O << TemplateParameters;
       O << FD->getReturnType().getAsString() << " ";
-      O << FD->getNameAsString() << "(" << Args << ");";
+      FD->printName(O, Policy);
+      O << "(" << Args << ");";
       if (NSInserted) {
         O << "\n";
         PrintNSClosingBraces(O, FD);
@@ -7060,6 +7061,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
       FFPrinter.printFreeFunctionDeclaration(FTD, S);
+      if (K.SyclKernel->isFunctionTemplateSpecialization()) {
+        O << "template <> ";
+        FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
+      }
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }

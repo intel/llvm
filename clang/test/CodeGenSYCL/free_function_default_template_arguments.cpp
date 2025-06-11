@@ -268,16 +268,19 @@ namespace Testing::Tests {
 // CHECK-NEXT: }
 
 // CHECK: template <typename T> void templated(ns::Arg<T, float, 3, ns::notatuple> , T end);
+// CHECK-NEXT: template <> void templated(ns::Arg<int, float, 3, ns::notatuple> , int end);
 // CHECK-NEXT: static constexpr auto __sycl_shim3() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<int, float, 3, struct ns::notatuple>, int))templated<int>;
 // CHECK-NEXT: }
 
 // CHECK: template <typename T> void templated2(ns::Arg<T, ns::notatuple, 12, ns::notatuple> , T end);
+// CHECK-NEXT: template <> void templated2(ns::Arg<int, ns::notatuple, 12, ns::notatuple> , int end);
 // CHECK-NEXT: static constexpr auto __sycl_shim4() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<int, struct ns::notatuple, 12, struct ns::notatuple>, int))templated2<int>;
 // CHECK-NEXT: }
 
 // CHECK: template <typename T, int a> void templated3(ns::Arg<T, ns::notatuple, a, ns::ns1::hasDefaultArg<ns::notatuple>, int, int> , T end);
+// CHECK-NEXT: template <> void templated3(ns::Arg<int, ns::notatuple, 3, ns::ns1::hasDefaultArg<ns::notatuple>, int, int> , int end);
 // CHECK-NEXT: static constexpr auto __sycl_shim5() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<int, struct ns::notatuple, 3, class ns::ns1::hasDefaultArg<struct ns::notatuple>, int, int>, int))templated3<int, 3>;
 // CHECK-NEXT: }
@@ -371,6 +374,7 @@ namespace Testing::Tests {
 
 // CHECK: struct TestStruct;
 // CHECK: template <typename T> void templated(ns::Arg<T, float, 3, ns::notatuple> , T end);
+// CHECK-NEXT: template <> void templated(ns::Arg<TestStruct, float, 3, ns::notatuple> , TestStruct end);
 // CHECK-NEXT: static constexpr auto __sycl_shim12() {
 // CHECK-NEXT:  return (void (*)(struct ns::Arg<struct TestStruct, float, 3, struct ns::notatuple>, struct TestStruct))templated<struct TestStruct>;
 // CHECK-NEXT:}
@@ -554,6 +558,7 @@ namespace Testing::Tests {
 // CHECK-NEXT:  }
 
 // CHECK: template <typename ... Args> void variadic_templated(Args... args);
+// CHECK-NEXT: template <> void variadic_templated(int args, float args, char args);
 // CHECK-NEXT: static constexpr auto __sycl_shim22() {
 // CHECK-NEXT:  return (void (*)(int, float, char))variadic_templated<int, float, char>;
 // CHECK-NEXT: }
@@ -569,6 +574,7 @@ namespace Testing::Tests {
 // CHECK-NEXT: }
 
 // CHECK: template <typename ... Args> void variadic_templated(Args... args);
+// CHECK-NEXT: template <> void variadic_templated(int args, float args, char args, int args);
 // CHECK-NEXT: static constexpr auto __sycl_shim23() {
 // CHECK-NEXT:  return (void (*)(int, float, char, int))variadic_templated<int, float, char, int>;
 // CHECK-NEXT: }
@@ -584,6 +590,7 @@ namespace Testing::Tests {
 // CHECK-NEXT: }
 
 // CHECK: template <typename ... Args> void variadic_templated(Args... args);
+// CHECK-NEXT: template <> void variadic_templated(float args, float args);
 // CHECK-NEXT: static constexpr auto __sycl_shim24() {
 // CHECK-NEXT:  return (void (*)(float, float))variadic_templated<float, float>;
 // CHECK-NEXT: }
@@ -599,6 +606,7 @@ namespace Testing::Tests {
 // CHECK-NEXT: }
 
 // CHECK: template <typename T, typename ... Args> void variadic_templated1(T b, Args... args);
+// CHECK-NEXT: template <> void variadic_templated1(float b, char args, char args);
 // CHECK-NEXT: static constexpr auto __sycl_shim25() {
 // CHECK-NEXT:  return (void (*)(float, char, char))variadic_templated1<float, char, char>;
 // CHECK-NEXT: }
@@ -614,6 +622,7 @@ namespace Testing::Tests {
 // CHECK-NEXT: }
 
 // CHECK: template <typename T, typename ... Args> void variadic_templated1(T b, Args... args);
+// CHECK-NEXT: template <> void variadic_templated1(int b, float args, char args);
 // CHECK-NEXT: static constexpr auto __sycl_shim26() {
 // CHECK-NEXT:  return (void (*)(int, float, char))variadic_templated1<int, float, char>;
 // CHECK-NEXT: }
