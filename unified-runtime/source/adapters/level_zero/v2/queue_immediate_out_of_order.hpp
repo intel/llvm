@@ -30,11 +30,11 @@ private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
 
+  v2::raii::cache_borrowed_event_pool eventPool;
+
   std::atomic<uint32_t> commandListIndex = 0;
   lockable<std::array<ur_command_list_manager, numCommandLists>>
       commandListManagers;
-
-  v2::raii::cache_borrowed_event_pool eventPool;
 
   ur_queue_flags_t flags;
 
