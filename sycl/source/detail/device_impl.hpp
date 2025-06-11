@@ -16,16 +16,15 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <utility>
 
 namespace sycl {
 inline namespace _V1 {
-
-// Forward declaration
-class platform;
 
 namespace detail {
 
@@ -885,11 +884,10 @@ public:
     }
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
-      if (getBackend() != backend::ext_oneapi_cuda)
-        return false;
-
-      return get_info_impl_nocheck<UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP>()
-                 .value_or(0) != 0;
+      auto SupportFlags =
+          get_info_impl<UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES>();
+      return static_cast<bool>(
+          SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
     // ext_codeplay_device_traits.def
@@ -1467,8 +1465,6 @@ public:
         return false;
       }
 
-      /* The kernel handle update capability is not yet required for the
-       * ext_oneapi_graph aspect */
       ur_device_command_buffer_update_capability_flags_t RequiredCapabilities =
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
@@ -1821,6 +1817,7 @@ public:
         {0x05004000, oneapi_exp_arch::intel_gpu_bmg_g21}, // A0
         {0x05004001, oneapi_exp_arch::intel_gpu_bmg_g21}, // A1
         {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21}, // B0
+        {0x05008000, oneapi_exp_arch::intel_gpu_bmg_g31}, // A0
         {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
         {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
         {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
@@ -1828,6 +1825,7 @@ public:
         {0x07800004, oneapi_exp_arch::intel_gpu_ptl_h},   // B0
         {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
         {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
+        {0x0780c000, oneapi_exp_arch::intel_gpu_wcl},     // A0
     };
 
     // Only for Intel CPU architectures
@@ -2203,7 +2201,7 @@ private:
   // This is used for getAdapter so should be above other properties.
   std::shared_ptr<platform_impl> MPlatform;
 
-  // TODO: Does this have a race?
+  std::shared_mutex MDeviceHostBaseTimeMutex;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;

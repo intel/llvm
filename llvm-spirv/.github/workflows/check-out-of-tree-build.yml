@@ -16,6 +16,9 @@ on:
       - '**.md'   # README
       - '**/check-code-style.yml' # check-code-style workflow
       - '**/check-in-tree-build.yml' # check-in-tree-build workflow
+      - '**/backport-to-branch.yml' # backport-to-branch workflow
+      - '**/patch-release.yaml' # patch-release workflow
+
   pull_request:
     branches:
       - main
@@ -25,6 +28,20 @@ on:
       - '**.md'   # README
       - '**/check-code-style.yml' # check-code-style workflow
       - '**/check-in-tree-build.yml' # check-in-tree-build workflow
+      - '**/backport-to-branch.yml' # backport-to-branch workflow
+      - '**/patch-release.yaml' # patch-release workflow
+  repository_dispatch:
+    types: [backport-complete]
+    branches:
+      - main
+      - llvm_release_*
+    paths-ignore: # no need to check formatting for:
+      - 'docs/**' # documentation
+      - '**.md'   # README
+      - '**/check-code-style.yml' # check-code-style workflow
+      - '**/check-in-tree-build.yml' # check-in-tree-build workflow
+      - '**/backport-to-branch.yml' # backport-to-branch workflow
+      - '**/patch-release.yaml' # patch-release workflow
   schedule:
     - cron: 0 0 * * *
 

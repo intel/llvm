@@ -166,14 +166,17 @@ void dumpConfig() {
 // ONEAPI_DEVICE_SELECTOR
 // TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
 // is removed.
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
-  static const std::array<std::pair<std::string, backend>, 7> SyclBeMap = {
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
+  static const std::array<std::pair<std::string, backend>, 8> SyclBeMap = {
       {{"host", backend::host},
        {"opencl", backend::opencl},
        {"level_zero", backend::ext_oneapi_level_zero},
        {"cuda", backend::ext_oneapi_cuda},
        {"hip", backend::ext_oneapi_hip},
        {"native_cpu", backend::ext_oneapi_native_cpu},
+       // Note: Offload is intentionally excluded from our documentation - it's
+       // only used for internal testing
+       {"offload", backend::ext_oneapi_offload},
        {"*", backend::all}}};
   return SyclBeMap;
 }

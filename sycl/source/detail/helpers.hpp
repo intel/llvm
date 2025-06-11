@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/kernel_name_str_t.hpp>
+
 #include <ur_api.h>
 
 #include <memory>
@@ -27,7 +29,7 @@ void waitEvents(std::vector<sycl::event> DepEvents);
 #endif
 
 std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
-retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
+retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
                      CGExecKernel *CGKernel = nullptr);
 } // namespace detail
 } // namespace _V1

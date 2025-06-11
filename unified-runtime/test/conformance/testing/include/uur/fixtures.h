@@ -1498,7 +1498,7 @@ struct KernelLaunchHelper {
     size_t offset = 0;
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &offset,
                                          &global_size, &local_size, 0, nullptr,
-                                         nullptr));
+                                         0, nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
   }
 

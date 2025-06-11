@@ -567,3 +567,9 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
+                                                          void *, const void *,
+                                                          size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
