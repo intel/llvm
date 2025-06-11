@@ -13,6 +13,7 @@
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
+
 #include <vector>
 
 namespace sycl {
@@ -52,7 +53,6 @@ get_kernel_info(const queue &Q) {
       Q.get_device());
 }
 
-} // namespace experimental
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
