@@ -825,7 +825,7 @@ static bool isDeclaredInSYCLNamespace(const Decl *D) {
     ND = cast<NamespaceDecl>(Parent);
   }
 
-  return ND && ND->getName() == "sycl";
+  return ND->getName() == "sycl";
 }
 
 static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
