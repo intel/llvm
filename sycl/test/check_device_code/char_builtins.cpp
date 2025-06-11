@@ -2,6 +2,10 @@
 // RUN: %clangxx -I %sycl_include -fno-discard-value-names -fsigned-char -O3 -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-SCHAR
 // RUN: %clangxx -I %sycl_include -fno-discard-value-names -fno-signed-char -O3 -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-UCHAR
 
+// Note: we've used update_cc_test_checks but because the mangling of multi_ptr
+// differs on different hosts, the check has been updated not to rely on the
+// specific numeric suffix, e.g., %"class.sycl::_V1::multi_ptr{{.*}}".
+
 #include <sycl/sycl.hpp>
 
 template <typename T>
@@ -26,7 +30,7 @@ SYCL_EXTERNAL void test_builtins(
 }
 
 // CHECK-SCHAR-LABEL: define dso_local spir_func void @_Z18test_char_builtinsPcccPN4sycl3_V13vecIcLi2EEENS2_IfLi2EEENS1_7nd_itemILi2EEENS1_9multi_ptrIcLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IcLSA_3ELSB_2EEE(
-// CHECK-SCHAR-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef signext [[X:%.*]], i8 noundef signext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.32") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
+// CHECK-SCHAR-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef signext [[X:%.*]], i8 noundef signext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-SCHAR-NEXT:  [[ENTRY:.*:]]
 // CHECK-SCHAR-NEXT:    [[TMP0:%.*]] = load <2 x float>, ptr [[F2]], align 8
 // CHECK-SCHAR-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
@@ -59,7 +63,7 @@ SYCL_EXTERNAL void test_builtins(
 // CHECK-SCHAR-NEXT:    ret void
 //
 // CHECK-UCHAR-LABEL: define dso_local spir_func void @_Z18test_char_builtinsPcccPN4sycl3_V13vecIcLi2EEENS2_IfLi2EEENS1_7nd_itemILi2EEENS1_9multi_ptrIcLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IcLSA_3ELSB_2EEE(
-// CHECK-UCHAR-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef zeroext [[X:%.*]], i8 noundef zeroext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.32") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
+// CHECK-UCHAR-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef zeroext [[X:%.*]], i8 noundef zeroext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-UCHAR-NEXT:  [[ENTRY:.*:]]
 // CHECK-UCHAR-NEXT:    [[TMP0:%.*]] = load <2 x float>, ptr [[F2]], align 8
 // CHECK-UCHAR-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
@@ -100,7 +104,7 @@ SYCL_EXTERNAL void test_char_builtins(
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z19test_schar_builtinsPaaaPN4sycl3_V13vecIaLi2EEENS2_IfLi2EEENS1_7nd_itemILi2EEENS1_9multi_ptrIaLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IaLSA_3ELSB_2EEE(
-// CHECK-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef signext [[X:%.*]], i8 noundef signext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.83") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.84") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
+// CHECK-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef signext [[X:%.*]], i8 noundef signext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load <2 x float>, ptr [[F2]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7:![0-9]+]]
@@ -144,7 +148,7 @@ SYCL_EXTERNAL void test_schar_builtins(
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z19test_schar_builtinsPhhhPN4sycl3_V13vecIhLi2EEENS2_IfLi2EEENS1_7nd_itemILi2EEENS1_9multi_ptrIhLNS1_6access13address_spaceE1ELNS9_9decoratedE2EEENS8_IhLSA_3ELSB_2EEE(
-// CHECK-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef zeroext [[X:%.*]], i8 noundef zeroext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.137") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.138") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0]] !sycl_fixed_targets [[META6]] {
+// CHECK-SAME: ptr addrspace(4) noundef writeonly captures(none) initializes((0, 7)) [[OUT:%.*]], i8 noundef zeroext [[X:%.*]], i8 noundef zeroext [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 2)) [[OUT2:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec") align 8 captures(none) [[F2:%.*]], ptr noundef readnone byval(%"class.sycl::_V1::nd_item") align 1 captures(none) [[ITEM:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_GLOBAL:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr{{.*}}") align 8 captures(none) [[PTR_LOCAL:%.*]]) local_unnamed_addr #[[ATTR0]] !sycl_fixed_targets [[META6]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load <2 x float>, ptr [[F2]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[PTR_GLOBAL]], align 8, !tbaa [[TBAA7]]
