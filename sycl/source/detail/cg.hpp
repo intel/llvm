@@ -91,6 +91,10 @@ public:
       LocalSize[I] = LocalSizes[I];
       GlobalOffset[I] = Offset[I];
     }
+    
+    for (int I = Dims_; I < 3; ++I) {
+      LocalSize[I] = LocalSizes[0] ? 1 : 0;
+    }
   }
 
   template <int Dims_>
