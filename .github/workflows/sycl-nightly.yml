@@ -154,6 +154,19 @@ jobs:
       build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
       build_target: all
 
+  # This debug build is used in CI for testing purposes: The way MSVC CRT and
+  # STL works results in the runtime needing to consider special cases when
+  # debug flags are used. This build is used to test the runtime changes that
+  # would otherwise be untested without debug flags. 
+  build-win-debug:
+    uses: ./.github/workflows/sycl-windows-build.yml
+    if: github.repository == 'intel/llvm'
+    with:
+      retention-days: 7
+      artifact_archive_name: sprod_windows_debug.tar.gz
+      build_configure_extra_args: -t Debug -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -D_DEBUG=1
+      # CMAKE_BUILD_TYPE=Debug provides /Od and /MDd
+
   e2e-win:
     needs: build-win
     # Continue if build was successful.
@@ -167,6 +180,20 @@ jobs:
       runner: '["Windows","gen12"]'
       target_devices: level_zero:gpu
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+
+  e2e-win-debug:
+    needs: build-win-debug
+    # Continue if build was successful.
+    if: |
+      always()
+      && !cancelled()
+      && needs.build-win-debug.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: Intel GEN12 Graphics with Level Zero
+      runner: '["Windows","gen12"]'
+      target_devices: level_zero:gpu
+      sycl_toolchain_archive: ${{ needs.build-win-debug.outputs.artifact_archive_name }}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
