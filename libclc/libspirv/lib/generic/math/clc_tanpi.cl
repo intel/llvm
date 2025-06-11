@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sincos_helpers.h"
-#include <clc/math/clc_sincos_helpers.h>
-#include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <clc/math/tables.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_sincos_helpers.h>
 #include <clc/math/math.h>
+#include <clc/math/tables.h>
+#include <clc/opencl/clc.h>
+#include <libspirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_tanpi(float x)
 {

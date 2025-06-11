@@ -284,13 +284,14 @@ jobs:
     needs: [ubuntu2204_build]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
+      fail-fast: false
       matrix:
+        runner: ['["PVC_PERF"]', '["BMG_PERF"]']
+        backend: ['level_zero:gpu', 'level_zero_v2:gpu']
         include:
           - ref: ${{ github.sha }}
-            save_name: Baseline
-            runner: '["PVC_PERF"]'
-            backend: 'level_zero:gpu'
-            preset: Minimal
+            save_name: 'Baseline'
+            preset: 'Minimal'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
@@ -332,7 +333,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@v2.2.2
+      uses: softprops/action-gh-release@v2.3.0
       with:
         files: |
           sycl_linux.tar.gz

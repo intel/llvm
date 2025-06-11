@@ -895,7 +895,7 @@ public:
   // Define a fake option named "First" so that we have a PREVIOUS even for the
   // real first option.
   static constexpr storage_type FirstShift = 0, FirstWidth = 0;
-#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+#define FP_OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                 \
   static constexpr storage_type NAME##Shift =                                  \
       PREVIOUS##Shift + PREVIOUS##Width;                                       \
   static constexpr storage_type NAME##Width = WIDTH;                           \
@@ -904,7 +904,7 @@ public:
 #include "clang/Basic/FPOptions.def"
 
   static constexpr storage_type TotalWidth = 0
-#define OPTION(NAME, TYPE, WIDTH, PREVIOUS) +WIDTH
+#define FP_OPTION(NAME, TYPE, WIDTH, PREVIOUS) +WIDTH
 #include "clang/Basic/FPOptions.def"
       ;
   static_assert(TotalWidth <= StorageBitSize, "Too short type for FPOptions");
@@ -1013,7 +1013,7 @@ public:
   // We can define most of the accessors automatically:
   // TODO: consider enforcing the assertion that value fits within bits
   // statically.
-#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+#define FP_OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                 \
   TYPE get##NAME() const {                                                     \
     return static_cast<TYPE>((Value & NAME##Mask) >> NAME##Shift);             \
   }                                                                            \
@@ -1124,7 +1124,7 @@ public:
   }
   bool operator!=(FPOptionsOverride other) const { return !(*this == other); }
 
-#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+#define FP_OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                 \
   bool has##NAME##Override() const {                                           \
     return OverrideMask & FPOptions::NAME##Mask;                               \
   }                                                                            \

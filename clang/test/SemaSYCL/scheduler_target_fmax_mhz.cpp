@@ -3,7 +3,7 @@
 // Test that checks scheduler_target_fmax_mhz attribute support on Function.
 
 // Test for removed deprecated spelling of scheduler_target_fmax_mhz attribute.
-// expected-warning@+1 {{unknown attribute 'scheduler_target_fmax_mhz' ignored}}
+// expected-warning@+1 {{unknown attribute 'intelfpga::scheduler_target_fmax_mhz' ignored}}
 [[intelfpga::scheduler_target_fmax_mhz(2)]] void deprecate() {}
 
 // Tests for incorrect argument values for Intel FPGA scheduler_target_fmax_mhz function attribute.

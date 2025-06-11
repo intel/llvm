@@ -16,6 +16,9 @@ struct urUpdatableEnqueueCommandBufferExpTest
     : uur::command_buffer::urUpdatableCommandBufferExpExecutionTest {
 
   virtual void SetUp() override {
+    // https://github.com/intel/llvm/issues/18722
+    UUR_KNOWN_FAILURE_ON(uur::HIP{});
+
     program_name = "cpy_and_mult_usm";
     UUR_RETURN_ON_FATAL_FAILURE(
         urUpdatableCommandBufferExpExecutionTest::SetUp());
@@ -184,9 +187,6 @@ TEST_P(urUpdatableEnqueueCommandBufferExpTest, SerializeAcrossQueues) {
 // Tests that submitting a command-buffer twice to an out-of-order queue
 // relying on implicit serialization semantics for dependencies.
 TEST_P(urUpdatableEnqueueCommandBufferExpTest, SerializeOutofOrderQueue) {
-  // See https://github.com/intel/llvm/issues/18722
-  UUR_KNOWN_FAILURE_ON(uur::HIP{});
-
   // First submission to out-of-order queue
   ASSERT_SUCCESS(urEnqueueCommandBufferExp(
       out_of_order_queue, updatable_cmd_buf_handle, 0, nullptr, nullptr));

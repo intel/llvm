@@ -247,7 +247,7 @@ private:
   ZeStruct<ze_image_desc_t> zeImageDesc;
 };
 
-struct ur_mem_handle_t_ {
+struct ur_mem_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   template <typename T, typename... Args>
   static ur_mem_handle_t_ *create(Args &&...args) {
     return new ur_mem_handle_t_(std::in_place_type<T>,
@@ -293,7 +293,8 @@ struct ur_mem_handle_t_ {
 private:
   template <typename T, typename... Args>
   ur_mem_handle_t_(std::in_place_type_t<T>, Args &&...args)
-      : mem(std::in_place_type<T>, std::forward<Args>(args)...) {}
+      : ur::handle_base<ur::level_zero::ddi_getter>(),
+        mem(std::in_place_type<T>, std::forward<Args>(args)...) {}
 
   std::variant<ur_usm_handle_t, ur_integrated_buffer_handle_t,
                ur_discrete_buffer_handle_t, ur_shared_buffer_handle_t,

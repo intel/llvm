@@ -30,8 +30,17 @@ enable_testing()
 # It is found here for use in `lit.site.cfg.py.in`, which is inherited by said testing.
 find_program(VALGRIND valgrind)
 
+function(ur_configure_file input output main_file)
+  configure_file(${input} ${output} @ONLY)
+  if(NOT UR_STANDALONE_BUILD)
+    get_property(LLVM_LIT_CONFIG_FILES GLOBAL PROPERTY LLVM_LIT_CONFIG_FILES)
+    list(APPEND LLVM_LIT_CONFIG_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${main_file}" "${CMAKE_CURRENT_BINARY_DIR}/${output}")
+    set_property(GLOBAL PROPERTY LLVM_LIT_CONFIG_FILES ${LLVM_LIT_CONFIG_FILES})
+  endif()
+endfunction()
+
 # Set up the root `check-unified-runtime` target
-configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+ur_configure_file(lit.site.cfg.py.in lit.site.cfg.py lit.cfg.py)
 add_custom_target(deps_check-unified-runtime)
 if(UR_STANDALONE_BUILD)
   add_custom_target(check-unified-runtime
@@ -60,7 +69,7 @@ function(add_ur_lit_testsuite suite)
   set(TARGET "check-unified-runtime-${suite}")
 
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in)
-    configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+    ur_configure_file(lit.site.cfg.py.in lit.site.cfg.py lit.cfg.py)
   endif()
 
   if(UR_STANDALONE_BUILD)
