@@ -771,10 +771,10 @@ public:
   std::unordered_map<sycl::device, ur_exp_command_buffer_handle_t>
       MCommandBuffers;
   /// List of predecessors to this partition.
-  std::vector<std::weak_ptr<partition>> MPredecessors;
+  std::vector<partition *> MPredecessors;
 
   /// List of successors to this partition.
-  std::vector<std::weak_ptr<partition>> MSuccessors;
+  std::vector<partition *> MSuccessors;
 
   /// List of requirements for this partition.
   std::vector<sycl::detail::AccessorImplHost *> MRequirements;

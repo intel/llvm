@@ -315,8 +315,8 @@ void exec_graph_impl::makePartitions() {
       for (const auto &Dep : RootNode->MPredecessors) {
         auto NodeDep = Dep.lock();
         auto &Predecessor = MPartitions[MPartitionNodes[NodeDep]];
-        Partition->MPredecessors.push_back(Predecessor);
-        Predecessor->MSuccessors.push_back(Partition);
+        Partition->MPredecessors.push_back(Predecessor.get());
+        Predecessor->MSuccessors.push_back(Partition.get());
       }
     }
   }
@@ -1134,7 +1134,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
   UrEventHandles.reserve(WaitEvents.size());
   for (auto &SyclWaitEvent : WaitEvents) {
     auto URHandle = SyclWaitEvent->getHandle();
-    if (URHandle) {
+    if (auto URHandle = SyclWaitEvent->getHandle()) {
       UrEventHandles.push_back(URHandle);
     }
   }
@@ -1177,6 +1177,10 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
   // for the returned event. This is used when the graph has multiple end nodes
   // which cannot be tracked with a single scheduler event.
   std::vector<EventImplPtr> PostCompleteDependencies;
+  // TODO After refactoring the event class to use enable_shared_from_this, the
+  // events used in PostCompleteDependencies can become raw pointers as long as
+  // Event->attachEventToComplete() extends the lifetime of the pointer with
+  // shared_from_this.
 
   // This variable represents the returned event. It will always be nullptr if
   // EventNeeded is false.
@@ -1202,12 +1206,9 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
       // partitions. To enforce this ordering, we need to add these dependencies
       // to CGData.
       for (auto &Predecessor : Partition->MPredecessors) {
-        CGData.MEvents.push_back(Predecessor.lock()->MEvent);
+        CGData.MEvents.push_back(Predecessor->MEvent);
       }
     }
-
-    bool IsLastPartition = (Partition == MPartitions.back());
-    EventImplPtr EnqueueEvent;
 
     // We always need to request an event to use as dependency between
     // partitions executions and between graph executions because the
@@ -1216,6 +1217,7 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
     // in-order.
     constexpr bool RequestEvent = true;
 
+    EventImplPtr EnqueueEvent;
     if (Partition->MIsHostTask) {
       // The event returned by a host-task is always needed to synchronize with
       // other partitions or to be used by the sycl queue as a dependency for
@@ -1252,8 +1254,9 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
       // parallel.
       MSchedulerDependencies.push_back(EnqueueEvent);
       if (EventNeeded) {
+        const bool IsLastPartition = (Partition == MPartitions.back());
         if (IsLastPartition) {
-          // If we are in the last partition copy the event to SignalEvent,
+          // If we are in the last partition move the event to SignalEvent,
           // so that it can be returned to the user.
           SignalEvent = std::move(EnqueueEvent);
         } else {
