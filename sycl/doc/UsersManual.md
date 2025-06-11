@@ -395,7 +395,13 @@ and not recommended to use in production environment.
     offload compilation.
     This option is replaced with -save-offload-code.
 
-    NOTE: This flag is currently only supported with the CUDA and SPIR-V targets.    
+    NOTE: This flag is currently only supported in
+    SYCL offloading to the CUDA and SPIR-V targets.
+
+ **`-save-offload-code`**
+    Enable saving of device object files during an offload compilation.
+    NOTE: This flag is currently only supported in
+    SYCL offloading to the CUDA and SPIR-V targets.
 
 **`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
 
