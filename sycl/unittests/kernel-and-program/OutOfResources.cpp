@@ -109,6 +109,33 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreate) {
   }
 }
 
+static ur_result_t ProgramCreateWithILAlwaysFail(void *) {
+  return ErrorCode;
+}
+
+TEST_P(OutOfResourcesTestSuite, urProgramCreateAlwaysFail) {
+  sycl::unittest::UrMock<> Mock;
+  ErrorCode = GetParam();
+  mock::getCallbacks().set_before_callback("urProgramCreateWithIL",
+                                           &ProgramCreateWithILAlwaysFail);
+
+  sycl::platform Plt{sycl::platform()};
+  sycl::context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  queue q(Ctx, default_selector_v);
+
+  bool threwException = false;
+
+  try {
+    q.single_task<class OutOfResourcesKernel1>([] {});
+  } catch (exception &Ex) {
+    auto Code = detail::get_ur_error(Ex);
+    EXPECT_EQ(Code, ErrorCode);
+    threwException = true;
+  }
+  EXPECT_TRUE(threwException);
+}
+
 static int nProgramLink = 0;
 
 static ur_result_t redefinedProgramLink(void *) {
