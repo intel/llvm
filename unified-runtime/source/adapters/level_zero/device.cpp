@@ -281,7 +281,8 @@ ur_result_t urDeviceGetInfo(
             {maxBandwidth, extProp.readBandwidth, extProp.writeBandwidth});
       }
     }
-    return ReturnValue(uint64_t{maxBandwidth});
+    // Convert to Bytes/sec from Bytes/nanosec
+    return ReturnValue(static_cast<uint64_t>(maxBandwidth * 1e9));
   }
   case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(
