@@ -91,6 +91,9 @@ public:
   // Queue associated with this event. Can be nullptr (for native events)
   ur_queue_t_ *getQueue() const;
 
+  // UR handle associated with this event's queue.
+  ur_queue_handle_t getURQueueHandle() const;
+
   // Context associated with this event
   ur_context_handle_t getContext() const;
 

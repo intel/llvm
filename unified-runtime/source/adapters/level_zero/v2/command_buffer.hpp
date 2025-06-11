@@ -18,7 +18,25 @@
 #include "queue_api.hpp"
 #include <unordered_set>
 #include <ze_api.h>
+
 struct kernel_command_handle;
+
+struct ur_execution_event_handle_t {
+  ur_execution_event_handle_t(ur_event_handle_t event) : hEvent(event) {}
+
+  ur_execution_event_handle_t(const ur_execution_event_handle_t &) = delete;
+  ur_execution_event_handle_t &
+  operator=(const ur_execution_event_handle_t &) = delete;
+
+  ur_result_t assign(ur_event_handle_t hNewEvent);
+  ur_event_handle_t get();
+  ur_result_t release();
+
+  ~ur_execution_event_handle_t();
+
+private:
+  ur_event_handle_t hEvent;
+};
 
 struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_exp_command_buffer_handle_t_(
@@ -72,7 +90,7 @@ private:
   // Indicates if command-buffer was finalized.
   bool isFinalized = false;
 
-  ur_event_handle_t currentExecution = nullptr;
+  ur_execution_event_handle_t currentExecution;
 
 public:
   // Indicates if command-buffer commands can be updated after it is closed.
