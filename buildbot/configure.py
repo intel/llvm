@@ -163,6 +163,9 @@ def do_configure(args, passthrough_args):
             spirv_enable_dis = "ON"
             sycl_install_device_config_file = "ON"
 
+        # Build compiler with zstd in CI.
+        llvm_enable_zstd = "FORCE_ON"
+
     if args.enable_backends:
         sycl_enabled_backends += args.enable_backends
 
