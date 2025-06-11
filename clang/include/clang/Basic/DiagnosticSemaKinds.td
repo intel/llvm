@@ -9478,8 +9478,6 @@ def err_deleted_inherited_ctor_use : Error<
 def note_called_by : Note<"called by %0">;
 def err_kern_type_not_void_return : Error<
   "kernel function type %0 must have void return type">;
-def err_kern_is_nonstatic_method : Error<
-  "kernel function %0 must be a free function or static member function">;
 def err_config_scalar_return : Error<
   "CUDA special function '%0' must have scalar return type">;
 def err_kern_call_not_global_function : Error<
@@ -12989,6 +12987,9 @@ def err_free_function_return_type : Error<
   "SYCL free function kernel should have return type 'void'">;
 def err_free_function_first_occurrence_missing_attr: Error<
   "the first occurrence of SYCL kernel free function should be declared with 'sycl-nd-range-kernel' or 'sycl-single-task-kernel' compile time properties">;
+def err_free_function_class_method : Error<
+  "%select{static |}0class method cannot be used to define a SYCL kernel free function kernel">;
+
 
 // SYCL kernel entry point diagnostics
 def err_sycl_entry_point_invalid : Error<

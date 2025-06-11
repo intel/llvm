@@ -59,7 +59,7 @@ __device__ __attribute__((address_space(999))) int as_d;
 __constant__ __attribute__((address_space(999))) int as_c;
 
 struct S {
-  __global__ void foo() {};  // expected-error {{must be a free function or static member function}}
+  __global__ void foo() {};  // expected-error {{class method cannot be used to define a SYCL kernel free function kernel}}
   __global__ static void bar(); // expected-warning {{kernel function 'bar' is a member function}}
   // Although this is implicitly inline, we shouldn't warn.
   __global__ static void baz() {}; // expected-warning {{kernel function 'baz' is a member function}}

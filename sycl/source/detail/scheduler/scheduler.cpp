@@ -190,10 +190,12 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
             NewCmd, Lock, Res, ToCleanUp, NewCmd, Blocking);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
           throw sycl::detail::set_ur_error(
-              sycl::exception(sycl::make_error_code(errc::runtime),
-                              std::string("Enqueue process failed.\n") +
-                                  __SYCL_UR_ERROR_REPORT +
-                                  sycl::detail::codeToString(Res.MErrCode)),
+              sycl::exception(
+                  sycl::make_error_code(errc::runtime),
+                  std::string("Enqueue process failed.\n") +
+                      __SYCL_UR_ERROR_REPORT(
+                          NewCmd->getWorkerContext()->getBackend()) +
+                      sycl::detail::codeToString(Res.MErrCode)),
               Res.MErrCode);
         }
       } catch (...) {
