@@ -1053,8 +1053,7 @@ private:
       auto NewSupportingDevsEnd = std::remove_if(
           SupportingDevs.begin(), SupportingDevs.end(),
           [&NewImageRef](const sycl::device &SDev) {
-            auto &device_impl = *detail::getSyclObjImpl(SDev);
-            return !doesDevSupportDeviceRequirements(device_impl, NewImageRef);
+            return !doesDevSupportDeviceRequirements(*detail::getSyclObjImpl(SDev), NewImageRef);
           });
 
       // If there are no devices that support the image, we skip it.

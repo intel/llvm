@@ -2647,7 +2647,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
   for (const sycl::device &Dev : Devs) {
 
-    auto &device_impl = *getSyclObjImpl(Dev);
+    device_impl &DevImpl = *getSyclObjImpl(Dev);
     // Track the highest image state for each requested kernel.
     using StateImagesPairT =
         std::pair<bundle_state, std::vector<RTDeviceBinaryImage *>>;
@@ -2659,8 +2659,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         KernelImageMap.insert({KernelID, {}});
 
     for (RTDeviceBinaryImage *BinImage : BinImages) {
-      if (!compatibleWithDevice(BinImage, device_impl) ||
-          !doesDevSupportDeviceRequirements(device_impl, *BinImage))
+      if (!compatibleWithDevice(BinImage, DevImpl) ||
+          !doesDevSupportDeviceRequirements(DevImpl, *BinImage))
         continue;
 
       auto InsertRes = ImageInfoMap.insert({BinImage, {}});
@@ -2672,7 +2672,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
           ImgInfo.KernelIDs = m_BinImg2KernelIDs[BinImage];
         }
-        ImgInfo.Deps = collectDeviceImageDeps(*BinImage, {device_impl});
+        ImgInfo.Deps = collectDeviceImageDeps(*BinImage, {DevImpl});
       }
       const bundle_state ImgState = ImgInfo.State;
       const std::shared_ptr<std::vector<sycl::kernel_id>> &ImageKernelIDs =
