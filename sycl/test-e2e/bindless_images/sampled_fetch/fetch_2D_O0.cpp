@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_2d
-// XFAIL: level_zero
+// XFAIL: level_zero && windows
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-INTENDED: Sampled fetch not currently supported on AMD
 
