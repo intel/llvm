@@ -44,10 +44,10 @@ ur_queue_immediate_out_of_order_t::ur_queue_immediate_out_of_order_t(
     ze_command_queue_priority_t priority, event_flags_t eventFlags,
     ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
-      commandListManagers(createCommandListManagers<numCommandLists>(
-          hContext, hDevice, ordinal, priority)),
       eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)),
+      commandListManagers(createCommandListManagers<numCommandLists>(
+          hContext, hDevice, ordinal, priority)),
       flags(flags) {
   for (size_t i = 0; i < numCommandLists; i++) {
     barrierEvents[i] = eventPool->allocate();
