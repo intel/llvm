@@ -11,7 +11,7 @@
 
 class FunctionObjectKernel {
 public:
-  void operator()(sycl::item<1> item) const {}
+  void operator()() const {}
 };
 
 class LambdaKernel;
@@ -24,22 +24,28 @@ int main() {
   sycl::queue Queue;
   sycl::device Dev = Queue.get_device();
   sycl::context Context = Queue.get_context();
-  Queue.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<LambdaKernel>([=]() {}); });
-  Queue.submit([&](sycl::handler &CGH) {
-    FunctionObjectKernel kernel;
-    CGH.parallel_for(sycl::range<1>{}, kernel);
-  });
 
-  sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Context, {Dev});
-  std::vector<sycl::kernel_id> KernelIds = KernelBundle.get_kernel_ids();
-  assert(KernelIds.size() == 3);
   sycl::kernel_id FunctionObjectKernelId =
       sycl::get_kernel_id<FunctionObjectKernel>();
   sycl::kernel_id LambdaKernelId = sycl::get_kernel_id<LambdaKernel>();
   sycl::kernel_id FreeFunctionKernelId =
       sycl::ext::oneapi::experimental::get_kernel_id<FreeFunctionKernel>();
+
+  sycl::kernel_bundle KernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Context, {Dev});
+  sycl::kernel FreeFunction = KernelBundle.get_kernel(FreeFunctionKernelId);
+  Queue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<LambdaKernel>([=]() {}); });
+  Queue.submit([&](sycl::handler &CGH) {
+    FunctionObjectKernel kernel;
+    CGH.single_task(kernel);
+  });
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for(sycl::nd_range{{1}, {1}}, FreeFunction);
+  });
+
+  std::vector<sycl::kernel_id> KernelIds = KernelBundle.get_kernel_ids();
+  assert(KernelIds.size() == 3);
   for (const sycl::kernel_id &KernelId :
        {FunctionObjectKernelId, LambdaKernelId, FreeFunctionKernelId}) {
     auto FoundId = std::find(KernelIds.begin(), KernelIds.end(), KernelId);
