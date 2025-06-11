@@ -36,54 +36,54 @@ int main() {
   q.ext_oneapi_copy(dataIn.data(), imgMemoryIn.get_handle(), desc);
   q.wait_and_throw();
   // Extension: create the image and return the handle
-  syclexp::sampled_image_handle imgIn =
+  syclexp::unsampled_image_handle imgIn =
       syclexp::create_image(imgMemoryIn, desc, q);
-  syclexp::sampled_image_handle imgOut =
+  syclexp::unsampled_image_handle imgOut =
       syclexp::create_image(imgMemoryOut, desc, q);
 
-  // Copy the input data to the image_mem of the device sampled_image_handle
+  // Copy the input data to the image_mem of the device unsampled_image_handle
   q.ext_oneapi_copy(dataIn.data(), imgMemoryIn.get_handle(), desc);
   q.wait_and_throw();
 
-  // Allocate an sampled_image_handle manually instead of using create_image so
-  // we can allocate it on heap
+  // Allocate an unsampled_image_handle manually instead of using create_image
+  // so we can allocate it on the heap
   void *imageHandlePtrGen =
-      sycl::malloc_device(sizeof(syclexp::sampled_image_handle), q);
+      sycl::malloc_device(sizeof(syclexp::unsampled_image_handle), q);
 
-  // Copy the create_image returned device sampled_image_handle to the
+  // Copy the create_image returned device unsampled_image_handle to the
   // contents of the void* pointing to the heap allocated
-  // sampled_image_handle
+  // unsampled_image_handle
   q.memcpy(static_cast<void *>(imageHandlePtrGen),
            static_cast<const void *>(&imgIn),
-           sizeof(syclexp::sampled_image_handle));
+           sizeof(syclexp::unsampled_image_handle));
 
   q.wait_and_throw();
 
-  // Allocate a device generic pointer pointing to an sampled_image_handle*
+  // Allocate a device generic pointer pointing to an unsampled_image_handle*
   void *imageHandlePtrPtrGen =
-      sycl::malloc_device(sizeof(syclexp::sampled_image_handle *), q);
+      sycl::malloc_device(sizeof(syclexp::unsampled_image_handle *), q);
 
-  // Copy the address of the manually allocated sampled_image_handle to the
+  // Copy the address of the manually allocated unsampled_image_handle to the
   // contents of the generic device pointer allocated above
   q.memcpy(static_cast<void *>(imageHandlePtrPtrGen),
            static_cast<const void *>(&imageHandlePtrGen),
-           sizeof(syclexp::sampled_image_handle *));
+           sizeof(syclexp::unsampled_image_handle *));
 
   q.wait_and_throw();
 
   q.submit([&](sycl::handler &cgh) {
     cgh.parallel_for(
         sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
-          syclexp::sampled_image_handle **imageHandlePtrPtr =
-              static_cast<syclexp::sampled_image_handle **>(
+          syclexp::unsampled_image_handle **imageHandlePtrPtr =
+              static_cast<syclexp::unsampled_image_handle **>(
                   imageHandlePtrPtrGen);
-          // Dereference the generic pointer to the sampled_image_handle
+          // Dereference the generic pointer to the unsampled_image_handle
           // pointer
-          syclexp::sampled_image_handle *imageHandlePtr =
-              static_cast<syclexp::sampled_image_handle *>(
+          syclexp::unsampled_image_handle *imageHandlePtr =
+              static_cast<syclexp::unsampled_image_handle *>(
                   imageHandlePtrPtr[0]);
-          // Dereference the sampled_image_handle pointer
-          syclexp::sampled_image_handle imageHandle = imageHandlePtr[0];
+          // Dereference the unsampled_image_handle pointer
+          syclexp::unsampled_image_handle imageHandle = imageHandlePtr[0];
 
           size_t dim0 = it.get_local_id(0);
           // Extension: read image data from handle
