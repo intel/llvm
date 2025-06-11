@@ -96,11 +96,10 @@ class Options:
     # smoothing factor results in newer data having more weight, and a lower
     # smoothing factor results in older data having more weight.
     #
-    # Valid values for this smoothing factor ranges from (0, 1). Recommended
-    # values are from 0.1 to 0.3, although this is not a law. Note that no
+    # Valid values for this smoothing factor ranges from (0, 1). Note that no
     # value of smothing factor will result in older elements having more weight
     # than newer elements.
-    EWMA_smoothing_factor: float = 0.15
+    EWMA_smoothing_factor: float = 0.1
 
     detect_versions: DetectVersionsOptions = field(
         default_factory=DetectVersionsOptions
