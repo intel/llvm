@@ -1277,11 +1277,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
   // So, disable it for modes where we print PI traces. Printing
   // traces incurs much different timings than real execution
   // ansyway, and many regression tests use it.
-
-  // For PVC we need to ignore PrintTrace since the logic for regular
-  // commandlist is skipped and we need it to complete to executeCommandList
-  bool CurrentlyEmpty =
-      (!PrintTrace || Device->isPVC()) && this->LastCommandEvent == nullptr;
+  bool CurrentlyEmpty = !PrintTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
   // events. It is possible that executeCommandList is called twice for the same
@@ -1319,7 +1315,8 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         die("executeCommandList: OpenCommandList should be equal to"
             "null or CommandList");
 
-      if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
+      if (CommandList->second.size() < CommandBatch.QueueBatchSize &&
+          !IsBlocking) {
         CommandBatch.OpenCommandList = CommandList;
         return UR_RESULT_SUCCESS;
       }
