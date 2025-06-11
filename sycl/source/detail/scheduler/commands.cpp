@@ -2274,11 +2274,6 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   for (size_t I = 0; I < NDR.Dims; ++I) {
     NDR.GlobalSize[I] = WGSize[I] * NDR.NumWorkGroups[I];
     NDR.LocalSize[I] = WGSize[I];
-
-    // nvm below does not help
-    //NDR.NumWorkGroups = {0, 0, 0};
-    //NDR.GlobalOffset = {0, 0, 0};
-    //NDR.ClusterDimensions = {1, 1, 1};
   }
 }
 
