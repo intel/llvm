@@ -693,8 +693,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
-    const NDRDescT &NDRDesc,
-    detail::kernel_bundle_impl *KernelBundleImplPtr,
+    const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif
 

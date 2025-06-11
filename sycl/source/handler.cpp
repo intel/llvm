@@ -480,8 +480,8 @@ event handler::finalize() {
 
   if (type == detail::CGType::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    detail::kernel_bundle_impl *
-        KernelBundleImpPtr = getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
+    detail::kernel_bundle_impl *KernelBundleImpPtr =
+        getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&

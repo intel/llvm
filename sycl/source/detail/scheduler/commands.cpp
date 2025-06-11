@@ -2105,8 +2105,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     const std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
-    const NDRDescT &NDRDesc,
-    detail::kernel_bundle_impl *KernelBundleImplPtr,
+    const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
@@ -2199,8 +2198,7 @@ void ExecCGCommand::emitInstrumentationData() {
       auto KernelCG =
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
-          CmdTraceEvent, KernelCG->MNDRDesc,
-          KernelCG->getKernelBundle().get(),
+          CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
           KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
           KernelCG->MSyclKernel, MQueue.get(), KernelCG->MArgs);
     }
@@ -3263,14 +3261,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           retrieveKernelBinary(*MQueue, KernelName);
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(*MQueue, NDRDesc, Args,
-                     ExecKernel->getKernelBundle().get(), SyclKernel.get(),
-                     KernelName, ExecKernel->MKernelNameBasedCachePtr,
-                     RawEvents, EventImpl, getMemAllocationFunc,
-                     ExecKernel->MKernelCacheConfig,
-                     ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch,
-                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
+    enqueueImpKernel(
+        *MQueue, NDRDesc, Args, ExecKernel->getKernelBundle().get(),
+        SyclKernel.get(), KernelName, ExecKernel->MKernelNameBasedCachePtr,
+        RawEvents, EventImpl, getMemAllocationFunc,
+        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
+        ExecKernel->MKernelUsesClusterLaunch,
+        ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }

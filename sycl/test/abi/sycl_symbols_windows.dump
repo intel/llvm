@@ -4080,6 +4080,7 @@
 ?getOffset@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV?$id@$02@34@XZ
 ?getOffset@AccessorBaseHost@detail@_V1@sycl@@QEBAAEBV?$id@$02@34@XZ
 ?getOrInsertHandlerKernelBundle@handler@_V1@sycl@@AEBA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@_N@Z
+?getOrInsertHandlerKernelBundlePtr@handler@_V1@sycl@@AEBAPEAVkernel_bundle_impl@detail@23@_N@Z
 ?getPitch@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AV?$id@$02@34@XZ
 ?getPitch@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AV?$id@$02@34@XZ
 ?getPixelCoordLinearFiltMode@detail@_V1@sycl@@YA?AV?$vec@H$07@23@V?$vec@M$03@23@W4addressing_mode@23@V?$range@$02@23@AEAV523@@Z

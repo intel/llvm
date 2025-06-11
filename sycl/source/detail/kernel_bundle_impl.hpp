@@ -629,8 +629,8 @@ public:
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> PotentialKernelImpl =
               // move is performed only when SourceBasedKernel is not null
-              DevImgImpl->tryGetSourceBasedKernel(Name, MContext,
-                                                  std::move(Self), DevImgImpl))
+          DevImgImpl->tryGetSourceBasedKernel(Name, MContext, std::move(Self),
+                                              DevImgImpl))
         return detail::createSyclObjFromImpl<kernel>(
             std::move(PotentialKernelImpl));
     }
@@ -964,8 +964,8 @@ public:
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> SourceBasedKernel =
               // move is performed only when SourceBasedKernel is not null
-              DevImgImpl->tryGetSourceBasedKernel(Name, MContext,
-                                                  std::move(Self), DevImgImpl))
+          DevImgImpl->tryGetSourceBasedKernel(Name, MContext, std::move(Self),
+                                              DevImgImpl))
         return SourceBasedKernel;
     }
 
