@@ -48,7 +48,8 @@ static MDTuple *encodeVectorizationInfo(const VectorizationInfo &info,
 
   return MDTuple::get(
       Ctx,
-      {ConstantAsMetadata::get(ConstantInt::get(i32Ty, info.vf.getKnownMin())),
+      {ConstantAsMetadata::get(
+           ConstantInt::get(i32Ty, info.vf.getKnownMinValue())),
        ConstantAsMetadata::get(ConstantInt::get(i32Ty, info.vf.isScalable())),
        ConstantAsMetadata::get(ConstantInt::get(i32Ty, info.simdDimIdx)),
        ConstantAsMetadata::get(
@@ -66,8 +67,8 @@ static std::optional<VectorizationInfo> extractVectorizationInfo(MDTuple *md) {
 
   VectorizationInfo info;
 
-  info.vf.setKnownMin(widthMD->getZExtValue());
-  info.vf.setIsScalable(isScalableMD->equalsInt(1));
+  info.vf = llvm::ElementCount::get(widthMD->getZExtValue(),
+                                    isScalableMD->equalsInt(1));
   info.simdDimIdx = simdDimIdxMD->getZExtValue();
   info.IsVectorPredicated = isVPMD->equalsInt(1);
 

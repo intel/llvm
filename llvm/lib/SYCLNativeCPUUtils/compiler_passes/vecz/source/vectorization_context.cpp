@@ -926,10 +926,8 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
   Value *Width = nullptr;
   if (IsVP) {
     Width = VL;
-  } else if (EC.isScalable()) {
-    Width = B.CreateVScale(ConstantInt::get(IVTy, EC.getKnownMinValue()));
   } else {
-    Width = ConstantInt::get(IVTy, EC.getFixedValue());
+    Width = B.CreateElementCount(IVTy, EC);
   }
 
   B.CreateBr(Loop);
@@ -1048,14 +1046,11 @@ bool VectorizationContext::emitMaskedAtomicBody(
   const bool IsVector = ValArg->getType()->isVectorTy();
 
   Value *const IdxStart = B.getInt32(0);
-  ConstantInt *const KnownMin = B.getInt32(MA.VF.getKnownMinValue());
   Value *IdxEnd;
   if (MA.IsVectorPredicated) {
     IdxEnd = F.getArg(3 + IsCmpXchg);
-  } else if (MA.VF.isScalable()) {
-    IdxEnd = B.CreateVScale(KnownMin);
   } else {
-    IdxEnd = KnownMin;
+    IdxEnd = B.CreateElementCount(B.getInt32Ty(), MA.VF);
   }
 
   Value *RetVal = nullptr;
