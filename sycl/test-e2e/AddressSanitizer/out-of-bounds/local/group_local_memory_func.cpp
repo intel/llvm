@@ -1,5 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// OCL CPU has subgroup alignment issue with -O0, skip it for now.
+// OCL CPU has subgroup alignment issue with -O0, skip it for now.(CMPLRLLVM-61493)
 // RUN: %{build} %device_asan_flags -g -O0 -o %t1.out
 // RUN: %{run} %if !cpu %{ not %t1.out 2>&1 | FileCheck %s %}
 // RUN: %{build} %device_asan_flags -g -O1 -o %t2.out
