@@ -1317,7 +1317,8 @@ void StmtPrinter::VisitDeclRefExpr(DeclRefExpr *Node) {
     OS << "template ";
 
   bool ForceAnonymous =
-      Policy.PrintAsCanonical && !Policy.SkipCanonicalizationOfTemplateTypeParms &&
+      Policy.PrintAsCanonical &&
+      !Policy.SkipCanonicalizationOfTemplateTypeParms &&
       VD->getKind() == Decl::NonTypeTemplateParm;
   DeclarationNameInfo NameInfo = Node->getNameInfo();
   if (IdentifierInfo *ID = NameInfo.getName().getAsIdentifierInfo();
