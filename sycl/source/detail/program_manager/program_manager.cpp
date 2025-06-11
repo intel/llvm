@@ -674,7 +674,7 @@ static bool checkLinkingSupport(const device_impl &DeviceImpl,
 
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDeviceImageDeps(const RTDeviceBinaryImage &Img,
-                                       const device &Dev,
+                                       const device_impl &Dev,
                                        bool ErrorOnUnresolvableImport) {
   // TODO collecting dependencies for virtual functions and imported symbols
   // should be combined since one can lead to new unresolved dependencies for
@@ -700,7 +700,7 @@ CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDeviceImageDepsForImportedSymbols(
-    const RTDeviceBinaryImage &MainImg, const device &Dev,
+    const RTDeviceBinaryImage &MainImg, const device_impl &Dev,
     bool ErrorOnUnresolvableImport) {
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
   std::set<std::string> HandledSymbols;
@@ -711,8 +711,7 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
     HandledSymbols.insert(ISProp->Name);
   }
   ur::DeviceBinaryType Format = MainImg.getFormat();
-  if (!WorkList.empty() &&
-      !checkLinkingSupport(*getSyclObjImpl(Dev).get(), MainImg))
+  if (!WorkList.empty() && !checkLinkingSupport(Dev, MainImg))
     throw exception(make_error_code(errc::feature_not_supported),
                     "Cannot resolve external symbols, linking is unsupported "
                     "for the backend");
@@ -726,13 +725,12 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       RTDeviceBinaryImage *Img = It->second;
 
       if (!doesDevSupportDeviceRequirements(Dev, *Img) ||
-          !compatibleWithDevice(Img, *getSyclObjImpl(Dev).get()))
+          !compatibleWithDevice(Img, Dev))
         continue;
 
       // If the image is a special device image, we need to check if it
       // should be used for this device.
-      if (isBfloat16DeviceImage(Img) &&
-          !shouldBF16DeviceImageBeUsed(Img, *getSyclObjImpl(Dev).get()))
+      if (isBfloat16DeviceImage(Img) && !shouldBF16DeviceImageBeUsed(Img, Dev))
         continue;
 
       // If any of the images is compressed, we need to decompress it
@@ -768,7 +766,7 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
 
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
-    const RTDeviceBinaryImage &Img, const device &Dev) {
+    const RTDeviceBinaryImage &Img, const device_impl &Dev) {
   // If virtual functions are used in a program, then we need to link several
   // device images together to make sure that vtable pointers stored in
   // objects are valid between different kernels (which could be in different
@@ -892,17 +890,19 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         sizeof(ur_bool_t), &MustBuildOnSubdevice, nullptr);
   }
 
-  device Device = createSyclObjFromImpl<device>(
-      MustBuildOnSubdevice == true ? DeviceImpl : *RootDevImpl);
+  device_impl &RootOrSubDevImpl =
+      MustBuildOnSubdevice == true ? DeviceImpl : *RootDevImpl;
+
   const RTDeviceBinaryImage &Img =
-      getDeviceImage(KernelName, ContextImpl, getSyclObjImpl(Device).get());
+      getDeviceImage(KernelName, ContextImpl, &RootOrSubDevImpl);
 
   // Check that device supports all aspects used by the kernel
-  if (auto exception = checkDevSupportDeviceRequirements(Device, Img, NDRDesc))
+  if (auto exception =
+          checkDevSupportDeviceRequirements(RootOrSubDevImpl, Img, NDRDesc))
     throw *exception;
 
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink =
-      collectDeviceImageDeps(Img, {Device});
+      collectDeviceImageDeps(Img, {RootOrSubDevImpl});
 
   // Decompress all DeviceImagesToLink
   for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
@@ -914,8 +914,9 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::copy(DeviceImagesToLink.begin(), DeviceImagesToLink.end(),
             std::back_inserter(AllImages));
 
-  return getBuiltURProgram(std::move(AllImages), ContextImpl,
-                           {std::move(Device)});
+  return getBuiltURProgram(
+      std::move(AllImages), ContextImpl,
+      {std::move(createSyclObjFromImpl<device>(RootOrSubDevImpl))});
 }
 
 ur_program_handle_t ProgramManager::getBuiltURProgram(
@@ -1485,9 +1486,9 @@ ProgramManager::ProgramManager()
   }
 }
 
-const char *getArchName(const device_impl *DeviceImpl) {
+const char *getArchName(const device_impl &DeviceImpl) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  auto Arch = DeviceImpl->get_info<syclex::info::device::architecture>();
+  auto Arch = DeviceImpl.get_info<syclex::info::device::architecture>();
   switch (Arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
@@ -1522,7 +1523,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   std::vector<RTDeviceBinaryImage *> DeviceFilteredImgs;
   DeviceFilteredImgs.reserve(std::distance(ItBegin, ItEnd));
   for (auto It = ItBegin; It != ItEnd; ++It) {
-    if (doesImageTargetMatchDevice(*It->second, DeviceImpl))
+    if (doesImageTargetMatchDevice(*It->second, *DeviceImpl))
       DeviceFilteredImgs.push_back(It->second);
   }
 
@@ -2648,6 +2649,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   std::unordered_map<RTDeviceBinaryImage *, DeviceBinaryImageInfo> ImageInfoMap;
 
   for (const sycl::device &Dev : Devs) {
+
+    auto &device_impl = *getSyclObjImpl(Dev).get();
     // Track the highest image state for each requested kernel.
     using StateImagesPairT =
         std::pair<bundle_state, std::vector<RTDeviceBinaryImage *>>;
@@ -2659,8 +2662,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         KernelImageMap.insert({KernelID, {}});
 
     for (RTDeviceBinaryImage *BinImage : BinImages) {
-      if (!compatibleWithDevice(BinImage, *getSyclObjImpl(Dev).get()) ||
-          !doesDevSupportDeviceRequirements(Dev, *BinImage))
+      if (!compatibleWithDevice(BinImage, device_impl) ||
+          !doesDevSupportDeviceRequirements(device_impl, *BinImage))
         continue;
 
       auto InsertRes = ImageInfoMap.insert({BinImage, {}});
@@ -2672,7 +2675,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
           ImgInfo.KernelIDs = m_BinImg2KernelIDs[BinImage];
         }
-        ImgInfo.Deps = collectDeviceImageDeps(*BinImage, {Dev});
+        ImgInfo.Deps = collectDeviceImageDeps(*BinImage, {device_impl});
       }
       const bundle_state ImgState = ImgInfo.State;
       const std::shared_ptr<std::vector<sycl::kernel_id>> &ImageKernelIDs =
@@ -3368,7 +3371,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   return UrKernel;
 }
 
-bool doesDevSupportDeviceRequirements(const device &Dev,
+bool doesDevSupportDeviceRequirements(const device_impl &Dev,
                                       const RTDeviceBinaryImage &Img) {
   return !checkDevSupportDeviceRequirements(Dev, Img).has_value();
 }
@@ -3643,7 +3646,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrixMad(
 }
 
 std::optional<sycl::exception>
-checkDevSupportDeviceRequirements(const device &Dev,
+checkDevSupportDeviceRequirements(const device_impl &Dev,
                                   const RTDeviceBinaryImage &Img,
                                   const NDRDescT &NDRDesc) {
   auto getPropIt = [&Img](const std::string &PropName) {
@@ -3856,7 +3859,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
 }
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
-                                const device_impl *DevImpl) {
+                                const device_impl &DevImpl) {
   auto PropRange = Img.getDeviceRequirements();
   auto PropIt =
       std::find_if(PropRange.begin(), PropRange.end(), [&](const auto &Prop) {
@@ -3864,21 +3867,21 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
       });
   // Device image has no compile_target property, check target.
   if (PropIt == PropRange.end()) {
-    sycl::backend BE = DevImpl->getBackend();
+    sycl::backend BE = DevImpl.getBackend();
     const char *Target = Img.getRawData().DeviceTargetSpec;
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) {
-      return DevImpl->is_cpu();
+      return DevImpl.is_cpu();
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-      return DevImpl->is_gpu() && (BE == sycl::backend::opencl ||
-                                   BE == sycl::backend::ext_oneapi_level_zero);
+      return DevImpl.is_gpu() && (BE == sycl::backend::opencl ||
+                                  BE == sycl::backend::ext_oneapi_level_zero);
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
-      return DevImpl->is_accelerator();
+      return DevImpl.is_accelerator();
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0 ||
         strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64) == 0) {

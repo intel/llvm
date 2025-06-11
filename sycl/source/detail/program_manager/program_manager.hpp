@@ -56,15 +56,15 @@ inline namespace _V1 {
 class context;
 namespace detail {
 
-bool doesDevSupportDeviceRequirements(const device &Dev,
+bool doesDevSupportDeviceRequirements(const device_impl &Dev,
                                       const RTDeviceBinaryImage &BinImages);
 std::optional<sycl::exception>
-checkDevSupportDeviceRequirements(const device &Dev,
+checkDevSupportDeviceRequirements(const device_impl &Dev,
                                   const RTDeviceBinaryImage &BinImages,
                                   const NDRDescT &NDRDesc = {});
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
-                                const device_impl *DevImpl);
+                                const device_impl &DevImpl);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -380,11 +380,11 @@ public:
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
   std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev,
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device_impl &Dev,
                          bool ErrorOnUnresolvableImport = true);
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev,
+                                           const device_impl &Dev,
                                            bool ErrorOnUnresolvableImport);
 
 private:
@@ -412,7 +412,7 @@ private:
 
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
-      const RTDeviceBinaryImage &Img, const device &Dev);
+      const RTDeviceBinaryImage &Img, const device_impl &Dev);
 
   bool isBfloat16DeviceImage(RTDeviceBinaryImage *BinImage);
   bool shouldBF16DeviceImageBeUsed(RTDeviceBinaryImage *BinImage,

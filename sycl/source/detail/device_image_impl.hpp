@@ -1053,7 +1053,8 @@ private:
       auto NewSupportingDevsEnd = std::remove_if(
           SupportingDevs.begin(), SupportingDevs.end(),
           [&NewImageRef](const sycl::device &SDev) {
-            return !doesDevSupportDeviceRequirements(SDev, NewImageRef);
+            auto &device_impl = *detail::getSyclObjImpl(SDev);
+            return !doesDevSupportDeviceRequirements(device_impl, NewImageRef);
           });
 
       // If there are no devices that support the image, we skip it.
@@ -1151,7 +1152,7 @@ private:
       std::set<RTDeviceBinaryImage *> ImgDeps;
       for (const device &Device : DevImgImpl->get_devices()) {
         std::set<RTDeviceBinaryImage *> DevImgDeps = PM.collectDeviceImageDeps(
-            *NewImage, Device,
+            *NewImage, *getSyclObjImpl(Device).get(),
             /*ErrorOnUnresolvableImport=*/State == bundle_state::executable);
         ImgDeps.insert(DevImgDeps.begin(), DevImgDeps.end());
       }
