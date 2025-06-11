@@ -507,10 +507,8 @@ bool Packetizer::Impl::packetize() {
             B, VL, /*WidestType*/ 32, VU.width())) {
       VL = RVVVL;
     } else {
-      auto *const Scaling =
-          ConstantInt::get(VL->getType(), VU.width().getKnownMinValue());
       auto *const VectorLength =
-          VU.width().isScalable() ? B.CreateVScale(Scaling) : Scaling;
+          B.CreateElementCount(VL->getType(), VU.width());
       VL = B.CreateIntrinsic(Intrinsic::umin, {VL->getType()},
                              {VL, VectorLength});
 
@@ -784,12 +782,7 @@ bool Packetizer::Impl::packetize() {
           if (VL) {
             VecgroupSize = VL;
           } else {
-            auto *const VFVal = B.getInt32(SimdWidth.getKnownMinValue());
-            if (!SimdWidth.isScalable()) {
-              VecgroupSize = VFVal;
-            } else {
-              VecgroupSize = B.CreateVScale(VFVal);
-            }
+            VecgroupSize = B.CreateElementCount(I32Ty, SimdWidth);
           }
           assert(VecgroupSize && "Could not determine vector group size");
 
@@ -1326,12 +1319,7 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
   auto *idx = CI->getArgOperand(argIdx + 1);
   // We need to sanitize the input index so that it stays within the range of
   // one vectorized group.
-  auto *const minVal =
-      ConstantInt::get(idx->getType(), SimdWidth.getKnownMinValue());
-  Value *idxFactor = minVal;
-  if (SimdWidth.isScalable()) {
-    idxFactor = B.CreateVScale(minVal);
-  }
+  Value *idxFactor = B.CreateElementCount(idx->getType(), SimdWidth);
   auto *const vecIdx = B.CreateURem(idx, idxFactor);
 
   Value *val = nullptr;
@@ -3429,10 +3417,8 @@ Value *Packetizer::Impl::vectorizeWorkGroupCall(
   // |-----------------|-----------------|
   // |  0   1   2   3  |  4   5   6   7  |
   if (Builtin.ID == compiler::utils::eMuxBuiltinGetSubGroupLocalId) {
-    auto SimdWithAsVal = B.getInt32(SimdWidth.getKnownMinValue());
-    IDToSplat = B.CreateMul(IDToSplat, !SimdWidth.isScalable()
-                                           ? SimdWithAsVal
-                                           : B.CreateVScale(SimdWithAsVal));
+    IDToSplat = B.CreateMul(
+        IDToSplat, B.CreateElementCount(IDToSplat->getType(), SimdWidth));
   }
 
   // Broadcast the builtin's return value.

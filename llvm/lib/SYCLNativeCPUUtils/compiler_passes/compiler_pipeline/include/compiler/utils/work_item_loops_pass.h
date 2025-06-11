@@ -23,7 +23,6 @@
 
 #include <compiler/utils/barrier_regions.h>
 #include <compiler/utils/metadata.h>
-#include <compiler/utils/vectorization_factor.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PassManager.h>

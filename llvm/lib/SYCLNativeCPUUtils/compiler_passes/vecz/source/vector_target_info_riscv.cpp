@@ -233,10 +233,8 @@ llvm::Value *getIntrinsicVL(llvm::IRBuilderBase &B, llvm::Value *VL,
   }
 
   // Else create a 'default' VL which covers the entire scalable vector.
-  return B.CreateVScale(
-      B.getIntN(XLenTyWidth,
-                cast<VectorType>(wideTy)->getElementCount().getKnownMinValue()),
-      N);
+  return B.CreateElementCount(XLen,
+                              cast<VectorType>(wideTy)->getElementCount());
 }
 
 /// @brief Returns a pair with the `vrgather` intrinsic variation to use and the

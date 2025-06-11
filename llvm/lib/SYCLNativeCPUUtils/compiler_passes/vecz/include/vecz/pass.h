@@ -21,9 +21,9 @@
 #ifndef VECZ_PASS_H
 #define VECZ_PASS_H
 
-#include <compiler/utils/vectorization_factor.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/PassManager.h>
+#include <llvm/Support/TypeSize.h>
 
 #include <cstdint>
 #include <optional>
@@ -48,23 +48,21 @@ namespace vecz {
 /// @{
 
 struct VeczPassOptions {
-  VeczPassOptions() : vecz_auto(false), vec_dim_idx(0), local_size(0) {}
-
   /// @brief boolean choices such as double support, partial scalarization
   vecz::VectorizationChoices choices;
 
   /// @brief vectorization factor, including known min and scalable flag
-  compiler::utils::VectorizationFactor factor;
+  llvm::ElementCount factor = llvm::ElementCount::getFixed(1);
 
   /// @brief automatically work out factor
-  bool vecz_auto;
+  bool vecz_auto = false;
 
   /// @brief Index of vectorization dimension to use (0 => x, 1 => y, 2 => z).
-  uint32_t vec_dim_idx;
+  uint32_t vec_dim_idx = 0;
 
   /// @brief local_size Value specifying the local size for the function (0 is
   /// unknown)
-  uint64_t local_size;
+  uint64_t local_size = 0;
 };
 
 /// @brief Returns the vectorization options that would vectorize the provided

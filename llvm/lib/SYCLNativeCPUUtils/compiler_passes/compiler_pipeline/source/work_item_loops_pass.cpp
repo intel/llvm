@@ -21,7 +21,6 @@
 #include <compiler/utils/metadata.h>
 #include <compiler/utils/pass_functions.h>
 #include <compiler/utils/sub_group_analysis.h>
-#include <compiler/utils/vectorization_factor.h>
 #include <compiler/utils/work_item_loops_pass.h>
 #include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/IRBuilder.h>
@@ -98,14 +97,6 @@ class BarrierWithLiveVars : public Barrier {
 }  // namespace compiler
 
 namespace {
-
-Value *materializeVF(IRBuilder<> &builder,
-                     compiler::utils::VectorizationFactor vf) {
-  auto &m = *builder.GetInsertBlock()->getModule();
-  Constant *multiple =
-      ConstantInt::get(compiler::utils::getSizeType(m), vf.getKnownMin());
-  return !vf.isScalable() ? multiple : builder.CreateVScale(multiple);
-}
 
 struct ScheduleGenerator {
   ScheduleGenerator(Module &m,
@@ -550,7 +541,8 @@ struct ScheduleGenerator {
         auto *const op = groupCall->getOperand(1);
 
         // Compute the address of the value in the main barrier struct
-        auto *const VF = materializeVF(ir, barrierMain.getVFInfo().vf);
+        auto *const VF = ir.CreateElementCount(
+            compiler::utils::getSizeType(module), barrierMain.getVFInfo().vf);
         auto *const liveVars = createLiveVarsPtr(barrierMain, ir, idsMain[0],
                                                  idsMain[1], idsMain[2], VF);
         compiler::utils::Barrier::LiveValuesHelper live_values(barrierMain,
@@ -695,7 +687,9 @@ struct ScheduleGenerator {
                   // preheader
                   IRBuilder<> irph(mainPreheaderBB,
                                    mainPreheaderBB->getFirstInsertionPt());
-                  auto *VF = materializeVF(irph, barrierMain.getVFInfo().vf);
+                  auto *VF = irph.CreateElementCount(
+                      compiler::utils::getSizeType(module),
+                      barrierMain.getVFInfo().vf);
 
                   compiler::utils::CreateLoopOpts inner_opts;
                   inner_opts.indexInc = VF;
@@ -1001,7 +995,9 @@ struct ScheduleGenerator {
                   // preheader
                   IRBuilder<> irph(mainPreheaderBB,
                                    mainPreheaderBB->getFirstInsertionPt());
-                  auto *VF = materializeVF(irph, barrierMain.getVFInfo().vf);
+                  auto *VF = irph.CreateElementCount(
+                      compiler::utils::getSizeType(module),
+                      barrierMain.getVFInfo().vf);
 
                   compiler::utils::CreateLoopOpts inner_vf_opts;
                   inner_vf_opts.indexInc = VF;
@@ -1305,7 +1301,7 @@ void setUpLiveVarsAlloca(compiler::utils::BarrierWithLiveVars &barrier,
     const auto fixedSize = barrier.getLiveVarMemSizeFixed();
     // We ensure that the VFs are the same between the main and tail.
     auto *const vscale =
-        B.CreateVScale(ConstantInt::get(size_ty, scalablesSize));
+        B.CreateElementCount(size_ty, ElementCount::getScalable(scalablesSize));
     auto *const structSize =
         B.CreateAdd(vscale, ConstantInt::get(size_ty, fixedSize));
     auto *const buffer_size = B.CreateMul(structSize, live_var_size);
@@ -1368,7 +1364,8 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
 
   auto sizeTyBytes = getSizeTypeBytes(M);
 
-  auto *VF = materializeVF(entryIR, barrierMain.getVFInfo().vf);
+  auto *VF = entryIR.CreateElementCount(compiler::utils::getSizeType(M),
+                                        barrierMain.getVFInfo().vf);
   Value *localSizeDim[3];
 
   if (auto wgs = parseRequiredWGSMetadata(refF)) {
@@ -1478,8 +1475,11 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
       peel = entryIR.CreateSelect(
           remcond, mainLoopLimit,
           Constant::getNullValue(mainLoopLimit->getType()), "peel");
-      effectiveVF = entryIR.CreateSelect(
-          remcond, materializeVF(entryIR, barrierTail->getVFInfo().vf), VF);
+      effectiveVF =
+          entryIR.CreateSelect(remcond,
+                               entryIR.CreateElementCount(
+                                   VF->getType(), barrierTail->getVFInfo().vf),
+                               VF);
     }
     mainLoopLimit = entryIR.CreateSub(mainLoopLimit, peel, "mainLoopLimit");
   }
@@ -1748,9 +1748,8 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
         // compile time but we should never actually execute such a kernel -
         // we already assume the local sizes are never zero, see elsewhere in
         // this pass) then encode a token info metadata of 1.
-        mainInfo =
-            VectorizationInfo{VectorizationFactor::getScalar(), workItemDim0,
-                              /*isVectorPredicated*/ false};
+        mainInfo = VectorizationInfo{ElementCount::getFixed(1), workItemDim0,
+                                     /*isVectorPredicated*/ false};
       }
     }
     tailInfo = std::nullopt;
@@ -1799,7 +1798,7 @@ PreservedAnalyses compiler::utils::WorkItemLoopsPass::run(
 
     const auto WorkItemDim0 = 0;
 
-    const VectorizationInfo scalarTailInfo{VectorizationFactor::getScalar(),
+    const VectorizationInfo scalarTailInfo{ElementCount::getFixed(1),
                                            WorkItemDim0,
                                            /*IsVectorPredicated*/ false};
 
@@ -1843,7 +1842,7 @@ PreservedAnalyses compiler::utils::WorkItemLoopsPass::run(
     //   local work-group size
     if (!TailFunc || MainInfo.IsVectorPredicated || ForceNoTail ||
         (LocalSizeInVecDim && !MainInfo.vf.isScalable() &&
-         *LocalSizeInVecDim % MainInfo.vf.getKnownMin() == 0)) {
+         *LocalSizeInVecDim % MainInfo.vf.getKnownMinValue() == 0)) {
       MainTailPairs.push_back({BaseName, &F, MainInfo, /*TailF*/ nullptr,
                                /*TailInfo*/ std::nullopt,
                                /*SkippedTailF*/ TailFunc});
@@ -1878,7 +1877,7 @@ PreservedAnalyses compiler::utils::WorkItemLoopsPass::run(
       } else if (auto wgs = parseRequiredWGSMetadata(*P.MainF)) {
         const uint64_t local_size_x = wgs.value()[0];
         if (!P.MainInfo.IsVectorPredicated &&
-            !(local_size_x % P.MainInfo.vf.getKnownMin())) {
+            !(local_size_x % P.MainInfo.vf.getKnownMinValue())) {
           RedundantMains.insert(TailF);
         }
       }

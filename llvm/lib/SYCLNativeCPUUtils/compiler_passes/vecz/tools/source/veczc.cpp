@@ -20,7 +20,6 @@
 #include <compiler/utils/optimal_builtin_replacement_pass.h>
 #include <compiler/utils/pass_machinery.h>
 #include <compiler/utils/sub_group_analysis.h>
-#include <compiler/utils/vectorization_factor.h>
 #include <llvm/ADT/Statistic.h>
 #include <llvm/ADT/StringSwitch.h>
 #include <llvm/Analysis/AliasAnalysis.h>
@@ -178,16 +177,9 @@ static vecz::VeczPassOptions getDefaultPassOptions() {
   }
 
   const auto factor = SIMDWidth ? SIMDWidth : 4;
-  auto VF = compiler::utils::VectorizationFactor::getFixedWidth(factor);
-  if (VeczSimdWidth) {
-    VF.setKnownMin(VeczSimdWidth);
-  }
+  auto VF = llvm::ElementCount::get(VeczSimdWidth ? VeczSimdWidth : factor,
+                                    VeczScalable == llvm::cl::BOU_TRUE);
 
-  if (VeczScalable == llvm::cl::BOU_TRUE) {
-    VF.setIsScalable(true);
-  } else if (VeczScalable == llvm::cl::BOU_FALSE) {
-    VF.setIsScalable(false);
-  }
   vecz::VeczPassOptions passOpts;
   passOpts.choices = Choices;
   passOpts.factor = VF;
@@ -231,7 +223,7 @@ static bool parsePassOptionsSwitch(
       if (vals.consume_front("a")) {
         opt.vecz_auto = true;
       } else if (!vals.consumeInteger(10, vf)) {
-        opt.factor = compiler::utils::VectorizationFactor::getFixedWidth(vf);
+        opt.factor = llvm::ElementCount::getFixed(vf);
       }
       if (vals.consume_front(".")) {
         unsigned dim;
@@ -251,7 +243,10 @@ static bool parsePassOptionsSwitch(
         opt.local_size = simd_width;
       }
       // <scalable_spec> ::= 's'
-      opt.factor.setIsScalable(vals.consume_front("s"));
+      if (vals.consume_front("s")) {
+        opt.factor =
+            llvm::ElementCount::getScalable(opt.factor.getKnownMinValue());
+      }
       // <predicated_spec> ::= 'p'
       if (vals.consume_front("p")) {
         opt.choices.enableVectorPredication();
@@ -438,8 +433,8 @@ int main(const int argc, const char *const argv[]) {
         bool found = false;
         for (auto &result : results) {
           // FIXME this probably not the best way to do this
-          found |=
-              result.second.vf.getKnownMin() >= expected.factor.getKnownMin();
+          found |= result.second.vf.getKnownMinValue() >=
+                   expected.factor.getKnownMinValue();
         }
         if (!found) {
           llvm::errs() << "Error: Failed to vectorize function '" << f.getName()

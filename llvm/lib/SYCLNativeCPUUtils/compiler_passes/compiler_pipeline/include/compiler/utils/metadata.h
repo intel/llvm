@@ -19,10 +19,9 @@
 
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Metadata.h>
+#include <llvm/Support/TypeSize.h>
 
 #include <optional>
-
-#include "vectorization_factor.h"
 
 namespace llvm {
 class Function;
@@ -54,7 +53,7 @@ uint32_t getOpenCLVersion(const llvm::Module &m);
 /// @brief Describes the state of vectorization on a function/loop.
 struct VectorizationInfo {
   /// @brief The VectorizationFactor. A scalar value if unvectorized.
-  VectorizationFactor vf;
+  llvm::ElementCount vf;
   /// @brief The dimension along which vectorization took place.
   unsigned simdDimIdx;
   /// @brief Whether or not the function/loop was vector-predicated.

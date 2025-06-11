@@ -21,7 +21,6 @@
 #include <compiler/utils/device_info.h>
 #include <compiler/utils/metadata.h>
 #include <compiler/utils/sub_group_analysis.h>
-#include <compiler/utils/vectorization_factor.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -64,8 +63,7 @@ static cl::opt<std::string> VeczPassPipeline(
         "available before a certain pass, add 'require<foo-analysis>'."));
 
 namespace vecz {
-using FnVectorizationResult =
-    std::pair<Function *, compiler::utils::VectorizationFactor>;
+using FnVectorizationResult = std::pair<Function *, llvm::ElementCount>;
 AnalysisKey VeczPassOptionsAnalysis::Key;
 
 PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
@@ -207,7 +205,7 @@ PreservedAnalyses VeczPassOptionsPrinterPass::run(Module &M,
       if (O.factor.isScalable()) {
         OS << "vscale x ";
       }
-      OS << O.factor.getKnownMin();
+      OS << O.factor.getKnownMinValue();
 
       if (O.vecz_auto) {
         OS << ", (auto)";
@@ -263,7 +261,7 @@ std::optional<VeczPassOptions> getReqdSubgroupSizeOpts(Function &F) {
     }
     // Else we must vectorize such that we multiply the existing mux sub-group
     // size up to the required one.
-    vecz_opts.factor = compiler::utils::VectorizationFactor::getFixedWidth(
+    vecz_opts.factor = ElementCount::getFixed(
         *reqd_sg_size / compiler::utils::getMuxSubgroupSize(F));
     vecz_opts.choices.enable(vecz::VectorizationChoices::eDivisionExceptions);
     return vecz_opts;
@@ -357,8 +355,7 @@ std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
     return std::nullopt;
   }
 
-  vecz_opts.factor =
-      compiler::utils::VectorizationFactor::getFixedWidth(*best_width);
+  vecz_opts.factor = ElementCount::getFixed(*best_width);
 
   return vecz_opts;
 }
