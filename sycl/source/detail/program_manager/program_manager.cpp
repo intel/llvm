@@ -916,7 +916,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
   return getBuiltURProgram(
       std::move(AllImages), ContextImpl,
-      {std::move(createSyclObjFromImpl<device>(RootOrSubDevImpl))});
+      {createSyclObjFromImpl<device>(RootOrSubDevImpl)});
 }
 
 ur_program_handle_t ProgramManager::getBuiltURProgram(
