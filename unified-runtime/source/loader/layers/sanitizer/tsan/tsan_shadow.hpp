@@ -28,7 +28,7 @@ struct ShadowMemory {
 
   virtual ur_result_t Setup() = 0;
 
-  virtual ur_result_t Destory() = 0;
+  virtual ur_result_t Destroy() = 0;
 
   virtual RawShadow *MemToShadow(uptr Ptr) = 0;
 
@@ -69,7 +69,7 @@ struct ShadowMemoryCPU final : public ShadowMemory {
 
   ur_result_t Setup() override;
 
-  ur_result_t Destory() override;
+  ur_result_t Destroy() override;
 
   RawShadow *MemToShadow(uptr Ptr) override;
 
@@ -92,7 +92,7 @@ struct ShadowMemoryGPU : public ShadowMemory {
 
   ur_result_t Setup() override;
 
-  ur_result_t Destory() override;
+  ur_result_t Destroy() override;
 
   ur_result_t CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
                           uptr Size) override;
