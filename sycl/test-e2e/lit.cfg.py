@@ -425,7 +425,7 @@ ps = subprocess.Popen(
         "c++",
         "-",
         "-o",
-        f"{os.devnull}",
+        os.devnull,
     ],
     stdin=subprocess.PIPE,
     stderr=subprocess.PIPE,
