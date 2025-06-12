@@ -21,7 +21,7 @@ namespace {
 std::unique_ptr<char[]> ContentCopy(const char *Data, size_t Size) {
   std::unique_ptr<char[]> Result{new char[Size]};
   std::memcpy(Result.get(), Data, Size);
-  return std::move(Result);
+  return Result;
 }
 
 // Offload binary header and entry.
