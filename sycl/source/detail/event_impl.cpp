@@ -183,23 +183,9 @@ event_impl::event_impl(queue_impl &Queue, private_tag)
 }
 
 event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
-  switch (State) {
-  case HES_Discarded:
-  case HES_Complete: {
+  MIsHostEvent = true;
+  if (State == HES_Discarded || State == HES_Complete)
     MIsFlushed = true;
-    MIsHostEvent = true;
-    break;
-  }
-  case HES_NotComplete: {
-    MIsProfilingEnabled = true;
-    MHostProfilingInfo.reset(new HostProfilingInfo());
-    if (!MHostProfilingInfo)
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::runtime),
-          "Out of host memory " +
-              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
-  }
-  }
 }
 
 void event_impl::setQueue(queue_impl &Queue) {
@@ -214,8 +200,22 @@ void event_impl::setQueue(queue_impl &Queue) {
 
 void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
   MSubmittedQueue = std::move(SubmittedQueue);
-  if (MHostProfilingInfo) {
+  if (isHost()) {
     if (auto QueuePtr = MSubmittedQueue.lock()) {
+      // Enable profiling for host events only if the queue where host task was
+      // submitted has profiling enabled.
+      MIsProfilingEnabled = QueuePtr->MIsProfilingEnabled;
+      if (!MIsProfilingEnabled || MState == HES_Discarded ||
+          MState == HES_Complete)
+        return;
+
+      MHostProfilingInfo.reset(new HostProfilingInfo());
+      if (!MHostProfilingInfo)
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::runtime),
+            "Out of host memory " +
+                codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
+
       device_impl &Device = QueuePtr->getDeviceImpl();
       MHostProfilingInfo->setDevice(&Device);
     }
