@@ -129,7 +129,7 @@ public:
   NDRDescT &operator=(const NDRDescT &Desc) = default;
   NDRDescT &operator=(NDRDescT &&Desc) = default;
 
-  std::array<size_t, 3> GlobalSize{0, 0, 0};
+  std::array<size_t, 3> GlobalSize{1, 1, 1};
   std::array<size_t, 3> LocalSize{0, 0, 0};
   std::array<size_t, 3> GlobalOffset{0, 0, 0};
   /// Number of workgroups, used to record the number of workgroups from the
