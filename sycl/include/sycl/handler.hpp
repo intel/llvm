@@ -348,6 +348,16 @@ public:
       KernelFunc(item);
     }
   }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
+  }
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -362,6 +372,16 @@ public:
       auto item = Gen.template getItem<KernelType>();
       KernelFunc(item, KH);
     }
+  }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
 };
 
@@ -1300,7 +1320,7 @@ private:
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper), KernelType,
+      KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
                     TransformedArgType, PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(
@@ -1325,8 +1345,8 @@ private:
 #ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
       // If parallel_for range rounding is forced then only range rounded
       // kernel is generated
-      KernelWrapper<WrapAs::parallel_for, NameT, KernelType, KernelType,
-                    TransformedArgType, PropertiesT>::wrap(this, KernelFunc);
+      KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
+                    PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr std::string_view Name{detail::getKernelName<NameT>()};
 
@@ -1540,17 +1560,15 @@ private:
 
   template <
       WrapAs WrapAsVal, typename KernelName, typename KernelType,
-      typename KernelTypeForProps, typename ElementType,
+      typename ElementType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
       typename MergedPropertiesT = typename detail::GetMergedKernelProperties<
-          KernelTypeForProps, PropertiesT>::type>
+          KernelType, PropertiesT>::type>
   struct KernelWrapper;
   template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
-            typename KernelTypeForProps, typename ElementType,
-            typename PropertiesT, typename... MergedProps>
+            typename ElementType, typename PropertiesT, typename... MergedProps>
   struct KernelWrapper<
-      WrapAsVal, KernelName, KernelType, KernelTypeForProps, ElementType,
-      PropertiesT,
+      WrapAsVal, KernelName, KernelType, ElementType, PropertiesT,
       ext::oneapi::experimental::detail::properties_t<MergedProps...>> {
     static void wrap(handler *h, const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1616,8 +1634,8 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
-    KernelWrapper<WrapAsVal, NameT, KernelType, KernelType, ElementType,
-                  PropertiesT>::wrap(this, KernelFunc);
+    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
+        this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1657,8 +1675,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     (void)Kernel;
-    KernelWrapper<WrapAsVal, NameT, KernelType, KernelType, ElementType,
-                  PropertiesT>::wrap(this, KernelFunc);
+    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
+        this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
