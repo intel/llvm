@@ -41,6 +41,13 @@ void sum<int>(int arg) {
   arg = 42;
 }
 
+template <>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
+void sum<int *>(int *arg) {
+  *arg = 42;
+}
+
 template <int, typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
@@ -115,6 +122,38 @@ template <typename T> void test_func_custom_type() {
   });
 }
 
+void test_accessor() {
+  sycl::queue Q;
+  constexpr size_t N = 4;
+  int data[N] = {0, 1, 2, 3};
+  kernel_bundle bundle =
+      get_kernel_bundle<bundle_state::executable>(Q.get_context());
+  kernel_id id = ext::oneapi::experimental::get_kernel_id<
+      sum1<3, sycl::accessor<int, 1>>>();
+  kernel Kernel = bundle.get_kernel(id);
+  sycl::buffer<int, 1> buf(data, sycl::range<1>(N));
+  Q.submit([&](handler &h) {
+    auto acc = buf.get_access<sycl::access::mode::write>(h);
+    h.set_args(acc);
+    h.parallel_for(nd_range{{1}, {1}}, Kernel);
+  });
+}
+
+void test_shared() {
+  sycl::queue Q;
+  int *data = sycl::malloc_shared<int>(4, Q);
+
+  kernel_bundle bundle =
+      get_kernel_bundle<bundle_state::executable>(Q.get_context());
+  kernel_id id = ext::oneapi::experimental::get_kernel_id<sum<int *>>();
+  kernel Kernel = bundle.get_kernel(id);
+  Q.submit([&](handler &h) {
+    h.set_args(data);
+    h.parallel_for(nd_range{{1}, {1}}, Kernel);
+  });
+  sycl::free(data, Q);
+}
+
 int main() {
   test_func<sum<int>, int>();
   test_func<sum<float>, float>();
@@ -126,5 +165,7 @@ int main() {
   test_func<F<uint32_t>, uint32_t>();
   test_func<variadic_templated<double>, int>();
   test_func<sum1<3, float>, float>();
+  test_accessor();
+  test_shared();
   return 0;
 }
