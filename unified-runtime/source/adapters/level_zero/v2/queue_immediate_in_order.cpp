@@ -36,7 +36,9 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
               hDevice->ZeDevice,
               {true, ordinal, true /* always enable copy offload */},
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)),
-      flags(flags) {}
+      flags(flags) {
+  ur::level_zero::urContextRetain(hContext);
+}
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
@@ -46,7 +48,9 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
       eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)),
       commandListManager(hContext, hDevice, std::move(commandListHandle)),
-      flags(flags) {}
+      flags(flags) {
+  ur::level_zero::urContextRetain(hContext);
+}
 
 ur_result_t
 ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
@@ -122,6 +126,7 @@ ur_result_t ur_queue_immediate_in_order_t::queueFlush() {
 ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
   try {
     UR_CALL_THROWS(queueFinish());
+    ur::level_zero::urContextRelease(hContext);
   } catch (...) {
     // Ignore errors during destruction
   }
