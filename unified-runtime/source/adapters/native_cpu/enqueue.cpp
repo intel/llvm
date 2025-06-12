@@ -709,8 +709,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
                       pArgs[argIndex].size);
       break;
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-      hKernel->addArg(const_cast<void *>(pArgs[argIndex].arg.pointer),
-                      pArgs[argIndex].index, pArgs[argIndex].size);
+      hKernel->addPtrArg(const_cast<void *>(pArgs[argIndex].arg.pointer),
+                         pArgs[argIndex].index);
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
       auto MemObj = pArgs[argIndex].arg.memObjTuple.hMem;
@@ -718,11 +718,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
         hKernel->addArgReference(MemObj);
       }
 
-      hKernel->addPtrArg(MemObj ? MemObj->_mem : nullptr, argIndex);
+      hKernel->addPtrArg(MemObj ? MemObj->_mem : nullptr,
+                         pArgs[argIndex].index);
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-      hKernel->addPtrArg(nullptr, argIndex);
+      hKernel->addPtrArg(nullptr, pArgs[argIndex].index);
       hKernel->_localArgInfo.emplace_back(pArgs[argIndex].index,
                                           pArgs[argIndex].size);
       break;

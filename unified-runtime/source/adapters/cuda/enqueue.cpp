@@ -629,41 +629,44 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     const ur_kernel_launch_property_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  for (uint32_t i = 0; i < numArgs; i++) {
-    switch (pArgs[i].type) {
-    case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
-      hKernel->setKernelLocalArg(pArgs[i].index, pArgs[i].size);
-      break;
+  try {
+    for (uint32_t i = 0; i < numArgs; i++) {
+      switch (pArgs[i].type) {
+      case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
+        hKernel->setKernelLocalArg(pArgs[i].index, pArgs[i].size);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
+        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
+                              pArgs[i].arg.pointer);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
+        // setKernelArg is expecting a pointer to our argument
+        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
+                              &pArgs[i].arg.pointer);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+        ur_kernel_arg_mem_obj_properties_t Props = {
+            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+            pArgs[i].arg.memObjTuple.flags};
+        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
+                                     pArgs[i].arg.memObjTuple.hMem));
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+        uint32_t SamplerProps = pArgs[i].arg.sampler->Props;
+        hKernel->setKernelArg(pArgs[i].index, sizeof(uint32_t),
+                              (void *)&SamplerProps);
+        break;
+      }
+      default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
     }
-    case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
-      hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                            pArgs[i].arg.pointer);
-      break;
-    }
-    case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
-      // setKernelArg is expecting a pointer to our argument
-      hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                            &pArgs[i].arg.pointer);
-      break;
-    }
-    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-      // TODO: image support
-      auto ArgMem = pArgs[i].arg.memObjTuple.hMem;
-      auto Device = hKernel->getProgram()->getDevice();
-      CUdeviceptr CuPtr = std::get<BufferMem>(ArgMem->Mem).getPtr(Device);
-      hKernel->setKernelArg(pArgs[i].index, sizeof(CUdeviceptr),
-                            (void *)&CuPtr);
-      break;
-    }
-    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-      uint32_t SamplerProps = pArgs[i].arg.sampler->Props;
-      hKernel->setKernelArg(pArgs[i].index, sizeof(uint32_t),
-                            (void *)&SamplerProps);
-      break;
-    }
-    default:
-      return UR_RESULT_ERROR_INVALID_ENUMERATION;
-    }
+  } catch (ur_result_t Err) {
+    return Err;
   }
   // Normalize so each dimension has at least one work item
   const std::array<size_t, 3> GlobalWorkSize3D = {
