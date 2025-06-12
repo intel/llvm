@@ -7057,7 +7057,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;
     Policy.EnforceScopeForElaboratedTypes = true;
-
+    Policy.UseFullyQualifiedEnumerators = true;
+    
     // Now we need to print the declaration of the kernel itself.
     // Example:
     // template <typename T, typename = int> struct Arg {
@@ -7086,8 +7087,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.EnforceDefaultTemplateArgs = true;
     FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
-      FTD->print(O, Policy);
-      O << ";\n";
+      FFPrinter.printFreeFunctionDeclaration(FTD, S);
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
