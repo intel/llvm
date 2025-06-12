@@ -150,6 +150,7 @@ jobs:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
+      build_artifact_suffix: default
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
       build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
       build_target: all
@@ -163,9 +164,11 @@ jobs:
     if: github.repository == 'intel/llvm'
     with:
       retention-days: 7
-      artifact_archive_name: sprod_windows_debug.tar.gz
+      artifact_archive_name: sycl_windows_debug.tar.gz
+      build_artifact_suffix: debug
       build_configure_extra_args: -t Debug -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -D_DEBUG=1
       # CMAKE_BUILD_TYPE=Debug provides /Od and /MDd
+      pack_abi_symbols: false
 
   e2e-win:
     needs: build-win
