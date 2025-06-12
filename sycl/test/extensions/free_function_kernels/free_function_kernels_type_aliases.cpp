@@ -7,11 +7,15 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 
 struct TestStruct {};
 using StructAlias = TestStruct;
+typedef TestStruct StructAliasTypedef;
 
 class TestClass {};
 using ClassAlias = TestClass;
+typedef TestClass ClassAliasTypedef;
 namespace ns1 {
 using WriteOnlyAcc = sycl::accessor<int, 1, sycl::access::mode::write>;
+typedef sycl::accessor<int, 1, sycl::access::mode::write>
+    WriteOnlyAccAliasTypedef;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskKernelStruct(StructAlias Type) {}
@@ -20,6 +24,12 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
 void ndRangeKernelStruct(StructAlias Type) {}
 
 namespace ns2 {
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
+void singleTaskKernelStructAliasTypedef(StructAliasTypedef Type) {}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
+void ndRangeKernelStructAliasTypedef(StructAliasTypedef Type) {}
 
 template <typename A, typename B, typename C, typename D> struct TestStructY {};
 
@@ -34,6 +44,12 @@ void ndRangeKernelClass(ClassAlias Type) {}
 
 namespace ns3 {
 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
+void singleTaskKernelClassAliasTypedef(ClassAliasTypedef Type) {}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
+void ndRangeKernelClassAliasTypedef(ClassAliasTypedef Type) {}
+
 using LocalAcc = sycl::local_accessor<int, 1>;
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskWriteOnlyAcc(WriteOnlyAcc Type) {}
@@ -44,6 +60,14 @@ void ndRangeKernelWriteOnlyAcc(WriteOnlyAcc Type) {}
 namespace ns4 {
 template <typename A, typename B, typename C> struct TestStructX {};
 using AliasTypeX = TestStructX<int, float, int>;
+;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
+void singleTaskWriteOnlyAccAliasTypedef(WriteOnlyAccAliasTypedef Type) {}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
+void ndRangeKernelWriteOnlyAccAliasTypedef(WriteOnlyAccAliasTypedef Type) {}
+
 } // namespace ns4
 } // namespace ns3
 } // namespace ns2
@@ -51,6 +75,8 @@ using AliasTypeX = TestStructX<int, float, int>;
 
 namespace ns5 {
 using ReadOnlyAcc = sycl::accessor<float, 1, sycl::access::mode::read>;
+typedef sycl::accessor<float, 1, sycl::access::mode::read>
+    ReadOnlyAccAliasTypedef;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskReadOnlyAcc(ReadOnlyAcc Type) {}
@@ -59,6 +85,12 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
 void ndRangeKernelReadOnlyAcc(ReadOnlyAcc Type) {}
 
 } // namespace ns5
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
+void singleTaskReadOnlyAccAliasTypedef(ns5::ReadOnlyAccAliasTypedef Type) {}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<1>)
+void ndRangeKernelReadOnlyAccAliasTypedef(ns5::ReadOnlyAccAliasTypedef Type) {}
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskLocalAcc(ns1::ns2::ns3::LocalAcc Type) {}
@@ -113,6 +145,14 @@ int main() {
   runSingleTaskTest<singleTaskTemplatedType>(ns1::ns2::ns3::ns4::AliasTypeX());
   runSingleTaskTest<singleTaskTemplatedTypeAliasTemplatedType>(
       ns1::ns2::AliasTypeY<int, int>());
+  runSingleTaskTest<ns1::ns2::singleTaskKernelStructAliasTypedef>(
+      StructAliasTypedef());
+  runSingleTaskTest<ns1::ns2::ns3::singleTaskKernelClassAliasTypedef>(
+      ClassAliasTypedef());
+  runSingleTaskTest<ns1::ns2::ns3::ns4::singleTaskWriteOnlyAccAliasTypedef>(
+      ns1::WriteOnlyAccAliasTypedef());
+  runSingleTaskTest<singleTaskReadOnlyAccAliasTypedef>(
+      ns5::ReadOnlyAccAliasTypedef());
 
   runNdRangeCheck<ns1::ndRangeKernelStruct>(StructAlias());
   runNdRangeCheck<ns1::ns2::singleTaskKernelClass>(ClassAlias());
@@ -123,6 +163,15 @@ int main() {
   runNdRangeCheck<ndRangeKernelTemplatedType>(ns1::ns2::ns3::ns4::AliasTypeX());
   runNdRangeCheck<ndRangeKernelTemplatedTypeAliasTemplatedType>(
       ns1::ns2::AliasTypeY<float, float>());
+
+  runNdRangeCheck<ns1::ns2::ndRangeKernelStructAliasTypedef>(
+      StructAliasTypedef());
+  runNdRangeCheck<ns1::ns2::ns3::ndRangeKernelClassAliasTypedef>(
+      ClassAliasTypedef());
+  runNdRangeCheck<ns1::ns2::ns3::ns4::ndRangeKernelWriteOnlyAccAliasTypedef>(
+      ns1::WriteOnlyAccAliasTypedef());
+  runNdRangeCheck<ndRangeKernelReadOnlyAccAliasTypedef>(
+      ns5::ReadOnlyAccAliasTypedef());
 
   return 0;
 }
