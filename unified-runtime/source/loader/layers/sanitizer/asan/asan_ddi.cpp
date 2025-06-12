@@ -516,6 +516,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
                         pLocalWorkSize, pGlobalWorkOffset, workDim);
+  // When the kernel is filtered, it's still possible that LaunchInfo is used in
+  // kernel code, so the "syncToDevice" here will give it the default value.
+  UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
 
   UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
