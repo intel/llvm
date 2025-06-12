@@ -64,7 +64,7 @@ def do_configure(args, passthrough_args):
 
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
-    llvm_enable_zstd = "ON"
+    llvm_enable_zstd = "OFF"
     spirv_enable_dis = "OFF"
     sycl_install_device_config_file = "OFF"
 
