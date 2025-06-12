@@ -135,15 +135,15 @@ public:
   static ProgramManager &getInstance();
 
   RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
-                                      const ContextImplPtr &ContextImpl,
+                                      context_impl &ContextImpl,
                                       const device_impl *DeviceImpl);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const ContextImplPtr &ContextImpl, const device_impl *DeviceImpl);
+      context_impl &ContextImpl, const device_impl *DeviceImpl);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
-                                      const ContextImplPtr &ContextImpl,
+                                      context_impl &ContextImpl,
                                       const std::vector<device> &Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
@@ -167,7 +167,7 @@ public:
   std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      const ContextImplPtr &ContextImpl, const std::vector<device> &Devices,
+      context_impl &ContextImpl, const std::vector<device> &Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
@@ -176,7 +176,7 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  ur_program_handle_t getBuiltURProgram(const ContextImplPtr &ContextImpl,
+  ur_program_handle_t getBuiltURProgram(context_impl &ContextImpl,
                                         device_impl &DeviceImpl,
                                         KernelNameStrRefT KernelName,
                                         const NDRDescT &NDRDesc = {});
@@ -193,13 +193,12 @@ public:
   /// the program should be built with.
   ur_program_handle_t
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
-                    const ContextImplPtr &ContextImpl,
-                    const std::vector<device> &Devs,
+                    context_impl &ContextImpl, const std::vector<device> &Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
   FastKernelCacheValPtr
-  getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
+  getOrCreateKernel(context_impl &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
                     KernelNameBasedCacheT *KernelNameBasedCachePtr,
                     const NDRDescT &NDRDesc = {});
@@ -214,7 +213,7 @@ public:
       const std::vector<unsigned char> &SpecializationConsts);
 
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
-                                               const ContextImplPtr &Context);
+                                               context_impl &Context);
 
   void addImage(sycl_device_binary RawImg, bool RegisterImgExports = true,
                 RTDeviceBinaryImage **OutImage = nullptr,
@@ -223,7 +222,7 @@ public:
   void removeImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
-                                        const ContextImplPtr &Context);
+                                        context_impl &Context);
 
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
@@ -400,7 +399,7 @@ private:
 
   using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
                                      decltype(&::urProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr &Context,
+  ProgramPtr build(ProgramPtr Program, context_impl &Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions,
                    std::vector<ur_device_handle_t> &Devices,

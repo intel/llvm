@@ -302,7 +302,7 @@ protected:
   std::unique_ptr<char[], std::function<void(void *)>> Data;
 };
 
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
 // Compressed device binary image. Decompression happens when the image is
 // actually used to build a program.
 // Also, frees the decompressed data in destructor.
@@ -329,7 +329,7 @@ private:
   std::unique_ptr<char[]> m_DecompressedData;
   size_t m_ImageSize;
 };
-#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
+#endif // SYCL_RT_ZSTD_AVAILABLE
 
 } // namespace detail
 } // namespace _V1

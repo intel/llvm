@@ -758,7 +758,7 @@ public:
     if (!FetchedFromCache)
       UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr);
 
-    std::string XsFlags = extractXsFlags(BuildOptions);
+    std::string XsFlags = extractXsFlags(BuildOptions, MRTCBinInfo->MLanguage);
     auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
         UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -861,15 +861,20 @@ private:
   }
 
   static std::string
-  extractXsFlags(const std::vector<sycl::detail::string_view> &BuildOptions) {
+  extractXsFlags(const std::vector<sycl::detail::string_view> &BuildOptions,
+                 syclex::source_language lang) {
     std::stringstream SS;
     for (sycl::detail::string_view Option : BuildOptions) {
-      std::string_view OptionSV{Option};
-      auto Where = OptionSV.find("-Xs");
-      if (Where != std::string_view::npos) {
-        Where += 3;
-        std::string_view Flags = OptionSV.substr(Where);
-        SS << trimXsFlags(Flags) << " ";
+      if (lang == syclex::source_language::sycl) {
+        std::string_view OptionSV{Option};
+        auto Where = OptionSV.find("-Xs");
+        if (Where != std::string_view::npos) {
+          Where += 3;
+          std::string_view Flags = OptionSV.substr(Where);
+          SS << trimXsFlags(Flags) << " ";
+        }
+      } else {
+        SS << std::string_view{Option} << " ";
       }
     }
     return SS.str();

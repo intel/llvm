@@ -675,7 +675,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   }
 }
 
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
 CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
     : RTDeviceBinaryImage(new sycl_device_binary_struct(*CompressedBin)) {
@@ -708,7 +708,7 @@ CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {
   delete Bin;
   Bin = nullptr;
 }
-#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
+#endif // SYCL_RT_ZSTD_AVAILABLE
 
 } // namespace detail
 } // namespace _V1
